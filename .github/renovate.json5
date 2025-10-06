@@ -1,0 +1,78 @@
+{
+  extends: ["config:recommended", ":preserveSemverRanges"],
+  labels: ["dependencies"],
+  groupName: "all",
+  separateMajorMinor: false,
+  packageRules: [
+    {
+      matchCategories: ["python"],
+      enabled: false,
+    },
+    {
+      matchPackageNames: ["node"],
+      enabled: false,
+    },
+    {
+      matchPackageNames: [
+        "semantic-release",
+        "@headlessui/react",
+        "@floating-ui/react",
+        "@floating-ui/core",
+        "github.com/blevesearch/bleve",
+        "openjdk",
+        "python",
+        "postgres",
+        "github.com/cockroachdb/pebble",
+        "@storybook/*",
+        "storybook",
+        "@mui/material",
+        "lucide-react",
+        "@types/react",
+        "@types/react-dom",
+        "react",
+        "react-dom",
+        "@graphiql/react",
+        "graphiql"
+      ],
+      enabled: false,
+    },
+    {
+      enabled: false,
+      matchPackageNames: ["/prettier.*/"],
+    },
+    {
+      allowedVersions: "< 2.0.0",
+      matchPackageNames: ["/web3.*/"],
+    },
+    {
+      matchPackageNames: ["node-fetch"],
+      allowedVersions: "< 3.0.0",
+    },
+    {
+      matchPackageNames: ["github.com/prometheus/prometheus"],
+      allowedVersions: "< 1.0.0",
+    },
+    {
+      matchPackageNames: ["vitess.io/vitess"],
+      allowedVersions: "< 1.0.0",
+    },
+    {
+      matchPackageNames: ["k8s.io/client-go"],
+      allowedVersions: "< 1.0.0",
+    },
+    {
+      matchPackageNames: ["gopkg.in/yaml.v2"],
+      allowedVersions: "< 3.0.0",
+    },
+    {
+      matchPackageNames: ["github.com/gagliardetto/solana-go"],
+      allowedVersions: "< 1.7.0",
+    },
+    {
+      matchPackageNames: ["com.google.cloud.bigdataoss:gcs-connector"],
+      allowedVersions: "< 1.0.0",
+    },
+  ],
+  timezone: "America/Los_Angeles",
+  schedule: ["after 9pm on sunday"],
+}

@@ -1,0 +1,45 @@
+startup --max_idle_secs=0
+
+build --verbose_failures
+build --incompatible_enable_cc_toolchain_resolution
+build --java_runtime_version=remotejdk_11 --tool_java_runtime_version=remotejdk_11
+build --disk_cache=~/.cache/bazel-disk
+build --experimental_disk_cache_gc_max_size=50G
+build --action_env=PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+build --nobuild_tests_only
+build --show_result=50
+build --incompatible_default_to_explicit_init_py
+
+# This will force test to be execute sequentially, but it's fine locally
+test --test_output=streamed
+
+build --workspace_status_command=$(pwd)/workspace_status.sh
+
+build --build_metadata=VISIBILITY=PUBLIC
+
+run:prod --ui_event_filters=-info,-stdout,-stderr --noshow_progress
+
+build:ci --build_metadata=ROLE=CI
+build:ci --experimental_disk_cache_gc_idle_delay=3s
+build:ci --show_loading_progress=no
+build:ci --curses=no --color=yes
+build:ci --platforms=//:linux_amd64
+test:ci --test_output=all
+
+build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17
+
+common --@aspect_rules_ts//ts:skipLibCheck=honor_tsconfig --@aspect_rules_ts//ts:default_to_tsc_transpiler
+
+# for gazelle extension
+common --experimental_isolated_extension_usages
+
+# toolchains_protoc
+common --incompatible_enable_proto_toolchain_resolution
+# Ensure that we don't accidentally build protobuf or gRPC
+common --per_file_copt=external/.*protobuf.*@--PROTOBUF_WAS_NOT_SUPPOSED_TO_BE_BUILT
+common --host_per_file_copt=external/.*protobuf.*@--PROTOBUF_WAS_NOT_SUPPOSED_TO_BE_BUILT
+common --per_file_copt=external/.*grpc.*@--GRPC_WAS_NOT_SUPPOSED_TO_BE_BUILT
+common --host_per_file_copt=external/.*grpc.*@--GRPC_WAS_NOT_SUPPOSED_TO_BE_BUILT
+
+# Load other personal settings
+try-import %workspace%/.bazelrc.local

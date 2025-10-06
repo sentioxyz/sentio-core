@@ -1,0 +1,9 @@
+set -e
+
+bazel run @pnpm//:pnpm -- -C $PWD i --ignore-scripts
+
+echo "Running pre-commit filename check"
+bazel run @pnpm//:pnpm -- -C $PWD exec ls-lint
+
+echo "Running pre-commit code formatter"
+bazel run @pnpm//:pnpm -- -C $PWD exec lint-staged --allow-empty

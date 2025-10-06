@@ -1,0 +1,9 @@
+bazel-*
+node_modules
+.*
+dist
+gen
+types
+deploy
+out
+pnpm-lock.yaml

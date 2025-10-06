@@ -1,0 +1,6 @@
+set -e
+
+bazel run @pnpm//:pnpm -- -C $PWD i --ignore-scripts
+
+echo "Running pre-push other linters"
+bazel run @pnpm//:pnpm -- -C $PWD "--filter=*" run --parallel lint

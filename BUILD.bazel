@@ -1,0 +1,75 @@
+load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
+load("@gazelle//:def.bzl", "gazelle")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+# load("@npm//:next/package_json.bzl", next_bin = "bin")
+
+load("@rules_go//go:def.bzl", "TOOLS_NOGO", "nogo")
+load("@rules_multirun//:defs.bzl", "multirun")
+load("@rules_uv//uv:pip.bzl", "pip_compile")
+
+nogo(
+    name = "my_nogo",
+    config = ":nogo-config.json",
+    visibility = ["//visibility:public"],
+    deps = TOOLS_NOGO,
+)
+
+gazelle(
+    name = "gazelle",
+)
+
+npm_link_all_packages(name = "node_modules")
+
+# next_bin.next_binary(
+#     name = "next_js_binary",
+#     visibility = ["//visibility:public"],
+# )
+
+platform(
+    name = "linux_amd64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+#platform(
+#    name = "linux_arm64",
+#    constraint_values = [
+#        "@platforms//os:linux",
+#        "@platforms//cpu:arm64",
+#    ],
+#    visibility = ["//visibility:public"],
+#)
+
+expand_template(
+    name = "stamped",
+    out = "_stamped.tags.txt",
+    stamp_substitutions = {"dev": "{{VERSION}}"},
+    template = ["dev"],
+    visibility = ["//visibility:public"],
+)
+
+pip_compile(
+    name = "generate_requirements_linux_txt",
+    python_platform = "x86_64-unknown-linux-gnu",
+    requirements_txt = "requirements_linux.txt",
+)
+
+pip_compile(
+    name = "generate_requirements_macos_txt",
+    python_platform = "aarch64-apple-darwin",
+    requirements_txt = "requirements_macos.txt",
+)
+
+multirun(
+    name = "generate_requirements_lock",
+    commands = [
+        ":generate_requirements_linux_txt",
+        ":generate_requirements_macos_txt",
+    ],
+    # Running in a single threaded mode allows consecutive `uv` invocations to benefit
+    # from the `uv` cache from the first run.
+    jobs = 1,
+)

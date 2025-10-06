@@ -1,0 +1,35 @@
+load("@aspect_rules_js//js:defs.bzl", "js_run_binary")
+load("@npm//:@sentio/ts-proto/package_json.bzl", "bin")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@rules_proto_grpc//:defs.bzl", "proto_plugin")
+
+bin.protoc_gen_ts_proto_binary(
+    name = "ts_proto_bin",
+    visibility = ["//visibility:public"],
+)
+
+proto_plugin(
+    name = "ts-proto-plugin",
+    env = {
+        "BAZEL_BINDIR": "{bindir}",
+    },
+    outputs = ["{protopath}.ts"],
+    tool = ":ts_proto_bin",
+    use_built_in_shell_environment = False,
+    visibility = ["//visibility:public"],
+)
+
+# https://github.com/grpc-ecosystem/protoc-gen-grpc-gateway-ts
+proto_plugin(
+    name = "ts-grpcgateway-plugin",
+    options = [
+        "enable_styling_check=false,loglevel=debug,logtostderr=false",
+    ],
+    outputs = [
+        "{protopath}.pb.ts",
+        #        "/../fetch.pb.ts",
+    ],
+    #    tool = ":ts_proto_bin",
+    tool = "@com_github_grpc_ecosystem_protoc_gen_grpc_gateway_ts//:protoc-gen-grpc-gateway-ts",
+    visibility = ["//visibility:public"],
+)

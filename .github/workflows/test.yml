@@ -1,0 +1,30 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: [self-hosted]
+    timeout-minutes: 60
+    if: ${{ github.actor != 'renovate[bot]' }}
+    steps:
+      - run: |
+          echo "${{ github.actor }} : ${{ github.ref }}"
+      - name: 'Checkout Repo'
+        uses: actions/checkout@v5
+      - name: 'Set up Python'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: bazelbuild/setup-bazelisk@v3
+      - name: Clean app source cache
+        run:  ./scripts/clean-bazel-bin-stale-files.sh
+      - name: Build & Test All
+        run: bazel test --config=ci //...

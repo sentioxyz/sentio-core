@@ -1,0 +1,17 @@
+name: CI-Clean
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: [self-hosted]
+    timeout-minutes: 90
+    steps:
+      - name: 'Checkout Repo'
+        uses: actions/checkout@v5
+      - uses: bazelbuild/setup-bazelisk@v3
+      - run: bazel clean --expunge

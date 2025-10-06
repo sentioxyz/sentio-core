@@ -1,0 +1,3 @@
+set -e
+
+./scripts/clean-bazel-bin-stale-files.sh

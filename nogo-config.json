@@ -1,0 +1,26 @@
+{
+  "_base": {
+    "exclude_files": {
+      "external/": "third_party",
+      ".*.pb.go": "generated protobuf",
+      ".*.pb.gw.go": "generated grpc protobuf",
+      ".*rules_go_work.*": "rules go"
+    }
+  },
+  "printf": {
+    "analyzer_flags": {
+      "funcs": "(*go.uber.org/zap.SugaredLogger).Debugf,(*go.uber.org/zap.SugaredLogger).Infof,(*go.uber.org/zap.SugaredLogger).Warnf,(*go.uber.org/zap.SugaredLogger).Errorf,(*go.uber.org/zap.SugaredLogger).Fatalf"
+    }
+  },
+  "pkgfact": {
+    "exclude_files": {
+      ".*": "just not useful",
+      "external/.*": ""
+    }
+  },
+  "shadow": {
+    "exclude_files": {
+      ".*": "just not useful"
+    }
+  }
+}

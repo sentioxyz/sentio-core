@@ -27,9 +27,16 @@ func getLen(msg string, args ...interface{}) int {
 }
 
 func TestLogging(t *testing.T) {
+	// *LogFormat = "json"
 	BindFlag()
 	err := bar()
 	Errore(err, "show error")
+	// Error("show error with detail: ", withDetail(err))
+	// With(zap.String("stacktrace", withDetail(err))).Error("
+	// error3")
+	// globalRaw.With(zap.Error(err)).Error("error4")
+	// WithError(err).Error("error5")
+	// globalRaw.Error()
 
 	assert.Equal(t, getLen("hello", "1", "2"), 3)
 }
@@ -38,7 +45,7 @@ func TestLogging2(t *testing.T) {
 	_, logger := FromContext(context.Background())
 
 	fn1 := func() {
-		logger.Infof("good")
+		logger.Infof("good") // caller is here
 	}
 	fn2 := func() {
 		logger.AddCallerSkip(1).Infof("good")
@@ -46,7 +53,7 @@ func TestLogging2(t *testing.T) {
 
 	main := func() {
 		fn1()
-		fn2()
+		fn2() // caller is here
 	}
 
 	main()

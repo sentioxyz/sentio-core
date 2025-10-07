@@ -3,19 +3,19 @@ package monitoring
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
-	"time"
+	"strconv"
+	"strings"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	meter "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -26,179 +26,205 @@ import (
 
 var traceDebug = flag.Bool("trace-debug", false, "Whether to debug trace function itself")
 
-type Config struct {
-	ServiceName         string
-	CollectorURL        string
-	EnableStdoutTrace   bool
-	EnableStdoutMetrics bool
-}
+var metricExporter metric.Exporter
+var spanProcessor sdktrace.SpanProcessor
 
-func InitTraceProvider(config Config) (*sdktrace.TracerProvider, error) {
-	ctx := context.Background()
+func StartMonitoring() {
+	log.BuildMetadata()
 
-	res, err := resource.New(ctx,
-		resource.WithAttributes(
-			attribute.String("service.name", config.ServiceName),
-			attribute.String("service.version", version.Version),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if !version.IsProduction() && !*traceDebug {
+		// no product mode and not debug tracing
+		return
+	}
+	if version.IsProduction() && endpoint == "" {
+		// in product mode but no specify endpoint
+		return
 	}
 
-	if config.EnableStdoutTrace {
-		exporter, err := stdouttrace.New(
-			stdouttrace.WithPrettyPrint(),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create stdout trace exporter: %w", err)
-		}
+	ctx := context.Background()
 
-		tp := sdktrace.NewTracerProvider(
-			sdktrace.WithBatcher(exporter),
+	if *traceDebug {
+		traceStdoutExporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+		if err != nil {
+			log.Fatale(err)
+		}
+		spanProcessor = sdktrace.NewSimpleSpanProcessor(traceStdoutExporter)
+
+		// TODO pretty
+		metricStdoutExporter, err := stdoutmetric.New()
+		if err != nil {
+			log.Fatale(err)
+		}
+		metricExporter = metricStdoutExporter
+	} else {
+		traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithInsecure())
+		if err != nil {
+			log.Fatale(err)
+		}
+		filteredTraceExporter := &filteredSpanExporter{
+			traceExporter,
+		}
+		spanProcessor = sdktrace.NewBatchSpanProcessor(filteredTraceExporter)
+
+		metricExporter, err = otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithInsecure())
+
+		if err != nil {
+			log.Fatale(err)
+		}
+	}
+
+	res := resource.Default()
+
+	log.Info(res.String())
+
+	rateStr := os.Getenv("TRACE_SAMPLE_RATE")
+	sampleRate := 0.0
+	if rateStr != "" {
+		if s, err := strconv.ParseFloat(rateStr, 64); err == nil {
+			sampleRate = s
+		}
+	}
+	if *traceDebug {
+		sampleRate = 1.0
+	}
+	log.Info("Trace Sample Rate: ", sampleRate)
+
+	rootSampler := &sentioSampler{
+		sampler:            sdktrace.TraceIDRatioBased(sampleRate),
+		lowPrioritySampler: sdktrace.TraceIDRatioBased(sampleRate / 5.0),
+	}
+	sampler := sdktrace.ParentBased(rootSampler)
+
+	tp := &overrideTracerProvider{
+		*sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sampler),
+			sdktrace.WithSpanProcessor(spanProcessor),
 			sdktrace.WithResource(res),
-		)
-
-		otel.SetTracerProvider(tp)
-		otel.SetTextMapPropagator(propagation.TraceContext{})
-
-		return tp, nil
-	}
-
-	if config.CollectorURL == "" {
-		log.Info("No collector URL provided, skip trace provider initialization")
-		return nil, nil
-	}
-
-	traceExporter, err := otlptrace.New(
-		ctx,
-		otlptracegrpc.NewClient(
-			otlptracegrpc.WithEndpoint(config.CollectorURL),
-			otlptracegrpc.WithInsecure(),
 		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
 	}
-
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(traceExporter),
-		sdktrace.WithResource(res),
-	)
-
 	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.TraceContext{})
-
-	if *traceDebug {
-		log.Infof("Trace provider initialized with collector URL: %s", config.CollectorURL)
-	}
-
-	return tp, nil
-}
-
-func InitMeterProvider(config Config) (*sdkmetric.MeterProvider, error) {
-	ctx := context.Background()
-
-	res, err := resource.New(ctx,
-		resource.WithAttributes(
-			attribute.String("service.name", config.ServiceName),
-			attribute.String("service.version", version.Version),
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
 		),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
+
+	//metrics.
+	//pusher = controller.New(
+	//	processor.NewFactory(
+	//		simple.NewWithHistogramDistribution(),
+	//		metricExporter,
+	//	),
+	//	controller.WithResource(res),
+	//	controller.WithExporter(metricExporter),
+	//	//controller.WithCollectPeriod(5*time.Second),
+	//)
+	//err := pusher.Start(ctx)
+	exporter := metric.NewPeriodicReader(metricExporter)
+
+	provider := &overrideMeterProvider{
+		metric.NewMeterProvider(
+			metric.WithReader(exporter),
+			metric.WithResource(res),
+		),
 	}
 
-	if config.EnableStdoutMetrics {
-		exporter, err := stdoutmetric.New()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create stdout metric exporter: %w", err)
-		}
-
-		mp := sdkmetric.NewMeterProvider(
-			sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter)),
-			sdkmetric.WithResource(res),
-		)
-
-		otel.SetMeterProvider(mp)
-		return mp, nil
-	}
-
-	if config.CollectorURL == "" {
-		log.Info("No collector URL provided, skip meter provider initialization")
-		return nil, nil
-	}
-
-	metricExporter, err := otlpmetricgrpc.New(
-		ctx,
-		otlpmetricgrpc.WithEndpoint(config.CollectorURL),
-		otlpmetricgrpc.WithInsecure(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric exporter: %w", err)
-	}
-
-	mp := sdkmetric.NewMeterProvider(
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter)),
-		sdkmetric.WithResource(res),
-	)
-
-	otel.SetMeterProvider(mp)
-
-	if *traceDebug {
-		log.Infof("Meter provider initialized with collector URL: %s", config.CollectorURL)
-	}
-
-	return mp, nil
+	otel.SetMeterProvider(provider)
 }
 
-func Shutdown(ctx context.Context, tp *sdktrace.TracerProvider, mp *sdkmetric.MeterProvider) error {
-	if tp != nil {
-		if err := tp.Shutdown(ctx); err != nil {
-			return fmt.Errorf("failed to shutdown trace provider: %w", err)
-		}
+func StopMonitoring() {
+	if spanProcessor != nil {
+		_ = spanProcessor.Shutdown(context.Background())
+	}
+	if metricExporter != nil {
+		_ = metricExporter.Shutdown(context.Background())
 	}
 
-	if mp != nil {
-		if err := mp.Shutdown(ctx); err != nil {
-			return fmt.Errorf("failed to shutdown meter provider: %w", err)
-		}
-	}
-
-	return nil
+	_ = log.Sync()
 }
 
-func GetTracer(name string) trace.Tracer {
-	return otel.Tracer(name)
+var remapper = map[string]string{
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc": "grpc",
+	"github.com/uptrace/opentelemetry-go-extra/otelgorm":                          "gorm",
+	"github.com/uptrace/opentelemetry-go-extra/otelsql":                           "sql",
+	"go.opentelemetry.io/otel/instrumentation/httptrace":                          "httptrace",
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp":               "http",
+	"github.com/redis/go-redis/extra/redisotel":                                   "redis",
 }
 
-func InitFromEnv(serviceName string) (*sdktrace.TracerProvider, *sdkmetric.MeterProvider, error) {
-	collectorURL := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+type overrideTracerProvider struct {
+	//embedded.TracerProvider
 
-	config := Config{
-		ServiceName:  serviceName,
-		CollectorURL: collectorURL,
+	sdktrace.TracerProvider
+}
+
+func (o *overrideTracerProvider) Tracer(instrumentationName string, opts ...trace.TracerOption) trace.Tracer {
+	if newName, ok := remapper[instrumentationName]; ok {
+		instrumentationName = newName
 	}
+	return o.TracerProvider.Tracer(instrumentationName, opts...)
+}
 
-	tp, err := InitTraceProvider(config)
-	if err != nil {
-		return nil, nil, err
+type overrideMeterProvider struct {
+	meter.MeterProvider
+}
+
+func (o *overrideMeterProvider) Meter(instrumentationName string, opts ...meter.MeterOption) meter.Meter {
+	if newName, ok := remapper[instrumentationName]; ok {
+		instrumentationName = newName
 	}
+	return o.MeterProvider.Meter(instrumentationName, opts...)
+}
 
-	mp, err := InitMeterProvider(config)
-	if err != nil {
-		if tp != nil {
-			_ = tp.Shutdown(context.Background())
+type sentioSampler struct {
+	sampler            sdktrace.Sampler
+	lowPrioritySampler sdktrace.Sampler
+	//ruleSamplers       map[string]sdktrace.Sampler
+}
+
+func (s *sentioSampler) ShouldSample(p sdktrace.SamplingParameters) sdktrace.SamplingResult {
+	if strings.HasPrefix(p.Name, "gorm") {
+		psc := trace.SpanContextFromContext(p.ParentContext)
+
+		return sdktrace.SamplingResult{
+			Decision:   sdktrace.Drop,
+			Tracestate: psc.TraceState(),
 		}
-		return nil, nil, err
+	} else if strings.HasPrefix(p.Name, "syncLoop#StartLoop") {
+		return s.lowPrioritySampler.ShouldSample(p)
 	}
 
-	if tp != nil || mp != nil {
-		go func() {
-			time.Sleep(30 * time.Second)
-			log.Info("OpenTelemetry initialized successfully")
-		}()
-	}
+	return s.sampler.ShouldSample(p)
+}
 
-	return tp, mp, nil
+func (s *sentioSampler) Description() string {
+	// todo list all samples
+	return s.sampler.Description() + "\n" + s.sampler.Description()
+}
+
+type filteredSpanExporter struct {
+	*otlptrace.Exporter
+}
+
+func (e *filteredSpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+	var filteredSpans []sdktrace.ReadOnlySpan
+	for _, span := range spans {
+		instrumentName := span.InstrumentationScope().Name
+		duration := span.EndTime().Sub(span.StartTime())
+
+		if instrumentName == "gorm" || instrumentName == "sql" {
+			if duration.Milliseconds() < 100 {
+				continue
+			}
+		} else if instrumentName == "redis" {
+			if duration.Milliseconds() < 10 {
+				continue
+			}
+		}
+
+		filteredSpans = append(filteredSpans, span)
+	}
+	return e.Exporter.ExportSpans(ctx, filteredSpans)
 }

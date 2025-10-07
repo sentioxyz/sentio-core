@@ -1,12 +1,13 @@
 package log
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
-	"log"
 	"os"
+	"strconv"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -15,172 +16,264 @@ import (
 )
 
 var (
-	LogFormat      = flag.String("log-format", "console", "Log format, support console or json")
-	LogLevel       = flag.String("log-level", "info", "Log level")
-	DisableCaller  = flag.Bool("log-disable-caller", false, "Disable caller in log")
-	DisableColor   = flag.Bool("log-disable-color", false, "Disable color in log")
-	LogFileEnabled = flag.Bool("log-file-enabled", true, "Whether to enable log file to be written to file system or not")
-	LogFilePath    = flag.String("log-file-path", "", "Log file path, if set to empty, logs won't be persisted to file")
-	LogFileMaxSizeMB = flag.Int("log-file-max-size", 100, "Log file max size in MB")
-	LogFileMaxAge = flag.Int("log-file-max-age", 30, "Log file max age in days")
-	LogFileMaxBackups = flag.Int("log-file-max-backups", 3, "Log file max backups")
+	LogFormat = flag.String("log-format", "", "either empty (choose automatic), console or json")
+	LogFile   = flag.String("log-file", "", "log file path")
 )
 
-var globalRaw *zap.Logger
-var global *SentioLogger
+var levelFlag = zap.LevelFlag("verbose", DefaultLevel(), "-1: debug, 0: info, 1: warning, 2: error")
 
-func BindFlag() {
-	production := version.IsProduction()
-	config := buildZapConfig(production)
+// GlobalLogConfig TODO This is just for chainserver to easily config, change change server framework
+var GlobalLogConfig *zap.Config = nil
 
-	var err error
-	globalRaw, err = config.Build(zap.AddCallerSkip(1))
-	if err != nil {
-		panic(err)
-	}
-	global = &SentioLogger{globalRaw.Sugar()}
-}
-
-func buildZapConfig(production bool) zap.Config {
-	var config zap.Config
-
-	if *LogFormat == "json" {
-		config = zap.NewProductionConfig()
-	} else {
-		config = zap.NewDevelopmentConfig()
-		if !*DisableColor {
-			config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+func DefaultLevel() zapcore.Level {
+	envLogLevel := os.Getenv("LOG_LEVEL")
+	if envLogLevel != "" {
+		level, err := zapcore.ParseLevel(envLogLevel)
+		if err == nil {
+			return level
 		}
 	}
+	return zap.InfoLevel
+}
 
-	config.DisableCaller = *DisableCaller
+func ManuallySetEncoder(encoder string) {
+	*LogFormat = encoder
+}
 
-	level := zap.NewAtomicLevel()
-	if err := level.UnmarshalText([]byte(*LogLevel)); err != nil {
-		log.Fatalf("Error parsing log level: %v", err)
+func ManuallySetLevel(level zapcore.Level) {
+	*levelFlag = level
+}
+
+func lumberJackWriter() zapcore.WriteSyncer {
+	lumberjackLogger := &lumberjack.Logger{
+		Filename:   *LogFile,
+		MaxSize:    1024,
+		MaxBackups: 10,
+		MaxAge:     14,
+		Compress:   true,
 	}
-	config.Level = level
+	return zapcore.NewMultiWriteSyncer(zapcore.AddSync(lumberjackLogger))
+}
 
-	if *LogFileEnabled && *LogFilePath != "" {
-		w := zapcore.AddSync(&lumberjack.Logger{
-			Filename:   *LogFilePath,
-			MaxSize:    *LogFileMaxSizeMB,
-			MaxAge:     *LogFileMaxAge,
-			MaxBackups: *LogFileMaxBackups,
-		})
-		core := zapcore.NewCore(
-			zapcore.NewJSONEncoder(config.EncoderConfig),
-			w,
-			config.Level,
-		)
-		config.OutputPaths = []string{"stdout"}
-		config.ErrorOutputPaths = []string{"stderr"}
+func zapDevelopmentConfig() zap.Config {
+	c := zap.NewDevelopmentConfig()
+	c.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	c.EncoderConfig.EncodeLevel = zapcore.LowercaseColorLevelEncoder
+	c.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	return c
+}
 
-		consoleCore := zapcore.NewCore(
-			zapcore.NewConsoleEncoder(config.EncoderConfig),
-			zapcore.AddSync(os.Stdout),
-			config.Level,
-		)
+func zapDevelopmentEncoder() zapcore.Encoder {
+	c := zapDevelopmentConfig()
+	return zapcore.NewJSONEncoder(c.EncoderConfig)
+}
 
-		multiCore := zapcore.NewTee(consoleCore, core)
-		globalRaw = zap.New(multiCore, zap.AddCaller(), zap.AddCallerSkip(1))
-		global = &SentioLogger{globalRaw.Sugar()}
-		return config
+func NewZapToFile() *zap.Logger {
+	core := zapcore.NewCore(zapDevelopmentEncoder(), lumberJackWriter(), zap.NewAtomicLevelAt(*levelFlag))
+	logger := zap.New(core, zap.AddCaller())
+	zap.ReplaceGlobals(logger)
+	return logger
+}
+
+func NewZap() *zap.Logger {
+	// if GlobalLogConfig == nil {
+	var c zap.Config
+	if *LogFormat == "json" || version.IsProduction() && *LogFormat == "" {
+		c = zap.NewProductionConfig()
+		c.EncoderConfig = zapcore.EncoderConfig{
+			TimeKey:        "timestamp",
+			LevelKey:       "level",
+			NameKey:        "logger",
+			CallerKey:      "caller",
+			MessageKey:     "message",
+			StacktraceKey:  "stacktrace",
+			LineEnding:     zapcore.DefaultLineEnding,
+			EncodeLevel:    zapcore.LowercaseLevelEncoder,
+			EncodeTime:     zapcore.RFC3339NanoTimeEncoder,
+			EncodeDuration: zapcore.SecondsDurationEncoder,
+			EncodeCaller:   zapcore.ShortCallerEncoder,
+		}
+
+		// c = zapdriver.NewProductionConfig()
+	} else {
+		c = zapDevelopmentConfig()
 	}
 
-	return config
+	// manual control level, only do stacktrace for error
+	c.DisableStacktrace = true
+	c.Level = zap.NewAtomicLevelAt(*levelFlag)
+	GlobalLogConfig = &c
+
+	zapLogger, _ := GlobalLogConfig.Build(zap.AddStacktrace(zap.ErrorLevel))
+	return zapLogger
 }
 
-func Init() {
-	BindFlag()
+func NewRaw() *zap.Logger {
+	if *LogFile != "" {
+		return NewZapToFile()
+	}
+	return NewZap()
 }
 
-func Debug(args ...interface{}) {
-	global.Debug(args...)
+func BuildMetadata() {
+	timestamp, err := strconv.ParseInt(version.BuildTimestamp, 10, 64)
+	var timeStr string
+	if err != nil {
+		timeStr = "No BuildTimestamp"
+	} else {
+		timeStr = time.Unix(timestamp, 0).String()
+	}
+
+	Infow("Build Metadata",
+		"Version", version.Version,
+		"CommitSha", version.CommitSha,
+		"BuildTime", timeStr,
+	)
 }
 
+// Format string dont use assignment ot make static analysis happier
 func Debugf(template string, args ...interface{}) {
 	global.Debugf(template, args...)
 }
 
-func Info(args ...interface{}) {
-	global.Info(args...)
+func Debug(msg string, args ...interface{}) {
+	global.Debug(msg, args...)
+}
+
+func Debuge(err error, args ...interface{}) {
+	global.Debuge(err, args...)
+}
+
+func Debugfe(err error, template string, args ...interface{}) {
+	global.Debugfe(err, template, args...)
+}
+
+func Debugw(msg string, keysAndValues ...interface{}) {
+	global.Debugw(msg, keysAndValues...)
 }
 
 func Infof(template string, args ...interface{}) {
 	global.Infof(template, args...)
 }
 
-func Warn(args ...interface{}) {
-	global.Warn(args...)
+func Info(msg string, args ...interface{}) {
+	global.Info(msg, args...)
+}
+
+func Infoe(err error, args ...interface{}) {
+	global.Infoe(err, args...)
+}
+
+func Infofe(err error, template string, args ...interface{}) {
+	global.Infofe(err, template, args...)
+}
+
+func Infow(msg string, keysAndValues ...interface{}) {
+	global.Infow(msg, keysAndValues...)
 }
 
 func Warnf(template string, args ...interface{}) {
 	global.Warnf(template, args...)
 }
 
-func Error(args ...interface{}) {
-	global.Error(args...)
+func Warn(msg string, args ...interface{}) {
+	global.Warn(msg, args...)
+}
+
+func Warne(err error, args ...interface{}) {
+	global.Warne(err, args...)
+}
+
+func Warnfe(err error, template string, args ...interface{}) {
+	global.Warnfe(err, template, args...)
+}
+
+func Warnw(msg string, keysAndValues ...interface{}) {
+	global.Warnw(msg, keysAndValues...)
+}
+
+func Errorfe(err error, template string, args ...interface{}) {
+	global.Errorfe(err, template, args...)
+}
+
+func Errore(err error, args ...interface{}) {
+	global.Errore(err, args...)
 }
 
 func Errorf(template string, args ...interface{}) {
 	global.Errorf(template, args...)
 }
 
-func Errore(err error, msg string) {
-	global.Errore(err, msg)
+func Error(msg string, args ...interface{}) {
+	global.Error(msg, args...)
 }
 
-func Fatal(args ...interface{}) {
-	global.Fatal(args...)
+func Errorw(msg string, keysAndValues ...interface{}) {
+	global.Errorw(msg, keysAndValues...)
 }
 
 func Fatalf(template string, args ...interface{}) {
 	global.Fatalf(template, args...)
 }
 
-func Panic(args ...interface{}) {
-	global.Panic(args...)
+func Fatal(msg string, args ...interface{}) {
+	global.Fatal(msg, args...)
 }
 
-func Panicf(template string, args ...interface{}) {
-	global.Panicf(template, args...)
+func Fatalfe(err error, template string, args ...interface{}) {
+	global.Fatalfe(err, template, args...)
 }
 
-func With(fields ...zap.Field) *SentioLogger {
-	return &SentioLogger{globalRaw.With(fields...).Sugar()}
+func Fatale(err error, args ...interface{}) {
+	global.Fatale(err, args...)
 }
 
-func GetRawLogger() *zap.Logger {
-	return globalRaw
+func Fatalw(msg string, keysAndValues ...interface{}) {
+	global.Fatalw(msg, keysAndValues...)
 }
 
-func GetLogger() *SentioLogger {
-	return global
+func With(args ...interface{}) *SentioLogger {
+	return fromSugar(globalRaw.Sugar().With(args...))
 }
 
-func withDetail(err error) string {
-	type stackTracer interface {
-		StackTrace() interface{}
-	}
+func UserVisible() *SentioLogger {
+	return fromSugar(globalRaw.Sugar()).UserVisible()
+}
 
-	var st interface{}
-	if err, ok := err.(stackTracer); ok {
-		st = err.StackTrace()
-	}
+var globalRaw *zap.Logger
+var global *SentioLogger
 
-	m := map[string]interface{}{
-		"error":      err.Error(),
-		"stacktrace": st,
-	}
-	data, _ := json.Marshal(m)
-	return string(data)
+func init() {
+	BindFlag()
+}
+
+func BindFlag() {
+	globalRaw = NewRaw()
+	global = fromRaw(globalRaw.WithOptions(zap.AddCallerSkip(1)))
+	// GlobalLogConfig.Level.SetLevel(*levelFlag)
 }
 
 func Sync() error {
+	// if global != nil {
+	//	global.Sync()
+	// }
 	if globalRaw != nil {
-		time.Sleep(time.Second)
-		return globalRaw.Sync()
+		globalRaw.Sync()
 	}
 	return nil
+}
+
+func WithContext(ctx context.Context) *SentioLogger {
+	return fromRaw(WithContextFromParent(ctx, globalRaw))
+}
+
+func WithContextFromParent(ctx context.Context, parent *zap.Logger) *zap.Logger {
+	spanCtx := trace.SpanContextFromContext(ctx)
+
+	if spanCtx.IsValid() && spanCtx.IsSampled() {
+		return parent.With(
+			zap.String("trace_id", spanCtx.TraceID().String()),
+			zap.String("span_id", spanCtx.SpanID().String()))
+	}
+	return parent
 }

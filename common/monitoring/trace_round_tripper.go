@@ -16,6 +16,7 @@ func spanFormat(operation string, r *http.Request) string {
 	return operation + " " + r.URL.Path
 }
 
+// IMPORTANT this also controls timeout of http requests (30s)
 func NewTraceRoundTripper() http.RoundTripper {
 	return NewWrappedTraceRoundTripper(http.DefaultTransport)
 }
@@ -26,6 +27,7 @@ func NewWrappedTraceRoundTripper(wrap http.RoundTripper) http.RoundTripper {
 			wrapped: wrap,
 		},
 		otelhttp.WithSpanNameFormatter(spanFormat),
+		// TODO see not sure why need the last one
 		otelhttp.WithTracerProvider(otel.GetTracerProvider()),
 	)
 }

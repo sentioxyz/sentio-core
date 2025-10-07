@@ -21,6 +21,7 @@ go_library(
         "@io_opentelemetry_go_otel_exporters_otlp_otlptrace_otlptracegrpc//:otlptracegrpc",
         "@io_opentelemetry_go_otel_exporters_stdout_stdoutmetric//:stdoutmetric",
         "@io_opentelemetry_go_otel_exporters_stdout_stdouttrace//:stdouttrace",
+        "@io_opentelemetry_go_otel_metric//:metric",
         "@io_opentelemetry_go_otel_sdk//resource",
         "@io_opentelemetry_go_otel_sdk//trace",
         "@io_opentelemetry_go_otel_sdk_metric//:metric",

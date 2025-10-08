@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="121px" height="139px" viewBox="0 0 121 139" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>logo</title>
+    <defs>
+        <linearGradient x1="49.9996669%" y1="100%" x2="49.9996669%" y2="49.999928%" id="linearGradient-1">
+            <stop stop-color="#002D74" offset="0%"></stop>
+            <stop stop-color="#002D74" stop-opacity="0" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="50.0000833%" y1="0%" x2="50.0000833%" y2="49.999928%" id="linearGradient-2">
+            <stop stop-color="#002D74" offset="0%"></stop>
+            <stop stop-color="#002D74" stop-opacity="0" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="logo" fill-rule="nonzero">
+            <path d="M60.0930153,0 L0,34.7123 L0,104.114 L60.0930153,138.803 L120.140015,104.114 L120.140015,34.7123 L60.0930153,0 Z M102.349015,93.8304 L60.0930153,118.236 L17.8140153,93.8304 L17.8140153,44.9725 L60.0930153,20.5668 L102.349015,44.9725 L102.349015,93.8304 Z" id="Shape" fill="#002D74"></path>
+            <polygon id="Path" fill="url(#linearGradient-1)" style="mix-blend-mode: multiply;" points="60.0932153 138.803 120.140015 104.114 120.140015 34.7123 60.0932153 0 60.0932153 20.5901 102.349015 44.9958 102.349015 93.8536 60.0932153 118.236"></polygon>
+            <polygon id="Path" fill="url(#linearGradient-2)" style="mix-blend-mode: multiply;" points="60.0465153 0 1.52588e-05 34.6891 1.52588e-05 104.091 60.0465153 138.803 60.0465153 118.213 17.7907153 93.8071 17.7907153 44.9492 60.0465153 20.5668"></polygon>
+            <polygon id="Path" fill="#002D74" points="88.1163153 85.6176 60.0698153 101.811 32.0000153 85.6176 32.0000153 53.2086 60.0698153 36.9924 88.1163153 53.2086 76.4419153 59.9556 60.0698153 50.4865 43.6977153 59.9556 43.6977153 78.8473 60.0698153 88.3165 76.4419153 78.8473"></polygon>
+        </g>
+    </g>
+</svg>

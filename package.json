@@ -4,6 +4,15 @@
     "format": "prettier --write .",
     "preinstall": "npx only-allow pnpm"
   },
+  "resolutions": {
+    "@sentio/truffle-debugger": "npm:@sentio/truffle-debugger@^0.0.56",
+    "@truffle/codec": "npm:@sentio/truffle-codec@^0.2.3",
+    "@truffle/compile-solidity": "npm:@sentio/truffle-compile-solidity@^0.0.12",
+    "@truffle/source-map-utils": "npm:@sentio/truffle-source-map-utils@^0.0.6",
+    "@truffle/source-fetcher": "npm:@sentio/truffle-source-fetcher@^0.0.4",
+    "@ensdomains/ensjs": "npm:@sentio/ensjs@^2.1.1",
+    "browserify-zlib": "^0.2.0"
+  },
   "dependencies": {},
   "devDependencies": {
     "@bazel/ibazel": "^0.26.0",
@@ -13,7 +22,7 @@
     "@ls-lint/ls-lint": "^2.3.1",
     "@next/eslint-plugin-next": "^15.5.4",
     "@sentio/ts-proto": "1.172.0-patch.3",
-    "@types/node": "^22.00.0",
+    "@types/node": "^22.0.0",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
     "@typescript-eslint/eslint-plugin": "^8.42.0",

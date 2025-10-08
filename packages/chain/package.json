@@ -1,0 +1,30 @@
+{
+  "name": "@sentio/chain",
+  "version": "3.4.10",
+  "description": "Chain utils",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "files": [
+    "{dist,src}",
+    "!**/*.test.{js,ts}",
+    "!{dist,src}/codegen",
+    "!{dist,src}/tests"
+  ],
+  "scripts": {
+    "build": "tsc -p . && pnpm generate",
+    "generate": "tsx src/codegen/generate-go.ts",
+    "preinstall": "npx only-allow pnpm",
+    "lint": "eslint .",
+    "package": "pnpm build",
+    "pub": "pnpm test && pnpm package && pnpm clean-publish --fields scripts --package-manager pnpm -- --no-git-checks ",
+    "prepublishOnly": "pnpm package",
+    "test": "glob -c 'tsx --test' '**/*.test.ts'"
+  },
+  "types": "./dist/index.d.ts",
+  "devDependencies": {
+    "@types/lodash": "^4.17.6",
+    "@types/node": "^22.0.0",
+    "clean-publish": "^5.0.0",
+    "lodash": "^4.17.21"
+  }
+}

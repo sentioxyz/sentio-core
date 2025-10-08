@@ -1,0 +1,32 @@
+name: Upload Assets
+
+on:
+  workflow_call:
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+    paths:
+      - packages/chain/public/**
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 'Checkout Repo'
+        uses: actions/checkout@v5
+      - name: 'Authorize GCP Credential'
+        id: 'auth'
+        uses: 'google-github-actions/auth@v3'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+      - name: 'Set up GCP SDK'
+        uses: 'google-github-actions/setup-gcloud@v3'
+      - name: 'Upload Files'
+        uses: 'google-github-actions/upload-cloud-storage@v3'
+        with:
+          path: packages/chain/public
+          destination: assets.sentio.xyz/chains
+          parent: false

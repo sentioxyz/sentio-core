@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package core_common;
+package common;
 
 option go_package = "sentioxyz/sentio-core/service/common/protos";
 import "google/protobuf/descriptor.proto";

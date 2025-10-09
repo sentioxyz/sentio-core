@@ -3,7 +3,7 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 
 proto_library(
     name = "protos_proto",
-    srcs = ["service_common.proto"],
+    srcs = ["common.proto"],
     visibility = ["//visibility:public"],
     deps = [
         "@googleapis//google/type:money_proto",

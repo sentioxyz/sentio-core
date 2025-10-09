@@ -657,6 +657,21 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApi: 'https://api.etherscan.io/v2',
     lightIcon: 'https://assets.sentio.xyz/chains/fraxtal.svg'
   },
+  [EthChainId.GOAT_MAINNET]: {
+    name: 'Goat Network',
+    slug: 'goat',
+    chainId: EthChainId.GOAT_MAINNET,
+    variation: EthVariation.DEFAULT,
+    priceTokenAddress: '0x0000000000000000000000000000000000000000',
+    tokenAddress: '0x0000000000000000000000000000000000000000',
+    wrappedTokenAddress: '0xbC10000000000000000000000000000000000000',
+    tokenSymbol: 'BTC',
+    tokenDecimals: 18,
+    explorerUrl: 'https://explorer.goat.network',
+    explorerApiType: ExplorerApiType.BLOCKSCOUT,
+    lightIcon: 'https://assets.sentio.xyz/chains/goat.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/goat-dark.svg'
+  },
   [EthChainId.KUCOIN]: {
     name: 'KCC Mainnet',
     slug: 'kucoin',

@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gonanoid",
+    srcs = ["id.go"],
+    importpath = "sentioxyz/sentio-core/common/gonanoid",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/version",
+        "@com_github_matoous_go_nanoid_v2//:go-nanoid",
+    ],
+)
+
+go_test(
+    name = "gonanoid_test",
+    srcs = ["id_test.go"],
+    embed = [":gonanoid"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

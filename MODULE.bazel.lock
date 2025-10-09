@@ -897,6 +897,34 @@
         ]
       }
     },
+    "@@grpc_ecosystem_grpc_gateway+//:non_module_deps.bzl%non_module_deps": {
+      "general": {
+        "bzlTransitiveDigest": "W58DeFoM1WAjGSq4R7rtWj4aE/+YF5c93SqxrTFyIcU=",
+        "usagesDigest": "jraYzVfkp9KhBcbpt1PQrZtK478Dh4rvlNg/FX9JP4Q=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "com_github_bazelbuild_buildtools": {
+            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
+            "attributes": {
+              "sha256": "53119397bbce1cd7e4c590e117dcda343c2086199de62932106c80733526c261",
+              "strip_prefix": "buildtools-8.2.1",
+              "urls": [
+                "https://github.com/bazelbuild/buildtools/archive/v8.2.1.tar.gz"
+              ]
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "grpc_ecosystem_grpc_gateway+",
+            "bazel_tools",
+            "bazel_tools"
+          ]
+        ]
+      }
+    },
     "@@rules_foreign_cc+//foreign_cc:extensions.bzl%tools": {
       "general": {
         "bzlTransitiveDigest": "jO6HNyY7/eIylNs2RYABjCfbAgUNb1oiXpl3aY4V/hI=",

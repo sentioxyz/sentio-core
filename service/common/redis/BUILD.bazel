@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "redis",
+    srcs = ["redis.go"],
+    importpath = "sentioxyz/sentio-core/service/common/redis",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "@com_github_redis_go_redis_extra_redisotel_v9//:redisotel",
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)

@@ -1,6 +1,5 @@
 package models
 
-/*
 import (
 	"encoding/json"
 	"errors"
@@ -424,4 +423,3 @@ func (c *CommunityProject) BeforeCreate(*gorm.DB) (err error) {
 	}
 	return err
 }
-*/

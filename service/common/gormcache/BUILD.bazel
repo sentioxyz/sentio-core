@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "gormcache",
+    srcs = [
+        "after_query.go",
+        "after_update.go",
+        "before_query.go",
+        "cache_db.go",
+        "local_cache_db.go",
+        "plugin.go",
+        "redis_cache_db.go",
+        "util.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/gormcache",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/utils",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@io_gorm_gorm//:gorm",
+        "@io_gorm_gorm//callbacks",
+        "@io_gorm_gorm//clause",
+        "@io_gorm_gorm//schema",
+    ],
+)

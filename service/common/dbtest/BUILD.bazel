@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dbtest",
+    srcs = ["test_db.go"],
+    importpath = "sentioxyz/sentio-core/service/common/dbtest",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/gonanoid",
+        "//service/common/models",
+        "//service/common/protos",
+        "@com_github_fergusstrange_embedded_postgres//:embedded-postgres",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@io_gorm_gorm//:gorm",
+    ],
+)

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
-	commonProtos "sentioxyz/sentio/service/common/protos"
+	commonProtos "sentioxyz/sentio-core/service/common/protos"
 	"time"
 )
 

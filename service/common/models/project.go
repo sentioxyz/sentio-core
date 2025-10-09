@@ -1,14 +1,15 @@
 package models
 
+/*
 import (
 	"encoding/json"
 	"errors"
 	"time"
 
-	"sentioxyz/sentio/common/gonanoid"
-	"sentioxyz/sentio/common/protojson"
-	"sentioxyz/sentio/common/utils"
-	"sentioxyz/sentio/service/common/protos"
+	"sentioxyz/sentio-core/common/gonanoid"
+	"sentioxyz/sentio-core/common/protojson"
+	"sentioxyz/sentio-core/common/utils"
+	"sentioxyz/sentio-core/service/common/protos"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/datatypes"
@@ -423,3 +424,4 @@ func (c *CommunityProject) BeforeCreate(*gorm.DB) (err error) {
 	}
 	return err
 }
+*/

@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "money",
+    srcs = ["money.go"],
+    importpath = "sentioxyz/sentio-core/service/common/money",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_shopspring_decimal//:decimal",
+        "@org_golang_google_genproto//googleapis/type/money",
+    ],
+)
+
+go_test(
+    name = "money_test",
+    srcs = ["money_test.go"],
+    embed = [":money"],
+    deps = [
+        "@com_github_shopspring_decimal//:decimal",
+        "@org_golang_google_genproto//googleapis/type/money",
+    ],
+)

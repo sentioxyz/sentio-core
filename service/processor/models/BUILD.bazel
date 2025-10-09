@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "models",
+    srcs = ["processor.go"],
+    importpath = "sentioxyz/sentio-core/service/processor/models",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/gonanoid",
+        "//common/utils",
+        "//service/common/errors:error_record",
+        "//service/common/models",
+        "//service/processor/protos",
+        "@io_gorm_datatypes//:datatypes",
+        "@io_gorm_gorm//:gorm",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

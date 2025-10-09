@@ -83,6 +83,7 @@ export enum EthChainId {
   AURORA = '1313161554',
   BLAST_SEPOLIA = '168587773',
   ABSTRACT = '2741',
+  GOAT_MAINNET = '2345',
 
   CUSTOM = 'customized'
 }

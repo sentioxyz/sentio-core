@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "protojson",
+    srcs = ["marshal.go"],
+    importpath = "sentioxyz/sentio-core/common/protojson",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

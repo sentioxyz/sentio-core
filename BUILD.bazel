@@ -73,3 +73,19 @@ multirun(
     # from the `uv` cache from the first run.
     jobs = 1,
 )
+
+# gazelle:prefix sentioxyz/sentio-core
+# gazelle:resolve proto protoc-gen-openapiv2/options/openapiv2.proto      @grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options:options_proto
+# gazelle:resolve proto protoc-gen-openapiv2/options/annotations.proto    @grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options:options_proto
+# gazelle:resolve proto go protoc-gen-openapiv2/options/annotations.proto @grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options
+
+# gazelle:resolve proto proto scip.proto @com_github_sourcegraph_scip//:scip_proto
+# gazelle:resolve proto go    scip.proto @com_github_sourcegraph_scip//bindings/go/scip
+
+# gazelle:resolve proto google/api/api.proto              @googleapis//google/api:api_proto
+# gazelle:resolve proto google/api/annotations.proto      @googleapis//google/api:annotations_proto
+# gazelle:resolve proto google/api/field_behavior.proto   @googleapis//google/api:field_behavior_proto
+# gazelle:resolve proto google/api/httpbody.proto         @googleapis//google/api:httpbody_proto
+# gazelle:resolve proto google/api/visibility.proto       @googleapis//google/api:visibility_proto
+# gazelle:resolve proto google/type/money.proto           @googleapis//google/type:money_proto
+# gazelle:resolve proto go google/type/money.proto        @org_golang_google_genproto//googleapis/type/money

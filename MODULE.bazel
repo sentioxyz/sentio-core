@@ -19,14 +19,17 @@ bazel_dep(name = "aspect_bazel_lib", version = "2.21.2")
 ### PROTOCBUF
 bazel_dep(name = "protobuf", version = PROTOBUF_VERSION)
 bazel_dep(name = "toolchains_protoc", version = "0.5.0")
+
 git_override(
-    module_name = "toolchains_protoc",
     commit = "34bd51679bc8028b1758db80c085ed2d82402887",
+    module_name = "toolchains_protoc",
     remote = "https://github.com/aspect-build/toolchains_protoc",
 )
 
 protoc = use_extension("@toolchains_protoc//protoc:extensions.bzl", "protoc")
+
 protoc.toolchain(version = "v" + PROTOBUF_VERSION)
+
 use_repo(protoc, "toolchains_protoc_hub")
 
 register_toolchains("@toolchains_protoc_hub//:all")
@@ -54,41 +57,48 @@ bazel_dep(name = "rules_proto_grpc_go", version = "5.7.1")
 bazel_dep(name = "rules_proto_grpc_python", version = "5.7.1")
 bazel_dep(name = "rules_proto_grpc_grpc_gateway", version = "5.7.1")
 bazel_dep(name = "grpc_ecosystem_grpc_gateway", version = "2.27.2")
-bazel_dep(name = "apple_support", version = "1.23.1", repo_name = "build_bazel_apple_support")
+bazel_dep(name = "apple_support", repo_name = "build_bazel_apple_support", version = "1.23.1")
 
 archive_override(
-    module_name = "grpc_ecosystem_grpc_gateway",
     integrity = "sha256-t5Pw041XnE/hKJyTInDHx3dAtE7pYpOYywcn6YptzP8=",
+    module_name = "grpc_ecosystem_grpc_gateway",
     urls = ["https://github.com/grpc-ecosystem/grpc-gateway/releases/download/v2.27.2/grpc-gateway-v2.27.2.tar.gz"],
 )
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+
 python.toolchain(
     is_default = True,
     python_version = PTYHON_VERSION,
 )
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+
 pip.parse(
     hub_name = "core_pip",
     python_version = PTYHON_VERSION,
     requirements_darwin = "//:requirements_macos.txt",
     requirements_linux = "//:requirements_linux.txt",
 )
+
 use_repo(pip, "core_pip")
 
 dev_pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+
 dev_pip.parse(
     hub_name = "core_pypi",
     python_version = PTYHON_VERSION,
     requirements_lock = "//tools:requirements.txt",
 )
+
 use_repo(dev_pip, "core_pypi")
 
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
+
 go_sdk.download(
     version = "1.24.7",
 )
+
 go_sdk.nogo(nogo = "//:my_nogo")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
@@ -100,6 +110,7 @@ go_deps.module_override(
     patches = ["//third_party:com_github_ethereum_go_ethereum_secp256k1.patch"],
     path = "github.com/ethereum/go-ethereum",
 )
+
 go_deps.gazelle_default_attributes(
     directives = ["gazelle:proto disable"],
 )
@@ -107,6 +118,7 @@ go_deps.gazelle_default_attributes(
 #
 #
 go_deps.from_file(go_mod = "//:go.mod")
+
 use_repo(
     go_deps,
     "com_github_ethereum_go_ethereum",
@@ -158,7 +170,9 @@ go_tool_deps = use_extension(
     "go_deps",
     isolate = True,
 )
+
 go_tool_deps.from_file(go_mod = "//tools:go.mod")
+
 use_repo(go_tool_deps, "com_github_grpc_ecosystem_protoc_gen_grpc_gateway_ts")
 
 ## Nodejs
@@ -167,6 +181,7 @@ node = use_extension(
     "node",
     dev_dependency = True,
 )
+
 node.toolchain(node_version = "22.20.0")
 
 npm = use_extension(
@@ -174,6 +189,7 @@ npm = use_extension(
     "npm",
     dev_dependency = True,
 )
+
 npm.npm_translate_lock(
     name = "npm",
     # bins = {
@@ -188,13 +204,16 @@ npm.npm_translate_lock(
     pnpm_lock = "//:pnpm-lock.yaml",
     update_pnpm_lock = True,
 )
+
 use_repo(npm, "npm")
 
 pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm")
+
 pnpm.pnpm(
     name = "pnpm",
     pnpm_version = "10.16.1",
 )
+
 use_repo(pnpm, "pnpm")
 
 rules_ts_ext = use_extension(
@@ -202,16 +221,19 @@ rules_ts_ext = use_extension(
     "ext",
     dev_dependency = True,
 )
+
 rules_ts_ext.deps(
     # curl --silent https://registry.npmjs.org/typescript/5.9.2 | jq -r '.dist.integrity'
     ts_integrity = "sha512-CWBzXQrc/qOkhidw1OzBTQuYRbfyxDXJMVJ1XNwUHGROVmuaeiEm3OslpZ1RV96d7SKKjZKrSJu3+t/xlw3R9A==",
     ts_version_from = "//:package.json",
 )
+
 use_repo(rules_ts_ext, "npm_typescript")
 
 ### Additional CC Toolchains for cross compile
 
 toolchains = use_extension("@hermetic_cc_toolchain//toolchain:ext.bzl", "toolchains")
+
 use_repo(toolchains, "zig_sdk")
 
 register_toolchains(

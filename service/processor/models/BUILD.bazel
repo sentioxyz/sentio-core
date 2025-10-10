@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//common/gonanoid",
         "//common/utils",
-        "//service/common/errors:error_record",
+        "//service/common/errors",
         "//service/common/models",
         "//service/processor/protos",
         "@io_gorm_datatypes//:datatypes",

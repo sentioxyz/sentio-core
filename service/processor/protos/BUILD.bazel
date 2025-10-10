@@ -20,7 +20,7 @@ proto_library(
 
 gateway_grpc_library(
     name = "protos_go_proto",
-    importpath = "sentioxyz/sentio/service/processor/protos",
+    importpath = "sentioxyz/sentio-core/service/processor/protos",
     protos = [":protos_proto"],
     visibility = ["//visibility:public"],
     deps = [

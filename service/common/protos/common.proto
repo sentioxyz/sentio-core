@@ -997,3 +997,11 @@ message RequestLog {
   string endpoint_type = 17;
   string chain_id = 18;
 }
+
+
+message ProjectOwnerAndSlug {
+  // username or organization name
+  string owner_name = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+}

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "db",
+    srcs = [
+        "db.go",
+        "gorm_logger.go",
+        "protojson_serializer.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/db",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/protojson",
+        "@com_github_uptrace_opentelemetry_go_extra_otelgorm//:otelgorm",
+        "@io_gorm_driver_postgres//:postgres",
+        "@io_gorm_gorm//:gorm",
+        "@io_gorm_gorm//logger",
+        "@io_gorm_gorm//schema",
+        "@org_golang_google_protobuf//proto",
+        "@org_uber_go_zap//:zap",
+    ],
+)

@@ -26,15 +26,17 @@ const (
 	kTableOptID = iota
 	kKeyOptID
 	kEncoderOptID
+	kDisableAutoMigrationOptID
 )
 
 type PgProviderOption struct {
-	optID      int
-	table      string
-	keyColumn  string
-	dataColumn string
-	key        string
-	encoder    ConfigEncoder
+	optID                int
+	table                string
+	keyColumn            string
+	dataColumn           string
+	key                  string
+	encoder              ConfigEncoder
+	disableAutoMigration bool
 }
 
 func WithPgTable(table, keyColumn, dataColumn string) PgProviderOption {
@@ -47,6 +49,10 @@ func WithPgKey(key string) PgProviderOption {
 
 func WithPgEncoder(encoder ConfigEncoder) PgProviderOption {
 	return PgProviderOption{optID: kEncoderOptID, encoder: encoder}
+}
+
+func WithPgDisableAutoMigration() PgProviderOption {
+	return PgProviderOption{optID: kDisableAutoMigrationOptID, disableAutoMigration: true}
 }
 
 type PgProviderOptions []PgProviderOption
@@ -65,6 +71,8 @@ func (p PgProviderOptions) Merge() PgProviderOption {
 			final.key = opt.key
 		case kEncoderOptID:
 			final.encoder = opt.encoder
+		case kDisableAutoMigrationOptID:
+			final.disableAutoMigration = opt.disableAutoMigration
 		}
 	}
 	return final
@@ -83,7 +91,11 @@ type PgProvider struct {
 func NewPgProvider(db *gorm.DB, options ...PgProviderOption) koanf.Provider {
 	option := PgProviderOptions{}
 	option = append(option, options...)
-	return &PgProvider{db: db, option: option.Merge()}
+	o := option.Merge()
+	if !o.disableAutoMigration {
+		_ = db.AutoMigrate(&SentioConfig{})
+	}
+	return &PgProvider{db: db, option: o}
 }
 
 func (p *PgProvider) ReadBytes() ([]byte, error) {

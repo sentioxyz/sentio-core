@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "configmanager",
+    srcs = [
+        "encoder.go",
+        "manager.go",
+        "pg_provider.go",
+        "redis_provider.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/configmanager",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "@com_github_burntsushi_toml//:toml",
+        "@com_github_knadh_koanf_v2//:koanf",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_samber_lo//:lo",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_gorm_gorm//:gorm",
+    ],
+)
+
+go_test(
+    name = "configmanager_test",
+    srcs = [
+        "manager_test.go",
+        "pg_provider_test.go",
+    ],
+    embed = [":configmanager"],
+    deps = [
+        "//common/db",
+        "@com_github_alicebob_miniredis_v2//:miniredis",
+        "@com_github_fergusstrange_embedded_postgres//:embedded-postgres",
+        "@com_github_knadh_koanf_parsers_json//:json",
+        "@com_github_knadh_koanf_v2//:koanf",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_stretchr_testify//suite",
+        "@io_gorm_gorm//:gorm",
+    ],
+)

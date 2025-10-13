@@ -77,31 +77,31 @@ func (s *ManagerSuite) Test_Init() {
 }
 
 func (s *ManagerSuite) Test_Set() {
-	s.Nil(Load("config1", NewPgProvider(s.db, WithPgKey("test_1")), json.Parser(), &LoadParams{}))
-	s.Nil(Load("config2", NewPgProvider(s.db, WithPgKey("test_3")), json.Parser(), &LoadParams{}))
-	s.NotNil(Load("config2", NewPgProvider(s.db, WithPgKey("redis_test")), json.Parser(), &LoadParams{}))
+	s.Nil(Set("config1", NewPgProvider(s.db, WithPgKey("test_1")), json.Parser(), &LoadParams{}))
+	s.Nil(Set("config2", NewPgProvider(s.db, WithPgKey("test_3")), json.Parser(), &LoadParams{}))
+	s.NotNil(Set("config2", NewPgProvider(s.db, WithPgKey("redis_test")), json.Parser(), &LoadParams{}))
 }
 
 func (s *ManagerSuite) Test_Get() {
-	s.Nil(Load("config1", NewPgProvider(s.db, WithPgKey("test_1")), json.Parser(), &LoadParams{}))
+	s.Nil(Set("config1", NewPgProvider(s.db, WithPgKey("test_1")), json.Parser(), &LoadParams{}))
 	c := Get("config1")
 	s.NotNil(c)
 	s.EqualValues(1, c.Int64("num_1"))
 	s.EqualValues(2, c.MustInt64("num_2"))
 
-	s.Nil(Load("config2", NewPgProvider(s.db, WithPgKey("test_3")), json.Parser(), &LoadParams{}))
+	s.Nil(Set("config2", NewPgProvider(s.db, WithPgKey("test_3")), json.Parser(), &LoadParams{}))
 	c = Get("config2")
 	s.NotNil(c)
 	s.EqualValues("a", c.String("str_1"))
 
-	s.Nil(Load("r_config", NewRedisProvider(s.redis, WithRedisKey("redis_test")), json.Parser(), &LoadParams{}))
+	s.Nil(Set("r_config", NewRedisProvider(s.redis, WithRedisKey("redis_test")), json.Parser(), &LoadParams{}))
 	c = Get("r_config")
 	s.NotNil(c)
 	s.EqualValues("value", c.String("key"))
 }
 
 func (s *ManagerSuite) Test_Refresh() {
-	s.Nil(Load("config1", NewPgProvider(s.db, WithPgKey("test_1")), json.Parser(), &LoadParams{
+	s.Nil(Set("config1", NewPgProvider(s.db, WithPgKey("test_1")), json.Parser(), &LoadParams{
 		EnableReload: true,
 		ReloadPeriod: time.Second,
 	}))
@@ -118,7 +118,7 @@ func (s *ManagerSuite) Test_Refresh() {
 	s.NotNil(c)
 	s.EqualValues(4, c.Int64("num_1"))
 
-	s.Nil(Load("r_config", NewRedisProvider(s.redis, WithRedisKey("redis_test")), json.Parser(), &LoadParams{
+	s.Nil(Set("r_config", NewRedisProvider(s.redis, WithRedisKey("redis_test")), json.Parser(), &LoadParams{
 		EnableReload: true,
 		ReloadPeriod: time.Second,
 	}))

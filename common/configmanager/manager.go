@@ -25,6 +25,8 @@ type Manager interface {
 	Get(name string) Config
 	Load(name string, provider koanf.Provider, parser koanf.Parser, params *LoadParams) error
 	Shutdown() error
+	All() map[string]Config
+	Drop(name string)
 }
 
 type Config interface {
@@ -73,6 +75,8 @@ type Config interface {
 	Sprint() string
 	Merge(other Config) error
 	Raw() *koanf.Koanf
+	Provider() koanf.Provider
+	Parser() koanf.Parser
 }
 
 type ExtendedProvider interface {
@@ -101,9 +105,24 @@ func (c *config) Raw() *koanf.Koanf {
 	return c.Koanf
 }
 
+func (c *config) Provider() koanf.Provider {
+	return c.provider
+}
+
+func (c *config) Parser() koanf.Parser {
+	return c.parser
+}
+
 var (
 	managerOnce   sync.Once
 	globalManager Manager
+	register      = make(map[string]struct {
+		Name     string
+		Provider koanf.Provider
+		Parser   koanf.Parser
+		Params   *LoadParams
+	})
+	mutex = sync.Mutex{}
 )
 
 type manager struct {
@@ -182,11 +201,39 @@ func (m *manager) Shutdown() error {
 	return nil
 }
 
+func (m *manager) All() map[string]Config {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	var res = make(map[string]Config)
+	for _, c := range m.configs {
+		res[c.name] = c
+	}
+	return res
+}
+
+func (m *manager) Drop(name string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if c, ok := m.configs[name]; ok {
+		ep, ok := c.provider.(ExtendedProvider)
+		if ok {
+			ep.Unwatch()
+		}
+	}
+	delete(m.configs, name)
+}
+
 func init() {
 	managerOnce.Do(func() {
 		globalManager = &manager{
 			configs: make(map[string]*config),
 		}
+		register = make(map[string]struct {
+			Name     string
+			Provider koanf.Provider
+			Parser   koanf.Parser
+			Params   *LoadParams
+		})
 	})
 }
 
@@ -194,10 +241,50 @@ func Get(name string) Config {
 	return globalManager.Get(name)
 }
 
-func Load(name string, provider koanf.Provider, parser koanf.Parser, params *LoadParams) error {
+func LazyLoad(name string) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if loader, ok := register[name]; ok {
+		return globalManager.Load(name, loader.Provider, loader.Parser, loader.Params)
+	}
+	return fmt.Errorf("config %s not registered", name)
+}
+
+func Set(name string, provider koanf.Provider, parser koanf.Parser, params *LoadParams) error {
 	return globalManager.Load(name, provider, parser, params)
 }
 
 func Shutdown() error {
 	return globalManager.Shutdown()
+}
+
+func All() map[string]Config {
+	return globalManager.All()
+}
+
+func Drop(name string) {
+	globalManager.Drop(name)
+}
+
+func Register(name string, provider koanf.Provider, parser koanf.Parser, params *LoadParams) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if _, ok := register[name]; ok {
+		return fmt.Errorf("config %s already registered", name)
+	}
+
+	register[name] = struct {
+		Name     string
+		Provider koanf.Provider
+		Parser   koanf.Parser
+		Params   *LoadParams
+	}{
+		Name:     name,
+		Provider: provider,
+		Parser:   parser,
+		Params:   params,
+	}
+	return nil
 }

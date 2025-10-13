@@ -70,6 +70,7 @@ type Config interface {
 	MustTime(path, layout string) time.Time
 
 	LoadAt() time.Time
+	Sprint() string
 	Merge(other Config) error
 	Raw() *koanf.Koanf
 }

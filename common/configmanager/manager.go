@@ -16,7 +16,7 @@ var ErrReloadNotSupported = fmt.Errorf("provider not support reload")
 type LoadParams struct {
 	EnableReload bool
 	ReloadPeriod time.Duration
-	ReloadFunc   func(src, desc map[string]any) error
+	MergeFunc    func(src, desc map[string]any) error
 	StrictMode   bool
 	Delim        string
 }
@@ -70,6 +70,8 @@ type Config interface {
 	MustTime(path, layout string) time.Time
 
 	LoadAt() time.Time
+	Merge(other Config) error
+	Raw() *koanf.Koanf
 }
 
 type ExtendedProvider interface {
@@ -88,6 +90,14 @@ type config struct {
 
 func (c *config) LoadAt() time.Time {
 	return c.loadAt
+}
+
+func (c *config) Merge(other Config) error {
+	return c.Koanf.Merge(other.Raw())
+}
+
+func (c *config) Raw() *koanf.Koanf {
+	return c.Koanf
 }
 
 var (
@@ -119,8 +129,8 @@ func (m *manager) Load(name string, provider koanf.Provider, parser koanf.Parser
 		StrictMerge: params.StrictMode,
 	})
 	var options []koanf.Option
-	if params.ReloadFunc != nil {
-		options = append(options, koanf.WithMergeFunc(params.ReloadFunc))
+	if params.MergeFunc != nil {
+		options = append(options, koanf.WithMergeFunc(params.MergeFunc))
 	}
 	if err := k.Load(provider, parser, options...); err != nil {
 		return err

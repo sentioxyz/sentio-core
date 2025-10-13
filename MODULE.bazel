@@ -94,7 +94,7 @@ go_sdk.nogo(nogo = "//:my_nogo")
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 
 # to be removed as dependency
-#
+# <<< REMOVE_START >>>
 go_deps.module_override(
     patch_strip = 1,
     patches = ["//third_party:com_github_ethereum_go_ethereum_secp256k1.patch"],
@@ -104,7 +104,7 @@ go_deps.gazelle_default_attributes(
     directives = ["gazelle:proto disable"],
 )
 
-#
+# <<< REMOVE_END >>>
 #
 go_deps.from_file(go_mod = "//:go.mod")
 use_repo(

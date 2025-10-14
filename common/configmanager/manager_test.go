@@ -55,7 +55,9 @@ func (s *ManagerSuite) SetupSuite() {
 		Password: "",
 		DB:       0,
 	})
-	s.redis.Set(context.Background(), "redis_test", `{"key": "value"}`, 0)
+	if err := s.redis.HSet(context.Background(), RedisDefaultCategory, "redis_test", `{"key": "value"}`).Err(); err != nil {
+		panic(err)
+	}
 }
 
 func (s *ManagerSuite) TearDownSuite() {
@@ -126,7 +128,7 @@ func (s *ManagerSuite) Test_Refresh() {
 	s.NotNil(c)
 	s.EqualValues("value", c.String("key"))
 
-	s.redis.Set(context.Background(), "redis_test", `{"key": "value2"}`, 0)
+	s.redis.HSet(context.Background(), RedisDefaultCategory, "redis_test", `{"key": "value2"}`)
 	time.Sleep(time.Second * 3)
 	c = Get("r_config")
 	s.NotNil(c)

@@ -11,16 +11,24 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const RedisDefaultCategory string = "_sentio_configs"
+
 type RedisProviderOption struct {
-	key     string
-	encoder ConfigEncoder
+	category string
+	key      string
+	encoder  ConfigEncoder
 }
 
 type RedisProviderOptions []RedisProviderOption
 
 func (o RedisProviderOptions) Merge() RedisProviderOption {
-	var res RedisProviderOption
+	var res = RedisProviderOption{
+		category: RedisDefaultCategory,
+	}
 	for _, opt := range o {
+		if opt.category != "" {
+			res.category = opt.category
+		}
 		if opt.key != "" {
 			res.key = opt.key
 		}
@@ -32,6 +40,9 @@ func (o RedisProviderOptions) Merge() RedisProviderOption {
 }
 
 func WithRedisKey(key string) RedisProviderOption { return RedisProviderOption{key: key} }
+func WithRedisCategory(category string) RedisProviderOption {
+	return RedisProviderOption{category: category}
+}
 func WithRedisEncoder(encoder ConfigEncoder) RedisProviderOption {
 	return RedisProviderOption{encoder: encoder}
 }
@@ -57,9 +68,9 @@ func (p *RedisProvider) ReadBytes() ([]byte, error) {
 	case p.option.key == "":
 		return nil, errors.Errorf("unspecified key")
 	default:
-		b, err := p.cli.Get(context.Background(), p.option.key).Bytes()
+		b, err := p.cli.HGet(context.Background(), p.option.category, p.option.key).Bytes()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to read config from redis:%s", p.option.key)
+			return nil, errors.Wrapf(err, "failed to read config from redis:%s:%s", p.option.category, p.option.key)
 		}
 		return b, nil
 	}

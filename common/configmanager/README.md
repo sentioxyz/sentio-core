@@ -1,6 +1,6 @@
 # Config Manager
 
-A flexible configuration management library for Go that supports multiple data sources (PostgreSQL, Redis) with automatic reloading capabilities.
+A flexible configuration management library based on [koanf](https://github.com/knadh/koanf) for Go that supports multiple data sources (PostgreSQL, Redis) with automatic reloading capabilities.
 
 ## Features
 
@@ -10,12 +10,6 @@ A flexible configuration management library for Go that supports multiple data s
 - 🔒 **Thread-safe**: Safe for concurrent access
 - 🎯 **Type-safe**: Strongly typed getters for common types
 - 🔍 **Easy Access**: Simple API for retrieving nested configuration values
-
-## Installation
-
-```bash
-go get github.com/knadh/koanf/v2
-```
 
 ## Quick Start
 
@@ -36,11 +30,11 @@ func main() {
     db := /* your gorm.DB instance */
     
     // Load configuration from PostgreSQL
-    err := configmanager.Load(
+    err := configmanager.Set(
         "myconfig",                                      // config name
         configmanager.NewPgProvider(
             db,
-            configmanager.WithPgKey("my_config_key"),   // key in database
+            configmanager.WithPgKey("my_config_key"),    // key in database
         ),
         json.Parser(),                                   // parser for JSON data
         &configmanager.LoadParams{
@@ -76,7 +70,7 @@ func main() {
     })
     
     // Load configuration from Redis
-    err := configmanager.Load(
+    err := configmanager.Set(
         "myconfig",
         configmanager.NewRedisProvider(
             rdb,
@@ -99,7 +93,7 @@ func main() {
 Enable automatic configuration reloading to pick up changes without restarting your application:
 
 ```go
-err := configmanager.Load(
+err := configmanager.Set(
     "myconfig",
     configmanager.NewPgProvider(db, configmanager.WithPgKey("my_config_key")),
     json.Parser(),
@@ -112,7 +106,7 @@ err := configmanager.Load(
 
 When enabled, the library will:
 1. Poll the data source at the specified interval
-2. Detect changes by comparing data checksums
+2. Detect changes by comparing data
 3. Automatically reload the configuration when changes are detected
 4. Log reload events for monitoring
 
@@ -174,7 +168,8 @@ The Redis provider reads configuration from Redis keys.
 ```go
 provider := configmanager.NewRedisProvider(
     redisClient,
-    configmanager.WithRedisKey("config:production"),
+	configmanager.WithRedisCategory("production"),                    // support for multiple categories
+    configmanager.WithRedisKey("limiter"),
     configmanager.WithRedisEncoder(configmanager.ConfigEncoderJSON),
 )
 ```
@@ -191,13 +186,13 @@ import (
 )
 
 // JSON
-configmanager.Load("config", provider, json.Parser(), params)
+configmanager.Set("config", provider, json.Parser(), params)
 
 // YAML
-configmanager.Load("config", provider, yaml.Parser(), params)
+configmanager.Set("config", provider, yaml.Parser(), params)
 
 // TOML
-configmanager.Load("config", provider, toml.Parser(), params)
+configmanager.Set("config", provider, toml.Parser(), params)
 ```
 
 ## Configuration Access API
@@ -285,7 +280,7 @@ port := config.Int("database.primary.port")        // 5432
 Change the delimiter for nested keys:
 
 ```go
-configmanager.Load("config", provider, parser, &configmanager.LoadParams{
+configmanager.Set("config", provider, parser, &configmanager.LoadParams{
     Delim: "/",  // use "/" instead of "."
 })
 
@@ -300,24 +295,22 @@ value := config.String("database/primary/host")
 Enable strict mode to prevent accidental overwrites during reload:
 
 ```go
-configmanager.Load("config", provider, parser, &configmanager.LoadParams{
+configmanager.Set("config", provider, parser, &configmanager.LoadParams{
     StrictMode: true,  // fail on key conflicts during merge
 })
 ```
 
-### Custom Reload Handler
+### Custom Merge Handler
 
 Implement custom logic when configuration changes:
 
 ```go
-configmanager.Load("config", provider, parser, &configmanager.LoadParams{
+configmanager.Set("config", provider, parser, &configmanager.LoadParams{
     EnableReload: true,
     ReloadPeriod: 5 * time.Second,
-    ReloadFunc: func(src, dest map[string]any) error {
+    MergeFunc: func(src, dest map[string]any) error {
         // Custom validation or transformation
-        if src["version"] != dest["version"] {
-            log.Println("Configuration version changed!")
-        }
+		dest["key_v2"] = src["key"]
         
         // Return nil to accept merge, or error to reject
         return nil
@@ -345,6 +338,18 @@ defer func() {
         log.Printf("Error shutting down config manager: %v", err)
     }
 }()
+```
+
+### Lazy Load
+
+Support for lazy loading of configuration:
+
+```go
+func init() {
+   configmanager.Register("my_config", provider, parser, params) // register config on init function
+}
+
+configmanager.Load("my_config") // load config on demand
 ```
 
 This will:
@@ -383,7 +388,7 @@ func main() {
     }
     
     // Load configuration with auto-reload
-    err = configmanager.Load(
+    err = configmanager.Set(
         "app",
         configmanager.NewPgProvider(
             db,
@@ -423,8 +428,8 @@ func main() {
 
 1. **Use descriptive names**: Give your configs meaningful names for easier debugging
    ```go
-   configmanager.Load("auth-service", ...)
-   configmanager.Load("payment-service", ...)
+   configmanager.Set("auth-service", ...)
+   configmanager.Set("analytic-service", ...)
    ```
 
 2. **Handle missing values gracefully**: Use non-Must methods when values are optional

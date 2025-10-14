@@ -46,7 +46,10 @@ func main() {
     }
     
     // Retrieve and use configuration
-    config := configmanager.Get("myconfig")
+    config, ok := configmanager.Get("myconfig")
+	if !ok {
+		panic("config not found")
+	}
     port := config.Int("server.port")
     host := config.String("server.host")
 }
@@ -83,7 +86,10 @@ func main() {
         panic(err)
     }
     
-    config := configmanager.Get("myconfig")
+    config, ok := configmanager.Get("myconfig")
+	if !ok {
+		panic("config not found")
+	}
     apiKey := config.String("api.key")
 }
 ```
@@ -408,7 +414,10 @@ func main() {
     defer configmanager.Shutdown()
     
     // Access configuration
-    config := configmanager.Get("app")
+    config, ok := configmanager.Get("app")
+	if !ok {
+		log.Fatal("config not found")
+	}
     
     appConfig := AppConfig{
         ServerPort: config.Int("server.port"),

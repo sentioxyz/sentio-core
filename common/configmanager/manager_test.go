@@ -74,8 +74,9 @@ func Test_ManagerSuite(t *testing.T) {
 }
 
 func (s *ManagerSuite) Test_Init() {
-	c := Get("config1")
+	c, ok := Get("config1")
 	s.Nil(c)
+	s.False(ok)
 }
 
 func (s *ManagerSuite) Test_Set() {
@@ -86,18 +87,18 @@ func (s *ManagerSuite) Test_Set() {
 
 func (s *ManagerSuite) Test_Get() {
 	s.Nil(Set("config1", NewPgProvider(s.db, WithPgKey("test_1")), json.Parser(), &LoadParams{}))
-	c := Get("config1")
+	c, _ := Get("config1")
 	s.NotNil(c)
 	s.EqualValues(1, c.Int64("num_1"))
 	s.EqualValues(2, c.MustInt64("num_2"))
 
 	s.Nil(Set("config2", NewPgProvider(s.db, WithPgKey("test_3")), json.Parser(), &LoadParams{}))
-	c = Get("config2")
+	c, _ = Get("config2")
 	s.NotNil(c)
 	s.EqualValues("a", c.String("str_1"))
 
 	s.Nil(Set("r_config", NewRedisProvider(s.redis, WithRedisKey("redis_test")), json.Parser(), &LoadParams{}))
-	c = Get("r_config")
+	c, _ = Get("r_config")
 	s.NotNil(c)
 	s.EqualValues("value", c.String("key"))
 }
@@ -110,13 +111,13 @@ func (s *ManagerSuite) Test_Refresh() {
 
 	s.db.Model(&SentioConfig{}).Where("key = ?", "test_1").Update("data", `{"num_1": 3}`)
 	time.Sleep(time.Second * 3)
-	c := Get("config1")
+	c, _ := Get("config1")
 	s.NotNil(c)
 	s.EqualValues(3, c.Int64("num_1"))
 
 	s.db.Model(&SentioConfig{}).Where("key = ?", "test_1").Update("data", `{"num_1": 4}`)
 	time.Sleep(time.Second * 3)
-	c = Get("config1")
+	c, _ = Get("config1")
 	s.NotNil(c)
 	s.EqualValues(4, c.Int64("num_1"))
 
@@ -124,13 +125,13 @@ func (s *ManagerSuite) Test_Refresh() {
 		EnableReload: true,
 		ReloadPeriod: time.Second,
 	}))
-	c = Get("r_config")
+	c, _ = Get("r_config")
 	s.NotNil(c)
 	s.EqualValues("value", c.String("key"))
 
 	s.redis.HSet(context.Background(), RedisDefaultCategory, "redis_test", `{"key": "value2"}`)
 	time.Sleep(time.Second * 3)
-	c = Get("r_config")
+	c, _ = Get("r_config")
 	s.NotNil(c)
 	s.EqualValues("value2", c.String("key"))
 }

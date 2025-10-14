@@ -22,7 +22,7 @@ type LoadParams struct {
 }
 
 type Manager interface {
-	Get(name string) Config
+	Get(name string) (Config, bool)
 	Load(name string, provider koanf.Provider, parser koanf.Parser, params *LoadParams) error
 	Shutdown() error
 	All() map[string]Config
@@ -130,10 +130,11 @@ type manager struct {
 	mutex   sync.RWMutex
 }
 
-func (m *manager) Get(name string) Config {
+func (m *manager) Get(name string) (Config, bool) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	return m.configs[name]
+	c, ok := m.configs[name]
+	return c, ok
 }
 
 func (m *manager) Load(name string, provider koanf.Provider, parser koanf.Parser, params *LoadParams) error {
@@ -237,7 +238,7 @@ func init() {
 	})
 }
 
-func Get(name string) Config {
+func Get(name string) (Config, bool) {
 	return globalManager.Get(name)
 }
 
@@ -260,6 +261,15 @@ func Shutdown() error {
 }
 
 func All() map[string]Config {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	for _, r := range register {
+		if _, ok := globalManager.Get(r.Name); ok {
+			continue
+		}
+		_ = globalManager.Load(r.Name, r.Provider, r.Parser, r.Params)
+	}
 	return globalManager.All()
 }
 

@@ -34,7 +34,6 @@ go_test(
         "@com_github_alicebob_miniredis_v2//:miniredis",
         "@com_github_fergusstrange_embedded_postgres//:embedded-postgres",
         "@com_github_knadh_koanf_parsers_json//:json",
-        "@com_github_knadh_koanf_v2//:koanf",
         "@com_github_redis_go_redis_v9//:go-redis",
         "@com_github_stretchr_testify//suite",
         "@io_gorm_gorm//:gorm",

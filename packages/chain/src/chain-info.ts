@@ -427,6 +427,23 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     lightIcon: 'https://assets.sentio.xyz/chains/base.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/base_blue.svg'
   },
+  [EthChainId.BASE_SEPOLIA]: {
+    name: 'Base Sepolia',
+    slug: 'base-sepolia',
+    chainId: EthChainId.BASE_SEPOLIA,
+    mainnetChainId: EthChainId.BASE,
+    variation: EthVariation.OPTIMISM,
+    priceTokenAddress: '0x4200000000000000000000000000000000000006',
+    tokenAddress: '0x0000000000000000000000000000000000000000',
+    wrappedTokenAddress: '0x4200000000000000000000000000000000000006',
+    tokenSymbol: 'ETH',
+    tokenDecimals: 18,
+    explorerUrl: 'https://sepolia.basescan.org',
+    explorerApiType: ExplorerApiType.ETHERSCAN_V2,
+    explorerApi: 'https://api.etherscan.io/v2',
+    lightIcon: 'https://assets.sentio.xyz/chains/base.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/base_blue.svg'
+  },
   [EthChainId.ZKSYNC_ERA]: {
     name: 'zkSync Era',
     slug: 'zksync-era',

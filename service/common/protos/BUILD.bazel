@@ -24,3 +24,4 @@ go_proto_library(
         "@org_golang_google_genproto//googleapis/type/money",
     ],
 )
+

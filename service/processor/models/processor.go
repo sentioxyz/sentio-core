@@ -13,7 +13,7 @@ import (
 	"sentioxyz/sentio-core/common/gonanoid"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/service/common/errors"
-	"sentioxyz/sentio-core/service/common/models"
+	commonmodels "sentioxyz/sentio-core/service/common/models"
 	"sentioxyz/sentio-core/service/processor/protos"
 )
 
@@ -59,7 +59,7 @@ type SentioProcessorProperties struct {
 	TimescaleShardingIndex int32
 	EntitySchema           string
 	ContractID             *string
-	Contract               *models.ProjectContract
+	Contract               *commonmodels.ProjectContract
 	NetworkOverrides       datatypes.JSONSlice[NetworkOverride]
 	Warnings               []string `gorm:"type:text[]"`
 	Binary                 bool
@@ -163,9 +163,9 @@ type Processor struct {
 	gorm.Model
 	ID         string `gorm:"primaryKey"`
 	ProjectID  string `gorm:"index"`
-	Project    *models.Project
+	Project    *commonmodels.Project
 	UserID     *string
-	User       *models.User
+	User       *commonmodels.User
 	Version    int32
 	UploadedAt time.Time
 
@@ -179,6 +179,8 @@ type Processor struct {
 	EventlogVersion     int32 `gorm:"default:1"`
 	EntitySchemaVersion int32
 
+	DriverVersion int32 `gorm:"default:0"`
+
 	Pause bool
 	// properties for sentio processor
 	SentioProcessorProperties
@@ -190,7 +192,7 @@ type Processor struct {
 	ReferenceProcessorProperties
 }
 
-func (p Processor) GetProject() *models.Project {
+func (p Processor) GetProject() *commonmodels.Project {
 	return p.Project
 }
 
@@ -305,6 +307,7 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		K8SClusterId:            p.K8sClusterID,
 		EntitySchemaVersion:     p.EntitySchemaVersion,
 		EventlogVersion:         p.EventlogVersion,
+		DriverVersion:           p.DriverVersion,
 		Pause:                   p.Pause,
 		IsBinary:                p.Binary,
 	}
@@ -334,6 +337,7 @@ func (p *Processor) FromPB(processor *protos.Processor) error {
 	p.K8sClusterID = processor.K8SClusterId
 	p.NetworkOverrides = BuildNetworkOverrides(processor.NetworkOverrides)
 	p.EventlogVersion = processor.EventlogVersion
+	p.DriverVersion = processor.DriverVersion
 	p.Binary = processor.IsBinary
 
 	// state

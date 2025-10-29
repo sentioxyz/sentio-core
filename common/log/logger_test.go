@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -64,4 +65,34 @@ func Test_LogEveryN(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		logger.InfoEveryN(5, "good")
 	}
+}
+
+func Test_LogEveryN_Lazy(t *testing.T) {
+	_, logger := FromContext(context.Background())
+	var count = 0
+	for i := 0; i < 20; i++ {
+		logger.InfoEveryN(5, "log test: %d", func() int {
+			count++
+			return count
+		})
+	}
+}
+
+func Test_LogIf(t *testing.T) {
+	_, logger := FromContext(context.Background())
+	logger.InfoIfF(true, "good")
+	logger.InfoIfF(false, "good")
+}
+
+func Test_LogIfF(t *testing.T) {
+	_, logger := FromContext(context.Background())
+	logger.InfoIfF(true, "log string: %s", func() string {
+		type T struct {
+			A int
+			B string
+		}
+		var t = T{A: 1, B: "abc"}
+		data, _ := json.Marshal(t)
+		return string(data)
+	})
 }

@@ -112,6 +112,28 @@ service ProcessorService {
     };
   };
 
+  rpc GetProcessorCheckpoints (GetProcessorCheckpointsRequest) returns (GetProcessorCheckpointsResponse) {
+    option (common.auth) = {
+      permission: "project:read"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/processors/{processor_id}/{chain_id}/checkpoints"
+    };
+  }
+
+  rpc RollbackProcessor (RollbackProcessorRequest) returns (RollbackProcessorResponse) {
+    option (common.auth) = {
+      permission: "project:write"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      put: "/api/v1/processors/{processor_id}/{chain_id}/rollback/{checkpoint}"
+    };
+  }
+
   rpc GetProcessorUpgradeHistories (GetProcessorUpgradeHistoryRequest) returns (GetProcessorUpgradeHistoryResponse) {
     option (common.auth) = {
       permission: "project:read"
@@ -513,6 +535,24 @@ message GetProcessorResponse {
   Processor processor = 1;
 }
 
+message GetProcessorCheckpointsRequest {
+  string processor_id = 1;
+  string chain_id = 2;
+}
+
+message GetProcessorCheckpointsResponse {
+  repeated uint64 checkpoints = 1;
+}
+
+message RollbackProcessorRequest {
+  string processor_id = 1;
+  string chain_id = 2;
+  uint64 checkpoint = 3;
+}
+
+message RollbackProcessorResponse {
+}
+
 message GetProcessorUpgradeHistoryRequest {
   string processor_id = 1;
 }
@@ -663,6 +703,8 @@ message Processor {
   bool pause = 22;
 
   int32 entity_schema_version = 23;
+
+  int32 driver_version = 25;
 
   bool is_binary = 24;
 }

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "storagesystem",
+    srcs = [
+        "filestorage.go",
+        "storage_settings.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/storagesystem",
+    visibility = ["//visibility:public"],
+    deps = ["//common/log"],
+)

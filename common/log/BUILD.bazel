@@ -19,7 +19,9 @@ go_library(
 
 go_test(
     name = "log_test",
-    srcs = ["log_test.go"],
+    srcs = [
+        "logger_test.go",
+    ],
     embed = [":log"],
     deps = [
         "@com_github_pkg_errors//:errors",

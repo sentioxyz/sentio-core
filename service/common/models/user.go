@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gorm.io/gorm"
 	"sentioxyz/sentio-core/service/common/gormcache"
+	"strings"
 
 	"sentioxyz/sentio-core/common/gonanoid"
 	"sentioxyz/sentio-core/service/common/protos"
@@ -48,7 +49,7 @@ func (o *Owner) AfterUpdate(tx *gorm.DB) error {
 type User struct {
 	gorm.Model
 	ID              string `gorm:"primaryKey"`
-	Email           string `gorm:"uniqueIndex"`
+	Email           string `gorm:"index"`
 	EmailVerified   bool
 	FirstName       string
 	LastName        string
@@ -65,6 +66,7 @@ type User struct {
 	AccountStatus   string
 	Tier            int32    `gorm:"-"`
 	Account         *Account `gorm:"polymorphic:Owner;"`
+	WalletAddress   string   `gorm:"index"`
 }
 
 type ProjectMember struct {
@@ -109,7 +111,7 @@ func (u *User) GetTier(tx *gorm.DB) error {
 }
 
 func (u *User) ToPB() *protos.User {
-	return &protos.User{
+	ret := &protos.User{
 		Id:            u.ID,
 		Email:         u.Email,
 		EmailVerified: u.EmailVerified,
@@ -123,7 +125,18 @@ func (u *User) ToPB() *protos.User {
 		Username:      u.Username,
 		AccountStatus: protos.User_AccountStatus(protos.User_AccountStatus_value[u.AccountStatus]),
 		Tier:          protos.Tier(u.Tier),
+		WalletAddress: u.WalletAddress,
 	}
+	if u.Identities != nil {
+		for _, identity := range u.Identities {
+			// skip api key identity
+			if !strings.HasPrefix(identity.Sub, "sentio-api-key") {
+				ret.Identities = append(ret.Identities, identity.Sub)
+			}
+		}
+	}
+
+	return ret
 }
 
 func (u *User) FromPB(user *protos.User) {
@@ -136,6 +149,7 @@ func (u *User) FromPB(user *protos.User) {
 	u.Picture = user.Picture
 	u.ID = user.Id
 	u.Username = user.Username
+	u.WalletAddress = user.WalletAddress
 }
 
 func (u *User) ToUserInfo() *protos.UserInfo {

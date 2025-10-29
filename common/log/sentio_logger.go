@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -137,6 +138,31 @@ func (l *SentioLogger) Sync() error {
 	return l.s.Sync()
 }
 
+func invokeAnyFunc(v any) (any, bool) {
+	t := reflect.TypeOf(v)
+	if t == nil || t.Kind() != reflect.Func || t.NumIn() != 0 || t.NumOut() != 1 {
+		return nil, false
+	}
+	if out := t.Out(0); out.NumMethod() != 0 {
+		return nil, false
+	}
+
+	result := reflect.ValueOf(v).Call(nil)
+	return result[0].Interface(), true
+}
+
+func (l *SentioLogger) lazy(args ...any) []any {
+	var values []any
+	for _, arg := range args {
+		if f, ok := invokeAnyFunc(arg); ok {
+			values = append(values, f)
+		} else {
+			values = append(values, arg)
+		}
+	}
+	return values
+}
+
 func (l *SentioLogger) EveryN(n int, f func(template string, args ...interface{}), template string, args ...interface{}) {
 	if n <= 0 {
 		return
@@ -146,7 +172,7 @@ func (l *SentioLogger) EveryN(n int, f func(template string, args ...interface{}
 
 	count := atomic.AddInt64(counter, 1)
 	if count%int64(n) == 0 {
-		f(template, args...)
+		f(template, l.lazy(args...)...)
 	}
 }
 
@@ -159,8 +185,22 @@ func (l *SentioLogger) EveryNw(n int, f func(msg string, keyAndValues ...interfa
 
 	count := atomic.AddInt64(counter, 1)
 	if count%int64(n) == 0 {
-		f(msg, keyAndValues...)
+		f(msg, l.lazy(keyAndValues...)...)
 	}
+}
+
+func (l *SentioLogger) IfF(cond bool, f func(template string, args ...interface{}), template string, args ...any) {
+	if !cond {
+		return
+	}
+	f(template, l.lazy(args...)...)
+}
+
+func (l *SentioLogger) If(cond bool, f func(template string, args ...interface{}), template string, args ...any) {
+	if !cond {
+		return
+	}
+	f(template, args...)
 }
 
 func (l *SentioLogger) Debug(msg string, args ...interface{}) {
@@ -183,12 +223,20 @@ func (l *SentioLogger) Debugfe(err error, template string, args ...interface{}) 
 	l.withError(err).s.Debugf(appendErr(template, err), args...)
 }
 
+func (l *SentioLogger) DebugIf(cond bool, template string, args ...interface{}) {
+	l.If(cond, l.AddCallerSkip(2).Debugf, template, args...)
+}
+
+func (l *SentioLogger) DebugIfF(cond bool, template string, args ...interface{}) {
+	l.IfF(cond, l.AddCallerSkip(2).Debugf, template, args...)
+}
+
 func (l *SentioLogger) DebugEveryN(n int, template string, args ...interface{}) {
-	l.EveryN(n, l.Debugf, template, args...)
+	l.EveryN(n, l.AddCallerSkip(2).Debugf, template, args...)
 }
 
 func (l *SentioLogger) DebugEveryNw(n int, msg string, keyAndValues ...interface{}) {
-	l.EveryNw(n, l.Debugw, msg, keyAndValues...)
+	l.EveryNw(n, l.AddCallerSkip(2).Debugw, msg, keyAndValues...)
 }
 
 func (l *SentioLogger) Info(msg string, args ...interface{}) {
@@ -211,12 +259,20 @@ func (l *SentioLogger) Infofe(err error, template string, args ...interface{}) {
 	l.withError(err).s.Infof(appendErr(template, err), args...)
 }
 
+func (l *SentioLogger) InfoIf(cond bool, template string, args ...interface{}) {
+	l.If(cond, l.AddCallerSkip(2).Infof, template, args...)
+}
+
+func (l *SentioLogger) InfoIfF(cond bool, template string, args ...interface{}) {
+	l.IfF(cond, l.AddCallerSkip(2).Infof, template, args...)
+}
+
 func (l *SentioLogger) InfoEveryN(n int, template string, args ...interface{}) {
-	l.EveryN(n, l.Infof, template, args...)
+	l.EveryN(n, l.AddCallerSkip(2).Infof, template, args...)
 }
 
 func (l *SentioLogger) InfoEveryNw(n int, msg string, keyAndValues ...interface{}) {
-	l.EveryNw(n, l.Infow, msg, keyAndValues...)
+	l.EveryNw(n, l.AddCallerSkip(2).Infow, msg, keyAndValues...)
 }
 
 func (l *SentioLogger) Warn(msg string, args ...interface{}) {
@@ -239,12 +295,20 @@ func (l *SentioLogger) Warnfe(err error, template string, args ...interface{}) {
 	l.withError(err).s.Warnf(appendErr(template, err), args...)
 }
 
+func (l *SentioLogger) WarnIf(cond bool, template string, args ...interface{}) {
+	l.If(cond, l.AddCallerSkip(2).Warnf, template, args...)
+}
+
+func (l *SentioLogger) WarnIfF(cond bool, template string, args ...interface{}) {
+	l.IfF(cond, l.AddCallerSkip(2).Warnf, template, args...)
+}
+
 func (l *SentioLogger) WarnEveryN(n int, template string, args ...interface{}) {
-	l.EveryN(n, l.Warnf, template, args...)
+	l.EveryN(n, l.AddCallerSkip(2).Warnf, template, args...)
 }
 
 func (l *SentioLogger) WarnEveryNw(n int, msg string, keyAndValues ...interface{}) {
-	l.EveryNw(n, l.Warnw, msg, keyAndValues...)
+	l.EveryNw(n, l.AddCallerSkip(2).Warnw, msg, keyAndValues...)
 }
 
 func (l *SentioLogger) Error(msg string, args ...interface{}) {

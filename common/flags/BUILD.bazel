@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "flags",
+    srcs = ["flags.go"],
+    importpath = "sentioxyz/sentio-core/common/flags",
+    visibility = ["//visibility:public"],
+    deps = ["//common/log"],
+)

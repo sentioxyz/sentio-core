@@ -1,5 +1,6 @@
-load("@rules_go//proto:def.bzl", "go_proto_library")
+# load("@rules_go//proto:def.bzl", "go_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
+load("//bazel/golang:go_proto_library.bzl", "go_proto_library")
 
 proto_library(
     name = "protos_proto",
@@ -14,6 +15,7 @@ proto_library(
     ],
 )
 
+# gazelle:exclude *.pb.go
 go_proto_library(
     name = "protos",
     importpath = "sentioxyz/sentio-core/service/common/protos",

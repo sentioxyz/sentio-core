@@ -1,0 +1,7 @@
+{
+    "go.goroot": "${workspaceFolder}/bazel-${workspaceFolderBasename}/external/rules_go++go_sdk+main___download_0/",
+    "go.toolsEnvVars": {
+        "GOPACKAGESDRIVER": "${workspaceFolder}/scripts/tools/gopackagesdriver.sh"
+    },
+    "go.useLanguageServer": true,
+}

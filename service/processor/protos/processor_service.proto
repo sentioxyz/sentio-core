@@ -235,6 +235,7 @@ message FinishUploadRequest {
   bool debug = 6;
   int32 sequence = 7;
   int32 continue_from = 8;
+  map<string, uint64> rollback = 13; // only valid when continue_from is not 0, key is chainID
   string cli_version = 9;
   repeated NetworkOverride network_overrides = 10;
   repeated string warnings = 11;
@@ -294,6 +295,7 @@ message FinishBatchUploadRequest {
   string git_url = 6;
   bool debug = 7;
   int32 continue_from = 8;
+  map<string, uint64> rollback = 15; // only valid when continue_from is not 0, key is chainID
   string cli_version = 9;
   repeated NetworkOverride network_overrides = 10;
   repeated string warnings = 11;

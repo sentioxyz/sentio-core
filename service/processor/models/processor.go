@@ -197,7 +197,8 @@ func (p Processor) GetProject() *commonmodels.Project {
 }
 
 func (p Processor) IsEventlogV3() bool {
-	return p.EventlogVersion == int32(EventlogVersion_V3)
+	// all streaming mode and eventlog v3 enabled if driver version is gte than 1
+	return p.EventlogVersion == int32(EventlogVersion_V3) || p.DriverVersion >= 1
 }
 
 func (p Processor) IsEventlogV2() bool {

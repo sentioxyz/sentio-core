@@ -529,6 +529,7 @@ message GetProcessorStatusResponse {
     repeated string warnings = 18;
     bool pause = 19;
     repeated NetworkOverride network_overrides = 20;
+    string driver_version = 21;
   }
 
   message ProcessorStatus {

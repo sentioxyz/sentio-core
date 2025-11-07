@@ -29,16 +29,11 @@ service ProcessorService {
   // Get project variables (internal API, returns secret values)
   rpc GetProjectVariables (GetProjectVariablesRequest) returns (common.ProjectVariables);
 
-  // Record notification (internal API)
-  rpc RecordNotificationInternal (RecordNotificationRequest) returns (google.protobuf.Empty);
-
   // Set processor entity schema (internal API)
   rpc SetProcessorEntitySchema (SetProcessorEntitySchemaRequest) returns (google.protobuf.Empty);
 
   // Updates a processor status of a given chain and processor.
   rpc UpdateChainProcessorStatus (UpdateChainProcessorStatusRequest) returns (UpdateChainProcessorStatusResponse);
-
-  rpc RemoveProcessorInternal (ProcessorIdRequest) returns (google.protobuf.Empty);
 
   rpc DownloadProcessor (DownloadProcessorRequest) returns (DownloadProcessorResponse);
 
@@ -190,7 +185,6 @@ service ProcessorService {
     };
   }
 
-  rpc StartProcessorInternal (processor_service.ProcessorIdRequest) returns (google.protobuf.Empty);
 }
 
 message InitUploadRequest {
@@ -570,14 +564,6 @@ message GetProcessorUpgradeHistoryResponse {
 
 message GetProjectVariablesRequest {
   string project_id = 1;
-}
-
-message RecordNotificationRequest {
-  string project_id = 1;
-  string source = 2;
-  string level = 3;
-  string msg = 4;
-  map<string,string> attributes = 5;
 }
 
 message SetProcessorEntitySchemaRequest {

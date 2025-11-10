@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "processor",
+    srcs = [
+        "types.go",
+        "version.go",
+    ],
+    importpath = "sentioxyz/sentio-core/processor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "processor_test",
+    srcs = ["version_test.go"],
+    embed = [":processor"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

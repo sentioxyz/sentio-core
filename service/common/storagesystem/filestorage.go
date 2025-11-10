@@ -27,6 +27,7 @@ type FileStorageSystemInterface interface {
 	NewUploadFileWithEngine(engine FileStorageEngine, fileId string, contentType string) *FileObject
 	FinalizeUpload(ctx context.Context, fileID string, storage FileStorageEngine) (*FileObject, error)
 	GetFromUrl(ctx context.Context, url string) (*FileObject, error)
+	NewUploadFile(ctx context.Context, fileId string, contentType string) (*FileObject, error)
 }
 
 type FileObject struct {

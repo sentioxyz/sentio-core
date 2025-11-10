@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "processor",
+    srcs = [
+        "file_service.go",
+        "processor_intefaces.go",
+        "processor_service.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/processor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/gonanoid",
+        "//common/log",
+        "//common/utils",
+        "//processor",
+        "//service/common/errors",
+        "//service/common/models",
+        "//service/common/preloader",
+        "//service/common/protos",
+        "//service/common/storagesystem",
+        "//service/processor/driverjob",
+        "//service/processor/models",
+        "//service/processor/protos",
+        "//service/processor/repository",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_samber_lo//:lo",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//types/known/emptypb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

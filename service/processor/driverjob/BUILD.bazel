@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "driverjob",
+    srcs = ["driverjob_interface.go"],
+    importpath = "sentioxyz/sentio-core/service/processor/driverjob",
+    visibility = ["//visibility:public"],
+    deps = ["//service/processor/models"],
+)

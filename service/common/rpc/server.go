@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -274,38 +274,71 @@ func ListenAndServe(ctx context.Context, addr string, handler http.Handler, grpc
 }
 
 func ExtractSpanContext(req *http.Request) (*trace.SpanContext, error) {
-	traceID, err := strconv.ParseInt(req.Header.Get("x-datadog-trace-id"), 10, 0)
+	// Extract from standard OpenTelemetry traceparent header
+	traceparent := req.Header.Get("traceparent")
+	if traceparent != "" {
+		if spanCtx := parseTraceparent(traceparent); spanCtx != nil {
+			return spanCtx, nil
+		}
+	}
+
+	// No valid trace context found
+	return nil, nil
+}
+
+// parseTraceparent parses the W3C traceparent header
+// Format: 00-{trace-id}-{parent-id}-{trace-flags}
+// Returns nil if parsing fails (silent failure)
+func parseTraceparent(traceparent string) *trace.SpanContext {
+	parts := strings.Split(traceparent, "-")
+	if len(parts) != 4 {
+		return nil
+	}
+
+	// Version must be 00
+	if parts[0] != "00" {
+		return nil
+	}
+
+	// Parse trace ID (32 hex chars)
+	if len(parts[1]) != 32 {
+		return nil
+	}
+	traceIDBytes, err := hex.DecodeString(parts[1])
 	if err != nil {
-		return nil, err
+		return nil
 	}
-	spanID, err := strconv.ParseInt(req.Header.Get("x-datadog-parent-id"), 10, 0)
+	var traceID trace.TraceID
+	copy(traceID[:], traceIDBytes)
+
+	// Parse span ID (16 hex chars)
+	if len(parts[2]) != 16 {
+		return nil
+	}
+	spanIDBytes, err := hex.DecodeString(parts[2])
 	if err != nil {
-		return nil, err
+		return nil
 	}
+	var spanID trace.SpanID
+	copy(spanID[:], spanIDBytes)
 
-	sampled := req.Header.Get("x-datadog-sampling-priority") == "1"
-
-	var otelTraceID trace.TraceID
-	var otelSpanID trace.SpanID
-
-	for i := len(otelTraceID) - 1; traceID > 0; traceID >>= 8 {
-		otelTraceID[i] = byte(traceID & 0xff)
-		i--
+	// Parse trace flags (2 hex chars)
+	if len(parts[3]) != 2 {
+		return nil
 	}
-	for i := len(otelSpanID) - 1; spanID > 0; spanID >>= 8 {
-		otelSpanID[i] = byte(spanID & 0xff)
-		i--
+	flagsBytes, err := hex.DecodeString(parts[3])
+	if err != nil {
+		return nil
 	}
-
-	var traceFlag trace.TraceFlags
+	flags := trace.TraceFlags(flagsBytes[0])
 
 	ctx := trace.NewSpanContext(trace.SpanContextConfig{
-		TraceID:    otelTraceID,
-		SpanID:     otelSpanID,
-		TraceFlags: traceFlag.WithSampled(sampled),
+		TraceID:    traceID,
+		SpanID:     spanID,
+		TraceFlags: flags,
 		Remote:     true,
 	})
-	return &ctx, nil
+	return &ctx
 }
 
 func WithAuthAndTraceMetadata(ctx context.Context, req *http.Request) metadata.MD {
@@ -315,13 +348,10 @@ func WithAuthAndTraceMetadata(ctx context.Context, req *http.Request) metadata.M
 	}
 
 	spanCtx, err := ExtractSpanContext(req)
-	if err == nil {
+	if err == nil && spanCtx != nil {
 		tmpCtx := trace.ContextWithSpanContext(context.Background(), *spanCtx)
 		otelgrpc.Inject(tmpCtx, &md)
 	}
-	// else {
-	//	log.Debug("Error injecting datadog trace id to opentelemetry", err)
-	// }
 
 	authorization := req.Header.Get("Authorization")
 	if authorization != "" {
@@ -341,8 +371,8 @@ func WithAuthAndTraceMetadata(ctx context.Context, req *http.Request) metadata.M
 	if apiKeyInQuery != "" {
 		md.Append("api-key", apiKeyInQuery)
 	}
-	if auid, err := req.Cookie("AUID"); err == nil {
-		md.Append("auid", auid.Value)
+	if auid := req.Header.Get("X-Original-Forwarded-For"); auid != "" {
+		md.Append("auid", auid)
 	}
 	if adminMode := req.Header.Get("X-Admin-Mode"); adminMode != "" {
 		md.Append("admin-mode", adminMode)

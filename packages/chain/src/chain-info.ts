@@ -1353,6 +1353,14 @@ export const SolanaChainInfo: Record<
     explorerUrl: 'https://solscan.io/',
     suffix: '?cluster=custom&customUrl=https://pythnet.rpcpool.com',
     lightIcon: 'https://sentio.xyz/pyth.svg'
+  },
+  [SolanaChainId.FORGO_TESTNET]: {
+    name: 'Forgo Testnet',
+    slug: 'forgo-testnet',
+    chainId: SolanaChainId.FORGO_TESTNET,
+    explorerUrl: 'https://fogoscan.com/',
+    suffix: '?cluster=testnet',
+    lightIcon: 'https://sentio.xyz/solana.svg'
   }
 }
 

@@ -1445,6 +1445,15 @@ var SolanaPythInfo = ChainInfo{
   ExplorerURL: "https://solscan.io/",
 }
 
+var ForgoTestnetInfo = ChainInfo{
+  Name: "Forgo Testnet",
+  Slug: "forgo-testnet",
+  AdditionalSlugs: []string{},
+  ChainID: ChainID(ForgoTestnetID),
+  MainnetChainID: ChainID(ForgoTestnetID),
+  ExplorerURL: "https://fogoscan.com/",
+}
+
 var FuelMainnetInfo = ChainInfo{
   Name: "Fuel Mainnet",
   Slug: "fuel",
@@ -1518,5 +1527,5 @@ var BTCTestnetInfo = ChainInfo{
 }
 
 
-var NonEthChains = []*ChainInfo{&AptosMainnetInfo, &AptosTestnetInfo, &AptosMovementTestnetInfo, &AptosMovementMainnetInfo, &InitiaEchelonInfo, &SuiMainnetInfo, &SuiTestnetInfo, &IotaMainnetInfo, &IotaTestnetInfo, &SolanaMainnetInfo, &SolanaTestnetInfo, &SolanaPythInfo, &FuelMainnetInfo, &FuelTestnetInfo, &InjectiveMainnetInfo, &InjectiveTestnetInfo, &StarknetMainnetInfo, &StarknetSepoliaInfo, &BTCMainnetInfo, &BTCTestnetInfo}
+var NonEthChains = []*ChainInfo{&AptosMainnetInfo, &AptosTestnetInfo, &AptosMovementTestnetInfo, &AptosMovementMainnetInfo, &InitiaEchelonInfo, &SuiMainnetInfo, &SuiTestnetInfo, &IotaMainnetInfo, &IotaTestnetInfo, &SolanaMainnetInfo, &SolanaTestnetInfo, &SolanaPythInfo, &ForgoTestnetInfo, &FuelMainnetInfo, &FuelTestnetInfo, &InjectiveMainnetInfo, &InjectiveTestnetInfo, &StarknetMainnetInfo, &StarknetSepoliaInfo, &BTCMainnetInfo, &BTCTestnetInfo}
 

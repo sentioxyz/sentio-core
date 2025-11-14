@@ -2,7 +2,11 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "repository",
-    srcs = ["repository_interface.go"],
+    srcs = [
+        "redis_factory.go",
+        "redis_repository.go",
+        "repository_interface.go",
+    ],
     importpath = "sentioxyz/sentio-core/service/processor/repository",
     visibility = ["//visibility:public"],
     deps = [
@@ -10,5 +14,7 @@ go_library(
         "//service/common/repository",
         "//service/processor/models",
         "//service/processor/protos",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@io_gorm_gorm//:gorm",
     ],
 )

@@ -257,6 +257,7 @@ message UploadPayload {
   oneof payload {
     ObjectPayload object= 1;
     WalrusPayload walrus = 2;
+    IpfsPayload ipfs = 4;
   }
   message ObjectPayload {
     string put_url = 1;
@@ -270,6 +271,12 @@ message UploadPayload {
     string file_id = 3;
     string blob_id = 4;
     string quilt_patch_id = 5;
+  }
+  message IpfsPayload {
+    string put_url = 1;
+    string file_id = 2;
+    string path = 3;
+    string cid = 4;
   }
   FileType file_type = 3;
 }

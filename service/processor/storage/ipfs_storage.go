@@ -84,7 +84,7 @@ func (e *IPFSStorageEngine) PreSignedGetUrl(ctx context.Context, bucket, object 
 		return "", fmt.Errorf("object (CID) cannot be empty")
 	}
 
-	return fmt.Sprintf("%s/ipfs/%s/%s", e.gatewayURL, object, bucket), nil
+	return fmt.Sprintf("%s/ipfs/%s/%s", e.gatewayURL, bucket, object), nil
 }
 
 func (e *IPFSStorageEngine) CopyFile(ctx context.Context, srcBucket, srcObject, destBucket, destObject string) error {
@@ -95,7 +95,7 @@ func (e *IPFSStorageEngine) CopyFile(ctx context.Context, srcBucket, srcObject, 
 // GetUrl returns the public URL for accessing the object
 func (e *IPFSStorageEngine) GetUrl(ctx context.Context, bucket, object string) string {
 	if bucket != "" {
-		return fmt.Sprintf("%s/%s/%s", IPFSPrefix, object, bucket)
+		return fmt.Sprintf("%s%s/%s", IPFSPrefix, bucket, object)
 	}
 	// object is the CID
 	return fmt.Sprintf("%s/%s", IPFSPrefix, object)
@@ -126,7 +126,7 @@ func (e *IPFSStorageEngine) Delete(ctx context.Context, bucket, object string) e
 		return fmt.Errorf("failed to remove object %s, status %d: %s", object, resp.StatusCode, string(body))
 	}
 
-	log.Infof("Successfully remove IPFS object: %s/%s", bucket, object)
+	log.Infof("Successfully removed IPFS object: %s/%s", bucket, object)
 	return nil
 }
 

@@ -3,7 +3,7 @@ package chains
 
 import "github.com/ethereum/go-ethereum/common"
 
-var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &CronosZkevmInfo, &ZksyncEraInfo, &CronosTestnetInfo, &AstarInfo, &DeriveInfo, &HyperEvmInfo, &PolygonZkevmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &MoonbeamInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &SwellTestnetInfo, &SwellMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MerlinMainnetInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &MevCommitInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &HoleskyInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitGarfieldTestnetInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &BlastInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &ZklinkNovaInfo, &SepoliaInfo, &EtherlinkInfo, &CornMaizenetInfo, &AuroraInfo, &BlastSepoliaInfo, &AbstractInfo, &GoatMainnetInfo, &CustomInfo}
+var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &CronosZkevmInfo, &ZksyncEraInfo, &CronosTestnetInfo, &AstarInfo, &DeriveInfo, &HyperEvmInfo, &PolygonZkevmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &MoonbeamInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &SwellTestnetInfo, &SwellMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MerlinMainnetInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &MevCommitInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &HoleskyInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitGarfieldTestnetInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &BlastInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &ZklinkNovaInfo, &SepoliaInfo, &EtherlinkInfo, &CornMaizenetInfo, &AuroraInfo, &BlastSepoliaInfo, &AbstractInfo, &GoatMainnetInfo, &ArcTestnetInfo, &CustomInfo}
 
 var Chains = []*ChainInfo{}
 
@@ -1318,6 +1318,25 @@ var GoatMainnetInfo = EthChainInfo{
   ExplorerAPIType: ExplorerAPITypeBlockscout,
 }
 
+var ArcTestnetInfo = EthChainInfo{
+  ChainInfo: ChainInfo{
+    Name: "Arc Testnet",
+    Slug: "arc-testnet",
+    AdditionalSlugs: []string{},
+    MainnetChainID: ChainID(ArcTestnetID),
+    ChainID: ChainID(ArcTestnetID),
+    ExplorerURL: "https://testnet.arcscan.app",
+  },
+  Variation: EthVariationDefault,
+  TokenSymbol: "USDC",
+  TokenDecimals: 6,
+  TokenAddress: common.HexToAddress("0x3600000000000000000000000000000000000000"),
+  PriceTokenAddress: common.HexToAddress("0x3600000000000000000000000000000000000000"),
+  WrappedTokenAddress: common.HexToAddress("0x3600000000000000000000000000000000000000"),
+  ExplorerAPI: "https://testnet.arcscan.app",
+  ExplorerAPIType: ExplorerAPITypeBlockscout,
+}
+
 var CustomInfo = EthChainInfo{
   ChainInfo: ChainInfo{
     Name: "Custom",
@@ -1445,6 +1464,15 @@ var SolanaPythInfo = ChainInfo{
   ExplorerURL: "https://solscan.io/",
 }
 
+var ForgoTestnetInfo = ChainInfo{
+  Name: "Forgo Testnet",
+  Slug: "forgo-testnet",
+  AdditionalSlugs: []string{},
+  ChainID: ChainID(ForgoTestnetID),
+  MainnetChainID: ChainID(ForgoTestnetID),
+  ExplorerURL: "https://fogoscan.com/",
+}
+
 var FuelMainnetInfo = ChainInfo{
   Name: "Fuel Mainnet",
   Slug: "fuel",
@@ -1518,5 +1546,5 @@ var BTCTestnetInfo = ChainInfo{
 }
 
 
-var NonEthChains = []*ChainInfo{&AptosMainnetInfo, &AptosTestnetInfo, &AptosMovementTestnetInfo, &AptosMovementMainnetInfo, &InitiaEchelonInfo, &SuiMainnetInfo, &SuiTestnetInfo, &IotaMainnetInfo, &IotaTestnetInfo, &SolanaMainnetInfo, &SolanaTestnetInfo, &SolanaPythInfo, &FuelMainnetInfo, &FuelTestnetInfo, &InjectiveMainnetInfo, &InjectiveTestnetInfo, &StarknetMainnetInfo, &StarknetSepoliaInfo, &BTCMainnetInfo, &BTCTestnetInfo}
+var NonEthChains = []*ChainInfo{&AptosMainnetInfo, &AptosTestnetInfo, &AptosMovementTestnetInfo, &AptosMovementMainnetInfo, &InitiaEchelonInfo, &SuiMainnetInfo, &SuiTestnetInfo, &IotaMainnetInfo, &IotaTestnetInfo, &SolanaMainnetInfo, &SolanaTestnetInfo, &SolanaPythInfo, &ForgoTestnetInfo, &FuelMainnetInfo, &FuelTestnetInfo, &InjectiveMainnetInfo, &InjectiveTestnetInfo, &StarknetMainnetInfo, &StarknetSepoliaInfo, &BTCMainnetInfo, &BTCTestnetInfo}
 

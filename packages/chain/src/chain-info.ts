@@ -1167,6 +1167,22 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     lightIcon: 'https://assets.sentio.xyz/chains/plasma.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/plasma-dark.svg'
   },
+  [EthChainId.ARC_TESTNET]: {
+    name: 'Arc Testnet',
+    slug: 'arc-testnet',
+    chainId: EthChainId.ARC_TESTNET,
+    variation: EthVariation.DEFAULT,
+    priceTokenAddress: '0x3600000000000000000000000000000000000000',
+    tokenAddress: '0x3600000000000000000000000000000000000000',
+    wrappedTokenAddress: '0x3600000000000000000000000000000000000000',
+    tokenSymbol: 'USDC',
+    tokenDecimals: 6,
+    explorerUrl: 'https://testnet.arcscan.app',
+    explorerApi: 'https://testnet.arcscan.app',
+    explorerApiType: ExplorerApiType.BLOCKSCOUT,
+    lightIcon: 'https://assets.sentio.xyz/chains/arc.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/arc-dark.svg'
+  },
   [EthChainId.CUSTOM]: {
     name: 'Custom',
     slug: 'custom',
@@ -1353,6 +1369,14 @@ export const SolanaChainInfo: Record<
     explorerUrl: 'https://solscan.io/',
     suffix: '?cluster=custom&customUrl=https://pythnet.rpcpool.com',
     lightIcon: 'https://sentio.xyz/pyth.svg'
+  },
+  [SolanaChainId.FORGO_TESTNET]: {
+    name: 'Forgo Testnet',
+    slug: 'forgo-testnet',
+    chainId: SolanaChainId.FORGO_TESTNET,
+    explorerUrl: 'https://fogoscan.com/',
+    suffix: '?cluster=testnet',
+    lightIcon: 'https://sentio.xyz/solana.svg'
   }
 }
 

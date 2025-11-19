@@ -1,0 +1,36 @@
+.copyButton {
+  @apply inline-block overflow-hidden whitespace-nowrap;
+  min-width: fit-content;
+}
+
+.copyButton.hoverShowIcon:hover .iconContainer {
+  @apply visible;
+}
+
+.copyButton.hoverShowIcon .iconContainer {
+  @apply invisible sm:visible;
+}
+
+.copyButton .iconContainer {
+  @apply inline-block overflow-hidden align-sub;
+}
+
+.copyButton .iconContainer svg {
+  @apply m-0;
+}
+
+.copyButton .iconContainer.copied .iconCopy {
+  @apply -translate-y-full;
+}
+
+.copyButton .iconContainer.copied .iconSuccess {
+  @apply -translate-y-full;
+}
+
+.copyButton .iconContainer .iconCopy {
+  @apply block translate-y-0 cursor-pointer transition-all;
+}
+
+.copyButton .iconContainer .iconSuccess {
+  @apply block translate-y-full transition-all;
+}

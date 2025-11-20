@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -158,8 +159,8 @@ func (s *Service) FinishUpload(
 		p.Warnings = req.Warnings
 		// cannot change p.DriverVersion here because driver maybe already started
 		if err := s.processorRepo.SaveProcessor(ctx, p); err != nil {
-			err = fmt.Errorf("update zipURL for processor %s/%s/%d/%s failed: %w",
-				project.GetOwnerName(), project.Slug, p.Version, p.ID, err)
+			err = errors.Wrapf(err, "update zipURL for processor %s/%s/%d/%s failed",
+				project.GetOwnerName(), project.Slug, p.Version, p.ID)
 			logger.Errore(err)
 			return nil, err
 		}
@@ -176,7 +177,7 @@ func (s *Service) FinishUpload(
 		var p *models.Processor
 		p, err = s.processorRepo.FindProcessorByVersion(ctx, project.ID, req.ContinueFrom)
 		if err != nil {
-			return nil, fmt.Errorf("find processor with version %d failed: %w", req.ContinueFrom, err)
+			return nil, errors.Wrapf(err, "find processor with version %d failed", req.ContinueFrom)
 		}
 		sdkVerBefore, _ := processor.ParseVersion(p.SdkVersion)
 		sdkVerAfter, _ := processor.ParseVersion(req.GetSdkVersion())
@@ -419,13 +420,15 @@ func (s *Service) FinishBatchUpload(
 			fileID = p.Object.FileId
 		case *protos.UploadPayload_Walrus:
 			fileID = p.Walrus.BlobId + "/" + p.Walrus.QuiltPatchId
+		case *protos.UploadPayload_Ipfs:
+			fileID = p.Ipfs.Cid + "/" + p.Ipfs.Path
 		default:
 			return nil, fmt.Errorf("invalid payload for file %s", fileKey)
 		}
 
 		file, err := s.FileStorageSystem.FinalizeUpload(ctx, fileID, storageEngine)
 		if err != nil {
-			return nil, fmt.Errorf("failed to finalize upload for file %s: %w", fileKey, err)
+			return nil, errors.Wrapf(err, "failed to finalize upload for file %s", fileKey)
 		}
 		finalizedFiles[fileKey] = file
 	}
@@ -451,14 +454,13 @@ func (s *Service) FinishBatchUpload(
 		for _, file := range finalizedFiles {
 			p.ZipURL = file.GetUrl(ctx)
 			break
-
 		}
 		p.CliVersion = req.CliVersion
 		p.SdkVersion = req.SdkVersion
 		p.Warnings = req.Warnings
 		if err := s.processorRepo.SaveProcessor(ctx, p); err != nil {
-			err = fmt.Errorf("update zipURL for processor %s/%s/%d/%s failed: %w",
-				project.GetOwnerName(), project.Slug, p.Version, p.ID, err)
+			err = errors.Wrapf(err, "update zipURL for processor %s/%s/%d/%s failed",
+				project.GetOwnerName(), project.Slug, p.Version, p.ID)
 			logger.Errore(err)
 			return nil, err
 		}

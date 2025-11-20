@@ -4,7 +4,6 @@ go 1.24.7
 
 require (
 	github.com/BurntSushi/toml v1.5.0
-	github.com/InVisionApp/go-health/v2 v2.1.4
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/ethereum/go-ethereum v1.14.11
 	github.com/felixge/httpsnoop v1.0.4
@@ -55,7 +54,6 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/InVisionApp/go-logger v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.13.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect

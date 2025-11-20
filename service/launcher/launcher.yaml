@@ -1,0 +1,33 @@
+# Service Launcher Configuration
+# This file configures multiple services that can be started together
+
+# Shared configuration used by all services
+shared:
+  # ClickHouse configuration
+  clickhouse:
+    path: ''
+
+  # Redis configuration
+  redis:
+    url: 'localhost:6379'
+    password: ''
+    db: 0
+
+  # Storage configuration
+  storage:
+    default_storage: 'ipfs'
+    ipfs_api_url: 'http://localhost:5001'
+    ipfs_gateway_url: 'http://localhost:5001'
+
+# Servers configuration - each server can host multiple services
+servers:
+  # Primary gRPC Server - handles processor services
+  - name: 'server'
+    enabled: true
+    port: 10000
+    services:
+      # Main processor service
+      - name: 'processor-service'
+        type: 'processor'
+        enabled: true
+        config:

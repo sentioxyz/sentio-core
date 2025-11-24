@@ -1041,6 +1041,20 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApiType: ExplorerApiType.UNKNOWN,
     lightIcon: 'https://assets.sentio.xyz/chains/monad.svg'
   },
+  [EthChainId.MONAD_MAINNET]: {
+    name: 'Monad Mainnet',
+    slug: 'monad-mainnet',
+    chainId: EthChainId.MONAD_MAINNET,
+    variation: EthVariation.DEFAULT,
+    priceTokenAddress: '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701',
+    tokenAddress: '0x0000000000000000000000000000000000000000',
+    wrappedTokenAddress: '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701',
+    tokenSymbol: 'MON',
+    tokenDecimals: 18,
+    explorerUrl: 'https://monadexplorer.com',
+    explorerApiType: ExplorerApiType.UNKNOWN,
+    lightIcon: 'https://assets.sentio.xyz/chains/monad.svg'
+  },
   [EthChainId.BERACHAIN]: {
     name: 'Berachain',
     slug: 'berachain',

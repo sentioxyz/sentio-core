@@ -59,6 +59,7 @@ export enum EthChainId {
   PLASMA_MAINNET = '9745',
   PLASMA_TESTNET = '9746',
   MONAD_TESTNET = '10143',
+  MONAD_MAINNET = '143',
   HOLESKY = '17000',
   HOODI = '560048',
   MODE = '34443',

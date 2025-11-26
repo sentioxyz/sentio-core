@@ -181,7 +181,10 @@ type Processor struct {
 
 	DriverVersion int32 `gorm:"default:0"`
 
-	Pause bool
+	Pause       bool
+	PauseAt     time.Time
+	PauseReason string
+
 	// properties for sentio processor
 	SentioProcessorProperties
 
@@ -310,6 +313,8 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		EventlogVersion:         p.EventlogVersion,
 		DriverVersion:           p.DriverVersion,
 		Pause:                   p.Pause,
+		PauseAt:                 timestamppb.New(p.PauseAt),
+		PauseReason:             p.PauseReason,
 		IsBinary:                p.Binary,
 	}
 

@@ -35,3 +35,5 @@ ignore:
   - .github
   - .claude
   - "*/next.config.ts"
+  - packages/remix-plugin
+

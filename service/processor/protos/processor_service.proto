@@ -39,6 +39,8 @@ service ProcessorService {
 
   rpc GetProcessorStatusInternal (GetProcessorStatusRequest) returns (GetProcessorStatusResponse);
 
+  rpc PauseProcessorInternal (PauseProcessorRequest) returns (google.protobuf.Empty);
+
   rpc GetProcessorStatus (GetProcessorStatusRequest) returns (GetProcessorStatusResponse) {
     option (google.api.method_visibility).restriction = "INTERNAL";
 
@@ -81,7 +83,7 @@ service ProcessorService {
     };
   }
 
-  rpc PauseProcessor (GetProcessorRequest) returns (google.protobuf.Empty) {
+  rpc PauseProcessor (PauseProcessorRequest) returns (google.protobuf.Empty) {
     option (common.auth) = {
       permission: "project:write"
     };
@@ -456,6 +458,8 @@ message Processor {
   int32 eventlog_version = 21;
 
   bool pause = 22;
+  google.protobuf.Timestamp pause_at = 26;
+  string pause_reason = 27;
 
   int32 entity_schema_version = 23;
 
@@ -524,6 +528,8 @@ message GetProcessorStatusResponse {
     string reference_project_id = 17;
     repeated string warnings = 18;
     bool pause = 19;
+    google.protobuf.Timestamp pause_at = 22;
+    string pause_reason = 23;
     repeated NetworkOverride network_overrides = 20;
     string driver_version = 21;
   }
@@ -569,4 +575,9 @@ message GetProjectVariablesRequest {
 message SetProcessorEntitySchemaRequest {
   string processor_id = 1;
   string schema = 2;
+}
+
+message PauseProcessorRequest {
+  string processor_id = 1;
+  string reason = 2;
 }

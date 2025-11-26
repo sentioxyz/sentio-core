@@ -1031,6 +1031,7 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     name: 'Monad Testnet',
     slug: 'monad-testnet',
     chainId: EthChainId.MONAD_TESTNET,
+    mainnetChainId: EthChainId.MONAD_MAINNET,
     variation: EthVariation.DEFAULT,
     priceTokenAddress: '0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701',
     tokenAddress: '0x0000000000000000000000000000000000000000',

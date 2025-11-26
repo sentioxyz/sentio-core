@@ -829,7 +829,7 @@ var MonadTestnetInfo = EthChainInfo{
     Name: "Monad Testnet",
     Slug: "monad-testnet",
     AdditionalSlugs: []string{},
-    MainnetChainID: ChainID(MonadTestnetID),
+    MainnetChainID: ChainID(MonadMainnetID),
     ChainID: ChainID(MonadTestnetID),
     ExplorerURL: "https://testnet.monadexplorer.com",
   },

@@ -14,6 +14,7 @@ import (
 	"sentioxyz/sentio-core/service/processor/protos"
 	"sentioxyz/sentio-core/service/processor/repository"
 	"strconv"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
@@ -379,6 +380,8 @@ func (s *Service) getProcessorStatus(
 			DebugFork:        processor.DebugFork,
 			Warnings:         processor.Warnings,
 			Pause:            processor.Pause,
+			PauseAt:          timestamppb.New(processor.PauseAt),
+			PauseReason:      processor.PauseReason,
 			NetworkOverrides: models.ParseNetworkOverrides(processor.NetworkOverrides),
 			DriverVersion:    strconv.FormatInt(int64(processor.DriverVersion), 10),
 		}
@@ -600,15 +603,24 @@ func (s *Service) CreateOrUpdateProcessor(
 	)
 }
 
-func (s *Service) PauseProcessor(ctx context.Context, req *protos.GetProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, true)
+func (s *Service) PauseProcessorInternal(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
+	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason)
+}
+
+func (s *Service) PauseProcessor(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
+	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason)
 }
 
 func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, false)
+	return s.updateProcessorPause(ctx, req.ProcessorId, false, "")
 }
 
-func (s *Service) updateProcessorPause(ctx context.Context, processorID string, pause bool) (*emptypb.Empty, error) {
+func (s *Service) updateProcessorPause(
+	ctx context.Context,
+	processorID string,
+	pause bool,
+	reason string,
+) (*emptypb.Empty, error) {
 	processor, err := s.processorRepo.PreloadProcessor(ctx, processorID)
 	if err != nil {
 		return nil, err
@@ -625,9 +637,11 @@ func (s *Service) updateProcessorPause(ctx context.Context, processorID string, 
 	}
 	_, logger := log.FromContext(ctx, "processor_id", processorID)
 	if pause {
-		logger.UserVisible().Infof("Pause now")
+		processor.PauseAt = time.Now()
+		processor.PauseReason = reason
+		logger.Infof("Pause now")
 	} else {
-		logger.UserVisible().Infof("Resume now")
+		logger.Infof("Resume now")
 	}
 	processor.Pause = pause
 	if err := s.processorRepo.SaveProcessor(ctx, processor); err != nil {

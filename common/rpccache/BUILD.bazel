@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rpccache",
+    srcs = [
+        "cache.go",
+        "key.go",
+        "option.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/rpccache",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/rpccache/compression",
+        "//common/rpccache/scripts",
+        "//common/tokenbucket",
+        "//service/common/protos",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)
+
+go_test(
+    name = "rpccache_test",
+    srcs = ["cache_test.go"],
+    embed = [":rpccache"],
+    deps = [
+        "//common/gonanoid",
+        "//service/common/protos",
+        "@com_github_alicebob_miniredis_v2//:miniredis",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

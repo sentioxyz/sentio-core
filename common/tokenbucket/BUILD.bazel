@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tokenbucket",
+    srcs = ["token_bucket.go"],
+    importpath = "sentioxyz/sentio-core/common/tokenbucket",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_redis_go_redis_v9//:go-redis"],
+)
+
+go_test(
+    name = "tokenbucket_test",
+    srcs = ["token_bucket_test.go"],
+    embed = [":tokenbucket"],
+    deps = [
+        "@com_github_alicebob_miniredis_v2//:miniredis",
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)

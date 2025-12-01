@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sqlbuilder",
+    srcs = ["builder.go"],
+    importpath = "sentioxyz/sentio-core/common/sqlbuilder",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/anyutil",
+        "//common/log",
+        "//service/common/protos",
+        "@com_github_samber_lo//:lo",
+        "@com_github_shopspring_decimal//:decimal",
+    ],
+)
+
+go_test(
+    name = "sqlbuilder_test",
+    srcs = ["builder_test.go"],
+    embed = [":sqlbuilder"],
+    deps = [
+        "//service/common/protos",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

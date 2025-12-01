@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "anyutil",
+    srcs = [
+        "convert.go",
+        "deref.go",
+        "property_getter.go",
+        "protos.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/anyutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/protos",
+        "@com_github_shopspring_decimal//:decimal",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "anyutil_test",
+    srcs = [
+        "convert_test.go",
+        "property_getter_test.go",
+    ],
+    embed = [":anyutil"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -15,7 +15,7 @@ import (
 
 func main() {
 	var (
-		configPath = flag.String("config", "launcher.yaml", "Path to the launcher configuration file")
+		configPath = flag.String("config", "./service/launcher/launcher.yaml", "Path to the launcher configuration file")
 	)
 	flags.ParseAndInitLogFlag()
 

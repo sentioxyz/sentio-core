@@ -3,9 +3,13 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
+
+	"sentioxyz/sentio-core/service/processor/driverjob"
 )
 
 // Config represents the main configuration structure
@@ -28,6 +32,8 @@ type SharedConfig struct {
 	Redis RedisConfig `yaml:"redis"`
 	// Storage configuration
 	Storage StorageConfig `yaml:"storage"`
+	// Driver configuration (populated from top-level config)
+	Driver driverjob.DriverConfig `yaml:"driver_config"`
 }
 
 // DatabaseConfig contains database connection settings
@@ -54,9 +60,11 @@ type RedisConfig struct {
 
 // StorageConfig contains storage settings
 type StorageConfig struct {
-	DefaultStorage string `yaml:"default_storage"`
-	IpfsApiUrl     string `yaml:"ipfs_api_url"`
-	IpfsGatewayUrl string `yaml:"ipfs_gateway_url"`
+	DefaultStorage      string `yaml:"default_storage"`
+	IpfsApiUrl          string `yaml:"ipfs_api_url"`
+	IpfsGatewayUrl      string `yaml:"ipfs_gateway_url"`
+	LocalStoragePath    string `yaml:"local_storage_path"`
+	LocalStorageBaseURL string `yaml:"local_storage_base_url"`
 }
 
 // ServerConfig represents configuration for a single gRPC server
@@ -94,6 +102,35 @@ func LoadConfig(configPath string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, errors.Wrapf(err, "failed to parse YAML config")
 	}
+	dir := filepath.Dir(configPath)
+	// Resolve paths if they start with ./
+	if strings.HasPrefix(config.Shared.ClickHouse.Path, "./") {
+		absPath, err := filepath.Abs(filepath.Join(dir, config.Shared.ClickHouse.Path))
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to resolve clickhouse config path")
+		}
+		config.Shared.ClickHouse.Path = absPath
+	}
+
+	if strings.HasPrefix(config.Shared.Driver.ChainsConfig, "./") {
+		absPath, err := filepath.Abs(filepath.Join(dir, config.Shared.Driver.ChainsConfig))
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to resolve chains config path")
+		}
+		config.Shared.Driver.ChainsConfig = absPath
+	}
+
+	if strings.HasPrefix(config.Shared.Driver.CacheDir, "./") {
+		absPath, err := filepath.Abs(filepath.Join(dir, config.Shared.Driver.CacheDir))
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to resolve cache dir path")
+		}
+		config.Shared.Driver.CacheDir = absPath
+	}
+
+	// Populate DriverConfig from SharedConfig
+	config.Shared.Driver.Clickhouse.ConfigPath = config.Shared.ClickHouse.Path
+	config.Shared.Driver.Redis.Address = config.Shared.Redis.URL
 
 	// Validate configuration
 	if err := validateConfig(&config); err != nil {

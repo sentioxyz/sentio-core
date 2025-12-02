@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "project",
+    srcs = ["project_service.go"],
+    importpath = "sentioxyz/sentio-core/service/project",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/gonanoid",
+        "//service/common/models",
+        "//service/common/protos",
+        "//service/project/protos",
+        "//service/project/repository",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)

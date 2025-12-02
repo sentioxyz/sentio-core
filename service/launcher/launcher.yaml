@@ -5,7 +5,7 @@
 shared:
   # ClickHouse configuration
   clickhouse:
-    path: ''
+    path: './clickhouse-config.yaml'
 
   # Redis configuration
   redis:
@@ -15,9 +15,20 @@ shared:
 
   # Storage configuration
   storage:
-    default_storage: 'ipfs'
-    ipfs_api_url: 'http://localhost:5001'
-    ipfs_gateway_url: 'http://localhost:5001'
+    default_storage: 'localstorage'
+    local_storage_path: '/tmp/storage'
+    local_storage_base_url: 'http://host.docker.internal:10000'
+  # driver configuration
+  driver_config:
+    driver_image: 'docker.sentioxyz.co/sentio/driver:dev'
+    processor_service: http://host.docker.internal:10000
+    cache_dir: '/tmp/cache'
+    chains_config: './chains-config.json'
+    driver:
+      use_chain_server: false
+      verbose: 'info'
+      log_format: 'json'
+      sampling_interval: 10
 
 # Servers configuration - each server can host multiple services
 servers:
@@ -30,4 +41,9 @@ servers:
       - name: 'processor-service'
         type: 'processor'
         enabled: true
-        config:
+      - name: 'localstorage-service'
+        type: 'localstorage'
+        enabled: true
+      - name: 'project-service'
+        type: 'project'
+        enabled: true

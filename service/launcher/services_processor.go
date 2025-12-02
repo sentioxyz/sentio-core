@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sentioxyz/sentio-core/service/processor/driverjob"
 	"sync"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -12,6 +13,7 @@ import (
 
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/service/common/rpc"
+	"sentioxyz/sentio-core/service/common/storagesystem"
 	processorservice "sentioxyz/sentio-core/service/processor"
 	coreprotos "sentioxyz/sentio-core/service/processor/protos"
 	"sentioxyz/sentio-core/service/processor/repository"
@@ -38,14 +40,15 @@ func (ps *ProcessorService) Create(name string, serviceConfig *ServiceConfig, sh
 
 // ProcessorServiceInstance represents a running processor service instance
 type ProcessorServiceInstance struct {
-	name             string
-	serviceConfig    *ServiceConfig
-	sharedConfig     *SharedConfig
-	status           ServiceStatus
-	processorSvc     *processorservice.Service
-	graphNodeService interface{}
-	cancelFunc       context.CancelFunc
-	mutex            sync.RWMutex
+	name              string
+	serviceConfig     *ServiceConfig
+	sharedConfig      *SharedConfig
+	status            ServiceStatus
+	processorSvc      *processorservice.Service
+	graphNodeService  interface{}
+	fileStorageSystem storagesystem.FileStorageSystemInterface
+	cancelFunc        context.CancelFunc
+	mutex             sync.RWMutex
 }
 
 // Initialize initializes the processor service dependencies
@@ -80,28 +83,68 @@ func (psi *ProcessorServiceInstance) Initialize(ctx context.Context) error {
 	chainStateRepo := repoFactory.CreateChainStateRepo()
 	log.Infof("Created Redis repositories for processor service %s", psi.name)
 
-	// Setup IPFS storage system
-	ipfsStorageSystem, err := storage.NewDefaultIPFSStorageSystem(storage.DefaultIPFSStorageSystemConfig{
-		IPFSConfig: storage.IPFSConfig{
-			ApiURL:     psi.sharedConfig.Storage.IpfsApiUrl,
-			GatewayURL: psi.sharedConfig.Storage.IpfsGatewayUrl,
-		},
-	})
+	// Setup storage system based on configuration
+	var fileStorageSystem storagesystem.FileStorageSystemInterface
+	storageType := psi.sharedConfig.Storage.DefaultStorage
+	if storageType == "" {
+		storageType = "ipfs" // Default to IPFS for backward compatibility
+	}
+
+	switch storageType {
+	case "local", "localstorage": // Support both naming conventions
+		// Setup local storage system (HTTP handlers registered via localstorage service)
+		localStoragePath := psi.sharedConfig.Storage.LocalStoragePath
+		localStorageSystem, err := storage.NewLocalStorageSystem(storage.LocalStorageSystemConfig{
+			LocalStorageConfig: storage.LocalStorageConfig{
+				BasePath: localStoragePath,
+				BaseURL:  psi.sharedConfig.Storage.LocalStorageBaseURL,
+			},
+		})
+		if err != nil {
+			psi.status = StatusError
+			return errors.Wrapf(err, "failed to create local storage system")
+		}
+
+		fileStorageSystem = localStorageSystem
+		log.Infof("Created local storage system with path: %s", localStoragePath)
+
+	case "ipfs":
+		// Setup IPFS storage system
+		ipfsStorageSystem, err := storage.NewDefaultIPFSStorageSystem(storage.DefaultIPFSStorageSystemConfig{
+			IPFSConfig: storage.IPFSConfig{
+				ApiURL:     psi.sharedConfig.Storage.IpfsApiUrl,
+				GatewayURL: psi.sharedConfig.Storage.IpfsGatewayUrl,
+			},
+		})
+		if err != nil {
+			psi.status = StatusError
+			return errors.Wrapf(err, "failed to create IPFS storage system")
+		}
+		fileStorageSystem = ipfsStorageSystem
+		log.Infof("Created IPFS storage system with API: %s, Gateway: %s",
+			psi.sharedConfig.Storage.IpfsApiUrl,
+			psi.sharedConfig.Storage.IpfsGatewayUrl)
+
+	default:
+		psi.status = StatusError
+		return fmt.Errorf("unsupported storage type: %s (supported: local, ipfs)", storageType)
+	}
+
+	driverJobManager, err := driverjob.NewDockerSwarmManager(ctx, psi.sharedConfig.Driver)
 	if err != nil {
 		psi.status = StatusError
-		return errors.Wrapf(err, "failed to create IPFS storage system")
+		return errors.Wrapf(err, "failed to create driver job manager")
 	}
-	log.Infof("Created IPFS storage system with API: %s, Gateway: %s",
-		psi.sharedConfig.Storage.IpfsApiUrl,
-		psi.sharedConfig.Storage.IpfsGatewayUrl)
+
+	processorFactory := processorservice.NewDefaultProcessorFactory(processorRepo)
 
 	// Create processor service
 	processorSvc := processorservice.NewService(
 		processorRepo,
 		chainStateRepo,
-		nil, // driverJobManager
-		ipfsStorageSystem,
-		nil, // processorFactory
+		driverJobManager,
+		fileStorageSystem,
+		processorFactory,
 		nil, // lifecycleHook
 		redisClient,
 	)
@@ -110,8 +153,11 @@ func (psi *ProcessorServiceInstance) Initialize(ctx context.Context) error {
 	psi.processorSvc = processorSvc
 	psi.graphNodeService = nil
 
+	// Store file storage system for later use
+	psi.fileStorageSystem = fileStorageSystem
+
 	psi.status = StatusStopped
-	log.Infof("Processor service %s initialized successfully", psi.name)
+	log.Infof("%s initialized successfully", psi.name)
 
 	return nil
 }
@@ -122,7 +168,7 @@ func (psi *ProcessorServiceInstance) Register(grpcServer *grpc.Server, mux *runt
 	defer psi.mutex.Unlock()
 
 	if psi.processorSvc == nil {
-		return fmt.Errorf("processor service %s not initialized", psi.name)
+		return fmt.Errorf("service %s not initialized", psi.name)
 	}
 
 	// Register processor service on the gRPC server
@@ -136,7 +182,6 @@ func (psi *ProcessorServiceInstance) Register(grpcServer *grpc.Server, mux *runt
 		return err
 	}
 
-	log.Infof("Processor service %s registered on gRPC server and HTTP mux", psi.name)
 	return nil
 }
 
@@ -172,7 +217,7 @@ func (psi *ProcessorServiceInstance) Start(ctx context.Context) error {
 	}*/
 
 	psi.status = StatusRunning
-	log.Infof("Processor service %s background processes started successfully", psi.name)
+	log.Infof("Service %s started successfully", psi.name)
 
 	return nil
 }

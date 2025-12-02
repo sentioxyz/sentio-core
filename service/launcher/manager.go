@@ -214,6 +214,8 @@ func (sm *ServiceManager) ListServers() map[string]string {
 func (sm *ServiceManager) registerServices() error {
 	// Register processor service
 	sm.services["processor"] = NewProcessorService()
+	sm.services["localstorage"] = NewLocalStorageService()
+	sm.services["project"] = NewProjectServiceFactory()
 
 	return nil
 }
@@ -276,7 +278,6 @@ func (sm *ServiceManager) startServer(ctx context.Context, cfg ServerConfig) err
 
 		// Store the service instance
 		server.Services[serviceConfig.Name] = instance
-		log.Infof("Service %s registered successfully in server %s", serviceConfig.Name, cfg.Name)
 	}
 
 	port := cfg.Port
@@ -297,10 +298,10 @@ func (sm *ServiceManager) startServer(ctx context.Context, cfg ServerConfig) err
 		startCtx, startCancel := context.WithTimeout(ctx, 30*time.Second)
 		if err := instance.Start(startCtx); err != nil {
 			startCancel()
-			return errors.Wrapf(err, "failed to start service background processes for %s", name)
+			return errors.Wrapf(err, "failed to start service for %s", name)
 		}
 		startCancel()
-		log.Infof("Service %s background processes started in server %s", name, cfg.Name)
+		log.Infof("Service %s started in server %s", name, cfg.Name)
 	}
 
 	server.Status = "running"

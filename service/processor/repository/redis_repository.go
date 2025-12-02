@@ -7,11 +7,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
+	"sentioxyz/sentio-core/common/gonanoid"
 	commonmodels "sentioxyz/sentio-core/service/common/models"
 	"sentioxyz/sentio-core/service/processor/models"
 	"sentioxyz/sentio-core/service/processor/protos"
+
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 // Redis key prefixes
@@ -368,6 +370,11 @@ func (r *RedisProcessorRepo) GetProcessorsByProjectAndVersionState(ctx context.C
 
 	var result []*models.Processor
 	for _, p := range processors {
+		if len(versionStates) == 0 {
+			pCopy := p
+			result = append(result, &pCopy)
+			continue
+		}
 		for _, state := range versionStates {
 			if p.VersionState == int32(state) {
 				pCopy := p
@@ -409,15 +416,42 @@ func (r *RedisProcessorRepo) CreateOrUpdateProcessor(
 	sentioProperties models.SentioProcessorProperties,
 	subgraphProperties models.SubgraphProcessorProperties,
 ) (*models.Processor, error) {
-	// Find the latest version
+	// If continueFrom > 0, update existing processor
+	if continueFrom > 0 {
+		existingProcessor, err := r.FindProcessorByVersion(ctx, project.ID, continueFrom)
+		if err != nil {
+			return nil, fmt.Errorf("processor with version %d not found for project %s: %w", continueFrom, project.ID, err)
+		}
+
+		// Update the properties
+		existingProcessor.SentioProcessorProperties = sentioProperties
+		existingProcessor.SubgraphProcessorProperties = subgraphProperties
+		existingProcessor.UploadedAt = time.Now()
+
+		// Update user if identity is provided
+		if identity != nil {
+			existingProcessor.UserID = &identity.UserID
+		}
+
+		return existingProcessor, r.SaveProcessor(ctx, existingProcessor)
+	}
+
+	// Create new processor
+	// Find the latest version to determine the new version number
 	latestProcessor, err := r.FindLatestProcessor(ctx, project.ID)
 	newVersion := int32(1)
 	if err == nil && latestProcessor != nil {
 		newVersion = latestProcessor.Version + 1
 	}
 
+	// Generate processor ID using gonanoid
+	processorID, err := gonanoid.GenerateID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate processor ID: %w", err)
+	}
+
 	processor := &models.Processor{
-		ID:                          fmt.Sprintf("proc_%d", time.Now().UnixNano()),
+		ID:                          processorID,
 		ProjectID:                   project.ID,
 		Project:                     project,
 		Version:                     newVersion,
@@ -428,6 +462,8 @@ func (r *RedisProcessorRepo) CreateOrUpdateProcessor(
 		Pause:                       pause,
 		SentioProcessorProperties:   sentioProperties,
 		SubgraphProcessorProperties: subgraphProperties,
+		DriverVersion:               1,
+		EntitySchemaVersion:         0,
 	}
 
 	if identity != nil {

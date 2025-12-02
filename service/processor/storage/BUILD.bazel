@@ -6,6 +6,8 @@ go_library(
     srcs = [
         "ipfs_storage.go",
         "ipfs_storage_system.go",
+        "local_storage.go",
+        "local_storage_system.go",
     ],
     importpath = "sentioxyz/sentio-core/service/processor/storage",
     visibility = ["//visibility:public"],

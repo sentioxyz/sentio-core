@@ -10,6 +10,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/service/processor/repository",
     visibility = ["//visibility:public"],
     deps = [
+        "//common/gonanoid",
         "//service/common/models",
         "//service/common/repository",
         "//service/processor/models",

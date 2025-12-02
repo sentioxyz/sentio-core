@@ -90,7 +90,8 @@ service ProcessorService {
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      put: "/api/v1/processors/{processor_id}/pause"
+      put: "/api/v1/processors/{processor_id}/pause",
+      body: "*"
     };
   };
 

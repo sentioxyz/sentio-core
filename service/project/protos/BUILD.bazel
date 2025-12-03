@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_proto_grpc_grpc_gateway//:defs.bzl", "gateway_grpc_library")
+
+
+proto_library(
+    name = "protos_proto",
+    srcs = ["project_service.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/protos:protos_proto",
+        "@googleapis//google/api:annotations_proto",
+        "@googleapis//google/api:visibility_proto",
+        "@grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options:options_proto",
+        "@protobuf//:empty_proto",
+    ],
+)
+
+gateway_grpc_library(
+    name = "protos_go_proto",
+    importpath = "sentioxyz/sentio-core/service/project/protos",
+    protos = [":protos_proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/protos",
+        "@grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options",
+        "@org_golang_google_genproto_googleapis_api//annotations",
+        "@org_golang_google_genproto_googleapis_api//visibility",
+    ],
+)
+
+go_library(
+    name = "protos",
+    embed = [":protos_go_proto"],
+    importpath = "sentioxyz/sentio-core/service/project/protos",
+    visibility = ["//visibility:public"],
+)

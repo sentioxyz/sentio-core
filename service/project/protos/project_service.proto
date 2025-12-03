@@ -1,0 +1,407 @@
+syntax = "proto3";
+
+package project_service;
+
+option go_package = "sentioxyz/sentio-core/service/project/protos";
+
+import "google/api/annotations.proto";
+import "google/api/visibility.proto";
+import "google/protobuf/empty.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+import "service/common/protos/common.proto";
+
+message GetProjectByIdRequest {
+  string project_id = 1;
+}
+
+message GetProjectResponse {
+  common.Project project = 1;
+  repeated common.Permission permissions = 2;
+}
+
+message ProjectOwnerAndSlug {
+  // username or organization name
+  string owner_name = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+}
+
+message CheckOwnerRequest {
+  string owner_name = 1;
+}
+
+message CheckResponse {
+  bool is_taken = 1;
+  bool is_valid = 2;
+}
+
+message GetProjectListRequest {
+  string user_id = 1;
+  string organization_id = 2;
+}
+
+message GetProjectListResponse {
+  repeated common.Project projects = 1;
+  repeated common.Project shared_projects = 2;
+  repeated common.Project org_projects = 3;
+}
+
+message ProjectMemberRequest {
+  string project_id = 1;
+  string username_or_email = 2;
+}
+
+message ProjectMemberResponse {
+  repeated common.Project.ProjectMember members = 1;
+}
+
+message ProjectViewResponse {
+  string project_id = 1;
+  repeated common.ProjectView views = 2;
+}
+
+message ImportProjectRequest {
+  // username or organization name
+  string owner_name = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // import as
+  string name = 3;
+  // a single project to import
+  ProjectOwnerAndSlug import_project = 4;
+  // a list of projects to import
+  repeated ProjectOwnerAndSlug import_projects = 5;
+}
+
+message UnImportProjectRequest {
+  // username or organization name
+  string owner_name = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // username or organization name of the imported project
+  string unimport_owner = 3;
+  // slug of the imported project
+  string unimport_slug = 4;
+}
+
+message ImportProjectResponse {
+  repeated common.ImportedProject imports = 1;
+}
+
+message SearchProjectRequest {
+  string q = 1;
+}
+
+message SearchProjectResponse {
+  repeated common.ProjectInfo projects = 1;
+}
+
+message ProjectsResponse {
+  repeated common.Project projects = 1;
+}
+
+message ProjectsInfoResponse {
+  repeated common.ProjectInfo projects = 1;
+}
+
+message ProjectVariableKey {
+  string project_id = 1;
+  string key = 2;
+}
+
+message CloneProjectRequest {
+  oneof target_project {
+    string project_id = 1;
+    common.Project project = 2;
+  }
+  string from_project_id = 3;
+}
+
+message TransferProjectRequest {
+  string project_id = 1;
+  string to_owner_name = 2;
+}
+
+service ProjectService {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_tag) = {
+    name: "Project"
+  };
+
+  // Get project details
+  rpc GetProject(ProjectOwnerAndSlug) returns (GetProjectResponse) {
+    option (common.auth) = {
+      permission: "project:read"
+      allow_anonymous: true
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/project/{owner_name}/{slug}"
+    };
+  };
+
+  // Get project details
+  rpc GetProjectById(GetProjectByIdRequest) returns (common.ProjectInfo) {
+    option (common.auth) = {
+      permission: "project:read"
+      allow_anonymous: true
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/project/{project_id}"
+    };
+  };
+
+  // Get project list
+  rpc GetProjectList(GetProjectListRequest) returns (GetProjectListResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+    option (google.api.http) = {
+      get: "/api/v1/projects"
+    };
+  };
+
+  rpc GetPopulateProjectList(GetProjectListRequest) returns (GetProjectListResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/populate-projects"
+    };
+  }
+
+  rpc SaveProject(common.Project) returns (common.Project) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/projects"
+      body: "*"
+    };
+  };
+
+  rpc DeleteProject(GetProjectByIdRequest) returns (common.Project) {
+    option (common.auth) = {
+      permission: "project:admin"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      delete: "/api/v1/projects/{project_id}"
+    };
+  };
+
+  rpc CloneProject(CloneProjectRequest) returns (common.Project) {
+    option (common.auth) = {
+      permission: "project:read"
+      metadata: {key: "project_id_field" value: "from_project_id"}
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      post: "/api/v1/projects/clone"
+      body: "*"
+    };
+  }
+
+  rpc TransferProjectOwner(TransferProjectRequest) returns (common.Project) {
+    option (common.auth) = {
+      permission: "project:admin"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/projects/{project_id}/transfer"
+      body: "*"
+    };
+  }
+
+  rpc AddProjectMember(ProjectMemberRequest) returns (ProjectMemberResponse) {
+    option (common.auth) = {
+      permission: "project:admin"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/projects/{project_id}/members"
+      body: "*"
+    };
+  }
+
+  rpc RemoveProjectMember(ProjectMemberRequest) returns (ProjectMemberResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      delete: "/api/v1/projects/{project_id}/members/{username_or_email}"
+    };
+  }
+
+  rpc CheckProjectId(ProjectOwnerAndSlug) returns (CheckResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/projects/{owner_name}/{slug}/availability"
+    };
+  };
+
+  // Project view
+  rpc AddProjectView(common.ProjectView) returns (ProjectViewResponse) {
+    option (common.auth) = {
+      permission: "project:write"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/project_view/{project_id}"
+      body: "*"
+    };
+  };
+
+  rpc RemoveProjectView(common.ProjectView) returns (ProjectViewResponse) {
+    option (common.auth) = {
+      permission: "project:admin"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      delete: "/api/v1/project_view/{project_id}/{id}"
+    };
+  };
+
+  rpc UpdateProjectView(common.ProjectView) returns (ProjectViewResponse) {
+    option (common.auth) = {
+      permission: "project:admin"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/project_view/{project_id}/{id}"
+      body: "*"
+    };
+  };
+
+  rpc SearchProject(SearchProjectRequest) returns (SearchProjectResponse) {
+    option (common.auth) = {
+      allow_anonymous: true
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/projects/search"
+    };
+  };
+
+  // Import external project(s)
+  rpc ImportProject(ImportProjectRequest) returns (ImportProjectResponse) {
+    option (common.auth) = {
+      permission: "project:write"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      post: "/api/v1/project/{owner_name}/{slug}/importprojects"
+      body: "*"
+    };
+  };
+
+  // Remove an imported project
+  rpc UnImportProject(UnImportProjectRequest) returns (ImportProjectResponse) {
+    option (common.auth) = {
+      permission: "project:write"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      delete: "/api/v1/project/{owner_name}/{slug}/unimportprojects/{unimport_owner}/{unimport_slug}"
+    };
+  };
+
+  // Get all imported projects
+  rpc GetImportedProject(ProjectOwnerAndSlug) returns (ImportProjectResponse) {
+    option (common.auth) = {
+      permission: "project:read"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/project/{owner_name}/{slug}/importprojects"
+    };
+  };
+
+  rpc GetStarredProjects(google.protobuf.Empty) returns (ProjectsResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/starred_projects"
+    };
+  };
+  rpc StarProject(GetProjectByIdRequest) returns (google.protobuf.Empty) {
+    option (common.auth) = {
+      permission: "project:read"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/starred_projects/{project_id}"
+    };
+  };
+
+  rpc UnstarProject(GetProjectByIdRequest) returns (google.protobuf.Empty) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      delete: "/api/v1/starred_projects/{project_id}"
+    };
+  };
+
+  rpc GetViewedProjects(google.protobuf.Empty) returns (ProjectsInfoResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/viewed_projects"
+    };
+  };
+
+  rpc GetProjectVariables(GetProjectByIdRequest) returns (common.ProjectVariables) {
+    option (common.auth) = {
+      permission: "project:read"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/projects/{project_id}/variables"
+    };
+  }
+
+  rpc SaveProjectVariables(common.ProjectVariables) returns (google.protobuf.Empty) {
+    option (common.auth) = {
+      permission: "project:write"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/projects/{project_id}/variables"
+      body: "*"
+    };
+  }
+
+  rpc DeleteProjectVariables(ProjectVariableKey) returns (google.protobuf.Empty) {
+    option (common.auth) = {
+      permission: "project:write"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      delete: "/api/v1/projects/{project_id}/variables/{key}"
+    };
+  }
+}

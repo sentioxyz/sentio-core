@@ -1198,6 +1198,34 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     lightIcon: 'https://assets.sentio.xyz/chains/arc.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/arc-dark.svg'
   },
+  [EthChainId.STABLE_TESTNET]: {
+    name: 'Stable Testnet',
+    slug: 'stable-testnet',
+    chainId: EthChainId.STABLE_TESTNET,
+    variation: EthVariation.DEFAULT,
+    priceTokenAddress: '0x0000000000000000000000000000000000001000',
+    tokenAddress: '0x0000000000000000000000000000000000001000',
+    wrappedTokenAddress: '0x0000000000000000000000000000000000001000',
+    tokenSymbol: 'gUSDT',
+    tokenDecimals: 18,
+    explorerUrl: 'https://testnet.stablescan.xyz',
+    lightIcon: 'https://assets.sentio.xyz/chains/stable.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/stable-dark.svg'
+  },
+  [EthChainId.STABLE_MAINNET]: {
+    name: 'Stable Mainnet',
+    slug: 'stable-mainnet',
+    chainId: EthChainId.STABLE_MAINNET,
+    variation: EthVariation.DEFAULT,
+    priceTokenAddress: '0x0000000000000000000000000000000000001000',
+    tokenAddress: '0x0000000000000000000000000000000000001000',
+    wrappedTokenAddress: '0x0000000000000000000000000000000000001000',
+    tokenSymbol: 'gUSDT',
+    tokenDecimals: 18,
+    explorerUrl: 'https://stablescan.xyz',
+    lightIcon: 'https://assets.sentio.xyz/chains/stable.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/stable-dark.svg'
+  },
   [EthChainId.CUSTOM]: {
     name: 'Custom',
     slug: 'custom',

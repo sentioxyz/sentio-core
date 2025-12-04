@@ -3,7 +3,7 @@ package chains
 
 import "github.com/ethereum/go-ethereum/common"
 
-var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &CronosZkevmInfo, &ZksyncEraInfo, &CronosTestnetInfo, &AstarInfo, &DeriveInfo, &HyperEvmInfo, &PolygonZkevmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &MoonbeamInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &SwellTestnetInfo, &SwellMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MerlinMainnetInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &MevCommitInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &MonadMainnetInfo, &HoleskyInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitGarfieldTestnetInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &BlastInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &ZklinkNovaInfo, &SepoliaInfo, &EtherlinkInfo, &CornMaizenetInfo, &AuroraInfo, &BlastSepoliaInfo, &AbstractInfo, &GoatMainnetInfo, &ArcTestnetInfo, &CustomInfo}
+var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &CronosZkevmInfo, &ZksyncEraInfo, &CronosTestnetInfo, &AstarInfo, &DeriveInfo, &StableTestnetInfo, &StableMainnetInfo, &HyperEvmInfo, &PolygonZkevmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &MoonbeamInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &SwellTestnetInfo, &SwellMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MerlinMainnetInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &MevCommitInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &MonadMainnetInfo, &HoleskyInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitGarfieldTestnetInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &BlastInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &ZklinkNovaInfo, &SepoliaInfo, &EtherlinkInfo, &CornMaizenetInfo, &AuroraInfo, &BlastSepoliaInfo, &AbstractInfo, &GoatMainnetInfo, &ArcTestnetInfo, &CustomInfo}
 
 var Chains = []*ChainInfo{}
 
@@ -404,6 +404,44 @@ var DeriveInfo = EthChainInfo{
   WrappedTokenAddress: common.HexToAddress("0x15CEcd5190A43C7798dD2058308781D0662e678E"),
   ExplorerAPI: "https://explorer.lyra.finance",
   ExplorerAPIType: ExplorerAPITypeBlockscout,
+}
+
+var StableTestnetInfo = EthChainInfo{
+  ChainInfo: ChainInfo{
+    Name: "Stable Testnet",
+    Slug: "stable-testnet",
+    AdditionalSlugs: []string{},
+    MainnetChainID: ChainID(StableTestnetID),
+    ChainID: ChainID(StableTestnetID),
+    ExplorerURL: "https://testnet.stablescan.xyz",
+  },
+  Variation: EthVariationDefault,
+  TokenSymbol: "gUSDT",
+  TokenDecimals: 18,
+  TokenAddress: common.HexToAddress("0x0000000000000000000000000000000000001000"),
+  PriceTokenAddress: common.HexToAddress("0x0000000000000000000000000000000000001000"),
+  WrappedTokenAddress: common.HexToAddress("0x0000000000000000000000000000000000001000"),
+  ExplorerAPI: "",
+  ExplorerAPIType: ExplorerAPITypeUnknown,
+}
+
+var StableMainnetInfo = EthChainInfo{
+  ChainInfo: ChainInfo{
+    Name: "Stable Mainnet",
+    Slug: "stable-mainnet",
+    AdditionalSlugs: []string{},
+    MainnetChainID: ChainID(StableMainnetID),
+    ChainID: ChainID(StableMainnetID),
+    ExplorerURL: "https://stablescan.xyz",
+  },
+  Variation: EthVariationDefault,
+  TokenSymbol: "gUSDT",
+  TokenDecimals: 18,
+  TokenAddress: common.HexToAddress("0x0000000000000000000000000000000000001000"),
+  PriceTokenAddress: common.HexToAddress("0x0000000000000000000000000000000000001000"),
+  WrappedTokenAddress: common.HexToAddress("0x0000000000000000000000000000000000001000"),
+  ExplorerAPI: "",
+  ExplorerAPIType: ExplorerAPITypeUnknown,
 }
 
 var HyperEvmInfo = EthChainInfo{

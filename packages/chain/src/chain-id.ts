@@ -36,6 +36,8 @@ export enum EthChainId {
   CRONOS_TESTNET = '338',
   ASTAR = '592',
   DERIVE = '957',
+  STABLE_TESTNET = '2201',
+  STABLE_MAINNET = '998',
   HYPER_EVM = '999',
   POLYGON_ZKEVM = '1101',
   CONFLUX = '1030',

@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"reflect"
 	"runtime"
 	"sync"
@@ -37,7 +38,84 @@ type logKey struct {
 var (
 	ctxLogKey      = logKey{}
 	loggerCounters sync.Map
+	// onceBloom is a best-effort, process-wide Bloom filter used by Once and *Once helpers
+	// to avoid printing duplicate log messages. It is intentionally approximate: collisions
+	// may cause some distinct messages to be suppressed, which is acceptable for logging.
+	onceBloom = newBloomFilter()
 )
+
+// bloomFilter is a small concurrent-safe Bloom filter using two FNV-based hash functions.
+// It is tuned for best-effort suppression of duplicate log call sites/template pairs.
+type bloomFilter struct {
+	bits []uint64
+	mask uint64
+}
+
+const (
+	// onceBloomBits defines the number of bits in the Bloom filter. It must be a power of two
+	// to allow using a simple mask instead of modulo. 1<<18 == 262144 bits (~32 KiB).
+	onceBloomBits = 1 << 18
+)
+
+func newBloomFilter() *bloomFilter {
+	nWords := onceBloomBits / 64
+	return &bloomFilter{
+		bits: make([]uint64, nWords),
+		mask: onceBloomBits - 1,
+	}
+}
+
+// maybeAdd returns true if the key is probably already present, and false if this is the
+// first time we've seen it (in which case the key is added to the filter).
+func (b *bloomFilter) maybeAdd(key []byte) bool {
+	if b == nil || len(b.bits) == 0 {
+		return false
+	}
+
+	h1 := fnv1a64(key)
+	h2 := fnv1a64Alt(key)
+
+	idx1 := (h1 & b.mask) >> 6
+	bit1 := uint64(1) << (h1 & 63)
+
+	idx2 := (h2 & b.mask) >> 6
+	bit2 := uint64(1) << (h2 & 63)
+
+	// Load current words atomically.
+	w1 := atomic.LoadUint64(&b.bits[idx1])
+	w2 := atomic.LoadUint64(&b.bits[idx2])
+
+	already := (w1&bit1 != 0) && (w2&bit2 != 0)
+
+	// Set bits atomically; races are acceptable as long as we eventually set the bits.
+	if w1&bit1 == 0 {
+		atomic.StoreUint64(&b.bits[idx1], w1|bit1)
+	}
+	if w2&bit2 == 0 {
+		atomic.StoreUint64(&b.bits[idx2], w2|bit2)
+	}
+
+	return already
+}
+
+func fnv1a64(b []byte) uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write(b)
+	return h.Sum64()
+}
+
+// fnv1a64Alt derives a second hash from FNV-1a with a different offset basis.
+func fnv1a64Alt(b []byte) uint64 {
+	const offset64Alt = 1469598103934665603 ^ 0x9e3779b97f4a7c15
+	const prime64 = 1099511628211
+
+	h := uint64(offset64Alt)
+	for _, c := range b {
+		h ^= uint64(c)
+		h *= prime64
+	}
+	return h
+}
 
 // getCallSite returns a unique identifier for the calling location
 func getCallSite(skip int) string {
@@ -203,6 +281,28 @@ func (l *SentioLogger) If(cond bool, f func(template string, args ...interface{}
 	f(template, args...)
 }
 
+func (l *SentioLogger) Once(f func(template string, args ...interface{}), template string, args ...any) {
+	// Build a stable key from call site and template so Once is scoped per call-site/template
+	// pair across the process. We use skip=2 to be consistent with EveryN/EveryNw helpers.
+	callSite := getCallSite(2)
+	key := []byte(callSite + "|" + template)
+	if onceBloom.maybeAdd(key) {
+		return
+	}
+	f(template, args...)
+}
+
+func (l *SentioLogger) OnceF(f func(template string, args ...interface{}), template string, args ...any) {
+	// Build a stable key from call site and template so Once is scoped per call-site/template
+	// pair across the process. We use skip=2 to be consistent with EveryN/EveryNw helpers.
+	callSite := getCallSite(2)
+	key := []byte(callSite + "|" + template)
+	if onceBloom.maybeAdd(key) {
+		return
+	}
+	f(template, l.lazy(args...)...)
+}
+
 func (l *SentioLogger) Debug(msg string, args ...interface{}) {
 	l.s.Debug(append([]interface{}{msg}, args...)...)
 }
@@ -237,6 +337,14 @@ func (l *SentioLogger) DebugEveryN(n int, template string, args ...interface{}) 
 
 func (l *SentioLogger) DebugEveryNw(n int, msg string, keyAndValues ...interface{}) {
 	l.EveryNw(n, l.AddCallerSkip(2).Debugw, msg, keyAndValues...)
+}
+
+func (l *SentioLogger) DebugOnce(template string, args ...interface{}) {
+	l.Once(l.AddCallerSkip(2).Debugf, template, args...)
+}
+
+func (l *SentioLogger) DebugOnceF(template string, args ...interface{}) {
+	l.OnceF(l.AddCallerSkip(2).Debugf, template, args...)
 }
 
 func (l *SentioLogger) Info(msg string, args ...interface{}) {
@@ -275,6 +383,14 @@ func (l *SentioLogger) InfoEveryNw(n int, msg string, keyAndValues ...interface{
 	l.EveryNw(n, l.AddCallerSkip(2).Infow, msg, keyAndValues...)
 }
 
+func (l *SentioLogger) InfoOnce(template string, args ...interface{}) {
+	l.Once(l.AddCallerSkip(2).Infof, template, args...)
+}
+
+func (l *SentioLogger) InfoOnceF(template string, args ...interface{}) {
+	l.OnceF(l.AddCallerSkip(2).Infof, template, args...)
+}
+
 func (l *SentioLogger) Warn(msg string, args ...interface{}) {
 	l.s.Warn(append([]interface{}{msg}, args...)...)
 }
@@ -311,6 +427,14 @@ func (l *SentioLogger) WarnEveryNw(n int, msg string, keyAndValues ...interface{
 	l.EveryNw(n, l.AddCallerSkip(2).Warnw, msg, keyAndValues...)
 }
 
+func (l *SentioLogger) WarnOnce(template string, args ...interface{}) {
+	l.Once(l.AddCallerSkip(2).Warnf, template, args...)
+}
+
+func (l *SentioLogger) WarnOnceF(template string, args ...interface{}) {
+	l.OnceF(l.AddCallerSkip(2).Warnf, template, args...)
+}
+
 func (l *SentioLogger) Error(msg string, args ...interface{}) {
 	l.s.Error(append([]interface{}{msg}, args...)...)
 }
@@ -321,6 +445,14 @@ func (l *SentioLogger) Errorf(template string, args ...interface{}) {
 
 func (l *SentioLogger) Errorw(msg string, keysAndValues ...interface{}) {
 	l.s.Errorw(msg, keysAndValues...)
+}
+
+func (l *SentioLogger) ErrorOnce(template string, args ...interface{}) {
+	l.Once(l.AddCallerSkip(2).Errorf, template, args...)
+}
+
+func (l *SentioLogger) ErrorOnceF(template string, args ...interface{}) {
+	l.OnceF(l.AddCallerSkip(2).Errorf, template, args...)
 }
 
 func (l *SentioLogger) Errore(err error, args ...interface{}) {

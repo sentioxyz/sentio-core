@@ -10,6 +10,7 @@ A powerful, context-aware logging library built on top of [Uber's Zap](https://g
 - **Conditional Logging**: Log only when conditions are met
 - **Periodic Logging**: Log every N occurrences to reduce log spam
 - **Lazy Evaluation**: Defer expensive computations until logs are actually written
+- **Once Logging**: Suppress duplicate messages using a lightweight Bloom filter
 - **Multiple Log Formats**: Support for both console (development) and JSON (production) formats
 - **Error Integration**: Built-in error handling with automatic error field addition
 - **Caller Information**: Accurate caller location tracking
@@ -107,6 +108,28 @@ for range items {
         "memory_usage", getMemoryUsage())
 }
 ```
+
+### Once Logging
+
+Ensure a message is logged only once per call-site and template within the process. This is useful for noisy but non-critical warnings or errors:
+
+```go
+// Method-level usage
+logger.InfoOnce("Deprecated API %s was called", apiName)
+logger.ErrorOnce("Failed to connect to %s", host)
+logger.DebugOnce("Debug info: %v", func() any { return expensiveStateDump() })
+
+// Package-level helpers
+log.InfoOnce("Migration completed")
+log.WarnOnce("Configuration key %s is deprecated", key)
+```
+
+Once logging is implemented with a small, process-wide Bloom filter keyed by the call site and format template:
+
+- The **first** time a given call-site/template pair is hit, the log is emitted.
+- Subsequent calls from the same location with the same template are **suppressed**.
+- Lazy arguments (functions) are only evaluated on the first emission, consistent with `EveryN` and `IfF`.
+- The Bloom filter is approximate: in rare cases, distinct messages may be suppressed if they collide. This trade-off is acceptable for log de-duplication.
 
 ### Lazy Evaluation
 
@@ -321,4 +344,3 @@ See [logger_test.go](./logger_test.go) for comprehensive examples.
 ## License
 
 Copyright Sentio XYZ
-

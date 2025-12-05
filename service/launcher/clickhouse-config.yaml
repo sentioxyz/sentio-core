@@ -1,0 +1,33 @@
+# config is for local docker only
+
+clickhouse_client_bin: '/usr/local/bin/clickhouse'
+k8s_context: ''
+read_timeout: 3001
+dial_timeout: 301
+max_idle_conns: 51
+max_open_conns: 101
+engines:
+  - name: default
+    priority: 0
+sentio_base: &sentio_base
+  database: default
+subgraph_base: &subgraph_base
+  database: default
+creds:
+  sentio: &sentio_creds
+    username: default
+    password: password
+
+connect_params:
+  sentio: { <<: [*sentio_base, *sentio_creds] }
+  subgraph: { <<: [*subgraph_base, *sentio_creds] }
+shards:
+  - index: 0
+    k8s_cluster: ''
+    allow_tiers: [0, 1]
+    allow_projects: ['']
+    allow_organizations: ['']
+    addresses:
+      internal-tcp-addr: host.docker.internal:9000
+      external-tcp-addr: host.docker.internal:9000
+    replicas: 'host.docker.internal:9000'

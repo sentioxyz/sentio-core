@@ -1,0 +1,25 @@
+/app/driver/cmd/cmd_/cmd \
+  -processor-service=test-processor-server.test:10020 \
+  -rpcnode-service=test-rpcnode-server.test:18010 \
+  -webhook-service=test-webhook-server.test:10050 \
+  -billing-server=test-usage-server.test:10010 \
+  -cache-dir=/tmp/sentio/cache \
+  -chains-config=/etc/sentio/chains-config.json \
+  -sampling-interval=43200 \
+  -external-processor=driver-0xhwa854-sentio-coinbase-processor.test-driverjob-headless-service:9999 \
+  -processor-use-chainserver=true \
+  -pubsub-topic=sentio-test-topic \
+  -log-format=json \
+  -timescale-db-config=/etc/sentio/timescale_db_config.yaml \
+  -entity-store-cache-size=300000 \
+  -processor-id=0XhWA854 \
+  -clickhouse-read-timeout=600 \
+  -clickhouse-dial-timeout=600 \
+  -clickhouse-max-idle-conns=10 \
+  -clickhouse-max-open-conns=50 \
+  -clickhouse-config-path=/etc/sentio/clickhouse_config.yaml \
+  -redis=test-redis-node-0.test-redis-headless.redis:26379,test-redis-node-1.test-redis-headless.redis:26379,test-redis-node-2.test-redis-headless.redis:26379 \
+  -redis-pool=50 \
+  -realtime-processing-owner-whitelist= \
+  -allow-single-block-backfill-owner-whitelist=UGIjZbBUpt7s,Y8cM6woW \
+  -verbose=debug

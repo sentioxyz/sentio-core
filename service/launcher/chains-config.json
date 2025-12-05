@@ -1,0 +1,29 @@
+{
+  "1": {
+    "ChainName": "eth-mainnet",
+    "ChainID": "1",
+    "Endpoint": "http://test-super-node-eth-mainnet.test:8545",
+    "Https": ["http://test-super-node-eth-mainnet.test:8545"],
+    "WebSockets": [],
+    "TraceServer": "http://test-super-node-eth-mainnet.test:8545",
+    "ChainServer": "http://test-super-node-eth-mainnet.test:8545",
+    "UseStandardTraceApi": true,
+    "UseHistoricalClientForTimer": true,
+    "UseBatchTimeApi": true,
+    "SupportPackedAPI": true,
+    "AlwaysUseLeadingLogHandler": true,
+    "MaxBatchSize": 0,
+    "BatchSize": 10000,
+    "FirstAFewBatchSize": 1000,
+    "UseConcurrentClient": false,
+    "ChainServerUseRPCNode": false,
+    "TimestampSampleInterval": 200000,
+    "ReorgThresholdBlocks": 30,
+    "ProcessingDelayBlocks": 0,
+    "BackFillWaitMsPerBatch": 0,
+    "BackFillLoggingCycle": 1,
+    "LatestLoggingCycle": 10,
+    "BlockPollingIntervalMs": 1000,
+    "StartBlockOverride": 0
+  }
+}

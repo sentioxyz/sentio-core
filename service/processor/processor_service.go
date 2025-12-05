@@ -2,7 +2,6 @@ package processor
 
 import (
 	"context"
-	"fmt"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
 	commonerrors "sentioxyz/sentio-core/service/common/errors"
@@ -92,7 +91,7 @@ func (s *Service) GetProcessorWithProject(
 	}
 	processor, err := s.processorRepo.GetProcessor(ctx, req.GetProcessorId(), true)
 	if err != nil {
-		return nil, fmt.Errorf("get processor from db failed: %w", err)
+		return nil, errors.Wrapf(err, "get processor from db failed")
 	}
 
 	referencedProcessor, err := s.processorRepo.ResolveReferenceProcessor(ctx, processor)
@@ -103,7 +102,7 @@ func (s *Service) GetProcessorWithProject(
 	var response protos.GetProcessorWithProjectResponse
 
 	if response.Processor, err = processor.ToPB(referencedProcessor); err != nil {
-		return nil, fmt.Errorf("convert processor model to pb object failed: %w", err)
+		return nil, errors.Wrapf(err, "convert processor model to pb object failed")
 	}
 
 	response.Project = processor.Project.ToPB()

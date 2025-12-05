@@ -96,3 +96,18 @@ func Test_LogIfF(t *testing.T) {
 		return string(data)
 	})
 }
+
+func Test_LogOnce(t *testing.T) {
+	_, logger := FromContext(context.Background())
+	logger.InfoOnce("good %s", "1")
+	logger.InfoOnce("good %s", "2")
+	logger.InfoOnceF("good1 %s", func() string {
+		return "3"
+	})
+	logger.InfoOnceF("good2 %s", func() string {
+		return "4"
+	})
+	logger.InfoOnceF("good1 %s", func() string {
+		return "5"
+	})
+}

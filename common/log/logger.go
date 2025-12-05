@@ -168,6 +168,14 @@ func DebugEveryNw(n int, msg string, keyAndValues ...interface{}) {
 	global.DebugEveryNw(n, msg, keyAndValues...)
 }
 
+func DebugOnce(template string, args ...interface{}) {
+	global.DebugOnce(template, args...)
+}
+
+func DebugOnceF(template string, args ...interface{}) {
+	global.DebugOnceF(template, args...)
+}
+
 func Infof(template string, args ...interface{}) {
 	global.Infof(template, args...)
 }
@@ -202,6 +210,14 @@ func InfoEveryN(n int, template string, args ...interface{}) {
 
 func InfoEveryNw(n int, msg string, keyAndValues ...interface{}) {
 	global.InfoEveryNw(n, msg, keyAndValues...)
+}
+
+func InfoOnce(template string, args ...interface{}) {
+	global.InfoOnce(template, args...)
+}
+
+func InfoOnceF(template string, args ...interface{}) {
+	global.InfoOnceF(template, args...)
 }
 
 func Warnf(template string, args ...interface{}) {
@@ -240,6 +256,14 @@ func WarnEveryNw(n int, msg string, keyAndValues ...interface{}) {
 	global.WarnEveryNw(n, msg, keyAndValues...)
 }
 
+func WarnOnce(template string, args ...interface{}) {
+	global.WarnOnce(template, args...)
+}
+
+func WarnOnceF(template string, args ...interface{}) {
+	global.WarnOnceF(template, args...)
+}
+
 func Errorfe(err error, template string, args ...interface{}) {
 	global.Errorfe(err, template, args...)
 }
@@ -258,6 +282,14 @@ func Error(msg string, args ...interface{}) {
 
 func Errorw(msg string, keysAndValues ...interface{}) {
 	global.Errorw(msg, keysAndValues...)
+}
+
+func ErrorOnce(template string, args ...interface{}) {
+	global.ErrorOnce(template, args...)
+}
+
+func ErrorOnceF(template string, args ...interface{}) {
+	global.ErrorOnceF(template, args...)
 }
 
 func Fatalf(template string, args ...interface{}) {

@@ -1202,6 +1202,7 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     name: 'Stable Testnet',
     slug: 'stable-testnet',
     chainId: EthChainId.STABLE_TESTNET,
+    mainnetChainId: EthChainId.STABLE_MAINNET,
     variation: EthVariation.DEFAULT,
     priceTokenAddress: '0x0000000000000000000000000000000000001000',
     tokenAddress: '0x0000000000000000000000000000000000001000',

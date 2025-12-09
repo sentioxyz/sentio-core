@@ -1351,6 +1351,16 @@ export const AptosChainInfo: Record<
     lightIcon: 'https://assets.sentio.xyz/chains/movement.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/movement-dark.svg'
   },
+  [AptosChainId.APTOS_MOVEMENT_PREVIEWNET]: {
+    name: 'Movement Previewnet',
+    slug: 'movement-previewnet',
+    chainId: AptosChainId.APTOS_MOVEMENT_PREVIEWNET,
+    mainnetChainId: AptosChainId.APTOS_MOVEMENT_MAINNET,
+    explorerUrl: 'https://explorer.movementnetwork.xyz',
+    suffix: '?network=previewnet',
+    lightIcon: 'https://assets.sentio.xyz/chains/movement.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/movement-dark.svg'
+  },
   [AptosChainId.INITIA_ECHELON]: {
     name: 'Initia Echelon',
     slug: 'initia-echelon',

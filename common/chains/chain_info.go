@@ -411,7 +411,7 @@ var StableTestnetInfo = EthChainInfo{
     Name: "Stable Testnet",
     Slug: "stable-testnet",
     AdditionalSlugs: []string{},
-    MainnetChainID: ChainID(StableTestnetID),
+    MainnetChainID: ChainID(StableMainnetID),
     ChainID: ChainID(StableTestnetID),
     ExplorerURL: "https://testnet.stablescan.xyz",
   },

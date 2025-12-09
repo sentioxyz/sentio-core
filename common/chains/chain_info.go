@@ -1449,6 +1449,15 @@ var AptosMovementMainnetInfo = ChainInfo{
   ExplorerURL: "https://explorer.movementnetwork.xyz",
 }
 
+var AptosMovementPreviewnetInfo = ChainInfo{
+  Name: "Movement Previewnet",
+  Slug: "movement-previewnet",
+  AdditionalSlugs: []string{},
+  ChainID: ChainID(AptosMovementPreviewnetID),
+  MainnetChainID: ChainID(AptosMovementMainnetID),
+  ExplorerURL: "https://explorer.movementnetwork.xyz",
+}
+
 var InitiaEchelonInfo = ChainInfo{
   Name: "Initia Echelon",
   Slug: "initia-echelon",
@@ -1603,5 +1612,5 @@ var BTCTestnetInfo = ChainInfo{
 }
 
 
-var NonEthChains = []*ChainInfo{&AptosMainnetInfo, &AptosTestnetInfo, &AptosMovementTestnetInfo, &AptosMovementMainnetInfo, &InitiaEchelonInfo, &SuiMainnetInfo, &SuiTestnetInfo, &IotaMainnetInfo, &IotaTestnetInfo, &SolanaMainnetInfo, &SolanaTestnetInfo, &SolanaPythInfo, &ForgoTestnetInfo, &FuelMainnetInfo, &FuelTestnetInfo, &InjectiveMainnetInfo, &InjectiveTestnetInfo, &StarknetMainnetInfo, &StarknetSepoliaInfo, &BTCMainnetInfo, &BTCTestnetInfo}
+var NonEthChains = []*ChainInfo{&AptosMainnetInfo, &AptosTestnetInfo, &AptosMovementTestnetInfo, &AptosMovementMainnetInfo, &AptosMovementPreviewnetInfo, &InitiaEchelonInfo, &SuiMainnetInfo, &SuiTestnetInfo, &IotaMainnetInfo, &IotaTestnetInfo, &SolanaMainnetInfo, &SolanaTestnetInfo, &SolanaPythInfo, &ForgoTestnetInfo, &FuelMainnetInfo, &FuelTestnetInfo, &InjectiveMainnetInfo, &InjectiveTestnetInfo, &StarknetMainnetInfo, &StarknetSepoliaInfo, &BTCMainnetInfo, &BTCTestnetInfo}
 

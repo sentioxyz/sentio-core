@@ -98,7 +98,7 @@ export enum AptosChainId {
   APTOS_TESTNET = 'aptos_testnet',
   APTOS_MOVEMENT_TESTNET = 'aptos_movement_testnet',
   APTOS_MOVEMENT_MAINNET = 'aptos_movement_mainnet',
-  APTOS_MOVEMENT_DEVNET = 'aptos_movement_devnet',
+  APTOS_MOVEMENT_PREVIEWNET = 'aptos_movement_previewnet',
   INITIA_ECHELON = 'aptos_echelon'
 }
 

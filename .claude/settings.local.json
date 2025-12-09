@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bazel run:*)",
+      "Bash(bazel build:*)",
+      "Bash(bazel mod tidy:*)",
+      "Bash(bazel query:*)",
+      "Read(//private/var/tmp/_bazel_draco/d23d6613e60b2819ce042f3a3a6a8bd2/external/gazelle++go_deps+com_github_minio_minio_go_v7/**)",
+      "Bash(cat:*)",
+      "Bash(go mod download:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(bazel clean:*)",
+      "Bash(go get:*)",
+      "Bash(./script/deps_update.sh:*)",
+      "Bash(./scripts/deps_update.sh:*)",
+      "Bash(./scripts/deps-update.sh:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

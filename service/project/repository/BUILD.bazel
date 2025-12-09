@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "repository",
+    srcs = ["project_repository.go"],
+    importpath = "sentioxyz/sentio-core/service/project/repository",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/models",
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)
+
+go_test(
+    name = "repository_test",
+    srcs = ["redis_repository_test.go"],
+    embed = [":repository"],
+    deps = [
+        "//service/common/models",
+        "@com_github_alicebob_miniredis_v2//:miniredis",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

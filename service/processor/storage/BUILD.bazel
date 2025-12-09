@@ -1,0 +1,19 @@
+load("@gazelle//:def.bzl", "gazelle")
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "storage",
+    srcs = [
+        "ipfs_storage.go",
+        "ipfs_storage_system.go",
+        "local_storage.go",
+        "local_storage_system.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/processor/storage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//service/common/storagesystem",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

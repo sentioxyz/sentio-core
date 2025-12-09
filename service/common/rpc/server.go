@@ -2,10 +2,6 @@ package rpc
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,96 +10,21 @@ import (
 	"strings"
 	"syscall"
 
+	"sentioxyz/sentio-core/common/log"
+
 	"github.com/felixge/httpsnoop"
 	"github.com/gorilla/handlers"
 	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
+	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression for server
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
-	"gorm.io/gorm"
-
-	"sentioxyz/sentio-core/common/errgroup"
-	"sentioxyz/sentio-core/common/log"
 )
-
-// var tracer = otel.Tracer("Server")
-
-func GormUnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return func(
-		ctx context.Context,
-		req interface{},
-		info *grpc.UnaryServerInfo,
-		handler grpc.UnaryHandler,
-	) (resp interface{}, err error) {
-		defer func() {
-			_, logger := log.FromContextWithTrace(ctx)
-			logger = logger.With(zap.String("fullMethod", info.FullMethod))
-			if err != nil {
-				logger.Errore(err, "call failed")
-			} else {
-				logger.Debugf("call succeed")
-			}
-			_ = logger.Sync()
-		}()
-		// ctx, span := tracer.Start(ctx, "Service Call:"+info.FullMethod)
-		// defer span.End()
-		h, err := handler(ctx, req)
-		// convert ErrRecordNotFound to 404
-		// TODO convert more errors
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			err = status.Error(codes.NotFound, err.Error())
-		}
-		return h, err
-	}
-}
-
-// func HttpTraceServerInterceptor() grpc.UnaryServerInterceptor {
-// 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler)
-// (interface{}, error) {
-//		return handler(ctx, req)
-//	}
-// }
-
-func loadServerTLSCredentials() (credentials.TransportCredentials, error) {
-	if !*enableTLS {
-		return insecure.NewCredentials(), nil
-	}
-	// Load certificate of the CA who signed client's certificate
-	pemClientCA, err := os.ReadFile(*caCert)
-	if err != nil {
-		return nil, err
-	}
-
-	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(pemClientCA) {
-		return nil, fmt.Errorf("failed to add client CA's certificate")
-	}
-
-	// Load server's certificate and private key
-	serverCert, err := tls.LoadX509KeyPair(*serverCert, *serverKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create the credentials and return it
-	config := &tls.Config{
-		Certificates: []tls.Certificate{serverCert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    certPool,
-		MinVersion:   tls.VersionTLS13,
-	}
-
-	return credentials.NewTLS(config), nil
-}
 
 func recoverFunHandler(ctx context.Context, p interface{}) (err error) {
 	_, logger := log.FromContextWithTrace(ctx)
@@ -111,25 +32,14 @@ func recoverFunHandler(ctx context.Context, p interface{}) (err error) {
 	return status.Error(codes.Internal, "panic recovered")
 }
 
-func NewServer(tls bool, opt ...grpc.ServerOption) *grpc.Server {
+func NewServer(opt ...grpc.ServerOption) *grpc.Server {
 	interceptor := grpc.
 		ChainUnaryInterceptor(
-			GormUnaryServerInterceptor(),
-			MetricUnaryServerInterceptor(),
 			grpcrecovery.UnaryServerInterceptor(grpcrecovery.WithRecoveryHandlerContext(recoverFunHandler)))
 
 	statsHandler := grpc.StatsHandler(otelgrpc.NewServerHandler())
 
-	var tlsCredentials credentials.TransportCredentials
-	var err error
-	if tls {
-		tlsCredentials, err = loadServerTLSCredentials()
-		if err != nil {
-			log.Fatal("cannot load TLS credentials: ", err)
-		}
-	} else {
-		tlsCredentials = insecure.NewCredentials()
-	}
+	tlsCredentials := insecure.NewCredentials()
 
 	rpcCredentials := grpc.Creds(tlsCredentials)
 	maxRevSize := grpc.MaxRecvMsgSize(MaxRevSize)
@@ -148,7 +58,7 @@ func NewServeMux(opts ...runtime.ServeMuxOption) *runtime.ServeMux {
 			MarshalOptions: protojson.MarshalOptions{
 				EmitUnpopulated: true,
 			},
-		}), runtime.WithMetadata(WithAuthAndTraceMetadata))...)
+		}))...)
 
 }
 
@@ -212,184 +122,6 @@ func BindAndServeWithHTTP(mux http.Handler, grpcServer *grpc.Server, port int, b
 	log.Infof("server shut down gracefully")
 }
 
-func ListenAndServe(ctx context.Context, addr string, handler http.Handler, grpcServer *grpc.Server) error {
-	_, logger := log.FromContext(ctx)
-	var httpServer *http.Server
-	if handler != nil {
-		httpServer = &http.Server{
-			Handler: handler,
-			Addr:    addr,
-			BaseContext: func(listener net.Listener) context.Context {
-				return ctx
-			},
-		}
-	}
-	l, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-	var httpL = l
-	var grpcL = l
-	m := cmux.New(l)
-	if httpServer != nil && grpcServer != nil {
-		// a different listener for HTTP1
-		httpL = m.Match(cmux.HTTP1Fast())
-		// a different listener for HTTP2 since gRPC uses HTTP2
-		grpcL = m.Match(cmux.TLS(), cmux.HTTP2())
-	}
-	g, ctx := errgroup.WithContext(ctx)
-	go func() {
-		// m.Close() will not end m.Serve(), so had to give up using g.Go
-		logger.Debugfe(m.Serve(), "mux listen ended")
-	}()
-	if httpServer != nil {
-		g.Go(func() error {
-			defer logger.Debugf("http server ended")
-			return httpServer.Serve(httpL)
-		})
-	}
-	if grpcServer != nil {
-		g.Go(func() error {
-			defer logger.Debugf("grpc server ended")
-			return grpcServer.Serve(grpcL)
-		})
-	}
-	g.Go(func() error {
-		// when ctx canceled, close the rpc server and http server
-		<-ctx.Done()
-		m.Close()
-		if grpcServer != nil {
-			grpcServer.GracefulStop()
-			logger.Debugf("grpc server graceful stopped")
-		}
-		if httpServer != nil {
-			_ = httpServer.Close()
-			logger.Debugf("http server stopped")
-		}
-		return nil
-	})
-	logger.Infof("server start %q", addr)
-	// wait rpc server and http server end
-	return g.Wait()
-}
-
-func ExtractSpanContext(req *http.Request) (*trace.SpanContext, error) {
-	// Extract from standard OpenTelemetry traceparent header
-	traceparent := req.Header.Get("traceparent")
-	if traceparent != "" {
-		if spanCtx := parseTraceparent(traceparent); spanCtx != nil {
-			return spanCtx, nil
-		}
-	}
-
-	// No valid trace context found
-	return nil, nil
-}
-
-// parseTraceparent parses the W3C traceparent header
-// Format: 00-{trace-id}-{parent-id}-{trace-flags}
-// Returns nil if parsing fails (silent failure)
-func parseTraceparent(traceparent string) *trace.SpanContext {
-	parts := strings.Split(traceparent, "-")
-	if len(parts) != 4 {
-		return nil
-	}
-
-	// Version must be 00
-	if parts[0] != "00" {
-		return nil
-	}
-
-	// Parse trace ID (32 hex chars)
-	if len(parts[1]) != 32 {
-		return nil
-	}
-	traceIDBytes, err := hex.DecodeString(parts[1])
-	if err != nil {
-		return nil
-	}
-	var traceID trace.TraceID
-	copy(traceID[:], traceIDBytes)
-
-	// Parse span ID (16 hex chars)
-	if len(parts[2]) != 16 {
-		return nil
-	}
-	spanIDBytes, err := hex.DecodeString(parts[2])
-	if err != nil {
-		return nil
-	}
-	var spanID trace.SpanID
-	copy(spanID[:], spanIDBytes)
-
-	// Parse trace flags (2 hex chars)
-	if len(parts[3]) != 2 {
-		return nil
-	}
-	flagsBytes, err := hex.DecodeString(parts[3])
-	if err != nil {
-		return nil
-	}
-	flags := trace.TraceFlags(flagsBytes[0])
-
-	ctx := trace.NewSpanContext(trace.SpanContextConfig{
-		TraceID:    traceID,
-		SpanID:     spanID,
-		TraceFlags: flags,
-		Remote:     true,
-	})
-	return &ctx
-}
-
-func WithAuthAndTraceMetadata(ctx context.Context, req *http.Request) metadata.MD {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		md = metadata.MD{}
-	}
-
-	spanCtx, err := ExtractSpanContext(req)
-	if err == nil && spanCtx != nil {
-		tmpCtx := trace.ContextWithSpanContext(context.Background(), *spanCtx)
-		otelgrpc.Inject(tmpCtx, &md)
-	}
-
-	authorization := req.Header.Get("Authorization")
-	if authorization != "" {
-		if strings.HasPrefix(authorization, "Bearer ") {
-			md.Append("auth", strings.TrimPrefix(authorization, "Bearer "))
-		}
-
-		if strings.HasPrefix(authorization, "Basic ") {
-			md.Append("api-key", strings.TrimPrefix(authorization, "Basic "))
-		}
-	}
-	apiKey := req.Header.Get("Api-Key")
-	if apiKey != "" {
-		md.Append("api-key", apiKey)
-	}
-	apiKeyInQuery := req.URL.Query().Get("api-key")
-	if apiKeyInQuery != "" {
-		md.Append("api-key", apiKeyInQuery)
-	}
-	if auid := req.Header.Get("X-Original-Forwarded-For"); auid != "" {
-		md.Append("auid", auid)
-	}
-	if adminMode := req.Header.Get("X-Admin-Mode"); adminMode != "" {
-		md.Append("admin-mode", adminMode)
-	}
-	if shareDashboard := req.Header.Get("share-dashboard"); shareDashboard != "" {
-		md.Append("share-dashboard", shareDashboard)
-	}
-	if importProject := req.Header.Get("external-project"); importProject != "" {
-		md.Append("external-project", importProject)
-	}
-	if shareQuery := req.Header.Get("share-query"); shareQuery != "" {
-		md.Append("share-query", shareQuery)
-	}
-	md.Append("from-http", "true")
-	return md
-}
-
 func WithLogger(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if !strings.HasPrefix(request.URL.Path, "/healthz") {
@@ -406,12 +138,4 @@ func WithLogger(handler http.Handler) http.Handler {
 			)
 		}
 	})
-}
-
-func WithAuth(handler runtime.HandlerFunc) runtime.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		md := WithAuthAndTraceMetadata(context.TODO(), req)
-		req = req.WithContext(metadata.NewIncomingContext(req.Context(), md))
-		handler(w, req, pathParams)
-	}
 }

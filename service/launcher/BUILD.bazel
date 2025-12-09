@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "launcher_lib",
+    srcs = [
+        "config.go",
+        "main.go",
+        "manager.go",
+        "services_interface.go",
+        "services_localstorage.go",
+        "services_processor.go",
+        "services_project.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/launcher",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//common/flags",
+        "//common/log",
+        "//service/common/repository",
+        "//service/common/rpc",
+        "//service/common/storagesystem",
+        "//service/processor",
+        "//service/processor/driverjob",
+        "//service/processor/protos",
+        "//service/processor/repository",
+        "//service/processor/storage",
+        "//service/project",
+        "//service/project/protos",
+        "//service/project/repository",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@grpc_ecosystem_grpc_gateway//runtime",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_gorm_gorm//:gorm",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_binary(
+    name = "launcher",
+    embed = [":launcher_lib"],
+    visibility = ["//visibility:public"],
+)

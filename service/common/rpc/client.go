@@ -2,10 +2,6 @@ package rpc
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -64,34 +60,7 @@ var RetryDialOption = grpc.WithChainUnaryInterceptor(
 )
 
 func loadClientTLSCredentials() (credentials.TransportCredentials, error) {
-	if !*enableTLS {
-		return insecure.NewCredentials(), nil
-	}
-	// Load certificate of the CA who signed server's certificate
-	pemServerCA, err := os.ReadFile(*caCert)
-	if err != nil {
-		return nil, err
-	}
-
-	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(pemServerCA) {
-		return nil, fmt.Errorf("failed to add server CA's certificate")
-	}
-
-	// Load client's certificate and private key
-	clientCert, err := tls.LoadX509KeyPair(*clientCert, *clientKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create the credentials and return it
-	config := &tls.Config{
-		Certificates: []tls.Certificate{clientCert},
-		RootCAs:      certPool,
-		MinVersion:   tls.VersionTLS13,
-	}
-
-	return credentials.NewTLS(config), nil
+	return insecure.NewCredentials(), nil
 }
 
 func Dial(target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {

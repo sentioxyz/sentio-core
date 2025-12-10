@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -24,22 +25,26 @@ const (
 )
 
 var (
-	kQueue               chan func(context.Context, *log.SentioLogger)
+	kQueue               chan func()
 	kLoaderCnt           = new(atomic.Int64)
 	kLoaderGoRoutine     = runtime.NumCPU()
+	kLoaderCtx           context.Context
+	kLoaderCancel        context.CancelFunc
+	kLoaderCancelOnce    sync.Once
 	ErrResourceExhausted = status.Errorf(codes.ResourceExhausted, "the same request is already processing, please wait")
 	ErrNoCacheNotAllowed = status.Errorf(codes.ResourceExhausted, "cache bypass requests are too frequent, request rejected")
 )
 
-func process(ctx context.Context, idx int) {
-	ctx, logger := log.FromContext(ctx)
-	logger = logger.With("background-idx", idx)
+func process(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case task := <-kQueue:
-			task(ctx, logger)
+		case task, ok := <-kQueue:
+			if !ok {
+				return
+			}
+			task()
 		}
 	}
 }
@@ -51,13 +56,24 @@ func init() {
 	// to have up to two tasks queued. This helps balance throughput and memory usage,
 	// reducing the chance of blocking while avoiding excessive memory consumption.
 	// Background tasks should be idempotent and tolerate being dropped when the queue is full.
-	kQueue = make(chan func(context.Context, *log.SentioLogger), kLoaderGoRoutine*2)
+	kQueue = make(chan func(), kLoaderGoRoutine*2)
 
-	ctx := context.Background()
+	// Create cancellable context for graceful shutdown
+	kLoaderCtx, kLoaderCancel = context.WithCancel(context.Background())
 	for i := 0; i < kLoaderGoRoutine; i++ {
-		go process(ctx, i)
+		go process(kLoaderCtx)
 	}
 	log.Infof("rpc cache background loader started, num: %d", kLoaderGoRoutine)
+}
+
+func Shutdown() {
+	kLoaderCancelOnce.Do(func() {
+		close(kQueue)
+		if kLoaderCancel != nil {
+			kLoaderCancel()
+			log.Info("rpc cache background loader shutdown initiated")
+		}
+	})
 }
 
 type Request interface {
@@ -121,7 +137,7 @@ func (r *rpcCache[X, Y]) set(ctx context.Context, key string, response Y, ttl ti
 	logger = logger.With("response-size", len(responseBytes))
 
 	// use background context to avoid canceling by gateway
-	err = r.client.SetEx(context.Background(), key, responseBytes, ttl).Err()
+	err = r.client.SetEx(context.WithoutCancel(ctx), key, responseBytes, ttl).Err()
 	if err != nil {
 		logger.Warnf("rpc cache maybe not working: %v", err)
 		return err
@@ -139,7 +155,7 @@ func embedUpdateComputeStats(resp Response, isCached, isRefreshing bool) {
 func (r *rpcCache[X, Y]) tryAcquireControlLock(ctx context.Context, req X) bool {
 	ctx, logger := log.FromContext(ctx)
 	logger = logger.With("key", req.Key().String(), "concurrency", req.Key().ConcurrencyControlString(), "ttl", concurrencyTTL.Seconds())
-	statusCode, err := r.client.Eval(context.Background(), scripts.CASTemplate, []string{req.Key().ConcurrencyControlString()},
+	statusCode, err := r.client.Eval(context.WithoutCancel(ctx), scripts.CASTemplate, []string{req.Key().ConcurrencyControlString()},
 		"processing", int(math.Trunc(concurrencyTTL.Seconds()))).
 		Result()
 	if err != nil {
@@ -160,7 +176,7 @@ func (r *rpcCache[X, Y]) tryAcquireControlLock(ctx context.Context, req X) bool 
 }
 
 func (r *rpcCache[X, Y]) releaseAcquireControlLock(ctx context.Context, req X) {
-	err := r.client.Del(context.Background(), req.Key().ConcurrencyControlString()).Err()
+	err := r.client.Del(context.WithoutCancel(ctx), req.Key().ConcurrencyControlString()).Err()
 	if err != nil {
 		_, logger := log.FromContext(ctx)
 		logger = logger.With("key", req.Key().String(), "concurrency", req.Key().ConcurrencyControlString())
@@ -198,18 +214,21 @@ func (r *rpcCache[X, Y]) Load(ctx context.Context, req X, loader Loader[X, Y], o
 	return resp, nil
 }
 
-func push[X Request, Y Response](cache RpcCache[X, Y], req X, loader Loader[X, Y], option Option) bool {
-	task := func(bgCtx context.Context, logger *log.SentioLogger) {
-		defer kLoaderCnt.Add(-1)
+func push[X Request, Y Response](ctx context.Context, cache RpcCache[X, Y], req X, loader Loader[X, Y], option Option) bool {
+	bgCtx, logger := log.FromContext(context.WithoutCancel(ctx))
+	logger = logger.With("key", req.Key().String())
+	clonedAny := req.Clone()
+	cloned, ok := clonedAny.(X)
+	if !ok {
+		logger.Errorf("rpc refresh background failed caused by request cloned failed")
+		cloned = req
+	}
 
-		logger = logger.With("key", req.Key().String())
-		clonedAny := req.Clone()
-		cloned, ok := clonedAny.(X)
-		if !ok {
-			logger.Errorf("rpc refresh background failed caused by request cloned failed")
-			cloned = req
-		}
-		_, err := cache.Load(bgCtx, cloned, loader, &option)
+	task := func() {
+		bgTimeoutCtx, cancel := context.WithTimeout(bgCtx, concurrencyTTL*2)
+		defer cancel()
+		defer kLoaderCnt.Add(-1)
+		_, err := cache.Load(bgTimeoutCtx, cloned, loader, &option)
 		if err != nil && !errors.Is(err, ErrResourceExhausted) {
 			logger.Warnf("rpc cache refresh background error: %v", err)
 		} else {
@@ -235,7 +254,7 @@ func (r *rpcCache[X, Y]) refresh(ctx context.Context, req X, loader Loader[X, Y]
 	}
 	ctx, logger := log.FromContext(ctx)
 	logger = logger.With("key", req.Key().String(), "refresh_interval", refreshInterval.Seconds())
-	statusCode, err := r.client.Eval(context.Background(), scripts.CASTemplate, []string{req.Key().RefreshString()},
+	statusCode, err := r.client.Eval(context.WithoutCancel(ctx), scripts.CASTemplate, []string{req.Key().RefreshString()},
 		"refreshing", int(math.Trunc(refreshInterval.Seconds()))).Result()
 	switch {
 	case err != nil:
@@ -248,7 +267,7 @@ func (r *rpcCache[X, Y]) refresh(ctx context.Context, req X, loader Loader[X, Y]
 		}
 		return code == 1
 	}():
-		if !push(r, req, loader, *option) {
+		if !push(ctx, r, req, loader, *option) {
 			if !option.force && option.concurrencyControl {
 				// Release the concurrency control lock when background refresh fails to enqueue,
 				// so that future foreground requests are not blocked indefinitely.
@@ -300,7 +319,7 @@ func (r *rpcCache[X, Y]) Query(ctx context.Context,
 		return r.Load(ctx, req, loader, option)
 	}
 
-	data, err = r.client.Get(context.Background(), key).Bytes()
+	data, err = r.client.Get(context.WithoutCancel(ctx), key).Bytes()
 	if err != nil {
 		if cacheMiss(err) {
 			logger.Debugf("rpc cache miss")
@@ -329,8 +348,8 @@ func (r *rpcCache[X, Y]) Set(ctx context.Context, req X, response Y) error {
 	return r.set(ctx, req.Key().String(), response, req.TTL())
 }
 
-func (r *rpcCache[X, Y]) Delete(_ context.Context, req X) error {
-	return r.client.Del(context.Background(), req.Key().String()).Err()
+func (r *rpcCache[X, Y]) Delete(ctx context.Context, req X) error {
+	return r.client.Del(context.WithoutCancel(ctx), req.Key().String()).Err()
 }
 
 func (r *rpcCache[X, Y]) Get(ctx context.Context,
@@ -360,7 +379,7 @@ func (r *rpcCache[X, Y]) Get(ctx context.Context,
 	if option.refreshBackground {
 		refresh = r.refresh(ctx, req, loader, option)
 	}
-	data, err = r.client.Get(context.Background(), key).Bytes()
+	data, err = r.client.Get(context.WithoutCancel(ctx), key).Bytes()
 	if err != nil {
 		if cacheMiss(err) {
 			logger.Debugf("rpc cache miss")

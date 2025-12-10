@@ -1428,8 +1428,17 @@ export const SolanaChainInfo: Record<
     name: 'Forgo Testnet',
     slug: 'forgo-testnet',
     chainId: SolanaChainId.FORGO_TESTNET,
+    mainnetChainId: SolanaChainId.FORGO_MAINNET,
     explorerUrl: 'https://fogoscan.com/',
     suffix: '?cluster=testnet',
+    lightIcon: 'https://sentio.xyz/solana.svg'
+  },
+  [SolanaChainId.FORGO_MAINNET]: {
+    name: 'Forgo Mainnet',
+    slug: 'forgo-mainnet',
+    chainId: SolanaChainId.FORGO_MAINNET,
+    explorerUrl: 'https://fogoscan.com/',
+    suffix: '',
     lightIcon: 'https://sentio.xyz/solana.svg'
   }
 }

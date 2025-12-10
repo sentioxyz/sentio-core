@@ -114,7 +114,8 @@ export enum SolanaChainId {
   // SOLANA_DEVNET = 'sol_devnet',
   SOLANA_TESTNET = 'sol_testnet',
   SOLANA_PYTH = 'sol_pyth',
-  FORGO_TESTNET = 'forgo_testnet'
+  FORGO_TESTNET = 'forgo_testnet',
+  FORGO_MAINNET = 'forgo_mainnet'
 }
 export enum FuelChainId {
   FUEL_MAINNET = 'fuel_mainnet',

@@ -1,6 +1,6 @@
 {
   "name": "@sentio/chain",
-  "version": "3.4.19",
+  "version": "3.4.21",
   "description": "Chain utils",
   "license": "MIT",
   "main": "./dist/index.js",

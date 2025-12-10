@@ -85,6 +85,11 @@ func (s *Suite) SetupSuite() {
 	})
 }
 
+func (s *Suite) TearDownSuite() {
+	s.redisServer.Close()
+	Shutdown()
+}
+
 func (s *Suite) Test_SetCache() {
 	request := NewMockRequest(1)
 	c := NewRpcCache[*MockRequest, *MockResponse](s.redisClient)

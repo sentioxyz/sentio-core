@@ -37,7 +37,7 @@ export enum EthChainId {
   ASTAR = '592',
   DERIVE = '957',
   STABLE_TESTNET = '2201',
-  STABLE_MAINNET = '998',
+  STABLE_MAINNET = '988',
   HYPER_EVM = '999',
   POLYGON_ZKEVM = '1101',
   CONFLUX = '1030',

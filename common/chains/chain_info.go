@@ -1535,7 +1535,7 @@ var ForgoTestnetInfo = ChainInfo{
   Slug: "forgo-testnet",
   AdditionalSlugs: []string{},
   ChainID: ChainID(ForgoTestnetID),
-  MainnetChainID: ChainID(ForgoTestnetID),
+  MainnetChainID: ChainID(ForgoMainnetID),
   ExplorerURL: "https://fogoscan.com/",
 }
 

@@ -67,7 +67,7 @@ const (
   AstarID EthChainID = "592"
   DeriveID EthChainID = "957"
   StableTestnetID EthChainID = "2201"
-  StableMainnetID EthChainID = "998"
+  StableMainnetID EthChainID = "988"
   HyperEvmID EthChainID = "999"
   PolygonZkevmID EthChainID = "1101"
   ConfluxID EthChainID = "1030"

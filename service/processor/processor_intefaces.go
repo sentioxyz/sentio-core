@@ -14,6 +14,7 @@ type ProcessorFactory interface {
 		project *commonmodels.Project,
 		continueFrom int32,
 		rollback map[string]uint64,
+		numWorkers int32,
 		sentioProperties models.SentioProcessorProperties,
 		subgraphProperties models.SubgraphProcessorProperties,
 		activateProcessor func(ctx context.Context, processor *models.Processor, upgrade bool) error,

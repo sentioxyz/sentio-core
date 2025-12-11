@@ -383,6 +383,7 @@ func (s *Service) getProcessorStatus(
 			PauseReason:      processor.PauseReason,
 			NetworkOverrides: models.ParseNetworkOverrides(processor.NetworkOverrides),
 			DriverVersion:    strconv.FormatInt(int64(processor.DriverVersion), 10),
+			NumWorkers:       strconv.FormatInt(int64(processor.NumWorkers), 10),
 		}
 		if originProcessor.ID != processor.ID {
 			response.Processors[i].ReferenceProjectId = processor.ProjectID

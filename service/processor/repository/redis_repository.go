@@ -55,6 +55,7 @@ type RedisProcessorRepoInterface interface {
 		identity *commonmodels.Identity,
 		clickhouseShardingIndex int32,
 		k8sClusterID int32,
+		numWorkers int32,
 		sentioProperties models.SentioProcessorProperties,
 		subgraphProperties models.SubgraphProcessorProperties,
 	) (*models.Processor, error)
@@ -413,6 +414,7 @@ func (r *RedisProcessorRepo) CreateOrUpdateProcessor(
 	identity *commonmodels.Identity,
 	clickhouseShardingIndex int32,
 	k8sClusterID int32,
+	numWorkers int32,
 	sentioProperties models.SentioProcessorProperties,
 	subgraphProperties models.SubgraphProcessorProperties,
 ) (*models.Processor, error) {
@@ -424,6 +426,7 @@ func (r *RedisProcessorRepo) CreateOrUpdateProcessor(
 		}
 
 		// Update the properties
+		existingProcessor.NumWorkers = numWorkers
 		existingProcessor.SentioProcessorProperties = sentioProperties
 		existingProcessor.SubgraphProcessorProperties = subgraphProperties
 		existingProcessor.UploadedAt = time.Now()
@@ -463,6 +466,7 @@ func (r *RedisProcessorRepo) CreateOrUpdateProcessor(
 		SentioProcessorProperties:   sentioProperties,
 		SubgraphProcessorProperties: subgraphProperties,
 		DriverVersion:               1,
+		NumWorkers:                  numWorkers,
 		EntitySchemaVersion:         0,
 	}
 

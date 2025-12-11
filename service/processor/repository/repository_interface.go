@@ -33,6 +33,7 @@ type ProcessorRepo interface {
 		identity *commonmodels.Identity,
 		clickhouseShardingIndex int32,
 		k8sClusterID int32,
+		numWorkers int32,
 		sentioProperties models.SentioProcessorProperties,
 		subgraphProperties models.SubgraphProcessorProperties,
 	) (*models.Processor, error)

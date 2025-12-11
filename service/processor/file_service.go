@@ -215,6 +215,7 @@ func (s *Service) FinishUpload(
 		project,
 		req.ContinueFrom,
 		req.Rollback,
+		req.NumWorkers,
 		models.SentioProcessorProperties{
 			CliVersion:       req.CliVersion,
 			SdkVersion:       req.SdkVersion,
@@ -500,6 +501,7 @@ func (s *Service) FinishBatchUpload(
 		project,
 		req.ContinueFrom,
 		req.Rollback,
+		req.NumWorkers,
 		models.SentioProcessorProperties{
 			CliVersion:       req.CliVersion,
 			SdkVersion:       req.SdkVersion,

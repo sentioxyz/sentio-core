@@ -587,6 +587,7 @@ func (s *Service) CreateOrUpdateProcessor(
 	project *commonmodels.Project,
 	continueFrom int32,
 	rollback map[string]uint64, // key may be '*', means all chains should roll back to the block
+	numWorkers int32,
 	sentioProperties models.SentioProcessorProperties,
 	subgraphProperties models.SubgraphProcessorProperties,
 ) (p *models.Processor, err error) {
@@ -596,6 +597,7 @@ func (s *Service) CreateOrUpdateProcessor(
 		project,
 		continueFrom,
 		rollback,
+		numWorkers,
 		sentioProperties,
 		subgraphProperties,
 		s.activateProcessor,

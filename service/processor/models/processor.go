@@ -180,6 +180,7 @@ type Processor struct {
 	EntitySchemaVersion int32
 
 	DriverVersion int32 `gorm:"default:0"`
+	NumWorkers    int32 `gorm:"default:1"`
 
 	Pause       bool
 	PauseAt     time.Time
@@ -312,6 +313,7 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		EntitySchemaVersion:     p.EntitySchemaVersion,
 		EventlogVersion:         p.EventlogVersion,
 		DriverVersion:           p.DriverVersion,
+		NumWorkers:              p.NumWorkers,
 		Pause:                   p.Pause,
 		PauseAt:                 timestamppb.New(p.PauseAt),
 		PauseReason:             p.PauseReason,
@@ -344,6 +346,7 @@ func (p *Processor) FromPB(processor *protos.Processor) error {
 	p.NetworkOverrides = BuildNetworkOverrides(processor.NetworkOverrides)
 	p.EventlogVersion = processor.EventlogVersion
 	p.DriverVersion = processor.DriverVersion
+	p.NumWorkers = processor.NumWorkers
 	p.Binary = processor.IsBinary
 
 	// state

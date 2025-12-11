@@ -37,7 +37,7 @@ export enum EthChainId {
   ASTAR = '592',
   DERIVE = '957',
   STABLE_TESTNET = '2201',
-  STABLE_MAINNET = '998',
+  STABLE_MAINNET = '988',
   HYPER_EVM = '999',
   POLYGON_ZKEVM = '1101',
   CONFLUX = '1030',
@@ -114,7 +114,8 @@ export enum SolanaChainId {
   // SOLANA_DEVNET = 'sol_devnet',
   SOLANA_TESTNET = 'sol_testnet',
   SOLANA_PYTH = 'sol_pyth',
-  FORGO_TESTNET = 'forgo_testnet'
+  FORGO_TESTNET = 'forgo_testnet',
+  FORGO_MAINNET = 'forgo_mainnet'
 }
 export enum FuelChainId {
   FUEL_MAINNET = 'fuel_mainnet',

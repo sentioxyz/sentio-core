@@ -543,6 +543,7 @@ message GetProcessorStatusResponse {
     string pause_reason = 23;
     repeated NetworkOverride network_overrides = 20;
     string driver_version = 21;
+    string num_workers = 24;
   }
 
   message ProcessorStatus {

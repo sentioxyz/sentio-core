@@ -34,7 +34,7 @@ register_toolchains("@toolchains_protoc_hub//:all")
 ### Others
 
 bazel_dep(name = "rules_nodejs", version = "6.5.2")
-bazel_dep(name = "rules_go", version = "0.57.0")
+bazel_dep(name = "rules_go", version = "0.59.0")
 bazel_dep(name = "gazelle", version = "0.45.0")
 bazel_dep(name = "bazel_gomock", version = "0.2.0")
 bazel_dep(name = "googleapis", version = "0.0.0-20250826-a92cee39")

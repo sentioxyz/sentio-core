@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/service/common/storagesystem"
+	"sentioxyz/sentio-core/service/processor/protos"
 	"strings"
 	"time"
 
@@ -219,6 +220,20 @@ func (e *IPFSStorageEngine) ObjectExists(ctx context.Context, bucket string, obj
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
 	return false, fmt.Errorf("failed to check object existence, status %d: %s", resp.StatusCode, string(bodyBytes))
+}
+
+func (e *IPFSStorageEngine) ToPayload(file *storagesystem.FileObject, fileID, url string, fileType protos.FileType) *protos.UploadPayload {
+	return &protos.UploadPayload{
+		Payload: &protos.UploadPayload_Object{
+			Object: &protos.UploadPayload_ObjectPayload{
+				PutUrl:   url,
+				Bucket:   file.Bucket,
+				ObjectId: file.GetObject(),
+				FileId:   fileID,
+			},
+		},
+		FileType: fileType,
+	}
 }
 
 // Ensure IPFSStorageEngine implements FileStorageEngine interface

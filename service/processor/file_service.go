@@ -121,7 +121,7 @@ func (s *Service) FinishUpload(
 			logger.Errorf("redis get failed, key=%s, err=%v", key, err)
 			return nil, err
 		}
-		defaultEngine, _ := s.FileStorageSystem.CreateDefaultStorage(ctx)
+		defaultEngine, _ := s.FileStorageSystem.CreateDefaultStorage(ctx, "")
 		file, err := s.FileStorageSystem.FinalizeUpload(ctx, fileID, defaultEngine)
 		if err == nil {
 			s.redisClient.Del(ctx, key)
@@ -313,7 +313,7 @@ func (s *Service) InitBatchUpload(
 
 	var storageEngine corestorage.FileStorageEngine
 
-	storageEngine, err = s.FileStorageSystem.CreateDefaultStorage(ctx)
+	storageEngine, err = s.FileStorageSystem.CreateDefaultStorage(ctx, req.Engine.String())
 
 	if err != nil {
 		return nil, err
@@ -402,7 +402,7 @@ func (s *Service) FinishBatchUpload(
 	// Create storage based on engine from request
 	var storageEngine corestorage.FileStorageEngine
 
-	storageEngine, err = s.FileStorageSystem.CreateDefaultStorage(ctx)
+	storageEngine, err = s.FileStorageSystem.CreateDefaultStorage(ctx, req.Engine.String())
 
 	if err != nil {
 		return nil, err

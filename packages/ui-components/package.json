@@ -1,0 +1,47 @@
+{
+  "name": "@sentio/ui-components",
+  "version": "0.1.0",
+  "private": false,
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --minify",
+    "build:js": "tsup",
+    "build": "pnpm build:css && pnpm build:js",
+    "dev:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --watch",
+    "dev:js": "tsup --watch",
+    "dev": "concurrently \"pnpm:dev:css\" \"pnpm:dev:js\"",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@ladle/react": "^5.1.1",
+    "@types/react-copy-to-clipboard": "^5.0.7",
+    "autoprefixer": "^10.4.22",
+    "concurrently": "^9.2.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@floating-ui/core": "^1.7.3",
+    "@floating-ui/react": "^0.27.16",
+    "@headlessui/react": "^2.2.9",
+    "@heroicons/react": "^2.2.0",
+    "class-variance-authority": "^0.7.1",
+    "react-copy-to-clipboard": "^5.1.0",
+    "react-icons": "^5.5.0",
+    "react-spinners": "^0.13.8"
+  }
+}

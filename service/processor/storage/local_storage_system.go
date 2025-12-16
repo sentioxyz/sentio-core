@@ -35,7 +35,7 @@ func NewLocalStorageSystem(config LocalStorageSystemConfig) (*LocalStorageSystem
 }
 
 // CreateDefaultStorage creates and returns the default local storage engine
-func (s *LocalStorageSystem) CreateDefaultStorage(ctx context.Context) (storagesystem.FileStorageEngine, error) {
+func (s *LocalStorageSystem) CreateDefaultStorage(ctx context.Context, preferEngine string) (storagesystem.FileStorageEngine, error) {
 	engine, err := NewLocalStorageEngine(s.config)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create local storage engine")

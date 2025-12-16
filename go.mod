@@ -11,7 +11,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.32.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3
 	github.com/knadh/koanf/parsers/json v1.0.0
 	github.com/knadh/koanf/v2 v2.3.0
 	github.com/matoous/go-nanoid/v2 v2.1.0

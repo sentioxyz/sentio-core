@@ -38,7 +38,7 @@ func NewDefaultIPFSStorageSystem(config DefaultIPFSStorageSystemConfig) (*Defaul
 }
 
 // CreateDefaultStorage creates and returns the default IPFS storage engine
-func (s *DefaultIPFSStorageSystem) CreateDefaultStorage(ctx context.Context) (storagesystem.FileStorageEngine, error) {
+func (s *DefaultIPFSStorageSystem) CreateDefaultStorage(ctx context.Context, preferEngine string) (storagesystem.FileStorageEngine, error) {
 	// Return a new engine instance
 	engine, err := NewIPFSStorageEngine(s.config)
 	if err != nil {

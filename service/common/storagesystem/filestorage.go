@@ -22,7 +22,7 @@ type FileStorageEngine interface {
 }
 
 type FileStorageSystemInterface interface {
-	CreateDefaultStorage(ctx context.Context) (FileStorageEngine, error)
+	CreateDefaultStorage(ctx context.Context, preferEngine string) (FileStorageEngine, error)
 	GetUploadFileByID(engine FileStorageEngine, fileID string) *FileObject
 	NewUploadFileWithEngine(engine FileStorageEngine, fileId string, contentType string) *FileObject
 	FinalizeUpload(ctx context.Context, fileID string, storage FileStorageEngine) (*FileObject, error)

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/service/processor/protos"
 	"time"
 )
 
@@ -19,6 +20,7 @@ type FileStorageEngine interface {
 	UploadLocalFile(ctx context.Context, bucket, object, contentType, filePath string) (string, error)
 	Name() string
 	ObjectExists(ctx context.Context, bucket string, object string) (bool, error)
+	ToPayload(file *FileObject, url string, u string, fileType protos.FileType) *protos.UploadPayload
 }
 
 type FileStorageSystemInterface interface {

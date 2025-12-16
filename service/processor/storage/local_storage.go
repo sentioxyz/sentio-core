@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sentioxyz/sentio-core/service/common/storagesystem"
+	"sentioxyz/sentio-core/service/processor/protos"
 	"time"
 
 	"github.com/pkg/errors"
@@ -164,6 +165,19 @@ func (e *LocalStorageEngine) ObjectExists(ctx context.Context, bucket string, ob
 	}
 
 	return true, nil
+}
+func (e *LocalStorageEngine) ToPayload(file *storagesystem.FileObject, fileID, url string, fileType protos.FileType) *protos.UploadPayload {
+	return &protos.UploadPayload{
+		Payload: &protos.UploadPayload_Object{
+			Object: &protos.UploadPayload_ObjectPayload{
+				PutUrl:   url,
+				Bucket:   file.Bucket,
+				ObjectId: file.GetObject(),
+				FileId:   fileID,
+			},
+		},
+		FileType: fileType,
+	}
 }
 
 // Ensure LocalStorageEngine implements FileStorageEngine interface

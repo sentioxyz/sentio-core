@@ -8,5 +8,8 @@ go_library(
     ],
     importpath = "sentioxyz/sentio-core/service/common/storagesystem",
     visibility = ["//visibility:public"],
-    deps = ["//common/log"],
+    deps = [
+        "//common/log",
+        "//service/processor/protos",
+    ],
 )

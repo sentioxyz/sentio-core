@@ -344,21 +344,7 @@ func (s *Service) InitBatchUpload(
 		}
 
 		// Create payload for this file
-		var payload *protos.UploadPayload
-
-		payload = &protos.UploadPayload{
-			Payload: &protos.UploadPayload_Object{
-				Object: &protos.UploadPayload_ObjectPayload{
-					PutUrl:   url,
-					Bucket:   file.Bucket,
-					ObjectId: file.GetObject(),
-					FileId:   fileID,
-				},
-			},
-			FileType: fileType,
-		}
-
-		payloads[fileKey] = payload
+		payloads[fileKey] = storageEngine.ToPayload(file, fileID, url, fileType)
 	}
 
 	return &protos.InitBatchUploadResponse{

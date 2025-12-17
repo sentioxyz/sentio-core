@@ -1,21 +1,21 @@
 # @sentio/ui-core
 
-基础 UI 组件库,完全不依赖 Web3。
+A basic UI component library with zero Web3 dependencies.
 
-## 特性
+## Features
 
-- 🎨 完整的 Tailwind CSS 主题系统
-- 🧩 基础 UI 组件(Button, Dialog, Tooltip, Loading 等)
-- 📦 零 Web3 依赖
-- 🎯 轻量级
+- 🎨 Full Tailwind CSS theme system
+- 🧩 Core UI components (Button, Dialog, Tooltip, Loading, etc.)
+- 📦 No Web3 dependency
+- 🎯 Lightweight
 
-## 安装
+## Installation
 
 ```bash
 pnpm add @sentio/ui-core
 ```
 
-## 使用
+## Usage
 
 ```tsx
 import { Button, BaseDialog, BarLoading, CopyButton } from '@sentio/ui-core'
@@ -32,25 +32,25 @@ function App() {
 }
 ```
 
-## 包含的组件
+## Included components
 
-### 基础组件
-- `Button` - 按钮组件
-- `BaseDialog` - 对话框组件
-- `PopoverTooltip` - 提示框组件
-- `BarLoading` - 条形加载指示器
-- `SpinLoading` - 旋转加载指示器
-- `CopyButton` - 复制按钮
+### Core components
+- `Button` - Button component
+- `BaseDialog` - Dialog component
+- `PopoverTooltip` - Tooltip component
+- `BarLoading` - Bar loading indicator
+- `SpinLoading` - Spinner loading indicator
+- `CopyButton` - Copy button
 
-### 工具函数
-- `useMobile()` - 检测移动设备
-- `getNumberWithDecimal()` - 数字格式化
-- `parseHex()` - 十六进制解析
-- Context: `SvgFolderContext`, `DarkModeContext`, `OpenContractContext`
+### Utilities / Hooks
+- `useMobile()` - Detect mobile device
+- `getNumberWithDecimal()` - Number formatting
+- `parseHex()` - Hex parsing
+- Contexts: `SvgFolderContext`, `DarkModeContext`, `OpenContractContext`
 
-## 主题
+## Theming
 
-组件使用 CSS 变量进行主题化,你可以通过覆盖这些变量来自定义主题:
+Components are themed using CSS variables. You can customize the theme by overriding these variables:
 
 ```css
 :root {

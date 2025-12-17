@@ -3,7 +3,7 @@ import { getChainExternalUrl, getChainBlockscoutUrl } from '@sentio/chain'
 import { cx as classNames } from 'class-variance-authority'
 import { chainIdToNumber, getPathHostName } from '../utils/use-tag'
 import { ExternalLogo } from './ExternalLogo'
-import { SvgFolderContext } from '../utils/extension-context'
+import { SvgFolderContext } from '@sentio/ui-core'
 
 const EtherLink = ({
   address,

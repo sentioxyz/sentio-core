@@ -11,9 +11,8 @@ import {
   isNumber
 } from 'lodash'
 import isNumeric from 'validator/lib/isNumeric'
-import { PopoverTooltip } from '../common/DivTooltip'
+import { PopoverTooltip, CopyButton, useMobile } from '@sentio/ui-core'
 import { useAddressTag } from '../utils/use-tag'
-import { CopyButton } from '../common/CopyButton'
 import { cx } from 'class-variance-authority'
 import EtherLink from './EtherLink'
 import {
@@ -30,9 +29,7 @@ import {
 } from './transaction-context'
 import { useFallbackName } from './use-fallback-name'
 import { IoMdInformationCircleOutline } from 'react-icons/io'
-import { OpenContractContext } from '../utils/extension-context'
-import { useDarkMode } from '../utils/extension-context'
-import { useMobile } from '../utils/use-mobile'
+import { OpenContractContext, useDarkMode } from '@sentio/ui-core'
 import JsonView from '@uiw/react-json-view'
 import { lightTheme } from '@uiw/react-json-view/light'
 import { darkTheme } from '@uiw/react-json-view/dark'
@@ -361,7 +358,7 @@ export const RawParam = memo(function RawParam({
       <PopoverTooltip
         strategy="fixed"
         hideArrow
-        maxWidth="max-w-[500px]"
+        maxWidth="!max-w-[500px]"
         text={
           <div
             className="min-w-[200px] max-w-[500px]"

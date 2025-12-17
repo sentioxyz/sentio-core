@@ -10,7 +10,7 @@ import sortBy from 'lodash/sortBy'
 import { useAddressTag } from '../utils/use-tag'
 import { CallTracesContext, ChainIdContext } from './transaction-context'
 import { getNativeToken } from './ERC20Token'
-import { useMobile } from '../utils/use-mobile'
+import { useMobile } from '@sentio/ui-core'
 
 interface Props {
   transaction: Transaction

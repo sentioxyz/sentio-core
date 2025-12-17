@@ -3,8 +3,7 @@ import { chainIdToNumber, toChecksumAddress, useAddressTag } from "../utils/use-
 import { ChainIcon } from "./ChainIcons"
 import { ChainIdContext } from "./transaction-context"
 import { useContext } from "react"
-import { PopoverTooltip } from "../common/DivTooltip"
-import { CopyButton } from "../common/CopyButton"
+import { PopoverTooltip, CopyButton } from "@sentio/ui-core"
 import EtherLink from "./EtherLink"
 import { HexNumber } from "./HexNumber"
 

@@ -1,8 +1,9 @@
-import { DecodedCallTrace, DecodedLog, DecodedStorage, LocationWithInstructionIndex } from '@sentio/debugger-common'
+import { DecodedCallTrace, DecodedLog, LocationWithInstructionIndex } from '@sentio/debugger-common'
 import { Breakpoint } from '@sentio/debugger'
 // import { Contract } from 'gen/service/common/index'
 import * as monaco from 'monaco-editor'
 type Contract = any
+type DecodedStorage = any
 
 // This address is a placeholder, used to represent native token address
 export const NativeTokenAddress = '0x0000000000000000000000000000000000000000'

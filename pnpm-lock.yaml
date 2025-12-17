@@ -321,9 +321,6 @@ importers:
       react-spinners:
         specifier: ^0.13.8
         version: 0.13.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      swr:
-        specifier: ^2.3.6
-        version: 2.3.6(react@18.3.1)
       validator:
         specifier: ^13.15.23
         version: 13.15.23
@@ -352,6 +349,152 @@ importers:
       postcss:
         specifier: ^8.5.6
         version: 8.5.6
+      tailwindcss:
+        specifier: ^3.4.18
+        version: 3.4.18(tsx@4.20.6)(yaml@2.8.1)
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(@swc/core@1.15.5)(jiti@1.21.7)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.2)(yaml@2.8.1)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.2
+
+  packages/ui-core:
+    dependencies:
+      '@floating-ui/core':
+        specifier: ^1.7.3
+        version: 1.7.3
+      '@floating-ui/react':
+        specifier: ^0.27.16
+        version: 0.27.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@headlessui/react':
+        specifier: ^2.2.9
+        version: 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@heroicons/react':
+        specifier: ^2.2.0
+        version: 2.2.0(react@18.3.1)
+      '@sentio/bigdecimal':
+        specifier: 9.1.1-patch.3
+        version: 9.1.1-patch.3
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      copy-to-clipboard:
+        specifier: ^3.3.3
+        version: 3.3.3
+      react-icons:
+        specifier: ^5.5.0
+        version: 5.5.0(react@18.3.1)
+      react-spinners:
+        specifier: ^0.13.8
+        version: 0.13.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+    devDependencies:
+      '@ladle/react':
+        specifier: ^5.1.1
+        version: 5.1.1(@types/node@22.18.8)(@types/react@18.3.25)(jiti@1.21.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tsx@4.20.6)(typescript@5.9.2)(yaml@2.8.1)
+      autoprefixer:
+        specifier: ^10.4.22
+        version: 10.4.22(postcss@8.5.6)
+      concurrently:
+        specifier: ^9.2.1
+        version: 9.2.1
+      postcss:
+        specifier: ^8.5.6
+        version: 8.5.6
+      tailwindcss:
+        specifier: ^3.4.18
+        version: 3.4.18(tsx@4.20.6)(yaml@2.8.1)
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(@swc/core@1.15.5)(jiti@1.21.7)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.2)(yaml@2.8.1)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.2
+
+  packages/ui-web3:
+    dependencies:
+      '@heroicons/react':
+        specifier: ^2.2.0
+        version: 2.2.0(react@18.3.1)
+      '@monaco-editor/react':
+        specifier: ^4.7.0
+        version: 4.7.0(monaco-editor@0.55.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@sentio/bigdecimal':
+        specifier: 9.1.1-patch.3
+        version: 9.1.1-patch.3
+      '@sentio/chain':
+        specifier: '*'
+        version: 3.4.22
+      '@sentio/debugger':
+        specifier: ^1.16.25
+        version: 1.16.25(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@sentio/debugger-common':
+        specifier: ^1.16.25
+        version: 1.16.25
+      '@sentio/ui-core':
+        specifier: workspace:*
+        version: link:../ui-core
+      '@uiw/react-json-view':
+        specifier: 2.0.0-alpha.39
+        version: 2.0.0-alpha.39(@babel/runtime@7.28.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      boring-avatars:
+        specifier: ^2.0.4
+        version: 2.0.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      copy-to-clipboard:
+        specifier: ^3.3.3
+        version: 3.3.3
+      dayjs:
+        specifier: ^1.11.19
+        version: 1.11.19
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+      monaco-editor:
+        specifier: ^0.55.1
+        version: 0.55.1
+      react-copy-to-clipboard:
+        specifier: ^5.1.0
+        version: 5.1.0(react@18.3.1)
+      react-icons:
+        specifier: ^5.5.0
+        version: 5.5.0(react@18.3.1)
+      react-resize-detector:
+        specifier: ^12.3.0
+        version: 12.3.0(react@18.3.1)
+      validator:
+        specifier: ^13.15.23
+        version: 13.15.23
+      web3:
+        specifier: ^1.9.0
+        version: 1.10.4(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      web3-utils:
+        specifier: ^1.9.0
+        version: 1.10.4
+    devDependencies:
+      '@ladle/react':
+        specifier: ^5.1.1
+        version: 5.1.1(@types/node@22.18.8)(@types/react@18.3.25)(jiti@1.21.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tsx@4.20.6)(typescript@5.9.2)(yaml@2.8.1)
+      '@types/react-copy-to-clipboard':
+        specifier: ^5.0.7
+        version: 5.0.7
+      '@types/validator':
+        specifier: ^13.15.10
+        version: 13.15.10
+      autoprefixer:
+        specifier: ^10.4.22
+        version: 10.4.22(postcss@8.5.6)
+      concurrently:
+        specifier: ^9.2.1
+        version: 9.2.1
+      postcss:
+        specifier: ^8.5.6
+        version: 8.5.6
+      swr:
+        specifier: ^2.3.6
+        version: 2.3.6(react@18.3.1)
       tailwindcss:
         specifier: ^3.4.18
         version: 3.4.18(tsx@4.20.6)(yaml@2.8.1)

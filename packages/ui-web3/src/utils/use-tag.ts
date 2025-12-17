@@ -1,5 +1,5 @@
 import { useContext } from "react"
-import { TagsContext } from "./extension-context"
+import { TagsContext } from "@sentio/ui-core"
 import Web3 from 'web3'
 const web3 = new Web3()
 

@@ -211,10 +211,10 @@ module.exports = {
         tooltip: '90'
       },
       fontSize: {
-        ichart: ['0.625rem', '1rem'], // chart font size 10px 16px
-        icontent: ['0.8125rem', '1.125rem'], // content font size 12px 16px
-        ilabel: ['0.8125rem', '1.125rem'], // content header font size 13px 18px
-        ititle: ['1.125rem', '1.75rem'] // first class header font size 18px 28px
+        ichart: ['0.625rem', '1rem'],
+        icontent: ['0.8125rem', '1.125rem'],
+        ilabel: ['0.8125rem', '1.125rem'],
+        ititle: ['1.125rem', '1.75rem']
       },
       fontWeight: {
         icontent: '400',

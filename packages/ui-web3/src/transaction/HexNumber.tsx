@@ -1,12 +1,11 @@
 import React, { useContext } from 'react'
-import { CopyButton } from '../common/CopyButton'
+import { CopyButton, SvgFolderContext } from '@sentio/ui-core'
 import Avatar from 'boring-avatars'
 import { getChainExternalUrl, getChainBlockscoutUrl, getSuiscanUrl } from '@sentio/chain'
 import { useResizeDetector } from 'react-resize-detector'
 import { chainIdToNumber, getPathHostName, useAddressTag } from '../utils/use-tag'
 import { cva, cx as classNames } from 'class-variance-authority'
 import { ExternalLogo } from './ExternalLogo'
-import { SvgFolderContext } from '../utils/extension-context'
 
 const iconClassName = cva('', {
   variants: {

@@ -2,9 +2,8 @@ import React from 'react'
 import { LuExternalLink } from 'react-icons/lu'
 import { cx as classNames } from 'class-variance-authority'
 import { ChainIconProps, getChainIconFactory } from './ChainIcons'
-import { SvgFolderContext } from '../utils/extension-context'
+import { SvgFolderContext, useDarkMode } from '@sentio/ui-core'
 import { useContext } from 'react'
-import { useDarkMode } from '../utils/extension-context'
 import { EthChainId } from '@sentio/chain'
 
 const PolygonChainIcon = getChainIconFactory(EthChainId.POLYGON)

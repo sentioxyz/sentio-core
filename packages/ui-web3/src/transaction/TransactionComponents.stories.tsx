@@ -1,4 +1,5 @@
 import '../styles.css'
+import '@sentio/ui-core/dist/style.css'
 import { TransactionStatus, TransactionValue, AddressFrom, AddressTo, TransactionLabel } from './TransactionComponents'
 
 // Ladle works by rendering exported React components from *.stories.* files.

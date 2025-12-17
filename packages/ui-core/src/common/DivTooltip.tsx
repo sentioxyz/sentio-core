@@ -179,7 +179,7 @@ export const PopoverTooltip = ({
               ) : (
                 <div
                   className={classNames(
-                    'w-max max-w-[300px] overflow-auto',
+                    'w-max overflow-auto',
                     maxWidth
                   )}
                 >

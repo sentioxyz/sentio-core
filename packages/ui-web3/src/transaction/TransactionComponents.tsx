@@ -1,9 +1,9 @@
 import { HexNumber } from './HexNumber'
 import { CheckIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline'
-import { getNumberWithDecimal } from '../utils/number-format'
+import { getNumberWithDecimal } from '@sentio/ui-core'
 import { ContractFromIcon, ContractToIcon, InternalIcon } from './Icons'
 import { NetworkNode, getNativeToken } from './ERC20Token'
-import { CopyButton } from '../common/CopyButton'
+import { CopyButton } from '@sentio/ui-core'
 
 export const TransactionStatus = ({ status }: { status: number }) => {
   if (status === 1) {

@@ -1,11 +1,12 @@
 import '../styles.css'
+import '@sentio/ui-core/dist/style.css'
 import { BalanceChanges } from './BalanceChanges'
 import {
   CallTracesContext,
   ChainIdContext,
   PriceFetcherContext
 } from './transaction-context'
-import { SvgFolderContext } from '../utils/extension-context'
+import { SvgFolderContext } from '@sentio/ui-core'
 
 const callTraceData = {
   calls: [

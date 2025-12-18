@@ -1,0 +1,60 @@
+{
+  "name": "@sentio/ui-web3",
+  "version": "0.1.0",
+  "private": false,
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --minify",
+    "build:js": "tsup",
+    "build": "pnpm build:css && pnpm build:js",
+    "dev:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --watch",
+    "dev:js": "tsup --watch",
+    "dev": "concurrently \"pnpm:dev:css\" \"pnpm:dev:js\"",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "swr": "^2"
+  },
+  "devDependencies": {
+    "@ladle/react": "^5.1.1",
+    "@types/react-copy-to-clipboard": "^5.0.7",
+    "@types/validator": "^13.15.10",
+    "swr": "^2.3.6",
+    "autoprefixer": "^10.4.22",
+    "concurrently": "^9.2.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@monaco-editor/react": "^4.7.0",
+    "@sentio/bigdecimal": "9.1.1-patch.3",
+    "@sentio/chain": "*",
+    "@sentio/debugger": "^1.16.25",
+    "@sentio/debugger-common": "^1.16.25",
+    "@sentio/ui-core": "workspace:*",
+    "@uiw/react-json-view": "2.0.0-alpha.39",
+    "boring-avatars": "^2.0.4",
+    "class-variance-authority": "^0.7.1",
+    "copy-to-clipboard": "^3.3.3",
+    "dayjs": "^1.11.19",
+    "lodash": "^4.17.21",
+    "monaco-editor": "^0.55.1",
+    "react-copy-to-clipboard": "^5.1.0",
+    "react-icons": "^5.5.0",
+    "react-resize-detector": "^12.3.0",
+    "validator": "^13.15.23",
+    "web3": "^1.9.0",
+    "web3-utils": "^1.9.0"
+  }
+}

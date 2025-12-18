@@ -6,7 +6,7 @@ ls:
   .proto: snake_case
   .bazel: SCREAMING_SNAKE_CASE
   .html: kebab-case
-  .css: kebab-case | regex:[A-Z][a-zA-Z0-9]+
+  .css: kebab-case
   .png: kebab-case
   .jpg: kebab-case
   .json: kebab-case | regex:.[a-z0-9]+
@@ -35,5 +35,5 @@ ignore:
   - .github
   - .claude
   - "*/next.config.ts"
-  - '*/*/.next'
+  - packages/remix-plugin
 

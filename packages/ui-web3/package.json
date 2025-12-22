@@ -1,41 +1,25 @@
 {
+  "private": false,
   "name": "@sentio/ui-web3",
   "version": "0.1.0",
-  "private": false,
   "main": "dist/index.cjs",
   "module": "dist/index.js",
-  "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
-  "sideEffects": false,
   "scripts": {
+    "build": "pnpm build:css && pnpm build:js",
     "build:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --minify",
     "build:js": "tsup",
-    "build": "pnpm build:css && pnpm build:js",
-    "dev:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --watch",
-    "dev:js": "tsup --watch",
+    "clean": "rm -rf dist",
     "dev": "concurrently \"pnpm:dev:css\" \"pnpm:dev:js\"",
-    "clean": "rm -rf dist"
+    "dev:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --watch",
+    "dev:js": "tsup --watch"
   },
-  "peerDependencies": {
-    "react": ">=18",
-    "react-dom": ">=18",
-    "swr": "^2"
-  },
-  "devDependencies": {
-    "@ladle/react": "^5.1.1",
-    "@types/react-copy-to-clipboard": "^5.0.7",
-    "@types/validator": "^13.15.10",
-    "swr": "^2.3.6",
-    "autoprefixer": "^10.4.22",
-    "concurrently": "^9.2.1",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.18",
-    "tsup": "^8.0.0",
-    "typescript": "^5.4.0"
-  },
+  "sideEffects": false,
+  "types": "dist/index.d.ts",
   "dependencies": {
+    "@floating-ui/react": "^0.27.16",
     "@heroicons/react": "^2.2.0",
     "@monaco-editor/react": "^4.7.0",
     "@sentio/bigdecimal": "9.1.1-patch.3",
@@ -56,5 +40,22 @@
     "validator": "^13.15.23",
     "web3": "^1.9.0",
     "web3-utils": "^1.9.0"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "swr": "^2"
+  },
+  "devDependencies": {
+    "@ladle/react": "^5.1.1",
+    "@types/react-copy-to-clipboard": "^5.0.7",
+    "@types/validator": "^13.15.10",
+    "autoprefixer": "^10.4.22",
+    "concurrently": "^9.2.1",
+    "postcss": "^8.5.6",
+    "swr": "^2.3.6",
+    "tailwindcss": "^3.4.18",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
   }
 }

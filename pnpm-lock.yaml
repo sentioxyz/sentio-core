@@ -292,12 +292,21 @@ importers:
       '@ladle/react':
         specifier: ^5.1.1
         version: 5.1.1(@types/node@22.18.8)(@types/react@18.3.25)(jiti@1.21.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tsx@4.20.6)(typescript@5.9.2)(yaml@2.8.1)
+      '@tanstack/react-virtual':
+        specifier: ^3.13.13
+        version: 3.13.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@types/lodash':
+        specifier: ^4.17.20
+        version: 4.17.20
       autoprefixer:
         specifier: ^10.4.22
         version: 10.4.22(postcss@8.5.6)
       concurrently:
         specifier: ^9.2.1
         version: 9.2.1
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
       postcss:
         specifier: ^8.5.6
         version: 8.5.6
@@ -313,6 +322,9 @@ importers:
 
   packages/ui-web3:
     dependencies:
+      '@floating-ui/react':
+        specifier: ^0.27.16
+        version: 0.27.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@18.3.1)

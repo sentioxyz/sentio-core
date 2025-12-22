@@ -15,9 +15,9 @@ shared:
 
   # Storage configuration
   storage:
-    default_storage: 'localstorage'
-    local_storage_path: '/tmp/storage'
-    local_storage_base_url: 'http://host.docker.internal:10000'
+    default_storage: 'ipfs'
+    ipfs_api_url: 'http://localhost:5001'
+    ipfs_gateway_url: 'http://host.docker.internal:8080'
   # driver configuration
   driver_config:
     driver_image: 'docker.sentioxyz.co/sentio/driver:dev'
@@ -41,9 +41,9 @@ servers:
       - name: 'processor-service'
         type: 'processor'
         enabled: true
-      - name: 'localstorage-service'
-        type: 'localstorage'
-        enabled: true
+      #      - name: 'localstorage-service'
+      #        type: 'localstorage'
+      #        enabled: true
       - name: 'project-service'
         type: 'project'
         enabled: true

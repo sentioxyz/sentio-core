@@ -47,6 +47,7 @@ func NewService(
 
 type Service struct {
 	protos.UnimplementedProcessorServiceServer
+	protos.UnimplementedProcessorRuntimeServiceServer
 	processorRepo     repository.ProcessorRepo
 	chainStateRepo    repository.ChainStateRepo
 	driverJobManager  driverjob.DriverJobManager
@@ -422,12 +423,16 @@ func (s *Service) stopProcessor(
 	if err != nil {
 		return err
 	}
-	project, err := s.processorRepo.GetProjectByID(ctx, processor.ProjectID)
-	if err != nil {
-		return err
+	if processor.ProjectID != "" {
+		project, err := s.processorRepo.GetProjectByID(ctx, processor.ProjectID)
+		if err != nil {
+			return err
+		}
+		processor.Project = project
 	}
-	processor.Project = project
 	logger := log.WithContext(ctx)
+
+	// skip delete job for reference processor
 	if processor.ReferenceProjectID == "" {
 		err = s.driverJobManager.DeleteJob(ctx, processor)
 		if err != nil {
@@ -439,7 +444,7 @@ func (s *Service) stopProcessor(
 	if err = s.processorRepo.ObsoleteProcessor(ctx, processor.ID); err != nil {
 		return err
 	}
-	if err := s.notifyProcessorStopped(ctx, processor); err != nil {
+	if err = s.notifyProcessorStopped(ctx, processor); err != nil {
 		return err
 	}
 	return nil
@@ -698,4 +703,51 @@ func PreloadedProcessor(ctx context.Context) *models.Processor {
 		return processor
 	}
 	return nil
+}
+
+func (s *Service) RunProcessor(ctx context.Context, req *protos.RunProcessorRequest) (*protos.Processor, error) {
+	var p *models.Processor
+	project, err := s.processorRepo.GetProjectByID(ctx, req.ProjectId)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.processorRepo.WithTransaction(ctx, func(ctx context.Context) error {
+		p = &models.Processor{
+			ID:                  req.ProcessorId,
+			UploadedAt:          req.CreatedAt.AsTime(),
+			ProjectID:           project.ID,
+			Project:             project,
+			K8sClusterID:        0,
+			EntitySchemaVersion: 0,
+			DriverVersion:       1,
+			NumWorkers:          req.NumWorkers,
+			VersionState:        int32(protos.ProcessorVersionState_ACTIVE),
+			SentioProcessorProperties: models.SentioProcessorProperties{
+				CliVersion: req.CliVersion,
+				SdkVersion: req.SdkVersion,
+				CodeURL:    req.CodeUrl,
+				Debug:      req.Debug,
+				Binary:     req.IsBinary,
+			},
+		}
+		err := s.processorRepo.SaveProcessor(ctx, p)
+		if err != nil {
+			return err
+		}
+		if err = s.activateProcessor(ctx, p, false); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return p.ToPB(nil)
+}
+
+func (s *Service) StopProcessor(ctx context.Context, req *protos.StopProcessorRequest) (*emptypb.Empty, error) {
+	err := s.stopProcessor(ctx, req.ProcessorId)
+	return nil, err
 }

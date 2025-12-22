@@ -173,7 +173,6 @@ func (psi *ProcessorServiceInstance) Register(grpcServer *grpc.Server, mux *runt
 
 	// Register processor service on the gRPC server
 	coreprotos.RegisterProcessorServiceServer(grpcServer, psi.processorSvc)
-
 	err := coreprotos.RegisterProcessorServiceHandlerFromEndpoint(context.Background(),
 		mux,
 		fmt.Sprintf(":%d", httpPort),
@@ -182,7 +181,13 @@ func (psi *ProcessorServiceInstance) Register(grpcServer *grpc.Server, mux *runt
 		return err
 	}
 
-	return nil
+	// Register processor runtime service on the gRPC server
+	coreprotos.RegisterProcessorRuntimeServiceServer(grpcServer, psi.processorSvc)
+	return coreprotos.RegisterProcessorRuntimeServiceHandlerFromEndpoint(context.Background(),
+		mux,
+		fmt.Sprintf(":%d", httpPort),
+		rpc.GRPCGatewayDialOptions)
+
 }
 
 // Start starts any background processes for the processor service

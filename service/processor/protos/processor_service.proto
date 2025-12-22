@@ -9,7 +9,6 @@ import "google/api/visibility.proto";
 import "google/protobuf/timestamp.proto";
 import "service/common/protos/common.proto";
 import "google/protobuf/empty.proto";
-import "google/protobuf/struct.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 
 service ProcessorService {
@@ -592,4 +591,51 @@ message SetProcessorEntitySchemaRequest {
 message PauseProcessorRequest {
   string processor_id = 1;
   string reason = 2;
+}
+
+message RunProcessorRequest {
+  // The unique processor id.
+  string processor_id = 1;
+  // the ipfs://{cid}  to download code from
+  string code_url = 2;
+  // The SDK version used when uploaded
+  string sdk_version = 3;
+  // The CLI version used when uploaded
+  string cli_version = 4;
+
+  // If enabled, driver job's log level will be set to debug
+  bool debug = 5;
+
+  // The created timestamp of the processor.
+  google.protobuf.Timestamp created_at = 6;
+
+  int32 num_workers = 7;
+
+  bool is_binary = 8;
+  // The project id this processor belongs to. Will assign default project if empty.
+  string project_id = 9;
+}
+
+message StopProcessorRequest {
+  string processor_id = 1;
+}
+
+// Processor runtime service(needed by sentio-node)
+service ProcessorRuntimeService {
+  rpc RunProcessor (RunProcessorRequest) returns (Processor){
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/processors/run",
+      body: "*"
+    };
+  };
+  rpc StopProcessor (StopProcessorRequest) returns (google.protobuf.Empty) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/processors/stop",
+      body: "*"
+    };
+  };
 }

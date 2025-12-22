@@ -11,10 +11,35 @@ export {
   AddressTo,
   TransactionLabel
 } from './transaction/TransactionComponents'
+export { TransactionBrief } from './transaction/TransactionBrief'
+export { SimulatorInfo } from './transaction/SimulatorInfo'
+export type {
+  SimulationData,
+  BlockOverride,
+  StateOverride
+} from './transaction/SimulatorInfo'
+
+// Call trace components
 export {
   FlatCallTraceTree,
   CallTreeNode
 } from './transaction/calltrace/FlatCallTrace'
+export {
+  LocationViewer,
+  LocationStatus
+} from './transaction/calltrace/LocationViewer'
+export { ForwardDef } from './transaction/calltrace/ForwardDef'
+
+// Fund flow components
+export { TransactionFundflow } from './transaction/fundflow/NewFundflow'
+export { FundFlow } from './transaction/fundflow/FundFlow'
+export { VizGraph } from './transaction/fundflow/GraphvizGraph'
+export type { TransferItem } from './transaction/fundflow/FlowUtils'
+export {
+  processDecodedCallTrace,
+  generateNodesAndEdges
+} from './transaction/fundflow/FlowUtils'
+export { exportSVG, exportPNG } from './transaction/fundflow/export-utils'
 
 // Web3 types
 export * from './transaction/types'
@@ -26,3 +51,65 @@ export * from './transaction/use-price'
 
 // Web3 utilities
 export { useAddressTag } from './utils/use-tag'
+
+// MEV components
+export { MevInfo, MevType } from './mev/MevInfo'
+export type {
+  MevInfoProps,
+  MevData,
+  Token,
+  Trader,
+  Revenue,
+  ArbitrageResult
+} from './mev/MevInfo'
+export { MevLink } from './mev/MevLink'
+export { SandwichTxns } from './mev/SandwichTxns'
+export type { SandwichResult, SandwichTx } from './mev/SandwichTxns'
+
+// Simulator components and types
+export { NewSimulation } from './simulator/NewSimulation'
+export type { SimulationProps } from './simulator/NewSimulation'
+export { FunctionParameter } from './simulator/FunctionParameter'
+export { FunctionSelect } from './simulator/FunctionSelect'
+export {
+  AmountUnitSelect,
+  genCoefficient,
+  getWeiAmount
+} from './simulator/AmountUnitSelect'
+export { DisclosurePanel } from './simulator/Panel'
+export type {
+  SimulationFormType,
+  Contract,
+  AbiFunction,
+  AbiInput,
+  FunctionParam,
+  AccessListItem,
+  StateOverrideItem,
+  SourceOverrideItem,
+  Simulation,
+  SimulateTransactionRequest,
+  SimulateTransactionResponse,
+  AmountUnit
+} from './simulator/types'
+
+// Editor components
+export {
+  SourceStore,
+  SoliditySourceParser,
+  sentioTheme,
+  SentioDocumentSymbolProvider,
+  SentioDefinitionProvider,
+  SentioHoverProvider,
+  SentioImplementationProvider,
+  SentioReferenceProvider,
+  solidityLanguageConfig,
+  solidityTokensProvider,
+  moveLanguageConfig,
+  moveTokenProvider,
+  CompilationSourceStore,
+  SourceSymbols,
+  SymbolIcons,
+  SourceTree
+} from './editor'
+export type { TextOccurrence, TreeNode } from './editor'
+export { SymbolKind } from './editor'

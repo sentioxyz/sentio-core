@@ -180,7 +180,7 @@ export const MultipleCollapse = () => {
 
 export const DarkMode = () => {
   return (
-    <div className="dark min-h-screen bg-gray-900 p-4">
+    <div className="bg-sentio-gray-50 dark min-h-screen p-4">
       <Collapse title="Dark Mode Panel" defaultOpen={true}>
         <div className="rounded-md border border-gray-700 bg-gray-800 p-4">
           <p className="text-sm text-gray-300">

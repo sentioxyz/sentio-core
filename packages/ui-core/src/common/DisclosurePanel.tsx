@@ -2,6 +2,7 @@ import { ReactNode } from 'react'
 import { cx as classNames } from 'class-variance-authority'
 import isFunction from 'lodash/isFunction'
 import { useState, useCallback } from 'react'
+import { LuChevronRight } from 'react-icons/lu'
 
 interface Props {
   defaultOpen?: boolean
@@ -12,21 +13,6 @@ interface Props {
   iconClassName?: string
   className?: string
 }
-
-const ChevronRightIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 20 20"
-    fill="currentColor"
-    {...props}
-  >
-    <path
-      fillRule="evenodd"
-      d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-      clipRule="evenodd"
-    />
-  </svg>
-)
 
 export function DisclosurePanel({
   title,
@@ -58,7 +44,7 @@ export function DisclosurePanel({
         )}
         onClick={toggle}
       >
-        <ChevronRightIcon
+        <LuChevronRight
           className={classNames(
             open ? 'rotate-90 transform' : '',
             'mr-1 self-center transition-all',

@@ -438,15 +438,15 @@ func (r *RedisProcessorRepo) CreateOrUpdateProcessor(
 
 		return existingProcessor, r.SaveProcessor(ctx, existingProcessor)
 	}
-
-	// Create new processor
-	// Find the latest version to determine the new version number
-	latestProcessor, err := r.FindLatestProcessor(ctx, project.ID)
 	newVersion := int32(1)
-	if err == nil && latestProcessor != nil {
-		newVersion = latestProcessor.Version + 1
+	if project != nil {
+		// Create new processor
+		// Find the latest version to determine the new version number
+		latestProcessor, err := r.FindLatestProcessor(ctx, project.ID)
+		if err == nil && latestProcessor != nil {
+			newVersion = latestProcessor.Version + 1
+		}
 	}
-
 	// Generate processor ID using gonanoid
 	processorID, err := gonanoid.GenerateID()
 	if err != nil {
@@ -550,6 +550,23 @@ func (r *RedisProcessorRepo) SaveProcessorUpgradeHistory(ctx context.Context, pr
 
 // GetProjectByID gets a project by ID
 func (r *RedisProcessorRepo) GetProjectByID(ctx context.Context, projectID string) (*commonmodels.Project, error) {
+	if projectID == "" || projectID == "default" {
+		// return default project
+		return &commonmodels.Project{
+			ID:           "default",
+			Slug:         "default",
+			DisplayName:  "Default Project",
+			Description:  "",
+			OwnerID:      "default",
+			OwnerType:    commonmodels.OwnerTypeUser,
+			OwnerName:    "default",
+			Type:         "",
+			Public:       true,
+			Members:      nil,
+			MultiVersion: false,
+		}, nil
+	}
+
 	key := projectKeyPrefix + projectID
 	data, err := r.client.Get(ctx, key).Result()
 	if err == redis.Nil {

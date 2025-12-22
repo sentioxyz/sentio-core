@@ -803,10 +803,8 @@ func (d *DockerSwarmManager) findServicesByProcessorID(ctx context.Context, proc
 }
 
 func (d *DockerSwarmManager) makeDriverName(processor *models.Processor) string {
-	slug := strings.TrimSuffix(processor.Project.Slug, fmt.Sprintf("-%s", processor.Project.ID))
 	driverName := fmt.Sprintf(
-		"driver-%s-%s-%s", CleanupName(processor.ID),
-		CleanupName(processor.Project.GetOwnerName()), CleanupName(slug),
+		"driver-%s", CleanupName(processor.ID),
 	)
 
 	// Docker service name max length is 64, and we append suffixes like "-processor" (10 chars)

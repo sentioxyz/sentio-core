@@ -82,7 +82,7 @@ func (e *IPFSStorageEngine) PreSignedPutUrl(ctx context.Context, bucket, object,
 
 func (e *IPFSStorageEngine) PreSignedGetUrl(ctx context.Context, bucket, object string, expireDuration time.Duration) (string, error) {
 	if object == "" {
-		return "", fmt.Errorf("object (CID) cannot be empty")
+		return fmt.Sprintf("%s/ipfs/%s", e.gatewayURL, bucket), nil
 	}
 
 	return fmt.Sprintf("%s/ipfs/%s/%s", e.gatewayURL, bucket, object), nil

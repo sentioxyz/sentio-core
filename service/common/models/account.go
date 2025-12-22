@@ -2,9 +2,10 @@ package models
 
 import (
 	"encoding/json"
-	"github.com/shopspring/decimal"
 	"sentioxyz/sentio-core/service/common/money"
 	"sentioxyz/sentio-core/service/common/protos"
+
+	"github.com/shopspring/decimal"
 
 	"google.golang.org/protobuf/types/known/structpb"
 	"gorm.io/datatypes"
@@ -38,7 +39,10 @@ type Account struct {
 	PaymentInfo       datatypes.JSON
 	UsageOverCapLimit *decimal.Decimal `gorm:"type:decimal(24,12)"`
 	Status            AccountStatus    `gorm:"default:'active'"`              // active, suspended
-	PrepaidBalance    decimal.Decimal  `gorm:"type:decimal(24,12);default:0"` // Customer's prepaid balance amount in USD (non-negative)}
+	PrepaidBalance    decimal.Decimal  `gorm:"type:decimal(24,12);default:0"` // Customer's prepaid balance amount in USD (non-negative)
+	// HD Wallet fields
+	AddressIndex  *uint32 `gorm:"uniqueIndex"` // HD wallet index (starts from 1000, NULL if not assigned, immutable after assignment)
+	WalletAddress string  `gorm:"uniqueIndex"` // Ethereum wallet address (0x...)
 }
 
 func (a *Account) BeforeCreate(tx *gorm.DB) error {

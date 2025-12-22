@@ -1,5 +1,5 @@
-import { DecodedExternalCallTrace } from "@sentio/debugger-common"
-import { useEffect, useMemo, useState } from "react"
+import { DecodedExternalCallTrace } from '@sentio/debugger-common'
+import { useEffect, useMemo, useState } from 'react'
 
 const fallbackNameMap: Map<string, string> = new Map()
 const fallbackNotifyMap: Record<string, Set<() => void>> = {}
@@ -52,8 +52,12 @@ export const useFallbackNameMap = () => {
   }, [timestamp])
 }
 
-function setValidName(savedMap: Map<string, string>, address: string, name: string) {
-  if (name && name.trim() !== "" && address && address.trim() !== "") {
+function setValidName(
+  savedMap: Map<string, string>,
+  address: string,
+  name: string
+) {
+  if (name && name.trim() !== '' && address && address.trim() !== '') {
     if (address.toLowerCase() !== name.toLowerCase()) {
       savedMap.set(address.toLowerCase(), name)
     }
@@ -62,7 +66,7 @@ function setValidName(savedMap: Map<string, string>, address: string, name: stri
 
 export const parseNamesFromTraceData = (data?: DecodedExternalCallTrace) => {
   const contractNames = new Map()
-  const walk = (trace) => {
+  const walk = (trace: any) => {
     if (trace.location) {
       if (trace.contractName) {
         if (trace.to && trace.location) {

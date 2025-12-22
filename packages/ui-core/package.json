@@ -1,38 +1,25 @@
 {
+  "private": false,
   "name": "@sentio/ui-core",
   "version": "0.1.0",
-  "private": false,
   "main": "dist/index.js",
   "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
+  "scripts": {
+    "build": "pnpm build:css && pnpm build:js",
+    "build:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --minify",
+    "build:js": "tsup",
+    "clean": "rm -rf dist",
+    "dev": "concurrently \"pnpm:dev:css\" \"pnpm:dev:js\"",
+    "dev:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --watch",
+    "dev:js": "tsup --watch"
+  },
   "sideEffects": [
     "**/*.css"
   ],
-  "scripts": {
-    "build:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --minify",
-    "build:js": "tsup",
-    "build": "pnpm build:css && pnpm build:js",
-    "dev:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --watch",
-    "dev:js": "tsup --watch",
-    "dev": "concurrently \"pnpm:dev:css\" \"pnpm:dev:js\"",
-    "clean": "rm -rf dist"
-  },
-  "peerDependencies": {
-    "react": ">=18",
-    "react-dom": ">=18"
-  },
-  "devDependencies": {
-    "@ladle/react": "^5.1.1",
-    "autoprefixer": "^10.4.22",
-    "concurrently": "^9.2.1",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.18",
-    "tsup": "^8.0.0",
-    "typescript": "^5.4.0"
-  },
+  "types": "dist/index.d.ts",
   "dependencies": {
     "@floating-ui/core": "^1.7.3",
     "@floating-ui/react": "^0.27.16",
@@ -43,5 +30,21 @@
     "copy-to-clipboard": "^3.3.3",
     "react-icons": "^5.5.0",
     "react-spinners": "^0.13.8"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@ladle/react": "^5.1.1",
+    "@tanstack/react-virtual": "^3.13.13",
+    "@types/lodash": "^4.17.20",
+    "autoprefixer": "^10.4.22",
+    "concurrently": "^9.2.1",
+    "lodash": "^4.17.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
   }
 }

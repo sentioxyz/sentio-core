@@ -12,7 +12,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common/log",
+        "//common/sqlbuilder/condition",
         "//service/common/protos",
+        "@com_github_huandu_go_sqlbuilder//:go-sqlbuilder",
         "@com_github_pkg_errors//:errors",
         "@com_github_prometheus_client_golang//api/prometheus/v1:prometheus",
         "@org_golang_google_grpc//codes",

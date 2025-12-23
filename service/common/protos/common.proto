@@ -748,6 +748,7 @@ message Account {
   string usage_over_cap_limit = 11;
   string status = 12;
   google.type.Money prepaid_balance = 13;
+  string wallet_address = 14;
 }
 
 enum PayMethod {

@@ -5105,6 +5105,7 @@ type Account struct {
 	UsageOverCapLimit string                 `protobuf:"bytes,11,opt,name=usage_over_cap_limit,json=usageOverCapLimit,proto3" json:"usage_over_cap_limit,omitempty"`
 	Status            string                 `protobuf:"bytes,12,opt,name=status,proto3" json:"status,omitempty"`
 	PrepaidBalance    *money.Money           `protobuf:"bytes,13,opt,name=prepaid_balance,json=prepaidBalance,proto3" json:"prepaid_balance,omitempty"`
+	WalletAddress     string                 `protobuf:"bytes,14,opt,name=wallet_address,json=walletAddress,proto3" json:"wallet_address,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -5214,6 +5215,13 @@ func (x *Account) GetPrepaidBalance() *money.Money {
 		return x.PrepaidBalance
 	}
 	return nil
+}
+
+func (x *Account) GetWalletAddress() string {
+	if x != nil {
+		return x.WalletAddress
+	}
+	return ""
 }
 
 type ImportedProject struct {
@@ -9616,7 +9624,7 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	"\x03MAP\x10\x05\x12\b\n" +
 	"\x04JSON\x10\x06\x12\t\n" +
 	"\x05TOKEN\x10\a\x12\v\n" +
-	"\aDYNAMIC\x10\b\"\x9c\x03\n" +
+	"\aDYNAMIC\x10\b\"\xc3\x03\n" +
 	"\aAccount\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x18\n" +
@@ -9629,7 +9637,8 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	" \x01(\x0e2\x11.common.PayMethodR\rpaymentMethod\x12/\n" +
 	"\x14usage_over_cap_limit\x18\v \x01(\tR\x11usageOverCapLimit\x12\x16\n" +
 	"\x06status\x18\f \x01(\tR\x06status\x12;\n" +
-	"\x0fprepaid_balance\x18\r \x01(\v2\x12.google.type.MoneyR\x0eprepaidBalance\"}\n" +
+	"\x0fprepaid_balance\x18\r \x01(\v2\x12.google.type.MoneyR\x0eprepaidBalance\x12%\n" +
+	"\x0ewallet_address\x18\x0e \x01(\tR\rwalletAddress\"}\n" +
 	"\x0fImportedProject\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
 	"\aproject\x18\x02 \x01(\v2\x0f.common.ProjectR\aproject\x12+\n" +

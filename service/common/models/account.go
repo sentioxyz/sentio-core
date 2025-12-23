@@ -73,12 +73,13 @@ func (a *Account) GetOwner(tx *gorm.DB) {
 
 func (a *Account) ToPB() *protos.Account {
 	ret := &protos.Account{
-		Id:      a.ID,
-		OwnerId: a.OwnerID,
-		Name:    a.Name,
-		Contact: a.Contact,
-		Address: a.Address,
-		Status:  string(a.Status),
+		Id:            a.ID,
+		OwnerId:       a.OwnerID,
+		Name:          a.Name,
+		Contact:       a.Contact,
+		Address:       a.Address,
+		Status:        string(a.Status),
+		WalletAddress: a.WalletAddress,
 	}
 	if v, ok := protos.PayMethod_value[a.PayMethod]; ok {
 		ret.PaymentMethod = protos.PayMethod(v)

@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"time"
 	_ "time/tzdata"
-	
+
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/sqlbuilder/condition"
 	"sentioxyz/sentio-core/service/common/protos"
 
+	"github.com/huandu/go-sqlbuilder"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -131,4 +133,52 @@ func (t *TimeRange) String() string {
 		return err.Error()
 	}
 	return string(str)
+}
+
+func (t *TimeRange) SetClickhouseTimeSelector(s *sqlbuilder.SelectBuilder, timeColumnName string) {
+	if t == nil {
+		return
+	}
+	var conditions []string
+	if t.RangeMode == LeftOpenRange || t.RangeMode == BothOpenRange {
+		conditions = append(conditions, s.GreaterThan(timeColumnName, t.Start.In(t.Timezone)))
+	} else {
+		conditions = append(conditions, s.GreaterEqualThan(timeColumnName, t.Start.In(t.Timezone)))
+	}
+	if t.RangeMode == RightOpenRange || t.RangeMode == BothOpenRange {
+		conditions = append(conditions, s.LessThan(timeColumnName, t.End.In(t.Timezone)))
+	} else {
+		conditions = append(conditions, s.LessEqualThan(timeColumnName, t.End.In(t.Timezone)))
+	}
+	s.Where(conditions...)
+}
+
+func (t *TimeRange) BuildTimeConditions(timeColumnName string) []*condition.Cond {
+	if t == nil {
+		return nil
+	}
+	var conditions []*condition.Cond
+	if t.RangeMode == LeftOpenRange || t.RangeMode == BothOpenRange {
+		conditions = append(conditions, condition.GreaterThan(timeColumnName, t.Start.In(t.Timezone)))
+	} else {
+		conditions = append(conditions, condition.GreaterEqualThan(timeColumnName, t.Start.In(t.Timezone)))
+	}
+	if t.RangeMode == RightOpenRange || t.RangeMode == BothOpenRange {
+		conditions = append(conditions, condition.LessThan(timeColumnName, t.End.In(t.Timezone)))
+	} else {
+		conditions = append(conditions, condition.LessEqualThan(timeColumnName, t.End.In(t.Timezone)))
+	}
+	return conditions
+}
+
+func (t *TimeRange) ReverseStartCondition(timeColumnName string) *condition.Cond {
+	if t == nil {
+		return nil
+	}
+	switch t.RangeMode {
+	case LeftOpenRange, BothOpenRange:
+		return condition.LessEqualThan(timeColumnName, t.Start.In(t.Timezone))
+	default:
+		return condition.LessThan(timeColumnName, t.Start.In(t.Timezone))
+	}
 }

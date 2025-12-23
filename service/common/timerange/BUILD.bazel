@@ -5,13 +5,18 @@ go_library(
     srcs = [
         "resolver.go",
         "split.go",
+        "time_point.go",
+        "time_range.go",
     ],
     importpath = "sentioxyz/sentio-core/service/common/timerange",
     visibility = ["//visibility:public"],
     deps = [
+        "//common/log",
         "//service/common/protos",
         "@com_github_pkg_errors//:errors",
         "@com_github_prometheus_client_golang//api/prometheus/v1:prometheus",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ],
 )
 
@@ -20,6 +25,7 @@ go_test(
     srcs = [
         "resolver_test.go",
         "split_test.go",
+        "time_point_test.go",
     ],
     embed = [":timerange"],
     deps = ["@com_github_stretchr_testify//require"],

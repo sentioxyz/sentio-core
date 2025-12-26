@@ -12,7 +12,19 @@ export {
   solidityTokensProvider
 } from './SolidityLanguage'
 export { moveLanguageConfig, moveTokenProvider } from './MoveLanguage'
-export { CompilationSourceStore } from './CompilationSourceStore'
 export { default as SourceSymbols, SymbolIcons } from './SourceSymbols'
 export { SourceTree } from './SourceTree'
 export type { TreeNode } from './SourceTree'
+export {
+  setSolidityLanguage,
+  setSolidityProviders,
+  openCodeEditor
+} from './solidity'
+export type {
+  parseMonacoUriFn,
+  PreviewLocation,
+  FetchAndCompileResponse
+} from './types'
+export { CompilerType } from './types'
+export { SourceView } from '../transaction/SourceView'
+export { HoverContextWidget } from './HoverContextWidget'

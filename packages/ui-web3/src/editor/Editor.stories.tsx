@@ -3,6 +3,7 @@ import MonacoEditor from '@monaco-editor/react'
 import { sentioTheme } from './SentioTheme'
 import { SourceTree, TreeNode } from './SourceTree'
 import { useState } from 'react'
+import '../styles.css'
 
 const sourceCode = `/**
  * Submitted for verification at Etherscan.io on 20XX-XX-XX
@@ -79,7 +80,7 @@ contract Proxy {
 }`
 
 export const EditorTheme: Story = () => (
-  <div style={{ height: '100vh' }}>
+  <div style={{ height: '80vh' }} className="rounded-md border p-px">
     <MonacoEditor
       language="sol"
       theme="sentio"

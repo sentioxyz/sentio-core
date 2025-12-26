@@ -8,8 +8,9 @@ import { SentioHoverProvider } from './SentioHoverProvider'
 import { SentioReferenceProvider } from './SentioReferenceProvider'
 import { Monaco } from '@monaco-editor/react'
 import { SourceStore } from './SourceStore'
-import { parseMonacoUriFn } from 'lib/debug/types'
-import { trackEvent } from 'lib/tracking'
+import { parseMonacoUriFn } from './types'
+import { trackEvent } from '../utils/tracking'
+import * as monaco from 'monaco-editor'
 
 let registerred = false
 
@@ -73,7 +74,7 @@ export const openCodeEditor = (
   selectionOrPosition?: monaco.IPosition | monaco.IRange,
   onSearchTxn?: txnSearch,
   onModelChange?: (uri: monaco.Uri, line?: number) => void,
-  editorDecorationsRef?: React.MutableRefObject<globalThis.monaco.editor.IEditorDecorationsCollection | null>
+  editorDecorationsRef?: React.MutableRefObject<monaco.editor.IEditorDecorationsCollection | null>
 ) => {
   if (resource.query) {
     const searchParams = new URLSearchParams(resource.query)

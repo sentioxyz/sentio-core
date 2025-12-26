@@ -1,5 +1,5 @@
 import React from 'react'
-import ClipLoader from 'react-spinners/ClipLoader'
+import { ClipLoader } from 'react-spinners'
 import { cx as classNames } from 'class-variance-authority'
 
 interface Props {
@@ -11,15 +11,24 @@ interface Props {
   maskOpacity?: number // 0-100
 }
 
-export const SpinLoading = React.forwardRef<HTMLDivElement, Props>(function Spinner(args: Props, ref) {
-  const { loading = false, children, className, size = 48, showMask, maskOpacity = 80 } = args
+export const SpinLoading = function Spinner(args: Props) {
+  const {
+    loading = false,
+    children,
+    className,
+    size = 48,
+    showMask,
+    maskOpacity = 80
+  } = args
   return (
     <div className={classNames('relative', className)}>
       {showMask && loading && (
         <div
           className={classNames(
             'absolute bottom-0 left-0 right-0 top-0 z-[1]',
-            maskOpacity ? `bg-white dark:bg-sentio-gray-100/${maskOpacity}` : 'dark:bg-sentio-gray-100 bg-white'
+            maskOpacity
+              ? `bg-white dark:bg-sentio-gray-100/${maskOpacity}`
+              : 'dark:bg-sentio-gray-100 bg-white'
           )}
         ></div>
       )}
@@ -36,6 +45,6 @@ export const SpinLoading = React.forwardRef<HTMLDivElement, Props>(function Spin
       {children}
     </div>
   )
-})
+}
 
 export default SpinLoading

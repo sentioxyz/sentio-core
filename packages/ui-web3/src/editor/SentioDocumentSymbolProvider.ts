@@ -20,7 +20,7 @@ export class SentioDocumentSymbolProvider
     const { address, path } = this.props.parseMonacoUri(model.uri)
     try {
       const parser = this.props.store.getParser(address) as SoliditySourceParser
-      return parser.getDocumentSymbols(path)
+      return parser.getDocumentSymbols(this.monaco, path)
     } catch {
       return []
     }

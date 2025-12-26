@@ -17,6 +17,8 @@ import {
 } from './icons/SwapIcons'
 import { OkxIcon } from './icons/Okx'
 import { SandwichTxns, SandwichResult } from './SandwichTxns'
+import { ERC20Token } from '../transaction/ERC20Token'
+import { formatCurrency } from '../transaction/helpers'
 
 export enum MevType {
   SANDWICH = 'sandwich',
@@ -93,16 +95,6 @@ export interface MevInfoProps {
   metamaskBtn?: React.ReactNode
   mevCallback?: (mevType: MevType, role: string, value: string) => void
   /**
-   * Custom token renderer. If provided, will be used instead of default ERC20Token component.
-   * @param address - Token address
-   * @param symbol - Token symbol
-   */
-  renderToken?: (address: string, symbol?: string) => React.ReactNode
-  /**
-   * Helper to format currency values. Defaults to simple toString with $ prefix
-   */
-  formatCurrency?: (value: number) => string
-  /**
    * If true, hide arbitrage MEV types. Defaults to true
    */
   hideArbitrage?: boolean
@@ -113,10 +105,6 @@ export interface MevInfoProps {
   className?: string
 }
 
-const defaultFormatCurrency = (value: number): string => {
-  return '$' + value.toFixed(2)
-}
-
 export const MevInfo = ({
   hash,
   chainId = '1',
@@ -124,8 +112,6 @@ export const MevInfo = ({
   loading = false,
   metamaskBtn,
   mevCallback,
-  renderToken,
-  formatCurrency = defaultFormatCurrency,
   hideArbitrage = true,
   isExtension = false,
   className
@@ -241,14 +227,12 @@ export const MevInfo = ({
               <div className="text-gray flex-0 font-medium">Tokens:</div>
               {tokens?.map((item) => (
                 <Fragment key={item.address}>
-                  {item.address && renderToken
-                    ? renderToken(item.address, item.symbol)
-                    : item.address && (
-                        <span className="font-mono text-xs">
-                          {item.symbol ||
-                            `${item.address.slice(0, 6)}...${item.address.slice(-4)}`}
-                        </span>
-                      )}
+                  {item.address ? (
+                    <ERC20Token
+                      address={item.address}
+                      tokenName={item.symbol}
+                    />
+                  ) : null}
                 </Fragment>
               ))}
             </div>
@@ -285,14 +269,12 @@ export const MevInfo = ({
                         {traderItem.tokens?.map((item, index) =>
                           item.address ? (
                             <Fragment key={item.address}>
-                              {renderToken ? (
-                                renderToken(item.address, item.symbol)
-                              ) : (
-                                <span className="font-mono text-xs">
-                                  {item.symbol ||
-                                    `${item.address.slice(0, 6)}...${item.address.slice(-4)}`}
-                                </span>
-                              )}
+                              {item.address ? (
+                                <ERC20Token
+                                  address={item.address}
+                                  tokenName={item.symbol}
+                                />
+                              ) : null}
                               {index < traderItem.tokens!.length - 1 ? (
                                 <ArrowsRightLeftIcon className="text-gray h-4 w-4" />
                               ) : null}

@@ -9,7 +9,8 @@ export {
   TransactionValue,
   AddressFrom,
   AddressTo,
-  TransactionLabel
+  TransactionLabel,
+  TransactionColumns
 } from './transaction/TransactionComponents'
 export { TransactionBrief } from './transaction/TransactionBrief'
 export { SimulatorInfo } from './transaction/SimulatorInfo'
@@ -26,7 +27,8 @@ export {
 } from './transaction/calltrace/FlatCallTrace'
 export {
   LocationViewer,
-  LocationStatus
+  LocationStatus,
+  isLocationStatus
 } from './transaction/calltrace/LocationViewer'
 export { ForwardDef } from './transaction/calltrace/ForwardDef'
 
@@ -51,6 +53,8 @@ export * from './transaction/use-price'
 
 // Web3 utilities
 export { useAddressTag } from './utils/use-tag'
+export * from './transaction/helpers'
+export { parseUri } from './utils/debug-helpers'
 
 // MEV components
 export { MevInfo, MevType } from './mev/MevInfo'
@@ -91,6 +95,8 @@ export type {
   SimulateTransactionResponse,
   AmountUnit
 } from './simulator/types'
+export * from './simulator/atoms'
+export * from './utils/tag-context'
 
 // Editor components
 export {
@@ -106,10 +112,25 @@ export {
   solidityTokensProvider,
   moveLanguageConfig,
   moveTokenProvider,
-  CompilationSourceStore,
   SourceSymbols,
   SymbolIcons,
-  SourceTree
+  SourceTree,
+  setSolidityLanguage,
+  setSolidityProviders,
+  openCodeEditor,
+  SourceView,
+  HoverContextWidget
 } from './editor'
-export type { TextOccurrence, TreeNode } from './editor'
-export { SymbolKind } from './editor'
+export type {
+  TextOccurrence,
+  TreeNode,
+  parseMonacoUriFn,
+  PreviewLocation,
+  FetchAndCompileResponse
+} from './editor'
+export { SymbolKind, CompilerType } from './editor'
+
+// Editor utilities
+export { trackEvent, setTrackingHandler } from './utils/tracking'
+export { FlashbotIcon } from './mev/icons/FlashbotIcon'
+export { getNativeToken } from './transaction/ERC20Token'

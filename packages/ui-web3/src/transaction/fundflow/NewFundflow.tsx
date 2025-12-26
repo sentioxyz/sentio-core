@@ -59,6 +59,7 @@ function _TransactionFundflow({
   setTagAddressList,
   renderGraph
 }: Props) {
+  console.log('_TransactionFundflow data', data)
   const isDarkMode = useDarkMode()
   const [flowNodes, setNodes] = useState<any[]>([])
   const [flowEdges, setEdges] = useState<any[]>([])
@@ -139,6 +140,7 @@ function _TransactionFundflow({
   }, [isLoading, flowNodes.length, onEmpty])
 
   if (!isLoading && flowNodes.length === 0) {
+    console.log('Rendering empty fundflow')
     return empty
   }
 

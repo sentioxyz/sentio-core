@@ -2,7 +2,7 @@ import { isNumber, isObject, isSafeInteger } from 'lodash'
 import { Source, ExtendedCall, parseMonacoUriFn } from './types'
 import pick from 'lodash/pick'
 import cloneDeep from 'lodash/cloneDeep'
-import BigDecimal from '@sentio/bigdecimal'
+import { BD, parseHex, getNumberWithDecimal } from '@sentio/ui-core'
 import Web3 from 'web3'
 import { AbiItem } from 'web3-utils'
 import { DecodedCallTrace, DecodedLog } from '@sentio/debugger-common'
@@ -11,18 +11,16 @@ import { pickBy, upperFirst } from 'lodash'
 import { Monaco } from '@monaco-editor/react'
 import { safeNativize as _safeNativize } from '@sentio/debugger-common'
 
-export const web3: Web3 = new Web3()
+export { parseHex, getNumberWithDecimal }
 
-// Never return exponential notation
-export const BD = BigDecimal.clone({
-  EXPONENTIAL_AT: 1e9
-})
+export const web3: Web3 = new Web3()
 
 export function NumberFormat(options: Intl.NumberFormatOptions) {
   return new Intl.NumberFormat('en-US', options)
 }
 
-const regexExternal = /externalFor\((0x[0-9a-fA-F]+)\)Via\(([a-z]+)\)Number\((\d+)\)/
+const regexExternal =
+  /externalFor\((0x[0-9a-fA-F]+)\)Via\(([a-z]+)\)Number\((\d+)\)/
 const regexUserSource = /userSourceFor\((0x[0-9a-fA-F]+)\)Number\((\d+)\)/
 export const contractAddressRegex = /^0x[a-fA-F0-9]{40}$/
 export function parseCompilationId(raw?: string) {
@@ -47,7 +45,11 @@ export function parseCompilationId(raw?: string) {
     }
   }
 }
-export function getCompilationId(address: string, source = 'etherscan', number = '0') {
+export function getCompilationId(
+  address: string,
+  source = 'etherscan',
+  number = '0'
+) {
   return `externalFor(${address})Via(${source})Number(${number})`
 }
 
@@ -134,14 +136,6 @@ export function getSourcePathKey(data: Source) {
   return `file:///${address}/${data.filePath}`
 }
 
-export function parseHex(hex: string = '0'): bigint {
-  try {
-    return BigInt(BD(hex).toString())
-  } catch {
-    return BigInt(0)
-  }
-}
-
 export function isZeroValue(data: string) {
   return data === '0x0' || data === '0x' || data === '0'
 }
@@ -155,7 +149,12 @@ export const numberFmt = NumberFormat({
   maximumFractionDigits: 20
 })
 
-export function displayNumber(hex?: string | bigint, unit?: string, target?: 'ether' | 'gwei', hideUnit?: boolean) {
+export function displayNumber(
+  hex?: string | bigint,
+  unit?: string,
+  target?: 'ether' | 'gwei',
+  hideUnit?: boolean
+) {
   if (!hex) {
     return null
   }
@@ -168,25 +167,16 @@ export function displayNumber(hex?: string | bigint, unit?: string, target?: 'et
   return bigInt.toLocaleString() + (unit ? ` ${unit}` : '')
 }
 
-export function getNumberWithDecimal(hex?: string | bigint, decimal?: number, asNumber?: boolean) {
-  if (hex === undefined || decimal === undefined) {
-    return null
-  }
-  const bigInt = typeof hex === 'bigint' ? hex : parseHex(hex)
-  const n = BD(bigInt.toString()).div(decimal > 0 ? BD(10).pow(decimal) : 1)
-  if (asNumber) {
-    return n.toNumber()
-  }
-  return n.toString()
-}
-
 /**
  * Get hex string by multiple 10^decimal
  * @param hex init value
  * @param decimal 10^decimal
  * @returns hex string
  */
-export function getHexStringByMultiple(hex?: string | bigint, decimal?: number) {
+export function getHexStringByMultiple(
+  hex?: string | bigint,
+  decimal?: number
+) {
   if (hex === undefined || decimal === undefined) {
     return null
   }
@@ -287,7 +277,11 @@ export function decodeLog(log: any) {
   //   return undefined
   // }
   try {
-    const event = web3.eth.abi.decodeLog(abiItem.inputs, log.data, log.topics.slice(1))
+    const event = web3.eth.abi.decodeLog(
+      abiItem.inputs,
+      log.data,
+      log.topics.slice(1)
+    )
     const arr = []
     for (let i = 0; i < abiItem.inputs.length; i++) {
       // @ts-ignore actually has index
@@ -306,7 +300,10 @@ export function decodeLog(log: any) {
   return undefined
 }
 
-export function filterFundTraces(rootTrace: DecodedCallTrace, chainId?: string) {
+export function filterFundTraces(
+  rootTrace: DecodedCallTrace,
+  chainId?: string
+) {
   const res: any[] = []
   const walk = (entry: any) => {
     // TODO add typing
@@ -404,7 +401,10 @@ export function isStaticCall(call: ExtendedCall) {
   return (type as string)?.toLowerCase() === 'staticcall'
 }
 
-function filterTraces(root: ExtendedCall, filterFn: (call: ExtendedCall) => boolean) {
+function filterTraces(
+  root: ExtendedCall,
+  filterFn: (call: ExtendedCall) => boolean
+) {
   const walk = (call: any, parentPath: any[]) => {
     const { calls = [], logs = [], ...extra } = call
     if (filterFn(call)) {
@@ -450,7 +450,10 @@ export function filterStaticTrace(root: ExtendedCall) {
 }
 
 export function filterInternalAndStaticTrace(root: ExtendedCall) {
-  return filterTraces(root, (call) => isInternalCall(call) || isStaticCall(call))
+  return filterTraces(
+    root,
+    (call) => isInternalCall(call) || isStaticCall(call)
+  )
 }
 
 export function getExternalTraceMove(root: ExtendedCall) {
@@ -487,13 +490,23 @@ export function isArrayType(type?: string) {
 }
 
 export function setCallTraceKeys(root?: ExtendedCall) {
-  const walk = (call: any, currentPrefix: any, parentError = false, parentFunctionName: any = undefined) => {
+  const walk = (
+    call: any,
+    currentPrefix: any,
+    parentError = false,
+    parentFunctionName: any = undefined
+  ) => {
     const { calls = [], logs = [], error, storages = [] } = call
     ;(call as any).wkey = currentPrefix.toString()
     ;(call as any).parentFunctionName = parentFunctionName
     Object.assign(call, parentError ? { parentError: true } : {})
     calls?.forEach((item: any, index: number) => {
-      walk(item, `${currentPrefix}.c${index}`, !!error || parentError, call.functionName)
+      walk(
+        item,
+        `${currentPrefix}.c${index}`,
+        !!error || parentError,
+        call.functionName
+      )
     })
     logs?.forEach((item: any, index: number) => {
       item.wkey = `${currentPrefix}.e${index}`
@@ -514,12 +527,22 @@ export function setCallTraceKeys(root?: ExtendedCall) {
 }
 
 export function setCallTraceParentFunction(root?: ExtendedCall) {
-  const walk = (call: any, currentPrefix: any, parentError = false, parentFunctionName: any = undefined) => {
+  const walk = (
+    call: any,
+    currentPrefix: any,
+    parentError = false,
+    parentFunctionName: any = undefined
+  ) => {
     const { calls = [], logs = [], error } = call
     ;(call as any).parentFunctionName = parentFunctionName
     Object.assign(call, parentError ? { parentError: true } : {})
     calls?.forEach((item: any, index: number) => {
-      walk(item, `${currentPrefix}.c${index}`, !!error || parentError, call.functionName)
+      walk(
+        item,
+        `${currentPrefix}.c${index}`,
+        !!error || parentError,
+        call.functionName
+      )
     })
     logs?.forEach((item: any, index: number) => {
       item.parentError = !!error || parentError
@@ -601,7 +624,11 @@ export const parseUri: parseMonacoUriFn = (uri) => {
   }
 }
 
-export const safeCreateModel = (monaco: Monaco, source: any, fileUri: Parameters<Monaco['editor']['getModel']>[0]) => {
+export const safeCreateModel = (
+  monaco: Monaco,
+  source: any,
+  fileUri: Parameters<Monaco['editor']['getModel']>[0]
+) => {
   let newModel = monaco.editor.getModel(fileUri)
   if (!newModel) {
     try {
@@ -629,11 +656,16 @@ export const formatCurrency = (value: number, maxValidDigits = 2) => {
   if (value < 0.01) {
     const res = nf.format(value)
     const [integer, decimal] = res.split('.')
-    const firstValidDigitIndex = decimal?.split('').findIndex((digit) => digit !== '0')
+    const firstValidDigitIndex = decimal
+      ?.split('')
+      .findIndex((digit) => digit !== '0')
     if (firstValidDigitIndex === -1) {
       return res
     } else {
-      const validDecimal = decimal?.substring(0, firstValidDigitIndex + maxValidDigits)
+      const validDecimal = decimal?.substring(
+        0,
+        firstValidDigitIndex + maxValidDigits
+      )
       return `${integer}.${validDecimal}`
     }
   }
@@ -677,7 +709,11 @@ export function getPathHostName(link?: string) {
 }
 
 export function getLastRevertReason(rootTrace?: DecodedCallTrace) {
-  if (!rootTrace || !rootTrace.error || rootTrace.error.includes('revert') === false) {
+  if (
+    !rootTrace ||
+    !rootTrace.error ||
+    rootTrace.error.includes('revert') === false
+  ) {
     return undefined
   }
 
@@ -710,9 +746,15 @@ export function trimAptosAddress(address?: string) {
   if (address.startsWith('0x')) {
     _address = address.substring(2)
   }
-  if (_address === '0000000000000000000000000000000000000000000000000000000000000001') {
+  if (
+    _address ===
+    '0000000000000000000000000000000000000000000000000000000000000001'
+  ) {
     return '0x1'
-  } else if (_address === '0000000000000000000000000000000000000000000000000000000000000002') {
+  } else if (
+    _address ===
+    '0000000000000000000000000000000000000000000000000000000000000002'
+  ) {
     return '0x2'
   }
   return '0x' + trimAddress(_address)

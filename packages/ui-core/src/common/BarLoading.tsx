@@ -1,4 +1,4 @@
-import BarLoader from 'react-spinners/BarLoader'
+import { BarLoader } from 'react-spinners'
 import { LoaderHeightWidthProps } from 'react-spinners/helpers/props'
 import { memo } from 'react'
 import { cx as classNames } from 'class-variance-authority'
@@ -12,11 +12,27 @@ interface Props {
   gray?: boolean
 }
 
-function _BarLoading({ hint = 'Loading Sentio', loading = true, className, iconClassName, width = 150, gray }: Props) {
+function _BarLoading({
+  hint = 'Loading Sentio',
+  loading = true,
+  className,
+  iconClassName,
+  width = 150,
+  gray
+}: Props) {
   if (loading) {
     return (
-      <div className={classNames('loading-container flex h-full flex-col justify-center overflow-hidden', className)}>
-        {hint && <div className="loading-text text-icontent text-gray my-2 text-center font-medium">{hint}</div>}
+      <div
+        className={classNames(
+          'loading-container flex h-full flex-col justify-center overflow-hidden',
+          className
+        )}
+      >
+        {hint && (
+          <div className="loading-text text-icontent text-gray my-2 text-center font-medium">
+            {hint}
+          </div>
+        )}
         <div className="flex justify-center pt-1">
           <BarLoader
             color="#0756D5"

@@ -1,0 +1,41 @@
+/* Override polygonscan styles. */
+svg {
+  margin-bottom: 0;
+}
+
+/* Make sure our BaseDialog is not covered by Etherscan header. */
+._sentio_.z-10 {
+  position: relative;
+  z-index: 10000;
+}
+
+/* Fix Monaco preview editor's "inline" className display, which is conflict with tailwind's "inline" class */
+._sentio_ .monaco-editor .reference-zone-widget .inline {
+  display: inline-block !important;
+}
+
+._sentio_ textarea,
+._sentio_ input {
+  border-width: 1px;
+}
+
+._sentio_ .transform.switch-dot-sm {
+  transform: translateX(0.875rem) !important;
+}
+
+#simulate-history-select {
+  font-size: 12px;
+  display: flex;
+  gap: 16px;
+}
+
+.brightness-\[10\] {
+  --tw-brightness: brightness(10);
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast)
+    var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate)
+    var(--tw-sepia) var(--tw-drop-shadow);
+}
+
+.MuiDrawer-root {
+  background-color: var(--bs-gray-900) !important;
+}

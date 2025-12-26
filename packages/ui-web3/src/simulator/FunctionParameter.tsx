@@ -7,12 +7,13 @@ import {
 } from 'react-hook-form'
 import { DebounceInput } from 'react-debounce-input'
 import Web3 from 'web3'
-import { CopyButton } from '@sentio/ui-core'
+import { classNames, CopyButton } from '@sentio/ui-core'
 import {
   ExclamationTriangleIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/solid'
 import type { AbiFunction } from './types'
+import { CallDataCopy } from './CallDataCopy'
 
 interface Props {
   control: Control<any>
@@ -20,6 +21,8 @@ interface Props {
   lineClassName?: string
   labelClassName?: string
   inputClassName?: string
+  copyBtnClassName?: string
+  copyAllClassName?: string
 }
 
 const web3 = new Web3()
@@ -97,7 +100,9 @@ export const FunctionParameter = ({
   className,
   lineClassName,
   labelClassName,
-  inputClassName
+  inputClassName,
+  copyBtnClassName,
+  copyAllClassName
 }: Props) => {
   const { getValues } = useFormContext()
   const [error, setError] = useState('')
@@ -204,12 +209,15 @@ export const FunctionParameter = ({
                   />
                 )}
               </div>
-              <div>
+              <div className={copyBtnClassName}>
                 <CopyButton text={textValue} />
               </div>
             </div>
           )
         })}
+        <div className={classNames('relative px-4', copyAllClassName)}>
+          <CallDataCopy />
+        </div>
       </div>
     </div>
   )

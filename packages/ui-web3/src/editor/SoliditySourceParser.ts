@@ -5,22 +5,15 @@ import {
   Definition,
   Occurrence,
   FileRange,
-  Symbol,
-  FileReferences
+  FileReferences,
+  Index
 } from '@sentio/scip'
-import {
-  GetContractIndexRequest,
-  GetContractIndexResponse,
-  SolidityService
-} from 'gen/service/solidity/protos/service.pb'
 import { Monaco } from '@monaco-editor/react'
 import type * as monacoEditor from 'monaco-editor'
-import { identity, isEqual } from 'lodash'
-import { getChainSearchSupport } from 'lib/data/use-chain-config'
-import { withJsonApiAutoToken } from 'lib/data/with-json-api'
+import { identity } from 'lodash'
 
 const DefaultIcon = 'codicon-symbol-field'
-const SymbolIcons = {
+const SymbolIcons: Partial<Record<SIK, string>> = {
   [SIK.Method]: 'codicon-symbol-method',
   [SIK.Function]: 'codicon-symbol-method',
   [SIK.Event]: 'codicon-symbol-event',
@@ -60,7 +53,7 @@ export const enum SymbolKind {
   TypeParameter = 25
 }
 
-const SymbolMap = {
+const SymbolMap: Partial<Record<SIK, SymbolKind>> = {
   [SIK.Array]: SymbolKind.Array,
   [SIK.Assertion]: SymbolKind.Boolean, // not sure
   [SIK.AssociatedType]: SymbolKind.TypeParameter, // not sure
@@ -189,22 +182,22 @@ function renderDocLines(lines?: string[]) {
   )
 }
 
-const contractIndexCache = new Map<string, Promise<GetContractIndexResponse>>()
-async function getContractIndex(req: GetContractIndexRequest) {
-  const key = JSON.stringify({
-    address: req.address?.toLowerCase(),
-    'chainSpec.chainId': req.networkId,
-    txId: req.txId,
-    projectOwner: req.projectOwner,
-    projectSlug: req.projectSlug
-  })
-  if (contractIndexCache.has(key)) {
-    return contractIndexCache.get(key)!
-  }
-  const res = withJsonApiAutoToken(SolidityService.GetContractIndex)(req)
-  contractIndexCache.set(key, res)
-  return res
-}
+// const contractIndexCache = new Map<string, Promise<Index>>()
+// async function getContractIndex(req: GetContractIndexRequest) {
+//   const key = JSON.stringify({
+//     address: req.address?.toLowerCase(),
+//     'chainSpec.chainId': req.networkId,
+//     txId: req.txId,
+//     projectOwner: req.projectOwner,
+//     projectSlug: req.projectSlug
+//   })
+//   if (contractIndexCache.has(key)) {
+//     return contractIndexCache.get(key)!
+//   }
+//   const res = withJsonApiAutoToken(SolidityService.GetContractIndex)(req)
+//   contractIndexCache.set(key, res)
+//   return res
+// }
 
 const emptyHover: monacoEditor.languages.Hover = {
   contents: []
@@ -213,6 +206,7 @@ const emptyHover: monacoEditor.languages.Hover = {
 export class SoliditySourceParser {
   private readonly scipInstance: Promise<ScipSolidity | null>
   private readonly source: Source[]
+  private readonly getContractIndex: (req: any) => Promise<Index>
   private readonly networkId?: string
   private readonly address?: string
   private readonly simulationId?: string
@@ -220,9 +214,11 @@ export class SoliditySourceParser {
   private readonly projectSlug?: string
   private readonly userCompilationId?: string
   private readonly isForkedChain?: boolean
+  private readonly chainSearchList?: Set<string>
 
   constructor(
     source: Source[],
+    getContractIndex: (req: any) => Promise<Index>,
     networkId?: string,
     address?: string,
     simulationId?: string,
@@ -241,12 +237,13 @@ export class SoliditySourceParser {
     this.userCompilationId = userCompilationId
     this.isForkedChain = isForkedChain
     this.scipInstance = scipInstance || this.getScipInstance()
+    this.getContractIndex = getContractIndex
+    this.chainSearchList = new Set()
   }
 
   private async getScipInstance(): Promise<ScipSolidity | null> {
     try {
-      // TODO cache API return
-      const request = { address: this.address } as GetContractIndexRequest
+      const request = { address: this.address } as Record<string, any>
       if (this.isForkedChain && this.networkId) {
         request.chainSpec = {
           forkId: this.networkId
@@ -266,12 +263,16 @@ export class SoliditySourceParser {
       if (this.userCompilationId) {
         request.userCompilationId = this.userCompilationId
       }
-      const res = await getContractIndex(request)
-      return new ScipSolidity(this.source, res.index!)
+      const res = await this.getContractIndex(request)
+      return new ScipSolidity(this.source, res)
     } catch {
-      //TODO handle error
+      // ignore error
     }
     return null
+  }
+
+  public updateChainSearchList(chainIds: string[]) {
+    chainIds.forEach((id) => this.chainSearchList?.add(id))
   }
 
   public async getRawSymbols(path: string) {
@@ -281,6 +282,7 @@ export class SoliditySourceParser {
   }
 
   public async getDocumentSymbols(
+    monaco: Monaco,
     path: string
   ): Promise<monacoEditor.languages.DocumentSymbol[]> {
     const scip = await this.scipInstance
@@ -292,8 +294,8 @@ export class SoliditySourceParser {
         name: symbol.displayName || symbol.symbol || '',
         detail: symbol.symbol!,
         kind: SymbolMap[symbol.kind!] as any,
-        range: getRange(occur.range!),
-        selectionRange: getRange(occur.enclosingRange!),
+        range: getRange(monaco, occur.range!),
+        selectionRange: getRange(monaco, occur.enclosingRange!),
         tags: []
       })
     })
@@ -478,7 +480,7 @@ export class SoliditySourceParser {
             }?${targetQuery.toString()}&jump=def)**`,
         `**[Find references](file:///${this.address}/${definition.sourcePath}?${targetQuery.toString()}&jump=ref)**`,
         this.networkId &&
-        (await getChainSearchSupport()).includes(this.networkId) &&
+        (this.chainSearchList?.has(this.networkId) ?? false) &&
         kind === SIK.Function &&
         signatureHash
           ? `**[View related transactions](file:///$?signatureHash=${signatureHash}&contract=${this.address}&jump=external)**`

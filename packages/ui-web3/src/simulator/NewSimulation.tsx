@@ -1,24 +1,60 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useForm, FormProvider, useWatch } from 'react-hook-form'
+import { useCallback, useEffect, Suspense, useState, useRef } from 'react'
+import {
+  useForm,
+  FormProvider,
+  useWatch,
+  useFormContext
+} from 'react-hook-form'
+import { useAtom, useAtomValue } from 'jotai'
+import { ClipLoader } from 'react-spinners'
 import Web3 from 'web3'
 import { BigDecimal } from '@sentio/bigdecimal'
+import { isEqual, merge, pickBy, identity, isEmpty } from 'lodash'
+import dayjs from 'dayjs'
+
+import { Input, Switch } from '@sentio/ui-core'
+import { DisclosurePanel } from './Panel'
 import { FunctionParameter } from './FunctionParameter'
 import { FunctionSelect } from './FunctionSelect'
-import { DisclosurePanel } from './Panel'
-import { AmountUnitSelect, getWeiAmount } from './AmountUnitSelect'
-import type {
+import { OptionalAccessList } from './OptionalAccessList'
+import { StateOverride } from './StateOverride'
+import { BlockNumberInput } from './BlockNumberInput'
+import { TxnNumberInput } from './TxnNumberInput'
+import { EncodedCallData } from './EncodedCallData'
+import { CallDataSwitch } from './CallDataSwitch'
+import BaseFee from './BaseFee'
+import {
+  AmountUnitSelect,
+  genCoefficient,
+  getWeiAmount
+} from './AmountUnitSelect'
+import {
+  simulationFormState,
+  SimulationFormState,
+  ContractSelectType
+} from './atoms'
+import {
   SimulationFormType,
-  Contract,
-  AbiFunction,
-  FunctionParam,
-  AccessListItem,
-  StateOverrideItem,
-  SourceOverrideItem,
+  Contract as ContractType,
   Simulation,
   SimulateTransactionRequest,
   SimulateTransactionResponse,
   AmountUnit
 } from './types'
+
+const BD = BigDecimal.clone({
+  EXPONENTIAL_AT: [-30, 30]
+})
+
+function parseTime(input: string | number | undefined) {
+  if (!input) return undefined
+  if (typeof input === 'number') return dayjs(input)
+  if (/^\d+$/.test(input)) {
+    if (input.length === 13) return dayjs(Number(input))
+    else if (input.length === 10) return dayjs.unix(Number(input))
+  }
+  return dayjs(input)
+}
 
 export interface SimulationProps {
   projectId?: string
@@ -46,411 +82,648 @@ export interface SimulationProps {
   hideContractName?: boolean
 }
 
-const web3 = new Web3()
-
 function decimalToHex(input: number) {
-  if (input === 0) {
-    return '0x0'
-  }
+  if (input === 0) return '0'
   return '0x' + input.toString(16)
 }
 
-export const NewSimulation = ({
-  defaultValue,
-  onSuccess,
-  onRequestAPI,
-  onChange,
-  onClose,
-  hideProjectSelect,
-  hideNetworkSelect
-}: SimulationProps) => {
-  const [loading, setLoading] = useState(false)
-  const [useRawInput, setUseRawInput] = useState(false)
-  const [valueUnit, setValueUnit] = useState<AmountUnit>('ether' as AmountUnit)
-  const [gasPriceUnit, setGasPriceUnit] = useState<AmountUnit>(
-    'gwei' as AmountUnit
-  )
+const getHexStringByMultiple = (value: any, power: number) => {
+  try {
+    const bd = BD(value).multipliedBy(BD(10).pow(power))
+    return '0x' + bd.toString(16)
+  } catch {
+    return '0x0'
+  }
+}
 
-  const methods = useForm<SimulationFormType>({
-    defaultValues: {
-      blockNumber: 18500000,
+function getDefaultValue(
+  defaultValue?: Partial<SimulationFormType>,
+  atomFormState?: SimulationFormState
+) {
+  return merge(
+    {
+      blockNumber: 0,
       txIndex: 0,
-      from: '',
-      to: '',
-      gas: 300000,
-      gasPrice: 20,
+      from: '0x',
+      gas: 8000000,
+      gasPrice: 0,
       value: 0,
-      input: '',
       header: {
+        blockNumber: undefined,
         blockNumberState: false,
+        timestamp: undefined,
         timestampState: false
       },
-      ...defaultValue
+      stateOverride: [],
+      function: null,
+      input: '',
+      contract: null,
+      accessList: []
+    },
+    defaultValue
+  )
+}
+
+function FormValueWatcher({
+  onChange
+}: {
+  onChange: SimulationProps['onChange']
+}) {
+  const { watch } = useFormContext()
+  const atomFormState = useAtomValue(simulationFormState)
+  const formValues = watch()
+
+  const atomFormStateRef = useRef<any>(null)
+  const formValuesRef = useRef<any>(null)
+
+  useEffect(() => {
+    if (
+      isEqual(atomFormStateRef.current, atomFormState) &&
+      isEqual(formValuesRef.current, formValues)
+    ) {
+      return
     }
+    onChange?.(formValues, atomFormState)
+    atomFormStateRef.current = atomFormState
+    formValuesRef.current = formValues
+  }, [formValues, atomFormState, onChange])
+
+  return null
+}
+
+export const multiplyAmount = {
+  [AmountUnit.Wei]: 0,
+  [AmountUnit.Gwei]: 9,
+  [AmountUnit.Ether]: 18
+}
+
+export function genDataFrom(
+  values: SimulationFormType,
+  atomFormState?: SimulationFormState,
+  chainIdentifier = 'chainSpec.chainId'
+) {
+  if (!values.contract) return
+
+  const web3 = new Web3()
+  const valueUnit = (atomFormState?.valueUnit ?? AmountUnit.Ether) as AmountUnit
+  const gasPriceUnit = (atomFormState?.gasPriceUnit ??
+    AmountUnit.Gwei) as AmountUnit
+
+  const simulation: Simulation = {
+    chainSpec: {
+      [chainIdentifier === 'chainSpec.chainId' ? 'chainId' : 'forkId']:
+        values.contract?.chainId ?? '1'
+    },
+    blockNumber: values.blockNumber.toString(),
+    transactionIndex: atomFormState?.usePendingBlock
+      ? '0'
+      : values.txIndex.toString(),
+    from: values.from,
+    to: values.contract?.address,
+    value: getHexStringByMultiple(
+      values.value,
+      multiplyAmount[valueUnit] ?? 18
+    ) as string,
+    gas: getHexStringByMultiple(values.gas, 0) as string,
+    gasPrice: getHexStringByMultiple(
+      values.gasPrice.toString(),
+      multiplyAmount[gasPriceUnit] ?? 9
+    ) as string,
+    blockOverride: {},
+    accessList: values.accessList
+  }
+
+  if (atomFormState?.useRawInput) {
+    if (values.input) {
+      simulation.input = values.input
+    }
+  } else if (values.function) {
+    simulation.input = web3.eth.abi.encodeFunctionCall(
+      values.function as any,
+      values.functionParams
+        ? values.functionParams.map((item) => item.value)
+        : []
+    )
+  }
+
+  if (values.stateOverride) {
+    const res: Simulation['stateOverrides'] = {}
+    values.stateOverride.forEach((item) => {
+      const { contract, balance, storage } = item
+      if (!balance && !storage) return
+
+      res[contract] = {}
+      if (balance) {
+        res[contract] = {
+          ...res[contract],
+          balance: '0x' + BigDecimal(balance).toString(16)
+        }
+      }
+      if (storage && storage.length > 0) {
+        res[item.contract].state = storage?.reduce(
+          (acc, cur) => {
+            acc[cur.key] = cur.value
+            return acc
+          },
+          {} as Record<string, string>
+        )
+      }
+    })
+    if (!isEmpty(res)) {
+      simulation.stateOverrides = res
+    }
+  }
+
+  if (values.header.blockNumber) {
+    simulation.blockOverride!.blockNumber = decimalToHex(
+      values.header.blockNumber
+    )
+  }
+  if (values.header.timestamp) {
+    const time = parseTime(values.header.timestamp)
+    if (time && time.isValid()) {
+      simulation.blockOverride!.timestamp = decimalToHex(time.unix())
+    }
+  }
+  return simulation
+}
+
+const contractAddressRegex = /^0x[a-fA-F0-9]{40}$/
+
+export const NewSimulation = ({
+  projectId,
+  onClose,
+  defaultValue,
+  onSuccess,
+  hideSourceOverride,
+  onProjectChange,
+  onRequestAPI,
+  relatedContracts,
+  onChange,
+  originTxHash,
+  hideProjectSelect,
+  hideNetworkSelect,
+  hideContractName
+}: SimulationProps) => {
+  const [atomFormState, setFormState] = useAtom(simulationFormState)
+  const atomFormStateRef = useRef(atomFormState)
+  atomFormStateRef.current = atomFormState
+
+  const [apiError, setAPIError] = useState<string>('')
+  const mergedDefaultValue = getDefaultValue(defaultValue, atomFormState)
+
+  const form = useForm<SimulationFormType>({
+    defaultValues: mergedDefaultValue,
+    mode: onChange ? 'onBlur' : 'onSubmit'
   })
 
   const {
     register,
-    handleSubmit,
-    control,
-    setValue,
     watch,
-    formState: { errors }
-  } = methods
-  const contractValue = watch('contract')
-  const functionValue = watch('function')
-
-  // Notify onChange
-  useEffect(() => {
-    if (onChange) {
-      const subscription = watch((data) => {
-        onChange(data as Partial<SimulationFormType>)
-      })
-      return () => subscription.unsubscribe()
-    }
-  }, [onChange, watch])
+    setValue,
+    control,
+    trigger,
+    handleSubmit,
+    formState,
+    getValues
+  } = form
+  const { isSubmitting, errors } = formState
 
   const onSubmit = useCallback(
-    async (data: SimulationFormType) => {
-      setLoading(true)
+    handleSubmit(async (values) => {
+      const atomFormState = atomFormStateRef.current
       try {
-        // Encode function call if not using raw input
-        let callData = data.input || '0x'
-        if (!useRawInput && data.function && data.functionParams) {
-          try {
-            callData = web3.eth.abi.encodeFunctionCall(
-              data.function as any,
-              data.functionParams.map((p) => p.value)
-            )
-          } catch (e) {
-            console.error('Failed to encode function call:', e)
-          }
+        setAPIError('')
+        const simulation = genDataFrom(values, atomFormState)
+        if (!simulation) return
+
+        if (originTxHash) {
+          simulation.originTxHash = originTxHash
         }
 
-        // Convert value and gas price to wei
-        const valueInWei = getWeiAmount(
-          String(data.value || 0),
-          valueUnit
-        ).toFixed(0)
-        const gasPriceInWei = getWeiAmount(
-          String(data.gasPrice || 0),
-          gasPriceUnit
-        ).toFixed(0)
-
-        const simulation: Simulation = {
-          chainSpec: {
-            chainId: data.contract?.chainId || '1'
+        const req: SimulateTransactionRequest = pickBy(
+          {
+            projectOwner: values.projectOwner,
+            projectSlug: values.projectSlug,
+            simulation
           },
-          blockNumber: decimalToHex(data.blockNumber),
-          transactionIndex: decimalToHex(data.txIndex || 0),
-          from: data.from,
-          to: data.to || data.contract?.address,
-          value: decimalToHex(parseInt(valueInWei)),
-          gas: decimalToHex(data.gas),
-          gasPrice: decimalToHex(parseInt(gasPriceInWei)),
-          input: callData,
-          blockOverride:
-            data.header?.blockNumberState || data.header?.timestampState
-              ? {
-                  blockNumber: data.header.blockNumberState
-                    ? decimalToHex(data.header.blockNumber!)
-                    : undefined,
-                  timestamp: data.header.timestampState
-                    ? String(data.header.timestamp)
-                    : undefined
-                }
-              : undefined
-        }
+          identity
+        )
 
-        const request: SimulateTransactionRequest = {
-          projectOwner: data.projectOwner,
-          projectSlug: data.projectSlug,
-          simulation
-        }
+        const res = onRequestAPI
+          ? await onRequestAPI(req)
+          : { simulation: { id: 'mock' } }
 
-        let response: SimulateTransactionResponse
-        if (onRequestAPI) {
-          response = await onRequestAPI(request)
-        } else {
-          // Mock response for demo
-          response = {
-            simulation: {
-              id: 'mock-' + Date.now(),
-              status: 'pending'
-            }
-          }
-        }
-
-        if (onSuccess) {
-          onSuccess({
-            ...response,
-            projectOwner: data.projectOwner,
-            projectSlug: data.projectSlug
+        if (res.simulation) {
+          onClose?.()
+          onSuccess?.({
+            ...res,
+            projectOwner: req.projectOwner,
+            projectSlug: req.projectSlug
           })
         }
-      } catch (error) {
-        console.error('Simulation error:', error)
-      } finally {
-        setLoading(false)
+      } catch (e: any) {
+        if (e?.body?.message) {
+          setAPIError(e.body.message as string)
+        } else {
+          setAPIError('Simulation failed, please try again later.')
+        }
       }
-    },
-    [onSuccess, onRequestAPI, useRawInput, valueUnit, gasPriceUnit]
+    }),
+    [handleSubmit, onClose, onSuccess, onRequestAPI, originTxHash]
   )
+
+  const setPendingBlock = () => {
+    setFormState({
+      usePendingBlock: !atomFormState.usePendingBlock
+    })
+  }
+
+  const contract = watch('contract')
+  const func = watch('function')
+  const chainId = watch('contract.chainId')
+
+  useEffect(() => {
+    const subscription = watch((value, { name, type }) => {
+      if (name === 'header.blockNumberState') {
+        if (value.header && value.header?.blockNumberState === false) {
+          setValue('header.blockNumber', undefined)
+        }
+      } else if (name === 'header.timestampState') {
+        if (value.header && value.header?.timestampState === false) {
+          setValue('header.timestamp', undefined)
+        }
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [watch, setValue])
+
+  const stateOverrideData = useWatch({
+    control,
+    name: 'stateOverride'
+  })
+
+  const accessListData = useWatch({
+    control,
+    name: 'accessList'
+  })
+
+  const overrideTimestamp = watch('header.timestamp')
 
   return (
-    <FormProvider {...methods}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">New Simulation</h2>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        {/* Contract Address */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            Contract Address
-          </label>
-          <input
-            {...register('contract.address', {
-              required: 'Contract address is required'
-            })}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            placeholder="0x..."
-          />
-          {errors.contract?.address && (
-            <p className="text-sm text-red-600">
-              {errors.contract.address.message}
-            </p>
-          )}
-        </div>
-
-        {/* Chain ID */}
-        {!hideNetworkSelect && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-900">
-              Chain ID
-            </label>
-            <input
-              {...register('contract.chainId')}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              placeholder="1"
-              defaultValue="1"
-            />
-          </div>
-        )}
-
-        {/* From Address */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            From Address
-          </label>
-          <input
-            {...register('from', { required: 'From address is required' })}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            placeholder="0x..."
-          />
-          {errors.from && (
-            <p className="text-sm text-red-600">{errors.from.message}</p>
-          )}
-        </div>
-
-        {/* Block Number */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            Block Number
-          </label>
-          <input
-            type="number"
-            {...register('blockNumber', {
-              required: true,
-              valueAsNumber: true
-            })}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-
-        {/* Input Method Toggle */}
-        <div className="space-y-2">
-          <div className="flex gap-4">
-            <label className="inline-flex items-center">
-              <input
-                type="radio"
-                checked={!useRawInput}
-                onChange={() => setUseRawInput(false)}
-                className="mr-2"
+    <FormProvider {...form}>
+      <div className="relative grid h-full w-full grid-cols-1">
+        <div className="px-4 pb-4 pt-2">
+          <div>
+            <div className="mb-4 space-y-2">
+              <div className="text-text-foreground text-base font-bold">
+                Sender
+              </div>
+              <Input
+                error={errors.from}
+                {...register('from', {
+                  required: true,
+                  minLength: {
+                    value: 42,
+                    message: 'Contract Address should contain 42 characters.'
+                  },
+                  maxLength: {
+                    value: 42,
+                    message:
+                      'Contract Address should not contain more than 42 characters.'
+                  },
+                  pattern: {
+                    value: contractAddressRegex,
+                    message:
+                      'Contract address is not valid, please check again.'
+                  }
+                })}
               />
-              <span className="text-sm">Choose function and parameters</span>
-            </label>
-            <label className="inline-flex items-center">
-              <input
-                type="radio"
-                checked={useRawInput}
-                onChange={() => setUseRawInput(true)}
-                className="mr-2"
+            </div>
+
+            <div className="text-text-foreground text-base font-bold">
+              Receiver
+            </div>
+            <div className="mt-2">
+              <Input
+                error={errors.contract as any}
+                placeholder="Contract address (0x...)"
+                {...register('contract.address', { required: true })}
               />
-              <span className="text-sm">Enter raw input data</span>
-            </label>
-          </div>
-        </div>
+            </div>
 
-        {/* Function Selection or Raw Input */}
-        {useRawInput ? (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-900">
-              Call Data
-            </label>
-            <input
-              {...register('input')}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm"
-              placeholder="0x..."
-            />
-          </div>
-        ) : (
-          <>
-            <FunctionSelect control={control} functions={contractValue?.abi} />
-            {functionValue && <FunctionParameter control={control} />}
-          </>
-        )}
-
-        {/* Value */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            Value
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              {...register('value')}
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-              placeholder="0"
-            />
-            <AmountUnitSelect value={valueUnit} onChange={setValueUnit} />
-          </div>
-        </div>
-
-        {/* Gas Limit */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            Gas Limit
-          </label>
-          <input
-            type="number"
-            {...register('gas', { valueAsNumber: true })}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-
-        {/* Gas Price */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            Gas Price
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              {...register('gasPrice')}
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-            <AmountUnitSelect value={gasPriceUnit} onChange={setGasPriceUnit} />
-          </div>
-        </div>
-
-        {/* Advanced Options */}
-        <DisclosurePanel title="Advanced Options" defaultOpen={false}>
-          <div className="space-y-4 pt-4">
-            {/* Block Override */}
-            <div className="space-y-2">
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  {...register('header.blockNumberState')}
-                  className="mr-2 rounded"
+            <div className="my-4">
+              <div className="flex w-full justify-between">
+                <div className="text-text-foreground text-base font-bold">
+                  Call Data
+                </div>
+              </div>
+              <div className="mt-2 flex items-center">
+                <CallDataSwitch
+                  inputType={atomFormState.useRawInput}
+                  onChange={(val) => {
+                    setFormState({ useRawInput: val })
+                  }}
                 />
-                <span className="text-sm">Override Block Number</span>
-              </label>
-              <input
-                type="number"
-                {...register('header.blockNumber', { valueAsNumber: true })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                disabled={!watch('header.blockNumberState')}
+              </div>
+              <EncodedCallData
+                control={control}
+                className={atomFormState.useRawInput ? '' : 'hidden'}
               />
-            </div>
-
-            {/* Timestamp Override */}
-            <div className="space-y-2">
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  {...register('header.timestampState')}
-                  className="mr-2 rounded"
-                />
-                <span className="text-sm">Override Timestamp</span>
-              </label>
-              <input
-                type="number"
-                {...register('header.timestamp')}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                disabled={!watch('header.timestampState')}
-              />
-            </div>
-
-            {/* Transaction Index */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-900">
-                Transaction Index
-              </label>
-              <input
-                type="number"
-                {...register('txIndex', { valueAsNumber: true })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
+              <div
+                className={`mt-2 space-y-3 rounded bg-gray-50 p-2 ${atomFormState.useRawInput ? 'hidden' : ''}`}
+              >
+                <div className="text-ilabel text-text-foreground font-bold">
+                  Function
+                </div>
+                <Suspense
+                  fallback={
+                    <div className="flex h-16 w-full animate-pulse items-center justify-center gap-2 rounded-md bg-gray-200">
+                      <ClipLoader
+                        loading
+                        color="#3B82F6"
+                        size={24}
+                        cssOverride={{ borderWidth: 3 }}
+                      />
+                      <span className="text-gray text-icontent">
+                        Fetching ABI
+                      </span>
+                    </div>
+                  }
+                >
+                  <FunctionSelect control={control} />
+                </Suspense>
+                {contract && func && (
+                  <FunctionParameter
+                    control={control}
+                    copyBtnClassName="absolute right-2 top-6"
+                    lineClassName="pr-12 relative"
+                    copyAllClassName="pl-0 text-ilabel"
+                  />
+                )}
+              </div>
             </div>
           </div>
-        </DisclosurePanel>
 
-        {/* Submit Button */}
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {loading ? 'Simulating...' : 'Simulate Transaction'}
-          </button>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          <div className="text-icontent relative -mx-2 space-y-4 font-medium">
+            <DisclosurePanel
+              defaultOpen={true}
+              title={
+                <div className="text-text-foreground text-base font-bold">
+                  Transaction Parameters
+                </div>
+              }
+              titleClassName="px-2 rounded-md"
+              className="px-2"
             >
-              Cancel
-            </button>
+              <div className="mt-2 space-y-4">
+                <div className="flex items-center gap-1.5">
+                  <Switch
+                    checked={atomFormState.usePendingBlock}
+                    onChange={setPendingBlock}
+                    size="sm"
+                  />
+                  <span className="text-xs font-medium">Use Pending Block</span>
+                </div>
+                <BlockNumberInput />
+                <TxnNumberInput />
+                <div className="space-y-2">
+                  <div className="text-ilabel text-text-foreground font-medium">
+                    Gas Limit
+                  </div>
+                  <div>
+                    <input
+                      {...register('gas', { valueAsNumber: true })}
+                      className="border-border-color w-full rounded-md border p-2 font-normal"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-ilabel text-text-foreground font-medium">
+                    Gas Price
+                  </div>
+                  <div className="relative">
+                    <input
+                      {...register('gasPrice')}
+                      className="border-border-color w-full rounded-md border p-2 pr-14 font-normal"
+                    />
+                    <div className="absolute right-0.5 top-0.5 inline-flex w-20 items-center">
+                      <AmountUnitSelect
+                        value={atomFormState.gasPriceUnit}
+                        onChange={(value) => {
+                          const prevGasPriceUnit = atomFormState.gasPriceUnit
+                          const prevGasPrice = getValues('gasPrice')
+                          setFormState({ gasPriceUnit: value })
+                          if (prevGasPriceUnit !== value) {
+                            const newGasPrice = BD(prevGasPrice)
+                            setValue(
+                              'gasPrice',
+                              newGasPrice
+                                .multipliedBy(
+                                  genCoefficient(prevGasPriceUnit, value)
+                                )
+                                .toString()
+                            )
+                          }
+                        }}
+                        buttonClassName="border-none !py-1.5"
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-ilabel text-text-foreground font-medium">
+                    Value
+                  </div>
+                  <div className="relative">
+                    <input
+                      {...register('value')}
+                      className="border-border-color w-full rounded-md border p-2 pr-14 font-normal"
+                    />
+                    <div className="absolute right-0.5 top-0.5 inline-flex w-20 items-center">
+                      <AmountUnitSelect
+                        value={atomFormState.valueUnit}
+                        onChange={(value) => {
+                          const prevValueUnit = atomFormState.valueUnit
+                          const prevValue = getValues('value')
+                          setFormState({ valueUnit: value })
+                          if (prevValueUnit !== value) {
+                            const newValue = BD(prevValue)
+                            setValue(
+                              'value',
+                              newValue
+                                .multipliedBy(
+                                  genCoefficient(prevValueUnit, value)
+                                )
+                                .toString()
+                            )
+                          }
+                        }}
+                        buttonClassName="border-none !py-1.5"
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <BaseFee />
+              </div>
+            </DisclosurePanel>
+
+            <DisclosurePanel
+              titleClassName="px-2 rounded-md"
+              className="px-2"
+              title={
+                <div className="text-text-foreground text-base font-bold">
+                  Block Header Overrides
+                </div>
+              }
+              defaultOpen={
+                mergedDefaultValue.header?.blockNumberState ||
+                mergedDefaultValue.header?.timestampState
+              }
+            >
+              <div className="mt-2 space-y-4">
+                <div className="space-y-2">
+                  <div className="flex w-full justify-between">
+                    <div className="text-ilabel text-text-foreground font-medium">
+                      Block Number
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-medium">
+                        Override Block Number
+                      </span>
+                      <Switch
+                        checked={watch('header.blockNumberState')}
+                        onChange={(checked) => {
+                          setValue('header.blockNumberState', checked)
+                          if (!checked) {
+                            setValue('header.blockNumber', undefined)
+                          }
+                        }}
+                        size="sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <input
+                      placeholder="/"
+                      {...register('header.blockNumber', {
+                        valueAsNumber: true,
+                        disabled: watch('header.blockNumberState') === false
+                      })}
+                      className="border-border-color w-full rounded-md border p-2 font-normal"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex w-full justify-between">
+                    <div className="text-ilabel text-text-foreground font-medium">
+                      Timestamp
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-medium">
+                        Override Timestamp
+                      </span>
+                      <Switch
+                        checked={watch('header.timestampState')}
+                        onChange={(checked) => {
+                          setValue('header.timestampState', checked)
+                          if (!checked) {
+                            setValue('header.timestamp', undefined)
+                          }
+                        }}
+                        size="sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      error={errors.header?.timestamp}
+                      placeholder={
+                        watch('header.timestampState') === false
+                          ? '/'
+                          : 'Date or milliseconds timestamp'
+                      }
+                      disabled={watch('header.timestampState') === false}
+                      {...register('header.timestamp', {
+                        validate: (value: any) => {
+                          if (value === undefined || value === '') return true
+                          const time = parseTime(value)
+                          if (time && time.isValid()) return true
+                          return 'Invalid timestamp'
+                        }
+                      })}
+                    />
+                    <span className="absolute right-2 top-2 text-xs text-gray-500">
+                      {overrideTimestamp
+                        ? parseTime(overrideTimestamp)?.format(
+                            'YYYY-MM-DD HH:mm:ss'
+                          ) || ''
+                        : ''}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </DisclosurePanel>
+
+            <DisclosurePanel
+              titleClassName="px-2 rounded-md"
+              className="px-2"
+              title={
+                <div className="text-text-foreground text-base font-bold">
+                  State Overrides
+                </div>
+              }
+              defaultOpen={stateOverrideData && stateOverrideData.length > 0}
+            >
+              <StateOverride
+                control={control}
+                relatedContracts={relatedContracts}
+              />
+            </DisclosurePanel>
+
+            <DisclosurePanel
+              titleClassName="px-2 rounded-md"
+              className="px-2"
+              title={
+                <div className="text-text-foreground text-base font-bold">
+                  Optional Access Lists
+                </div>
+              }
+              defaultOpen={accessListData && accessListData.length > 0}
+            >
+              <div className="space-y-3 pt-2">
+                <div className="text-xs font-medium text-gray-800">
+                  This Simulation will have the Berlin fork enabled.
+                </div>
+                <OptionalAccessList />
+              </div>
+            </DisclosurePanel>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 z-[1] flex w-full items-center justify-between bg-gray-50/50 px-2 py-2">
+          {apiError ? (
+            <span className="text-sm text-red-600">{apiError}</span>
+          ) : (
+            <span></span>
+          )}
+          {onChange ? null : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onSubmit}
+                disabled={isSubmitting}
+                className="bg-primary-600 hover:bg-primary-700 rounded px-4 py-2 text-white disabled:opacity-50"
+              >
+                {isSubmitting ? 'Simulating...' : 'Simulate Transaction'}
+              </button>
+            </div>
           )}
         </div>
-      </form>
+      </div>
+      <FormValueWatcher onChange={onChange} />
     </FormProvider>
   )
-}
-
-// Re-export types for use in other components
-export type {
-  SimulationFormType,
-  Contract,
-  AbiFunction,
-  FunctionParam,
-  AccessListItem,
-  StateOverrideItem,
-  SourceOverrideItem,
-  Simulation,
-  SimulateTransactionRequest,
-  SimulateTransactionResponse,
-  AmountUnit
 }

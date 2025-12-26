@@ -110,11 +110,13 @@ interface LogEventNodeProps {
   editorNode?: React.ReactNode
   expander?: number
   currentKey?: string
+  supportToDebug?: boolean
 }
 
 const LogEventNode = memo(function LogEventNode({
   data,
   currentKey,
+  supportToDebug,
   ...params
 }: LogEventNodeProps) {
   const {
@@ -240,31 +242,33 @@ const LogEventNode = memo(function LogEventNode({
           </span>
         </div>
       </div>
-      <div
-        className={cx(
-          'absolute -left-11 -top-0.5 px-1 py-1.5',
-          isSelected ? '' : 'z-[1] hidden group-hover/tree:block'
-        )}
-      >
-        <PopoverTooltip
-          className=""
-          hideArrow
-          text={
-            <span className="dark:bg-sentio-gray-100 z-[1] bg-white">
-              Open In Debugger
-            </span>
-          }
-          strategy="fixed"
-          icon={
-            <span
-              className="bg-primary hover:bg-primary-500 active:bg-primary-700 inline-block h-4 w-4 cursor-pointer rounded-sm"
-              onClick={toDebug}
-            >
-              <ContractDebugIcon className="h-4 w-4" />
-            </span>
-          }
-        ></PopoverTooltip>
-      </div>
+      {supportToDebug && (
+        <div
+          className={cx(
+            'absolute -left-11 -top-0.5 px-1 py-1.5',
+            isSelected ? '' : 'z-[1] hidden group-hover/tree:block'
+          )}
+        >
+          <PopoverTooltip
+            className=""
+            hideArrow
+            text={
+              <span className="dark:bg-sentio-gray-100 z-[1] bg-white">
+                Open In Debugger
+              </span>
+            }
+            strategy="fixed"
+            icon={
+              <span
+                className="bg-primary hover:bg-primary-500 active:bg-primary-700 inline-block h-4 w-4 cursor-pointer rounded-sm"
+                onClick={toDebug}
+              >
+                <ContractDebugIcon className="h-4 w-4" />
+              </span>
+            }
+          ></PopoverTooltip>
+        </div>
+      )}
     </div>
   )
 })
@@ -329,12 +333,14 @@ interface CallTreeNodeProps {
   editorNode?: React.ReactNode
   expander?: number
   currentKey?: string
+  supportToDebug?: boolean
 }
 
 export const CallTreeNode = memo(function CallTreeNode({
   data,
   depth = 0,
   currentKey,
+  supportToDebug,
   ...params
 }: CallTreeNodeProps) {
   const {
@@ -651,13 +657,15 @@ export const CallTreeNode = memo(function CallTreeNode({
                   <LuRoute className="mr-2 inline-block h-3.5 w-3.5 text-white" />
                   Open Sub Fundflow
                 </button>
-                <button
-                  onClick={toDebug}
-                  className="bg-primary hover:bg-primary-500 active:bg-primary-700 rounded px-2 py-1 text-white"
-                >
-                  <ContractDebugIcon className="mr-2 inline-block h-4 w-4 text-white" />
-                  Open In Debugger
-                </button>
+                {supportToDebug && (
+                  <button
+                    onClick={toDebug}
+                    className="bg-primary hover:bg-primary-500 active:bg-primary-700 rounded px-2 py-1 text-white"
+                  >
+                    <ContractDebugIcon className="mr-2 inline-block h-4 w-4 text-white" />
+                    Open In Debugger
+                  </button>
+                )}
               </div>
             }
             strategy="fixed"
@@ -692,24 +700,26 @@ export const CallTreeNode = memo(function CallTreeNode({
                 }
               ></PopoverTooltip>
             )}
-            <PopoverTooltip
-              className=""
-              hideArrow
-              text={
-                <span className="dark:bg-sentio-gray-100 z-[1] bg-white">
-                  Open In Debugger
-                </span>
-              }
-              strategy="fixed"
-              icon={
-                <span
-                  className="bg-primary hover:bg-primary-500 active:bg-primary-700 inline-block h-4 w-4 cursor-pointer rounded-sm"
-                  onClick={toDebug}
-                >
-                  <ContractDebugIcon className="h-4 w-4" />
-                </span>
-              }
-            ></PopoverTooltip>
+            {supportToDebug && (
+              <PopoverTooltip
+                className=""
+                hideArrow
+                text={
+                  <span className="dark:bg-sentio-gray-100 z-[1] bg-white">
+                    Open In Debugger
+                  </span>
+                }
+                strategy="fixed"
+                icon={
+                  <span
+                    className="bg-primary hover:bg-primary-500 active:bg-primary-700 inline-block h-4 w-4 cursor-pointer rounded-sm"
+                    onClick={toDebug}
+                  >
+                    <ContractDebugIcon className="h-4 w-4" />
+                  </span>
+                }
+              ></PopoverTooltip>
+            )}
           </>
         )}
       </div>
@@ -747,6 +757,7 @@ interface CallTraceTreeProps {
   virtual?: boolean
   height?: CSSProperties['height']
   transaction?: Transaction
+  supportToDebug?: boolean
 }
 
 export const FlatCallTraceTree = ({
@@ -758,7 +769,8 @@ export const FlatCallTraceTree = ({
   expander,
   virtual,
   height,
-  transaction
+  transaction,
+  supportToDebug
 }: CallTraceTreeProps) => {
   const [selectedKey, setSelectedKey] = useState<DataNode['key'] | undefined>()
   const [highlightKey, setHighlightKey] = useState<string | undefined>()
@@ -790,6 +802,7 @@ export const FlatCallTraceTree = ({
             <LogEventNode
               data={item as ExtendedLog}
               currentKey={selectedKey as string}
+              supportToDebug={supportToDebug}
             />
           ),
           key: (item as ExtendedLog).wkey || '',
@@ -806,6 +819,7 @@ export const FlatCallTraceTree = ({
           <CallTreeNode
             data={item as ExtendedCall}
             currentKey={selectedKey as string}
+            supportToDebug={supportToDebug}
           />
         ),
         key: item.wkey || '',

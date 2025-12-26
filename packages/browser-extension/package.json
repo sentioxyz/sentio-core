@@ -1,0 +1,48 @@
+{
+  "private": true,
+  "name": "@sentio/extension",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && NODE_ENV=production pnpm dev",
+    "build:deps": "pnpm --filter=$(node -p \"require('./package.json').name\")^... build",
+    "build:firefox": "tsc --noEmit && NODE_ENV=production pnpm dev:firefox",
+    "dev": "tsx build.ts",
+    "dev:firefox": "BROWSER=firefox pnpm dev",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@headlessui/react": "1.7.7",
+    "@metamask/providers": "^22.1.1",
+    "@monaco-editor/react": "^4.5.2",
+    "@mui/material": "^5.14.13",
+    "@sentio/bigdecimal": "9.1.1-patch.3",
+    "@sentio/chain": "*",
+    "@sentio/debugger": "^1.16.25",
+    "@sentio/scip": "^1.0.1",
+    "@sentio/ui-core": "workspace:*",
+    "@sentio/ui-web3": "workspace:*",
+    "dayjs": "^1.11.2",
+    "jotai": "^2.15.0",
+    "lodash": "^4.17.21",
+    "monaco-editor": "^0.44.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-error-boundary": "^4.0.4",
+    "react-resize-detector": "^9.1.0",
+    "swr": "^2.3.8"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.0",
+    "@types/postcss-prefix-selector": "^1.16.3",
+    "esbuild": "^0.25.0",
+    "esbuild-plugin-alias-path": "^2.0.2",
+    "esbuild-plugin-polyfill-node": "^0.3.0",
+    "esbuild-style-plugin": "^1.6.2",
+    "postcss-prefix-selector": "^1.16.0",
+    "tailwindcss": "^3.4.4",
+    "tsx": "^4.21.0"
+  },
+  "node": ">=16.0.0 <19.0.0"
+}

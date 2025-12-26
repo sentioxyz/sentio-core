@@ -1,7 +1,9 @@
-import { ReactElement, Fragment, memo } from 'react'
+import { ReactElement, Fragment, memo, createContext } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
-import Button, { ButtonProps } from './NewButton'
+import Button, { ButtonProps } from '../NewButton'
 import { cx as classNames } from 'class-variance-authority'
+
+export const BaseZIndexContext = createContext(10)
 
 interface Props {
   title?: string | ReactElement

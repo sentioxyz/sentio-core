@@ -1,4 +1,4 @@
-import { FetchAndCompileResponse } from 'lib/debug/types'
+import { FetchAndCompileResponse } from './types'
 import { ScipSolidity, Source } from '@sentio/scip'
 import { SoliditySourceParser } from './SoliditySourceParser'
 

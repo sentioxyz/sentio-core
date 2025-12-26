@@ -1,10 +1,12 @@
+import { Select, type SelectProps } from '@sentio/ui-core'
 import { AmountUnit } from './types'
-import { BigDecimal } from '@sentio/bigdecimal'
+import BigDecimal from '@sentio/bigdecimal'
 
 interface Props {
   value: AmountUnit
   onChange: (value: AmountUnit) => void
-  className?: string
+  className?: SelectProps<AmountUnit>['className']
+  buttonClassName?: SelectProps<AmountUnit>['buttonClassName']
   nativeToken?: string
 }
 
@@ -12,18 +14,31 @@ export const AmountUnitSelect = ({
   value,
   onChange,
   className,
+  buttonClassName,
   nativeToken
 }: Props) => {
   return (
-    <select
-      className={`rounded-md border border-gray-300 px-3 py-2 text-sm ${className || ''}`}
+    <Select
+      size="md"
+      buttonClassName={buttonClassName}
+      className={className}
       value={value}
-      onChange={(e) => onChange(e.target.value as AmountUnit)}
-    >
-      <option value={AmountUnit.Wei}>Wei</option>
-      <option value={AmountUnit.Gwei}>Gwei</option>
-      <option value={AmountUnit.Ether}>{nativeToken || 'Ether'}</option>
-    </select>
+      onChange={onChange}
+      options={[
+        {
+          label: 'Wei',
+          value: AmountUnit.Wei
+        },
+        {
+          label: 'Gwei',
+          value: AmountUnit.Gwei
+        },
+        {
+          label: nativeToken ?? 'Ether',
+          value: AmountUnit.Ether
+        }
+      ]}
+    />
   )
 }
 
@@ -62,11 +77,8 @@ export function genCoefficient(
           return new BigDecimal(1)
       }
   }
-  return new BigDecimal(1)
 }
 
 export function getWeiAmount(value: string, unit: AmountUnit): BigDecimal {
-  return new BigDecimal(value).multipliedBy(
-    genCoefficient(unit, AmountUnit.Wei)
-  )
+  return BigDecimal(value).multipliedBy(genCoefficient(unit, AmountUnit.Wei))
 }

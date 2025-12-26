@@ -2,6 +2,7 @@ import { memo, MutableRefObject, ReactNode } from 'react'
 import { Location } from '@sentio/debugger'
 import { BarLoading } from '@sentio/ui-core'
 import { ForwardDef } from './ForwardDef'
+import { SourceView } from '../SourceView'
 
 export enum LocationStatus {
   None = 0,
@@ -10,7 +11,7 @@ export enum LocationStatus {
   Error = 3
 }
 
-function isLocationStatus(v: Location | LocationStatus) {
+export function isLocationStatus(v: Location | LocationStatus) {
   return [
     LocationStatus.None,
     LocationStatus.NotFound,
@@ -38,25 +39,10 @@ interface LocationViewerProps {
   >
   chainId?: string
   isDarkMode?: boolean
-  // Custom render function for the source view when location is available
-  renderSourceView?: (props: {
-    location: Location
-    model?: any
-    store?: any
-    contractAddress?: string
-    setContractAddress?: (addr: string) => void
-    chainId?: string
-    isDarkMode?: boolean
-    onOpenRef?: MutableRefObject<
-      (
-        address: string,
-        filePath: string,
-        line?: number | undefined
-      ) => void | undefined
-    >
-    openSlider?: ((tabName?: string | undefined) => void) | undefined
-    setSliderData?: ((data: any) => void) | undefined
-  }) => ReactNode
+  // Callbacks for search functionality
+  setSig?: (sig: string) => void
+  setContract?: (contract: string) => void
+  openSlideOver?: (visible: boolean) => void
 }
 
 export const LocationViewer = memo(function LocationViewer({
@@ -72,7 +58,9 @@ export const LocationViewer = memo(function LocationViewer({
   onOpenRef,
   chainId,
   isDarkMode,
-  renderSourceView
+  setSig,
+  setContract,
+  openSlideOver
 }: LocationViewerProps) {
   if (currentLocation === LocationStatus.NotFound) {
     return (
@@ -116,36 +104,25 @@ export const LocationViewer = memo(function LocationViewer({
     return null
   }
 
-  // If a custom render function is provided, use it
-  if (renderSourceView && !isLocationStatus(currentLocation)) {
-    return (
-      <>
-        {renderSourceView({
-          location: currentLocation as Location,
-          model: currentModel,
-          store,
-          contractAddress,
-          setContractAddress,
-          chainId,
-          isDarkMode,
-          onOpenRef,
-          openSlider,
-          setSliderData
-        })}
-      </>
-    )
-  }
-
-  // Default fallback if no custom render is provided
   return (
-    <div className="mx-auto my-6 space-y-3 text-center">
-      <div className="text-text-foreground text-base font-bold">
-        Source View
-      </div>
-      <div className="text-icontent font-icontent text-gray">
-        Please provide a custom renderSourceView function to display source
-        code.
-      </div>
-    </div>
+    <SourceView
+      model={currentModel}
+      location={
+        isLocationStatus(currentLocation)
+          ? undefined
+          : (currentLocation as Location)
+      }
+      store={store}
+      setSig={setSig}
+      setContract={setContract}
+      openSlideOver={openSlideOver}
+      openRefSlider={openSlider}
+      setRefSliderData={setSliderData}
+      contractAddress={contractAddress}
+      setContractAddress={setContractAddress}
+      onOpenRef={onOpenRef}
+      chain={chainId}
+      isDarkMode={isDarkMode}
+    />
   )
 })

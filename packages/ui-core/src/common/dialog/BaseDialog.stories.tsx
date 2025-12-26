@@ -1,7 +1,7 @@
 import '../styles.css'
 import { BaseDialog } from './BaseDialog'
 import { useState } from 'react'
-import NewButton from './NewButton'
+import NewButton from '../NewButton'
 
 // Ladle works by rendering exported React components from *.stories.* files.
 // Export simple React components (no Storybook APIs) so Ladle can pick them up.
@@ -153,7 +153,10 @@ export const WithExtraButtons = () => {
         onCancel={() => setOpen(false)}
         onOk={() => setOpen(false)}
         extraButtons={
-          <NewButton role="tertiary" onClick={() => console.log('Extra action')}>
+          <NewButton
+            role="tertiary"
+            onClick={() => console.log('Extra action')}
+          >
             Extra Action
           </NewButton>
         }
@@ -234,7 +237,7 @@ export const CustomFooter = () => {
         open={open}
         onClose={() => setOpen(false)}
         footer={
-          <div className="flex justify-center border-t border-border-color pt-4">
+          <div className="border-border-color flex justify-center border-t pt-4">
             <NewButton role="link" onClick={() => setOpen(false)}>
               Close
             </NewButton>
@@ -318,14 +321,18 @@ export const LargeContent = () => {
         onCancel={() => setOpen(false)}
         onOk={() => setOpen(false)}
       >
-        <div className="px-4 py-4 max-h-96 overflow-y-auto">
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            This dialog contains a lot of content to demonstrate scrolling behavior.
+        <div className="max-h-96 overflow-y-auto px-4 py-4">
+          <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            This dialog contains a lot of content to demonstrate scrolling
+            behavior.
           </p>
           {Array.from({ length: 20 }).map((_, i) => (
-            <p key={i} className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod
-              tempor incididunt ut labore et dolore magna aliqua.
+            <p
+              key={i}
+              className="mb-2 text-sm text-gray-600 dark:text-gray-400"
+            >
+              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
+              eiusmod tempor incididunt ut labore et dolore magna aliqua.
             </p>
           ))}
         </div>

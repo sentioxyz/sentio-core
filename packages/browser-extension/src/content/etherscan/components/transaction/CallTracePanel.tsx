@@ -137,8 +137,6 @@ const CallTracePanelContent = ({ hash, chainId }: Props) => {
     [defLocation, getModel]
   )
 
-  console.log('current Location', currentLocation, defLocation)
-
   return (
     <OverviewContext.Provider value={overviewContext}>
       <div ref={wrapperRef}>

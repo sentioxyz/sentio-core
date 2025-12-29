@@ -54,15 +54,6 @@ export type NameTag = {
   expiresAt?: string
 }
 
-type TagData = {
-  address?: string
-  primaryName?: string
-  token?: TokenTag
-  names?: NameTag[]
-}
-
-export const TagsContext = createContext<Map<string, TagData>>(new Map())
-
 type openContractFn = (address: string, chain: string) => void
 export const OpenContractContext = createContext<openContractFn | undefined>(
   undefined

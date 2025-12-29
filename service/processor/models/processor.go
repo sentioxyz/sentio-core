@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	"sentioxyz/sentio-core/common/chains"
 	"strings"
 	"time"
 
@@ -91,6 +92,10 @@ type ReferenceProcessorProperties struct {
 	ReferenceProjectID string
 	// reference to specific processor
 	// ReferenceProcessorID *string
+}
+
+type SentioNetworkProperties struct {
+	ChainID chains.ChainID // default to empty string for non-sentio network processors
 }
 
 func (p *ProcessorUpgradeHistory) BeforeCreate(tx *gorm.DB) (err error) {
@@ -194,6 +199,8 @@ type Processor struct {
 
 	// properties for reference processor
 	ReferenceProcessorProperties
+
+	SentioNetworkProperties
 }
 
 func (p Processor) GetProject() *commonmodels.Project {
@@ -257,6 +264,7 @@ func (p *Processor) BeforeCreate(tx *gorm.DB) (err error) {
 	if p.ID == "" {
 		p.ID, err = gonanoid.GenerateID()
 	}
+
 	return err
 }
 
@@ -318,6 +326,7 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		PauseAt:                 timestamppb.New(p.PauseAt),
 		PauseReason:             p.PauseReason,
 		IsBinary:                p.Binary,
+		ChainId:                 string(p.ChainID),
 	}
 
 	return ret, nil

@@ -155,6 +155,7 @@ message Project {
   bool enable_materialized_view = 20 [deprecated = true];
   TimeRangeLite default_timerange = 21;
   optional CommunityProject community_project = 22;
+  bool sentio_network = 23;
 }
 
 message CommunityProject {

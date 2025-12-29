@@ -6,6 +6,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/service/processor/models",
     visibility = ["//visibility:public"],
     deps = [
+        "//common/chains",
         "//common/gonanoid",
         "//common/utils",
         "//service/common/errors",

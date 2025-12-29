@@ -1982,6 +1982,7 @@ type Project struct {
 	EnableMaterializedView bool              `protobuf:"varint,20,opt,name=enable_materialized_view,json=enableMaterializedView,proto3" json:"enable_materialized_view,omitempty"`
 	DefaultTimerange       *TimeRangeLite    `protobuf:"bytes,21,opt,name=default_timerange,json=defaultTimerange,proto3" json:"default_timerange,omitempty"`
 	CommunityProject       *CommunityProject `protobuf:"bytes,22,opt,name=community_project,json=communityProject,proto3,oneof" json:"community_project,omitempty"`
+	SentioNetwork          bool              `protobuf:"varint,23,opt,name=sentio_network,json=sentioNetwork,proto3" json:"sentio_network,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -2164,6 +2165,13 @@ func (x *Project) GetCommunityProject() *CommunityProject {
 		return x.CommunityProject
 	}
 	return nil
+}
+
+func (x *Project) GetSentioNetwork() bool {
+	if x != nil {
+		return x.SentioNetwork
+	}
+	return false
 }
 
 type CommunityProject struct {
@@ -9107,7 +9115,7 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	"\x04user\x18\x01 \x01(\v2\f.common.UserH\x00R\x04user\x12:\n" +
 	"\forganization\x18\x02 \x01(\v2\x14.common.OrganizationH\x00R\forganization\x12 \n" +
 	"\x04tier\x18\x03 \x01(\x0e2\f.common.TierR\x04tierB\r\n" +
-	"\vowner_oneof\"\xcd\b\n" +
+	"\vowner_oneof\"\xf4\b\n" +
 	"\aProject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12 \n" +
@@ -9135,7 +9143,8 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	"enableDisk\x12<\n" +
 	"\x18enable_materialized_view\x18\x14 \x01(\bB\x02\x18\x01R\x16enableMaterializedView\x12B\n" +
 	"\x11default_timerange\x18\x15 \x01(\v2\x15.common.TimeRangeLiteR\x10defaultTimerange\x12J\n" +
-	"\x11community_project\x18\x16 \x01(\v2\x18.common.CommunityProjectH\x00R\x10communityProject\x88\x01\x01\x1aI\n" +
+	"\x11community_project\x18\x16 \x01(\v2\x18.common.CommunityProjectH\x00R\x10communityProject\x88\x01\x01\x12%\n" +
+	"\x0esentio_network\x18\x17 \x01(\bR\rsentioNetwork\x1aI\n" +
 	"\rProjectMember\x12$\n" +
 	"\x04user\x18\x01 \x01(\v2\x10.common.UserInfoR\x04user\x12\x12\n" +
 	"\x04role\x18\x02 \x01(\tR\x04role\"%\n" +

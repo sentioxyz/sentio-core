@@ -61,6 +61,7 @@ type Project struct {
 	Cleaned              bool
 	DefaultTimerange     datatypes.JSON
 	Community            *CommunityProject `gorm:"constraint:OnDelete:CASCADE;"`
+	SentioNetworkProject bool              // indicates if the project is Sentio Network Project
 }
 
 func (p *Project) BeforeCreate(*gorm.DB) (err error) {
@@ -131,17 +132,18 @@ func (p *Project) Tier() protos.Tier {
 func (p *Project) ToPB() *protos.Project {
 	v := protos.Project_PRIVATE
 	ret := &protos.Project{
-		Id:           p.ID,
-		DisplayName:  p.DisplayName,
-		Description:  p.Description,
-		Slug:         p.Slug,
-		Visibility:   v,
-		Type:         projectTypeMapping[p.Type],
-		OwnerId:      p.OwnerID,
-		MultiVersion: p.MultiVersion,
-		OwnerName:    p.GetOwnerName(),
-		CreatedAt:    p.CreatedAt.UnixMilli(),
-		UpdatedAt:    p.UpdatedAt.UnixMilli(),
+		Id:            p.ID,
+		DisplayName:   p.DisplayName,
+		Description:   p.Description,
+		Slug:          p.Slug,
+		Visibility:    v,
+		Type:          projectTypeMapping[p.Type],
+		OwnerId:       p.OwnerID,
+		MultiVersion:  p.MultiVersion,
+		OwnerName:     p.GetOwnerName(),
+		CreatedAt:     p.CreatedAt.UnixMilli(),
+		UpdatedAt:     p.UpdatedAt.UnixMilli(),
+		SentioNetwork: p.SentioNetworkProject,
 	}
 	if p.Community != nil {
 		communityProject := &protos.CommunityProject{
@@ -259,6 +261,7 @@ func (p *Project) FromPB(project *protos.Project) {
 	} else {
 		p.Community = nil
 	}
+	p.SentioNetworkProject = project.SentioNetwork
 }
 
 func (p *Project) IsOrganizationProject() bool {

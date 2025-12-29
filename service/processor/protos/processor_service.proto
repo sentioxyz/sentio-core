@@ -476,6 +476,8 @@ message Processor {
   int32 num_workers = 28;
 
   bool is_binary = 24;
+
+  string chain_id = 29;
 }
 
 message ProcessorUpgradeHistory {

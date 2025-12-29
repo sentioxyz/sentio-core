@@ -95,7 +95,7 @@ type ReferenceProcessorProperties struct {
 }
 
 type SentioNetworkProperties struct {
-	ChainID chains.ChainID // default to empty string for non-sentio network processors
+	ChainID chains.ChainID `gorm:"column:'sentio_network_chain_id'"` // default to empty string for non-sentio network processors
 }
 
 func (p *ProcessorUpgradeHistory) BeforeCreate(tx *gorm.DB) (err error) {

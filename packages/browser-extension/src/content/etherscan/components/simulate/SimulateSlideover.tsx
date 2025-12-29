@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState, useContext } from 'react'
 import Drawer from '@mui/material/Drawer'
 import { useTransactionInfo } from '~/content/lib/debug/use-transaction-info'
 import { sentioProjectSimulatorUrl } from '~/utils/url'
-import { useSetAtom } from 'jotai'
 import {
   OpenSimulationContext,
   IsSimulationContext
@@ -17,8 +16,7 @@ import {
   parseHex,
   getNumberWithDecimal,
   getNativeToken,
-  contractAddress,
-  contractNetwork
+  useSimulatorContext
 } from '@sentio/ui-web3'
 import { SimulateProvider } from './SimulateProvider'
 
@@ -33,10 +31,10 @@ interface Props {
   chainId: string
 }
 
-export const SimulateSlideOver = ({ hash, chainId }: Props) => {
+function SimulateSlideOverContent({ hash, chainId }: Props) {
   const [open, setOpen] = useState(false)
-  const setAddress = useSetAtom(contractAddress)
-  const setNetwork = useSetAtom(contractNetwork)
+  const { setContractAddress: setAddress, setContractNetwork: setNetwork } =
+    useSimulatorContext()
   const [simId, setSimId] = useState('')
   const [simHref, setSimHref] = useState('')
   const [defaultProject, setDefaultProject] = useState<string>('')
@@ -158,104 +156,110 @@ export const SimulateSlideOver = ({ hash, chainId }: Props) => {
   }
 
   return (
-    <SimulateProvider>
-      <SvgFolderContext.Provider value="https://app.sentio.xyz/">
-        <div>
+    <SvgFolderContext.Provider value="https://app.sentio.xyz/">
+      <div>
+        <a
+          className="text-icontent text-gray hover:border-primary hover:text-primary inline-block rounded border px-2 py-0.5"
+          role="button"
+          onClick={() => {
+            setOpen(true)
+          }}
+        >
+          <i className="far fa-plus mr-1" />
+          Simulate in
+          <img
+            style={{ marginRight: 4 }}
+            src={logo}
+            alt="sentio-logo"
+            width="14"
+            height="14"
+            className="mx-1 inline-block"
+          />
+          Sentio
+        </a>
+        {simHref ? (
           <a
-            className="text-icontent text-gray hover:border-primary hover:text-primary inline-block rounded border px-2 py-0.5"
-            role="button"
-            onClick={() => {
-              setOpen(true)
-            }}
+            className="hover:border-primary text-icontent hover:text-primary-600 ml-2 rounded border px-2 py-1 text-gray-600"
+            href={simHref}
+            target="_blank"
+            rel="noreferrer"
           >
-            <i className="far fa-plus mr-1" />
-            Simulate in
-            <img
-              style={{ marginRight: 4 }}
-              src={logo}
-              alt="sentio-logo"
-              width="14"
-              height="14"
-              className="mx-1 inline-block"
-            />
-            Sentio
+            📜 Last simulation: #{simId}
           </a>
-          {simHref ? (
-            <a
-              className="ml-4 rounded border border-gray-100 bg-gray-50 px-2 py-1"
-              href={simHref}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Last simulation: #{simId}
-            </a>
-          ) : null}
-          <Drawer
-            anchor="right"
-            open={open}
-            onClose={() => setOpen(false)}
-            className="_sentio_"
-            hideBackdrop
-            classes={{
-              paper: 'text-gray-600'
-            }}
+        ) : null}
+        <Drawer
+          anchor="right"
+          open={open}
+          onClose={() => setOpen(false)}
+          className="_sentio_"
+          hideBackdrop
+          classes={{
+            paper: 'text-gray-600'
+          }}
+        >
+          <div
+            className="dark:bg-sentio-gray-100 flex h-full flex-col bg-white sm:min-w-[600px]"
+            key={open ? hash + '_open' : hash + '_hidden'}
           >
-            <div
-              className="dark:bg-sentio-gray-100 flex h-full flex-col bg-white sm:min-w-[600px]"
-              key={open ? hash + '_open' : hash + '_hidden'}
-            >
-              <div className="flex-0 flex w-full justify-between border-b border-gray-100 px-4 py-2">
-                <div className="inline-flex items-center gap-2">
-                  <span className="text-base font-bold">New Simulation</span>
-                  {defaultProject && (
-                    <span className="text-gray space-x-1 text-xs">
-                      <span>{'(under your project'}</span>
-                      <a
-                        href={sentioProjectSimulatorUrl(defaultProject)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:underline"
-                      >
-                        {defaultProject}
-                      </a>
-                      <span>{')'}</span>
-                    </span>
-                  )}
-                </div>
-                <div
-                  className="hover:text-primary cursor-pointer text-lg"
-                  onClick={() => {
-                    setOpen(false)
-                  }}
-                >
-                  <i className="fa-solid fa-xmark fal fa-times"></i>
-                </div>
+            <div className="flex-0 flex w-full justify-between border-b border-gray-100 px-4 py-2">
+              <div className="inline-flex items-center gap-2">
+                <span className="text-base font-bold">New Simulation</span>
+                {defaultProject && (
+                  <span className="text-gray space-x-1 text-xs">
+                    <span>{'(under your project'}</span>
+                    <a
+                      href={sentioProjectSimulatorUrl(defaultProject)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:underline"
+                    >
+                      {defaultProject}
+                    </a>
+                    <span>{')'}</span>
+                  </span>
+                )}
               </div>
-              <div className="flex-1 basis-0 overflow-auto">
-                {open ? (
-                  <NewSimulation
-                    defaultValue={defaultValue}
-                    onClose={() => {
-                      setOpen(false)
-                    }}
-                    onSuccess={(res) => {
-                      if (res.simulation?.id) {
-                        setSimId(res.simulation.id)
-                        const link = onOpenSimulation(res as any)
-                        if (link) {
-                          setSimHref(link)
-                        }
-                      }
-                    }}
-                    onRequestAPI={onRequestAPI}
-                    hideProjectSelect
-                  />
-                ) : null}
+              <div
+                className="hover:text-primary cursor-pointer text-lg"
+                onClick={() => {
+                  setOpen(false)
+                }}
+              >
+                <i className="fa-solid fa-xmark fal fa-times"></i>
               </div>
             </div>
-          </Drawer>
-        </div>
-      </SvgFolderContext.Provider>
+            <div className="flex-1 basis-0 overflow-auto">
+              {open ? (
+                <NewSimulation
+                  defaultValue={defaultValue}
+                  onClose={() => {
+                    setOpen(false)
+                  }}
+                  onSuccess={(res) => {
+                    if (res.simulation?.id) {
+                      setSimId(res.simulation.id)
+                      const link = onOpenSimulation(res as any)
+                      if (link) {
+                        setSimHref(link)
+                      }
+                    }
+                  }}
+                  onRequestAPI={onRequestAPI}
+                  hideProjectSelect
+                />
+              ) : null}
+            </div>
+          </div>
+        </Drawer>
+      </div>
+    </SvgFolderContext.Provider>
+  )
+}
+
+export const SimulateSlideOver = ({ hash, chainId }: Props) => {
+  return (
+    <SimulateProvider>
+      <SimulateSlideOverContent hash={hash} chainId={chainId} />
     </SimulateProvider>
   )
 }

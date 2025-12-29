@@ -1,7 +1,6 @@
 import { memo, useRef } from 'react'
 import { useFormContext } from 'react-hook-form'
-import { useAtomValue } from 'jotai/react'
-import { simulationFormState } from './atoms'
+import { useSimulatorContext } from './SimulatorContext'
 import { getWeiAmount } from './AmountUnitSelect'
 import { BigDecimal } from '@sentio/bigdecimal'
 import dayjs from 'dayjs'
@@ -32,7 +31,7 @@ const BaseFee = () => {
   const gasLimit = watch('gas') as string
   const gasPrice = watch('gasPrice') as string
   const networkId = watch('contract.chainId') as string
-  const atomFormState = useAtomValue(simulationFormState)
+  const { simulationFormState: atomFormState } = useSimulatorContext()
 
   let baseFee = BD('0')
   try {

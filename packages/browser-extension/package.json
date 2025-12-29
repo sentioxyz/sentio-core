@@ -24,13 +24,12 @@
     "@sentio/ui-core": "workspace:*",
     "@sentio/ui-web3": "workspace:*",
     "dayjs": "^1.11.2",
-    "jotai": "^2.15.0",
     "lodash": "^4.17.21",
-    "monaco-editor": "^0.44.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-error-boundary": "^4.0.4",
     "react-resize-detector": "^9.1.0",
+    "react-syntax-highlighter": "^15.5.0",
     "swr": "^2.3.8"
   },
   "devDependencies": {
@@ -40,6 +39,7 @@
     "esbuild-plugin-alias-path": "^2.0.2",
     "esbuild-plugin-polyfill-node": "^0.3.0",
     "esbuild-style-plugin": "^1.6.2",
+    "monaco-editor": "^0.44.0",
     "postcss-prefix-selector": "^1.16.0",
     "tailwindcss": "^3.4.4",
     "tsx": "^4.21.0"

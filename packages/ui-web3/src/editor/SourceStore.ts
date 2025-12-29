@@ -1,5 +1,5 @@
 import { FetchAndCompileResponse } from './types'
-import { ScipSolidity, Source } from '@sentio/scip'
+import { Index, ScipSolidity, Source } from '@sentio/scip'
 import { SoliditySourceParser } from './SoliditySourceParser'
 
 function getKey(address: string, networkId: string) {
@@ -23,10 +23,11 @@ export class SourceStore {
     data: FetchAndCompileResponse,
     networkId: string,
     private readonly scipInstance?: Promise<ScipSolidity>,
-    private readonly simId?: string,
+    simId?: string,
     projectOwner?: string,
     projectSlug?: string,
-    isForkedChain?: boolean
+    isForkedChain?: boolean,
+    private readonly getIndex?: (req: any) => Promise<Index>
   ) {
     this.sources = new Map()
     this.parsers = new Map()
@@ -82,7 +83,8 @@ export class SourceStore {
       this.projectOwner,
       this.projectSlug,
       undefined,
-      this.isForkedChain
+      this.isForkedChain,
+      this.getIndex
     )
     this.parsers.set(key, newInstance)
     return newInstance

@@ -59,7 +59,6 @@ function _TransactionFundflow({
   setTagAddressList,
   renderGraph
 }: Props) {
-  console.log('_TransactionFundflow data', data)
   const isDarkMode = useDarkMode()
   const [flowNodes, setNodes] = useState<any[]>([])
   const [flowEdges, setEdges] = useState<any[]>([])

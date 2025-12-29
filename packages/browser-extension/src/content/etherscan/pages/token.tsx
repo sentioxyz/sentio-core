@@ -32,7 +32,7 @@ function injectSentioLink(chainId, address, host) {
     case 'sepolia.etherscan.io':
     case 'bscscan.com':
       sentioButton.innerHTML = /* HTML */ `<a
-        class="btn btn-sm btn-secondary me-2"
+        class="btn btn-sm btn-secondary"
         style="display: flex; align-items: center"
         href="${sentioContractUrl(chainId, address)}"
         rel="noopener nofollow"
@@ -148,7 +148,9 @@ async function renderCodeEditors(chainId, address) {
     let model: null | monaco.editor.ITextModel = null
     try {
       if (editors.length > 1) {
-        const name = editor.previousSibling?.textContent?.split(':')[1]?.trim()
+        const name = editor.previousSibling?.firstChild?.textContent
+          ?.split(':')[1]
+          ?.trim()
         if (!name && editors.length > 1) {
           continue
         }

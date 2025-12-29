@@ -120,3 +120,19 @@ export interface SimulateTransactionResponse {
   projectOwner?: string
   projectSlug?: string
 }
+
+export type FunctionParamType = {
+  internalType: string
+  name: string
+  type: string
+}
+
+export type FunctionType = {
+  inputs: FunctionParamType[]
+  outputs: FunctionParamType[]
+  name: string
+  stateMutability: string
+  visibility: string
+  type: 'function' | 'event'
+  anonymous?: boolean
+}

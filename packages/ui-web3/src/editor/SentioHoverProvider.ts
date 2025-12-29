@@ -22,6 +22,8 @@ export class SentioHoverProvider
     }
     const { address, path } = this.props.parseMonacoUri(model.uri)
     const parser = this.props.store.getParser(address) as SoliditySourceParser
-    return parser.getHover(path, position.lineNumber, position.column)
+    const res = parser.getHover(path, position.lineNumber, position.column)
+    console.log('Hover result:', res)
+    return res
   }
 }

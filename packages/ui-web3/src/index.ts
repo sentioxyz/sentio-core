@@ -95,7 +95,12 @@ export type {
   SimulateTransactionResponse,
   AmountUnit
 } from './simulator/types'
-export * from './simulator/atoms'
+export {
+  SimulatorProvider,
+  useSimulatorContext,
+  ContractSelectType,
+  type SimulationFormState
+} from './simulator/SimulatorContext'
 export * from './utils/tag-context'
 
 // Editor components
@@ -128,7 +133,7 @@ export type {
   PreviewLocation,
   FetchAndCompileResponse
 } from './editor'
-export { SymbolKind, CompilerType } from './editor'
+export { SymbolKind, type CompilerType } from './editor'
 
 // Editor utilities
 export { trackEvent, setTrackingHandler } from './utils/tracking'

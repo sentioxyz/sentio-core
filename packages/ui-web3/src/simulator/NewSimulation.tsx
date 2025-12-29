@@ -5,14 +5,13 @@ import {
   useWatch,
   useFormContext
 } from 'react-hook-form'
-import { useAtom, useAtomValue } from 'jotai'
 import { ClipLoader } from 'react-spinners'
 import Web3 from 'web3'
 import { BigDecimal } from '@sentio/bigdecimal'
 import { isEqual, merge, pickBy, identity, isEmpty } from 'lodash'
 import dayjs from 'dayjs'
 
-import { Input, Switch } from '@sentio/ui-core'
+import { Button, Input, Switch } from '@sentio/ui-core'
 import { DisclosurePanel } from './Panel'
 import { FunctionParameter } from './FunctionParameter'
 import { FunctionSelect } from './FunctionSelect'
@@ -29,10 +28,10 @@ import {
   getWeiAmount
 } from './AmountUnitSelect'
 import {
-  simulationFormState,
+  useSimulatorContext,
   SimulationFormState,
   ContractSelectType
-} from './atoms'
+} from './SimulatorContext'
 import {
   SimulationFormType,
   Contract as ContractType,
@@ -41,6 +40,7 @@ import {
   SimulateTransactionResponse,
   AmountUnit
 } from './types'
+import { ContractName } from './ContractName'
 
 const BD = BigDecimal.clone({
   EXPONENTIAL_AT: [-30, 30]
@@ -130,7 +130,7 @@ function FormValueWatcher({
   onChange: SimulationProps['onChange']
 }) {
   const { watch } = useFormContext()
-  const atomFormState = useAtomValue(simulationFormState)
+  const { simulationFormState: atomFormState } = useSimulatorContext()
   const formValues = watch()
 
   const atomFormStateRef = useRef<any>(null)
@@ -265,7 +265,10 @@ export const NewSimulation = ({
   hideNetworkSelect,
   hideContractName
 }: SimulationProps) => {
-  const [atomFormState, setFormState] = useAtom(simulationFormState)
+  const {
+    simulationFormState: atomFormState,
+    setSimulationFormState: setFormState
+  } = useSimulatorContext()
   const atomFormStateRef = useRef(atomFormState)
   atomFormStateRef.current = atomFormState
 
@@ -358,6 +361,18 @@ export const NewSimulation = ({
     return () => subscription.unsubscribe()
   }, [watch, setValue])
 
+  useEffect(() => {
+    if (defaultValue?.input) {
+      setFormState({
+        useRawInput: true
+      })
+    }
+  }, [defaultValue?.input])
+
+  useEffect(() => {
+    form.reset(getDefaultValue(defaultValue, atomFormStateRef.current))
+  }, [defaultValue?.sourceOverrides])
+
   const stateOverrideData = useWatch({
     control,
     name: 'stateOverride'
@@ -404,12 +419,13 @@ export const NewSimulation = ({
             <div className="text-text-foreground text-base font-bold">
               Receiver
             </div>
-            <div className="mt-2">
+            <div className="mt-2 space-y-2">
               <Input
                 error={errors.contract as any}
                 placeholder="Contract address (0x...)"
                 {...register('contract.address', { required: true })}
               />
+              <ContractName address={contract?.address} />
             </div>
 
             <div className="my-4">
@@ -711,14 +727,14 @@ export const NewSimulation = ({
           )}
           {onChange ? null : (
             <div className="flex items-center gap-2">
-              <button
-                type="button"
+              <Button
+                role="primary"
+                size="md"
                 onClick={onSubmit}
-                disabled={isSubmitting}
-                className="bg-primary-600 hover:bg-primary-700 rounded px-4 py-2 text-white disabled:opacity-50"
+                processing={isSubmitting}
               >
-                {isSubmitting ? 'Simulating...' : 'Simulate Transaction'}
-              </button>
+                Simulate Transaction
+              </Button>
             </div>
           )}
         </div>

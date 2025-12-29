@@ -155,15 +155,9 @@ importers:
       dayjs:
         specifier: ^1.11.2
         version: 1.11.19
-      jotai:
-        specifier: ^2.15.0
-        version: 2.16.0(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@18.3.25)(react@18.3.1)
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
-      monaco-editor:
-        specifier: ^0.44.0
-        version: 0.44.0
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -176,6 +170,9 @@ importers:
       react-resize-detector:
         specifier: ^9.1.0
         version: 9.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react-syntax-highlighter:
+        specifier: ^15.5.0
+        version: 15.6.6(react@18.3.1)
       swr:
         specifier: ^2.3.8
         version: 2.3.8(react@18.3.1)
@@ -198,6 +195,9 @@ importers:
       esbuild-style-plugin:
         specifier: ^1.6.2
         version: 1.6.3
+      monaco-editor:
+        specifier: ^0.44.0
+        version: 0.44.0
       postcss-prefix-selector:
         specifier: ^1.16.0
         version: 1.16.1(postcss@8.5.6)
@@ -488,9 +488,6 @@ importers:
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
-      monaco-editor:
-        specifier: ^0.55.1
-        version: 0.55.1
       react-copy-to-clipboard:
         specifier: ^5.1.0
         version: 5.1.0(react@18.3.1)
@@ -543,9 +540,9 @@ importers:
       concurrently:
         specifier: ^9.2.1
         version: 9.2.1
-      jotai:
-        specifier: ^2.16.0
-        version: 2.16.0(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@18.3.25)(react@18.3.1)
+      monaco-editor:
+        specifier: ^0.55.1
+        version: 0.55.1
       postcss:
         specifier: ^8.5.6
         version: 8.5.6
@@ -5647,24 +5644,6 @@ packages:
   jiti@1.21.7:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
     hasBin: true
-
-  jotai@2.16.0:
-    resolution: {integrity: sha512-NmkwPBet0SHQ28GBfEb10sqnbVOYyn6DL4iazZgGRDUKxSWL0iqcm+IK4TqTSFC2ixGk+XX2e46Wbv364a3cKg==}
-    engines: {node: '>=12.20.0'}
-    peerDependencies:
-      '@babel/core': '>=7.0.0'
-      '@babel/template': '>=7.0.0'
-      '@types/react': '>=17.0.0'
-      react: '>=17.0.0'
-    peerDependenciesMeta:
-      '@babel/core':
-        optional: true
-      '@babel/template':
-        optional: true
-      '@types/react':
-        optional: true
-      react:
-        optional: true
 
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
@@ -15076,13 +15055,6 @@ snapshots:
   java-properties@1.0.2: {}
 
   jiti@1.21.7: {}
-
-  jotai@2.16.0(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@18.3.25)(react@18.3.1):
-    optionalDependencies:
-      '@babel/core': 7.28.5
-      '@babel/template': 7.27.2
-      '@types/react': 18.3.25
-      react: 18.3.1
 
   joycon@3.1.1: {}
 

@@ -1,5 +1,4 @@
 import { useContext, useEffect, useState } from 'react'
-import { useSetAtom } from 'jotai'
 import { EthChainId } from '@sentio/chain'
 import {
   TransactionFundflow,

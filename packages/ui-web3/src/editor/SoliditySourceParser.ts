@@ -206,7 +206,6 @@ const emptyHover: monacoEditor.languages.Hover = {
 export class SoliditySourceParser {
   private readonly scipInstance: Promise<ScipSolidity | null>
   private readonly source: Source[]
-  private readonly getContractIndex: (req: any) => Promise<Index>
   private readonly networkId?: string
   private readonly address?: string
   private readonly simulationId?: string
@@ -218,7 +217,6 @@ export class SoliditySourceParser {
 
   constructor(
     source: Source[],
-    getContractIndex: (req: any) => Promise<Index>,
     networkId?: string,
     address?: string,
     simulationId?: string,
@@ -226,7 +224,8 @@ export class SoliditySourceParser {
     projectOwner?: string,
     projectSlug?: string,
     userCompilationId?: string,
-    isForkedChain?: boolean
+    isForkedChain?: boolean,
+    private readonly getContractIndex?: (req: any) => Promise<Index>
   ) {
     this.source = source
     this.networkId = networkId
@@ -262,6 +261,9 @@ export class SoliditySourceParser {
       }
       if (this.userCompilationId) {
         request.userCompilationId = this.userCompilationId
+      }
+      if (!this.getContractIndex) {
+        throw new Error('getContractIndex function is not provided')
       }
       const res = await this.getContractIndex(request)
       return new ScipSolidity(this.source, res)

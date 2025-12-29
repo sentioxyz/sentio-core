@@ -1,19 +1,4 @@
-import {
-  contractAddress,
-  contractNetwork,
-  chainIdentifier,
-  compilationId,
-  blockNumber,
-  simId,
-  simBundleId,
-
-  // derived atoms
-  contractName,
-  contractFunctions,
-  latestBlockNumber,
-  blockSummary
-} from '@sentio/ui-web3'
-import { useSetAtom, useAtomValue, Provider } from 'jotai/react'
+import { SimulatorProvider, useSimulatorContext } from '@sentio/ui-web3'
 import { useEffect } from 'react'
 
 async function sendRequest(apiName: string, request: any, initReq?: any) {
@@ -35,18 +20,19 @@ async function sendRequest(apiName: string, request: any, initReq?: any) {
 }
 
 function InterSimulateProvider({ children }: { children?: React.ReactNode }) {
-  const _contractAddress = useAtomValue(contractAddress)
-  const _contractNetwork = useAtomValue(contractNetwork)
-  const _chainIdentifier = useAtomValue(chainIdentifier)
-  const _compilationId = useAtomValue(compilationId)
-  const _blockNumber = useAtomValue(blockNumber)
-  const _simId = useAtomValue(simId)
-  const _simBundleId = useAtomValue(simBundleId)
-
-  const setContractName = useSetAtom(contractName)
-  const setContractFunctions = useSetAtom(contractFunctions)
-  const setLatestBlockNumber = useSetAtom(latestBlockNumber)
-  const setBlockSummary = useSetAtom(blockSummary)
+  const {
+    contractAddress: _contractAddress,
+    contractNetwork: _contractNetwork,
+    chainIdentifier: _chainIdentifier,
+    compilationId: _compilationId,
+    blockNumber: _blockNumber,
+    simId: _simId,
+    simBundleId: _simBundleId,
+    setContractName,
+    setContractFunctions,
+    setLatestBlockNumber,
+    setBlockSummary
+  } = useSimulatorContext()
 
   // contractName
   useEffect(() => {
@@ -68,7 +54,7 @@ function InterSimulateProvider({ children }: { children?: React.ReactNode }) {
   // contractFunctions
   useEffect(() => {
     ;(async () => {
-      if (_contractAddress || !_contractNetwork) {
+      if (!_contractAddress || !_contractNetwork) {
         setContractFunctions({})
         return
       }
@@ -98,7 +84,7 @@ function InterSimulateProvider({ children }: { children?: React.ReactNode }) {
                   [_chainIdentifier]: _contractNetwork
                 }
         )
-        const { ABI, name } = res as any
+        const { ABI } = res as any
         parsedABI = JSON.parse(ABI)
 
         const functions = parsedABI.filter((item) => item.type === 'function')
@@ -113,8 +99,7 @@ function InterSimulateProvider({ children }: { children?: React.ReactNode }) {
         )
         setContractFunctions({
           wfunctions,
-          rfunctions,
-          name
+          rfunctions
         })
       } catch {
         setContractFunctions({})
@@ -173,8 +158,8 @@ function InterSimulateProvider({ children }: { children?: React.ReactNode }) {
 
 export function SimulateProvider({ children }: { children?: React.ReactNode }) {
   return (
-    <Provider>
+    <SimulatorProvider>
       <InterSimulateProvider>{children}</InterSimulateProvider>
-    </Provider>
+    </SimulatorProvider>
   )
 }

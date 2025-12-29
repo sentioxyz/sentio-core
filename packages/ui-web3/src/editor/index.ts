@@ -25,6 +25,6 @@ export type {
   PreviewLocation,
   FetchAndCompileResponse
 } from './types'
-export { CompilerType } from './types'
+export { type CompilerType } from './types'
 export { SourceView } from '../transaction/SourceView'
 export { HoverContextWidget } from './HoverContextWidget'

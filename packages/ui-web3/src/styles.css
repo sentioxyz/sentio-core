@@ -98,6 +98,52 @@
   .btn-link.btn-status-danger.btn-disabled {
     @apply cursor-not-allowed text-red-200;
   }
+
+  .debugger-view-lines {
+    background: rgba(205, 221, 247, 0.28);
+  }
+
+  .debugger-highlighten-lines {
+    @apply dark:bg-orange/20 bg-orange-100/50;
+  }
+
+  .debugger-highlighten-lines.error {
+    @apply dark:bg-red/20 bg-red-100/50;
+  }
+
+  .debugger-highlighten-tokens {
+    @apply bg-orange-200 dark:bg-orange-800/20;
+    font-weight: 700;
+  }
+
+  .debugger-highlighten-tokens.error {
+    @apply bg-red-200 dark:bg-red-800/20;
+  }
+
+  .debugger-breakpoint-lines {
+    @apply bg-red-200/30;
+  }
+
+  .debugger-breakpoint {
+    @apply cursor-pointer rounded-full;
+    height: 12px !important;
+    width: 12px !important;
+    margin: 3px !important;
+  }
+
+  .debugger-breakpoint.enabled {
+    @apply bg-red-600;
+  }
+
+  .debugger-breakpoint.disabled {
+    @apply bg-gray;
+  }
+
+  .debugger-breakpoint.preview:not(.enabled) {
+    @apply bg-red-400/50 hover:bg-red-400/80;
+  }
+
+  .debugger-breakpoint.loading {
+    @apply bg-orange-600;
+  }
 }
-
-

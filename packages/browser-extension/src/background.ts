@@ -144,13 +144,12 @@ async function apiHandler(request, sendResponse) {
       const { data } = request
       let res: any = undefined
       if (data) {
-        res = await callApi(
-          `/api/v1/solidity/index/${data.networkId}/${data.address}`
-        )
+        res = await callApi('/api/v1/solidity/index', data)
       } else {
-        res = await callApi(
-          `/api/v1/solidity/index/${request.chainId}/${request.address}`
-        )
+        res = await callApi('/api/v1/solidity/index', {
+          address: request.address,
+          'chainSpec.chainId': request.chainId
+        })
       }
       sendResponse(res)
       break

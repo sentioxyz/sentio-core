@@ -4,6 +4,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { LinkifyText, Button } from '@sentio/ui-core'
 import { isEqual } from 'lodash'
 import { useMonaco } from '@monaco-editor/react'
+import * as monaco from 'monaco-editor'
 
 function renderDocLines(lines?: string[]): ReactNode {
   if (!lines || lines.length === 0) {
@@ -50,7 +51,11 @@ function renderDocLines(lines?: string[]): ReactNode {
   })
 }
 
-function getFileUri(monaco, id = '', path = '') {
+function getFileUri(
+  monaco: typeof import('monaco-editor'),
+  id = '',
+  path = ''
+) {
   return monaco.Uri.parse(`file:///${id}/${path}`)
 }
 
@@ -75,7 +80,7 @@ interface HoverContextWidgetProps {
   interfaces?: FileRange[]
   implementations?: FileRange[]
   contractAddress?: string
-  editorDecorationsRef?: React.MutableRefObject<globalThis.monaco.editor.IEditorDecorationsCollection | null>
+  editorDecorationsRef?: React.MutableRefObject<monaco.editor.IEditorDecorationsCollection | null>
   onModelChange?: (uri: monaco.Uri, line?: number) => void
   openSlider?: (tabName?: string) => void
   setSliderData?: (data: any) => void
@@ -319,7 +324,7 @@ export const HoverContextWidget = ({
           }}
           wrapLongLines={true}
         >
-          {description}
+          {description || ''}
         </SyntaxHighlighter>
         {documentation && documentation.length > 0 ? (
           <div className="max-h-[300px] max-w-[600px] space-y-1 overflow-auto border-t px-2 pb-2 pt-1">
@@ -330,7 +335,7 @@ export const HoverContextWidget = ({
           <Button
             disabled={isCurrentDefinition}
             size="sm"
-            variant="tertiary"
+            role="tertiary"
             onClick={() => {
               if (!data?.sourcePath) {
                 return
@@ -406,7 +411,7 @@ export const HoverContextWidget = ({
               <Button
                 disabled={!hasDefinition}
                 size="sm"
-                variant="tertiary"
+                role="tertiary"
                 onClick={() => {
                   if (!contractAddress) {
                     return
@@ -427,7 +432,7 @@ export const HoverContextWidget = ({
               <Button
                 disabled={!hasImplementation}
                 size="sm"
-                variant="tertiary"
+                role="tertiary"
                 onClick={() => {
                   if (!contractAddress) {
                     return
@@ -449,7 +454,7 @@ export const HoverContextWidget = ({
               supportedTxnSearchChains.includes(String(chain)) ? (
                 <Button
                   size="sm"
-                  variant="tertiary"
+                  role="tertiary"
                   onClick={() => {
                     openSlider?.('related-txns')
                     setSliderData?.({
@@ -466,7 +471,7 @@ export const HoverContextWidget = ({
               {storageKey ? (
                 <Button
                   size="sm"
-                  variant="tertiary"
+                  role="tertiary"
                   onClick={() => {
                     openSlider?.('storage')
                     hideMenu()

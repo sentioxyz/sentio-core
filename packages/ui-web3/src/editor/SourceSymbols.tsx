@@ -4,6 +4,7 @@ import { memo, useMemo, useState } from 'react'
 import { DocumentTextIcon } from '@heroicons/react/20/solid'
 import { DebounceInput } from 'react-debounce-input'
 import { useResizeDetector } from 'react-resize-detector'
+import * as monaco from 'monaco-editor'
 
 export const SymbolIcons = {
   [SIK.Array]: (

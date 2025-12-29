@@ -1,86 +1,120 @@
 import { useController, useFormContext, Control } from 'react-hook-form'
-import type { AbiFunction } from './types'
+import type { AbiFunction, FunctionType } from './types'
+import { Select } from '@sentio/ui-core'
+import { FunctionOption } from './FunctionOption'
+import { useSimulatorContext } from './SimulatorContext'
+import { useEffect, useState } from 'react'
+import isEqual from 'lodash/isEqual'
+
+const SelectComponent = Select<FunctionType>
 
 interface Props {
   control: Control<any>
-  functions?: AbiFunction[]
-  className?: string
 }
 
-const paramsToDefaultValue = (params: AbiFunction['inputs']) => {
-  return params.map((param) => ({
-    name: param.name,
-    value: ''
-  }))
+const paramsToDefaultValue = (params: FunctionType['inputs']) => {
+  const res: {
+    name: string
+    value: string
+  }[] = []
+  for (const param of params) {
+    res.push({
+      name: param.name,
+      value: ''
+    })
+  }
+  return res
 }
 
-export const FunctionSelect = ({ control, functions, className }: Props) => {
+const groupedOrder = [
+  {
+    key: 'Writable',
+    label: 'Write'
+  },
+  {
+    key: 'Readonly',
+    label: 'Read'
+  }
+]
+
+export const FunctionSelect = ({ control }: Props) => {
   const { field } = useController({
     name: 'function',
     control
   })
   const { setValue } = useFormContext()
+  const { contractFunctions } = useSimulatorContext()
+  const { wfunctions, rfunctions } = contractFunctions || {}
+  console.log('FunctionSelect functions', contractFunctions, field.value)
+  const [options, setOptions] = useState<
+    {
+      label: string
+      value: any
+      group: string
+    }[]
+  >([])
 
-  // Separate write and read functions
-  const writeFunctions = functions?.filter(
-    (f) => !f.stateMutability || !['view', 'pure'].includes(f.stateMutability)
-  )
-  const readFunctions = functions?.filter(
-    (f) => f.stateMutability && ['view', 'pure'].includes(f.stateMutability)
-  )
+  useEffect(() => {
+    if (!wfunctions && !rfunctions) {
+      return
+    }
+    setOptions((pre) => {
+      const current = [
+        ...(wfunctions || []).map((item) => ({
+          label: item.name,
+          value: item,
+          group: 'Writable'
+        })),
+        ...(rfunctions || []).map((item) => ({
+          label: item.name,
+          value: item,
+          group: 'Readonly'
+        }))
+      ]
+      if (isEqual(pre, current)) {
+        return pre
+      }
+      return current
+    })
+  }, [wfunctions, rfunctions])
 
-  if (!functions || functions.length === 0) {
+  if (!wfunctions && !rfunctions) {
     return (
-      <div className="cursor-not-allowed rounded-md border border-gray-300 px-4 py-2 text-gray-400">
+      <div className="text-icontent cursor-not-allowed rounded-md border border-gray-300 px-4 py-2 text-gray-400">
         Empty functions, please check receiver contract's address or network
       </div>
     )
   }
 
   return (
-    <div className={className}>
-      <select
-        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-        value={field.value?.name || ''}
-        onChange={(e) => {
-          const newFn = functions.find((f) => f.name === e.target.value)
-          if (newFn && newFn !== field.value) {
-            setValue('functionParams', paramsToDefaultValue(newFn.inputs))
-          }
-          field.onChange(newFn)
-        }}
-      >
-        <option value="">Select Function</option>
-        {writeFunctions && writeFunctions.length > 0 && (
-          <optgroup label="Write">
-            {writeFunctions.map((fn) => (
-              <option key={fn.name} value={fn.name}>
-                {fn.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {readFunctions && readFunctions.length > 0 && (
-          <optgroup label="Read">
-            {readFunctions.map((fn) => (
-              <option key={fn.name} value={fn.name}>
-                {fn.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </select>
-      {field.value && (
-        <div className="mt-2 rounded-md bg-gray-50 p-3 text-xs">
-          <div className="font-semibold text-gray-900">{field.value.name}</div>
-          {field.value.stateMutability && (
-            <div className="mt-1 text-gray-600">
-              State Mutability:{' '}
-              <span className="font-medium">{field.value.stateMutability}</span>
-            </div>
-          )}
+    <SelectComponent
+      placeholder="Select Function"
+      size="md"
+      options={options}
+      groupedOptions={true}
+      unmountOptions={false}
+      groupedOrder={groupedOrder}
+      value={field.value as any}
+      onChange={(newFn) => {
+        if (newFn !== field.value) {
+          // reset function params
+          setValue('functionParams', paramsToDefaultValue(newFn.inputs))
+        }
+        field.onChange(newFn)
+      }}
+      renderOption={(option, state) => {
+        return <FunctionOption data={option.value} {...state} />
+      }}
+      noOptionsMessage={
+        <div>
+          <div className="text-primary-800 text-sm font-medium">
+            No Functions
+          </div>
+          <div className="text-sm text-gray-500">
+            This contract does not have any function
+          </div>
         </div>
-      )}
-    </div>
+      }
+    />
   )
 }

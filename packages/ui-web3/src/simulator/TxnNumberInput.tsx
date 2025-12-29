@@ -1,8 +1,7 @@
 import { Suspense, useEffect } from 'react'
-import { useAtomValue } from 'jotai'
 import { Input } from '@sentio/ui-core'
 import { useFormContext } from 'react-hook-form'
-import { blockSummary, simulationFormState } from './atoms'
+import { useSimulatorContext } from './SimulatorContext'
 
 const emptyFn: any = () => {}
 
@@ -18,7 +17,7 @@ const _Input = ({
     setValue,
     formState: { errors }
   } = useFormContext()
-  const atomFormState = useAtomValue(simulationFormState)
+  const { simulationFormState: atomFormState } = useSimulatorContext()
 
   useEffect(() => {
     if (atomFormState.usePendingBlock && latestIndex) {
@@ -43,7 +42,7 @@ const _Input = ({
           />
         ) : (
           <Input
-            error={errors[name]}
+            error={errors[name] as any}
             {...register(name, {
               required: true,
               valueAsNumber: true,
@@ -69,7 +68,7 @@ const _Input = ({
 }
 
 const _TxnNumberInput = ({ name }: { name: string }) => {
-  const bsummary = useAtomValue(blockSummary)
+  const { blockSummary: bsummary } = useSimulatorContext()
   return <_Input latestIndex={bsummary.transactionCount} name={name} />
 }
 

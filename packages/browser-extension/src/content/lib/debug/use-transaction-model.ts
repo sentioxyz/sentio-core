@@ -117,7 +117,23 @@ export const useTxnModel = (hash: string, chainId: string) => {
 
   const store = useMemo(() => {
     if (chainId && data) {
-      return new SourceStore(data, chainId, undefined)
+      return new SourceStore(
+        data,
+        chainId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        false,
+        async (req) => {
+          return (
+            await chrome.runtime.sendMessage({
+              api: 'GetContractIndex',
+              data: req
+            })
+          ).index
+        }
+      )
     }
   }, [data, chainId])
 

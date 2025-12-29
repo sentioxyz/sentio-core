@@ -1,8 +1,7 @@
 import { Suspense, useEffect } from 'react'
-import { useAtomValue, useSetAtom } from 'jotai'
 import { useFormContext } from 'react-hook-form'
 import { Input } from '@sentio/ui-core'
-import { latestBlockNumber, simulationFormState, blockNumber } from './atoms'
+import { useSimulatorContext } from './SimulatorContext'
 
 const emptyFn: any = () => {}
 
@@ -18,9 +17,9 @@ const _Input = ({ latestIndex }: { latestIndex?: number }) => {
     watch,
     setValue
   } = useFormContext()
-  const atomFormState = useAtomValue(simulationFormState)
+  const { simulationFormState: atomFormState, setBlockNumber } =
+    useSimulatorContext()
   const bIndex = watch('blockNumber')
-  const setBlockNumber = useSetAtom(blockNumber)
 
   useEffect(() => {
     if (bIndex) {
@@ -76,7 +75,8 @@ const _Input = ({ latestIndex }: { latestIndex?: number }) => {
 }
 
 const _BlockNumberInput = () => {
-  const { blockNumber } = useAtomValue(latestBlockNumber)
+  const { latestBlockNumber } = useSimulatorContext()
+  const { blockNumber } = latestBlockNumber
   const latestIndex = Number(parseHex(blockNumber || '')) || 0
   return <_Input latestIndex={latestIndex} />
 }

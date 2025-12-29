@@ -15,11 +15,9 @@ export type PreviewLocation = {
   endColumn: number
 }
 
-export enum CompilerType {
-  UNKNOWN = 0,
-  SOLIDITY = 1,
-  VYPER = 2,
-  MOVE = 3
+export type CompilerType = {
+  name: string
+  version: string
 }
 
 export type FetchAndCompileResponse = {
@@ -28,11 +26,17 @@ export type FetchAndCompileResponse = {
     compiler: CompilerType
     contracts: any
     id: string
-    networkId: string
-    sources: any
-  }
+    sources: {
+      compiler: CompilerType
+      id: string
+      language: string
+      source: string
+      sourcePath: string
+    }[]
+    unreliableSourceOrder?: boolean
+  }[]
+  sourceInfo: any
 }
-
 export type GetContractIndexResponse = {
   index?: Index
 }

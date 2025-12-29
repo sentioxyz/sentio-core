@@ -2,8 +2,7 @@ import { RadioSelect } from '@sentio/ui-core'
 import { Suspense } from 'react'
 import { useFormContext } from 'react-hook-form'
 import Web3 from 'web3'
-import { useAtomValue } from 'jotai'
-import { contractFunctions } from './atoms'
+import { useSimulatorContext } from './SimulatorContext'
 
 export enum InputType {
   RawData = 'rawdata',
@@ -28,7 +27,8 @@ interface Props {
 
 const _CallDataSwitch = ({ inputType, onChange }: Props) => {
   const { getValues, setValue } = useFormContext()
-  const { wfunctions } = useAtomValue(contractFunctions)
+  const { contractFunctions } = useSimulatorContext()
+  const { wfunctions } = contractFunctions
 
   return (
     <RadioSelect
@@ -51,7 +51,7 @@ const _CallDataSwitch = ({ inputType, onChange }: Props) => {
                 targetFunction?.inputs || [],
                 paramsText
               )
-              const params = targetFunction?.inputs.map(({ name }) => {
+              const params = targetFunction?.inputs.map(({ name }: any) => {
                 return {
                   name,
                   value: decoded[name]

@@ -1,4 +1,6 @@
-export const parseUri = (uri: monaco.Uri) => {
+import * as monaco from 'monaco-editor'
+
+export const parseUri = (uri?: monaco.Uri) => {
   if (!uri) {
     return {
       address: '',

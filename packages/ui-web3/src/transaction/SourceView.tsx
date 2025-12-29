@@ -12,8 +12,8 @@ import { SourceStore } from '../editor/SourceStore'
 import { parseUri } from '../utils/debug-helpers'
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/outline'
 import { SoliditySourceParser } from '../editor/SoliditySourceParser'
+import { HoverContextWidget } from '../editor/HoverContextWidget'
 import { Definition, FileRange, Occurrence } from '@sentio/scip'
-import { HoverContextWidget } from './HoverContextWidget'
 import { Button, classNames } from '@sentio/ui-core'
 import * as monaco from 'monaco-editor'
 
@@ -372,9 +372,31 @@ export class SourceView extends Component<Props, SourceViewState> {
   resetPosition(evt: React.MouseEvent) {
     evt.stopPropagation()
     evt.preventDefault()
+
+    // Reset to the original model from props
+    if (this.editorRef && this.props.model) {
+      this.editorRef.setModel(this.props.model)
+    }
+
+    // Clear editor decorations
+    if (this.editorDecorationsRef) {
+      this.editorDecorationsRef.current.clear()
+    }
+
+    // Reset state
     this.setState({
-      currentModel: null
+      currentModel: null,
+      hoverDef: undefined,
+      occur: undefined,
+      hoverRefs: [],
+      hoverImpls: undefined,
+      hoverInterfaces: undefined
     })
+
+    // Re-focus on the original location if available
+    if (this.props.location) {
+      this.reFocus(this.props.location)
+    }
   }
 
   render() {
@@ -431,7 +453,7 @@ export class SourceView extends Component<Props, SourceViewState> {
             editorDecorationsRef={this.editorDecorationsRef}
             openSlider={openRefSlider}
             setSliderData={setRefSliderData}
-            onTrackEvent={onTrackEvent}
+            // onTrackEvent={onTrackEvent}
             onModelChange={(uri, line) => {
               const currentModel = monaco.editor.getModel(uri)
               if (currentModel) {

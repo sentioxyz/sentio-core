@@ -22,7 +22,7 @@ export const ErrorBoundaryWrapper = ({
   return (
     <ErrorBoundary
       fallback={fallback}
-      onError={(error: Error, info: { componentStack: string }) => {
+      onError={(error: any, info: any) => {
         // ignore
       }}
     >

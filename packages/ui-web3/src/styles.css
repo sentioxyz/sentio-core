@@ -146,4 +146,14 @@
   .debugger-breakpoint.loading {
     @apply bg-orange-600;
   }
+
+  /* fundflow styles */
+  .flow-chart a {
+    @apply hover:underline;
+  }
+
+  .flow-chart text {
+    font-family: 'Roboto', 'Inter var', sans-serif;
+    font-size: 12px;
+  }
 }

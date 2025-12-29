@@ -36,6 +36,7 @@
     "classnames": "^2.5.1",
     "copy-to-clipboard": "^3.3.3",
     "dayjs": "^1.11.19",
+    "dom-to-image-more": "^3.7.2",
     "lodash": "^4.17.21",
     "react-copy-to-clipboard": "^5.1.0",
     "react-debounce-input": "^3.3.0",
@@ -56,6 +57,7 @@
   },
   "devDependencies": {
     "@ladle/react": "^5.1.1",
+    "@types/dom-to-image": "^2.6.7",
     "@types/react-copy-to-clipboard": "^5.0.7",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/validator": "^13.15.10",

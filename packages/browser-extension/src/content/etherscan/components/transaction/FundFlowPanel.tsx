@@ -27,7 +27,7 @@ export const FundFlowPanel = ({
   callTrace,
   callTraceLoading
 }: Props) => {
-  const { setTagCache } = useContext(TagCacheContext)
+  const { setTagCache, tagCache } = useContext(TagCacheContext)
   const [tagLoading, setTagLoading] = useState(chainId !== EthChainId.ETHEREUM)
   const [isEmpty, setIsEmpty] = useState(false)
 
@@ -76,6 +76,7 @@ export const FundFlowPanel = ({
             }
             onEmpty={setIsEmpty}
             chainId={chainId}
+            tagMap={tagCache}
           />
         )}
       </SpinLoading>

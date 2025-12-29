@@ -1,5 +1,5 @@
 import { useContext } from 'react'
-import { TagsContext } from './tag-context'
+import { TagCacheContext } from './tag-context'
 import Web3 from 'web3'
 const web3 = new Web3()
 
@@ -33,7 +33,7 @@ export function getPathHostName(link?: string) {
 }
 
 export const useAddressTag = (address?: string) => {
-  const addressMap = useContext(TagsContext)
+  const { tagCache: addressMap } = useContext(TagCacheContext)
   const lowerAddress = address?.toLowerCase()
   return {
     data: lowerAddress ? addressMap.get(lowerAddress) : undefined

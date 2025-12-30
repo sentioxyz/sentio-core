@@ -319,11 +319,7 @@ export const NewSimulation = ({
 
         if (res.simulation) {
           onClose?.()
-          onSuccess?.({
-            ...res,
-            projectOwner: req.projectOwner,
-            projectSlug: req.projectSlug
-          })
+          onSuccess?.(res)
         }
       } catch (e: any) {
         if (e?.body?.message) {

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "helper",
+    srcs = ["helper.go"],
+    importpath = "sentioxyz/sentio-core/common/clickhousemanager/helper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+    ],
+)

@@ -651,22 +651,6 @@ service ProcessorRuntimeService {
       body: "*"
     };
   }
-
-  rpc GetProcessorCode (ProcessorIdRequest) returns (GetProcessorCodeResponse) {
-    option (common.auth) = {
-      permission: "project:read"
-    };
-    option (google.api.method_visibility).restriction = "INTERNAL";
-
-    option (google.api.http) = {
-      get: "/api/v1/processors/code"
-    };
-  };
-}
-
-message GetProcessorCodeResponse {
-  string code_url = 1;
-  string zip_url = 2;
 }
 
 message GetLogsRequest {

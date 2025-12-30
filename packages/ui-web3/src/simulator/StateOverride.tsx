@@ -1,6 +1,8 @@
 import { useFieldArray, Control } from 'react-hook-form'
 import { SimulationFormType } from './types'
 import { StateOverrideItem } from './StateOverrideItem'
+import { Button } from '@sentio/ui-core'
+import { PlusIcon } from '@heroicons/react/24/outline'
 
 interface Contract {
   address?: string
@@ -10,18 +12,13 @@ interface Contract {
 
 interface Props {
   control: Control<SimulationFormType>
-  contracts?: Contract[]
   relatedContracts?: {
     address: string
     name: string
   }[]
 }
 
-export const StateOverride = ({
-  control,
-  contracts,
-  relatedContracts
-}: Props) => {
+export const StateOverride = ({ control, relatedContracts }: Props) => {
   const { fields, append, remove } = useFieldArray({
     name: 'stateOverride',
     control
@@ -37,7 +34,6 @@ export const StateOverride = ({
         return (
           <StateOverrideItem
             key={item.id}
-            contracts={contracts || []}
             onRemove={remove}
             index={index}
             name={name}
@@ -46,9 +42,10 @@ export const StateOverride = ({
         )
       })}
       <div>
-        <button
-          type="button"
-          className="border-primary hover:bg-primary/10 w-full rounded border px-4 py-2"
+        <Button
+          className="!border-primary hover:bg-primary/10 !border"
+          role="link"
+          size="md"
           onClick={() => {
             append({
               contract: '',
@@ -56,9 +53,10 @@ export const StateOverride = ({
               storage: []
             })
           }}
+          icon={<PlusIcon />}
         >
-          + Add State Override
-        </button>
+          Add State Override
+        </Button>
       </div>
     </div>
   )

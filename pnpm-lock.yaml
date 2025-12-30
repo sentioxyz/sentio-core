@@ -130,7 +130,7 @@ importers:
         version: 22.1.1
       '@monaco-editor/react':
         specifier: ^4.5.2
-        version: 4.7.0(monaco-editor@0.44.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 4.7.0(monaco-editor@0.55.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@mui/material':
         specifier: ^5.14.13
         version: 5.18.0(@emotion/react@11.14.0(@types/react@18.3.25)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.3.25)(react@18.3.1))(@types/react@18.3.25)(react@18.3.1))(@types/react@18.3.25)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -168,8 +168,8 @@ importers:
         specifier: ^4.0.4
         version: 4.1.2(react@18.3.1)
       react-resize-detector:
-        specifier: ^9.1.0
-        version: 9.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^12.3.0
+        version: 12.3.0(react@18.3.1)
       react-syntax-highlighter:
         specifier: ^15.5.0
         version: 15.6.6(react@18.3.1)
@@ -196,8 +196,8 @@ importers:
         specifier: ^1.6.2
         version: 1.6.3
       monaco-editor:
-        specifier: ^0.44.0
-        version: 0.44.0
+        specifier: ^0.55.1
+        version: 0.55.1
       postcss-prefix-selector:
         specifier: ^1.16.0
         version: 1.16.1(postcss@8.5.6)
@@ -313,8 +313,8 @@ importers:
         specifier: ^18
         version: 18.3.1(react@18.3.1)
       react-spinners:
-        specifier: ^0.13.8
-        version: 0.13.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^0.15.0
+        version: 0.15.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       swr:
         specifier: ^2.2.5
         version: 2.3.6(react@18.3.1)
@@ -401,8 +401,8 @@ importers:
         specifier: ^12.3.0
         version: 12.3.0(react@18.3.1)
       react-spinners:
-        specifier: ^0.13.8
-        version: 0.13.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^0.15.0
+        version: 0.15.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@ladle/react':
         specifier: ^5.1.1
@@ -438,8 +438,8 @@ importers:
         specifier: ^0.27.16
         version: 0.27.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@headlessui/react':
-        specifier: ^2.2.9
-        version: 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: 1.7.7
+        version: 1.7.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@18.3.1)
@@ -553,8 +553,8 @@ importers:
         specifier: ^8.5.6
         version: 8.5.6
       swr:
-        specifier: ^2.3.6
-        version: 2.3.6(react@18.3.1)
+        specifier: ^2.3.8
+        version: 2.3.8(react@18.3.1)
       tailwindcss:
         specifier: ^3.4.18
         version: 3.4.18(tsx@4.21.0)(yaml@2.8.1)
@@ -1332,12 +1332,6 @@ packages:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
 
-  '@floating-ui/react@0.26.28':
-    resolution: {integrity: sha512-yORQuuAtVpiRjpMhdc0wJj06b9JFjrYF4qp96j++v2NBpbi6SEGF7donUJ3TMieerQ6qVkAv1tgr7L4r5roTqw==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
-
   '@floating-ui/react@0.27.16':
     resolution: {integrity: sha512-9O8N4SeG2z++TSM8QA/KTeKFBVCNEz/AGS7gWPJf6KFRzmRWixFRnCnkPHRDwSVZW6QPDO6uT0P2SpWNKCc9/g==}
     peerDependencies:
@@ -1353,13 +1347,6 @@ packages:
     peerDependencies:
       react: ^16 || ^17 || ^18
       react-dom: ^16 || ^17 || ^18
-
-  '@headlessui/react@2.2.9':
-    resolution: {integrity: sha512-Mb+Un58gwBn0/yWZfyrCh0TJyurtT+dETj7YHleylHk5od3dv2XqETPGWMyQ5/7sYN7oWdyM1u9MvC0OC8UmzQ==}
-    engines: {node: '>=10'}
-    peerDependencies:
-      react: ^18 || ^19 || ^19.0.0-rc
-      react-dom: ^18 || ^19 || ^19.0.0-rc
 
   '@heroicons/react@2.2.0':
     resolution: {integrity: sha512-LMcepvRaS9LYHJGsF0zzmgKCUim/X3N/DQKc4jepAXJ7l8QxJ1PmxJzqplF2Z3FE4PqBAIGyJAQ/w4B5dsqbtQ==}
@@ -2448,43 +2435,6 @@ packages:
 
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
-
-  '@react-aria/focus@3.21.2':
-    resolution: {integrity: sha512-JWaCR7wJVggj+ldmM/cb/DXFg47CXR55lznJhZBh4XVqJjMKwaOOqpT5vNN7kpC1wUpXicGNuDnJDN1S/+6dhQ==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-      react-dom: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-
-  '@react-aria/interactions@3.25.6':
-    resolution: {integrity: sha512-5UgwZmohpixwNMVkMvn9K1ceJe6TzlRlAfuYoQDUuOkk62/JVJNDLAPKIf5YMRc7d2B0rmfgaZLMtbREb0Zvkw==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-      react-dom: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-
-  '@react-aria/ssr@3.9.10':
-    resolution: {integrity: sha512-hvTm77Pf+pMBhuBm760Li0BVIO38jv1IBws1xFm1NoL26PU+fe+FMW5+VZWyANR6nYL65joaJKZqOdTQMkO9IQ==}
-    engines: {node: '>= 12'}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-
-  '@react-aria/utils@3.31.0':
-    resolution: {integrity: sha512-ABOzCsZrWzf78ysswmguJbx3McQUja7yeGj6/vZo4JVsZNlxAN+E9rs381ExBRI0KzVo6iBTeX5De8eMZPJXig==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-      react-dom: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-
-  '@react-stately/flags@3.1.2':
-    resolution: {integrity: sha512-2HjFcZx1MyQXoPqcBGALwWWmgFVUk2TuKVIQxCbRq7fPyWXIl6VHcakCLurdtYC2Iks7zizvz0Idv48MQ38DWg==}
-
-  '@react-stately/utils@3.10.8':
-    resolution: {integrity: sha512-SN3/h7SzRsusVQjQ4v10LaVsDc81jyyR0DD5HnsQitm/I5WDpaSr2nRHtyloPFU48jlql1XX/S04T2DLQM7Y3g==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-
-  '@react-types/shared@3.32.1':
-    resolution: {integrity: sha512-famxyD5emrGGpFuUlgOP6fVW2h/ZaF405G5KDi3zPHzyjAWys/8W6NAVJtNbkCkhedmvL0xOhvt8feGXyXaw5w==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
 
   '@redux-saga/core@1.4.2':
     resolution: {integrity: sha512-nIMLGKo6jV6Wc1sqtVQs1iqbB3Kq20udB/u9XEaZQisT6YZ0NRB8+4L6WqD/E+YziYutd27NJbG8EWUPkb7c6Q==}
@@ -6239,9 +6189,6 @@ packages:
     resolution: {integrity: sha512-2emPTb1reeLLYwHxyVx993iYyCHEiRRO+y8NFXFPL5kl5q14sgTK76cXyEKkeKCHeRw35SfdkUJ10Q1KfHuiIQ==}
     engines: {node: '>= 0.4'}
 
-  monaco-editor@0.44.0:
-    resolution: {integrity: sha512-5SmjNStN6bSuSE5WPT2ZV+iYn1/yI9sd4Igtk23ChvqB7kDk9lZbB9F5frsuvpB+2njdIeGGFf2G4gbE6rCC9Q==}
-
   monaco-editor@0.55.1:
     resolution: {integrity: sha512-jz4x+TJNFHwHtwuV9vA9rMujcZRb0CEilTEwG2rRSpe/A7Jdkuj8xPKttCgOh+v/lkHy7HsZ64oj+q3xoAFl9A==}
 
@@ -7218,18 +7165,6 @@ packages:
     resolution: {integrity: sha512-mIDOVrTHKGnKe6qEUWi8dFdfHM5CPyTOpqoHctdMQf89Ljm/0qqDIzkP3vTRZZJi9/raaMiRxDEOqO4you5x+A==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
-
-  react-resize-detector@9.1.1:
-    resolution: {integrity: sha512-siLzop7i4xIvZIACE/PHTvRegA8QRCEt0TfmvJ/qCIFQJ4U+3NuYcF8tNDmDWxfIn+X1eNCyY2rauH4KRxge8w==}
-    peerDependencies:
-      react: ^16.0.0 || ^17.0.0 || ^18.0.0
-      react-dom: ^16.0.0 || ^17.0.0 || ^18.0.0
-
-  react-spinners@0.13.8:
-    resolution: {integrity: sha512-3e+k56lUkPj0vb5NDXPVFAOkPC//XyhKPJjvcGjyMNPWsBKpplfeyialP74G7H7+It7KzhtET+MvGqbKgAqpZA==}
-    peerDependencies:
-      react: ^16.0.0 || ^17.0.0 || ^18.0.0
-      react-dom: ^16.0.0 || ^17.0.0 || ^18.0.0
 
   react-spinners@0.15.0:
     resolution: {integrity: sha512-ZO3/fNB9Qc+kgpG3SfdlMnvTX6LtLmTnOogb3W6sXIaU/kZ1ydEViPfZ06kSOaEsor58C/tzXw2wROGQu3X2pA==}
@@ -9933,14 +9868,6 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@floating-ui/react@0.26.28(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@floating-ui/react-dom': 2.1.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@floating-ui/utils': 0.2.10
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-      tabbable: 6.3.0
-
   '@floating-ui/react@0.27.16(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@floating-ui/react-dom': 2.1.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -9956,16 +9883,6 @@ snapshots:
       client-only: 0.0.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-
-  '@headlessui/react@2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@floating-ui/react': 0.26.28(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@react-aria/focus': 3.21.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@react-aria/interactions': 3.25.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@tanstack/react-virtual': 3.13.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-      use-sync-external-store: 1.6.0(react@18.3.1)
 
   '@heroicons/react@2.2.0(react@18.3.1)':
     dependencies:
@@ -10326,13 +10243,6 @@ snapshots:
   '@monaco-editor/loader@1.7.0':
     dependencies:
       state-local: 1.0.7
-
-  '@monaco-editor/react@4.7.0(monaco-editor@0.44.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@monaco-editor/loader': 1.7.0
-      monaco-editor: 0.44.0
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
 
   '@monaco-editor/react@4.7.0(monaco-editor@0.55.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -11068,55 +10978,6 @@ snapshots:
       '@types/react-dom': 18.3.7(@types/react@18.3.25)
 
   '@radix-ui/rect@1.1.1': {}
-
-  '@react-aria/focus@3.21.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@react-aria/interactions': 3.25.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@react-aria/utils': 3.31.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@react-types/shared': 3.32.1(react@18.3.1)
-      '@swc/helpers': 0.5.15
-      clsx: 2.1.1
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-
-  '@react-aria/interactions@3.25.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@react-aria/ssr': 3.9.10(react@18.3.1)
-      '@react-aria/utils': 3.31.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@react-stately/flags': 3.1.2
-      '@react-types/shared': 3.32.1(react@18.3.1)
-      '@swc/helpers': 0.5.15
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-
-  '@react-aria/ssr@3.9.10(react@18.3.1)':
-    dependencies:
-      '@swc/helpers': 0.5.15
-      react: 18.3.1
-
-  '@react-aria/utils@3.31.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@react-aria/ssr': 3.9.10(react@18.3.1)
-      '@react-stately/flags': 3.1.2
-      '@react-stately/utils': 3.10.8(react@18.3.1)
-      '@react-types/shared': 3.32.1(react@18.3.1)
-      '@swc/helpers': 0.5.15
-      clsx: 2.1.1
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-
-  '@react-stately/flags@3.1.2':
-    dependencies:
-      '@swc/helpers': 0.5.15
-
-  '@react-stately/utils@3.10.8(react@18.3.1)':
-    dependencies:
-      '@swc/helpers': 0.5.15
-      react: 18.3.1
-
-  '@react-types/shared@3.32.1(react@18.3.1)':
-    dependencies:
-      react: 18.3.1
 
   '@redux-saga/core@1.4.2':
     dependencies:
@@ -15914,8 +15775,6 @@ snapshots:
       hasown: 2.0.2
       isarray: 2.0.5
 
-  monaco-editor@0.44.0: {}
-
   monaco-editor@0.55.1:
     dependencies:
       dompurify: 3.2.7
@@ -16748,17 +16607,6 @@ snapshots:
     dependencies:
       es-toolkit: 1.43.0
       react: 18.3.1
-
-  react-resize-detector@9.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
-    dependencies:
-      lodash: 4.17.21
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-
-  react-spinners@0.13.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
-    dependencies:
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
 
   react-spinners@0.15.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:

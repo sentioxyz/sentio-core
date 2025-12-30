@@ -23,7 +23,8 @@ import {
   DisclosurePanel,
   FlatTree,
   DataNode,
-  ROOT_KEY
+  ROOT_KEY,
+  SvgFolderContext
 } from '@sentio/ui-core'
 import { cx } from 'class-variance-authority'
 import { isString, isArray, sortBy, upperFirst } from 'lodash'
@@ -63,9 +64,6 @@ import { DecodedVariable } from './DecodedVariable'
 const CallTraceContext = createContext<{
   showGas?: boolean
 }>({})
-
-// Contexts that may not exist in ui-web3
-const SvgFolderContext = createContext<string>('')
 
 // Helper function to check if there is sub fund flow data for a given call trace
 const hasSubFundFlow = (data: ExtendedCall, chainId?: string): boolean => {

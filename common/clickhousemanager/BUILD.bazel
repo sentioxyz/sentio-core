@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clickhousemanager",
+    srcs = [
+        "conn.go",
+        "conn_impl.go",
+        "conn_options.go",
+        "constants.go",
+        "error_code_map.go",
+        "manager.go",
+        "sharding.go",
+        "sharding_impl.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/clickhousemanager",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/anyutil",
+        "//common/clickhousemanager/helper",
+        "//common/log",
+        "//common/utils",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+    ],
+)

@@ -9,6 +9,7 @@ import "google/api/visibility.proto";
 import "google/protobuf/timestamp.proto";
 import "service/common/protos/common.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 
 service ProcessorService {
@@ -39,14 +40,6 @@ service ProcessorService {
   rpc GetProcessorStatusInternal (GetProcessorStatusRequest) returns (GetProcessorStatusResponse);
 
   rpc PauseProcessorInternal (PauseProcessorRequest) returns (google.protobuf.Empty);
-
-  rpc GetProcessorStatus (GetProcessorStatusRequest) returns (GetProcessorStatusResponse) {
-    option (google.api.method_visibility).restriction = "INTERNAL";
-
-    option (google.api.http) = {
-      get: "/api/v1/processors/status"
-    };
-  };
 
   // Get processor status
   rpc GetProcessorStatusV2 (GetProcessorStatusRequestV2) returns (GetProcessorStatusResponse) {
@@ -640,4 +633,62 @@ service ProcessorRuntimeService {
       body: "*"
     };
   };
+
+  rpc GetProcessorStatus (GetProcessorStatusRequest) returns (GetProcessorStatusResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/processors/status"
+    };
+  };
+
+
+  rpc GetLogs (GetLogsRequest) returns (GetLogsResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/processors/{processor_id}/logs",
+      body: "*"
+    };
+  }
+
+  rpc GetProcessorCode (ProcessorIdRequest) returns (GetProcessorCodeResponse) {
+    option (common.auth) = {
+      permission: "project:read"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/processors/code"
+    };
+  };
+}
+
+message GetProcessorCodeResponse {
+  string code_url = 1;
+  string zip_url = 2;
+}
+
+message GetLogsRequest {
+  string processor_id = 1;
+  int32 limit = 2;
+  repeated common.Any after = 3;
+  repeated string log_type_filters = 4;
+  string query = 5;
+}
+
+message GetLogsResponse {
+  repeated Log logs = 1;
+  message Log {
+    string id = 1;
+    string message = 2;
+    google.protobuf.Timestamp timestamp = 3;
+    google.protobuf.Struct attributes = 4;
+    string log_type = 5;
+    string level = 6;
+    string highlighted_message = 7;
+    string chain_id = 8;
+  }
+  repeated common.Any after = 2;
+  int64 total = 3;
 }

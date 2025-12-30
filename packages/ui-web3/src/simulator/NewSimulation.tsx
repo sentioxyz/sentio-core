@@ -711,7 +711,25 @@ export const NewSimulation = ({
             >
               <div className="space-y-3 pt-2">
                 <div className="text-xs font-medium text-gray-800">
-                  This Simulation will have the Berlin fork enabled.
+                  This Simulation will have the{' '}
+                  <a
+                    href="https://blog.ethereum.org/2021/03/08/ethereum-berlin-upgrade-announcement/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    Berlin fork
+                  </a>{' '}
+                  enabled, which includes support for{' '}
+                  <a
+                    href="https://eips.ethereum.org/EIPS/eip-2930"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    EIP-2930 Optional access lists
+                  </a>
+                  .
                 </div>
                 <OptionalAccessList />
               </div>

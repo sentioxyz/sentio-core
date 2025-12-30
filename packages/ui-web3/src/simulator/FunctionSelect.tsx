@@ -45,7 +45,6 @@ export const FunctionSelect = ({ control }: Props) => {
   const { setValue } = useFormContext()
   const { contractFunctions } = useSimulatorContext()
   const { wfunctions, rfunctions } = contractFunctions || {}
-  console.log('FunctionSelect functions', contractFunctions, field.value)
   const [options, setOptions] = useState<
     {
       label: string

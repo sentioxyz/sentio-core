@@ -19,6 +19,5 @@ go_library(
         "@com_github_docker_docker//api/types/network",
         "@com_github_docker_docker//api/types/swarm",
         "@com_github_docker_docker//client",
-        "@com_github_samber_lo//:lo",
     ],
 )

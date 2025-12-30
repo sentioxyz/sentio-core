@@ -2,6 +2,7 @@ package driverjob
 
 import (
 	"context"
+	"time"
 
 	"sentioxyz/sentio-core/service/processor/models"
 )
@@ -40,6 +41,14 @@ type DriverJobManager interface {
 
 	// GetNamespaceForCluster returns the namespace for the given cluster ID
 	GetNamespaceForCluster(clusterID int) string
+
+	// GetLogs fetches logs for the given processor
+	GetLogs(ctx context.Context, processor *models.Processor, limit int32, after string) ([]Log, string, error)
+}
+
+type Log interface {
+	Message() string
+	Timestamp() time.Time
 }
 
 type Pod interface {

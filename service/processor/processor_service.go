@@ -398,8 +398,14 @@ func (s *Service) RemoveProcessor(
 	ctx context.Context,
 	req *protos.ProcessorIdRequest,
 ) (*protos.RemoveProcessorResponse, error) {
-	processor := PreloadedProcessor(ctx)
-	err := s.processorRepo.WithTransaction(ctx, func(ctx context.Context) error {
+	processor, err := s.processorRepo.PreloadProcessor(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	if processor == nil {
+		return nil, status.Errorf(codes.NotFound, "processor not found")
+	}
+	err = s.processorRepo.WithTransaction(ctx, func(ctx context.Context) error {
 		return s.stopProcessor(ctx, req.Id)
 	})
 	if err != nil {
@@ -453,7 +459,13 @@ func (s *Service) stopProcessor(
 const MaxObsoleteVersion = 10
 
 func (s *Service) RestartProcessor(ctx context.Context, req *protos.GetProcessorRequest) (*emptypb.Empty, error) {
-	processor := PreloadedProcessor(ctx)
+	processor, err := s.processorRepo.PreloadProcessor(ctx, req.ProcessorId)
+	if err != nil {
+		return nil, err
+	}
+	if processor == nil {
+		return nil, status.Errorf(codes.NotFound, "processor not found")
+	}
 	if err := s.driverJobManager.RestartProcessorByID(ctx, processor.ID, int(processor.K8sClusterID)); err != nil {
 		log.Infofe(err, "restart processor %q.%q.%d failed", processor.ProjectID, processor.ID, processor.Version)
 	}
@@ -469,10 +481,16 @@ func (s *Service) RestartProcessor(ctx context.Context, req *protos.GetProcessor
 }
 
 func (s *Service) SetVersionActive(ctx context.Context, req *protos.GetProcessorRequest) (*emptypb.Empty, error) {
-	processor := PreloadedProcessor(ctx)
+	processor, err := s.processorRepo.PreloadProcessor(ctx, req.ProcessorId)
+	if err != nil {
+		return nil, err
+	}
+	if processor == nil {
+		return nil, status.Errorf(codes.NotFound, "processor not found")
+	}
 
 	processor.VersionState = int32(protos.ProcessorVersionState_ACTIVE)
-	err := s.processorRepo.WithTransaction(ctx, func(ctx context.Context) error {
+	err = s.processorRepo.WithTransaction(ctx, func(ctx context.Context) error {
 		if err := s.activateProcessor(ctx, processor, false); err != nil {
 			return err
 		}
@@ -698,13 +716,6 @@ func (s *Service) notifyProcessorResumed(ctx context.Context, processor *models.
 	return s.lifecycleHook.OnResume(ctx, processor)
 }
 
-func PreloadedProcessor(ctx context.Context) *models.Processor {
-	if processor, ok := ctx.Value("processor").(*models.Processor); ok {
-		return processor
-	}
-	return nil
-}
-
 func (s *Service) RunProcessor(ctx context.Context, req *protos.RunProcessorRequest) (*protos.Processor, error) {
 	var p *models.Processor
 	project, err := s.processorRepo.GetProjectByID(ctx, req.ProjectId)
@@ -750,4 +761,58 @@ func (s *Service) RunProcessor(ctx context.Context, req *protos.RunProcessorRequ
 func (s *Service) StopProcessor(ctx context.Context, req *protos.StopProcessorRequest) (*emptypb.Empty, error) {
 	err := s.stopProcessor(ctx, req.ProcessorId)
 	return nil, err
+}
+
+func (s *Service) GetLogs(ctx context.Context, req *protos.GetLogsRequest) (*protos.GetLogsResponse, error) {
+	after := ""
+	if len(req.After) > 0 {
+		// Currently only support one cursor in Any
+		if req.After[0].GetStringValue() != "" {
+			after = req.After[0].GetStringValue()
+		}
+	}
+
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+
+	processor, err := s.processorRepo.PreloadProcessor(ctx, req.ProcessorId)
+	if err != nil {
+		return nil, err
+	}
+	if processor == nil {
+		return nil, status.Errorf(codes.NotFound, "processor not found")
+	}
+
+	logs, nextAfter, err := s.driverJobManager.GetLogs(ctx, processor, limit, after)
+	if err != nil {
+		return nil, err
+	}
+
+	pbLogs := make([]*protos.GetLogsResponse_Log, len(logs))
+	for i, l := range logs {
+		pbLogs[i] = &protos.GetLogsResponse_Log{
+			Message:   l.Message(),
+			Timestamp: timestamppb.New(l.Timestamp()),
+		}
+	}
+
+	resp := &protos.GetLogsResponse{
+		Logs: pbLogs,
+	}
+	if nextAfter != "" {
+		resp.After = []*commonprotos.Any{
+			{
+				AnyValue: &commonprotos.Any_StringValue{
+					StringValue: nextAfter,
+				},
+			},
+		}
+	}
+
+	return resp, nil
 }

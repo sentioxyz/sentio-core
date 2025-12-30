@@ -7,11 +7,14 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/swarm"
@@ -800,6 +803,99 @@ func (d *DockerSwarmManager) findServicesByProcessorID(ctx context.Context, proc
 	}
 
 	return services, nil
+}
+
+func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Processor, limit int32, after string) ([]Log, string, error) {
+	services, err := d.findServicesByProcessorID(ctx, processor.ID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var allLogs []Log
+	for _, service := range services {
+		options := container.LogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Timestamps: true,
+			Tail:       strconv.Itoa(int(limit)),
+		}
+		if after != "" {
+			options.Since = after
+		}
+
+		logsReader, err := d.dockerClient.ServiceLogs(ctx, service.ID, options)
+		if err != nil {
+			log.Warnw("Failed to get logs for service", "serviceID", service.ID, "error", err)
+			continue
+		}
+		defer logsReader.Close()
+
+		// Parse docker log stream
+		// Docker logs have a header: [1 byte stream type, 3 bytes zeros, 4 bytes length]
+		header := make([]byte, 8)
+		for {
+			_, err := logsReader.Read(header)
+			if err != nil {
+				break
+			}
+			dataLen := uint32(header[4])<<24 | uint32(header[5])<<16 | uint32(header[6])<<8 | uint32(header[7])
+			data := make([]byte, dataLen)
+			_, err = logsReader.Read(data)
+			if err != nil {
+				break
+			}
+
+			line := string(data)
+			// Docker timestamps are at the beginning of each line if Timestamps: true
+			// Format is like "2023-10-27T12:00:00.000000000Z message"
+			parts := strings.SplitN(line, " ", 2)
+			if len(parts) < 2 {
+				continue
+			}
+			tsStr := parts[0]
+			msg := parts[1]
+
+			ts, err := time.Parse(time.RFC3339Nano, tsStr)
+			if err != nil {
+				continue
+			}
+
+			allLogs = append(allLogs, logLine{
+				msg: strings.TrimSpace(msg),
+				ts:  ts,
+			})
+		}
+	}
+
+	// Sort logs by timestamp
+	sort.Slice(allLogs, func(i, j int) bool {
+		return allLogs[i].Timestamp().Before(allLogs[j].Timestamp())
+	})
+
+	// Apply limit if necessary (we might have more because we fetched 'limit' from each service)
+	if len(allLogs) > int(limit) {
+		allLogs = allLogs[len(allLogs)-int(limit):]
+	}
+
+	nextAfter := ""
+	if len(allLogs) > 0 {
+		nextAfter = allLogs[len(allLogs)-1].Timestamp().Format(time.RFC3339Nano)
+	}
+
+	return allLogs, nextAfter, nil
+}
+
+type logLine struct {
+	ts  time.Time
+	msg string
+}
+
+func (l logLine) Message() string {
+	return l.msg
+}
+
+func (l logLine) Timestamp() time.Time {
+	return l.ts
 }
 
 func (d *DockerSwarmManager) makeDriverName(processor *models.Processor) string {

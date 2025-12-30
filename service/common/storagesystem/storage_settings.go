@@ -15,4 +15,6 @@ type StorageSettings struct {
 	WalrusPublishers   []string
 	WalrusEpochs       int
 	WalrusJWTSecret    string
+	IPFSApiURL         string
+	IPFSGatewayURL     string
 }

@@ -290,15 +290,16 @@ func (s *Service) InitBatchUpload(
 	}
 
 	var warning string
+	engine := req.Engine
+
 	if project.Type == commonmodels.ProjectTypeSubgraph {
 		// For subgraph projects, only IPFS storage is supported
 		if req.Engine != protos.StorageEngine_IPFS && req.Engine != protos.StorageEngine_DEFAULT {
 			return nil, fmt.Errorf("subgraph projects only support IPFS storage, got: %v", req.Engine)
 		}
 	} else {
-		// For non-subgraph projects, IPFS storage is not supported
-		if req.Engine == protos.StorageEngine_IPFS {
-			return nil, fmt.Errorf("IPFS storage is only supported for subgraph projects")
+		if project.SentioNetworkProject {
+			engine = protos.StorageEngine_IPFS
 		}
 
 		clientVersion := req.SdkVersion
@@ -309,11 +310,9 @@ func (s *Service) InitBatchUpload(
 		}
 	}
 
-	engine := req.Engine
-
 	var storageEngine corestorage.FileStorageEngine
 
-	storageEngine, err = s.FileStorageSystem.CreateDefaultStorage(ctx, req.Engine.String())
+	storageEngine, err = s.FileStorageSystem.CreateDefaultStorage(ctx, engine.String())
 
 	if err != nil {
 		return nil, err
@@ -377,9 +376,9 @@ func (s *Service) FinishBatchUpload(
 			return nil, fmt.Errorf("subgraph projects only support IPFS storage, got: %v", req.Engine)
 		}
 	} else {
-		// For non-subgraph projects, IPFS storage is not supported
-		if req.Engine == protos.StorageEngine_IPFS {
-			return nil, fmt.Errorf("IPFS storage is only supported for subgraph projects")
+		// For non-subgraph projects, IPFS storage is  chosen automatically if SentioNetworkProject is true
+		if project.SentioNetworkProject {
+			req.Engine = protos.StorageEngine_IPFS
 		}
 	}
 

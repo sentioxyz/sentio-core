@@ -58,6 +58,7 @@ type RedisProcessorRepoInterface interface {
 		numWorkers int32,
 		sentioProperties models.SentioProcessorProperties,
 		subgraphProperties models.SubgraphProcessorProperties,
+		sentioNetworkProperties models.SentioNetworkProperties,
 	) (*models.Processor, error)
 
 	ListProcessorUpgradeHistory(ctx context.Context, processorID string) ([]models.ProcessorUpgradeHistory, error)
@@ -417,6 +418,7 @@ func (r *RedisProcessorRepo) CreateOrUpdateProcessor(
 	numWorkers int32,
 	sentioProperties models.SentioProcessorProperties,
 	subgraphProperties models.SubgraphProcessorProperties,
+	sentioNetworkProperties models.SentioNetworkProperties,
 ) (*models.Processor, error) {
 	// If continueFrom > 0, update existing processor
 	if continueFrom > 0 {
@@ -465,6 +467,7 @@ func (r *RedisProcessorRepo) CreateOrUpdateProcessor(
 		Pause:                       pause,
 		SentioProcessorProperties:   sentioProperties,
 		SubgraphProcessorProperties: subgraphProperties,
+		SentioNetworkProperties:     sentioNetworkProperties,
 		DriverVersion:               1,
 		NumWorkers:                  numWorkers,
 		EntitySchemaVersion:         0,

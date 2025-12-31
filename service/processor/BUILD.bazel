@@ -11,6 +11,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/service/processor",
     visibility = ["//visibility:public"],
     deps = [
+        "//common/chains",
         "//common/gonanoid",
         "//common/log",
         "//common/utils",

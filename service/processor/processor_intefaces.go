@@ -17,6 +17,7 @@ type ProcessorFactory interface {
 		numWorkers int32,
 		sentioProperties models.SentioProcessorProperties,
 		subgraphProperties models.SubgraphProcessorProperties,
+		sentioNetworkProperties models.SentioNetworkProperties,
 		activateProcessor func(ctx context.Context, processor *models.Processor, upgrade bool) error,
 	) (p *models.Processor, err error)
 }

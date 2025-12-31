@@ -36,6 +36,7 @@ type ProcessorRepo interface {
 		numWorkers int32,
 		sentioProperties models.SentioProcessorProperties,
 		subgraphProperties models.SubgraphProcessorProperties,
+		sentioNetworkProperties models.SentioNetworkProperties,
 	) (*models.Processor, error)
 
 	ListProcessorUpgradeHistory(ctx context.Context, processorID string) ([]models.ProcessorUpgradeHistory, error)

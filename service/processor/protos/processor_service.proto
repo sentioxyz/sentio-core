@@ -14,172 +14,184 @@ import "protoc-gen-openapiv2/options/annotations.proto";
 
 service ProcessorService {
   option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_tag) = {
-    name: "Processor"
+    name : "Processor"
   };
   // Private API below:
   // Get processors belongs to the given project id.
-  rpc GetProcessors (GetProcessorsRequest) returns (GetProcessorsResponse);
+  rpc GetProcessors(GetProcessorsRequest) returns (GetProcessorsResponse);
 
   // Get processor of the given processor id.
-  rpc GetProcessor (GetProcessorRequest) returns (GetProcessorResponse);
+  rpc GetProcessor(GetProcessorRequest) returns (GetProcessorResponse);
 
-  // Get processor of the given processor id, and the project which the processor belongs to
-  rpc GetProcessorWithProject (GetProcessorRequest) returns (GetProcessorWithProjectResponse);
+  // Get processor of the given processor id, and the project which the
+  // processor belongs to
+  rpc GetProcessorWithProject(GetProcessorRequest)
+      returns (GetProcessorWithProjectResponse);
 
   // Get project variables (internal API, returns secret values)
-  rpc GetProjectVariables (GetProjectVariablesRequest) returns (common.ProjectVariables);
+  rpc GetProjectVariables(GetProjectVariablesRequest)
+      returns (common.ProjectVariables);
 
   // Set processor entity schema (internal API)
-  rpc SetProcessorEntitySchema (SetProcessorEntitySchemaRequest) returns (google.protobuf.Empty);
+  rpc SetProcessorEntitySchema(SetProcessorEntitySchemaRequest)
+      returns (google.protobuf.Empty);
 
   // Updates a processor status of a given chain and processor.
-  rpc UpdateChainProcessorStatus (UpdateChainProcessorStatusRequest) returns (UpdateChainProcessorStatusResponse);
+  rpc UpdateChainProcessorStatus(UpdateChainProcessorStatusRequest)
+      returns (UpdateChainProcessorStatusResponse);
 
-  rpc DownloadProcessor (DownloadProcessorRequest) returns (DownloadProcessorResponse);
+  rpc DownloadProcessor(DownloadProcessorRequest)
+      returns (DownloadProcessorResponse);
 
-  rpc GetProcessorStatusInternal (GetProcessorStatusRequest) returns (GetProcessorStatusResponse);
+  rpc GetProcessorStatusInternal(GetProcessorStatusRequest)
+      returns (GetProcessorStatusResponse);
 
-  rpc PauseProcessorInternal (PauseProcessorRequest) returns (google.protobuf.Empty);
+  rpc PauseProcessorInternal(PauseProcessorRequest)
+      returns (google.protobuf.Empty);
 
   // Get processor status
-  rpc GetProcessorStatusV2 (GetProcessorStatusRequestV2) returns (GetProcessorStatusResponse) {
+  rpc GetProcessorStatusV2(GetProcessorStatusRequestV2)
+      returns (GetProcessorStatusResponse) {
     option (common.auth) = {
-      permission: "project:read"
+      permission : "project:read"
     };
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
     };
     option (google.api.http) = {
-      get: "/api/v1/processors/{project_owner}/{project_slug}/status"
+      get : "/api/v1/processors/{project_owner}/{project_slug}/status"
     };
   };
 
-  rpc RemoveProcessor (ProcessorIdRequest) returns (RemoveProcessorResponse) {
+  rpc RemoveProcessor(ProcessorIdRequest) returns (RemoveProcessorResponse) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      delete: "/api/v1/processors/{id}"
+      delete : "/api/v1/processors/{id}"
     };
   };
 
-  rpc GetProcessorUpgradeHistories (GetProcessorUpgradeHistoryRequest) returns (GetProcessorUpgradeHistoryResponse) {
+  rpc GetProcessorUpgradeHistories(GetProcessorUpgradeHistoryRequest)
+      returns (GetProcessorUpgradeHistoryResponse) {
     option (common.auth) = {
-      permission: "project:read"
+      permission : "project:read"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      get: "/api/v1/processors/{processor_id}/history"
+      get : "/api/v1/processors/{processor_id}/history"
     };
   }
 
-  rpc PauseProcessor (PauseProcessorRequest) returns (google.protobuf.Empty) {
+  rpc PauseProcessor(PauseProcessorRequest) returns (google.protobuf.Empty) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      put: "/api/v1/processors/{processor_id}/pause",
-      body: "*"
+      put : "/api/v1/processors/{processor_id}/pause",
+      body : "*"
     };
   };
 
-  rpc ResumeProcessor (GetProcessorRequest) returns (google.protobuf.Empty) {
+  rpc ResumeProcessor(GetProcessorRequest) returns (google.protobuf.Empty) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      put: "/api/v1/processors/{processor_id}/resume"
+      put : "/api/v1/processors/{processor_id}/resume"
     };
   };
 
-  rpc SetVersionActive (GetProcessorRequest) returns (google.protobuf.Empty) {
+  rpc SetVersionActive(GetProcessorRequest) returns (google.protobuf.Empty) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      put: "/api/v1/processors/{processor_id}/active"
+      put : "/api/v1/processors/{processor_id}/active"
     };
   };
 
   // activate the pending version of a processor
-  rpc ActivatePendingVersion (ActivatePendingRequest) returns (google.protobuf.Empty) {
+  rpc ActivatePendingVersion(ActivatePendingRequest)
+      returns (google.protobuf.Empty) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
     };
     option (google.api.http) = {
-      put: "/api/v1/processors/{project_owner}/{project_slug}/activate_pending"
+      put : "/api/v1/processors/{project_owner}/{project_slug}/activate_pending"
     };
   };
 
-  rpc RestartProcessor (GetProcessorRequest) returns (google.protobuf.Empty) {
+  rpc RestartProcessor(GetProcessorRequest) returns (google.protobuf.Empty) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      put: "/api/v1/processors/{processor_id}/restart"
+      put : "/api/v1/processors/{processor_id}/restart"
     };
   };
 
-  rpc InitUpload (InitUploadRequest) returns (InitUploadResponse) {
+  rpc InitUpload(InitUploadRequest) returns (InitUploadResponse) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      post: "/api/v1/processors/init_upload",
-      body: "*"
+      post : "/api/v1/processors/init_upload",
+      body : "*"
     };
   }
 
-  rpc FinishUpload (FinishUploadRequest) returns (FinishUploadResponse) {
+  rpc FinishUpload(FinishUploadRequest) returns (FinishUploadResponse) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      post: "/api/v1/processors/finish_upload",
-      body: "*"
+      post : "/api/v1/processors/finish_upload",
+      body : "*"
     };
   }
 
-  rpc InitBatchUpload (InitBatchUploadRequest) returns (InitBatchUploadResponse) {
+  rpc InitBatchUpload(InitBatchUploadRequest)
+      returns (InitBatchUploadResponse) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      post: "/api/v1/processors/init_batch_upload",
-      body: "*"
+      post : "/api/v1/processors/init_batch_upload",
+      body : "*"
     };
   }
 
-  rpc FinishBatchUpload (FinishBatchUploadRequest) returns (FinishBatchUploadResponse) {
+  rpc FinishBatchUpload(FinishBatchUploadRequest)
+      returns (FinishBatchUploadResponse) {
     option (common.auth) = {
-      permission: "project:write"
+      permission : "project:write"
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      post: "/api/v1/processors/finish_batch_upload",
-      body: "*"
+      post : "/api/v1/processors/finish_batch_upload",
+      body : "*"
     };
   }
-
 }
 
 message InitUploadRequest {
@@ -224,12 +236,14 @@ message FinishUploadRequest {
   bool debug = 6;
   int32 sequence = 7;
   int32 continue_from = 8;
-  map<string, uint64> rollback = 13; // only valid when continue_from is not 0, key is chainID
+  map<string, uint64> rollback =
+      13; // only valid when continue_from is not 0, key is chainID
   string cli_version = 9;
   repeated NetworkOverride network_overrides = 10;
   repeated string warnings = 11;
   bool binary = 12;
   int32 num_workers = 14;
+  optional string sentio_network = 15;
 }
 
 message FinishUploadResponse {
@@ -243,12 +257,12 @@ message InitBatchUploadRequest {
   string project_owner = 2;
   string sdk_version = 3;
   StorageEngine engine = 4;
-  map <string,FileType> file_types = 5; // map of file_key to file_type
+  map<string, FileType> file_types = 5; // map of file_key to file_type
 }
 
 message UploadPayload {
   oneof payload {
-    ObjectPayload object= 1;
+    ObjectPayload object = 1;
     WalrusPayload walrus = 2;
     IpfsPayload ipfs = 4;
   }
@@ -280,7 +294,8 @@ message InitBatchUploadResponse {
   bool multi_version = 3;
   string project_id = 4;
   StorageEngine engine = 5; // the storage engine to use
-  map<string, UploadPayload> payloads = 6; // map of file_key to payload for each file
+  map<string, UploadPayload> payloads =
+      6; // map of file_key to payload for each file
 }
 
 message FinishBatchUploadRequest {
@@ -292,14 +307,17 @@ message FinishBatchUploadRequest {
   string git_url = 6;
   bool debug = 7;
   int32 continue_from = 8;
-  map<string, uint64> rollback = 15; // only valid when continue_from is not 0, key is chainID
+  map<string, uint64> rollback =
+      15; // only valid when continue_from is not 0, key is chainID
   string cli_version = 9;
   repeated NetworkOverride network_overrides = 10;
   repeated string warnings = 11;
   bool binary = 12; // whether the processor is binary(otherwise nodejs)
   StorageEngine engine = 13;
-  map<string, UploadPayload> payloads = 14; // map of file_key to payload received from init batch upload
+  map<string, UploadPayload> payloads =
+      14; // map of file_key to payload received from init batch upload
   int32 num_workers = 16;
+  optional string sentio_network = 17;
 }
 
 message FinishBatchUploadResponse {
@@ -308,30 +326,17 @@ message FinishBatchUploadResponse {
   string processor_id = 3;
 }
 
-message DownloadProcessorRequest {
-  string processor_id = 1;
-}
+message DownloadProcessorRequest { string processor_id = 1; }
 
-message DownloadProcessorResponse {
-  string url = 1;
-}
+message DownloadProcessorResponse { string url = 1; }
 
+message GetProcessorsRequest { string project_id = 1; }
 
-message GetProcessorsRequest {
-  string project_id = 1;
-}
+message GetProcessorsResponse { repeated Processor processors = 1; }
 
-message GetProcessorsResponse {
-  repeated Processor processors = 1;
-}
+message GetProcessorRequest { string processor_id = 1; }
 
-message GetProcessorRequest {
-  string processor_id = 1;
-}
-
-message GetProcessorResponse {
-  Processor processor = 1;
-}
+message GetProcessorResponse { Processor processor = 1; }
 
 message GetProcessorWithProjectResponse {
   Processor processor = 1;
@@ -344,8 +349,7 @@ message UpdateChainProcessorStatusRequest {
   ChainState chain_state = 2;
 }
 
-message UpdateChainProcessorStatusResponse {
-}
+message UpdateChainProcessorStatusResponse {}
 
 message ChainState {
   // The chain id.
@@ -449,7 +453,7 @@ message Processor {
   // The k8s cluster id of this processor
   int32 k8s_cluster_id = 19;
 
-  bool enable_materialized_view = 16 [deprecated = true];
+  bool enable_materialized_view = 16 [ deprecated = true ];
 
   string reference_project_id = 17;
 
@@ -496,10 +500,15 @@ message GetProcessorStatusRequestV2 {
     PENDING = 1;
     // All version
     ALL = 2;
-
   }
-  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
-  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  string project_owner = 1
+      [ (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        field_configuration : {path_param_name : "owner"}
+      } ];
+  string project_slug = 2
+      [ (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        field_configuration : {path_param_name : "slug"}
+      } ];
 
   VersionSelector version = 3;
 }
@@ -553,30 +562,28 @@ message GetProcessorStatusResponse {
   }
 }
 
-message ProcessorIdRequest {
-  string id = 1;
-}
+message ProcessorIdRequest { string id = 1; }
 
-message RemoveProcessorResponse {
-  Processor deleted = 1;
-}
+message RemoveProcessorResponse { Processor deleted = 1; }
 
 message ActivatePendingRequest {
-  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
-  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  string project_owner = 1
+      [ (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        field_configuration : {path_param_name : "owner"}
+      } ];
+  string project_slug = 2
+      [ (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+        field_configuration : {path_param_name : "slug"}
+      } ];
 }
 
-message GetProcessorUpgradeHistoryRequest {
-  string processor_id = 1;
-}
+message GetProcessorUpgradeHistoryRequest { string processor_id = 1; }
 
 message GetProcessorUpgradeHistoryResponse {
   repeated ProcessorUpgradeHistory histories = 1;
 }
 
-message GetProjectVariablesRequest {
-  string project_id = 1;
-}
+message GetProjectVariablesRequest { string project_id = 1; }
 
 message SetProcessorEntitySchemaRequest {
   string processor_id = 1;
@@ -607,48 +614,47 @@ message RunProcessorRequest {
   int32 num_workers = 7;
 
   bool is_binary = 8;
-  // The project id this processor belongs to. Will assign default project if empty.
+  // The project id this processor belongs to. Will assign default project if
+  // empty.
   string project_id = 9;
 }
 
-message StopProcessorRequest {
-  string processor_id = 1;
-}
+message StopProcessorRequest { string processor_id = 1; }
 
 // Processor runtime service(needed by sentio-node)
 service ProcessorRuntimeService {
-  rpc RunProcessor (RunProcessorRequest) returns (Processor){
+  rpc RunProcessor(RunProcessorRequest) returns (Processor) {
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      post: "/api/v1/processors/run",
-      body: "*"
+      post : "/api/v1/processors/run",
+      body : "*"
     };
   };
-  rpc StopProcessor (StopProcessorRequest) returns (google.protobuf.Empty) {
+  rpc StopProcessor(StopProcessorRequest) returns (google.protobuf.Empty) {
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      post: "/api/v1/processors/stop",
-      body: "*"
-    };
-  };
-
-  rpc GetProcessorStatus (GetProcessorStatusRequest) returns (GetProcessorStatusResponse) {
-    option (google.api.method_visibility).restriction = "INTERNAL";
-
-    option (google.api.http) = {
-      get: "/api/v1/processors/status"
+      post : "/api/v1/processors/stop",
+      body : "*"
     };
   };
 
-
-  rpc GetLogs (GetLogsRequest) returns (GetLogsResponse) {
+  rpc GetProcessorStatus(GetProcessorStatusRequest)
+      returns (GetProcessorStatusResponse) {
     option (google.api.method_visibility).restriction = "INTERNAL";
 
     option (google.api.http) = {
-      post: "/api/v1/processors/{processor_id}/logs",
-      body: "*"
+      get : "/api/v1/processors/status"
+    };
+  };
+
+  rpc GetLogs(GetLogsRequest) returns (GetLogsResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post : "/api/v1/processors/{processor_id}/logs",
+      body : "*"
     };
   }
 }

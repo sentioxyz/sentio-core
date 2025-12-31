@@ -3,6 +3,7 @@ package processor
 import (
 	"context"
 	"fmt"
+	"sentioxyz/sentio-core/common/chains"
 	"sentioxyz/sentio-core/common/gonanoid"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/processor"
@@ -229,6 +230,7 @@ func (s *Service) FinishUpload(
 			Binary:           req.Binary,
 		},
 		models.SubgraphProcessorProperties{},
+		models.SentioNetworkProperties{ChainID: chains.ChainID(req.GetSentioNetwork())},
 	)
 	if err != nil {
 		return nil, err
@@ -500,6 +502,7 @@ func (s *Service) FinishBatchUpload(
 			Binary:           req.Binary,
 		},
 		models.SubgraphProcessorProperties{},
+		models.SentioNetworkProperties{ChainID: chains.ChainID(req.GetSentioNetwork())},
 	)
 	if err != nil {
 		return nil, err

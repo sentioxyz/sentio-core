@@ -614,6 +614,7 @@ func (s *Service) CreateOrUpdateProcessor(
 	numWorkers int32,
 	sentioProperties models.SentioProcessorProperties,
 	subgraphProperties models.SubgraphProcessorProperties,
+	sentioNetworkProperties models.SentioNetworkProperties,
 ) (p *models.Processor, err error) {
 	return s.processorFactory.CreateOrUpdateProcessor(
 		ctx,
@@ -624,6 +625,7 @@ func (s *Service) CreateOrUpdateProcessor(
 		numWorkers,
 		sentioProperties,
 		subgraphProperties,
+		sentioNetworkProperties,
 		s.activateProcessor,
 	)
 }

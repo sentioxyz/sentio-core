@@ -26,6 +26,7 @@ func (d *DefaultProcessorFactory) CreateOrUpdateProcessor(
 	numWorkers int32,
 	sentioProperties models.SentioProcessorProperties,
 	subgraphProperties models.SubgraphProcessorProperties,
+	sentioNetworkProperties models.SentioNetworkProperties,
 	activateProcessor func(ctx context.Context, processor *models.Processor, upgrade bool) error) (p *models.Processor, err error) {
 	err = d.processorRepo.WithTransaction(ctx, func(ctx context.Context) error {
 		p, err = d.processorRepo.CreateOrUpdateProcessor(
@@ -39,6 +40,7 @@ func (d *DefaultProcessorFactory) CreateOrUpdateProcessor(
 			numWorkers,
 			sentioProperties,
 			subgraphProperties,
+			sentioNetworkProperties,
 		)
 		if err != nil {
 			return err

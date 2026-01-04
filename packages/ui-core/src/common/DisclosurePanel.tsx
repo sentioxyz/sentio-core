@@ -1,12 +1,11 @@
-import { ReactNode } from 'react'
+import { type ReactNode, type FC, useState, useCallback } from 'react'
 import { cx as classNames } from 'class-variance-authority'
 import isFunction from 'lodash/isFunction'
-import { useState, useCallback } from 'react'
 import { LuChevronRight } from 'react-icons/lu'
 
 interface Props {
   defaultOpen?: boolean
-  children: ReactNode
+  children?: ReactNode
   title: string | ReactNode | ((open: boolean) => ReactNode)
   titleClassName?: string
   containerClassName?: string
@@ -14,7 +13,7 @@ interface Props {
   className?: string
 }
 
-export function DisclosurePanel({
+export const DisclosurePanel: FC<Props> = ({
   title,
   children,
   defaultOpen,
@@ -22,7 +21,7 @@ export function DisclosurePanel({
   containerClassName,
   iconClassName = 'h-5 w-5',
   titleClassName
-}: Props) {
+}) => {
   const [open, setOpen] = useState(defaultOpen || false)
 
   const toggle = useCallback(() => {

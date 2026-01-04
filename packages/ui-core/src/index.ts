@@ -4,14 +4,19 @@ import './styles.css'
 export { BarLoading } from './common/BarLoading'
 export { SpinLoading } from './common/SpinLoading'
 export { CopyButton, CopyIcon, CopySuccessIcon } from './common/CopyButton'
-export { NewButton as Button } from './common/NewButton'
-export { BaseDialog } from './common/dialog/BaseDialog'
+export {
+  NewButton as Button,
+  type ButtonProps,
+  buttonClass,
+  Proccessing
+} from './common/NewButton'
+export { BaseDialog, BaseZIndexContext } from './common/dialog/BaseDialog'
 export { PopoverTooltip } from './common/DivTooltip'
 export { DisclosurePanel } from './common/DisclosurePanel'
 export { Collapse } from './common/Collapse'
 export { Input } from './common/Input'
 export { RadioSelect } from './common/select/Radio'
-export { Switch } from './common/select/Switch'
+export { Switch, type SwitchProps } from './common/select/Switch'
 export { Select, type SelectProps } from './common/select/Select'
 export { FlatTree } from './common/tree/FlatTree'
 export { LinkifyText } from './common/text/LinkifyText'

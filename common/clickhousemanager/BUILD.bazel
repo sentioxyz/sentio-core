@@ -9,6 +9,7 @@ go_library(
         "constants.go",
         "error_code_map.go",
         "manager.go",
+        "roles.go",
         "sharding.go",
         "sharding_impl.go",
     ],

@@ -244,6 +244,7 @@ message FinishUploadRequest {
   bool binary = 12;
   int32 num_workers = 14;
   optional string sentio_network = 15;
+  repeated string required_chains = 18;
 }
 
 message FinishUploadResponse {
@@ -318,6 +319,7 @@ message FinishBatchUploadRequest {
       14; // map of file_key to payload received from init batch upload
   int32 num_workers = 16;
   optional string sentio_network = 17;
+  repeated string required_chains = 19;
 }
 
 message FinishBatchUploadResponse {
@@ -475,6 +477,7 @@ message Processor {
   bool is_binary = 24;
 
   string chain_id = 29;
+  repeated string required_chains = 30;
 }
 
 message ProcessorUpgradeHistory {

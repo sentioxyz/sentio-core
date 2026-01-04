@@ -41,6 +41,10 @@ func (s *ShardingParameter) shardingConnectionKey() shardingConnectionKey {
 	return shardingConnectionKey(s.Role + "[proxy:" + anyutil.ToString(s.UnderlyingProxy) + ",signature:" + anyutil.ToString(s.EnableSignature) + "]")
 }
 
+func (s *ShardingParameter) shardingCredentialsKey() string {
+	return s.Category + "_" + s.Role
+}
+
 type sharding struct {
 	index              int
 	credentials        map[string]Credential
@@ -64,10 +68,10 @@ func (s *sharding) formatDSN(username, password, database, addr string) string {
 }
 
 func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
-	cred, ok := s.credentials[parameter.Role]
+	cred, ok := s.credentials[parameter.shardingCredentialsKey()]
 	if !ok {
-		log.Errorf("credential not found for role %s", parameter.Role)
-		return nil, fmt.Errorf("credential not found for role %s", parameter.Role)
+		log.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
+		return nil, fmt.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 	}
 	var addr string
 	if parameter.UnderlyingProxy {
@@ -85,7 +89,7 @@ func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
 	}
 	if addr == "" {
 		return nil, fmt.Errorf("no address configured for role %s (internal=%v, proxy=%v)",
-			parameter.Role, parameter.InternalOnly, parameter.UnderlyingProxy)
+			parameter.shardingCredentialsKey(), parameter.InternalOnly, parameter.UnderlyingProxy)
 	}
 
 	conn := NewOrGetConn(s.formatDSN(cred.Username, cred.Password, cred.Database, addr))
@@ -94,10 +98,10 @@ func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
 }
 
 func (s *sharding) connectReplicas(parameter *ShardingParameter) ([]Conn, error) {
-	cred, ok := s.credentials[parameter.Role]
+	cred, ok := s.credentials[parameter.shardingCredentialsKey()]
 	if !ok {
-		log.Errorf("credential not found for role %s", parameter.Role)
-		return nil, fmt.Errorf("credential not found for role %s", parameter.Role)
+		log.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
+		return nil, fmt.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 	}
 
 	var (
@@ -122,7 +126,7 @@ func (s *sharding) GetIndex() int {
 }
 
 func (s *sharding) GetConn(options ...func(parameter *ShardingParameter)) (Conn, error) {
-	var parameter = &ShardingParameter{}
+	var parameter = NewShardingParameter()
 	for _, opt := range options {
 		opt(parameter)
 	}
@@ -135,7 +139,7 @@ func (s *sharding) GetConn(options ...func(parameter *ShardingParameter)) (Conn,
 }
 
 func (s *sharding) GetConnAllReplicas(options ...func(parameter *ShardingParameter)) ([]Conn, error) {
-	var parameter = &ShardingParameter{}
+	var parameter = NewShardingParameter()
 	for _, opt := range options {
 		opt(parameter)
 	}

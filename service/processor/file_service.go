@@ -230,7 +230,10 @@ func (s *Service) FinishUpload(
 			Binary:           req.Binary,
 		},
 		models.SubgraphProcessorProperties{},
-		models.SentioNetworkProperties{ChainID: chains.ChainID(req.GetSentioNetwork())},
+		models.SentioNetworkProperties{
+			ChainID:        chains.ChainID(req.GetSentioNetwork()),
+			RequiredChains: req.RequiredChains,
+		},
 	)
 	if err != nil {
 		return nil, err
@@ -502,7 +505,10 @@ func (s *Service) FinishBatchUpload(
 			Binary:           req.Binary,
 		},
 		models.SubgraphProcessorProperties{},
-		models.SentioNetworkProperties{ChainID: chains.ChainID(req.GetSentioNetwork())},
+		models.SentioNetworkProperties{
+			ChainID:        chains.ChainID(req.GetSentioNetwork()),
+			RequiredChains: req.RequiredChains,
+		},
 	)
 	if err != nil {
 		return nil, err

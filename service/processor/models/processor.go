@@ -27,7 +27,9 @@ type NetworkOverride struct {
 func BuildNetworkOverrides(data []*protos.NetworkOverride) []NetworkOverride {
 	networkOverrides := make([]NetworkOverride, len(data))
 	for i, no := range data {
-		networkOverrides[i] = NetworkOverride{Chain: no.GetChain(), Host: no.GetHost()}
+		if len(no.GetHost()) > 0 {
+			networkOverrides[i] = NetworkOverride{Chain: no.GetChain(), Host: no.GetHost()}
+		}
 	}
 	return networkOverrides
 }
@@ -95,7 +97,8 @@ type ReferenceProcessorProperties struct {
 }
 
 type SentioNetworkProperties struct {
-	ChainID chains.ChainID `gorm:"column:'sentio_network_chain_id'"` // default to empty string for non-sentio network processors
+	ChainID        chains.ChainID `gorm:"column:'sentio_network_chain_id'"` // default to empty string for non-sentio network processors
+	RequiredChains []string       `gorm:"column:'sentio_network_required_chains';type:text[]"`
 }
 
 func (p *ProcessorUpgradeHistory) BeforeCreate(tx *gorm.DB) (err error) {
@@ -327,6 +330,7 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		PauseReason:             p.PauseReason,
 		IsBinary:                p.Binary,
 		ChainId:                 string(p.ChainID),
+		RequiredChains:          p.RequiredChains,
 	}
 
 	return ret, nil
@@ -374,6 +378,7 @@ func (p *Processor) FromPB(processor *protos.Processor) error {
 		*p.ContractID = processor.ContractId
 	}
 	p.VersionState = int32(processor.VersionState.Number())
+	p.RequiredChains = processor.RequiredChains
 	return nil
 }
 

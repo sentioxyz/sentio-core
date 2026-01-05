@@ -111,6 +111,7 @@ use_repo(
     "com_github_knadh_koanf_parsers_json",
     "com_github_knadh_koanf_v2",
     "com_github_matoous_go_nanoid_v2",
+    "com_github_mitchellh_hashstructure_v2",
     "com_github_patrickmn_go_cache",
     "com_github_pkg_errors",
     "com_github_prometheus_client_golang",

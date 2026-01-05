@@ -24,6 +24,6 @@ export const CustomWidth = () => (
 
 export const GrayStyle = () => (
   <div style={{ height: 200 }}>
-    <BarLoading gray={true} hint="Gray style loading" />
+    <BarLoading hint="Gray style loading" />
   </div>
 )

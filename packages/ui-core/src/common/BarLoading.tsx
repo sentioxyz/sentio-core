@@ -7,18 +7,16 @@ interface Props {
   hint?: React.ReactNode
   loading?: boolean
   className?: string
-  iconClassName?: string
   width?: LoaderHeightWidthProps['width']
-  gray?: boolean
+  logo?: React.ReactNode
 }
 
 function _BarLoading({
   hint = 'Loading Sentio',
   loading = true,
   className,
-  iconClassName,
   width = 150,
-  gray
+  logo
 }: Props) {
   if (loading) {
     return (
@@ -28,6 +26,8 @@ function _BarLoading({
           className
         )}
       >
+        {logo}
+
         {hint && (
           <div className="loading-text text-icontent text-gray my-2 text-center font-medium">
             {hint}

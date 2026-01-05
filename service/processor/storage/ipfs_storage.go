@@ -14,16 +14,14 @@ import (
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/service/common/storagesystem"
 	"sentioxyz/sentio-core/service/processor/protos"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 )
 
 type IPFSStorageEngine struct {
-	client     *http.Client
-	apiURL     string
-	gatewayURL string
+	client *http.Client
+	config IPFSConfig
 }
 
 type IPFSConfig struct {
@@ -31,6 +29,8 @@ type IPFSConfig struct {
 	ApiURL string
 	// Public Gateway URL for retrieving content
 	GatewayURL string
+	PutUrl     string
+	GetUrl     string
 }
 
 type ipfsAddResponse struct {
@@ -47,7 +47,7 @@ func NewIPFSStorageEngine(config IPFSConfig) (*IPFSStorageEngine, error) {
 		config.ApiURL = "http://127.0.0.1:5001"
 	}
 	if config.GatewayURL == "" {
-		config.GatewayURL = "https://ipfs.io"
+		config.GatewayURL = "https://ipfs.io/"
 	}
 
 	client := &http.Client{
@@ -55,13 +55,12 @@ func NewIPFSStorageEngine(config IPFSConfig) (*IPFSStorageEngine, error) {
 	}
 
 	engine := &IPFSStorageEngine{
-		client:     client,
-		apiURL:     strings.TrimSuffix(config.ApiURL, "/"),
-		gatewayURL: strings.TrimSuffix(config.GatewayURL, "/"),
+		client: client,
+		config: config,
 	}
 
 	// Test connection
-	resp, err := client.Post(engine.apiURL+"/api/v0/version", "application/json", nil)
+	resp, err := client.Post(engine.config.ApiURL+"/api/v0/version", "application/json", nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to connect to IPFS node at %s", config.ApiURL)
 	}
@@ -75,17 +74,24 @@ func NewIPFSStorageEngine(config IPFSConfig) (*IPFSStorageEngine, error) {
 }
 
 func (e *IPFSStorageEngine) PreSignedPutUrl(ctx context.Context, bucket, object, contentType string, expireDuration time.Duration) (string, error) {
-	uploadURL := fmt.Sprintf("%s/api/v0/add", e.gatewayURL)
+	if e.config.PutUrl != "" {
+		return e.config.PutUrl, nil
+	}
+	uploadURL := fmt.Sprintf("%s/api/v0/add", e.config.GatewayURL)
 
 	return uploadURL, nil
 }
 
 func (e *IPFSStorageEngine) PreSignedGetUrl(ctx context.Context, bucket, object string, expireDuration time.Duration) (string, error) {
-	if object == "" {
-		return fmt.Sprintf("%s/ipfs/%s", e.gatewayURL, bucket), nil
+	path := bucket
+	if object != "" {
+		path = path + "/" + object
+	}
+	if e.config.GetUrl != "" {
+		return fmt.Sprintf("%s/%s", e.config.GetUrl, path), nil
 	}
 
-	return fmt.Sprintf("%s/ipfs/%s/%s", e.gatewayURL, bucket, object), nil
+	return fmt.Sprintf("%s/ipfs/%s", e.config.GatewayURL, path), nil
 }
 
 func (e *IPFSStorageEngine) CopyFile(ctx context.Context, srcBucket, srcObject, destBucket, destObject string) error {
@@ -110,7 +116,7 @@ func (e *IPFSStorageEngine) Delete(ctx context.Context, bucket, object string) e
 	}
 
 	// Unpin the content
-	apiURL := fmt.Sprintf("%s/api/v0/rm?arg=%s&force=true", e.apiURL, url.QueryEscape(object))
+	apiURL := fmt.Sprintf("%s/api/v0/rm?arg=%s&force=true", e.config.ApiURL, url.QueryEscape(object))
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, nil)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create remove request")
@@ -157,7 +163,7 @@ func (e *IPFSStorageEngine) UploadLocalFile(ctx context.Context, bucket, object,
 	}
 
 	// Build API URL with pin parameter (always enabled)
-	apiURL := fmt.Sprintf("%s/api/v0/add?pin=true", e.apiURL)
+	apiURL := fmt.Sprintf("%s/api/v0/add?pin=true", e.config.ApiURL)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, body)
 	if err != nil {
@@ -197,7 +203,7 @@ func (e *IPFSStorageEngine) ObjectExists(ctx context.Context, bucket string, obj
 	}
 
 	// Try to stat the object
-	apiURL := fmt.Sprintf("%s/api/v0/object/stat?arg=%s", e.apiURL, url.QueryEscape(bucket))
+	apiURL := fmt.Sprintf("%s/api/v0/object/stat?arg=%s", e.config.ApiURL, url.QueryEscape(bucket))
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, nil)
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to create stat request")

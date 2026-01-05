@@ -41,8 +41,8 @@ type Account struct {
 	Status            AccountStatus    `gorm:"default:'active'"`              // active, suspended
 	PrepaidBalance    decimal.Decimal  `gorm:"type:decimal(24,12);default:0"` // Customer's prepaid balance amount in USD (non-negative)
 	// HD Wallet fields
-	AddressIndex  *uint32 `gorm:"uniqueIndex"` // HD wallet index (starts from 1000, NULL if not assigned, immutable after assignment)
-	WalletAddress string  `gorm:"uniqueIndex"` // Ethereum wallet address (0x...)
+	AddressIndex  *uint32 // HD wallet index (starts from 1000, NULL if not assigned, immutable after assignment)
+	WalletAddress string  // Ethereum wallet address (0x...)
 }
 
 func (a *Account) BeforeCreate(tx *gorm.DB) error {

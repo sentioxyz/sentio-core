@@ -42,6 +42,7 @@ export const DisclosurePanel: FC<Props> = ({
           titleClassName
         )}
         onClick={toggle}
+        type="button"
       >
         <LuChevronRight
           className={classNames(

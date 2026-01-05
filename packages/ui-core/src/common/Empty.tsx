@@ -6,7 +6,7 @@ interface EmptyProps {
   title?: React.ReactNode
 }
 
-export const Empty = (props: EmptyProps) => {
+export const Empty: React.FC<EmptyProps> = (props) => {
   const parentFolder = useContext(SvgFolderContext)
   return (
     <div className="mx-auto w-fit">

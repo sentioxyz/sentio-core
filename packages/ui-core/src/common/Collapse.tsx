@@ -1,25 +1,25 @@
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
 import { cx as classNames } from 'class-variance-authority'
 import { useBoolean } from '../utils/use-boolean'
-import { ReactNode, useEffect } from 'react'
+import { type ReactNode, type FC, useEffect } from 'react'
 
 interface CollapseProps {
   title: ReactNode | string
-  children: React.ReactNode
+  children?: ReactNode
   className?: string
   titleClassName?: string
   defaultOpen?: boolean
   iconClassName?: string
 }
 
-export const Collapse = ({
+export const Collapse: FC<CollapseProps> = ({
   title,
   children,
   className,
   titleClassName,
   defaultOpen = false,
   iconClassName = 'h-5 w-5'
-}: CollapseProps) => {
+}) => {
   const { toggle, value: visible, setTrue, setFalse } = useBoolean(defaultOpen)
 
   useEffect(() => {
@@ -51,8 +51,11 @@ export const Collapse = ({
       <div
         className={classNames(
           'overflow-hidden transition-all duration-200',
-          visible ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+          visible ? 'opacity-100' : 'opacity-0'
         )}
+        style={{
+          maxHeight: visible ? '2000px' : '0px'
+        }}
       >
         {children}
       </div>

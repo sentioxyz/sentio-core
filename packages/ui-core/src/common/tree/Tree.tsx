@@ -43,10 +43,8 @@ export default forwardRef<HTMLDivElement, TreeProps>(function Tree(
     onOpenClick,
     showToggle,
     className,
-    expandIcon = <Icons.PlusSquareO className="h-[1em] w-[1em] align-middle" />,
-    collapseIcon = (
-      <Icons.MinusSquareO className="h-[1em] w-[1em] align-middle" />
-    )
+    expandIcon = <Icons.PlusSquareO className="h-4 w-4 align-middle" />,
+    collapseIcon = <Icons.MinusSquareO className="h-4 w-4 align-middle" />
   }: TreeProps,
   ref
 ) {
@@ -57,7 +55,7 @@ export default forwardRef<HTMLDivElement, TreeProps>(function Tree(
   }, [defaultOpen])
 
   const toggle = useCallback(
-    (evt) => {
+    (evt: React.MouseEvent) => {
       evt.stopPropagation()
       if (onOpenClick) {
         onOpenClick(!open)
@@ -97,7 +95,7 @@ export default forwardRef<HTMLDivElement, TreeProps>(function Tree(
         <div className="inline-flex shrink-0 items-center">
           {children || showToggle ? (
             <button
-              className="fill-gray color-gray hover:fill-primary-500 hover:color-primary-500 dark:hover:fill-primary-700 mr-1.5 cursor-pointer"
+              className="text-gray hover:text-primary-500 dark:hover:text-primary-700 mr-1.5 cursor-pointer"
               onClick={toggle}
             >
               {open ? collapseIcon : expandIcon}

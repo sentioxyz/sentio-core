@@ -17,4 +17,6 @@ type StorageSettings struct {
 	WalrusJWTSecret    string
 	IPFSApiURL         string
 	IPFSGatewayURL     string
+	IPFSPutURL         string
+	IPFSGetURL         string
 }

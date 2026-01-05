@@ -1,16 +1,24 @@
 package ckhmanager
 
 import (
+	"crypto/ecdsa"
 	"time"
 
 	"sentioxyz/sentio-core/common/anyutil"
+	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type Options struct {
 	settings                   map[string]any
 	readTimeout, dialTimeout   time.Duration
 	maxIdleConns, maxOpenConns int
+
+	// serialization ignored
+	signature  string
+	privateKey *ecdsa.PrivateKey
 }
 
 func (o *Options) Serialization() string {
@@ -42,12 +50,26 @@ func WithSettings(settings map[string]any) func(o *Options) {
 	}
 }
 
-func WithDialConfig(config struct {
+func WithSignature(sign string) func(o *Options) {
+	return func(o *Options) {
+		o.signature = sign
+		var err error
+		o.privateKey, err = crypto.HexToECDSA(sign)
+		if err != nil {
+			log.Errorf("failed to parse signature: %v", err)
+			panic(err)
+		}
+	}
+}
+
+type dialConfig struct {
 	readTimeout  time.Duration
 	dialTimeout  time.Duration
 	maxIdleConns int
 	maxOpenConns int
-}) func(o *Options) {
+}
+
+func WithDialConfig(config dialConfig) func(o *Options) {
 	return func(o *Options) {
 		o.readTimeout = config.readTimeout
 		o.dialTimeout = config.dialTimeout

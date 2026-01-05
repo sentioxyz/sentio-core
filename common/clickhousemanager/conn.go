@@ -2,14 +2,28 @@ package ckhmanager
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"sync"
 
 	"sentioxyz/sentio-core/common/clickhousemanager/helper"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/utils"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/mitchellh/hashstructure/v2"
 )
+
+var (
+	rawConnections *utils.SafeMap[uint64, driver.Conn]
+	connections    *utils.SafeMap[string, Conn]
+)
+
+func init() {
+	rawConnections = utils.NewSafeMap[uint64, driver.Conn]()
+	connections = utils.NewSafeMap[string, Conn]()
+}
 
 type conn struct {
 	conn        clickhouse.Conn
@@ -17,6 +31,7 @@ type conn struct {
 	dsn         string
 	cluster     string
 	once        sync.Once
+	privateKey  *ecdsa.PrivateKey
 }
 
 func (c *conn) GetClickhouseConn() clickhouse.Conn {
@@ -59,19 +74,31 @@ func (c *conn) Close() {
 	}
 }
 
+func (c *conn) sign(ctx context.Context, query string) context.Context {
+	if c.privateKey == nil {
+		return ctx
+	}
+	signature, err := crypto.Sign(crypto.Keccak256([]byte(query)), c.privateKey)
+	if err != nil {
+		log.Errorf("sign query failed: %v", err)
+		return ctx
+	}
+	return clickhouse.Context(ctx, clickhouse.WithQuotaKey(string(signature)))
+}
+
 func (c *conn) Exec(ctx context.Context, sql string, args ...any) error {
-	return c.conn.Exec(ctx, sql, args...)
+	return c.conn.Exec(c.sign(ctx, sql), sql, args...)
 }
 
 func (c *conn) Query(ctx context.Context, sql string, args ...any) (driver.Rows, error) {
-	return c.conn.Query(ctx, sql, args...)
+	return c.conn.Query(c.sign(ctx, sql), sql, args...)
 }
 
 func (c *conn) QueryRow(ctx context.Context, sql string, args ...any) driver.Row {
-	return c.conn.QueryRow(ctx, sql, args...)
+	return c.conn.QueryRow(c.sign(ctx, sql), sql, args...)
 }
 
-func parseDSN(dsn string, connectOptions ...func(*Options)) *clickhouse.Options {
+func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhouse.Options, *ecdsa.PrivateKey) {
 	ckhOptions := &clickhouse.Options{
 		Addr: []string{"localhost:9000"},
 		Auth: clickhouse.Auth{
@@ -121,41 +148,48 @@ func parseDSN(dsn string, connectOptions ...func(*Options)) *clickhouse.Options 
 	if connOptions.dialTimeout > 0 {
 		ckhOptions.DialTimeout = connOptions.dialTimeout
 	}
-	return ckhOptions
+	return ckhOptions, connOptions.privateKey
 }
 
 func connect(dsn string, connectOptions ...func(*Options)) Conn {
-	ckhOptions := parseDSN(dsn, connectOptions...)
-	ckhConn, err := clickhouse.Open(ckhOptions)
+	ckhOptions, privateKey := parseDSNAndOptions(dsn, connectOptions...)
+	ckhHash, err := hashstructure.Hash(ckhOptions, hashstructure.FormatV2, nil)
+	if err != nil {
+		log.Errorf("hash clickhouse options failed: %v", err)
+		panic(err)
+	}
+	ckhConn, ok := rawConnections.Get(ckhHash)
+	if ok {
+		return &conn{
+			conn:        ckhConn.(clickhouse.Conn),
+			connOptions: ckhOptions,
+			dsn:         dsn,
+			privateKey:  privateKey,
+		}
+	}
+	ckhConn, err = clickhouse.Open(ckhOptions)
 	if err != nil {
 		log.Errorf("connect to clickhouse failed: %v", err)
 		panic(err)
 	}
+	rawConnections.Put(ckhHash, ckhConn)
 	return &conn{
 		conn:        ckhConn,
 		connOptions: ckhOptions,
 		dsn:         dsn,
+		privateKey:  privateKey,
 	}
 }
-
-var (
-	connections      = make(map[string]Conn)
-	connectionsMutex sync.RWMutex
-)
 
 func NewOrGetConn(dsn string, connectOptions ...func(*Options)) Conn {
 	var connOptions = &Options{}
 	for _, opt := range connectOptions {
 		opt(connOptions)
 	}
-	connectionsMutex.RLock()
-	conn, ok := connections[dsn+connOptions.Serialization()]
+	conn, ok := connections.Get(dsn + connOptions.Serialization())
 	if ok {
-		connectionsMutex.RUnlock()
 		return conn
 	}
-	connectionsMutex.RUnlock()
-
 	return NewConn(dsn, connectOptions...)
 }
 
@@ -165,9 +199,7 @@ func NewConn(dsn string, connectOptions ...func(*Options)) Conn {
 		opt(connOptions)
 	}
 
-	connectionsMutex.Lock()
-	defer connectionsMutex.Unlock()
 	conn := connect(dsn, connectOptions...)
-	connections[dsn+connOptions.Serialization()] = conn
+	connections.Put(dsn+connOptions.Serialization(), conn)
 	return conn
 }

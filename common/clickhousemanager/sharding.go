@@ -38,7 +38,7 @@ func ParseAddresses(address map[string]string) Addresses {
 type shardingConnectionKey string
 
 func (s *ShardingParameter) shardingConnectionKey() shardingConnectionKey {
-	return shardingConnectionKey(s.Role + "[proxy:" + anyutil.ToString(s.UnderlyingProxy) + ",signature:" + anyutil.ToString(s.EnableSignature) + "]")
+	return shardingConnectionKey(s.Role + "[proxy:" + anyutil.ToString(s.UnderlyingProxy) + ",signature:" + anyutil.ToString(s.PrivateKey) + "]")
 }
 
 func (s *ShardingParameter) shardingCredentialsKey() string {
@@ -46,18 +46,23 @@ func (s *ShardingParameter) shardingCredentialsKey() string {
 }
 
 type sharding struct {
-	index              int
+	index              int32
+	name               string
 	credentials        map[string]Credential
 	addresses          Addresses
 	connections        *utils.SafeMap[shardingConnectionKey, Conn]
 	connectionReplicas *utils.SafeMap[shardingConnectionKey, []Conn]
+	opts               []func(*Options)
 }
 
-func NewSharding(index int, credentials map[string]Credential, addresses map[string]string) Sharding {
+func NewSharding(index int32, name string, credentials map[string]Credential,
+	addresses map[string]string, opts ...func(*Options)) Sharding {
 	return &sharding{
 		index:              index,
+		name:               name,
 		credentials:        credentials,
 		addresses:          ParseAddresses(addresses),
+		opts:               opts,
 		connections:        utils.NewSafeMap[shardingConnectionKey, Conn](),
 		connectionReplicas: utils.NewSafeMap[shardingConnectionKey, []Conn](),
 	}
@@ -92,7 +97,13 @@ func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
 			parameter.shardingCredentialsKey(), parameter.InternalOnly, parameter.UnderlyingProxy)
 	}
 
-	conn := NewOrGetConn(s.formatDSN(cred.Username, cred.Password, cred.Database, addr))
+	var connOptions []func(*Options)
+	connOptions = append(connOptions, s.opts...)
+	if parameter.PrivateKey != "" {
+		connOptions = append(connOptions, WithSignature(parameter.PrivateKey))
+	}
+
+	conn := NewOrGetConn(s.formatDSN(cred.Username, cred.Password, cred.Database, addr), connOptions...)
 	s.connections.Put(parameter.shardingConnectionKey(), conn)
 	return conn, nil
 }
@@ -114,14 +125,20 @@ func (s *sharding) connectReplicas(parameter *ShardingParameter) ([]Conn, error)
 		addrs = s.addresses.ExternalTCPReplicas
 	}
 
+	var connOptions []func(*Options)
+	connOptions = append(connOptions, s.opts...)
+	if parameter.PrivateKey != "" {
+		connOptions = append(connOptions, WithSignature(parameter.PrivateKey))
+	}
+
 	for _, addr := range addrs {
-		connections = append(connections, NewOrGetConn(s.formatDSN(cred.Username, cred.Password, cred.Database, addr)))
+		connections = append(connections, NewOrGetConn(s.formatDSN(cred.Username, cred.Password, cred.Database, addr), connOptions...))
 	}
 	s.connectionReplicas.Put(parameter.shardingConnectionKey(), connections)
 	return connections, nil
 }
 
-func (s *sharding) GetIndex() int {
+func (s *sharding) GetIndex() int32 {
 	return s.index
 }
 

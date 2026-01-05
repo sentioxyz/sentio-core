@@ -56,6 +56,10 @@
     "swr": "^2"
   },
   "devDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "@ladle/react": "^5.1.1",
     "@types/dom-to-image": "^2.6.7",
     "@types/react-copy-to-clipboard": "^5.0.7",

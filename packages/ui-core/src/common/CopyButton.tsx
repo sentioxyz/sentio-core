@@ -3,7 +3,7 @@
 import {
   type CSSProperties,
   type FC,
-  type PropsWithChildren,
+  type ReactNode,
   useState,
   useCallback,
   useRef,
@@ -54,9 +54,10 @@ interface Props {
   hover?: boolean
   placement?: 'left' | 'right'
   className?: string
+  children?: ReactNode
 }
 
-export const CopyButton: FC<PropsWithChildren<Props>> = ({
+export const CopyButton: FC<Props> = ({
   text = '',
   size = 16,
   ml,
@@ -145,9 +146,13 @@ export const CopyButton: FC<PropsWithChildren<Props>> = ({
     maxHeight: `${size}px`,
     marginLeft: ml !== undefined ? `${ml}px` : undefined,
     marginRight: mr !== undefined ? `${mr}px` : undefined,
-    visibility: 
-      !isPureComponent && hover 
-        ? (isMobile ? 'visible' : (isHovered ? 'visible' : 'hidden'))
+    visibility:
+      !isPureComponent && hover
+        ? isMobile
+          ? 'visible'
+          : isHovered
+            ? 'visible'
+            : 'hidden'
         : 'visible'
   }
 

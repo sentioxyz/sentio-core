@@ -1,7 +1,7 @@
 /**
  * The differece between this and the PopoverTooltip.tsx is that this one pass mouse click event to the parent
  */
-import React, { useRef, useState, useEffect } from 'react'
+import React, { type FC, useRef, useState, useEffect } from 'react'
 import {
   useFloating,
   useHover,
@@ -37,7 +37,7 @@ interface Props {
   animationDuration?: number
 }
 
-export const PopoverTooltip = ({
+export const PopoverTooltip: FC<Props> = ({
   icon,
   text,
   className,
@@ -52,7 +52,7 @@ export const PopoverTooltip = ({
   usePortal = false,
   enableFadeAnimation = false,
   animationDuration = 150
-}: Props) => {
+}) => {
   const arrowRef = useRef(null)
   const [open, setOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
@@ -161,7 +161,7 @@ export const PopoverTooltip = ({
             >
               {!hideArrow && placement === 'bottom' && (
                 <div
-                  className="arrow -translate-y-[5px] before:absolute before:h-2 before:w-2 before:rotate-45 before:bg-white before:border-l before:border-t before:border-black/5 dark:before:bg-sentio-gray-200 dark:before:border-gray-100"
+                  className="arrow dark:before:bg-sentio-gray-200 -translate-y-[5px] before:absolute before:h-2 before:w-2 before:rotate-45 before:border-l before:border-t before:border-black/5 before:bg-white dark:before:border-gray-100"
                   ref={arrowRef}
                   style={{
                     left: arrowX ?? 0,
@@ -177,12 +177,7 @@ export const PopoverTooltip = ({
                   {text}
                 </p>
               ) : (
-                <div
-                  className={classNames(
-                    'w-max overflow-auto',
-                    maxWidth
-                  )}
-                >
+                <div className={classNames('w-max overflow-auto', maxWidth)}>
                   {text}
                 </div>
               )}

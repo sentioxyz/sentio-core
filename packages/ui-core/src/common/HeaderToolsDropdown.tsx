@@ -1,6 +1,6 @@
 import { LuChevronDown, LuChevronUp } from 'react-icons/lu'
 import { cx as classNames } from 'class-variance-authority'
-import { ReactNode } from 'react'
+import { type ReactNode, type FC } from 'react'
 
 interface HeaderToolsToggleButtonProps {
   isOpen: boolean
@@ -8,11 +8,11 @@ interface HeaderToolsToggleButtonProps {
   className?: string
 }
 
-export const HeaderToolsToggleButton = ({
+export const HeaderToolsToggleButton: FC<HeaderToolsToggleButtonProps> = ({
   isOpen,
   onClick,
   className
-}: HeaderToolsToggleButtonProps) => {
+}) => {
   return (
     <button
       onClick={onClick}
@@ -35,15 +35,15 @@ export const HeaderToolsToggleButton = ({
 
 interface HeaderToolsContentProps {
   isOpen: boolean
-  children: ReactNode
+  children?: ReactNode
   className?: string
 }
 
-export const HeaderToolsContent = ({
+export const HeaderToolsContent: FC<HeaderToolsContentProps> = ({
   isOpen,
   children,
   className
-}: HeaderToolsContentProps) => {
+}) => {
   if (!isOpen) {
     return null
   }

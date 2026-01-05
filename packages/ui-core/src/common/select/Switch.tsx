@@ -95,11 +95,11 @@ const labelClass = cva(
   }
 )
 
-export interface Props {
+export interface SwitchProps {
   checked?: boolean
   onChange?: (checked: boolean) => void
   srText?: string
-  size: 'lg' | 'default' | 'sm'
+  size?: 'lg' | 'default' | 'sm'
   disabled?: boolean
   label?: string
 }
@@ -111,7 +111,7 @@ export function Switch({
   size = 'default',
   disabled,
   label
-}: Props) {
+}: SwitchProps) {
   const [enabled, setState] = useState(checked)
 
   const onChange = useCallback(() => {

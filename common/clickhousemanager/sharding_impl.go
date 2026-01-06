@@ -4,6 +4,8 @@ type Sharding interface {
 	GetIndex() int32
 	GetConn(...func(*ShardingParameter)) (Conn, error)
 	GetConnAllReplicas(...func(*ShardingParameter)) ([]Conn, error)
+	GetConnInfo(...func(*ShardingParameter)) (string, string, string, string, error)
+	GetConnDSN(...func(*ShardingParameter)) (string, error)
 }
 
 type ShardingParameter struct {

@@ -74,12 +74,13 @@ func (s *sharding) formatDSN(username, password, database, addr string) string {
 	return "clickhouse://" + username + ":" + password + "@" + addr + "/" + database
 }
 
-func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
+func (s *sharding) getCredential(parameter *ShardingParameter) (Credential, string, error) {
 	cred, ok := s.credentials[parameter.shardingCredentialsKey()]
 	if !ok {
 		log.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
-		return nil, fmt.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
+		return Credential{}, "", fmt.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 	}
+
 	var addr string
 	if parameter.UnderlyingProxy {
 		if parameter.InternalOnly {
@@ -95,8 +96,16 @@ func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
 		}
 	}
 	if addr == "" {
-		return nil, fmt.Errorf("no address configured for role %s (internal=%v, proxy=%v)",
+		return Credential{}, "", fmt.Errorf("no address configured for role %s (internal=%v, proxy=%v)",
 			parameter.shardingCredentialsKey(), parameter.InternalOnly, parameter.UnderlyingProxy)
+	}
+	return cred, addr, nil
+}
+
+func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
+	cred, addr, err := s.getCredential(parameter)
+	if err != nil {
+		return nil, err
 	}
 
 	var connOptions []func(*Options)
@@ -168,4 +177,29 @@ func (s *sharding) GetConnAllReplicas(options ...func(parameter *ShardingParamet
 		return conn, nil
 	}
 	return s.connectReplicas(parameter)
+}
+
+func (s *sharding) GetConnInfo(options ...func(parameter *ShardingParameter)) (string, string, string, string, error) {
+	var parameter = NewShardingParameter()
+	for _, opt := range options {
+		opt(parameter)
+	}
+
+	cred, addr, err := s.getCredential(parameter)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	return cred.Username, cred.Password, cred.Database, addr, nil
+}
+
+func (s *sharding) GetConnDSN(options ...func(parameter *ShardingParameter)) (string, error) {
+	var parameter = NewShardingParameter()
+	for _, opt := range options {
+		opt(parameter)
+	}
+	cred, addr, err := s.getCredential(parameter)
+	if err != nil {
+		return "", err
+	}
+	return s.formatDSN(cred.Username, cred.Password, cred.Database, addr), nil
 }

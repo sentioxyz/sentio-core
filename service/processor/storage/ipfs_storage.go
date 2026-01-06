@@ -105,7 +105,7 @@ func (e *IPFSStorageEngine) GetUrl(ctx context.Context, bucket, object string) s
 		return fmt.Sprintf("%s%s/%s", IPFSPrefix, bucket, object)
 	}
 	// object is the CID
-	return fmt.Sprintf("%s/%s", IPFSPrefix, object)
+	return fmt.Sprintf("%s%s", IPFSPrefix, object)
 
 }
 

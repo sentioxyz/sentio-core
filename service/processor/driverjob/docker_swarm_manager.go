@@ -805,7 +805,7 @@ func (d *DockerSwarmManager) findServicesByProcessorID(ctx context.Context, proc
 	return services, nil
 }
 
-func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Processor, limit int32, after string) ([]Log, string, error) {
+func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Processor, limit int32, after, query string) ([]Log, string, error) {
 	services, err := d.findServicesByProcessorID(ctx, processor.ID)
 	if err != nil {
 		return nil, "", err
@@ -857,6 +857,10 @@ func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Proc
 
 			ts, err := time.Parse(time.RFC3339Nano, tsStr)
 			if err != nil {
+				continue
+			}
+
+			if len(query) > 0 && !strings.Contains(strings.ToLower(msg), strings.ToLower(query)) {
 				continue
 			}
 

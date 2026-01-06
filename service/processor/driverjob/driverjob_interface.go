@@ -43,7 +43,7 @@ type DriverJobManager interface {
 	GetNamespaceForCluster(clusterID int) string
 
 	// GetLogs fetches logs for the given processor
-	GetLogs(ctx context.Context, processor *models.Processor, limit int32, after string) ([]Log, string, error)
+	GetLogs(ctx context.Context, processor *models.Processor, limit int32, after, query string) ([]Log, string, error)
 }
 
 type Log interface {

@@ -790,7 +790,7 @@ func (s *Service) GetLogs(ctx context.Context, req *protos.GetLogsRequest) (*pro
 		return nil, status.Errorf(codes.NotFound, "processor not found")
 	}
 
-	logs, nextAfter, err := s.driverJobManager.GetLogs(ctx, processor, limit, after)
+	logs, nextAfter, err := s.driverJobManager.GetLogs(ctx, processor, limit, after, req.Query)
 	if err != nil {
 		return nil, err
 	}

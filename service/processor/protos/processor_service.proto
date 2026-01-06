@@ -478,6 +478,7 @@ message Processor {
 
   string chain_id = 29;
   repeated string required_chains = 30;
+  string create_tx_hash = 31;
 }
 
 message ProcessorUpgradeHistory {

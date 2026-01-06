@@ -99,6 +99,7 @@ type ReferenceProcessorProperties struct {
 type SentioNetworkProperties struct {
 	ChainID        chains.ChainID `gorm:"column:'sentio_network_chain_id'"` // default to empty string for non-sentio network processors
 	RequiredChains []string       `gorm:"column:'sentio_network_required_chains';type:text[]"`
+	CreateTxHash   string         // the transaction hash that created the processor
 }
 
 func (p *ProcessorUpgradeHistory) BeforeCreate(tx *gorm.DB) (err error) {
@@ -331,6 +332,7 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		IsBinary:                p.Binary,
 		ChainId:                 string(p.ChainID),
 		RequiredChains:          p.RequiredChains,
+		CreateTxHash:            p.CreateTxHash,
 	}
 
 	return ret, nil

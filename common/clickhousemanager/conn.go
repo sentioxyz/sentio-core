@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"sync"
+	"time"
 
 	"sentioxyz/sentio-core/common/clickhousemanager/helper"
 	"sentioxyz/sentio-core/common/log"
@@ -151,9 +152,27 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 	return ckhOptions, connOptions.privateKey
 }
 
+type ckhHashStruct struct {
+	Addr         []string
+	Auth         clickhouse.Auth
+	Settings     clickhouse.Settings
+	ReadTimeout  time.Duration
+	DialTimeout  time.Duration
+	MaxIdleConns int
+	MaxOpenConns int
+}
+
 func connect(dsn string, connectOptions ...func(*Options)) Conn {
 	ckhOptions, privateKey := parseDSNAndOptions(dsn, connectOptions...)
-	ckhHash, err := hashstructure.Hash(ckhOptions, hashstructure.FormatV2, nil)
+	ckhHash, err := hashstructure.Hash(ckhHashStruct{
+		Addr:         ckhOptions.Addr,
+		Auth:         ckhOptions.Auth,
+		Settings:     ckhOptions.Settings,
+		ReadTimeout:  ckhOptions.ReadTimeout,
+		DialTimeout:  ckhOptions.DialTimeout,
+		MaxIdleConns: ckhOptions.MaxIdleConns,
+		MaxOpenConns: ckhOptions.MaxOpenConns,
+	}, hashstructure.FormatV2, nil)
 	if err != nil {
 		log.Errorf("hash clickhouse options failed: %v", err)
 		panic(err)

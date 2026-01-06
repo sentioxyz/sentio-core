@@ -1,0 +1,79 @@
+# config for local test only
+
+read_timeout: 30s
+dial_timeout: 10s
+max_idle_connections: 50
+max_open_connections: 100
+
+settings:
+  use_query_cache: 1
+  query_cache_system_table_handling: 'save'
+  query_cache_nondeterministic_function_handling: 'ignore'
+
+category:
+  sentio: &sentio_category
+    database: default
+  subgraph: &subgraph_category
+    database: default
+
+roles:
+  admin: &admin_role
+    username: default
+    password: password
+  empty_viewer: &empty_role
+    username: default
+    password: password
+  default_viewer: &default_role
+    username: default
+    password: password
+  small_viewer: &small_role
+    username: default
+    password: password
+  medium_viewer: &medium_role
+    username: default
+    password: password
+  large_viewer: &large_role
+    username: default
+    password: password
+  ultra_viewer: &ultra_role
+    username: default
+    password: password
+
+credential:
+  sentio: { <<: [*admin_role, *sentio_category] }
+  sentio_viewer: { <<: [*empty_role, *sentio_category] }
+  sentio_default_viewer: { <<: [*default_role, *sentio_category] }
+  sentio_small_viewer: { <<: [*small_role, *sentio_category] }
+  sentio_medium_viewer: { <<: [*medium_role, *sentio_category] }
+  sentio_large_viewer: { <<: [*large_role, *sentio_category] }
+  sentio_ultra_viewer: { <<: [*ultra_role, *sentio_category] }
+  subgraph: { <<: [*admin_role, *subgraph_category] }
+  subgraph_viewer: { <<: [*empty_role, *subgraph_category] }
+  subgraph_default_viewer: { <<: [*default_role, *subgraph_category] }
+  subgraph_small_viewer: { <<: [*small_role, *subgraph_category] }
+  subgraph_medium_viewer: { <<: [*medium_role, *subgraph_category] }
+  subgraph_large_viewer: { <<: [*large_role, *subgraph_category] }
+  subgraph_ultra_viewer: { <<: [*ultra_role, *subgraph_category] }
+
+shards:
+  - index: 0
+    name: shard-0
+    allow_organizations: ['sentio', 'public']
+    addresses:
+      internal_tcp_addr: 'localhost:9011'
+      internal_tcp_replicas: 'localhost:9011,localhost:9011'
+      external_tcp_addr: 'localhost:9013'
+      external_tcp_replicas: 'localhost:9013,localhost:9013'
+      internal_tcp_proxy: 'localhost:19011'
+      external_tcp_proxy: 'localhost:19011'
+  - index: 1
+    name: shard-1
+    allow_tiers: [0, 1, 2, 3]
+    allow_projects: []
+    addresses:
+      internal_tcp_addr: 'localhost:9012'
+      internal_tcp_replicas: 'localhost:9012,localhost:9012'
+      external_tcp_addr: 'localhost:9014'
+      external_tcp_replicas: 'localhost:9014,localhost:9014'
+      internal_tcp_proxy: 'localhost:19012'
+      external_tcp_proxy: 'localhost:19012'

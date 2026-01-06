@@ -230,12 +230,10 @@ func (e *IPFSStorageEngine) ObjectExists(ctx context.Context, bucket string, obj
 
 func (e *IPFSStorageEngine) ToPayload(file *storagesystem.FileObject, fileID, url string, fileType protos.FileType) *protos.UploadPayload {
 	return &protos.UploadPayload{
-		Payload: &protos.UploadPayload_Object{
-			Object: &protos.UploadPayload_ObjectPayload{
-				PutUrl:   url,
-				Bucket:   file.Bucket,
-				ObjectId: file.GetObject(),
-				FileId:   fileID,
+		Payload: &protos.UploadPayload_Ipfs{
+			Ipfs: &protos.UploadPayload_IpfsPayload{
+				PutUrl: url,
+				FileId: fileID,
 			},
 		},
 		FileType: fileType,

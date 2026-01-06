@@ -1,18 +1,23 @@
 package ckhmanager
 
-const (
-	DefaultRole      = "default_viewer"
-	SmallEngineRole  = "small_viewer"
-	MediumEngineRole = "medium_viewer"
-	LargeEngineRole  = "large_viewer"
-	UltraEngineRole  = "ultra_viewer"
+type Role string
 
-	EmptyRole = "viewer"
+const (
+	DefaultRole      Role = "default_viewer"
+	SmallEngineRole  Role = "small_viewer"
+	MediumEngineRole Role = "medium_viewer"
+	LargeEngineRole  Role = "large_viewer"
+	UltraEngineRole  Role = "ultra_viewer"
+
+	EmptyRole Role = "viewer"
+	AdminRole Role = ""
 )
 
+type Category string
+
 const (
-	SentioCategory   = "sentio"
-	SubgraphCategory = "subgraph"
+	SentioCategory   Category = "sentio"
+	SubgraphCategory Category = "subgraph"
 
 	DefaultCategory = SubgraphCategory
 )

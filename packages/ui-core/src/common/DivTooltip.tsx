@@ -161,7 +161,7 @@ export const PopoverTooltip: FC<Props> = ({
             >
               {!hideArrow && placement === 'bottom' && (
                 <div
-                  className="arrow dark:before:bg-sentio-gray-200 -translate-y-[5px] before:absolute before:h-2 before:w-2 before:rotate-45 before:border-l before:border-t before:border-black/5 before:bg-white dark:before:border-gray-100"
+                  className="arrow dark:bg-sentio-gray-100 before:border-border-color -translate-y-[7px] bg-white before:visible before:border before:border-b-0 before:border-r-0"
                   ref={arrowRef}
                   style={{
                     left: arrowX ?? 0,

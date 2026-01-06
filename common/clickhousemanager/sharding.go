@@ -16,33 +16,35 @@ type Credential struct {
 }
 
 type Addresses struct {
-	InternalTCPAddr     string   `yaml:"internal-tcp-addr" json:"internal_tcp_addr"`
-	InternalTCPReplicas []string `yaml:"internal-tcp-replicas" json:"internal_tcp_replicas"`
-	ExternalTCPAddr     string   `yaml:"external-tcp-addr" json:"external_tcp_addr"`
-	ExternalTCPReplicas []string `yaml:"external-tcp-replicas" json:"external_tcp_replicas"`
-	InternalTCPProxy    string   `yaml:"internal-tcp-proxy" json:"internal_tcp_proxy"`
-	ExternalTCPProxy    string   `yaml:"external-tcp-proxy" json:"external_tcp_proxy"`
+	InternalTCPAddr     string   `yaml:"internal_tcp_addr" json:"internal_tcp_addr"`
+	InternalTCPReplicas []string `yaml:"internal_tcp_replicas" json:"internal_tcp_replicas"`
+	ExternalTCPAddr     string   `yaml:"external_tcp_addr" json:"external_tcp_addr"`
+	ExternalTCPReplicas []string `yaml:"external_tcp_replicas" json:"external_tcp_replicas"`
+	InternalTCPProxy    string   `yaml:"internal_tcp_proxy" json:"internal_tcp_proxy"`
+	ExternalTCPProxy    string   `yaml:"external_tcp_proxy" json:"external_tcp_proxy"`
 }
 
 func ParseAddresses(address map[string]string) Addresses {
 	return Addresses{
-		InternalTCPAddr:     address["internal-tcp-addr"],
-		InternalTCPReplicas: strings.Split(address["internal-tcp-replicas"], ","),
-		ExternalTCPAddr:     address["external-tcp-addr"],
-		ExternalTCPReplicas: strings.Split(address["external-tcp-replicas"], ","),
-		InternalTCPProxy:    address["internal-tcp-proxy"],
-		ExternalTCPProxy:    address["external-tcp-proxy"],
+		InternalTCPAddr:     address["internal_tcp_addr"],
+		InternalTCPReplicas: strings.Split(address["internal_tcp_replicas"], ","),
+		ExternalTCPAddr:     address["external_tcp_addr"],
+		ExternalTCPReplicas: strings.Split(address["external_tcp_replicas"], ","),
+		InternalTCPProxy:    address["internal_tcp_proxy"],
+		ExternalTCPProxy:    address["external_tcp_proxy"],
 	}
 }
 
 type shardingConnectionKey string
 
 func (s *ShardingParameter) shardingConnectionKey() shardingConnectionKey {
-	return shardingConnectionKey(s.Role + "[proxy:" + anyutil.ToString(s.UnderlyingProxy) + ",signature:" + anyutil.ToString(s.PrivateKey) + "]")
+	return shardingConnectionKey(string(s.Role) +
+		"[proxy:" + anyutil.ToString(s.UnderlyingProxy) +
+		",signature:" + anyutil.ToString(s.PrivateKey) + "]")
 }
 
 func (s *ShardingParameter) shardingCredentialsKey() string {
-	return s.Category + "_" + s.Role
+	return string(s.Category) + "_" + string(s.Role)
 }
 
 type sharding struct {

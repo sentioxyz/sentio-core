@@ -7,20 +7,20 @@ type Sharding interface {
 }
 
 type ShardingParameter struct {
-	Role            string `yaml:"role" json:"role"`
-	Category        string `yaml:"category" json:"category"`
-	UnderlyingProxy bool   `yaml:"underlying-proxy" json:"underlying_proxy"`
-	InternalOnly    bool   `yaml:"internal-only" json:"internal_only"`
-	PrivateKey      string `yaml:"private-key" json:"private_key"`
+	Role            Role     `yaml:"role" json:"role"`
+	Category        Category `yaml:"category" json:"category"`
+	UnderlyingProxy bool     `yaml:"underlying-proxy" json:"underlying_proxy"`
+	InternalOnly    bool     `yaml:"internal-only" json:"internal_only"`
+	PrivateKey      string   `yaml:"private-key" json:"private_key"`
 }
 
-func WithCategory(category string) func(*ShardingParameter) {
+func WithCategory(category Category) func(*ShardingParameter) {
 	return func(param *ShardingParameter) {
 		param.Category = category
 	}
 }
 
-func WithRole(role string) func(*ShardingParameter) {
+func WithRole(role Role) func(*ShardingParameter) {
 	return func(param *ShardingParameter) {
 		param.Role = role
 	}
@@ -35,6 +35,12 @@ func WithUnderlyingProxy(underlyingProxy bool) func(*ShardingParameter) {
 func WithSign(privateKey string) func(*ShardingParameter) {
 	return func(param *ShardingParameter) {
 		param.PrivateKey = privateKey
+	}
+}
+
+func WithInternalOnly(internalOnly bool) func(*ShardingParameter) {
+	return func(param *ShardingParameter) {
+		param.InternalOnly = internalOnly
 	}
 }
 

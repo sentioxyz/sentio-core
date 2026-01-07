@@ -88,7 +88,11 @@ export function PopupMenuButton({
   if (menuOpen && items.length > 0) {
     menuItems = (
       <MenuContext.Provider value={{ selectedKey }}>
-        <div ref={refs.setFloating} style={floatingStyles}>
+        <div
+          ref={refs.setFloating}
+          style={floatingStyles}
+          className={small ? 'z-10' : 'z-[100]'}
+        >
           <Transition
             as={Fragment}
             enter="transition ease-out duration-100"

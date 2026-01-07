@@ -1,4 +1,10 @@
-import { cloneElement, forwardRef, MutableRefObject, ReactNode, useMemo } from 'react'
+import {
+  cloneElement,
+  forwardRef,
+  MutableRefObject,
+  ReactNode,
+  useMemo
+} from 'react'
 import { PopoverTooltip } from './DivTooltip'
 import { cva, cx, VariantProps } from 'class-variance-authority'
 
@@ -131,19 +137,29 @@ export interface ButtonProps extends VariantProps<typeof buttonClass> {
   id?: string
 }
 
-export function Proccessing({ className, light }: { className?: string; light?: boolean }) {
+export function Proccessing({
+  className,
+  light
+}: {
+  className?: string
+  light?: boolean
+}) {
   return (
     <svg className={`h-5 w-5 animate-spin ${className}`} viewBox="0 0 24 24">
       <circle
-        className={light ? 'opacity-5' : 'opacity-10'}
         cx="12"
         cy="12"
         r="10"
         stroke="currentColor"
         strokeWidth="4"
+        style={{
+          opacity: light ? 0.05 : 0.1
+        }}
       ></circle>
       <path
-        className={light ? 'opacity-50' : 'opacity-75'}
+        style={{
+          opacity: light ? 0.5 : 0.75
+        }}
         fill="currentColor"
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
       ></path>
@@ -213,12 +229,17 @@ function Button(
     if (processing) {
       iconEl = (
         <Proccessing
-          className={cx(pIconClass({ size: size }), role == 'primary' ? 'text-white' : '')}
+          className={cx(
+            pIconClass({ size: size }),
+            role == 'primary' ? 'text-white' : ''
+          )}
           light={role !== 'primary'}
         />
       )
     } else if (icon) {
-      iconEl = cloneElement(icon, { className: cx(icon.props.className, iconClasses) })
+      iconEl = cloneElement(icon, {
+        className: cx(icon.props.className, iconClasses)
+      })
     }
     return iconEl
   }, [icon, iconClasses, processing, role])

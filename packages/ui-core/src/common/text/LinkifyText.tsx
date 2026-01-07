@@ -21,7 +21,8 @@ if (DOMPurify?.addHook) {
 
 const renderTextWithColoredNumbers = (text: string) => {
   // Use word boundary and negative lookahead to avoid matching numbers in hexadecimal addresses
-  const numberRegex = /\b(\d+(?:\.\d+)?)\b/g
+  // Support scientific notation (e.g., 1e-7, 2.5e+10)
+  const numberRegex = /\b(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g
 
   return text.replace(numberRegex, (match, number, offset) => {
     // Check characters before and after the number to ensure it's not part of a hex address

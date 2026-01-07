@@ -107,11 +107,7 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 			Username: "default",
 			Password: "password",
 		},
-		Settings:     newConnSettingsMacro(),
-		MaxIdleConns: *maxIdleConns,
-		MaxOpenConns: *maxOpenConns,
-		ReadTimeout:  *readTimeout,
-		DialTimeout:  *dialTimeout,
+		Settings: newConnSettingsMacro(),
 	}
 	if len(dsn) > 0 {
 		var err error
@@ -123,10 +119,6 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 		for k, v := range newConnSettingsMacro() {
 			ckhOptions.Settings[k] = v
 		}
-		ckhOptions.ReadTimeout = *readTimeout
-		ckhOptions.DialTimeout = *dialTimeout
-		ckhOptions.MaxIdleConns = *maxIdleConns
-		ckhOptions.MaxOpenConns = *maxOpenConns
 	}
 	var connOptions = &Options{}
 	for _, opt := range connectOptions {

@@ -37,7 +37,6 @@ export {
 export { default as SlideOver } from './common/SlideOver'
 export { ConfirmDialog } from './common/ConfirmDialog'
 export {
-  StyledTab,
   Group as TabGroup,
   List as TabList,
   Panels as TabPanels,

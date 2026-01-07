@@ -7,7 +7,7 @@ const backgroundScript = 'out/background.js'
 export async function genManifest(browser: Browser = 'chrome') {
   const manifest: any = {
     name: 'Sentio',
-    version: '0.50.0',
+    version: '0.50.1',
     description:
       'Modern monitoring, alerting, log management and debugging for decentralized applications.',
     manifest_version: 3,
@@ -23,7 +23,6 @@ export async function genManifest(browser: Browser = 'chrome') {
           'https://lineascan.build/*',
           'https://moonscan.io/*',
           'https://scrollscan.com/*',
-          'https://app.sentio.xyz/*',
           'https://arbiscan.io/*',
           'https://blastscan.io/*',
           'https://basescan.org/*',
@@ -36,6 +35,11 @@ export async function genManifest(browser: Browser = 'chrome') {
         ],
         js: ['out/content/etherscan/main.js'],
         css: ['out/content/etherscan/main.css'],
+        run_at: 'document_end'
+      },
+      {
+        matches: ['https://app.sentio.xyz/*'],
+        js: ['out/content/etherscan/main.js'],
         run_at: 'document_end'
       }
     ],

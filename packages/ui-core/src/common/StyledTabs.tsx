@@ -1,4 +1,4 @@
-import React, { ComponentProps } from 'react'
+import React, { ComponentProps, ElementType } from 'react'
 import { Tab as HeadlessTab } from '@headlessui/react'
 import { classNames } from '../utils/classnames'
 
@@ -76,7 +76,7 @@ export const List = ({
   )
 }
 
-export const Panels = React.forwardRef<
+export const Panels: ElementType = React.forwardRef<
   any,
   ComponentProps<typeof HeadlessTab.Panels>
 >(function Panels({ children, className, ...props }, ref) {

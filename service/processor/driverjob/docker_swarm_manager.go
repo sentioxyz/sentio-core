@@ -209,6 +209,7 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 				Command: []string{"/app/driver/cmd/cmd_/cmd"},
 				Args:    args,
 				Mounts:  mounts,
+				Hosts:   []string{"host.docker.internal:host-gateway"},
 			},
 			RestartPolicy: &swarm.RestartPolicy{
 				Condition: swarm.RestartPolicyConditionOnFailure,
@@ -285,6 +286,7 @@ func (d *DockerSwarmManager) buildProcessorServiceSpec(processor *models.Process
 				Labels:  labels,
 				Command: []string{"/bin/sh", "/start-processor.sh"},
 				Mounts:  mounts,
+				Hosts:   []string{"host.docker.internal:host-gateway"},
 			},
 			RestartPolicy: &swarm.RestartPolicy{
 				Condition: swarm.RestartPolicyConditionOnFailure,

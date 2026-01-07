@@ -43,13 +43,6 @@ const IPFSPrefix = "ipfs://"
 
 // NewIPFSStorageEngine creates a new IPFS storage engine
 func NewIPFSStorageEngine(config IPFSConfig) (*IPFSStorageEngine, error) {
-	if config.ApiURL == "" {
-		config.ApiURL = "http://127.0.0.1:5001"
-	}
-	if config.GatewayURL == "" {
-		config.GatewayURL = "https://ipfs.io/"
-	}
-
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
@@ -59,17 +52,17 @@ func NewIPFSStorageEngine(config IPFSConfig) (*IPFSStorageEngine, error) {
 		config: config,
 	}
 
-	// Test connection
-	resp, err := client.Post(engine.config.ApiURL+"/api/v0/version", "application/json", nil)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to connect to IPFS node at %s", config.ApiURL)
-	}
-	defer resp.Body.Close()
+	if config.ApiURL != "" {
+		resp, err := client.Post(engine.config.ApiURL+"/api/v0/version", "application/json", nil)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to connect to IPFS node at %s", config.ApiURL)
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("IPFS node returned status %d", resp.StatusCode)
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("IPFS node returned status %d", resp.StatusCode)
+		}
 	}
-
 	return engine, nil
 }
 

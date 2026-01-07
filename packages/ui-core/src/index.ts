@@ -34,6 +34,21 @@ export {
   HeaderToolsToggleButton,
   HeaderToolsContent
 } from './common/HeaderToolsDropdown'
+export { default as SlideOver } from './common/SlideOver'
+export { ConfirmDialog } from './common/ConfirmDialog'
+export {
+  StyledTab,
+  Group as TabGroup,
+  List as TabList,
+  Panels as TabPanels,
+  Panel as TabPanel,
+  getTabClassName
+} from './common/StyledTabs'
+export { SearchInput } from './common/SearchInput'
+export { Checkbox } from './common/Checkbox'
+export { ProgressBar } from './common/ProgressBar'
+export { Descriptions, type DataType } from './common/Descriptions'
+export { Notification } from './common/Notification'
 
 // Table components
 export { ResizeTable } from './common/table/ResizeTable'

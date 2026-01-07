@@ -1,17 +1,5 @@
 package ckhmanager
 
-import (
-	"flag"
-	"time"
-)
-
-var (
-	readTimeout  = flag.Duration("clickhouse-read-timeout", time.Minute, "ClickHouse read timeout")
-	dialTimeout  = flag.Duration("clickhouse-dial-timeout", time.Minute, "ClickHouse dial timeout")
-	maxIdleConns = flag.Int("clickhouse-max-idle-conns", 30, "ClickHouse max idle connection")
-	maxOpenConns = flag.Int("clickhouse-max-open-conns", 100, "ClickHouse max open connection")
-)
-
 func newConnSettingsMacro() map[string]any {
 	var (
 		maxPartitionSizeToDrop uint64 = 536870912000

@@ -219,3 +219,43 @@ func (s *sharding) GetConnDSN(options ...func(parameter *ShardingParameter)) (st
 	}
 	return s.formatDSN(cred.Username, cred.Password, cred.Database, addr), nil
 }
+
+func (s *sharding) GetAllConn(options ...func(*ShardingParameter)) map[string]Conn {
+	var parameter = NewShardingParameter()
+	for _, opt := range options {
+		opt(parameter)
+	}
+
+	var connOptions []func(*Options)
+	connOptions = append(connOptions, s.opts...)
+	if parameter.PrivateKey != "" {
+		connOptions = append(connOptions, WithSignature(parameter.PrivateKey))
+	}
+
+	var results = make(map[string]Conn)
+	for name, credential := range s.credentials {
+		nameParts := strings.Split(name, "_")
+		if parameter.Category != AllCategory && string(parameter.Category) != nameParts[0] {
+			continue
+		}
+		var addr string
+		if parameter.UnderlyingProxy {
+			if parameter.InternalOnly {
+				addr = s.addresses.InternalTCPProxy
+			} else {
+				addr = s.addresses.ExternalTCPProxy
+			}
+		} else {
+			if parameter.InternalOnly {
+				addr = s.addresses.InternalTCPAddr
+			} else {
+				addr = s.addresses.ExternalTCPAddr
+			}
+		}
+		if addr == "" {
+			continue
+		}
+		results[name] = connect(s.formatDSN(credential.Username, credential.Password, credential.Database, addr), connOptions...)
+	}
+	return results
+}

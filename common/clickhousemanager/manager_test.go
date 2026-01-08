@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"sentioxyz/sentio-core/common/log"
+
 	"github.com/stretchr/testify/suite"
 )
 
@@ -90,4 +92,20 @@ func (s *Suite) TestManager_ConfigValueChecker() {
 			WithUnderlyingProxy(true),
 			WithSign("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")))
 	}
+}
+
+func (s *Suite) TestManager_GetAllConn() {
+	m := NewManager(s.config)
+
+	allCategoryConn := m.GetShardByIndex(m.DefaultIndex()).GetAllConn(WithCategory(AllCategory))
+	s.EqualValues(14, len(allCategoryConn))
+	for name := range allCategoryConn {
+		log.Infof("got connection name: %s", name)
+	}
+
+	sentioCategoryConn := m.GetShardByIndex(m.DefaultIndex()).GetAllConn(WithCategory(SentioCategory))
+	s.EqualValues(7, len(sentioCategoryConn))
+
+	subgraphCategoryConn := m.GetShardByIndex(m.DefaultIndex()).GetAllConn(WithCategory(SubgraphCategory))
+	s.EqualValues(7, len(subgraphCategoryConn))
 }

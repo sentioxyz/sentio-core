@@ -8,6 +8,7 @@ type Sharding interface {
 	MustGetConnAllReplicas(...func(*ShardingParameter)) []Conn
 	GetConnInfo(...func(*ShardingParameter)) (string, string, string, string, error)
 	GetConnDSN(...func(*ShardingParameter)) (string, error)
+	GetAllConn(...func(*ShardingParameter)) map[string]Conn
 }
 
 type ShardingParameter struct {

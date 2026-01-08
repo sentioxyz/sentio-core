@@ -18,6 +18,7 @@ type Category string
 const (
 	SentioCategory   Category = "sentio"
 	SubgraphCategory Category = "subgraph"
+	AllCategory      Category = "all"
 
 	DefaultCategory = SubgraphCategory
 )

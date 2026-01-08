@@ -166,6 +166,14 @@ func (s *sharding) GetConn(options ...func(parameter *ShardingParameter)) (Conn,
 	return s.connect(parameter)
 }
 
+func (s *sharding) MustGetConn(options ...func(parameter *ShardingParameter)) Conn {
+	conn, err := s.GetConn(options...)
+	if err != nil {
+		panic(err)
+	}
+	return conn
+}
+
 func (s *sharding) GetConnAllReplicas(options ...func(parameter *ShardingParameter)) ([]Conn, error) {
 	var parameter = NewShardingParameter()
 	for _, opt := range options {
@@ -177,6 +185,14 @@ func (s *sharding) GetConnAllReplicas(options ...func(parameter *ShardingParamet
 		return conn, nil
 	}
 	return s.connectReplicas(parameter)
+}
+
+func (s *sharding) MustGetConnAllReplicas(options ...func(parameter *ShardingParameter)) []Conn {
+	conn, err := s.GetConnAllReplicas(options...)
+	if err != nil {
+		panic(err)
+	}
+	return conn
 }
 
 func (s *sharding) GetConnInfo(options ...func(parameter *ShardingParameter)) (string, string, string, string, error) {

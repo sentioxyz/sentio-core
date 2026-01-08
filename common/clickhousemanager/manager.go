@@ -27,6 +27,7 @@ type Manager interface {
 	All() []Sharding
 	Pick(PickOptions) (int32, Sharding)
 	Reload(Config) error
+	DefaultIndex() int32
 }
 
 type ShardingStrategy struct {
@@ -179,6 +180,10 @@ func (m *manager) Reload(config Config) error {
 	m.strategies = strategies
 	m.defaultIndex = defaultIndex
 	return nil
+}
+
+func (m *manager) DefaultIndex() int32 {
+	return m.defaultIndex
 }
 
 func addTierMapping(strategies *ShardingStrategy, index int32, tiers []int32) {

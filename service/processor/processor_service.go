@@ -748,10 +748,10 @@ func (s *Service) RunProcessor(ctx context.Context, req *protos.RunProcessorRequ
 		if err != nil {
 			return err
 		}
-		if err = s.activateProcessor(ctx, p, false); err != nil {
+		if err = s.driverJobManager.StartOrUpdateDriverJob(ctx, p); err != nil {
 			return err
 		}
-		return nil
+		return s.notifyProcessorActivated(ctx, p)
 	})
 
 	if err != nil {

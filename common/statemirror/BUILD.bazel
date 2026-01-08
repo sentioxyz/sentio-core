@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "statemirror",
+    srcs = [
+        "mirror.go",
+        "on_chain_mapping_constants.go",
+        "redis_mirror.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/statemirror",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)
+
+go_test(
+    name = "statemirror_test",
+    srcs = ["redis_mirror_test.go"],
+    embed = [":statemirror"],
+    deps = [
+        "@com_github_alicebob_miniredis_v2//:miniredis",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_stretchr_testify//require",
+    ],
+)

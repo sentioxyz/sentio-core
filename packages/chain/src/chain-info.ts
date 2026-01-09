@@ -193,10 +193,10 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     chainId: EthChainId.POLYGON,
     nativeChainId: 137,
     variation: EthVariation.DEFAULT,
-    priceTokenAddress: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', // WMATIC
+    priceTokenAddress: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', // WPOL
     tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', // WMATIC
-    tokenSymbol: 'MATIC',
+    wrappedTokenAddress: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', // WPOL
+    tokenSymbol: 'POL',
     tokenDecimals: 18,
     explorerApiType: ExplorerApiType.ETHERSCAN_V2,
     explorerUrl: 'https://polygonscan.com',
@@ -247,7 +247,7 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     priceTokenAddress: '0x0000000000000000000000000000000000000000',
     tokenAddress: '0x0000000000000000000000000000000000000000',
     wrappedTokenAddress: '0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9',
-    tokenSymbol: 'ETH',
+    tokenSymbol: 'POL',
     tokenDecimals: 18,
     explorerApiType: ExplorerApiType.BLOCKSCOUT,
     explorerUrl: 'https://polygon.blockscout.com',

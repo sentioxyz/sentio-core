@@ -374,12 +374,22 @@ func (r *RedisProcessorRepo) GetProcessorsByProjectAndVersionState(ctx context.C
 	for _, p := range processors {
 		if len(versionStates) == 0 {
 			pCopy := p
+			chainStates, err := r.getChainStatesByProcessor(ctx, p.ID)
+			if err != nil {
+				return nil, err
+			}
+			pCopy.ChainStates = chainStates
 			result = append(result, &pCopy)
 			continue
 		}
 		for _, state := range versionStates {
 			if p.VersionState == int32(state) {
 				pCopy := p
+				chainStates, err := r.getChainStatesByProcessor(ctx, p.ID)
+				if err != nil {
+					return nil, err
+				}
+				pCopy.ChainStates = chainStates
 				result = append(result, &pCopy)
 				break
 			}

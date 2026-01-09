@@ -197,8 +197,20 @@ func (s *Service) GetProcessorStatusV2(
 	if project == nil || err != nil {
 		return nil, status.Error(codes.NotFound, "project not found")
 	}
-
-	return s.getProcessorStatus(ctx, project.ID, "", req.GetVersion())
+	projectID := project.ID
+	var processors []*models.Processor
+	switch req.GetVersion() {
+	case protos.GetProcessorStatusRequestV2_ACTIVE:
+		processors, err = s.processorRepo.GetProcessorsByProjectAndVersionState(ctx, projectID, protos.ProcessorVersionState_ACTIVE)
+	case protos.GetProcessorStatusRequestV2_PENDING:
+		processors, err = s.processorRepo.GetProcessorsByProjectAndVersionState(ctx, projectID, protos.ProcessorVersionState_PENDING)
+	default:
+		processors, err = s.processorRepo.GetProcessorsByProjectAndVersionState(ctx, projectID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.getProcessorStatus(ctx, processors)
 }
 
 func (s *Service) GetProcessorStatus(
@@ -214,51 +226,30 @@ func (s *Service) GetProcessorStatusInternal(
 ) (*protos.GetProcessorStatusResponse, error) {
 	if projectID := req.GetProjectId(); projectID != "" {
 		// check if the project exists
-		_, err := s.processorRepo.GetProjectByID(ctx, projectID)
+		processors, err := s.processorRepo.GetProcessorsByProjectAndVersionState(ctx, projectID)
 		if err != nil {
 			return nil, err
 		}
-		return s.getProcessorStatus(ctx, req.GetProjectId(), "", protos.GetProcessorStatusRequestV2_ALL)
+		return s.getProcessorStatus(ctx, processors)
 	}
 	if processorID := req.GetId(); processorID != "" {
-		p, err := s.processorRepo.GetProcessor(ctx, processorID, false)
+		p, err := s.processorRepo.GetProcessor(ctx, processorID, true)
 		if err != nil {
 			return nil, err
 		}
-		return s.getProcessorStatus(ctx, p.ProjectID, processorID, protos.GetProcessorStatusRequestV2_ALL)
+		return s.getProcessorStatus(ctx, []*models.Processor{p})
 	}
 	return nil, status.Error(codes.InvalidArgument, "either project_id or id must be provided")
 }
 
 func (s *Service) getProcessorStatus(
 	ctx context.Context,
-	projectID string,
-	processorID string,
-	versionSelector protos.GetProcessorStatusRequestV2_VersionSelector,
+	processors []*models.Processor,
 ) (*protos.GetProcessorStatusResponse, error) {
-	var processors []*models.Processor
 	var err error
-	switch versionSelector {
-	case protos.GetProcessorStatusRequestV2_ACTIVE:
-		processors, err = s.processorRepo.GetProcessorsByProjectAndVersionState(ctx, projectID, protos.ProcessorVersionState_ACTIVE)
-	case protos.GetProcessorStatusRequestV2_PENDING:
-		processors, err = s.processorRepo.GetProcessorsByProjectAndVersionState(ctx, projectID, protos.ProcessorVersionState_PENDING)
-	default:
-		processors, err = s.processorRepo.GetProcessorsByProjectAndVersionState(ctx, projectID)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if processorID != "" {
-		processors = lo.Filter(processors, func(p *models.Processor, _ int) bool {
-			return p.ID == processorID
-		})
-	}
-
 	response := protos.GetProcessorStatusResponse{
 		Processors: make([]*protos.GetProcessorStatusResponse_ProcessorEx, len(processors)),
 	}
-
 	for i, processor := range processors {
 		originProcessor := processor
 		if len(originProcessor.ReferenceProjectID) > 0 && originProcessor.VersionState != int32(protos.ProcessorVersionState_OBSOLETE) {
@@ -274,7 +265,6 @@ func (s *Service) getProcessorStatus(
 				return nil, err
 			}
 		}
-
 		var metaChain *models.ChainState
 		var chainStates []*models.ChainState
 		for _, state := range processor.ChainStates {
@@ -285,6 +275,7 @@ func (s *Service) getProcessorStatus(
 			chainStates = append(chainStates, state)
 		}
 		processorStatus := &protos.GetProcessorStatusResponse_ProcessorStatus{}
+
 		var states []*protos.ChainState
 		if metaChain == nil || (metaChain.State != int32(protos.ChainState_Status_ERROR) &&
 			metaChain.State != int32(protos.ChainState_Status_UNKNOWN)) {

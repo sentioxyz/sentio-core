@@ -256,7 +256,7 @@ func TestTypedMirror_GetAll_OK(t *testing.T) {
 		codec: testCodec{},
 	}
 
-	got, err := tm.GetAll(ctx, MappingProcessorAllocations)
+	got, err := tm.GetAll(ctx)
 	require.NoError(t, err)
 	require.Equal(t, map[int]int{1: 10, 2: 20}, got)
 }
@@ -276,7 +276,7 @@ func TestTypedMirror_GetAll_ParseFieldError(t *testing.T) {
 		codec: testCodec{},
 	}
 
-	_, err := tm.GetAll(ctx, MappingProcessorAllocations)
+	_, err := tm.GetAll(ctx)
 	require.Error(t, err)
 }
 

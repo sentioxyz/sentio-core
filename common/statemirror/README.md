@@ -6,6 +6,10 @@
 
 The `statemirror` package provides a type-safe state mirroring system for storing and synchronizing on-chain state data in Redis. It supports mapping arbitrary key-value pairs to Redis Hash structures and provides strongly-typed access interfaces.
 
+The package includes two implementations:
+- **RedisMirror**: Stores data in Redis using Hash structures (recommended for production)
+- **FileMirror**: Stores data in JSON files on disk (useful for development, testing, or local storage)
+
 ## Core Concepts
 
 ### 1. Mirror
@@ -62,7 +66,7 @@ import (
     "your-project/common/statemirror"
 )
 
-// Create Redis client
+// Option 1: Create Redis Mirror (for production)
 client := redis.NewClient(&redis.Options{
     Addr: "localhost:6379",
 })
@@ -75,6 +79,21 @@ mirror := statemirror.NewRedisMirror(client,
     statemirror.WithRedisKeyPrefix("myapp:"),
     statemirror.WithScanCount(500),
 )
+
+// Option 2: Create File Mirror (for development/testing)
+mirror, err := statemirror.NewFileMirror("/path/to/data")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Or with custom options
+mirror, err := statemirror.NewFileMirror("/tmp",
+    statemirror.WithBaseDir("/custom/path"),
+    statemirror.WithFileExtension(".data"),
+)
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
 #### 2. Define Data Structure and Codec
@@ -326,26 +345,30 @@ func main() {
 
 ## Best Practices
 
-1. **Choose the right synchronization method**:
+1. **Choose the right implementation**:
+   - **RedisMirror**: Use for production environments with high concurrency, distributed systems, or when you need fast in-memory access
+   - **FileMirror**: Use for development, testing, local storage, or single-instance applications where persistence to disk is preferred
+
+2. **Choose the right synchronization method**:
    - Small datasets (< 1000 items): Use `Upsert`
    - Large datasets (> 10000 items): Use `UpsertStreaming`
    - Incremental changes only: Use `Apply`
 
-2. **Codec Design**:
+3. **Codec Design**:
    - `FieldFunc` should generate unique field names
    - Consider adding prefixes to avoid field name conflicts
    - Keep `FieldFunc` and `ParseFunc` symmetric
 
-3. **Error Handling**:
+4. **Error Handling**:
    - All methods can return errors, always check them
    - Encoding/decoding errors are returned directly, ensure data format compatibility
 
-4. **Performance Optimization**:
+5. **Performance Optimization**:
    - Use `MGet` for batch reads to reduce network round trips
    - Use `Scan` for paginated processing of large datasets
    - Adjust `WithScanCount` based on data size for optimal performance
 
-5. **Key Naming**:
+6. **Key Naming**:
    - Use meaningful `OnChainKey` constants
    - Manage them centrally in `on_chain_mapping_constants.go`
 

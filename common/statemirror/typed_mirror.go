@@ -8,6 +8,10 @@ type TypedMirror[K comparable, V any] struct {
 	codec StateCodec[K, V]
 }
 
+func NewTypedMirror[K comparable, V any](m Mirror, key OnChainKey, codec StateCodec[K, V]) MirrorReadOnlyState[K, V] {
+	return TypedMirror[K, V]{m: m, key: key, codec: codec}
+}
+
 func (t TypedMirror[K, V]) Get(ctx context.Context, k K) (V, bool, error) {
 	var zero V
 	field, err := t.codec.Field(k)
@@ -56,8 +60,8 @@ func (t TypedMirror[K, V]) MGet(ctx context.Context, ks ...K) (map[K]V, error) {
 	return out, nil
 }
 
-func (t TypedMirror[K, V]) GetAll(ctx context.Context, key OnChainKey) (map[K]V, error) {
-	all, err := t.m.GetAll(ctx, key)
+func (t TypedMirror[K, V]) GetAll(ctx context.Context) (map[K]V, error) {
+	all, err := t.m.GetAll(ctx, t.key)
 	if err != nil {
 		return nil, err
 	}

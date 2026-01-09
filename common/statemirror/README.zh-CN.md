@@ -6,6 +6,10 @@
 
 `statemirror` 包提供了一个类型安全的状态镜像系统，用于在 Redis 中存储和同步链上状态数据。该包支持将任意类型的键值对映射到 Redis Hash 结构，并提供了强类型的访问接口。
 
+该包包含两种实现：
+- **RedisMirror**: 使用 Redis Hash 结构存储数据（推荐用于生产环境）
+- **FileMirror**: 将数据存储在磁盘的 JSON 文件中（适用于开发、测试或本地存储）
+
 ## 核心概念
 
 ### 1. Mirror
@@ -62,7 +66,7 @@ import (
     "your-project/common/statemirror"
 )
 
-// 创建 Redis 客户端
+// 方式 1: 创建 Redis Mirror（用于生产环境）
 client := redis.NewClient(&redis.Options{
     Addr: "localhost:6379",
 })
@@ -75,6 +79,21 @@ mirror := statemirror.NewRedisMirror(client,
     statemirror.WithRedisKeyPrefix("myapp:"),
     statemirror.WithScanCount(500),
 )
+
+// 方式 2: 创建 File Mirror（用于开发/测试）
+mirror, err := statemirror.NewFileMirror("/path/to/data")
+if err != nil {
+    log.Fatal(err)
+}
+
+// 或使用自定义选项
+mirror, err := statemirror.NewFileMirror("/tmp",
+    statemirror.WithBaseDir("/custom/path"),
+    statemirror.WithFileExtension(".data"),
+)
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
 #### 2. 定义数据结构和 Codec
@@ -326,26 +345,30 @@ func main() {
 
 ## 最佳实践
 
-1. **选择合适的同步方式**：
+1. **选择合适的实现**：
+   - **RedisMirror**: 用于生产环境，高并发、分布式系统，或需要快速内存访问的场景
+   - **FileMirror**: 用于开发、测试、本地存储，或单实例应用中需要持久化到磁盘的场景
+
+2. **选择合适的同步方式**：
    - 数据量小（< 1000 条）：使用 `Upsert`
    - 数据量大（> 10000 条）：使用 `UpsertStreaming`
    - 只有增量变更：使用 `Apply`
 
-2. **Codec 设计**：
+3. **Codec 设计**：
    - `FieldFunc` 应该生成唯一的字段名
    - 考虑添加前缀避免字段名冲突
    - 保持 `FieldFunc` 和 `ParseFunc` 的对称性
 
-3. **错误处理**：
+4. **错误处理**：
    - 所有方法都可能返回错误，务必检查
    - 编解码错误会直接返回，注意数据格式兼容性
 
-4. **性能优化**：
+5. **性能优化**：
    - 使用 `MGet` 批量读取，减少网络往返
    - 使用 `Scan` 分页处理大数据集
    - 调整 `WithScanCount` 根据数据大小优化性能
 
-5. **键命名**：
+6. **键命名**：
    - 使用有意义的 `OnChainKey` 常量
    - 在 `on_chain_mapping_constants.go` 中统一管理
 

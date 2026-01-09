@@ -37,11 +37,11 @@ func TestRedisMirror_Apply_Add_Delete(t *testing.T) {
 
 	ctx := context.Background()
 	// seed
-	require.NoError(t, m.Upsert(ctx, MappingProcessorAllocations, func(ctx context.Context, key string) (map[string]string, error) {
+	require.NoError(t, m.Upsert(ctx, MappingProcessorAllocations, func(ctx context.Context, key OnChainKey) (map[string]string, error) {
 		return map[string]string{"a": "1", "b": "2"}, nil
 	}))
 
-	m.Apply(ctx, MappingProcessorAllocations, func(ctx context.Context, key string) (*StateDiff, error) {
+	m.Apply(ctx, MappingProcessorAllocations, func(ctx context.Context, key OnChainKey) (*StateDiff, error) {
 		return &StateDiff{
 			Added:   map[string]string{"b": "22", "c": "3"},
 			Deleted: []string{"a"},
@@ -58,11 +58,11 @@ func TestRedisMirror_Upsert_DeletesStale(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	require.NoError(t, m.Upsert(ctx, MappingIndexerInfos, func(ctx context.Context, key string) (map[string]string, error) {
+	require.NoError(t, m.Upsert(ctx, MappingIndexerInfos, func(ctx context.Context, key OnChainKey) (map[string]string, error) {
 		return map[string]string{"a": "1", "b": "2"}, nil
 	}))
 
-	require.NoError(t, m.Upsert(ctx, MappingIndexerInfos, func(ctx context.Context, key string) (map[string]string, error) {
+	require.NoError(t, m.Upsert(ctx, MappingIndexerInfos, func(ctx context.Context, key OnChainKey) (map[string]string, error) {
 		return map[string]string{"b": "20", "c": "3"}, nil
 	}))
 
@@ -76,11 +76,11 @@ func TestRedisMirror_UpsertStreaming_DeletesStale(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	require.NoError(t, m.Upsert(ctx, MappingProcessorAllocations, func(ctx context.Context, key string) (map[string]string, error) {
+	require.NoError(t, m.Upsert(ctx, MappingProcessorAllocations, func(ctx context.Context, key OnChainKey) (map[string]string, error) {
 		return map[string]string{"a": "1", "b": "2", "c": "3"}, nil
 	}))
 
-	require.NoError(t, m.UpsertStreaming(ctx, MappingProcessorAllocations, func(ctx context.Context, key string, emit EmitFunc) error {
+	require.NoError(t, m.UpsertStreaming(ctx, MappingProcessorAllocations, func(ctx context.Context, key OnChainKey, emit EmitFunc) error {
 		if err := emit(ctx, "b", "22"); err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ func TestRedisMirror_Scan_All(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	require.NoError(t, m.Upsert(ctx, MappingProcessorAllocations, func(ctx context.Context, key string) (map[string]string, error) {
+	require.NoError(t, m.Upsert(ctx, MappingProcessorAllocations, func(ctx context.Context, key OnChainKey) (map[string]string, error) {
 		return map[string]string{"a": "1", "b": "2", "c": "3"}, nil
 	}))
 
@@ -125,7 +125,7 @@ func TestRedisMirror_MGet_OmitsMissing(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	require.NoError(t, m.Upsert(ctx, MappingProcessorAllocations, func(ctx context.Context, key string) (map[string]string, error) {
+	require.NoError(t, m.Upsert(ctx, MappingProcessorAllocations, func(ctx context.Context, key OnChainKey) (map[string]string, error) {
 		return map[string]string{"a": "1"}, nil
 	}))
 

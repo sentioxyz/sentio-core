@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-faster/errors"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -55,7 +56,7 @@ func (r *redisMirror) redisKey(key OnChainKey) string {
 
 func (r *redisMirror) Upsert(ctx context.Context, key OnChainKey, syncF SyncFunc) error {
 	rKey := r.redisKey(key)
-	desired, err := syncF(ctx, rKey)
+	desired, err := syncF(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -109,7 +110,7 @@ func (r *redisMirror) UpsertStreaming(ctx context.Context, key OnChainKey, syncF
 		return nil
 	}
 
-	if err := syncF(ctx, rKey, emit); err != nil {
+	if err := syncF(ctx, key, emit); err != nil {
 		return err
 	}
 	if pending > 0 {
@@ -148,11 +149,14 @@ func (r *redisMirror) UpsertStreaming(ctx context.Context, key OnChainKey, syncF
 	return nil
 }
 
-func (r *redisMirror) Apply(ctx context.Context, key OnChainKey, diffF DiffFunc) {
+func (r *redisMirror) Apply(ctx context.Context, key OnChainKey, diffF DiffFunc) error {
 	rKey := r.redisKey(key)
-	diff, err := diffF(ctx, rKey)
-	if err != nil || diff == nil {
-		return
+	diff, err := diffF(ctx, key)
+	if err != nil {
+		return err
+	}
+	if diff == nil {
+		return errors.Errorf("diffF returned nil diff")
 	}
 	pipe := r.client.Pipeline()
 	if len(diff.Deleted) > 0 {
@@ -165,7 +169,8 @@ func (r *redisMirror) Apply(ctx context.Context, key OnChainKey, diffF DiffFunc)
 		}
 		pipe.HSet(ctx, rKey, pairs...)
 	}
-	_, _ = pipe.Exec(ctx)
+	_, err = pipe.Exec(ctx)
+	return err
 }
 
 func (r *redisMirror) Get(ctx context.Context, key OnChainKey, field string) (value string, ok bool, err error) {

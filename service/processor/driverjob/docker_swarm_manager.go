@@ -361,7 +361,7 @@ CHAINS_CONFIG_FILE=${TARGET_DIR}/chains-config.json
 if [[ "$TARGET_PATH" == */main ]]; then
     exec "$TARGET_PATH" "$@" --chains-config=$CHAINS_CONFIG_FILE
 else
-    exec /usr/bin/env node --inspect=0.0.0.0:9229 $TARGET_DIR/node_modules/.bin/processor-runner --port 9999 --use-chainserver --concurrency=128 --chains-config=$CHAINS_CONFIG_FILE $TARGET_PATH 
+    exec /usr/bin/env node --inspect=0.0.0.0:9229 $TARGET_DIR/node_modules/.bin/processor-runner --port 9999 --use-chainserver --concurrency=128 --log-format=json --chains-config=$CHAINS_CONFIG_FILE $TARGET_PATH 
 fi
 `
 
@@ -807,7 +807,7 @@ func (d *DockerSwarmManager) findServicesByProcessorID(ctx context.Context, proc
 	return services, nil
 }
 
-func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Processor, limit int32, after, query string) ([]Log, string, error) {
+func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Processor, limit int32, until, query string) ([]Log, string, error) {
 	services, err := d.findServicesByProcessorID(ctx, processor.ID)
 	if err != nil {
 		return nil, "", err
@@ -821,8 +821,8 @@ func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Proc
 			Timestamps: true,
 			Tail:       strconv.Itoa(int(limit)),
 		}
-		if after != "" {
-			options.Since = after
+		if until != "" {
+			options.Until = until
 		}
 
 		logsReader, err := d.dockerClient.ServiceLogs(ctx, service.ID, options)
@@ -831,6 +831,8 @@ func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Proc
 			continue
 		}
 		defer logsReader.Close()
+
+		logType := service.Spec.Labels["sentio.service.type"]
 
 		// Parse docker log stream
 		// Docker logs have a header: [1 byte stream type, 3 bytes zeros, 4 bytes length]
@@ -865,35 +867,36 @@ func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Proc
 			if len(query) > 0 && !strings.Contains(strings.ToLower(msg), strings.ToLower(query)) {
 				continue
 			}
-
 			allLogs = append(allLogs, logLine{
-				msg: strings.TrimSpace(msg),
-				ts:  ts,
+				msg:     strings.TrimSpace(msg),
+				ts:      ts,
+				logType: logType,
 			})
 		}
 	}
 
-	// Sort logs by timestamp
+	// Sort logs by timestamp descending (newest to oldest)
 	sort.Slice(allLogs, func(i, j int) bool {
-		return allLogs[i].Timestamp().Before(allLogs[j].Timestamp())
+		return allLogs[i].Timestamp().After(allLogs[j].Timestamp())
 	})
 
-	// Apply limit if necessary (we might have more because we fetched 'limit' from each service)
+	// Apply limit
 	if len(allLogs) > int(limit) {
-		allLogs = allLogs[len(allLogs)-int(limit):]
+		allLogs = allLogs[:int(limit)]
 	}
 
-	nextAfter := ""
+	nextUntil := ""
 	if len(allLogs) > 0 {
-		nextAfter = allLogs[len(allLogs)-1].Timestamp().Format(time.RFC3339Nano)
+		nextUntil = allLogs[len(allLogs)-1].Timestamp().Format(time.RFC3339Nano)
 	}
 
-	return allLogs, nextAfter, nil
+	return allLogs, nextUntil, nil
 }
 
 type logLine struct {
-	ts  time.Time
-	msg string
+	ts      time.Time
+	msg     string
+	logType string
 }
 
 func (l logLine) Message() string {
@@ -902,6 +905,10 @@ func (l logLine) Message() string {
 
 func (l logLine) Timestamp() time.Time {
 	return l.ts
+}
+
+func (l logLine) Type() string {
+	return l.logType
 }
 
 func (d *DockerSwarmManager) makeDriverName(processor *models.Processor) string {

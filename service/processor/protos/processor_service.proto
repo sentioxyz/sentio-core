@@ -666,7 +666,7 @@ service ProcessorRuntimeService {
 message GetLogsRequest {
   string processor_id = 1;
   int32 limit = 2;
-  repeated common.Any after = 3;
+  repeated common.Any until = 3;
   repeated string log_type_filters = 4;
   string query = 5;
 }
@@ -683,6 +683,6 @@ message GetLogsResponse {
     string highlighted_message = 7;
     string chain_id = 8;
   }
-  repeated common.Any after = 2;
+  repeated common.Any until = 2;
   int64 total = 3;
 }

@@ -795,28 +795,21 @@ func (s *Service) GetLogs(ctx context.Context, req *protos.GetLogsRequest) (*pro
 		chainId := ""
 		var attributes *structpb.Struct
 		var data map[string]interface{}
+		var ok bool
 		if err := json.Unmarshal([]byte(msg), &data); err == nil {
-			if m, ok := data["message"].(string); ok {
-				msg = m
+			if msg, ok = data["message"].(string); ok {
 				delete(data, "message")
-			} else if m, ok := data["msg"].(string); ok {
-				msg = m
-				delete(data, "msg")
 			}
-
-			if lv, ok := data["level"].(string); ok {
-				level = lv
+			if level, ok = data["level"].(string); ok {
 				delete(data, "level")
-			} else if lv, ok := data["severity"].(string); ok {
-				level = lv
-				delete(data, "severity")
 			}
-
-			if chain, ok := data["chain"].(string); ok {
+			if chain, ok := data["chain_id"].(string); ok {
 				chainId = chain
-				delete(data, "chain")
+				delete(data, "chain_id")
 			}
-
+			if _, ok = data["timestamp"].(string); ok {
+				delete(data, "timestamp")
+			}
 			if len(data) > 0 {
 				if attr, err := structpb.NewStruct(data); err == nil {
 					attributes = attr

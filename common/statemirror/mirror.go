@@ -31,3 +31,12 @@ type StateCodec[K comparable, V any] interface {
 	Encode(v V) (string, error) // value -> string
 	Decode(s string) (V, error)
 }
+
+type MirrorReadOnlyState[K comparable, V any] interface {
+	Get(ctx context.Context, field K) (value V, ok bool, err error)
+	MGet(ctx context.Context, fields ...K) (map[K]V, error)
+	GetAll(ctx context.Context) (map[K]V, error)
+	Scan(ctx context.Context, cursor uint64, match string, count int) (
+		nextCursor uint64, kv map[K]V, err error,
+	)
+}

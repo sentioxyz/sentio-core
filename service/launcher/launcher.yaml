@@ -9,7 +9,7 @@ shared:
 
   # Redis configuration
   redis:
-    url: 'localhost:6379'
+    url: 'host.docker.internal:6379'
     password: ''
     db: 0
 

@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"encoding/json"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
 	commonerrors "sentioxyz/sentio-core/service/common/errors"
@@ -21,6 +22,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -757,11 +759,11 @@ func (s *Service) StopProcessor(ctx context.Context, req *protos.StopProcessorRe
 }
 
 func (s *Service) GetLogs(ctx context.Context, req *protos.GetLogsRequest) (*protos.GetLogsResponse, error) {
-	after := ""
-	if len(req.After) > 0 {
+	until := ""
+	if len(req.Until) > 0 {
 		// Currently only support one cursor in Any
-		if req.After[0].GetStringValue() != "" {
-			after = req.After[0].GetStringValue()
+		if req.Until[0].GetStringValue() != "" {
+			until = req.Until[0].GetStringValue()
 		}
 	}
 
@@ -781,27 +783,65 @@ func (s *Service) GetLogs(ctx context.Context, req *protos.GetLogsRequest) (*pro
 		return nil, status.Errorf(codes.NotFound, "processor not found")
 	}
 
-	logs, nextAfter, err := s.driverJobManager.GetLogs(ctx, processor, limit, after, req.Query)
+	logs, nextUntil, err := s.driverJobManager.GetLogs(ctx, processor, limit, until, req.Query)
 	if err != nil {
 		return nil, err
 	}
 
 	pbLogs := make([]*protos.GetLogsResponse_Log, len(logs))
 	for i, l := range logs {
+		msg := l.Message()
+		level := ""
+		chainId := ""
+		var attributes *structpb.Struct
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(msg), &data); err == nil {
+			if m, ok := data["message"].(string); ok {
+				msg = m
+				delete(data, "message")
+			} else if m, ok := data["msg"].(string); ok {
+				msg = m
+				delete(data, "msg")
+			}
+
+			if lv, ok := data["level"].(string); ok {
+				level = lv
+				delete(data, "level")
+			} else if lv, ok := data["severity"].(string); ok {
+				level = lv
+				delete(data, "severity")
+			}
+
+			if chain, ok := data["chain"].(string); ok {
+				chainId = chain
+				delete(data, "chain")
+			}
+
+			if len(data) > 0 {
+				if attr, err := structpb.NewStruct(data); err == nil {
+					attributes = attr
+				}
+			}
+		}
+
 		pbLogs[i] = &protos.GetLogsResponse_Log{
-			Message:   l.Message(),
-			Timestamp: timestamppb.New(l.Timestamp()),
+			Message:    msg,
+			Timestamp:  timestamppb.New(l.Timestamp()),
+			Level:      level,
+			LogType:    l.Type(),
+			ChainId:    chainId,
+			Attributes: attributes,
 		}
 	}
 
 	resp := &protos.GetLogsResponse{
 		Logs: pbLogs,
 	}
-	if nextAfter != "" {
-		resp.After = []*commonprotos.Any{
+	if nextUntil != "" {
+		resp.Until = []*commonprotos.Any{
 			{
 				AnyValue: &commonprotos.Any_StringValue{
-					StringValue: nextAfter,
+					StringValue: nextUntil,
 				},
 			},
 		}

@@ -4,6 +4,7 @@ go_library(
     name = "statemirror",
     srcs = [
         "codec_utils.go",
+        "file_mirror.go",
         "mirror.go",
         "on_chain_mapping_constants.go",
         "redis_mirror.go",
@@ -21,6 +22,7 @@ go_library(
 go_test(
     name = "statemirror_test",
     srcs = [
+        "file_mirror_test.go",
         "redis_mirror_test.go",
         "typed_mirror_test.go",
     ],

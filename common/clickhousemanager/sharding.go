@@ -44,7 +44,11 @@ func (s *ShardingParameter) shardingConnectionKey() shardingConnectionKey {
 }
 
 func (s *ShardingParameter) shardingCredentialsKey() string {
-	return string(s.Category) + "_" + string(s.Role)
+	key := string(s.Category)
+	if string(s.Role) != "" {
+		key += "_" + string(s.Role)
+	}
+	return key
 }
 
 type sharding struct {

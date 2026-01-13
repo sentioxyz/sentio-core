@@ -51,7 +51,7 @@ func WithInternalOnly(internalOnly bool) func(*ShardingParameter) {
 
 func NewShardingParameter() *ShardingParameter {
 	return &ShardingParameter{
-		Role:     DefaultRole,
+		Role:     EmptyRole,
 		Category: DefaultCategory,
 	}
 }

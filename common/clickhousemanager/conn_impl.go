@@ -20,4 +20,5 @@ type Conn interface {
 	Exec(context.Context, string, ...any) error
 	Query(context.Context, string, ...any) (driver.Rows, error)
 	QueryRow(context.Context, string, ...any) driver.Row
+	PrepareBatch(ctx context.Context, query string, opts ...driver.PrepareBatchOption) (driver.Batch, error)
 }

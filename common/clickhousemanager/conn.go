@@ -99,6 +99,10 @@ func (c *conn) QueryRow(ctx context.Context, sql string, args ...any) driver.Row
 	return c.conn.QueryRow(c.sign(ctx, sql), sql, args...)
 }
 
+func (c *conn) PrepareBatch(ctx context.Context, query string, opts ...driver.PrepareBatchOption) (driver.Batch, error) {
+	return c.conn.PrepareBatch(c.sign(ctx, query), query, opts...)
+}
+
 func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhouse.Options, *ecdsa.PrivateKey) {
 	ckhOptions := &clickhouse.Options{
 		Addr: []string{"localhost:9000"},

@@ -38,8 +38,9 @@ func ParseAddresses(address map[string]string) Addresses {
 type shardingConnectionKey string
 
 func (s *ShardingParameter) shardingConnectionKey() shardingConnectionKey {
-	return shardingConnectionKey(string(s.Role) +
-		"[proxy:" + anyutil.ToString(s.UnderlyingProxy) +
+	return shardingConnectionKey("[category:" + string(s.Category) +
+		",role:" + string(s.Role) +
+		",proxy:" + anyutil.ToString(s.UnderlyingProxy) +
 		",signature:" + anyutil.ToString(s.PrivateKey) + "]")
 }
 

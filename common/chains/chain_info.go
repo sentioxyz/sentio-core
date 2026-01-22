@@ -1569,7 +1569,7 @@ var SolanaPythInfo = ChainInfo{
 }
 
 var ForgoTestnetInfo = ChainInfo{
-  Name: "Forgo Testnet",
+  Name: "Fogo Testnet",
   Slug: "forgo-testnet",
   AdditionalSlugs: []string{},
   ChainID: ChainID(ForgoTestnetID),
@@ -1578,7 +1578,7 @@ var ForgoTestnetInfo = ChainInfo{
 }
 
 var ForgoMainnetInfo = ChainInfo{
-  Name: "Forgo Mainnet",
+  Name: "Fogo Mainnet",
   Slug: "forgo-mainnet",
   AdditionalSlugs: []string{},
   ChainID: ChainID(ForgoMainnetID),

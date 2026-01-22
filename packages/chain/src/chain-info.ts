@@ -1541,7 +1541,8 @@ export const SolanaChainInfo: Record<
     nativeChainId: 101,
     explorerUrl: 'https://solscan.io/',
     suffix: '?cluster=custom&customUrl=https://pythnet.rpcpool.com',
-    lightIcon: 'https://sentio.xyz/pyth.svg'
+    lightIcon: 'https://assets.sentio.xyz/chains/pyth.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/pyth-dark.svg'
   },
   [SolanaChainId.FORGO_TESTNET]: {
     name: 'Fogo Testnet',

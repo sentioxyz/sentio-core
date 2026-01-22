@@ -1551,7 +1551,8 @@ export const SolanaChainInfo: Record<
     mainnetChainId: SolanaChainId.FORGO_MAINNET,
     explorerUrl: 'https://fogoscan.com/',
     suffix: '?cluster=testnet',
-    lightIcon: 'https://assets.sentio.xyz/chains/fogo.png'
+    lightIcon: 'https://assets.sentio.xyz/chains/fogo.png',
+    darkIcon: 'https://assets.sentio.xyz/chains/fogo-dark.png'
   },
   [SolanaChainId.FORGO_MAINNET]: {
     name: 'Fogo Mainnet',
@@ -1559,7 +1560,8 @@ export const SolanaChainInfo: Record<
     chainId: SolanaChainId.FORGO_MAINNET,
     explorerUrl: 'https://fogoscan.com/',
     suffix: '',
-    lightIcon: 'https://assets.sentio.xyz/chains/fogo-dark.png'
+    lightIcon: 'https://assets.sentio.xyz/chains/fogo.png',
+    darkIcon: 'https://assets.sentio.xyz/chains/fogo-dark.png'
   }
 }
 

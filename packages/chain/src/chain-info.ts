@@ -1522,7 +1522,7 @@ export const SolanaChainInfo: Record<
     nativeChainId: 101,
     explorerUrl: 'https://solscan.io/',
     suffix: '',
-    lightIcon: 'https://sentio.xyz/solana.svg'
+    lightIcon: 'https://assets.sentio.xyz/chains/solana.svg'
   },
   [SolanaChainId.SOLANA_TESTNET]: {
     name: 'Solana Testnet',
@@ -1532,7 +1532,7 @@ export const SolanaChainInfo: Record<
     mainnetChainId: SolanaChainId.SOLANA_MAINNET,
     explorerUrl: 'https://solscan.io/',
     suffix: '?cluster=testnet',
-    lightIcon: 'https://sentio.xyz/solana.svg'
+    lightIcon: 'https://assets.sentio.xyz/chains/solana.svg'
   },
   [SolanaChainId.SOLANA_PYTH]: {
     name: 'Pyth',
@@ -1541,24 +1541,25 @@ export const SolanaChainInfo: Record<
     nativeChainId: 101,
     explorerUrl: 'https://solscan.io/',
     suffix: '?cluster=custom&customUrl=https://pythnet.rpcpool.com',
-    lightIcon: 'https://sentio.xyz/pyth.svg'
+    lightIcon: 'https://assets.sentio.xyz/chains/pyth.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/pyth-dark.svg'
   },
   [SolanaChainId.FORGO_TESTNET]: {
-    name: 'Forgo Testnet',
+    name: 'Fogo Testnet',
     slug: 'forgo-testnet',
     chainId: SolanaChainId.FORGO_TESTNET,
     mainnetChainId: SolanaChainId.FORGO_MAINNET,
     explorerUrl: 'https://fogoscan.com/',
     suffix: '?cluster=testnet',
-    lightIcon: 'https://sentio.xyz/solana.svg'
+    lightIcon: 'https://assets.sentio.xyz/chains/fogo.png'
   },
   [SolanaChainId.FORGO_MAINNET]: {
-    name: 'Forgo Mainnet',
+    name: 'Fogo Mainnet',
     slug: 'forgo-mainnet',
     chainId: SolanaChainId.FORGO_MAINNET,
     explorerUrl: 'https://fogoscan.com/',
     suffix: '',
-    lightIcon: 'https://sentio.xyz/solana.svg'
+    lightIcon: 'https://assets.sentio.xyz/chains/fogo-dark.png'
   }
 }
 

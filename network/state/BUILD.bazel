@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "state",
+    srcs = [
+        "state.go",
+        "state_mirrored.go",
+        "store_file.go",
+        "store_postgres.go",
+        "types.go",
+    ],
+    importpath = "sentioxyz/sentio-core/network/state",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/statemirror",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_gorm_driver_postgres//:postgres",
+        "@io_gorm_gorm//:gorm",
+    ],
+)

@@ -41,7 +41,7 @@ func (s *ShardingParameter) shardingConnectionKey() shardingConnectionKey {
 	return shardingConnectionKey("[category:" + string(s.Category) +
 		",role:" + string(s.Role) +
 		",proxy:" + anyutil.ToString(s.UnderlyingProxy) +
-		",signature:" + anyutil.ToString(s.PrivateKey) + "]")
+		",signature:" + anyutil.ToString(s.PrivateKeyHex) + "]")
 }
 
 func (s *ShardingParameter) shardingCredentialsKey() string {
@@ -115,8 +115,8 @@ func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
 
 	var connOptions []func(*Options)
 	connOptions = append(connOptions, s.opts...)
-	if parameter.PrivateKey != "" {
-		connOptions = append(connOptions, WithSignature(parameter.PrivateKey))
+	if parameter.PrivateKeyHex != "" {
+		connOptions = append(connOptions, ConnectWithPrivateKey(parameter.PrivateKeyHex))
 	}
 
 	conn := NewOrGetConn(s.formatDSN(cred.Username, cred.Password, cred.Database, addr), connOptions...)
@@ -143,8 +143,8 @@ func (s *sharding) connectReplicas(parameter *ShardingParameter) ([]Conn, error)
 
 	var connOptions []func(*Options)
 	connOptions = append(connOptions, s.opts...)
-	if parameter.PrivateKey != "" {
-		connOptions = append(connOptions, WithSignature(parameter.PrivateKey))
+	if parameter.PrivateKeyHex != "" {
+		connOptions = append(connOptions, ConnectWithPrivateKey(parameter.PrivateKeyHex))
 	}
 
 	for _, addr := range addrs {
@@ -233,8 +233,8 @@ func (s *sharding) GetAllConn(options ...func(*ShardingParameter)) map[string]Co
 
 	var connOptions []func(*Options)
 	connOptions = append(connOptions, s.opts...)
-	if parameter.PrivateKey != "" {
-		connOptions = append(connOptions, WithSignature(parameter.PrivateKey))
+	if parameter.PrivateKeyHex != "" {
+		connOptions = append(connOptions, ConnectWithPrivateKey(parameter.PrivateKeyHex))
 	}
 
 	var results = make(map[string]Conn)

@@ -17,7 +17,7 @@ import (
 type ErrorRecord struct {
 	ID            string // `gorm:"primarykey"`
 	Namespace     ErrorNamespace
-	Code          codes.Code
+	Code          int32
 	NamespaceCode int32
 	Message       string
 	CreatedAt     time.Time `gorm:"autoCreateTime:false"`
@@ -43,7 +43,7 @@ func (e *ErrorRecord) ToPB() *protos.ErrorRecord {
 		Namespace:     int32(e.Namespace),
 		Message:       msg,
 		CreatedAt:     timestamppb.New(e.CreatedAt),
-		Code:          int32(e.Code),
+		Code:          e.Code,
 		NamespaceCode: e.NamespaceCode,
 	}
 	return ret
@@ -54,7 +54,7 @@ func (e *ErrorRecord) FromPB(err *protos.ErrorRecord) {
 	e.Namespace = ErrorNamespace(err.Namespace)
 	e.Message = err.Message
 	e.CreatedAt = err.CreatedAt.AsTime()
-	e.Code = codes.Code(err.Code)
+	e.Code = err.Code
 	e.NamespaceCode = err.NamespaceCode
 }
 
@@ -89,7 +89,7 @@ func NewErrorRecord(namespace ErrorNamespace, err error) ErrorRecord {
 		ID:        id,
 		Namespace: namespace,
 		Message:   message,
-		Code:      code,
+		Code:      int32(code),
 		CreatedAt: time.Now(),
 	}
 }

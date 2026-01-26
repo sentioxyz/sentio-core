@@ -17,8 +17,8 @@ type Options struct {
 	maxIdleConns, maxOpenConns int
 
 	// serialization ignored
-	signature  string
-	privateKey *ecdsa.PrivateKey
+	privateKeyHex string
+	privateKey    *ecdsa.PrivateKey
 }
 
 func (o *Options) Serialization() string {
@@ -44,20 +44,19 @@ func (o *Options) Serialization() string {
 	return s
 }
 
-func WithSettings(settings map[string]any) func(o *Options) {
+func ConnectWithSettings(settings map[string]any) func(o *Options) {
 	return func(o *Options) {
 		o.settings = settings
 	}
 }
 
-func WithSignature(sign string) func(o *Options) {
+func ConnectWithPrivateKey(privateKeyHex string) func(o *Options) {
 	return func(o *Options) {
-		o.signature = sign
+		o.privateKeyHex = privateKeyHex
 		var err error
-		o.privateKey, err = crypto.HexToECDSA(sign)
+		o.privateKey, err = crypto.HexToECDSA(privateKeyHex)
 		if err != nil {
-			log.Errorf("failed to parse signature: %v", err)
-			panic(err)
+			log.Errorfe(err, "invalid private key, ignoring")
 		}
 	}
 }
@@ -69,7 +68,7 @@ type dialConfig struct {
 	maxOpenConns int
 }
 
-func WithDialConfig(config dialConfig) func(o *Options) {
+func ConnectWithDialConfig(config dialConfig) func(o *Options) {
 	return func(o *Options) {
 		o.readTimeout = config.readTimeout
 		o.dialTimeout = config.dialTimeout

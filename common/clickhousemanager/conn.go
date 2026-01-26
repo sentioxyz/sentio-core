@@ -12,9 +12,29 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/mitchellh/hashstructure/v2"
 )
+
+type connSettings struct {
+	version int
+}
+
+var connSettingsKey = &connSettings{
+	version: 1,
+}
+
+// ContextMergeSettings merges the provided settings into the existing context settings.
+// This is a wrapper around clickhouse-go, whose implementation does not support being called multiple times.
+func ContextMergeSettings(ctx context.Context, settings clickhouse.Settings) context.Context {
+	exists, ok := ctx.Value(connSettingsKey).(clickhouse.Settings)
+	if ok {
+		for k, v := range settings {
+			exists[k] = v
+		}
+		return context.WithValue(ctx, connSettingsKey, exists)
+	}
+	return context.WithValue(ctx, connSettingsKey, settings)
+}
 
 var (
 	rawConnections *utils.SafeMap[uint64, driver.Conn]
@@ -75,16 +95,28 @@ func (c *conn) Close() {
 	}
 }
 
-func (c *conn) sign(ctx context.Context, query string) context.Context {
+func (c *conn) sign(ctx context.Context, query string) (clickhouseCtx context.Context) {
+	var settings = make(clickhouse.Settings)
+	defer func() {
+		exists, ok := ctx.Value(connSettingsKey).(clickhouse.Settings)
+		if ok {
+			for k, v := range exists {
+				settings[k] = v
+			}
+		}
+		clickhouseCtx = clickhouse.Context(ctx, clickhouse.WithSettings(settings))
+	}()
+
 	if c.privateKey == nil {
-		return ctx
+		return
 	}
-	signature, err := crypto.Sign(crypto.Keccak256([]byte(query)), c.privateKey)
+	token, err := createJWSToken(c.privateKey, query)
 	if err != nil {
-		log.Errorf("sign query failed: %v", err)
-		return ctx
+		log.Errorfe(err, "failed to create JWT token, will let the query pass without authentication")
+		return
 	}
-	return clickhouse.Context(ctx, clickhouse.WithQuotaKey(string(signature)))
+	settings["x_auth_token"] = clickhouse.CustomSetting{Value: token}
+	return
 }
 
 func (c *conn) Exec(ctx context.Context, sql string, args ...any) error {

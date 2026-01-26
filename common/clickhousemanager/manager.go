@@ -236,13 +236,13 @@ func loadShardingConfig(config Config, allowPanic bool) (ok bool, shards map[int
 	defaultIndex = 0
 
 	var connOptions []func(*Options)
-	connOptions = append(connOptions, WithDialConfig(dialConfig{
+	connOptions = append(connOptions, ConnectWithDialConfig(dialConfig{
 		readTimeout:  config.ReadTimeout,
 		dialTimeout:  config.DialTimeout,
 		maxIdleConns: config.MaxIdleConnections,
 		maxOpenConns: config.MaxOpenConnections,
 	}))
-	connOptions = append(connOptions, WithSettings(config.Settings))
+	connOptions = append(connOptions, ConnectWithSettings(config.Settings))
 
 	for _, shard := range config.Shards {
 		_, exists := shardIndex[shard.Name]

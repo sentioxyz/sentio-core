@@ -8,6 +8,7 @@ go_library(
         "conn_options.go",
         "constants.go",
         "error_code_map.go",
+        "jwt_token.go",
         "manager.go",
         "roles.go",
         "sharding.go",

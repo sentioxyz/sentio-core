@@ -26,12 +26,12 @@ type Addresses struct {
 
 func ParseAddresses(address map[string]string) Addresses {
 	return Addresses{
-		InternalTCPAddr:     address["internal_tcp_addr"],
-		InternalTCPReplicas: strings.Split(address["internal_tcp_replicas"], ","),
-		ExternalTCPAddr:     address["external_tcp_addr"],
-		ExternalTCPReplicas: strings.Split(address["external_tcp_replicas"], ","),
-		InternalTCPProxy:    address["internal_tcp_proxy"],
-		ExternalTCPProxy:    address["external_tcp_proxy"],
+		InternalTCPAddr:     address[InternalTcpField],
+		InternalTCPReplicas: strings.Split(address[InternalTcpReplicasField], ","),
+		ExternalTCPAddr:     address[ExternalTcpField],
+		ExternalTCPReplicas: strings.Split(address[ExternalTcpReplicasField], ","),
+		InternalTCPProxy:    address[InternalTcpProxyField],
+		ExternalTCPProxy:    address[ExternalTcpProxyField],
 	}
 }
 
@@ -53,7 +53,7 @@ func (s *ShardingParameter) shardingCredentialsKey() string {
 }
 
 type sharding struct {
-	index              int32
+	index              ShardingIndex
 	name               string
 	credentials        map[string]Credential
 	addresses          Addresses
@@ -62,7 +62,7 @@ type sharding struct {
 	opts               []func(*Options)
 }
 
-func NewSharding(index int32, name string, credentials map[string]Credential,
+func NewSharding(index ShardingIndex, name string, credentials map[string]Credential,
 	addresses map[string]string, opts ...func(*Options)) Sharding {
 	return &sharding{
 		index:              index,
@@ -154,7 +154,7 @@ func (s *sharding) connectReplicas(parameter *ShardingParameter) ([]Conn, error)
 	return connections, nil
 }
 
-func (s *sharding) GetIndex() int32 {
+func (s *sharding) GetIndex() ShardingIndex {
 	return s.index
 }
 

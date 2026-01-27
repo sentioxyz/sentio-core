@@ -1,7 +1,7 @@
 package ckhmanager
 
 type Sharding interface {
-	GetIndex() int32
+	GetIndex() ShardingIndex
 	GetConn(...func(*ShardingParameter)) (Conn, error)
 	MustGetConn(...func(*ShardingParameter)) Conn
 	GetConnAllReplicas(...func(*ShardingParameter)) ([]Conn, error)

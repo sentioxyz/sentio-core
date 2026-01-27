@@ -21,3 +21,12 @@ func newConnSettingsMacro() map[string]any {
 		"secondary_indices_enable_bulk_filtering":             0,
 	}
 }
+
+const (
+	ExternalTcpProxyField    = "external_tcp_proxy"
+	InternalTcpProxyField    = "internal_tcp_proxy"
+	ExternalTcpField         = "external_tcp_addr"
+	InternalTcpField         = "internal_tcp_addr"
+	ExternalTcpReplicasField = "external_tcp_replicas"
+	InternalTcpReplicasField = "internal_tcp_replicas"
+)

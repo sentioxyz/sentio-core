@@ -21,6 +21,7 @@ go_library(
         "//common/clickhousemanager/helper",
         "//common/log",
         "//common/utils",
+        "//network/state",
         "//service/common/models",
         "//service/common/protos",
         "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",

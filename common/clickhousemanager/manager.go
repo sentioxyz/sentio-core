@@ -11,34 +11,38 @@ import (
 	"time"
 
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/network/state"
 	"sentioxyz/sentio-core/service/common/models"
 	protoscommon "sentioxyz/sentio-core/service/common/protos"
 
 	"gopkg.in/yaml.v3"
 )
 
+type ShardingIndex uint64
+
 type PickOptions interface {
 	GetProject() *models.Project
 }
 
 type Manager interface {
-	GetShardByIndex(i int32) Sharding
+	GetShardByIndex(i ShardingIndex) Sharding
 	GetShardByName(name string) Sharding
 	All() []Sharding
-	Pick(PickOptions) (int32, Sharding)
+	DefaultIndex() ShardingIndex
+	Pick(PickOptions) (ShardingIndex, Sharding)
 	Reload(Config) error
-	DefaultIndex() int32
+	NewShardByStateIndexer(indexerInfo state.IndexerInfo) Sharding
 }
 
 type ShardingStrategy struct {
-	ProjectsMapping      map[string][]int32
-	OrganizationsMapping map[string][]int32
-	TiersMapping         map[protoscommon.Tier][]int32
+	ProjectsMapping      map[string][]ShardingIndex
+	OrganizationsMapping map[string][]ShardingIndex
+	TiersMapping         map[protoscommon.Tier][]ShardingIndex
 	PickStrategy         string
 }
 
 type ShardingConfig struct {
-	Index              int32             `yaml:"index" json:"index"`
+	Index              ShardingIndex     `yaml:"index" json:"index"`
 	Name               string            `yaml:"name" json:"name"`
 	AllowTiers         []int32           `yaml:"allow_tiers" json:"allow_tiers"`
 	AllowOrganizations []string          `yaml:"allow_organizations" json:"allow_organizations"`
@@ -58,12 +62,13 @@ type Config struct {
 }
 
 type manager struct {
-	shards       map[int32]Sharding
-	strategies   ShardingStrategy
-	defaultIndex int32
+	config Config
 
-	shardIndex        map[string]int32
-	shardReverseIndex map[int32]string
+	shards            map[ShardingIndex]Sharding
+	strategies        ShardingStrategy
+	defaultIndex      ShardingIndex
+	shardIndex        map[string]ShardingIndex
+	shardReverseIndex map[ShardingIndex]string
 	mutex             sync.RWMutex
 }
 
@@ -76,7 +81,7 @@ func initShard(credential map[string]Credential, shardingConfig ShardingConfig, 
 		connOptions...)
 }
 
-func (m *manager) GetShardByIndex(i int32) Sharding {
+func (m *manager) GetShardByIndex(i ShardingIndex) Sharding {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.shards[i]
@@ -98,22 +103,22 @@ func (m *manager) All() []Sharding {
 	return shards
 }
 
-func (m *manager) pickByStrategy(key string, indexes []int32) int32 {
+func (m *manager) pickByStrategy(key string, indexes []ShardingIndex) ShardingIndex {
 	if len(indexes) == 0 {
 		return m.defaultIndex
 	}
 	switch m.strategies.PickStrategy {
 	case "random":
-		return indexes[rand.Int31n(int32(len(indexes)))]
+		return indexes[rand.Int63n(int64(len(indexes)))]
 	case "hash":
 		f := fnv.New64a()
 		f.Write([]byte(key))
-		return int32(f.Sum64()) % int32(len(indexes))
+		return ShardingIndex(f.Sum64()) % ShardingIndex(len(indexes))
 	}
 	return indexes[0]
 }
 
-func (m *manager) Pick(options PickOptions) (int32, Sharding) {
+func (m *manager) Pick(options PickOptions) (ShardingIndex, Sharding) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	if m.strategies.PickStrategy == "" {
@@ -170,6 +175,7 @@ func (m *manager) Reload(config Config) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
+	m.config = config
 	ok, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, true)
 	if !ok {
 		return fmt.Errorf("failed to reload sharding config")
@@ -182,11 +188,25 @@ func (m *manager) Reload(config Config) error {
 	return nil
 }
 
-func (m *manager) DefaultIndex() int32 {
+func (m *manager) DefaultIndex() ShardingIndex {
 	return m.defaultIndex
 }
 
-func addTierMapping(strategies *ShardingStrategy, index int32, tiers []int32) {
+func (m *manager) NewShardByStateIndexer(indexerInfo state.IndexerInfo) Sharding {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	connOptions := loadConnOptions(m.config)
+	sharding := initShard(m.config.Credential, ShardingConfig{
+		Index: ShardingIndex(indexerInfo.IndexerId),
+		Name:  fmt.Sprintf("indexer-%d", indexerInfo.IndexerId),
+		Addresses: map[string]string{
+			ExternalTcpProxyField: fmt.Sprintf("clickhouse://%s:%d", indexerInfo.IndexerUrl, indexerInfo.ClickhouseProxyPort),
+		},
+	}, connOptions)
+	return sharding
+}
+
+func addTierMapping(strategies *ShardingStrategy, index ShardingIndex, tiers []int32) {
 	for _, tier := range tiers {
 		if _, ok := protoscommon.Tier_name[tier]; ok {
 			strategies.TiersMapping[protoscommon.Tier(tier)] = append(strategies.TiersMapping[protoscommon.Tier(tier)], index)
@@ -196,13 +216,13 @@ func addTierMapping(strategies *ShardingStrategy, index int32, tiers []int32) {
 	}
 }
 
-func addOrganizationMapping(strategies *ShardingStrategy, index int32, organizations []string) {
+func addOrganizationMapping(strategies *ShardingStrategy, index ShardingIndex, organizations []string) {
 	for _, org := range organizations {
 		strategies.OrganizationsMapping[org] = append(strategies.OrganizationsMapping[org], index)
 	}
 }
 
-func addProjectMapping(strategies *ShardingStrategy, index int32, projects []string) {
+func addProjectMapping(strategies *ShardingStrategy, index ShardingIndex, projects []string) {
 	for _, project := range projects {
 		strategies.ProjectsMapping[project] = append(strategies.ProjectsMapping[project], index)
 	}
@@ -223,18 +243,7 @@ func verify(strategies *ShardingStrategy, allowPanic bool) bool {
 	return true
 }
 
-func loadShardingConfig(config Config, allowPanic bool) (ok bool, shards map[int32]Sharding, strategies ShardingStrategy, defaultIndex int32,
-	shardIndex map[string]int32, shardReverseIndex map[int32]string) {
-	shards = make(map[int32]Sharding)
-	strategies = ShardingStrategy{
-		ProjectsMapping:      make(map[string][]int32),
-		OrganizationsMapping: make(map[string][]int32),
-		TiersMapping:         make(map[protoscommon.Tier][]int32),
-	}
-	shardIndex = make(map[string]int32)
-	shardReverseIndex = make(map[int32]string)
-	defaultIndex = 0
-
+func loadConnOptions(config Config) []func(*Options) {
 	var connOptions []func(*Options)
 	connOptions = append(connOptions, ConnectWithDialConfig(dialConfig{
 		readTimeout:  config.ReadTimeout,
@@ -243,7 +252,22 @@ func loadShardingConfig(config Config, allowPanic bool) (ok bool, shards map[int
 		maxOpenConns: config.MaxOpenConnections,
 	}))
 	connOptions = append(connOptions, ConnectWithSettings(config.Settings))
+	return connOptions
+}
 
+func loadShardingConfig(config Config, allowPanic bool) (ok bool, shards map[ShardingIndex]Sharding, strategies ShardingStrategy, defaultIndex ShardingIndex,
+	shardIndex map[string]ShardingIndex, shardReverseIndex map[ShardingIndex]string) {
+	shards = make(map[ShardingIndex]Sharding)
+	strategies = ShardingStrategy{
+		ProjectsMapping:      make(map[string][]ShardingIndex),
+		OrganizationsMapping: make(map[string][]ShardingIndex),
+		TiersMapping:         make(map[protoscommon.Tier][]ShardingIndex),
+	}
+	shardIndex = make(map[string]ShardingIndex)
+	shardReverseIndex = make(map[ShardingIndex]string)
+	defaultIndex = 0
+
+	connOptions := loadConnOptions(config)
 	for _, shard := range config.Shards {
 		_, exists := shardIndex[shard.Name]
 		if exists {
@@ -274,6 +298,7 @@ func loadShardingConfig(config Config, allowPanic bool) (ok bool, shards map[int
 func NewManager(config Config) Manager {
 	_, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, true)
 	manager := &manager{
+		config:            config,
 		shards:            shards,
 		strategies:        strategies,
 		shardIndex:        shardIndex,

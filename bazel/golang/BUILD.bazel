@@ -15,5 +15,6 @@ write_source_files(
     name = "update_go_pb",
     additional_update_targets = [
         "//service/common/protos:internal_protos.update_go_pb",
+        "//service/processor/protos:internal_protos.update_go_pb",
     ],
 )

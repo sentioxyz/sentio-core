@@ -140,7 +140,7 @@ func (m *manager) pickByStrategy(key string, indexes []ShardingIndex) ShardingIn
 	case "hash":
 		f := fnv.New64a()
 		f.Write([]byte(key))
-		return ShardingIndex(f.Sum64()) % ShardingIndex(len(indexes))
+		return indexes[f.Sum64()%uint64(len(indexes))]
 	}
 	return indexes[0]
 }

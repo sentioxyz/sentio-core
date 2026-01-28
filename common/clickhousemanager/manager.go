@@ -83,6 +83,7 @@ type Config struct {
 	MaxOpenConnections int                   `yaml:"max_open_connections" json:"max_open_connections"`
 	Settings           map[string]any        `yaml:"settings" json:"settings"`
 	Credential         map[string]Credential `yaml:"credential" json:"credential"`
+	PickLbStrategy     string                `yaml:"pick_lb_strategy" json:"pick_lb_strategy"`
 
 	Shards []ShardingConfig `yaml:"shards"`
 }
@@ -288,6 +289,7 @@ func loadShardingConfig(config Config, allowPanic bool) (ok bool, shards map[Sha
 		ProjectsMapping:      make(map[string][]ShardingIndex),
 		OrganizationsMapping: make(map[string][]ShardingIndex),
 		TiersMapping:         make(map[protoscommon.Tier][]ShardingIndex),
+		PickStrategy:         config.PickLbStrategy,
 	}
 	shardIndex = make(map[string]ShardingIndex)
 	shardReverseIndex = make(map[ShardingIndex]string)

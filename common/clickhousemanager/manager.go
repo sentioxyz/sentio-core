@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"math/rand"
 	"os"
 	"strings"
@@ -19,6 +20,31 @@ import (
 )
 
 type ShardingIndex uint64
+
+func (s ShardingIndex) String() string {
+	return fmt.Sprintf("%d", s)
+}
+
+func (s ShardingIndex) Int64() int64 {
+	if s > math.MaxInt64 {
+		log.Errorf("sharding index overflow: %d", s)
+	}
+	return int64(s)
+}
+
+func (s ShardingIndex) Uint32() uint32 {
+	if s > math.MaxUint32 {
+		log.Errorf("sharding index overflow: %d", s)
+	}
+	return uint32(s)
+}
+
+func (s ShardingIndex) Int32() int32 {
+	if s > math.MaxInt32 {
+		log.Errorf("sharding index overflow: %d", s)
+	}
+	return int32(s)
+}
 
 type PickOptions interface {
 	GetProject() *models.Project

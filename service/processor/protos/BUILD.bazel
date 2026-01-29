@@ -1,9 +1,9 @@
+load("@aspect_bazel_lib//lib:output_files.bzl", "make_output_files")
+load("@aspect_bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_go//go:def.bzl", "go_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_proto_grpc_grpc_gateway//:defs.bzl", "gateway_grpc_library")
-
-# load("//bazel:ts-rules.bzl", "ts_grpcgateway")
-load("//bazel/golang:go_proto_library.bzl", "go_proto_library")
+load("//bazel/golang:gateway_grpc_compile.bzl", "gateway_grpc_compile")
 
 proto_library(
     name = "protos_proto",
@@ -20,37 +20,41 @@ proto_library(
     ],
 )
 
-gateway_grpc_library(
-    name = "protos_go_proto",
-    importpath = "sentioxyz/sentio-core/service/processor/protos",
+gateway_grpc_compile(
+    name = "internal_protos",
     protos = [":protos_proto"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//service/common/protos",
-        "@grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options",
-        "@org_golang_google_genproto_googleapis_api//annotations",
-        "@org_golang_google_genproto_googleapis_api//visibility",
-    ],
+    visibility = ["//visibility:private"],
 )
 
 # gazelle:ignore
 go_library(
     name = "protos",
-    embed = [":protos_go_proto"],
+    srcs = [
+        "processor_service.pb.go",
+        "processor_service.pb.gw.go",
+        "processor_service_grpc.pb.go",
+    ],
     importpath = "sentioxyz/sentio-core/service/processor/protos",
     visibility = ["//visibility:public"],
-)
-
-go_proto_library(
-    name = "internal_protos",
-    importpath = "sentioxyz/sentio-core/internal-used-only/service/processor/protos",
-    proto = ":protos_proto",
-    visibility = ["//visibility:private"],
     deps = [
         "//service/common/protos",
         "@grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options",
+        "@grpc_ecosystem_grpc_gateway//runtime:go_default_library",
+        "@grpc_ecosystem_grpc_gateway//utilities:go_default_library",
         "@org_golang_google_genproto_googleapis_api//annotations",
         "@org_golang_google_genproto_googleapis_api//visibility",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//grpclog",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/emptypb",
+        "@org_golang_google_protobuf//types/known/structpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
     ],
 )
 

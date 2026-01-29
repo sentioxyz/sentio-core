@@ -1,11 +1,10 @@
-"gateway_grpc_library wrapper macro"
-
 load("@aspect_bazel_lib//lib:output_files.bzl", "make_output_files")
 load("@aspect_bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@bazel_skylib//lib:paths.bzl", "paths")
+load("@rules_go//go:def.bzl", "go_library")
 load("@rules_proto_grpc_grpc_gateway//:defs.bzl", _gateway_grpc_compile = "gateway_grpc_compile")
 
-def gateway_grpc_compile(name, proto_srcs = [], **kwargs):
+def gateway_grpc_compile_and_go_library(name, importpath, protos, proto_srcs = [], **kwargs):
     """Wrap gateway_grpc_compile with write_source_files and go_library.
 
     This causes the resulting .pb.go, _grpc.pb.go, and .pb.gw.go files
@@ -13,9 +12,11 @@ def gateway_grpc_compile(name, proto_srcs = [], **kwargs):
 
     Args:
         name: name of the final go_library rule produced
+        importpath: Go import path for the generated library
         proto_srcs: the srcs of the proto files
             If unset, a glob() of all ".proto" files in the package is used.
-        **kwargs: remaining arguments to gateway_grpc_compile (like protos, deps, etc.)
+        deps: additional dependencies for the go_library
+        **kwargs: remaining arguments to gateway_grpc_compile (like protos, etc.)
     """
 
     # Based on your output, gateway_grpc_compile outputs to:
@@ -38,7 +39,7 @@ def gateway_grpc_compile(name, proto_srcs = [], **kwargs):
     # Generate all three file types
     _gateway_grpc_compile(
         name = compile_name,
-        **kwargs
+        protos = protos,
     )
 
     # Get base names without .proto extension
@@ -75,5 +76,35 @@ def gateway_grpc_compile(name, proto_srcs = [], **kwargs):
     write_source_files(
         name = name + ".update_go_pb",
         files = files,
+        visibility = ["//visibility:public"],
+    )
+
+    go_library(
+        name = name,
+        srcs = (
+            [base + ".pb.go" for base in bases] +
+            [base + "_grpc.pb.go" for base in bases] +
+            [base + ".pb.gw.go" for base in bases]
+        ),
+        importpath = importpath,
+        deps = kwargs.pop("deps", []) + [
+            "@grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options",
+            "@grpc_ecosystem_grpc_gateway//runtime:go_default_library",
+            "@grpc_ecosystem_grpc_gateway//utilities:go_default_library",
+            "@org_golang_google_genproto_googleapis_api//annotations",
+            "@org_golang_google_genproto_googleapis_api//visibility",
+            "@org_golang_google_grpc//:go_default_library",
+            "@org_golang_google_grpc//:grpc",
+            "@org_golang_google_grpc//codes",
+            "@org_golang_google_grpc//grpclog",
+            "@org_golang_google_grpc//metadata",
+            "@org_golang_google_grpc//status",
+            "@org_golang_google_protobuf//proto",
+            "@org_golang_google_protobuf//reflect/protoreflect",
+            "@org_golang_google_protobuf//runtime/protoimpl",
+            "@org_golang_google_protobuf//types/known/emptypb",
+            "@org_golang_google_protobuf//types/known/structpb",
+            "@org_golang_google_protobuf//types/known/timestamppb",
+        ],
         visibility = ["//visibility:public"],
     )

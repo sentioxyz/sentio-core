@@ -89,3 +89,7 @@ multirun(
 # gazelle:resolve proto google/api/visibility.proto       @googleapis//google/api:visibility_proto
 # gazelle:resolve proto google/type/money.proto           @googleapis//google/type:money_proto
 # gazelle:resolve proto go google/type/money.proto        @org_golang_google_genproto//googleapis/type/money
+
+# gazelle:resolve go sentioxyz/sentio-core/service/processor/protos //service/processor/protos
+# gazelle:resolve go sentioxyz/sentio-core/service/project/protos //service/project/protos
+# gazelle:resolve go sentioxyz/sentio-core/service/webhook/protos //service/webhook/protos

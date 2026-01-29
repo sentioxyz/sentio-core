@@ -1,6 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_proto_grpc_grpc_gateway//:defs.bzl", "gateway_grpc_library")
+load("//bazel/golang:gateway_go_library.bzl", "gateway_grpc_compile_and_go_library")
 
 proto_library(
     name = "protos_proto",
@@ -13,20 +12,13 @@ proto_library(
     ],
 )
 
-gateway_grpc_library(
-    name = "protos_go_proto",
+# gazelle:ignore
+gateway_grpc_compile_and_go_library(
+    name = "protos",
     importpath = "sentioxyz/sentio-core/service/webhook/protos",
     protos = [":protos_proto"],
     visibility = ["//visibility:public"],
     deps = [
         "//service/common/protos",
-        "@org_golang_google_genproto_googleapis_api//annotations",
     ],
-)
-
-go_library(
-    name = "protos",
-    embed = [":protos_go_proto"],
-    importpath = "sentioxyz/sentio-core/service/webhook/protos",
-    visibility = ["//visibility:public"],
 )

@@ -94,6 +94,7 @@ type manager struct {
 	shards            map[ShardingIndex]Sharding
 	strategies        ShardingStrategy
 	defaultIndex      ShardingIndex
+	singleSharding    *ShardingIndex
 	shardIndex        map[string]ShardingIndex
 	shardReverseIndex map[ShardingIndex]string
 	mutex             sync.RWMutex
@@ -203,7 +204,7 @@ func (m *manager) Reload(config Config) error {
 	defer m.mutex.Unlock()
 
 	m.config = config
-	ok, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, true)
+	ok, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, true, m.singleSharding)
 	if !ok {
 		return fmt.Errorf("failed to reload sharding config")
 	}
@@ -282,7 +283,8 @@ func loadConnOptions(config Config) []func(*Options) {
 	return connOptions
 }
 
-func loadShardingConfig(config Config, allowPanic bool) (ok bool, shards map[ShardingIndex]Sharding, strategies ShardingStrategy, defaultIndex ShardingIndex,
+func loadShardingConfig(config Config, allowPanic bool, singleSharding *ShardingIndex) (
+	ok bool, shards map[ShardingIndex]Sharding, strategies ShardingStrategy, defaultIndex ShardingIndex,
 	shardIndex map[string]ShardingIndex, shardReverseIndex map[ShardingIndex]string) {
 	shards = make(map[ShardingIndex]Sharding)
 	strategies = ShardingStrategy{
@@ -297,6 +299,10 @@ func loadShardingConfig(config Config, allowPanic bool) (ok bool, shards map[Sha
 
 	connOptions := loadConnOptions(config)
 	for _, shard := range config.Shards {
+		if singleSharding != nil && shard.Index != *singleSharding {
+			log.Infof("skip shard %d, not match single sharding %d", shard.Index, *singleSharding)
+			continue
+		}
 		_, exists := shardIndex[shard.Name]
 		if exists {
 			log.Errorf("duplicate shard name: " + shard.Name)
@@ -318,13 +324,18 @@ func loadShardingConfig(config Config, allowPanic bool) (ok bool, shards map[Sha
 		addProjectMapping(&strategies, shard.Index, shard.AllowProjects)
 	}
 
+	if singleSharding != nil {
+		defaultIndex = *singleSharding
+		return
+	}
+
 	ok = verify(&strategies, allowPanic)
 	defaultIndex = strategies.TiersMapping[protoscommon.Tier_FREE][0]
 	return
 }
 
-func NewManager(config Config) Manager {
-	_, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, true)
+func NewManager(config Config, singleSharding *ShardingIndex) Manager {
+	_, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, true, singleSharding)
 	manager := &manager{
 		config:            config,
 		shards:            shards,
@@ -332,6 +343,7 @@ func NewManager(config Config) Manager {
 		shardIndex:        shardIndex,
 		shardReverseIndex: shardReverseIndex,
 		defaultIndex:      defaultIndex,
+		singleSharding:    singleSharding,
 	}
 	return manager
 }
@@ -364,5 +376,16 @@ func LoadManager(configPath string) Manager {
 	if configPath == "" {
 		return nil
 	}
-	return NewManager(loadConfig(configPath))
+	return NewManager(loadConfig(configPath), nil)
+}
+
+func LoadManagerWithSingleSharding(configPath string, shardingIndex ShardingIndex) (Manager, error) {
+	if configPath == "" {
+		return nil, fmt.Errorf("empty config path")
+	}
+	config := loadConfig(configPath)
+	if len(config.Shards) == 0 {
+		return nil, fmt.Errorf("no shards found in config")
+	}
+	return NewManager(config, &shardingIndex), nil
 }

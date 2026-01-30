@@ -16,6 +16,7 @@ import (
 	"sentioxyz/sentio-core/service/common/models"
 	protoscommon "sentioxyz/sentio-core/service/common/protos"
 
+	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 )
 
@@ -273,13 +274,22 @@ func verify(strategies *ShardingStrategy, allowPanic bool) bool {
 
 func loadConnOptions(config Config) []func(*Options) {
 	var connOptions []func(*Options)
-	connOptions = append(connOptions, ConnectWithDialConfig(dialConfig{
-		readTimeout:  config.ReadTimeout,
-		dialTimeout:  config.DialTimeout,
-		maxIdleConns: config.MaxIdleConnections,
-		maxOpenConns: config.MaxOpenConnections,
-	}))
-	connOptions = append(connOptions, ConnectWithSettings(config.Settings))
+	var dialConfig = dialConfig{
+		readTimeout:  lo.If(config.ReadTimeout > 0, config.ReadTimeout).ElseIfF(*ReadTimeout > 0, func() time.Duration { return time.Duration(*ReadTimeout) * time.Second }).Else(time.Duration(0)),
+		dialTimeout:  lo.If(config.DialTimeout > 0, config.DialTimeout).ElseIfF(*DialTimeout > 0, func() time.Duration { return time.Duration(*DialTimeout) * time.Second }).Else(time.Duration(0)),
+		maxIdleConns: lo.If(config.MaxIdleConnections > 0, config.MaxIdleConnections).ElseIf(*MaxIdleConns > 0, *MaxIdleConns).Else(0),
+		maxOpenConns: lo.If(config.MaxOpenConnections > 0, config.MaxOpenConnections).ElseIf(*MaxOpenConns > 0, *MaxOpenConns).Else(0),
+	}
+	connOptions = append(connOptions, ConnectWithDialConfig(dialConfig))
+	var settings = make(map[string]any)
+	for k, v := range NewConnSettingsMacro() {
+		settings[k] = v
+	}
+	for k, v := range config.Settings {
+		settings[k] = v
+	}
+	connOptions = append(connOptions, ConnectWithSettings(settings))
+	log.Infof("clickhouse conn options dump, dial config: %+v, settings: %+v", dialConfig, settings)
 	return connOptions
 }
 

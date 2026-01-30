@@ -167,15 +167,23 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 	}
 	if connOptions.maxIdleConns > 0 {
 		ckhOptions.MaxIdleConns = connOptions.maxIdleConns
+	} else if *MaxIdleConns > 0 {
+		ckhOptions.MaxIdleConns = *MaxIdleConns
 	}
 	if connOptions.maxOpenConns > 0 {
 		ckhOptions.MaxOpenConns = connOptions.maxOpenConns
+	} else if *MaxOpenConns > 0 {
+		ckhOptions.MaxOpenConns = *MaxOpenConns
 	}
 	if connOptions.readTimeout > 0 {
 		ckhOptions.ReadTimeout = connOptions.readTimeout
+	} else if *ReadTimeout > 0 {
+		ckhOptions.ReadTimeout = time.Duration(*ReadTimeout) * time.Second
 	}
 	if connOptions.dialTimeout > 0 {
 		ckhOptions.DialTimeout = connOptions.dialTimeout
+	} else if *DialTimeout > 0 {
+		ckhOptions.DialTimeout = time.Duration(*DialTimeout) * time.Second
 	}
 	return ckhOptions, connOptions.privateKey
 }

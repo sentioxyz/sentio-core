@@ -13,7 +13,8 @@
       "Bash(go get:*)",
       "Bash(./script/deps_update.sh:*)",
       "Bash(./scripts/deps_update.sh:*)",
-      "Bash(./scripts/deps-update.sh:*)"
+      "Bash(./scripts/deps-update.sh:*)",
+      "Bash(git grep:*)"
     ],
     "deny": [],
     "ask": []

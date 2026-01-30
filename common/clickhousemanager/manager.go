@@ -90,12 +90,12 @@ type Config struct {
 }
 
 type manager struct {
-	config Config
+	config        Config
+	loaderOptions *managerLoaderOptions
 
 	shards            map[ShardingIndex]Sharding
 	strategies        ShardingStrategy
 	defaultIndex      ShardingIndex
-	singleSharding    *ShardingIndex
 	shardIndex        map[string]ShardingIndex
 	shardReverseIndex map[ShardingIndex]string
 	mutex             sync.RWMutex
@@ -205,7 +205,7 @@ func (m *manager) Reload(config Config) error {
 	defer m.mutex.Unlock()
 
 	m.config = config
-	ok, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, true, m.singleSharding)
+	ok, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, m.loaderOptions)
 	if !ok {
 		return fmt.Errorf("failed to reload sharding config")
 	}
@@ -224,7 +224,9 @@ func (m *manager) DefaultIndex() ShardingIndex {
 func (m *manager) NewShardByStateIndexer(indexerInfo state.IndexerInfo) Sharding {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	connOptions := loadConnOptions(m.config)
+	connOptions := loadConnOptions(m.config, lo.IfF(m.loaderOptions != nil, func() map[string]any {
+		return m.loaderOptions.settings
+	}).Else(make(map[string]any)))
 	sharding := initShard(m.config.Credential, ShardingConfig{
 		Index: ShardingIndex(indexerInfo.IndexerId),
 		Name:  fmt.Sprintf("indexer-%d", indexerInfo.IndexerId),
@@ -272,7 +274,7 @@ func verify(strategies *ShardingStrategy, allowPanic bool) bool {
 	return true
 }
 
-func loadConnOptions(config Config) []func(*Options) {
+func loadConnOptions(config Config, inputSettings map[string]any) []func(*Options) {
 	var connOptions []func(*Options)
 	var dialConfig = dialConfig{
 		readTimeout:  lo.If(config.ReadTimeout > 0, config.ReadTimeout).ElseIfF(*ReadTimeout > 0, func() time.Duration { return time.Duration(*ReadTimeout) * time.Second }).Else(time.Duration(0)),
@@ -288,12 +290,15 @@ func loadConnOptions(config Config) []func(*Options) {
 	for k, v := range config.Settings {
 		settings[k] = v
 	}
+	for k, v := range inputSettings {
+		settings[k] = v
+	}
 	connOptions = append(connOptions, ConnectWithSettings(settings))
 	log.Infof("clickhouse conn options dump, dial config: %+v, settings: %+v", dialConfig, settings)
 	return connOptions
 }
 
-func loadShardingConfig(config Config, allowPanic bool, singleSharding *ShardingIndex) (
+func loadShardingConfig(config Config, options *managerLoaderOptions) (
 	ok bool, shards map[ShardingIndex]Sharding, strategies ShardingStrategy, defaultIndex ShardingIndex,
 	shardIndex map[string]ShardingIndex, shardReverseIndex map[ShardingIndex]string) {
 	shards = make(map[ShardingIndex]Sharding)
@@ -307,10 +312,12 @@ func loadShardingConfig(config Config, allowPanic bool, singleSharding *Sharding
 	shardReverseIndex = make(map[ShardingIndex]string)
 	defaultIndex = 0
 
-	connOptions := loadConnOptions(config)
+	connOptions := loadConnOptions(config, lo.IfF(options != nil, func() map[string]any {
+		return options.settings
+	}).Else(make(map[string]any)))
 	for _, shard := range config.Shards {
-		if singleSharding != nil && shard.Index != *singleSharding {
-			log.Infof("skip shard %d, not match single sharding %d", shard.Index, *singleSharding)
+		if options != nil && options.singleSharding != nil && shard.Index != *options.singleSharding {
+			log.Infof("skip shard %d, not match single sharding %d", shard.Index, *options.singleSharding)
 			continue
 		}
 		_, exists := shardIndex[shard.Name]
@@ -334,18 +341,20 @@ func loadShardingConfig(config Config, allowPanic bool, singleSharding *Sharding
 		addProjectMapping(&strategies, shard.Index, shard.AllowProjects)
 	}
 
-	if singleSharding != nil {
-		defaultIndex = *singleSharding
+	if options != nil && options.singleSharding != nil {
+		defaultIndex = *options.singleSharding
 		return
 	}
 
-	ok = verify(&strategies, allowPanic)
+	ok = verify(&strategies, lo.IfF(options != nil, func() bool {
+		return options.allowPanic
+	}).Else(false))
 	defaultIndex = strategies.TiersMapping[protoscommon.Tier_FREE][0]
 	return
 }
 
-func NewManager(config Config, singleSharding *ShardingIndex) Manager {
-	_, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, true, singleSharding)
+func newManager(config Config, options *managerLoaderOptions) Manager {
+	_, shards, strategies, defaultIndex, shardIndex, shardReverseIndex := loadShardingConfig(config, options)
 	manager := &manager{
 		config:            config,
 		shards:            shards,
@@ -353,7 +362,7 @@ func NewManager(config Config, singleSharding *ShardingIndex) Manager {
 		shardIndex:        shardIndex,
 		shardReverseIndex: shardReverseIndex,
 		defaultIndex:      defaultIndex,
-		singleSharding:    singleSharding,
+		loaderOptions:     options,
 	}
 	return manager
 }
@@ -382,20 +391,41 @@ func loadConfig(configPath string) Config {
 	return config
 }
 
-func LoadManager(configPath string) Manager {
+type managerLoaderOptions struct {
+	singleSharding *ShardingIndex
+	allowPanic     bool
+	settings       map[string]any
+}
+
+func LoadSingleSharding(singleSharding ShardingIndex) func(o *managerLoaderOptions) {
+	return func(options *managerLoaderOptions) {
+		options.singleSharding = &singleSharding
+	}
+}
+
+func LoadAllowPanic() func(o *managerLoaderOptions) {
+	return func(options *managerLoaderOptions) {
+		options.allowPanic = true
+	}
+}
+
+func LoadSettings(settings map[string]any) func(o *managerLoaderOptions) {
+	return func(options *managerLoaderOptions) {
+		options.settings = settings
+	}
+}
+
+func LoadManager(configPath string, funcs ...func(o *managerLoaderOptions)) Manager {
 	if configPath == "" {
 		return nil
 	}
-	return NewManager(loadConfig(configPath), nil)
-}
-
-func LoadManagerWithSingleSharding(configPath string, shardingIndex ShardingIndex) (Manager, error) {
-	if configPath == "" {
-		return nil, fmt.Errorf("empty config path")
+	var options = &managerLoaderOptions{
+		allowPanic:     false,
+		singleSharding: nil,
+		settings:       make(map[string]any),
 	}
-	config := loadConfig(configPath)
-	if len(config.Shards) == 0 {
-		return nil, fmt.Errorf("no shards found in config")
+	for _, f := range funcs {
+		f(options)
 	}
-	return NewManager(config, &shardingIndex), nil
+	return newManager(loadConfig(configPath), options)
 }

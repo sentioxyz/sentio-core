@@ -58,13 +58,13 @@ func (s *Suite) LocalDockerClickhouse() {
 }
 
 func (s *Suite) TestManager_All() {
-	m := NewManager(s.config, nil)
+	m := newManager(s.config, nil)
 	shards := m.All()
 	s.EqualValues(2, len(shards))
 }
 
 func (s *Suite) TestManager_ConfigValueChecker() {
-	m := NewManager(s.config, nil)
+	m := newManager(s.config, nil)
 	shards := m.All()
 	s.EqualValues(2, len(shards))
 
@@ -95,7 +95,7 @@ func (s *Suite) TestManager_ConfigValueChecker() {
 }
 
 func (s *Suite) TestManager_GetAllConn() {
-	m := NewManager(s.config, nil)
+	m := newManager(s.config, nil)
 
 	allCategoryConn := m.GetShardByIndex(m.DefaultIndex()).GetAllConn(WithCategory(AllCategory))
 	s.EqualValues(14, len(allCategoryConn))

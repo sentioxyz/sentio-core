@@ -258,6 +258,34 @@ m := ckhmanager.LoadManager("/path/to/config.yaml",
 
 This priority system allows for flexible configuration: set sensible defaults in code, environment-specific values in config files, and runtime overrides for special cases or dynamic configuration.
 
+#### Runtime Context Settings
+
+**IMPORTANT:** When passing runtime context settings to ClickHouse queries, always use `ContextMergeSettings()` function instead of the original clickhouse library's `clickhouse.WithSettings()` function.
+
+The original `clickhouse.WithSettings()` has **overwrite behavior** - it completely replaces all existing settings instead of merging them. This is not allowed in our architecture as it can discard important default and configuration-level settings.
+
+We implemented `ContextMergeSettings()` which properly **merges** the new settings with existing ones, preserving the settings priority chain (code defaults → config file → runtime input → context settings).
+
+**Correct usage:**
+
+```go
+ctx := context.Background()
+ctx = ckhmanager.ContextMergeSettings(ctx, map[string]any{
+    "max_execution_time": 120,
+    "readonly": 1,
+})
+err := ck.Query(ctx, "SELECT * FROM table")
+```
+
+**Incorrect usage (DO NOT USE):**
+
+```go
+// ❌ WRONG - This will overwrite all existing settings!
+ctx := clickhouse.WithSettings(context.Background(), clickhouse.Settings{
+    "max_execution_time": 120,
+})
+```
+
 ---
 
 ## Repo notes

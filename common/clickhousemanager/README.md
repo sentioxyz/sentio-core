@@ -21,14 +21,31 @@ A `Manager` owns:
 - All configured shards (`[]Sharding`)
 - Mapping strategies (by project name, org name, tier)
 - A default shard (free tier fallback)
+- Loader options (single shard mode, settings overrides, panic behavior)
 
 Main APIs:
 
-- `GetShardByIndex(i int32) Sharding`
-- `GetShardByName(name string) Sharding`
-- `All() []Sharding`
-- `Pick(options PickOptions) (index int32, shard Sharding)`
-- `Reload(Config) error`
+- `GetShardByIndex(i ShardingIndex) Sharding` - Get shard by numeric index
+- `GetShardByName(name string) Sharding` - Get shard by name
+- `All() []Sharding` - Get all configured shards
+- `DefaultIndex() ShardingIndex` - Get the default shard index
+- `Pick(PickOptions) (ShardingIndex, Sharding)` - Pick shard by project/org/tier
+- `Reload(Config) error` - Reload configuration dynamically
+- `NewShardByStateIndexer(indexerInfo state.IndexerInfo) Sharding` - Create dynamic shard for indexer
+
+### Creating a Manager
+
+Use `LoadManager()` to create a manager instance:
+
+```go
+func LoadManager(configPath string, funcs ...func(o *managerLoaderOptions)) Manager
+```
+
+Functional options:
+
+- `LoadSingleSharding(ShardingIndex)` - Load only a specific shard
+- `LoadAllowPanic()` - Enable panic on configuration errors
+- `LoadSettings(map[string]any)` - Override/add ClickHouse settings at runtime
 
 ### `Sharding`
 
@@ -122,9 +139,63 @@ See constants in `roles.go`:
 
 ### Load a manager from config path
 
+Basic usage:
+
 ```go
 m := ckhmanager.LoadManager("/path/to/config.yaml")
 shard := m.GetShardByIndex(0)
+```
+
+### Load manager with options
+
+The `LoadManager` function supports functional options for advanced configuration:
+
+#### Single Shard Mode
+
+Load only a specific shard (useful for testing or dedicated environments):
+
+```go
+m := ckhmanager.LoadManager("/path/to/config.yaml",
+    ckhmanager.LoadSingleSharding(1), // Only load shard with index 1
+)
+```
+
+#### Runtime Settings Override
+
+Override or add ClickHouse settings at runtime:
+
+```go
+m := ckhmanager.LoadManager("/path/to/config.yaml",
+    ckhmanager.LoadSettings(map[string]any{
+        "max_execution_time":     60,
+        "max_memory_usage":       10000000000,
+        "use_query_cache":        0,
+    }),
+)
+```
+
+#### Allow Panic Mode
+
+Enable panic on configuration errors (useful for strict validation):
+
+```go
+m := ckhmanager.LoadManager("/path/to/config.yaml",
+    ckhmanager.LoadAllowPanic(),
+)
+```
+
+#### Combining Options
+
+Multiple options can be combined:
+
+```go
+m := ckhmanager.LoadManager("/path/to/config.yaml",
+    ckhmanager.LoadSingleSharding(2),
+    ckhmanager.LoadSettings(map[string]any{
+        "max_execution_time": 120,
+    }),
+    ckhmanager.LoadAllowPanic(),
+)
 ```
 
 ### Get a connection from a shard
@@ -151,6 +222,41 @@ _ = ck.Exec(ctx, "SELECT 1")
 Dial + pool sizing + settings are configured at the manager level (in YAML) and applied when creating shard connections.
 
 If you need query signing, set `PrivateKey` in `ShardingParameter` (see `WithSign`).
+
+#### Settings Priority
+
+Settings are merged with the following priority (lowest to highest):
+
+1. **Code defaults** - Built-in default settings from `newConnSettingsMacro()`
+2. **Config file settings** - Settings defined in the YAML `settings` block
+3. **Runtime input settings** - Settings passed via `LoadSettings()` option
+
+**Example:**
+
+```yaml
+# config.yaml
+settings:
+  max_execution_time: 30
+  use_query_cache: 1
+```
+
+```go
+// Runtime override
+m := ckhmanager.LoadManager("/path/to/config.yaml",
+    ckhmanager.LoadSettings(map[string]any{
+        "max_execution_time": 60,  // Overrides config value (30)
+        "max_memory_usage": 10000000000,  // Adds new setting
+    }),
+)
+
+// Final settings applied to connections:
+// - max_execution_time: 60 (from runtime input)
+// - use_query_cache: 1 (from config file)
+// - max_memory_usage: 10000000000 (from runtime input)
+// - [other defaults from code]
+```
+
+This priority system allows for flexible configuration: set sensible defaults in code, environment-specific values in config files, and runtime overrides for special cases or dynamic configuration.
 
 ---
 

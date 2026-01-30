@@ -1,6 +1,6 @@
 package ckhmanager
 
-func newConnSettingsMacro() map[string]any {
+func NewConnSettingsMacro() map[string]any {
 	var (
 		maxPartitionSizeToDrop uint64 = 536870912000
 		maxTableSizeToDrop     uint64 = 536870912000

@@ -143,7 +143,7 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 			Username: "default",
 			Password: "password",
 		},
-		Settings: newConnSettingsMacro(),
+		Settings: NewConnSettingsMacro(),
 	}
 	if len(dsn) > 0 {
 		var err error
@@ -152,7 +152,7 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 			log.Errorf("parse dsn failed: %v", err)
 			panic(err)
 		}
-		for k, v := range newConnSettingsMacro() {
+		for k, v := range NewConnSettingsMacro() {
 			ckhOptions.Settings[k] = v
 		}
 	}

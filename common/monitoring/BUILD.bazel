@@ -4,6 +4,7 @@ go_library(
     name = "monitoring",
     srcs = [
         "monitoring.go",
+        "rpc_metrics_reporter.go",
         "trace_handler.go",
         "trace_round_tripper.go",
     ],
@@ -12,6 +13,7 @@ go_library(
     deps = [
         "//common/log",
         "//common/version",
+        "@com_github_go_faster_errors//:errors",
         "@io_opentelemetry_go_contrib_instrumentation_net_http_otelhttp//:otelhttp",
         "@io_opentelemetry_go_otel//:otel",
         "@io_opentelemetry_go_otel//attribute",

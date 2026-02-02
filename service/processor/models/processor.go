@@ -3,9 +3,10 @@ package models
 import (
 	"encoding/json"
 	"fmt"
-	"sentioxyz/sentio-core/common/chains"
 	"strings"
 	"time"
+
+	"sentioxyz/sentio-core/common/chains"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/datatypes"
@@ -218,6 +219,10 @@ func (p Processor) IsEventlogV3() bool {
 
 func (p Processor) IsEventlogV2() bool {
 	return p.EventlogVersion == int32(EventlogVersion_V2)
+}
+
+func (p Processor) IsSentioNetworkProcessor() bool {
+	return p.SentioNetworkProperties.ChainID != ""
 }
 
 type Processors []*Processor

@@ -30,3 +30,7 @@ const (
 	ExternalTcpReplicasField = "external_tcp_replicas"
 	InternalTcpReplicasField = "internal_tcp_replicas"
 )
+
+const (
+	ClickhouseSettings_ProxyAuthKey = "SQL_x_auth_token"
+)

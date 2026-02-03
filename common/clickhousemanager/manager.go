@@ -80,6 +80,7 @@ type ShardingConfig struct {
 type Config struct {
 	ReadTimeout        time.Duration         `yaml:"read_timeout" json:"read_timeout"`
 	DialTimeout        time.Duration         `yaml:"dial_timeout" json:"dial_timeout"`
+	ConnMaxLifetime    time.Duration         `yaml:"conn_max_lifetime" json:"conn_max_lifetime"`
 	MaxIdleConnections int                   `yaml:"max_idle_connections" json:"max_idle_connections"`
 	MaxOpenConnections int                   `yaml:"max_open_connections" json:"max_open_connections"`
 	Settings           map[string]any        `yaml:"settings" json:"settings"`
@@ -276,11 +277,12 @@ func verify(strategies *ShardingStrategy, allowPanic bool) bool {
 
 func loadConnOptions(config Config, inputSettings map[string]any) []func(*Options) {
 	var connOptions []func(*Options)
-	var dialConfig = dialConfig{
-		readTimeout:  lo.If(config.ReadTimeout > 0, config.ReadTimeout).ElseIfF(*ReadTimeout > 0, func() time.Duration { return time.Duration(*ReadTimeout) * time.Second }).Else(time.Duration(0)),
-		dialTimeout:  lo.If(config.DialTimeout > 0, config.DialTimeout).ElseIfF(*DialTimeout > 0, func() time.Duration { return time.Duration(*DialTimeout) * time.Second }).Else(time.Duration(0)),
-		maxIdleConns: lo.If(config.MaxIdleConnections > 0, config.MaxIdleConnections).ElseIf(*MaxIdleConns > 0, *MaxIdleConns).Else(0),
-		maxOpenConns: lo.If(config.MaxOpenConnections > 0, config.MaxOpenConnections).ElseIf(*MaxOpenConns > 0, *MaxOpenConns).Else(0),
+	var dialConfig = DialConfig{
+		ReadTimeout:     lo.If(config.ReadTimeout > 0, config.ReadTimeout).ElseIfF(*ReadTimeout > 0, func() time.Duration { return time.Duration(*ReadTimeout) * time.Second }).Else(time.Duration(0)),
+		DialTimeout:     lo.If(config.DialTimeout > 0, config.DialTimeout).ElseIfF(*DialTimeout > 0, func() time.Duration { return time.Duration(*DialTimeout) * time.Second }).Else(time.Duration(0)),
+		MaxIdleConns:    lo.If(config.MaxIdleConnections > 0, config.MaxIdleConnections).ElseIf(*MaxIdleConns > 0, *MaxIdleConns).Else(0),
+		MaxOpenConns:    lo.If(config.MaxOpenConnections > 0, config.MaxOpenConnections).ElseIf(*MaxOpenConns > 0, *MaxOpenConns).Else(0),
+		ConnMaxLifetime: lo.If(config.ConnMaxLifetime > 0, config.ConnMaxLifetime).Else(time.Duration(0)),
 	}
 	connOptions = append(connOptions, ConnectWithDialConfig(dialConfig))
 	var settings = make(map[string]any)

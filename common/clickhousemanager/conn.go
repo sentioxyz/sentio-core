@@ -3,6 +3,7 @@ package ckhmanager
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -50,9 +51,10 @@ type conn struct {
 	conn        clickhouse.Conn
 	connOptions *clickhouse.Options
 	dsn         string
-	cluster     string
-	once        sync.Once
 	privateKey  *ecdsa.PrivateKey
+
+	cluster string
+	once    sync.Once
 }
 
 func (c *conn) GetClickhouseConn() clickhouse.Conn {
@@ -185,36 +187,44 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 	} else if *DialTimeout > 0 {
 		ckhOptions.DialTimeout = time.Duration(*DialTimeout) * time.Second
 	}
+	if connOptions.connMaxLifeTime > 0 {
+		ckhOptions.ConnMaxLifetime = connOptions.connMaxLifeTime
+	}
 	return ckhOptions, connOptions.privateKey
 }
 
 type ckhHashStruct struct {
-	Addr         []string
-	Auth         clickhouse.Auth
-	Settings     clickhouse.Settings
-	ReadTimeout  time.Duration
-	DialTimeout  time.Duration
-	MaxIdleConns int
-	MaxOpenConns int
+	Addr            []string
+	Auth            clickhouse.Auth
+	Settings        clickhouse.Settings
+	ReadTimeout     time.Duration
+	DialTimeout     time.Duration
+	ConnMaxLifeTime time.Duration
+	MaxIdleConns    int
+	MaxOpenConns    int
 }
 
 func connect(dsn string, connectOptions ...func(*Options)) Conn {
 	ckhOptions, privateKey := parseDSNAndOptions(dsn, connectOptions...)
 	ckhHash, err := hashstructure.Hash(ckhHashStruct{
-		Addr:         ckhOptions.Addr,
-		Auth:         ckhOptions.Auth,
-		Settings:     ckhOptions.Settings,
-		ReadTimeout:  ckhOptions.ReadTimeout,
-		DialTimeout:  ckhOptions.DialTimeout,
-		MaxIdleConns: ckhOptions.MaxIdleConns,
-		MaxOpenConns: ckhOptions.MaxOpenConns,
+		Addr:            ckhOptions.Addr,
+		Auth:            ckhOptions.Auth,
+		Settings:        ckhOptions.Settings,
+		ReadTimeout:     ckhOptions.ReadTimeout,
+		DialTimeout:     ckhOptions.DialTimeout,
+		ConnMaxLifeTime: ckhOptions.ConnMaxLifetime,
+		MaxIdleConns:    ckhOptions.MaxIdleConns,
+		MaxOpenConns:    ckhOptions.MaxOpenConns,
 	}, hashstructure.FormatV2, nil)
 	if err != nil {
 		log.Errorf("hash clickhouse options failed: %v", err)
 		panic(err)
 	}
+
+	clickhouseConnectJSON, _ := json.Marshal(ckhHash)
 	ckhConn, ok := rawConnections.Get(ckhHash)
 	if ok {
+		log.Infof("reuse clickhouse connection: %s", string(clickhouseConnectJSON))
 		return &conn{
 			conn:        ckhConn.(clickhouse.Conn),
 			connOptions: ckhOptions,
@@ -227,6 +237,7 @@ func connect(dsn string, connectOptions ...func(*Options)) Conn {
 		log.Errorf("connect to clickhouse failed: %v", err)
 		panic(err)
 	}
+	log.Infof("connect clickhouse success: %s", string(clickhouseConnectJSON))
 	rawConnections.Put(ckhHash, ckhConn)
 	return &conn{
 		conn:        ckhConn,
@@ -243,6 +254,7 @@ func NewOrGetConn(dsn string, connectOptions ...func(*Options)) Conn {
 	}
 	conn, ok := connections.Get(dsn + connOptions.Serialization())
 	if ok {
+		log.Infof("reuse sentio-clickhouse wrapped connection: %s", dsn+"@"+connOptions.Serialization())
 		return conn
 	}
 	return NewConn(dsn, connectOptions...)
@@ -256,5 +268,6 @@ func NewConn(dsn string, connectOptions ...func(*Options)) Conn {
 
 	conn := connect(dsn, connectOptions...)
 	connections.Put(dsn+connOptions.Serialization(), conn)
+	log.Infof("connect sentio-clickhouse wrapped connection: %s", dsn+"@"+connOptions.Serialization())
 	return conn
 }

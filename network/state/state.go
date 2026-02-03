@@ -9,6 +9,7 @@ type State interface {
 	GetLastBlock() uint64
 	GetIndexerInfos() map[uint64]IndexerInfo
 	GetProcessorAllocations() map[string]map[uint64]ProcessorAllocation
+	GetProcessorInfos() map[string]ProcessorInfo
 	GetHostedProcessors() map[string]bool
 
 	UpdateLastBlock(ctx context.Context, block uint64) error
@@ -16,6 +17,8 @@ type State interface {
 	DeleteIndexerInfo(ctx context.Context, indexerId uint64) error
 	UpsertProcessorAllocation(ctx context.Context, allocation ProcessorAllocation) error
 	DeleteProcessorAllocation(ctx context.Context, processorId string, indexerId uint64) error
+	UpsertProcessorInfo(ctx context.Context, info ProcessorInfo) error
+	DeleteProcessorInfo(ctx context.Context, processorId string) error
 	UpsertHostedProcessor(ctx context.Context, processorId string) error
 	DeleteHostedProcessor(ctx context.Context, processorId string) error
 	IsHostedProcessor(processorId string) bool
@@ -24,6 +27,7 @@ type State interface {
 type PlainState struct {
 	LastBlock            uint64                                    `yaml:"last_block"`
 	ProcessorAllocations map[string]map[uint64]ProcessorAllocation `yaml:"processor_allocations"`
+	ProcessorInfos       map[string]ProcessorInfo                  `yaml:"processor_infos"`
 	IndexerInfos         map[uint64]IndexerInfo                    `yaml:"indexer_infos"`
 	HostedProcessors     map[string]bool                           `yaml:"hosted_processors"`
 }
@@ -38,6 +42,10 @@ func (s *PlainState) GetIndexerInfos() map[uint64]IndexerInfo {
 
 func (s *PlainState) GetProcessorAllocations() map[string]map[uint64]ProcessorAllocation {
 	return s.ProcessorAllocations
+}
+
+func (s *PlainState) GetProcessorInfos() map[string]ProcessorInfo {
+	return s.ProcessorInfos
 }
 
 func (s *PlainState) GetHostedProcessors() map[string]bool {
@@ -80,6 +88,16 @@ func (s *PlainState) DeleteProcessorAllocation(_ context.Context, processorId st
 	if len(m) == 0 {
 		delete(s.ProcessorAllocations, processorId)
 	}
+	return nil
+}
+
+func (s *PlainState) UpsertProcessorInfo(_ context.Context, info ProcessorInfo) error {
+	s.ProcessorInfos[info.ProcessorId] = info
+	return nil
+}
+
+func (s *PlainState) DeleteProcessorInfo(_ context.Context, processorId string) error {
+	delete(s.ProcessorInfos, processorId)
 	return nil
 }
 

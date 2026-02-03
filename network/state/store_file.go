@@ -18,6 +18,7 @@ func NewFileStore(filename string) *FileStore {
 func (s *FileStore) Load(ctx context.Context) (*PlainState, error) {
 	state := PlainState{
 		ProcessorAllocations: map[string]map[uint64]ProcessorAllocation{},
+		ProcessorInfos:       map[string]ProcessorInfo{},
 		IndexerInfos:         map[uint64]IndexerInfo{},
 		HostedProcessors:     map[string]bool{},
 	}
@@ -35,6 +36,9 @@ func (s *FileStore) Load(ctx context.Context) (*PlainState, error) {
 	if state.ProcessorAllocations == nil {
 		state.ProcessorAllocations = map[string]map[uint64]ProcessorAllocation{}
 	}
+	if state.ProcessorInfos == nil {
+		state.ProcessorInfos = map[string]ProcessorInfo{}
+	}
 	if state.IndexerInfos == nil {
 		state.IndexerInfos = map[uint64]IndexerInfo{}
 	}
@@ -45,6 +49,7 @@ func (s *FileStore) Save(ctx context.Context, state State) error {
 	plainState := &PlainState{
 		LastBlock:            state.GetLastBlock(),
 		ProcessorAllocations: state.GetProcessorAllocations(),
+		ProcessorInfos:       state.GetProcessorInfos(),
 		IndexerInfos:         state.GetIndexerInfos(),
 		HostedProcessors:     state.GetHostedProcessors(),
 	}

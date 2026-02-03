@@ -3319,6 +3319,9 @@ type GetProcessorStatusResponse_ProcessorEx struct {
 	NetworkOverrides   []*NetworkOverride                          `protobuf:"bytes,20,rep,name=network_overrides,json=networkOverrides,proto3" json:"network_overrides,omitempty"`
 	DriverVersion      string                                      `protobuf:"bytes,21,opt,name=driver_version,json=driverVersion,proto3" json:"driver_version,omitempty"`
 	NumWorkers         string                                      `protobuf:"bytes,24,opt,name=num_workers,json=numWorkers,proto3" json:"num_workers,omitempty"`
+	EntitySchema       string                                      `protobuf:"bytes,25,opt,name=entity_schema,json=entitySchema,proto3" json:"entity_schema,omitempty"`
+	SnChainId          string                                      `protobuf:"bytes,26,opt,name=sn_chain_id,json=snChainId,proto3" json:"sn_chain_id,omitempty"`
+	SnRequiredChains   []string                                    `protobuf:"bytes,27,rep,name=sn_required_chains,json=snRequiredChains,proto3" json:"sn_required_chains,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -3512,6 +3515,27 @@ func (x *GetProcessorStatusResponse_ProcessorEx) GetNumWorkers() string {
 		return x.NumWorkers
 	}
 	return ""
+}
+
+func (x *GetProcessorStatusResponse_ProcessorEx) GetEntitySchema() string {
+	if x != nil {
+		return x.EntitySchema
+	}
+	return ""
+}
+
+func (x *GetProcessorStatusResponse_ProcessorEx) GetSnChainId() string {
+	if x != nil {
+		return x.SnChainId
+	}
+	return ""
+}
+
+func (x *GetProcessorStatusResponse_ProcessorEx) GetSnRequiredChains() []string {
+	if x != nil {
+		return x.SnRequiredChains
+	}
+	return nil
 }
 
 type GetProcessorStatusResponse_ProcessorStatus struct {
@@ -3913,12 +3937,11 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\n" +
 	"\x06ACTIVE\x10\x00\x12\v\n" +
 	"\aPENDING\x10\x01\x12\a\n" +
-	"\x03ALL\x10\x02\"\xd9\n" +
-	"\n" +
+	"\x03ALL\x10\x02\"\xcc\v\n" +
 	"\x1aGetProcessorStatusResponse\x12Y\n" +
 	"\n" +
 	"processors\x18\x01 \x03(\v29.processor_service.GetProcessorStatusResponse.ProcessorExR\n" +
-	"processors\x1a\xf9\a\n" +
+	"processors\x1a\xec\b\n" +
 	"\vProcessorEx\x125\n" +
 	"\x06states\x18\x02 \x03(\v2\x1d.processor_service.ChainStateR\x06states\x12!\n" +
 	"\fprocessor_id\x18\x03 \x01(\tR\vprocessorId\x12\x1b\n" +
@@ -3950,7 +3973,10 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\x11network_overrides\x18\x14 \x03(\v2\".processor_service.NetworkOverrideR\x10networkOverrides\x12%\n" +
 	"\x0edriver_version\x18\x15 \x01(\tR\rdriverVersion\x12\x1f\n" +
 	"\vnum_workers\x18\x18 \x01(\tR\n" +
-	"numWorkers\x1a\xe3\x01\n" +
+	"numWorkers\x12#\n" +
+	"\rentity_schema\x18\x19 \x01(\tR\fentitySchema\x12\x1e\n" +
+	"\vsn_chain_id\x18\x1a \x01(\tR\tsnChainId\x12,\n" +
+	"\x12sn_required_chains\x18\x1b \x03(\tR\x10snRequiredChains\x1a\xe3\x01\n" +
 	"\x0fProcessorStatus\x12Y\n" +
 	"\x05state\x18\x01 \x01(\x0e2C.processor_service.GetProcessorStatusResponse.ProcessorStatus.StateR\x05state\x126\n" +
 	"\ferror_record\x18\x03 \x01(\v2\x13.common.ErrorRecordR\verrorRecord\"=\n" +

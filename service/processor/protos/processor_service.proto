@@ -551,6 +551,9 @@ message GetProcessorStatusResponse {
     repeated NetworkOverride network_overrides = 20;
     string driver_version = 21;
     string num_workers = 24;
+    string entity_schema = 25;
+    string sn_chain_id = 26;
+    repeated string sn_required_chains = 27;
   }
 
   message ProcessorStatus {

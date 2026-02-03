@@ -378,6 +378,9 @@ func (s *Service) getProcessorStatus(
 			NetworkOverrides: models.ParseNetworkOverrides(processor.NetworkOverrides),
 			DriverVersion:    strconv.FormatInt(int64(processor.DriverVersion), 10),
 			NumWorkers:       strconv.FormatInt(int64(processor.NumWorkers), 10),
+			EntitySchema:     processor.EntitySchema,
+			SnChainId:        string(processor.ChainID),
+			SnRequiredChains: processor.RequiredChains,
 		}
 		if originProcessor.ID != processor.ID {
 			response.Processors[i].ReferenceProjectId = processor.ProjectID

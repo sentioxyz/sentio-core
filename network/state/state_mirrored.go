@@ -11,7 +11,7 @@ type StateMirrored struct {
 	inner                    *PlainState
 	mirror                   statemirror.Mirror
 	indexerInfoCodec         statemirror.JSONCodec[string, IndexerInfo]
-	processorAllocationCodec statemirror.JSONCodec[string, ProcessorAllocation]
+	processorAllocationCodec statemirror.JSONCodec[string, []ProcessorAllocation]
 }
 
 func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror.Mirror) (*StateMirrored, error) {
@@ -19,7 +19,7 @@ func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror
 		inner:                    state,
 		mirror:                   mirror,
 		indexerInfoCodec:         newCodec[IndexerInfo](),
-		processorAllocationCodec: newCodec[ProcessorAllocation](),
+		processorAllocationCodec: newCodec[[]ProcessorAllocation](),
 	}
 	if err := st.SyncMirror(ctx); err != nil {
 		return nil, err
@@ -72,27 +72,37 @@ func (s *StateMirrored) DeleteIndexerInfo(ctx context.Context, indexerId uint64)
 }
 
 func (s *StateMirrored) UpsertProcessorAllocation(ctx context.Context, allocation ProcessorAllocation) error {
-	diff := &statemirror.TypedDiff[string, ProcessorAllocation]{
-		Added: map[string]ProcessorAllocation{
-			fmt.Sprintf("%s@%d", allocation.ProcessorId, allocation.IndexerId): allocation,
-		},
-	}
-	if err := applyDiff(ctx, s.mirror, statemirror.MappingProcessorAllocations, s.processorAllocationCodec, diff); err != nil {
+	if err := s.inner.UpsertProcessorAllocation(ctx, allocation); err != nil {
 		return err
 	}
-	return s.inner.UpsertProcessorAllocation(ctx, allocation)
+	return s.syncProcessorAllocations(ctx, allocation.ProcessorId)
 }
 
 func (s *StateMirrored) DeleteProcessorAllocation(ctx context.Context, processorId string, indexerId uint64) error {
-	diff := &statemirror.TypedDiff[string, ProcessorAllocation]{
-		Deleted: []string{
-			fmt.Sprintf("%s@%d", processorId, indexerId),
-		},
-	}
-	if err := applyDiff(ctx, s.mirror, statemirror.MappingProcessorAllocations, s.processorAllocationCodec, diff); err != nil {
+	if err := s.inner.DeleteProcessorAllocation(ctx, processorId, indexerId); err != nil {
 		return err
 	}
-	return s.inner.DeleteProcessorAllocation(ctx, processorId, indexerId)
+	return s.syncProcessorAllocations(ctx, processorId)
+}
+
+func (s *StateMirrored) syncProcessorAllocations(ctx context.Context, processorId string) error {
+	var allocations []ProcessorAllocation
+	for _, alloc := range s.inner.ProcessorAllocations[processorId] {
+		allocations = append(allocations, alloc)
+	}
+	var diff statemirror.TypedDiff[string, []ProcessorAllocation]
+	if len(allocations) > 0 {
+		diff = statemirror.TypedDiff[string, []ProcessorAllocation]{
+			Added: map[string][]ProcessorAllocation{
+				processorId: allocations,
+			},
+		}
+	} else {
+		diff = statemirror.TypedDiff[string, []ProcessorAllocation]{
+			Deleted: []string{processorId},
+		}
+	}
+	return applyDiff(ctx, s.mirror, statemirror.MappingProcessorAllocations, s.processorAllocationCodec, &diff)
 }
 
 func (s *StateMirrored) UpsertHostedProcessor(ctx context.Context, processorId string) error {
@@ -118,13 +128,15 @@ func (s *StateMirrored) SyncMirror(ctx context.Context) error {
 		return err
 	}
 
-	processorDiff := &statemirror.TypedDiff[string, ProcessorAllocation]{
-		Added: make(map[string]ProcessorAllocation),
+	processorDiff := &statemirror.TypedDiff[string, []ProcessorAllocation]{
+		Added: make(map[string][]ProcessorAllocation),
 	}
 	for processorId, m := range s.inner.GetProcessorAllocations() {
-		for indexerId, allocation := range m {
-			processorDiff.Added[fmt.Sprintf("%s@%d", processorId, indexerId)] = allocation
+		var allocations []ProcessorAllocation
+		for _, alloc := range m {
+			allocations = append(allocations, alloc)
 		}
+		processorDiff.Added[processorId] = allocations
 	}
 	if err := applyDiff(ctx, s.mirror, statemirror.MappingProcessorAllocations, s.processorAllocationCodec, processorDiff); err != nil {
 		return err

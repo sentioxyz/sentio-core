@@ -77,6 +77,9 @@ func (s *PlainState) DeleteProcessorAllocation(_ context.Context, processorId st
 		panic(fmt.Sprintf("processor allocation not found for processorId: %s", processorId))
 	}
 	delete(m, indexerId)
+	if len(m) == 0 {
+		delete(s.ProcessorAllocations, processorId)
+	}
 	return nil
 }
 

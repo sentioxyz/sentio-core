@@ -8,13 +8,15 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 )
 
+const GetClusterStmt = "SELECT cluster FROM (" +
+	"SELECT cluster, count(*) AS rs, SUM(host_address = '127.0.0.1') AS cl " +
+	"FROM system.clusters " +
+	"WHERE cluster not like 'all-%' " +
+	"GROUP BY cluster" +
+	") WHERE cl > 0 AND rs > 1"
+
 func AutoGetCluster(ctx context.Context, conn clickhouse.Conn) (string, error) {
-	sql := "SELECT cluster FROM (" +
-		"SELECT cluster, count(*) AS rs, SUM(host_address = '127.0.0.1') AS cl " +
-		"FROM system.clusters " +
-		"WHERE cluster not like 'all-%' " +
-		"GROUP BY cluster" +
-		") WHERE cl > 0 AND rs > 1"
+	sql := GetClusterStmt
 	_, logger := log.FromContext(ctx, "sql", sql)
 	rows, err := conn.Query(ctx, sql)
 	if err != nil {

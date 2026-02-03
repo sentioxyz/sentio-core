@@ -75,7 +75,7 @@ func (c *conn) GetPassword() string {
 
 func (c *conn) GetCluster() string {
 	c.once.Do(func() {
-		c.cluster = helper.MustAutoGetCluster(context.Background(), c.conn)
+		c.cluster = helper.MustAutoGetCluster(c.sign(context.Background(), helper.GetClusterStmt), c.conn)
 	})
 	return c.cluster
 }

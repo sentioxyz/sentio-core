@@ -98,8 +98,8 @@ type ReferenceProcessorProperties struct {
 }
 
 type SentioNetworkProperties struct {
-	ChainID        chains.ChainID `gorm:"column:'sentio_network_chain_id'"` // default to empty string for non-sentio network processors
-	RequiredChains []string       `gorm:"column:'sentio_network_required_chains';type:text[]"`
+	ChainID        chains.ChainID `gorm:"column:sentio_network_chain_id"` // default to empty string for non-sentio network processors
+	RequiredChains []string       `gorm:"column:sentio_network_required_chains;type:text[]"`
 	CreateTxHash   string         // the transaction hash that created the processor
 }
 

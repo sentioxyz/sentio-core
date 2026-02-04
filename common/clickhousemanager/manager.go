@@ -232,7 +232,7 @@ func (m *manager) NewShardByStateIndexer(indexerInfo state.IndexerInfo) Sharding
 		Index: ShardingIndex(indexerInfo.IndexerId),
 		Name:  fmt.Sprintf("indexer-%d", indexerInfo.IndexerId),
 		Addresses: map[string]string{
-			ExternalTcpProxyField: fmt.Sprintf("clickhouse://%s:%d", indexerInfo.IndexerUrl, indexerInfo.ClickhouseProxyPort),
+			ExternalTcpProxyField: fmt.Sprintf("%s:%d", indexerInfo.IndexerUrl, indexerInfo.ClickhouseProxyPort),
 		},
 	}, connOptions)
 	return sharding

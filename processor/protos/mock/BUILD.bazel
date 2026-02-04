@@ -1,0 +1,45 @@
+load("@bazel_gomock//rules:gomock.bzl", "gomock")
+
+#load("@aspect_bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@rules_go//go:def.bzl", "go_library")
+
+gomock(
+    name = "gomock_raw",
+    out = "processor_mock_raw.pb.go",
+    interfaces = [
+        "ProcessorClient",
+    ],
+    library = "@sentio-core//processor/protos",
+    package = "mock",
+    self_package = "sentioxyz/sentio-core/processor/protos/mock",
+    visibility = ["//visibility:public"],
+)
+
+# Post-process the generated mock to fix generic type parameters for gRPC v1.64+
+genrule(
+    name = "fix_generics",
+    srcs = [":gomock_raw"],
+    outs = ["processor_mock.pb.go"],
+    cmd = """
+    cat $(location :gomock_raw) | \
+    sed 's/PreprocessBindingsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient, error)/PreprocessBindingsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[protos.PreprocessStreamRequest, protos.PreprocessStreamResponse], error)/g' | \
+    sed 's/ProcessBindingsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient, error)/ProcessBindingsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[protos.ProcessStreamRequest, protos.ProcessStreamResponse], error)/g' | \
+    sed '/PreprocessBindingsStream.*PreprocessStreamRequest/,/return ret0, ret1/ s|ret0, _ := ret\\[0\\].(grpc.BidiStreamingClient)|ret0, _ := ret[0].(grpc.BidiStreamingClient[protos.PreprocessStreamRequest, protos.PreprocessStreamResponse])|' | \
+    sed '/ProcessBindingsStream.*ProcessStreamRequest/,/return ret0, ret1/ s|ret0, _ := ret\\[0\\].(grpc.BidiStreamingClient)|ret0, _ := ret[0].(grpc.BidiStreamingClient[protos.ProcessStreamRequest, protos.ProcessStreamResponse])|' > $@
+    """,
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "mock",
+    srcs = [":fix_generics"],  # keep
+    importpath = "sentioxyz/sentio-core/processor/protos/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/protos",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_protobuf//types/known/emptypb",
+        "@org_uber_go_mock//gomock",
+        "@sentio-core//processor/protos",
+    ],  # keep
+)

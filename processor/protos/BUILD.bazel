@@ -1,0 +1,31 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("//bazel/golang:gateway_go_library.bzl", "gateway_grpc_compile_and_go_library")
+
+filegroup(
+    name = "proto_file",
+    srcs = ["processor.proto"],
+    visibility = ["//visibility:public"],
+)
+
+proto_library(
+    name = "protos_proto",
+    srcs = ["processor.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/protos:protos_proto",
+        "@protobuf//:empty_proto",
+        "@protobuf//:struct_proto",
+        "@protobuf//:timestamp_proto",
+    ],
+)
+
+# gazelle:ignore
+gateway_grpc_compile_and_go_library(
+    name = "protos",
+    importpath = "sentioxyz/sentio-core/processor/protos",
+    protos = [":protos_proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/protos",
+    ],
+)

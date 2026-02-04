@@ -14,7 +14,10 @@
       "Bash(./script/deps_update.sh:*)",
       "Bash(./scripts/deps_update.sh:*)",
       "Bash(./scripts/deps-update.sh:*)",
-      "Bash(git grep:*)"
+      "Bash(git grep:*)",
+      "Bash(go list:*)",
+      "WebSearch",
+      "WebFetch(domain:registry.bazel.build)"
     ],
     "deny": [],
     "ask": []

@@ -117,7 +117,10 @@ func (c *conn) sign(ctx context.Context, query string) (clickhouseCtx context.Co
 		log.Errorfe(err, "failed to create JWT token, will let the query pass without authentication")
 		return
 	}
-	settings[ClickhouseSettings_ProxyAuthKey] = clickhouse.CustomSetting{Value: token}
+	log.Debugf("sign query with JWT token: %s", token)
+	if *EnableSignQuery {
+		settings[ClickhouseSettings_ProxyAuthKey] = clickhouse.CustomSetting{Value: token}
+	}
 	return
 }
 

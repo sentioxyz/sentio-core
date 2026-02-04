@@ -14,6 +14,7 @@ exports_files(
 write_source_files(
     name = "update_go_pb",
     additional_update_targets = [
+        "//processor/protos:protos.update_go_pb",
         "//service/common/protos:internal_protos.update_go_pb",
         "//service/processor/protos:protos.update_go_pb",
         "//service/project/protos:protos.update_go_pb",

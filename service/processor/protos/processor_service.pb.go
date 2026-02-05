@@ -3295,35 +3295,36 @@ func (x *ChainState_Status) GetErrorRecord() *protos.ErrorRecord {
 }
 
 type GetProcessorStatusResponse_ProcessorEx struct {
-	state              protoimpl.MessageState                      `protogen:"open.v1"`
-	States             []*ChainState                               `protobuf:"bytes,2,rep,name=states,proto3" json:"states,omitempty"`
-	ProcessorId        string                                      `protobuf:"bytes,3,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
-	CodeHash           string                                      `protobuf:"bytes,4,opt,name=code_hash,json=codeHash,proto3" json:"code_hash,omitempty"`
-	CommitSha          string                                      `protobuf:"bytes,5,opt,name=commit_sha,json=commitSha,proto3" json:"commit_sha,omitempty"`
-	UploadedBy         *protos.UserInfo                            `protobuf:"bytes,6,opt,name=uploaded_by,json=uploadedBy,proto3" json:"uploaded_by,omitempty"`
-	UploadedAt         *timestamppb.Timestamp                      `protobuf:"bytes,7,opt,name=uploaded_at,json=uploadedAt,proto3" json:"uploaded_at,omitempty"`
-	ProcessorStatus    *GetProcessorStatusResponse_ProcessorStatus `protobuf:"bytes,8,opt,name=processor_status,json=processorStatus,proto3" json:"processor_status,omitempty"`
-	Version            int32                                       `protobuf:"varint,9,opt,name=version,proto3" json:"version,omitempty"`
-	SdkVersion         string                                      `protobuf:"bytes,10,opt,name=sdk_version,json=sdkVersion,proto3" json:"sdk_version,omitempty"`
-	GitUrl             string                                      `protobuf:"bytes,11,opt,name=git_url,json=gitUrl,proto3" json:"git_url,omitempty"`
-	VersionState       ProcessorVersionState                       `protobuf:"varint,12,opt,name=version_state,json=versionState,proto3,enum=processor_service.ProcessorVersionState" json:"version_state,omitempty"`
-	VersionLabel       string                                      `protobuf:"bytes,13,opt,name=version_label,json=versionLabel,proto3" json:"version_label,omitempty"`
-	IpfsHash           string                                      `protobuf:"bytes,14,opt,name=ipfs_hash,json=ipfsHash,proto3" json:"ipfs_hash,omitempty"`
-	DebugFork          string                                      `protobuf:"bytes,15,opt,name=debug_fork,json=debugFork,proto3" json:"debug_fork,omitempty"`
-	CliVersion         string                                      `protobuf:"bytes,16,opt,name=cli_version,json=cliVersion,proto3" json:"cli_version,omitempty"`
-	ReferenceProjectId string                                      `protobuf:"bytes,17,opt,name=reference_project_id,json=referenceProjectId,proto3" json:"reference_project_id,omitempty"`
-	Warnings           []string                                    `protobuf:"bytes,18,rep,name=warnings,proto3" json:"warnings,omitempty"`
-	Pause              bool                                        `protobuf:"varint,19,opt,name=pause,proto3" json:"pause,omitempty"`
-	PauseAt            *timestamppb.Timestamp                      `protobuf:"bytes,22,opt,name=pause_at,json=pauseAt,proto3" json:"pause_at,omitempty"`
-	PauseReason        string                                      `protobuf:"bytes,23,opt,name=pause_reason,json=pauseReason,proto3" json:"pause_reason,omitempty"`
-	NetworkOverrides   []*NetworkOverride                          `protobuf:"bytes,20,rep,name=network_overrides,json=networkOverrides,proto3" json:"network_overrides,omitempty"`
-	DriverVersion      string                                      `protobuf:"bytes,21,opt,name=driver_version,json=driverVersion,proto3" json:"driver_version,omitempty"`
-	NumWorkers         string                                      `protobuf:"bytes,24,opt,name=num_workers,json=numWorkers,proto3" json:"num_workers,omitempty"`
-	EntitySchema       string                                      `protobuf:"bytes,25,opt,name=entity_schema,json=entitySchema,proto3" json:"entity_schema,omitempty"`
-	SnChainId          string                                      `protobuf:"bytes,26,opt,name=sn_chain_id,json=snChainId,proto3" json:"sn_chain_id,omitempty"`
-	SnRequiredChains   []string                                    `protobuf:"bytes,27,rep,name=sn_required_chains,json=snRequiredChains,proto3" json:"sn_required_chains,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state               protoimpl.MessageState                      `protogen:"open.v1"`
+	States              []*ChainState                               `protobuf:"bytes,2,rep,name=states,proto3" json:"states,omitempty"`
+	ProcessorId         string                                      `protobuf:"bytes,3,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
+	CodeHash            string                                      `protobuf:"bytes,4,opt,name=code_hash,json=codeHash,proto3" json:"code_hash,omitempty"`
+	CommitSha           string                                      `protobuf:"bytes,5,opt,name=commit_sha,json=commitSha,proto3" json:"commit_sha,omitempty"`
+	UploadedBy          *protos.UserInfo                            `protobuf:"bytes,6,opt,name=uploaded_by,json=uploadedBy,proto3" json:"uploaded_by,omitempty"`
+	UploadedAt          *timestamppb.Timestamp                      `protobuf:"bytes,7,opt,name=uploaded_at,json=uploadedAt,proto3" json:"uploaded_at,omitempty"`
+	ProcessorStatus     *GetProcessorStatusResponse_ProcessorStatus `protobuf:"bytes,8,opt,name=processor_status,json=processorStatus,proto3" json:"processor_status,omitempty"`
+	Version             int32                                       `protobuf:"varint,9,opt,name=version,proto3" json:"version,omitempty"`
+	SdkVersion          string                                      `protobuf:"bytes,10,opt,name=sdk_version,json=sdkVersion,proto3" json:"sdk_version,omitempty"`
+	GitUrl              string                                      `protobuf:"bytes,11,opt,name=git_url,json=gitUrl,proto3" json:"git_url,omitempty"`
+	VersionState        ProcessorVersionState                       `protobuf:"varint,12,opt,name=version_state,json=versionState,proto3,enum=processor_service.ProcessorVersionState" json:"version_state,omitempty"`
+	VersionLabel        string                                      `protobuf:"bytes,13,opt,name=version_label,json=versionLabel,proto3" json:"version_label,omitempty"`
+	IpfsHash            string                                      `protobuf:"bytes,14,opt,name=ipfs_hash,json=ipfsHash,proto3" json:"ipfs_hash,omitempty"`
+	DebugFork           string                                      `protobuf:"bytes,15,opt,name=debug_fork,json=debugFork,proto3" json:"debug_fork,omitempty"`
+	CliVersion          string                                      `protobuf:"bytes,16,opt,name=cli_version,json=cliVersion,proto3" json:"cli_version,omitempty"`
+	ReferenceProjectId  string                                      `protobuf:"bytes,17,opt,name=reference_project_id,json=referenceProjectId,proto3" json:"reference_project_id,omitempty"`
+	Warnings            []string                                    `protobuf:"bytes,18,rep,name=warnings,proto3" json:"warnings,omitempty"`
+	Pause               bool                                        `protobuf:"varint,19,opt,name=pause,proto3" json:"pause,omitempty"`
+	PauseAt             *timestamppb.Timestamp                      `protobuf:"bytes,22,opt,name=pause_at,json=pauseAt,proto3" json:"pause_at,omitempty"`
+	PauseReason         string                                      `protobuf:"bytes,23,opt,name=pause_reason,json=pauseReason,proto3" json:"pause_reason,omitempty"`
+	NetworkOverrides    []*NetworkOverride                          `protobuf:"bytes,20,rep,name=network_overrides,json=networkOverrides,proto3" json:"network_overrides,omitempty"`
+	DriverVersion       string                                      `protobuf:"bytes,21,opt,name=driver_version,json=driverVersion,proto3" json:"driver_version,omitempty"`
+	NumWorkers          string                                      `protobuf:"bytes,24,opt,name=num_workers,json=numWorkers,proto3" json:"num_workers,omitempty"`
+	EntitySchema        string                                      `protobuf:"bytes,25,opt,name=entity_schema,json=entitySchema,proto3" json:"entity_schema,omitempty"`
+	SnChainId           string                                      `protobuf:"bytes,26,opt,name=sn_chain_id,json=snChainId,proto3" json:"sn_chain_id,omitempty"`
+	SnRequiredChains    []string                                    `protobuf:"bytes,27,rep,name=sn_required_chains,json=snRequiredChains,proto3" json:"sn_required_chains,omitempty"`
+	EntitySchemaVersion int32                                       `protobuf:"varint,28,opt,name=entity_schema_version,json=entitySchemaVersion,proto3" json:"entity_schema_version,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *GetProcessorStatusResponse_ProcessorEx) Reset() {
@@ -3536,6 +3537,13 @@ func (x *GetProcessorStatusResponse_ProcessorEx) GetSnRequiredChains() []string 
 		return x.SnRequiredChains
 	}
 	return nil
+}
+
+func (x *GetProcessorStatusResponse_ProcessorEx) GetEntitySchemaVersion() int32 {
+	if x != nil {
+		return x.EntitySchemaVersion
+	}
+	return 0
 }
 
 type GetProcessorStatusResponse_ProcessorStatus struct {
@@ -3937,11 +3945,11 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\n" +
 	"\x06ACTIVE\x10\x00\x12\v\n" +
 	"\aPENDING\x10\x01\x12\a\n" +
-	"\x03ALL\x10\x02\"\xcc\v\n" +
+	"\x03ALL\x10\x02\"\x80\f\n" +
 	"\x1aGetProcessorStatusResponse\x12Y\n" +
 	"\n" +
 	"processors\x18\x01 \x03(\v29.processor_service.GetProcessorStatusResponse.ProcessorExR\n" +
-	"processors\x1a\xec\b\n" +
+	"processors\x1a\xa0\t\n" +
 	"\vProcessorEx\x125\n" +
 	"\x06states\x18\x02 \x03(\v2\x1d.processor_service.ChainStateR\x06states\x12!\n" +
 	"\fprocessor_id\x18\x03 \x01(\tR\vprocessorId\x12\x1b\n" +
@@ -3976,7 +3984,8 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"numWorkers\x12#\n" +
 	"\rentity_schema\x18\x19 \x01(\tR\fentitySchema\x12\x1e\n" +
 	"\vsn_chain_id\x18\x1a \x01(\tR\tsnChainId\x12,\n" +
-	"\x12sn_required_chains\x18\x1b \x03(\tR\x10snRequiredChains\x1a\xe3\x01\n" +
+	"\x12sn_required_chains\x18\x1b \x03(\tR\x10snRequiredChains\x122\n" +
+	"\x15entity_schema_version\x18\x1c \x01(\x05R\x13entitySchemaVersion\x1a\xe3\x01\n" +
 	"\x0fProcessorStatus\x12Y\n" +
 	"\x05state\x18\x01 \x01(\x0e2C.processor_service.GetProcessorStatusResponse.ProcessorStatus.StateR\x05state\x126\n" +
 	"\ferror_record\x18\x03 \x01(\v2\x13.common.ErrorRecordR\verrorRecord\"=\n" +

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "schema",
+    srcs = [
+        "aggregation.go",
+        "entity.go",
+        "field.go",
+        "parse.go",
+        "schema.go",
+        "type_chain.go",
+        "util.go",
+        "verify.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/entity/schema",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/utils",
+        "//driver/entity/schema/exp",
+        "//driver/entity/schema/interval",
+        "@com_github_graph_gophers_graphql_go//:graphql-go",
+        "@com_github_graph_gophers_graphql_go//types",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_shopspring_decimal//:decimal",
+    ],
+)
+
+go_test(
+    name = "schema_test",
+    srcs = ["parse_test.go"],
+    embed = [":schema"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

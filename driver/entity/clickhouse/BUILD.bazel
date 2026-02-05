@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clickhouse",
+    srcs = [
+        "create.go",
+        "entity.go",
+        "entity_list.go",
+        "schema.go",
+        "store.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/entity/clickhouse",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/chx",
+        "//common/cmstr",
+        "//common/envconf",
+        "//common/format",
+        "//common/log",
+        "//common/set",
+        "//common/utils",
+        "//driver/entity/persistent",
+        "//driver/entity/schema",
+        "//driver/entity/schema/exp",
+        "//driver/entity/schema/interval",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/chcol",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_graph_gophers_graphql_go//types",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_shopspring_decimal//:decimal",
+    ],
+)
+
+go_test(
+    name = "clickhouse_test",
+    srcs = [
+        "create_test.go",
+        "decimal512_integration_test.go",
+        "decimal_flow_test.go",
+        "entity_test.go",
+        "schema_test.go",
+    ],
+    embed = [":clickhouse"],
+    deps = [
+        "//common/chx",
+        "//common/clickhousemanager",
+        "//common/utils",
+        "//driver/entity/persistent",
+        "//driver/entity/schema",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_shopspring_decimal//:decimal",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

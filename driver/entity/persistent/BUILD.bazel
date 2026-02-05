@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "persistent",
+    srcs = [
+        "box.go",
+        "box_rich_struct.go",
+        "cache.go",
+        "controller.go",
+        "filter.go",
+        "operator.go",
+        "persistent.go",
+        "transaction.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/entity/persistent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/anyutil",
+        "//common/log",
+        "//common/richstructhelper",
+        "//common/timehist",
+        "//common/timewin",
+        "//common/utils",
+        "//driver/entity/schema",
+        "//processor/protos",
+        "//service/common/protos",
+        "@com_github_dmitriyvtitov_size//:size",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_graph_gophers_graphql_go//types",
+        "@com_github_sentioxyz_golang_lru//:golang-lru",
+        "@com_github_sentioxyz_golang_lru//simplelru",
+        "@com_github_shopspring_decimal//:decimal",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
+    ],
+)
+
+go_test(
+    name = "persistent_test",
+    srcs = [
+        "box_rich_struct_test.go",
+        "box_test.go",
+        "filter_test.go",
+        "transaction_test.go",
+    ],
+    embed = [":persistent"],
+    deps = [
+        "//common/log",
+        "//common/richstructhelper",
+        "//common/utils",
+        "//driver/entity/schema",
+        "//service/common/protos",
+        "@com_github_shopspring_decimal//:decimal",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

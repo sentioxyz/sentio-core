@@ -5,6 +5,7 @@ go 1.24.9
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.42.0
+	github.com/DmitriyVTitov/size v1.5.0
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/ethereum/go-ethereum v1.14.11
@@ -12,6 +13,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.32.0
 	github.com/go-faster/errors v0.7.1
 	github.com/gorilla/handlers v1.5.2
+	github.com/graph-gophers/graphql-go v1.5.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3
 	github.com/huandu/go-sqlbuilder v1.38.1

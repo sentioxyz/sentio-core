@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "manifest",
+    srcs = [
+        "bigint.go",
+        "load.go",
+        "manifest.go",
+        "network.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/subgraph/manifest",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/evm",
+        "//common/chains",
+        "//common/utils",
+        "//driver/subgraph/abiutil",
+        "//driver/subgraph/common",
+        "@com_github_ethereum_go_ethereum//accounts/abi",
+        "@com_github_ipfs_go_ipfs_api//:go-ipfs-api",
+        "@com_github_pkg_errors//:errors",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "manifest_test",
+    srcs = [
+        "bigint_test.go",
+        "load_test.go",
+    ],
+    embed = [":manifest"],
+    deps = [
+        "//driver/subgraph/abiutil",
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_ipfs_go_ipfs_api//:go-ipfs-api",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

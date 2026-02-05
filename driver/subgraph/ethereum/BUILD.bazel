@@ -1,0 +1,59 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ethereum",
+    srcs = [
+        "decode.go",
+        "encode.go",
+        "eth_call.go",
+        "eth_event_param.go",
+        "eth_value.go",
+        "ethereum.go",
+        "util.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/subgraph/ethereum",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/utils",
+        "//common/wasm",
+        "//driver/subgraph/abiutil",
+        "//driver/subgraph/common",
+        "//processor/protos",
+        "@com_github_ethereum_go_ethereum//:go-ethereum",
+        "@com_github_ethereum_go_ethereum//accounts/abi",
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_pkg_errors//:errors",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "ethereum_test",
+    srcs = [
+        "decode_test.go",
+        "encode_test.go",
+        "eth_call_test.go",
+        "ethereum_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":ethereum"],
+    embedsrcs = [
+        "testdata/dstoken-abi.json",
+        "testdata/erc20-abi.json",
+        "testdata/erc721-abi.json",
+        "testdata/metacoin-abi.json",
+        "testdata/seniorpool-abi.json",
+        "testdata/comet-abi.json",
+    ],
+    deps = [
+        "//common/log",
+        "//common/wasm",
+        "//driver/subgraph/abiutil",
+        "//driver/subgraph/common",
+        "//processor/protos",
+        "@com_github_ethereum_go_ethereum//accounts/abi",
+        "@com_github_ethereum_go_ethereum//ethclient",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

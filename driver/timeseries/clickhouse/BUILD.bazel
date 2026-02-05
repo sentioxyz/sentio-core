@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clickhouse",
+    srcs = [
+        "data.go",
+        "meta.go",
+        "query.go",
+        "store.go",
+        "utils.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/timeseries/clickhouse",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/chx",
+        "//common/envconf",
+        "//common/errgroup",
+        "//common/format",
+        "//common/log",
+        "//common/timer",
+        "//common/utils",
+        "//driver/timeseries",
+        "//service/processor/models",
+        "@com_github_bytedance_sonic//:sonic",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_jinzhu_copier//:copier",
+        "@com_github_samber_lo//:lo",
+        "@com_github_shopspring_decimal//:decimal",
+    ],
+)
+
+go_test(
+    name = "clickhouse_test",
+    srcs = [
+        "meta_test.go",
+        "query_test.go",
+    ],
+    embed = [":clickhouse"],
+    deps = [
+        "//common/clickhousemanager",
+        "//common/period",
+        "//driver/timeseries",
+        "@com_github_shopspring_decimal//:decimal",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

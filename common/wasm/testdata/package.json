@@ -1,0 +1,17 @@
+{
+  "name": "testgraph",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "graph build",
+    "codegen": "graph codegen"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "^0.73.0",
+    "@graphprotocol/graph-ts": "^0.35.1",
+    "assemblyscript-prettier": "^3.0.1",
+    "mustache": "^4.2.0"
+  },
+  "devDependencies": {
+    "matchstick-as": "^0.6.0"
+  }
+}

@@ -1,0 +1,24 @@
+specVersion: 0.0.5
+schema:
+  file: schema.graphql
+dataSources:
+  - kind: ethereum
+    name: main
+    network: mainnet
+    source:
+      address: '0xfdc006debd37838e9144f662968ee7b145e055b8'
+      abi: foo
+      startBlock: 9083875
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Bar
+      abis:
+        - name: foo
+          file: main/abis/foo.json
+      eventHandlers:
+        - event: FooEvent(indexed address)
+          handler: handleFoo
+      file: main/main.wasm

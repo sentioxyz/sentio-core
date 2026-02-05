@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "timeseries",
+    srcs = [
+        "aggregation.go",
+        "convert.go",
+        "data.go",
+        "merge.go",
+        "meta.go",
+        "meta_field.go",
+        "store.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/timeseries",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/period",
+        "//common/richstructhelper",
+        "//common/utils",
+        "//processor/protos",
+        "//service/analytic/common/schema",
+        "//service/common/protos",
+        "@com_github_bytedance_sonic//:sonic",
+        "@com_github_bytedance_sonic//encoder",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_jinzhu_copier//:copier",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_samber_lo//:lo",
+        "@com_github_shopspring_decimal//:decimal",
+    ],
+)
+
+go_test(
+    name = "timeseries_test",
+    srcs = [
+        "convert_test.go",
+        "data_test.go",
+        "meta_field_test.go",
+        "meta_test.go",
+    ],
+    embed = [":timeseries"],
+    deps = [
+        "//common/log",
+        "//service/common/protos",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_shopspring_decimal//:decimal",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

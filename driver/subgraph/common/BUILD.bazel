@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "address.go",
+        "bigdecimal.go",
+        "bigint.go",
+        "collections.go",
+        "json.go",
+        "value.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/subgraph/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/utils",
+        "//common/wasm",
+        "//driver/entity/schema",
+        "@com_github_graph_gophers_graphql_go//types",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_shopspring_decimal//:decimal",
+    ],
+)
+
+go_test(
+    name = "common_test",
+    srcs = [
+        "bigdecimal_test.go",
+        "bigint_test.go",
+        "collections_test.go",
+        "json_test.go",
+        "value_test.go",
+    ],
+    embed = [":common"],
+    deps = [
+        "//common/log",
+        "//common/utils",
+        "//common/wasm",
+        "//driver/entity/schema",
+        "@com_github_shopspring_decimal//:decimal",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

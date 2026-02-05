@@ -103,14 +103,25 @@ func SplitAndGet(str, sep string, index int) string {
 }
 
 func StringSummaryV2(d string) string {
-	const previewLen = 100
-	if len(d) <= previewLen*2 {
+	return StringSummaryV1(d, 100, 100)
+}
+
+func StringSummaryV1(d string, pvLen ...int) string {
+	var headLen = 100
+	var tailLen = 100
+	if len(pvLen) > 0 {
+		headLen = pvLen[0]
+	}
+	if len(pvLen) > 1 {
+		tailLen = pvLen[1]
+	}
+	if len(d) <= headLen+tailLen {
 		return d
 	}
 	var b bytes.Buffer
-	b.WriteString(d[:previewLen])
-	b.WriteString(fmt.Sprintf("...(ignored %d)...", len(d)-previewLen*2))
-	b.WriteString(d[len(d)-previewLen:])
+	b.WriteString(d[:headLen])
+	b.WriteString(fmt.Sprintf("...(ignored %d)...", len(d)-headLen-tailLen))
+	b.WriteString(d[len(d)-tailLen:])
 	return b.String()
 }
 
@@ -236,4 +247,11 @@ func UIntValueFormatter[V constraints.Unsigned](base int) func(V) string {
 	return func(n V) string {
 		return strconv.FormatUint(uint64(n), base)
 	}
+}
+
+func StringsLenSum(arr []string) (sum int) {
+	for _, s := range arr {
+		sum += len(s)
+	}
+	return sum
 }

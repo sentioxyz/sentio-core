@@ -136,6 +136,19 @@ func AppendArrMap[K comparable, V any](dst map[K][]V, data map[K][]V) map[K][]V 
 	return dst
 }
 
+func MergeMapSumByFunc[K comparable, V any](items []map[K]V, add func(a, b V) V) map[K]V {
+	if len(items) == 0 {
+		return make(map[K]V)
+	}
+	sum := CopyMap(items[0])
+	for i := 1; i < len(items); i++ {
+		for k, v := range items[i] {
+			sum[k] = add(sum[k], v)
+		}
+	}
+	return sum
+}
+
 func MergeMapSum[K comparable, V constraints.Integer](items ...map[K]V) map[K]V {
 	if len(items) == 0 {
 		return make(map[K]V)
@@ -196,6 +209,14 @@ func CountMap[K comparable, V any](m map[K][]V) int {
 		count += len(v)
 	}
 	return count
+}
+
+func Stat[V comparable](data []V) map[V]int {
+	r := make(map[V]int)
+	for _, v := range data {
+		r[v] += 1
+	}
+	return r
 }
 
 func SumMap[K comparable, V constraints.Integer](m map[K]V) V {
@@ -286,6 +307,14 @@ func GetOrderedMapKeys[K constraints.Ordered, V any](m map[K]V) []K {
 	keys := GetMapKeys(m)
 	slices.Sort(keys)
 	return keys
+}
+
+func GetMapValues[K constraints.Ordered, V any](m map[K]V) []V {
+	values := make([]V, 0, len(m))
+	for _, v := range m {
+		values = append(values, v)
+	}
+	return values
 }
 
 func GetMapValuesOrderByKey[K constraints.Ordered, V any](m map[K]V) []V {

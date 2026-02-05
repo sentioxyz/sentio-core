@@ -15,7 +15,7 @@ func mosaic(ch byte, len int) string {
 
 func AddURLMosaic(raw string) string {
 	u, err := url.Parse(raw)
-	if err != nil {
+	if err != nil || u.Scheme == "" {
 		return raw
 	}
 

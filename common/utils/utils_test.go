@@ -17,6 +17,7 @@ func Test_Fetch(t *testing.T) {
 
 func Test_AddURLMosaic(t *testing.T) {
 	testcases := [][]string{
+		{"eth-mainnet.lb.1", "eth-mainnet.lb.1"},
 		{"http://nodes.sea.sentio.xyz/ethereum", "http://*****.***.sentio.***/ethereum"},
 		{"http://sentio-0.sentio.xyz:8080/ethereum", "http://sentio**.sentio.***:8080/ethereum"},
 		{"https://eth-mainnet.blastapi.io/b0ebe560-22bd-437f-a30f-3e6fdeb8ee7b", "https://eth-mainnet.blastapi.io/b0ebe560-22bd-437f-a30f-3e6fxxxxxxxx"},

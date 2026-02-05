@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "chx",
+    srcs = [
+        "controller.go",
+        "operator.go",
+        "query.go",
+        "settings.go",
+        "table.go",
+        "table_engine.go",
+        "utils.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/chx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/clickhousemanager",
+        "//common/log",
+        "//common/utils",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

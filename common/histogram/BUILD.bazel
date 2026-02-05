@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "histogram",
+    srcs = ["histogram.go"],
+    importpath = "sentioxyz/sentio-core/common/histogram",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_x_exp//constraints"],
+)
+
+go_test(
+    name = "histogram_test",
+    srcs = ["histogram_test.go"],
+    embed = [":histogram"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

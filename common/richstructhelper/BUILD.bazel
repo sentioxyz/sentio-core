@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "richstructhelper",
+    srcs = [
+        "big.go",
+        "convert.go",
+        "new_value.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/richstructhelper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/protos",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_shopspring_decimal//:decimal",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "richstructhelper_test",
+    srcs = ["convert_test.go"],
+    embed = [":richstructhelper"],
+    deps = [
+        "//service/common/protos",
+        "@com_github_shopspring_decimal//:decimal",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

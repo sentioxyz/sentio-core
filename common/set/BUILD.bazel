@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "set",
+    srcs = [
+        "interface.go",
+        "set.go",
+        "set_safe.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/set",
+    visibility = ["//visibility:public"],
+)

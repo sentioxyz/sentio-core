@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "timewin",
+    srcs = ["timewin.go"],
+    importpath = "sentioxyz/sentio-core/common/timewin",
+    visibility = ["//visibility:public"],
+    deps = ["//common/sparsify"],
+)
+
+go_test(
+    name = "timewin_test",
+    srcs = ["timewin_test.go"],
+    embed = [":timewin"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

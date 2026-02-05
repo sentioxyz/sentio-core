@@ -124,6 +124,7 @@ use_repo(
     "com_github_soheilhy_cmux",
     "com_github_stretchr_testify",
     "com_github_uptrace_opentelemetry_go_extra_otelgorm",
+    "com_github_wasmerio_wasmer_go",
     "in_gopkg_natefinch_lumberjack_v2",
     "in_gopkg_yaml_v3",
     "io_gorm_datatypes",
@@ -224,3 +225,8 @@ PLATFORMS = [
     "linux/amd64",
     #        "linux/arm64",
 ]
+
+go_deps.gazelle_override(
+    build_file_generation = "off",
+    path = "github.com/wasmerio/wasmer-go",
+)

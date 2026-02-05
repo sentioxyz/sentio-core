@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "period",
+    srcs = [
+        "period.go",
+        "ticker.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/period",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "period_test",
+    srcs = [
+        "period_test.go",
+        "ticker_test.go",
+    ],
+    embed = [":period"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

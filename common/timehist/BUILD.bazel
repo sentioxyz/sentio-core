@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "timehist",
+    srcs = ["timehist.go"],
+    importpath = "sentioxyz/sentio-core/common/timehist",
+    visibility = ["//visibility:public"],
+    deps = ["//common/histogram"],
+)
+
+go_test(
+    name = "timehist_test",
+    srcs = ["timehist_test.go"],
+    embed = [":timehist"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

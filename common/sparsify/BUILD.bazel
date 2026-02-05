@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sparsify",
+    srcs = ["sparsify.go"],
+    importpath = "sentioxyz/sentio-core/common/sparsify",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/utils",
+        "@org_golang_x_exp//constraints",
+    ],
+)
+
+go_test(
+    name = "sparsify_test",
+    srcs = ["sparsify_test.go"],
+    embed = [":sparsify"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

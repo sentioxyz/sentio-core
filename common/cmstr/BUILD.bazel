@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cmstr",
+    srcs = ["kvs.go"],
+    importpath = "sentioxyz/sentio-core/common/cmstr",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "cmstr_test",
+    srcs = ["kvs_test.go"],
+    embed = [":cmstr"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

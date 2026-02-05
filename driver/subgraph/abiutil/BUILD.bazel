@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "abiutil",
+    srcs = [
+        "signature.go",
+        "test_helper.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/subgraph/abiutil",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_ethereum_go_ethereum//accounts/abi"],
+)

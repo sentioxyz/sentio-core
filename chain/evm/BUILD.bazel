@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "evm",
+    srcs = ["node_utils.go"],
+    importpath = "sentioxyz/sentio-core/chain/evm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

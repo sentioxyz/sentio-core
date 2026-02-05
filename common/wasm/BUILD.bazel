@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "wasm",
+    srcs = [
+        "context.go",
+        "convert.go",
+        "export_function.go",
+        "import_function.go",
+        "instance.go",
+        "memory.go",
+        "object_array.go",
+        "object_bytearray.go",
+        "object_string.go",
+        "types.go",
+        "utils.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/wasm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/utils",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_wasmerio_wasmer_go//wasmer",
+    ],
+)
+
+go_test(
+    name = "wasm_test",
+    srcs = [
+        "convert_test.go",
+        "export_function_test.go",
+        "object_bytearray_test.go",
+        "object_string_test.go",
+        "utils_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":wasm"],
+    embedsrcs = ["testdata/build/main/main.wasm"],
+    deps = [
+        "//common/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_wasmerio_wasmer_go//wasmer",
+    ],
+)

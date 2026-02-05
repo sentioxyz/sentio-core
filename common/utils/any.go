@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
@@ -238,6 +239,13 @@ func Any2Proto(a any) *protoscommon.Any {
 				DoubleValue: f,
 			},
 		}
+	case big.Int:
+		f, _ := v.Float64()
+		return &protoscommon.Any{
+			AnyValue: &protoscommon.Any_DoubleValue{
+				DoubleValue: f,
+			},
+		}
 	case time.Time:
 		return &protoscommon.Any{
 			AnyValue: &protoscommon.Any_DateValue{
@@ -300,6 +308,9 @@ func Any2Float(v any) (float64, error) {
 		}
 		return math.NaN(), fmt.Errorf("can't convert json.Number to float64")
 	case decimal.Decimal:
+		f, _ := i.Float64()
+		return f, nil
+	case big.Int:
 		f, _ := i.Float64()
 		return f, nil
 	case time.Time:
@@ -381,6 +392,8 @@ func Any2String(v any) string {
 		}
 	case decimal.Decimal:
 		return f.String()
+	case big.Int:
+		return f.String()
 	case time.Time:
 		return f.Format(time.RFC3339)
 	default:
@@ -443,6 +456,16 @@ func Any2Time(v any) time.Time {
 			return time.Time{}
 		}
 		return v.AsTime()
+	case decimal.Decimal:
+		f, _ := v.Float64()
+		sec := int64(f)
+		nsec := int64((f - float64(sec)) * 1e9)
+		return time.Unix(sec, nsec)
+	case big.Int:
+		f, _ := v.Float64()
+		sec := int64(f)
+		nsec := int64((f - float64(sec)) * 1e9)
+		return time.Unix(sec, nsec)
 	case float64, float32:
 		f := ToFloat64(v)
 		sec := int64(f)
@@ -519,6 +542,8 @@ func Any2Bool(v any) bool {
 		return false
 	case decimal.Decimal:
 		return v.Cmp(decimal.NewFromInt(0)) != 0
+	case big.Int:
+		return v.Cmp(big.NewInt(0)) != 0
 	case time.Time:
 		return !v.IsZero()
 	default:

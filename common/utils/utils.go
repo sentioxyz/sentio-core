@@ -46,6 +46,14 @@ func MapD2Slice[T any, M any](a [][]T, f func(T) (M, error)) ([][]M, error) {
 	return n, nil
 }
 
+func ReduceMapValues[K comparable, V any](m map[K]V, merge func(a, b V) V) V {
+	var r V
+	for _, v := range m {
+		r = merge(r, v)
+	}
+	return r
+}
+
 func Reduce[V any](a []V, merge func(a, b V) V) V {
 	var r V
 	if len(a) == 0 {
@@ -59,6 +67,16 @@ func Reduce[V any](a []V, merge func(a, b V) V) V {
 		r = merge(r, a[i])
 	}
 	return r
+}
+
+func MapSliceNoErrWithIndex[T any, M any](a []T, f func(int, T) (M, bool)) []M {
+	n := make([]M, 0, len(a))
+	for i, e := range a {
+		if ex, ok := f(i, e); ok {
+			n = append(n, ex)
+		}
+	}
+	return n
 }
 
 func MapSliceNoError[T any, M any](a []T, f func(T) M) []M {

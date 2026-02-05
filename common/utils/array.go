@@ -43,6 +43,9 @@ func RemoveSubSeq[T any](arr []T, from, num int) []T {
 	if num == 0 {
 		return arr
 	}
+	if num < 0 {
+		panic(fmt.Errorf("num %d should not be negative", num))
+	}
 	var n = from
 	for i := from + num; i < len(arr); i++ {
 		arr[n] = arr[i]

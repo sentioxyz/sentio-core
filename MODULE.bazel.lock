@@ -450,7 +450,7 @@
   "moduleExtensions": {
     "@@aspect_rules_js+//npm:extensions.bzl%pnpm": {
       "general": {
-        "bzlTransitiveDigest": "/seQolhBlDYBcJWRNHmhQX0esKINbR5ImZiEqxjPt3k=",
+        "bzlTransitiveDigest": "Uzqd5e3IKdbBBWS8dsDXJ9T2xZ/SPGG1g67PZlZte/g=",
         "usagesDigest": "ieFR3Wt93GwogZroLzADYrOhNRGyNfo7o47kxOrdmUE=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -1732,7 +1732,7 @@
     },
     "@@rules_multitool+//multitool:extension.bzl%multitool": {
       "general": {
-        "bzlTransitiveDigest": "/KVHkKCIaDWkygbzOsEECimQJ4YdPIlDA344+onJQYw=",
+        "bzlTransitiveDigest": "I+8Pqx7/qiZZPS34vfiwMPhP+8cskU0Bh/Cmmowc6iA=",
         "usagesDigest": "5jxBDhG4MChRzwKEh63kjDO1cV/CqPiAdNt6bOZT4sc=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},

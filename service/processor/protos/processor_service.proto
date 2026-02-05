@@ -554,6 +554,7 @@ message GetProcessorStatusResponse {
     string entity_schema = 25;
     string sn_chain_id = 26;
     repeated string sn_required_chains = 27;
+    int32 entity_schema_version = 28;
   }
 
   message ProcessorStatus {

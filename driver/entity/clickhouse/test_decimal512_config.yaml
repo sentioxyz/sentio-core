@@ -1,0 +1,43 @@
+# Minimal configuration for testing Decimal512
+network:
+  evm:
+    - name: eth-mainnet
+      enable-evm-receipt: true
+      chain-id: '1'
+
+endpoint-pool:
+  eth-mainnet-test:
+    - url: http://127.0.0.1:8545/
+      qps: 10
+
+# Use test database
+store:
+  driver:
+    type: driver
+    store:
+      driver: clickhouse
+      dsn: 'clickhouse://default@172.17.0.3:9000/test_decimal512?dial_timeout=10s'
+      connect-options:
+        max_open_conns: 50
+        max_idle_conns: 10
+        conn_max_lifetime: 300s
+        dial_timeout: 10s
+        settings:
+          max_execution_time: 60
+      cluster: ''
+      engine: ''
+
+task:
+  eth-mainnet:
+    driver:
+      type: driver
+      entity-schema-version: 8 # Enable Decimal512 support
+      clickhouse:
+        dsn: 'clickhouse://default@172.17.0.3:9000/test_decimal512?dial_timeout=10s'
+        connect-options:
+          max_open_conns: 50
+          max_idle_conns: 10
+          conn_max_lifetime: 300s
+        cluster: ''
+        engine: ''
+        settings: 'index_granularity = 8192'

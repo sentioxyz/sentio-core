@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "interval",
+    srcs = ["interval.go"],
+    importpath = "sentioxyz/sentio-core/driver/entity/schema/interval",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/period",
+        "//common/utils",
+        "@com_github_graph_gophers_graphql_go//types",
+    ],
+)

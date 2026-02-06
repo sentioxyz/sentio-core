@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sqlrewriter",
+    srcs = ["table_mapper.go"],
+    importpath = "sentioxyz/sentio-core/network/sqlrewriter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/chx",
+        "//common/clickhousemanager",
+        "//driver/entity/clickhouse",
+        "//driver/entity/persistent",
+        "//driver/entity/schema",
+        "//driver/timeseries",
+        "//driver/timeseries/clickhouse",
+        "//network/state",
+    ],
+)

@@ -2469,7 +2469,7 @@
     },
     "@@rules_rust+//crate_universe/private:internal_extensions.bzl%cu_nr": {
       "general": {
-        "bzlTransitiveDigest": "nr48ze+8ns9/vaeXtmHzNdaumpSkpcEZ3DQLjrHwvgY=",
+        "bzlTransitiveDigest": "qUhfJZFBm/FjRONQqiteIlNYYspKHnlb3sHTwPHJfEc=",
         "usagesDigest": "h9wqdPgSnpDxdRNP6kO+DMoTuAWtxtek2SnJOOL321c=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},

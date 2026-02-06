@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "registry",
+    srcs = ["processor_registry.go"],
+    importpath = "sentioxyz/sentio-core/network/registry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/clickhousemanager",
+        "//common/log",
+        "//common/statemirror",
+        "//network/state",
+        "@com_github_go_faster_errors//:errors",
+    ],
+)

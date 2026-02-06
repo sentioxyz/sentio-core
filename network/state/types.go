@@ -14,6 +14,7 @@ type ProcessorAllocation struct {
 }
 
 type ProcessorInfo struct {
-	ProcessorId  string `json:"processorId" yaml:"processor_id"`
-	EntitySchema string `json:"entitySchema" yaml:"entity_schema"`
+	ProcessorId         string `json:"processorId" yaml:"processor_id"`
+	EntitySchema        string `json:"entitySchema" yaml:"entity_schema"`
+	EntitySchemaVersion int32  `json:"entitySchemaVersion" yaml:"entity_schema_version"`
 }

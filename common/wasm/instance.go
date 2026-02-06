@@ -21,6 +21,7 @@ type Instance[DATA fmt.Stringer] struct {
 	debugLevel       int
 	initialed        bool
 	exportFuncCalled uint
+	resetCounter     uint
 
 	instance     *wasmer.Instance
 	exportedFunc map[string]wasmer.NativeFunction
@@ -120,6 +121,7 @@ func (inst *Instance[DATA]) Reset(logger *log.SentioLogger) error {
 func (inst *Instance[DATA]) reset(logger *log.SentioLogger) error {
 	inst.Close()
 	logger.Infof("will reset wasm instance %s", inst.name)
+	inst.resetCounter++
 	return inst.Init(logger)
 }
 
@@ -152,4 +154,21 @@ func (inst *Instance[DATA]) callExportFuncDebugLog(msg string) {
 
 func (inst *Instance[DATA]) callExportFuncErrorLog(err error) {
 	inst.callCtx.Logger().AddCallerSkip(1).Warnfe(err, "calling export function failed")
+}
+
+func (inst *Instance[DATA]) Snapshot() any {
+	sn := map[string]any{
+		"name":             inst.name,
+		"modBytesLen":      len(inst.modBytes),
+		"memHardLimit":     inst.memHardLimit,
+		"debugLevel":       inst.debugLevel,
+		"initialed":        inst.initialed,
+		"exportFuncCalled": inst.exportFuncCalled,
+		"resetCounter":     inst.resetCounter,
+	}
+	if memMgr := inst.memoryMgr; memMgr != nil {
+		sn["memoryUsedInitial"] = memMgr.memoryUsedInitial
+		sn["memoryUsed"] = memMgr.memoryUsed
+	}
+	return sn
 }

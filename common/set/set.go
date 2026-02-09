@@ -1,11 +1,30 @@
 package set
 
+import "fmt"
+
 type set[V comparable] map[V]struct{}
 
 func New[V comparable](initItems ...V) Set[V] {
 	s := make(set[V])
 	for _, item := range initItems {
 		s[item] = struct{}{}
+	}
+	return s
+}
+
+func SmartNew[V comparable](initItems ...any) Set[V] {
+	s := make(set[V])
+	for _, item := range initItems {
+		switch x := item.(type) {
+		case V:
+			s[x] = struct{}{}
+		case []V:
+			for _, xi := range x {
+				s[xi] = struct{}{}
+			}
+		default:
+			panic(fmt.Sprintf("invalid item (%T): %v", item, x))
+		}
 	}
 	return s
 }

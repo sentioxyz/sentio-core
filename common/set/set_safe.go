@@ -13,6 +13,12 @@ func NewSafe[V comparable](initItems ...V) Set[V] {
 	}
 }
 
+func SmartNewSafe[V comparable](initItems ...any) Set[V] {
+	return &safeSet[V]{
+		data: SmartNew[V](initItems...),
+	}
+}
+
 func (s *safeSet[V]) Add(vs ...V) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

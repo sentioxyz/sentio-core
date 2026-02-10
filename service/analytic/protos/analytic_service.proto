@@ -1,0 +1,1262 @@
+syntax = "proto3";
+
+package analytic_service;
+
+option go_package = "sentioxyz/sentio-core/service/analytic/protos";
+
+import "google/api/visibility.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "service/common/protos/common.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+service AnalyticService {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_tag) = {
+    name: "Data"
+  };
+
+  rpc QuerySegmentation(SegmentationRequest) returns (QuerySegmentationResponse) {
+    option (common.track_usage) = {
+      api_sku: "api_eventlogs"
+      webui_sku: "webui_eventlogs"
+    };
+    option (google.api.method_visibility).restriction = "PREVIEW";
+    option (google.api.http) = {
+      post: "/api/v1/analytics/{project_owner}/{project_slug}/segmentation"
+      body: "*"
+      additional_bindings {
+        post: "/api/v1/analytics/segmentation"
+        body: "*"
+      }
+    };
+  };
+
+  rpc QuerySegmentationInternal(InternalSegmentationRequest) returns (QuerySegmentationResponse) {};
+
+  // Event list
+  //
+  // list all events in a project
+  rpc GetEvents(GetEventsRequest) returns (GetEventsResponse) {
+    option (google.api.method_visibility).restriction = "PREVIEW";
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+    option (google.api.http) = {
+      get: "/api/v1/analytics/events"
+    };
+  };
+
+  rpc GetEventPropertyValues(GetEventPropertyValuesRequest) returns (GetEventPropertyValuesResponse) {
+    option (google.api.method_visibility).restriction = "PREVIEW";
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/event/property/values"
+    };
+  }
+
+  rpc QueryCohorts(CohortsRequest) returns (QueryCohortsResponse) {
+    option (common.track_usage) = {
+      api_sku: "api_eventlogs"
+      webui_sku: "webui_eventlogs"
+    };
+    option (google.api.method_visibility).restriction = "PREVIEW";
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/cohorts"
+      body: "*"
+      additional_bindings {
+        post: "/api/v1/analytics/{project_owner}/{project_slug}/cohorts"
+        body: "*"
+      }
+    };
+  };
+
+  rpc SaveCohorts(CohortsRequest) returns (SaveCohortsResponse) {
+    option (google.api.method_visibility).restriction = "PREVIEW";
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/cohorts/save"
+      body: "*"
+      additional_bindings {
+        post: "/api/v1/analytics/{project_owner}/{project_slug}/cohorts/save"
+        body: "*"
+      }
+    };
+  };
+
+  rpc ListCohorts(ListCohortsRequest) returns (ListCohortsResponse) {
+    option (google.api.method_visibility).restriction = "PREVIEW";
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/cohorts/list"
+      additional_bindings {
+        get: "/api/v1/analytics/{project_owner}/{project_slug}/cohorts/list"
+      }
+    };
+  };
+
+  rpc DeleteCohorts(CohortsRequest) returns (google.protobuf.Empty) {
+    option (google.api.method_visibility).restriction = "PREVIEW";
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/cohorts/delete"
+      body: "*"
+      additional_bindings {
+        post: "/api/v1/analytics/{project_owner}/{project_slug}/cohorts/delete"
+        body: "*"
+      }
+    };
+  };
+
+  // Execute SQL
+  //
+  // Execute SQL in a project. Go to "Data Studio" -> "SQL Editor", write your query and then click "Export as cURL"
+  //
+  // ![screenshot](https://raw.githubusercontent.com/sentioxyz/docs/v1.0/assets/image%20(102).png)
+  //
+  // Find more: https://docs.sentio.xyz/reference/data#sql-api
+  rpc ExecuteSQL(SQLRequest) returns (SyncExecuteSQLResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      // https://github.com/grpc-ecosystem/grpc-gateway/issues/3829#issuecomment-1994218163
+      external_docs {
+        url: "https://docs.sentio.xyz/reference/data#sql-api",
+        description: "find more information here"
+      }
+    };
+
+    option (common.track_usage) = {
+      api_sku: "api_sqlquery_small"
+      webui_sku: "webui_eventlogs"
+      custom_skus: {
+        skus_by_field: [
+          {
+            field_name: "engine"
+            skus: [
+              {
+                field_value: ["1", "5"]
+                api_sku: "api_sqlquery_small"
+                webui_sku: "webui_eventlogs"
+              },{
+                field_value: ["2", "6"]
+                api_sku: "api_sqlquery_medium"
+                webui_sku: "webui_eventlogs"
+              },{
+                field_value: ["3", "7"]
+                api_sku: "api_sqlquery_large"
+                webui_sku: "webui_eventlogs"
+              },{
+                field_value: ["4"]
+                api_sku: "api_sqlquery_ultra"
+                webui_sku: "webui_eventlogs"
+              }
+            ]
+          }
+        ]
+      }
+    };
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/{project_owner}/{project_slug}/sql/execute"
+      body: "*"
+    };
+  };
+
+
+  // Execute SQL by Async
+  //
+  // Execute SQL in a project asynchronously.
+  rpc ExecuteSQLAsync(SQLRequest) returns (AsyncExecuteSQLResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (common.track_usage) = {
+      api_sku: "api_sqlquery_small"
+      webui_sku: "webui_eventlogs"
+      custom_skus: {
+        skus_by_field: [
+          {
+            field_name: "engine"
+            skus: [
+              {
+                field_value: ["1", "5"]
+                api_sku: "api_sqlquery_small"
+                webui_sku: "webui_eventlogs"
+              },{
+                field_value: ["2", "6"]
+                api_sku: "api_sqlquery_medium"
+                webui_sku: "webui_eventlogs"
+              },{
+                field_value: ["3", "7"]
+                api_sku: "api_sqlquery_large"
+                webui_sku: "webui_eventlogs"
+              },{
+                field_value: ["4"]
+                api_sku: "api_sqlquery_ultra"
+                webui_sku: "webui_eventlogs"
+              }
+            ]
+          }
+        ]
+      }
+    };
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/{project_owner}/{project_slug}/sql/execute/async"
+      body: "*"
+    };
+  };
+
+  rpc TestSQL(SQLRequest) returns (SyncExecuteSQLResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/{project_owner}/{project_slug}/sql/test"
+      body: "*"
+      additional_bindings {
+        post: "/api/v1/analytics/sql/test"
+        body: "*"
+      }
+    };
+  }
+
+
+  // Save SQL
+  //
+  // Save or update a SQL query in a project.
+  rpc SaveSQL(SaveSQLRequest) returns (SaveSQLResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (common.track_usage) = {
+      api_sku: "api_eventlogs"
+      webui_sku: "webui_eventlogs"
+    };
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/{project_owner}/{project_slug}/sql/save"
+      body: "*",
+      additional_bindings {
+        put: "/api/v1/analytics/{project_owner}/{project_slug}/sql/save"
+        body: "*"
+      },
+    };
+  };
+
+  rpc ListSQLQueries(ListSQLQueriesRequest) returns (ListSQLQueriesResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/{project_owner}/{project_slug}/sql/list_queries"
+      additional_bindings {
+        get: "/api/v1/analytics/sql/list_queries"
+      }
+    };
+  };
+
+
+  // deprecated
+  rpc RerunSQLQuery(RerunSQLQueryRequest) returns (RerunSQLQueryResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/{project_owner}/{project_slug}/sql/rerun_query"
+      body: "*"
+      additional_bindings {
+        post: "/api/v1/analytics/sql/rerun_query"
+        body: "*"
+      }
+    };
+  };
+
+  rpc DeleteSQLQuery(DeleteSQLQueryRequest) returns (DeleteSQLQueryResponse) {
+    option (google.api.method_visibility).restriction = "PREVIEW";
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/{project_owner}/{project_slug}/sql/delete_query"
+      body: "*"
+      additional_bindings {
+        post: "/api/v1/analytics/sql/delete_query"
+        body: "*"
+      }
+    };
+  };
+
+  rpc GetSQLQuery(GetSQLQueryRequest) returns (GetSQLQueryResponse) {
+    option (google.api.method_visibility).restriction = "PREVIEW";
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/{project_owner}/{project_slug}/sql/get_query/{query_id}"
+    };
+  }
+
+  // Query SQL Result
+  //
+  // Query the result of a SQL query by execution_id.
+  rpc QuerySQLResult(QuerySQLResultRequest) returns (QuerySQLResultResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/{project_owner}/{project_slug}/sql/query_result/{execution_id}"
+    };
+  };
+
+  // Cancel SQL Query
+  //
+  // Cancel a SQL query by execution_id.
+  rpc CancelSQLQuery(CancelSQLQueryRequest) returns (google.protobuf.Empty) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      put: "/api/v1/analytics/{project_owner}/{project_slug}/sql/cancel_query/{execution_id}"
+    };
+  };
+
+  // Query SQL Execution Detail
+  //
+  // Query the execution detail of a SQL query by execution_id.
+  rpc QuerySQLExecutionDetail(QuerySQLExecutionDetailRequest) returns (QuerySQLExecutionDetailResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/{project_owner}/{project_slug}/sql/query_execution_detail/{execution_id}"
+    };
+  };
+
+  // Query Tables
+  //
+  // Query tables in a project. use flag to control which type of tables to include.
+  rpc QueryTables(QueryTablesRequest) returns (QueryTablesResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/{project_owner}/{project_slug}/sql/tables"
+      additional_bindings {
+        get: "/api/v1/analytics/sql/tables"
+      }
+    };
+  };
+
+  // Query Table By Name
+  //
+  // Query table schema by name.
+  rpc QueryTable(QueryTableRequest) returns (QueryTableResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+    option (google.api.http) = {
+      get: "/api/v1/sql/{project_owner}/{project_slug}/table/{name}"
+      additional_bindings {
+        get: "/api/v1/sql/table"
+      }
+    };
+  }
+
+  // List Tables
+  rpc ListTables(ListTablesRequest) returns (ListTablesResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+    option (google.api.http) = {
+      get: "/api/v1/sql/{project_owner}/{project_slug}/tables"
+      additional_bindings {
+        get: "/api/v1/sql/tables"
+      }
+    };
+  }
+
+  // Save Refreshable Materialized View
+  //
+  // Save or update a refreshable materialized view in a project.
+  rpc SaveRefreshableMaterializedView(SaveRefreshableMaterializedViewRequest) returns (SaveRefreshableMaterializedViewResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/{project_owner}/{project_slug}/sql/refreshable_materialized_view"
+      body: "*"
+    };
+  };
+
+  // Get Refreshable Materialized View Status
+  //
+  // Get the status of a refreshable materialized view in a project.
+  rpc GetRefreshableMaterializedStatus(GetRefreshableMaterializedViewStatusRequest) returns (GetRefreshableMaterializedViewStatusResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/{project_owner}/{project_slug}/sql/refreshable_materialized_view/{name}"
+    };
+  };
+
+  // Delete Refreshable Materialized View
+  //
+  // Delete a refreshable materialized view in a project.
+  rpc DeleteRefreshableMaterializedView(DeleteRefreshableMaterializedViewRequest) returns (google.protobuf.Empty) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      delete: "/api/v1/analytics/{project_owner}/{project_slug}/sql/refreshable_materialized_view/{name}"
+    };
+  };
+
+  // List Refreshable Materialized Views
+  //
+  // List all refreshable materialized views in a project.
+  rpc ListRefreshableMaterializedViews(ListRefreshableMaterializedViewRequest) returns (ListRefreshableMaterializedViewResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/{project_owner}/{project_slug}/sql/refreshable_materialized_views"
+    };
+  };
+
+  // Save Sharing SQL
+  //
+  // Save or update sharing settings for a SQL query.
+  rpc SaveSharingSQL(SaveSharingSQLRequest) returns (SaveSharingSQLResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      post: "/api/v1/analytics/sql/sharing"
+      body: "*"
+    };
+  };
+
+  // Get Sharing SQL
+  //
+  // Get sharing settings for a SQL query.
+  rpc GetSharingSQL(GetSharingSQLRequest) returns (GetSharingSQLResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      get: "/api/v1/analytics/sql/sharing/{id}"
+    };
+  };
+
+}
+
+message GetEventsRequest {
+  string project_slug = 1;
+  string project_id = 2;
+  int32 version = 3;
+}
+
+message GetEventsResponse {
+  repeated Event events = 1;
+  common.ComputeStats compute_stats = 2;
+}
+
+message Event {
+  string name = 1;
+  string display_name = 2;
+  repeated EventProperty properties = 3;
+}
+
+message EventProperty {
+  enum EventPropertyType {
+    STRING = 0;
+    NUMBER = 1;
+    BOOLEAN = 2;
+    LIST = 3;
+    TIME = 4;
+    TOKEN = 5;
+  }
+  string name = 1;
+  string display_name = 3;
+  EventPropertyType type = 2;
+}
+
+message GetEventPropertyValuesRequest {
+  string project_slug = 1;
+  string project_id = 2;
+  int32 version = 3;
+  string event_name = 4;
+  repeated string event_property_name = 5;
+  int32 limit = 6;
+  string search_query = 7;
+}
+
+message GetEventPropertyValuesResponse {
+  message EventPropertyValue {
+    string name = 1;
+    string display_name = 3;
+    common.Any value = 2;
+  }
+  repeated EventPropertyValue values = 1;
+  common.ComputeStats compute_stats = 2;
+}
+
+message SegmentationRequest {
+  string project_owner = 1;
+  string project_slug = 2;
+  string project_id = 3;
+  int32 version = 4;
+
+  common.TimeRangeLite time_range = 5;
+
+  repeated common.SegmentationQuery queries = 6;
+  repeated common.Formula formulas = 7;
+
+  // Request Level selector and group by could be implement later
+  // repeated common.Selector selectors = 8;
+  // repeated string group_by = 9;
+
+  bool debug = 10;
+  int32 limit = 11;
+  int32 offset = 12;
+}
+
+message InternalSegmentationRequest {
+  SegmentationRequest request = 1;
+  bool from_share = 2;
+  string source = 3;
+  bool bypass_cache = 4;
+  int32 cache_ttl_secs = 5;
+  int32 cache_refresh_interval_secs = 6;
+}
+
+message QuerySegmentationResponse {
+  message Result {
+    oneof analytic_query_response_type {
+      common.Matrix matrix = 1;
+      string error = 3;
+    }
+    string alias = 2;
+    string id = 4;
+    common.ComputeStats compute_stats = 5;
+    string color = 6;
+  }
+
+  repeated Result results = 1;
+}
+
+message CohortsRequest {
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  string project_id = 3;
+  int32 version = 4;
+
+  common.CohortsQuery query = 9;
+
+  int32 offset = 11;
+  int32 limit = 12;
+  message Sort {
+    string field = 1;
+    bool desc = 2;
+  }
+  Sort sorting = 13;
+  string search_query = 14;
+  bool debug = 10;
+}
+
+message QueryCohortsResponse {
+  message User {
+    string distinct_id = 1;
+    google.protobuf.Timestamp updated_at = 2;
+    string chain = 3;
+    int32 total = 4;
+  }
+  message Result {
+    string name = 1;
+    string display_name = 2;
+    int32 total = 4;
+    repeated string values = 3;
+    string execute_command = 5;
+    map<string, User> users = 6;
+  }
+  oneof analytic_query_response_type {
+    Result result = 1;
+    string error = 2;
+  }
+  common.ComputeStats compute_stats = 3;
+}
+
+message SaveCohortsResponse {
+  Cohort cohort = 1;
+}
+
+service SearchService {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_tag) = {
+    name: "Data"
+  };
+
+  rpc ListFacets(ListFacetsRequest) returns (ListFacetsResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get: "/api/v1/eventlogs/{project_id}/facets"
+      additional_bindings {
+        get: "/api/v1/eventlogs/{project_owner}/{project_slug}/facets"
+      }
+    };
+  };
+
+  rpc GetFacet(GetFacetRequest) returns (GetFacetResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post: "/api/v1/eventlogs/{project_id}/facets/{facet_id}"
+      body: "*"
+      additional_bindings {
+        post: "/api/v1/eventlogs/{project_owner}/{project_slug}/facets/{facet_id}"
+        body: "*"
+      }
+    };
+  };
+
+  // Query event logs
+  rpc QueryLog(LogQueryRequest) returns (LogQueryResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      post: "/api/v1/eventlogs/{project_owner}/{project_slug}"
+      body: "*"
+      additional_bindings {
+        get: "/api/v1/eventlogs/{project_owner}/{project_slug}/query"
+      }
+    };
+  };
+
+  rpc QueryLogMetrics(LogQueryRequest) returns (QueryLogMetricsResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+
+    option (google.api.http) = {
+      post: "/api/v1/eventlogs/{project_owner}/{project_slug}/metrics"
+      body: "*"
+      additional_bindings {
+        get: "/api/v1/eventlogs/{project_owner}/{project_slug}/metrics"
+      }
+    };
+  };
+
+}
+
+
+message ListFacetsRequest {
+  string project_id = 1;
+  int32 version = 2;
+  string project_owner = 3 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  string project_slug = 4 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+}
+
+message LogFacet {
+  string name = 1;
+  string display_name = 6;
+  string path = 2;
+  FacetType facet_type = 3;
+  string type = 4;
+  string source = 5;
+  bool is_built_in = 9;
+}
+
+enum FacetType {
+  LIST = 0;
+  RANGE = 1;
+  COMPLEX = 2;
+  CONFLICT = 99; // which means it has different type in different events
+}
+
+message ValueBucket {
+  map<string, int32> buckets = 1;
+  int64 others_count = 2;
+}
+
+message ListFacetsResponse {
+  repeated LogFacet facets = 1;
+}
+
+message GetFacetRequest {
+  string project_id = 1;
+  int32 version = 2;
+  string project_owner = 3 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  string project_slug = 4 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  string facet_id = 5;
+  string query = 6;
+  common.TimeRange time_range = 7;
+  string term_filter = 8;
+}
+
+message GetFacetResponse {
+  LogFacet facet = 1;
+  ValueBucket buckets = 2;
+  common.Any max_value = 3;
+  common.Any min_value = 4;
+}
+
+
+message LogQueryRequest {
+  string project_owner = 10 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  string project_slug = 11 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  string project_id = 1;
+  string query = 2;
+  common.TimeRange time_range = 3;
+  repeated Sort sorts = 4;
+  // for pagination
+  repeated common.Any after = 5;
+  int32 limit = 6;
+  int32 offset = 12;
+  message Sort {
+    string field = 1;
+    bool desc = 2;
+  }
+  repeated Filter filters = 8;
+  message Filter {
+    string field = 1;
+    string value = 2;
+    bool not = 3;
+  }
+  int32 version = 9;
+  string source = 13;
+  common.CachePolicy cache_policy = 14;
+}
+
+message LogQueryResponse {
+  repeated common.EventLogEntry entries = 1;
+  // for pagination
+  repeated common.Any after = 2;
+  int64 total = 3;
+  common.ComputeStats compute_stats = 4;
+}
+
+
+message QueryLogMetricsResponse {
+  repeated QuerySegmentationResponse.Result results = 1;
+}
+
+message SQLQuery {
+  // the sql query
+  string sql = 1;
+  // the limit of the query
+  int32 size = 2;
+  google.protobuf.Struct variables = 3 [(google.api.field_visibility).restriction = "INTERNAL"];
+  SQLGrammarVersion version = 4 [(google.api.field_visibility).restriction = "INTERNAL"]; // deprecated
+  // the parameters of the query
+  common.RichStruct parameters = 5;
+  // the name of the query, if sql is empty and name not empty, the query will be fetched by the name.
+  string name = 6;
+  // the id of the query, if sql and name both empty, the query will be fetched by the id.
+  string query_id = 7;
+}
+
+enum SQLGrammarVersion {
+  AUTO = 0;
+  V1 = 1;
+  V2 = 2;
+  V3 = 3;
+}
+
+enum Source {
+  SQL_EDITOR = 0;
+  DASHBOARD = 1;
+  ASYNC_TRIGGER = 2;
+  CURL = 3;
+  ENDPOINT = 4;
+  EXPORT = 5;
+  USER_MATERIALIZED_VIEW_CREATOR = 6;
+  SQL_ALERT = 7;
+}
+
+enum ExecuteEngine {
+  // deprecated, will be removed in the future, use SMALL instead
+  DEFAULT = 0 [deprecated=true,(google.api.value_visibility).restriction = "INTERNAL"];
+  // deprecated, will be removed in the future, use SMALL instead
+  LITE = 1 [deprecated=true,(google.api.value_visibility).restriction = "INTERNAL"];
+  // deprecated, will be removed in the future, use MEDIUM instead 
+  PRO = 2 [deprecated=true,(google.api.value_visibility).restriction = "INTERNAL"]; 
+  // deprecated, will be removed in the future, use LARGE instead
+  MAX = 3 [deprecated=true,(google.api.value_visibility).restriction = "INTERNAL"]; 
+  ULTRA = 4;
+
+  SMALL = 5;
+  MEDIUM = 6;
+  LARGE = 7;
+}
+
+message SQLRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+  // version of the datasource, default to the active version if not provided
+  int32 version = 4;
+
+  oneof query_type {
+    SQLQuery sql_query = 5;
+    // Pagination cursor for the next page of results, using the value from the previous response.
+    string cursor = 6;
+  }
+
+  Source source = 7 [(google.api.field_visibility).restriction = "INTERNAL"];
+  // deprecated, use cachePolicy instead
+  bool bypass_cache = 8 [ deprecated = true, (google.api.field_visibility).restriction = "INTERNAL" ];
+  common.CachePolicy cache_policy = 9;
+
+  bool sync_v1 = 10 [(google.api.field_visibility).restriction = "INTERNAL"];
+  optional ExecuteEngine engine = 11;
+
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    example: '{"sqlQuery":{"sql":"SELECT uniq(distinct_id) FROM `Transfer`"}}'
+  };
+}
+
+message SyncExecuteSQLResponse {
+  int64 runtime_cost = 1;
+  oneof response_type {
+    common.TabularData result = 2;
+    string error = 3;
+  }
+  common.ComputeStats compute_stats = 4;
+}
+
+message AsyncExecuteSQLResponse {
+  string query_id = 1;
+  string execution_id = 2;
+  int32 queue_length = 3;
+  common.ComputeStats compute_stats = 4;
+}
+
+message SaveSQLRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+  // version of the datasource, default to the active version if not provided
+  int32 version = 4;
+
+  SQLQuery sql_query = 5;
+  Source source = 6;
+
+  // deprecated below
+  bool run_immediately = 7 [ deprecated = true, (google.api.field_visibility).restriction = "INTERNAL" ];
+  string query_id = 8 [ deprecated = true, (google.api.field_visibility).restriction = "INTERNAL" ];
+}
+
+enum ExecutionStatus {
+  PENDING = 0;
+  RUNNING = 1;
+  FINISHED = 2;
+  KILLED = 3;
+}
+
+message ExecutionInfo {
+  string query_id = 1;
+  string execution_id = 2;
+  ExecutionStatus status = 3;
+  google.protobuf.Timestamp scheduled_at = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp finished_at = 6;
+  oneof response_type {
+    common.TabularData result = 7;
+    string error = 8;
+  }
+  common.ComputeStats compute_stats = 9;
+  int32 processor_version = 10;
+}
+
+message SaveSQLResponse {
+  string query_id = 3;
+
+  // deprecated below
+  int32 queue_length = 1 [ deprecated = true, (google.api.field_visibility).restriction = "INTERNAL" ];
+  ExecutionInfo execution_info = 2 [ deprecated = true, (google.api.field_visibility).restriction = "INTERNAL" ];
+}
+
+message ListSQLQueriesRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+  // version of the datasource, default to the active version if not provided
+  int32 version = 4;
+
+  int32 limit = 5;
+  int32 offset = 6;
+
+  bool include_execution_result = 7 [deprecated=true];
+  repeated Source sources = 8 [deprecated=true];
+  bool only_named_queries = 9 [deprecated=true];
+
+  message Option {
+    bool include_execution_result = 1;
+    repeated Source sources = 2;
+    bool all_named_queries = 3;
+    bool user_belonging_named_queries = 4; // if all_named_queries is set, this flag will be ignored
+    bool anonymous_queries = 5;
+  }
+  Option option = 10;
+}
+
+message ListSQLQueriesResponse {
+  int32 total = 1;
+
+  message Query {
+    string query_id = 1 [ deprecated = true, (google.api.field_visibility).restriction = "INTERNAL" ];
+    SQLQuery sql_query = 2;
+    google.protobuf.Timestamp created_at = 3;
+    ExecutionInfo last_execution_info = 4;
+    Source source = 5;
+  }
+  repeated Query queries = 2;
+}
+
+// Deprecated: will drop in the future.
+message RerunSQLQueryRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+  // version of the datasource, default to the active version if not provided
+  int32 version = 4;
+
+  string query_id = 5;
+  SQLQuery sql_query = 6;
+  optional ExecuteEngine engine = 7;
+}
+
+// Deprecated: will drop in the future.
+message RerunSQLQueryResponse {
+  int32 queue_length = 1;
+  ExecutionInfo execution_info = 2;
+}
+
+message DeleteSQLQueryRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+  // version of the datasource, default to the active version if not provided
+  int32 version = 4;
+
+  string query_id = 5;
+}
+
+message DeleteSQLQueryResponse {
+  google.protobuf.Empty empty = 1;
+}
+
+message QuerySQLResultRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+  // version of the datasource, default to the active version if not provided
+  int32 version = 4;
+
+  string execution_id = 5;
+}
+
+message QuerySQLResultResponse{
+  ExecutionInfo execution_info = 1;
+}
+
+message GetSQLQueryRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+  // version of the datasource, default to the active version if not provided
+  int32 version = 4;
+
+  string query_id = 5;
+}
+
+message CancelSQLQueryRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+  // version of the datasource, default to the active version if not provided
+  int32 version = 4;
+
+  string execution_id = 5;
+}
+
+message GetSQLQueryResponse {
+  string query_id = 1 [ deprecated = true, (google.api.field_visibility).restriction = "INTERNAL" ];
+  SQLQuery sql_query = 2;
+  string sharing_id = 3;
+}
+
+message QueryTablesRequest {
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name:"owner"}}];
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  string project_id = 3;
+  int32 version = 4;
+
+  bool include_chains = 5;
+  bool include_views = 6;
+  bool include_externals = 7;
+  bool include_dash = 8;
+}
+
+message QueryTableRequest {
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name:"owner"}}];
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  string project_id = 3;
+  int32 version = 4;
+  string name = 5;
+}
+
+message Table {
+  enum TableType {
+    RESERVED = 0;
+    EVENT = 1;
+    METRICS = 2;
+    SUBGRAPH = 3;
+    MATERIALIZED_VIEW = 4;
+    IMPORTED_EVENT = 5;
+    SYSTEM = 6;
+    ENTITY = 7;
+    IMPORTED_ENTITY = 8;
+    IMPORTED_SUBGRAPH = 9;
+    USER_REFRESHABLE_VIEW = 10;
+    DASH_COMMUNITY_EVENT = 11;
+    DASH_COMMUNITY_SUBGRAPH = 12;
+    DASH_COMMUNITY_ENTITY = 13;
+    DASH_CURATED_EVENT = 14;
+    DASH_CURATED_SUBGRAPH = 15;
+    DASH_CURATED_ENTITY = 16;
+    DASH_COMMUNITY_MATERIALIZED_VIEW = 17;
+    DASH_CURATED_MATERIALIZED_VIEW = 18;
+    IMPORTED_METRICS = 19;
+    DASH_COMMUNITY_METRICS = 20;
+    DASH_CURATED_METRICS = 21;
+  }
+  message Column {
+    enum ColumnType {
+      STRING = 0;
+      NUMBER = 1;
+      BOOLEAN = 2;
+      LIST = 3;
+      TIME = 4;
+      JSON = 5;
+      TOKEN = 6;
+    }
+    string name = 1;
+    ColumnType column_type = 2;
+    string clickhouse_data_type = 3;
+    bool is_builtin = 4;
+  }
+  string name = 1;
+  map<string, Column> columns = 2;
+  TableType table_type = 3;
+  optional string related_project_id = 4; // only exists if table is external
+}
+
+message QueryTablesResponse {
+  map<string, Table> tables = 1;
+  common.ComputeStats compute_stats = 2;
+}
+
+message QueryTableResponse {
+  Table table = 1;
+  common.ComputeStats compute_stats = 2;
+}
+
+message ListTablesRequest {
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name:"owner"}}];
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  string project_id = 3;
+  int32 version = 4;
+}
+
+message ListTablesResponse {
+  repeated string names = 1;
+  common.ComputeStats compute_stats = 2;
+}
+
+message Cohort {
+  common.CohortsQuery query = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message ListCohortsRequest {
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  string project_id = 3;
+  int32 version = 4;
+
+  int32 limit = 5;
+  int32 offset = 6;
+  string search_query = 7;
+}
+
+message ListCohortsResponse {
+  repeated Cohort cohorts = 1;
+}
+
+message QuerySQLExecutionDetailRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+  // version of the datasource, default to the active version if not provided
+  int32 version = 4;
+
+  string execution_id = 5;
+}
+
+message QuerySQLExecutionDetailResponse {
+  common.ComputeStats compute_stats = 1;
+}
+
+message ViewRefreshSettings {
+  string refresh_interval = 1;
+  enum RefreshStrategy {
+    EVERY = 0;
+    AFTER = 1;
+  }
+  RefreshStrategy strategy = 2;
+  repeated string depends_on = 3;
+  bool append_mode = 4;
+  string order_by = 5;
+}
+
+message SaveRefreshableMaterializedViewRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+
+  // name of the materialized view, if name is exists, the materialized view will be updated
+  string name = 4;
+
+  // the sql query
+  string sql = 6;
+
+  ViewRefreshSettings refresh_settings = 7;
+}
+
+message SaveRefreshableMaterializedViewResponse {
+  string name = 1;
+  bool is_updated = 2;
+}
+
+message ListRefreshableMaterializedViewRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+}
+
+message ListRefreshableMaterializedViewResponse {
+  message RefreshableMaterializedView {
+    string name = 1;
+    string sql = 2;
+  }
+
+  int64 total = 1;
+  repeated RefreshableMaterializedView views = 2;
+}
+
+message GetRefreshableMaterializedViewStatusRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+
+  string name = 4;
+}
+
+message GetRefreshableMaterializedViewStatusResponse {
+  string name = 1;
+  string status = 2;
+  google.protobuf.Timestamp last_refresh_time = 3;
+  google.protobuf.Timestamp last_success_time = 4;
+  google.protobuf.Timestamp next_refresh_time = 5;
+  string progress = 6;
+  uint64 read_rows = 7;
+  uint64 read_bytes = 8;
+  uint64 total_rows = 9;
+  uint64 written_rows = 10;
+  uint64 written_bytes = 11;
+  string sql = 12;
+  ViewRefreshSettings refresh_settings = 13;
+  common.ComputeStats compute_stats = 14;
+  string exception = 15;
+}
+
+message DeleteRefreshableMaterializedViewRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  // use project id if project_owner and project_slug are not provided
+  string project_id = 3;
+
+  string name = 4;
+}
+
+// Request message for SaveSharingSQL
+message SaveSharingSQLRequest {
+  // ID of the SQL query to share
+  string query_id = 5;
+  // Whether the SQL query is publicly accessible
+  bool is_public = 6;
+}
+
+// Response message for SaveSharingSQL
+message SaveSharingSQLResponse {
+  // ID of the sharing record
+  string sharing_id = 1;
+  // ID of the SQL query
+  string query_id = 2;
+  // Whether the SQL query is publicly accessible
+  bool is_public = 3;
+  // Creation timestamp
+  google.protobuf.Timestamp created_at = 4;
+  // Last update timestamp
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+// Request message for GetSharingSQL
+message GetSharingSQLRequest {
+  string id = 5;
+}
+
+// Response message for GetSharingSQL
+message GetSharingSQLResponse {
+  message Query {
+    SQLQuery sql_query = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+  }
+  Query query = 1;
+  common.Project project = 2;
+}

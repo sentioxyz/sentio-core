@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rewriter",
+    srcs = ["rewriter.go"],
+    importpath = "sentioxyz/sentio-core/service/analytic/clients/rewriter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/protojson",
+        "//service/common/rpc",
+        "//service/rewriter/protos",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)

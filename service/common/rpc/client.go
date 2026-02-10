@@ -19,12 +19,12 @@ var forceAuthority = "0.0.0.0"
 
 var baseDialOptions = grpc.WithDefaultCallOptions(
 	grpc.MaxCallRecvMsgSize(MaxRevSize),
-	//grpc.UseCompressor(gzip.Name),
+	// grpc.UseCompressor(gzip.Name),
 )
 
 var baseDialOptionsForLargeMsg = grpc.WithDefaultCallOptions(
 	grpc.MaxCallRecvMsgSize(MaxRevSize * 8),
-	//grpc.UseCompressor(gzip.Name),
+	// grpc.UseCompressor(gzip.Name),
 )
 
 var GRPCGatewayDialOptions = []grpc.DialOption{
@@ -51,7 +51,7 @@ var ServiceInsecureDialOptions = []grpc.DialOption{
 }
 
 var RetryDialOption = grpc.WithChainUnaryInterceptor(
-	//otelgrpc.UnaryClientInterceptor(),
+	// otelgrpc.UnaryClientInterceptor(),
 	retry.UnaryClientInterceptor(
 		retry.WithBackoff(retry.BackoffLinear(100*time.Millisecond)),
 		retry.WithMax(3),

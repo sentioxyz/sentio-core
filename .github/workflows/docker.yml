@@ -43,6 +43,4 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push launcher image
-        run: bazel run --config=ci //service/launcher:launcher_push
-        env:
-          RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
+        run: bazel run --config=ci //service/launcher:launcher_push -- --tag ${{ steps.vars.outputs.tag }}

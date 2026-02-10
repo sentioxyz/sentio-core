@@ -93,4 +93,6 @@ multirun(
 # gazelle:resolve go sentioxyz/sentio-core/service/processor/protos //service/processor/protos
 # gazelle:resolve go sentioxyz/sentio-core/service/project/protos //service/project/protos
 # gazelle:resolve go sentioxyz/sentio-core/service/webhook/protos //service/webhook/protos
+# gazelle:resolve go sentioxyz/sentio-core/service/analytic/protos //service/analytic/protos
+# gazelle:resolve go sentioxyz/sentio-core/service/rewriter/protos //service/rewriter/protos
 # gazelle:resolve go sentioxyz/sentio-core/processor/protos //processor/protos

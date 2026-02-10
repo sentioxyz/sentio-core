@@ -1,4 +1,4 @@
-package clients
+package rewriter
 
 import (
 	"context"
@@ -14,29 +14,29 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type RewriterServiceClient interface {
+type Client interface {
 	Rewrite(ctx context.Context, req *protos.RewriteSQLRequest) (*protos.RewriteSQLResponse, error)
 	RewriteErrorMessage(context.Context, *protos.RewriteErrorMessageRequest) (*protos.RewriteErrorMessageResponse, error)
 	Format(context.Context, *protos.FormatSQLRequest) (*protos.FormatSQLResponse, error)
 }
 
-type rewriterClient struct {
+type client struct {
 	protos.RewriterServiceClient
 }
 
-func NewRewriterClient(addr string) (RewriterServiceClient, error) {
+func NewRewriterClient(addr string) (Client, error) {
 	conn, err := rpc.Dial(addr, rpc.RetryDialOption, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Warnf("failed to dial rewriter service: %v", err)
 		return nil, err
 	}
 	cli := protos.NewRewriterServiceClient(conn)
-	return &rewriterClient{
+	return &client{
 		RewriterServiceClient: cli,
 	}, nil
 }
 
-func (r *rewriterClient) Rewrite(ctx context.Context, req *protos.RewriteSQLRequest) (*protos.RewriteSQLResponse, error) {
+func (r *client) Rewrite(ctx context.Context, req *protos.RewriteSQLRequest) (*protos.RewriteSQLResponse, error) {
 	for _, op := range req.GetOptions() {
 		if op.Op == protos.RewriteOp_TableNameRewrite && op.GetTableNameArgs() != nil {
 			args := op.GetTableNameArgs()
@@ -68,7 +68,7 @@ func (r *rewriterClient) Rewrite(ctx context.Context, req *protos.RewriteSQLRequ
 	return resp, err
 }
 
-func (r *rewriterClient) RewriteErrorMessage(ctx context.Context, req *protos.RewriteErrorMessageRequest) (*protos.RewriteErrorMessageResponse, error) {
+func (r *client) RewriteErrorMessage(ctx context.Context, req *protos.RewriteErrorMessageRequest) (*protos.RewriteErrorMessageResponse, error) {
 	bCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -84,7 +84,7 @@ func (r *rewriterClient) RewriteErrorMessage(ctx context.Context, req *protos.Re
 	return resp, err
 }
 
-func (r *rewriterClient) Format(ctx context.Context, req *protos.FormatSQLRequest) (*protos.FormatSQLResponse, error) {
+func (r *client) Format(ctx context.Context, req *protos.FormatSQLRequest) (*protos.FormatSQLResponse, error) {
 	bCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 

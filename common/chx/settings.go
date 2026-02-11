@@ -34,6 +34,13 @@ func InsertCtx(ctx context.Context, uniqToken string, otherSettings ...map[strin
 	return ckhmanager.ContextMergeSettings(ctx, settings)
 }
 
+func DisableProjectionCtx(ctx context.Context, otherSettings ...map[string]any) context.Context {
+	settings := mergeSettings(mergeSettings(otherSettings...), map[string]any{
+		"allow_experimental_projection_optimization": "0",
+	})
+	return ckhmanager.ContextMergeSettings(ctx, settings)
+}
+
 func InsertSelectCtx(ctx context.Context, otherSettings ...map[string]any) context.Context {
 	settings := mergeSettings(otherSettings...)
 	settings["max_partitions_per_insert_block"] = 0

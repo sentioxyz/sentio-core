@@ -119,7 +119,7 @@ func (c Controller) BatchInsert(
 
 func (c Controller) Delete(ctx context.Context, table FullName, condition string) (uint64, error) {
 	sql := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s", table.InSQL(), condition)
-	count, err := c.QueryCount(ctx, sql)
+	count, err := c.QueryCount(DisableProjectionCtx(ctx), sql)
 	if err != nil {
 		return 0, errors.Wrapf(err, "query count for deleting from %s failed", table)
 	} else if count == 0 {

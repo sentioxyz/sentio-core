@@ -36,6 +36,9 @@ var (
 	defaultHugeIDSetSize = envconf.LoadUInt64("SENTIO_DEFAULT_ENTITY_HUGE_ID_SET_SIZE",
 		1000, envconf.WithMin(10), envconf.WithMax(2000))
 	enableClickhouseLightDelete = envconf.LoadBool("SENTIO_ENABLE_CLICKHOUSE_LIGHT_DELETE", true)
+
+	// TODO should depend on the actually number of replicas
+	versionedCollapsingInsertQuorum = envconf.LoadUInt64("SENTIO_VERSIONED_COLLAPSING_INSERT_QUORUM", 1, envconf.WithMin(1))
 )
 
 var DefaultCreateTableOption = TableOption{
@@ -107,13 +110,16 @@ type Store struct {
 	tableOpt    TableOption
 }
 
-var (
-	versionedCollapsingInsertSettings = map[string]any{
-		"insert_quorum":          2,
+func enableVersionedCollapsingInsertSettings() map[string]any {
+	return map[string]any{
+		"insert_quorum":          int(versionedCollapsingInsertQuorum),
 		"insert_quorum_timeout":  60, // unit is second
 		"insert_quorum_parallel": 1,
 		"async_insert":           0,
 	}
+}
+
+var (
 	selectCtxSettings = map[string]any{
 		"select_sequential_consistency": 1,
 		"receive_timeout":               5, // unit is second

@@ -213,7 +213,7 @@ func (s *Store) setEntities(
 		}
 		var insertSetting map[string]any
 		if useVersionedCollapsingTable {
-			insertSetting = versionedCollapsingInsertSettings
+			insertSetting = enableVersionedCollapsingInsertSettings()
 			// select pre-values and update preBoxes
 			exists, queryErr := s.listEntities(ctx, entityType, chain, []persistent.EntityFilter{{
 				Field: entityType.GetPrimaryKeyField(),

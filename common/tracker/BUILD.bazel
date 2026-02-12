@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tracker",
+    srcs = ["tracker.go"],
+    importpath = "sentioxyz/sentio-core/common/tracker",
+    visibility = ["//visibility:public"],
+)

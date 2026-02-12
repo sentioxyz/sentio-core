@@ -28,7 +28,7 @@ test:ci --test_output=all
 
 # Use purego Go implementations for gnark-crypto (assembly #include paths
 # are incompatible with Bazel sandbox). secp256k1 uses CGO, not purego.
-build --@io_bazel_rules_go//go/config:tags=purego
+build --@rules_go//go/config:tags=purego
 
 build --cxxopt=-std=c++17 --host_cxxopt=-std=c++17
 

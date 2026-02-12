@@ -98,6 +98,12 @@ go_deps.gazelle_override(
     build_file_generation = "off",
     path = "github.com/wasmerio/wasmer-go",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:build_tags purego",
+    ],
+    path = "github.com/consensys/gnark-crypto",
+)
 go_deps.gazelle_default_attributes(
     directives = ["gazelle:proto disable"],
 )

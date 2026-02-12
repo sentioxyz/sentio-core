@@ -104,11 +104,6 @@ go_deps.gazelle_override(
     ],
     path = "github.com/consensys/gnark-crypto",
 )
-go_deps.module_override(
-    patch_strip = 1,
-    patches = ["//third_party:com_github_consensys_gnark_crypto_purego.patch"],
-    path = "github.com/consensys/gnark-crypto",
-)
 go_deps.gazelle_default_attributes(
     directives = ["gazelle:proto disable"],
 )

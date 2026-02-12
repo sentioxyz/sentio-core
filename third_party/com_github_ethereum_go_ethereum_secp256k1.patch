@@ -1,7 +1,7 @@
 diff --color -ruN a/rpc/client.go b/rpc/client.go
 --- a/rpc/client.go
 +++ b/rpc/client.go
-@@ -364,6 +364,7 @@ func (c *Client) CallContext(ctx context.Context, result interface{}, method str
+@@ -364,6 +364,7 @@
         resp := batchresp[0]
         switch {
         case resp.Error != nil:

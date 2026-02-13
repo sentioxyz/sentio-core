@@ -6,7 +6,6 @@ go_library(
     name = "launcher_lib",
     srcs = [
         "config.go",
-        "main.go",
         "manager.go",
         "services_interface.go",
         "services_localstorage.go",
@@ -14,7 +13,7 @@ go_library(
         "services_project.go",
     ],
     importpath = "sentioxyz/sentio-core/service/launcher",
-    visibility = ["//visibility:private"],
+    visibility = ["//visibility:public"],
     deps = [
         "//common/flags",
         "//common/log",
@@ -40,7 +39,12 @@ go_library(
 
 go_binary(
     name = "launcher",
-    embed = [":launcher_lib"],
+    srcs = ["cmd/main.go"],
+    deps = [
+        ":launcher_lib",
+        "//common/flags",
+        "//common/log",
+    ],
     visibility = ["//visibility:public"],
 )
 

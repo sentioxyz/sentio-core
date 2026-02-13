@@ -11,6 +11,7 @@ import (
 
 	"sentioxyz/sentio-core/common/flags"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/service/launcher"
 )
 
 func main() {
@@ -20,7 +21,7 @@ func main() {
 	flags.ParseAndInitLogFlag()
 
 	// Load configuration
-	cfg, err := LoadConfig(*configPath)
+	cfg, err := launcher.LoadConfig(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
@@ -28,7 +29,7 @@ func main() {
 	log.Infof("Starting service launcher with %d servers", len(cfg.Servers))
 
 	// Create service manager
-	serviceManager := NewServiceManager(cfg)
+	serviceManager := launcher.NewServiceManager(cfg)
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

@@ -21,7 +21,7 @@ shared:
   # driver configuration
   driver_config:
     driver_image: 'docker.sentioxyz.co/sentio/driver:dev'
-    processor_service: http://host.docker.internal:10000
+    processor_service: http://host.docker.internal:9999
     cache_dir: '/tmp/cache'
     chains_config: './chains-config.json'
     driver:
@@ -35,7 +35,7 @@ servers:
   # Primary gRPC Server - handles processor services
   - name: 'server'
     enabled: true
-    port: 10000
+    port: 9999
     services:
       # Main processor service
       - name: 'processor-service'

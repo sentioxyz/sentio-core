@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jsonrpc",
+    srcs = [
+        "buffer.go",
+        "encoder.go",
+        "handler.go",
+        "handler_simple_http.go",
+        "helper.go",
+        "json.go",
+        "middleware.go",
+        "serve.go",
+        "stat.go",
+        "websocket.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/jsonrpc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/clickhousemanager",
+        "//common/errgroup",
+        "//common/log",
+        "//common/queue",
+        "//common/timehist",
+        "//common/timewin",
+        "//common/tracker",
+        "//common/utils",
+        "@com_github_bytedance_sonic//encoder",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_goccy_go_json//:go-json",
+        "@com_github_gorilla_websocket//:websocket",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_vmihailenco_msgpack_v5//:msgpack",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
+        "@io_opentelemetry_go_otel_trace//:trace",
+    ],
+)
+
+go_test(
+    name = "jsonrpc_test",
+    srcs = [
+        "buffer_test.go",
+        "helper_test.go",
+        "json_test.go",
+        "middleware_test.go",
+    ],
+    embed = [":jsonrpc"],
+    deps = [
+        "//common/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_vmihailenco_msgpack_v5//:msgpack",
+    ],
+)

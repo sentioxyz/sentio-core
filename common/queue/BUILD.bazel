@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "queue",
+    srcs = [
+        "circular.go",
+        "queue.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/queue",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "queue_test",
+    srcs = [
+        "circular_test.go",
+        "queue_test.go",
+    ],
+    embed = [":queue"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -25,8 +25,8 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 )
 
-type DriverJobGetter interface {
-	GetInfoByPodIP(ip string) (jobName, processorID, projectID, projectName string)
+type SourceGetter interface {
+	GetByIP(ip string) (string, map[string]any)
 }
 
 type Handler struct {
@@ -36,7 +36,7 @@ type Handler struct {
 	websocketSvr *WebsocketService
 
 	// used to get driver name from pod ip
-	driverJobGetter DriverJobGetter
+	sourceGetter SourceGetter
 
 	// used to build rid
 	requestCounter atomic.Uint64
@@ -55,18 +55,18 @@ func NewHandler(
 	name string,
 	printAccess bool,
 	acceptWebsocket bool,
-	driverJobGetter DriverJobGetter,
+	sourceGetter SourceGetter,
 	statUsed metric.Int64Histogram,
 ) *Handler {
 	h := &Handler{
-		name:            name,
-		debug:           printAccess,
-		driverJobGetter: driverJobGetter,
-		statUsed:        statUsed,
-		stat:            timewin.NewTimeWindowsManager[*statWindow](time.Minute),
-		slowQueries:     queue.NewSafeCircular[slowRequest](100),
-		bigQueries:      queue.NewSafeCircular[bigRequest](100),
-		failedQueries:   queue.NewSafeCircular[failedRequest](100),
+		name:          name,
+		debug:         printAccess,
+		sourceGetter:  sourceGetter,
+		statUsed:      statUsed,
+		stat:          timewin.NewTimeWindowsManager[*statWindow](time.Minute),
+		slowQueries:   queue.NewSafeCircular[slowRequest](100),
+		bigQueries:    queue.NewSafeCircular[bigRequest](100),
+		failedQueries: queue.NewSafeCircular[failedRequest](100),
 	}
 	if acceptWebsocket {
 		h.websocketSvr = newWebsocketService(h, time.Second*20, time.Minute, time.Second*20)
@@ -75,18 +75,13 @@ func NewHandler(
 }
 
 type RequestSource struct {
-	RemoteHost  string
-	JobName     string
-	ProcessorID string
-	ProjectID   string
-	ProjectName string
+	RemoteHost string
+	Name       string
+	Labels     map[string]any
 }
 
 func (s RequestSource) Summary() string {
-	if s.ProcessorID == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s/%s", s.ProjectName, s.ProcessorID)
+	return s.Name
 }
 
 var ctxDataKey struct{}
@@ -107,27 +102,10 @@ type CtxData struct {
 	NotSlowRequest bool
 }
 
-func (c *CtxData) CallSign() string {
-	type StructLogComment struct {
-		ProcessorID      string `json:"processor_id,omitempty"`
-		ProcessorVersion int    `json:"processor_version,omitempty"`
-		ProjectID        string `json:"project_id,omitempty"`
-		ProjectName      string `json:"project_name,omitempty"`
-
-		Driver string `json:"driver,omitempty"`
-		Method string `json:"method,omitempty"`
-		Remote string `json:"remote,omitempty"`
-	}
-
-	var structLog = StructLogComment{
-		ProcessorID: c.ReqSrc.ProcessorID,
-		ProjectName: c.ReqSrc.ProjectName,
-		ProjectID:   c.ReqSrc.ProjectID,
-		Driver:      c.ReqSrc.JobName,
-		Remote:      c.ReqSrc.RemoteHost,
-		Method:      c.Method,
-	}
-	res, err := json.Marshal(structLog)
+func (c *CtxData) sign() string {
+	m := utils.CopyMap(c.ReqSrc.Labels)
+	m["method"] = c.Method
+	res, err := json.Marshal(m)
 	if err != nil {
 		return ""
 	}
@@ -142,16 +120,15 @@ func GetCtxData(ctx context.Context) *CtxData {
 	return nil
 }
 
-func SetCtxData(ctx context.Context, data *CtxData) context.Context {
+func setCtxData(ctx context.Context, data *CtxData) context.Context {
 	settings := clickhouse.Settings{
-		"log_comment": data.CallSign(),
+		"log_comment": data.sign(),
 	}
 	ctx = clickhouse.Context(
 		context.WithValue(ctx, ctxDataKey, data),
 		clickhouse.WithSettings(settings),
 	)
-	ctx = ckhmanager.ContextMergeSettings(ctx, settings)
-	return ctx
+	return ckhmanager.ContextMergeSettings(ctx, settings)
 }
 
 var upgrader = websocket.Upgrader{
@@ -182,7 +159,7 @@ func (s *Handler) callMethod(
 	encoder Encoder,
 ) (any, error) {
 	startAt := time.Now()
-	result, err := s.middleware.CallMethod(SetCtxData(ctx, ctxData), method, params)
+	result, err := s.middleware.CallMethod(setCtxData(ctx, ctxData), method, params)
 	var ret any
 	var retLen int
 	var encodeErr error
@@ -245,8 +222,8 @@ const HTTPRequestMethod = "methodHTTP"
 func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	remoteHost, _, _ := strings.Cut(r.RemoteAddr, ":")
 	src := RequestSource{RemoteHost: remoteHost}
-	if s.driverJobGetter != nil {
-		src.JobName, src.ProcessorID, src.ProjectID, src.ProjectName = s.driverJobGetter.GetInfoByPodIP(remoteHost)
+	if s.sourceGetter != nil {
+		src.Name, src.Labels = s.sourceGetter.GetByIP(remoteHost)
 	}
 	rid := s.requestCounter.Add(1)
 	ctx, logger := log.FromContextWithTrace(r.Context(), "svr", s.name, "rid", rid, "src", src)

@@ -60,7 +60,7 @@ func (s *SimpleHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		RespWriter: w,
 	}
 
-	_, err = s.middleware.CallMethod(SetCtxData(ctx, ctxData), HTTPRequestMethod, nil)
+	_, err = s.middleware.CallMethod(setCtxData(ctx, ctxData), HTTPRequestMethod, nil)
 
 	used := time.Since(startTime)
 	logger = logger.With("used", used.String())

@@ -84,7 +84,9 @@ func (s RequestSource) Summary() string {
 	return s.Name
 }
 
-var ctxDataKey struct{}
+type ctxDataKeyType struct{}
+
+var ctxDataKey ctxDataKeyType
 
 type CtxData struct {
 	ReqID            uint64

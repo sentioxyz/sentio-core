@@ -90,3 +90,22 @@ func Test_CallMethod2(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "abc_357", r)
 }
+
+func Test_getCtxData(t *testing.T) {
+	ctx0 := context.Background()
+	d := &CtxData{
+		ReqID:    1,
+		ReqSubID: 2,
+	}
+	ctx1 := setCtxData(ctx0, d)
+	assert.Equal(t, &CtxData{
+		ReqID:    1,
+		ReqSubID: 2,
+	}, GetCtxData(ctx1))
+
+	ctx2 := context.WithValue(ctx1, struct{}{}, nil)
+	assert.Equal(t, &CtxData{
+		ReqID:    1,
+		ReqSubID: 2,
+	}, GetCtxData(ctx2))
+}

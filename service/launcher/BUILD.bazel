@@ -58,16 +58,19 @@ oci_image(
     base = "@distroless_cc_debian12",
     entrypoint = ["/launcher"],
     tars = [":launcher_tar"],
+    tags = ["manual"],
 )
 
 oci_load(
     name = "launcher_load",
     image = ":launcher_image",
     repo_tags = ["ghcr.io/sentioxyz/sentio-core/service-launcher:latest"],
+    tags = ["manual"],
 )
 
 oci_push(
     name = "launcher_push",
     image = ":launcher_image",
     repository = "ghcr.io/sentioxyz/sentio-core/service-launcher",
+    tags = ["manual"],
 )

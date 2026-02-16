@@ -20,6 +20,8 @@ bazel build //common/statemirror:statemirror
 bazel test //...                    # All tests
 bazel test //service/processor/...  # Tests in a package and subpackages
 bazel test //common/cache:cache_test  # Single test target
+# Note: On macOS, OCI image targets will fail - test specific packages instead:
+bazel test //common/... //processor/... //driver/... //network/...
 
 # Run a specific service
 bazel run //service/processor:processor
@@ -34,8 +36,14 @@ bazel run //:gazelle-update-repos
 # Regenerate BUILD files (after adding new Go files)
 bazel run //:gazelle
 
+# Sync go.mod versions with MODULE.bazel (after upgrading Bazel modules)
+bazel run @rules_go//go -- get github.com/grpc-ecosystem/grpc-gateway/v2@v2.27.6
+
 # Update Python requirements lock files
 bazel run //:generate_requirements_lock
+
+# Regenerate proto files (after protobuf version upgrades)
+bazel run //processor/protos:protos.update_go_pb
 ```
 
 ### Language-Specific Commands
@@ -55,6 +63,8 @@ bazel run //:generate_requirements_lock
 - Proto files generate code for multiple languages (Go, Python, TypeScript, C++)
 - After modifying `.proto` files, rebuild affected targets
 - Proto definitions are in `*/protos/` directories
+- Uses built-in protobuf toolchain (since protobuf@33.4) with `--@protobuf//bazel/toolchains:prefer_prebuilt_protoc`
+- After protobuf version upgrades, regenerate proto files: `bazel run //processor/protos:protos.update_go_pb`
 
 ## Architecture Overview
 
@@ -169,9 +179,28 @@ When working with on-chain state that needs Redis caching, use the `statemirror`
 - Use `grpc-ecosystem/go-grpc-middleware` for common middleware
 - OpenTelemetry instrumentation is standard (otelgrpc, otelhttp)
 
+## Dependency Management
+
+### Bazel Module Upgrades
+
+- Check latest versions at [Bazel Central Registry](https://registry.bazel.build/)
+- Bazel Central Registry MCP server is configured in `.mcp.json` for easy module discovery
+- After upgrading modules in MODULE.bazel, sync Go dependencies:
+  ```bash
+  bazel run @rules_go//go -- get <package>@<version>
+  ```
+- Watch for version mismatches between MODULE.bazel and go.mod (Gazelle will warn)
+
+### Known Compatibility Issues
+
+- **Bazel 9**: Not yet supported due to `rules_foreign_cc` incompatibility (pulled in via grpc → opencensus-cpp → google_benchmark → libpfm)
+- **OCI Images**: Container image builds require Linux platform (fail on macOS) - this is expected
+- **gRPC Python**: Latest grpc versions may require Python versions not yet in rules_python
+
 ## Notes
 
 - The repository uses a custom git config (`.github/.gitconfig`) and hooks (`.github/.githooks/`)
 - Some Go dependencies have custom patches (see `third_party/` and MODULE.bazel)
 - The `nogo` static analyzer runs on all Go code (config in `nogo-config.json`)
 - Bazel disk cache is in `~/.cache/bazel-disk` (max 50GB)
+- Current Bazel version: 8.5.1 (see `.bazelversion`)

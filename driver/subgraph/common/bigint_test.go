@@ -140,7 +140,8 @@ func Test_BuildBigIntFromHex(t *testing.T) {
 	check := func(hex string, exp *BigInt, caseNum int) {
 		v, err := BuildBigInt(hex)
 		assert.NoError(t, err)
-		assert.Equal(t, exp, v, fmt.Sprintf("case #%d: %s", caseNum, hex))
+		// Use Cmp instead of Equal to avoid issues with internal big.Int representation changes in Go 1.25.7+
+		assert.Equal(t, 0, v.Cmp(exp), fmt.Sprintf("case #%d: %s, expected %s but got %s", caseNum, hex, exp.String(), v.String()))
 	}
 
 	for i, testcase := range testcases {

@@ -69,7 +69,7 @@ use_repo(dev_pip, "core_pypi")
 
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(
-    version = "1.24.9",
+    version = "1.25.7",
 )
 go_sdk.nogo(nogo = "//:my_nogo")
 

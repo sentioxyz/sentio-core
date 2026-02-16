@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "bazel-central-registry": {
+      "command": "bazel",
+      "args": ["run", "//tools:mcp_server"],
+      "cwd": "${HOME}/src/bazel-central-registry",
+      "timeout": 5000
+    }
+  }
+}

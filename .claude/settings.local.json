@@ -21,7 +21,8 @@
       "Bash(bazel --version:*)",
       "Bash(bazel info:*)",
       "Bash(bazel mod graph:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(bazel test:*)"
     ],
     "deny": [],
     "ask": []

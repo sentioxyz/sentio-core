@@ -16,13 +16,13 @@
   "dependencies": {},
   "devDependencies": {
     "@bazel/ibazel": "^0.26.0",
-    "@eslint/compat": "^1.3.2",
+    "@eslint/compat": "^2.0.0",
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.35.0",
     "@ls-lint/ls-lint": "^2.3.1",
     "@next/eslint-plugin-next": "^15.5.4",
     "@sentio/ts-proto": "1.172.0-patch.3",
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.0",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
@@ -49,9 +49,9 @@
     "typescript-eslint": "^8.42.0"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
-  "packageManager": "pnpm@10.16.1",
+  "packageManager": "pnpm@10.29.3",
   "pnpm": {
     "onlyBuiltDependencies": []
   }

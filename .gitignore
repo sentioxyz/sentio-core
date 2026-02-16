@@ -175,8 +175,5 @@ browser/manifest.json
 
 provider/build
 
-# claude readme
-CLAUDE.md
-
 # pycache
 __pycache__

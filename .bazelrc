@@ -33,8 +33,9 @@ common --@aspect_rules_ts//ts:skipLibCheck=honor_tsconfig --@aspect_rules_ts//ts
 # for gazelle extension
 common --experimental_isolated_extension_usages
 
-# toolchains_protoc
+# protobuf toolchain (built-in since protobuf@33.4)
 common --incompatible_enable_proto_toolchain_resolution
+common --@protobuf//bazel/toolchains:prefer_prebuilt_protoc
 # Ensure that we don't accidentally build protobuf or gRPC
 common --per_file_copt=external/.*protobuf.*@--PROTOBUF_WAS_NOT_SUPPOSED_TO_BE_BUILT
 common --host_per_file_copt=external/.*protobuf.*@--PROTOBUF_WAS_NOT_SUPPOSED_TO_BE_BUILT

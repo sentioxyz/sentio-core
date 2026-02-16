@@ -17,11 +17,9 @@ bazel build //service/processor:processor
 bazel build //common/statemirror:statemirror
 
 # Run tests
-bazel test //...                    # All tests
+bazel test //...                    # All tests (OCI targets are manual, won't run)
 bazel test //service/processor/...  # Tests in a package and subpackages
 bazel test //common/cache:cache_test  # Single test target
-# Note: On macOS, OCI image targets will fail - test specific packages instead:
-bazel test //common/... //processor/... //driver/... //network/...
 
 # Run a specific service
 bazel run //service/processor:processor
@@ -44,6 +42,11 @@ bazel run //:generate_requirements_lock
 
 # Regenerate proto files (after protobuf version upgrades)
 bazel run //processor/protos:protos.update_go_pb
+
+# Build OCI images (marked as manual, requires Linux platform)
+bazel build //service/launcher:launcher_image
+bazel run //service/launcher:launcher_load     # Load image into Docker
+bazel run //service/launcher:launcher_push     # Push to registry
 ```
 
 ### Language-Specific Commands
@@ -194,7 +197,7 @@ When working with on-chain state that needs Redis caching, use the `statemirror`
 ### Known Compatibility Issues
 
 - **Bazel 9**: Not yet supported due to `rules_foreign_cc` incompatibility (pulled in via grpc → opencensus-cpp → google_benchmark → libpfm)
-- **OCI Images**: Container image builds require Linux platform (fail on macOS) - this is expected
+- **OCI Images**: Container image builds require Linux platform. OCI targets (in `service/launcher/BUILD.bazel`) are marked as `manual` and must be built explicitly with `bazel build //service/launcher:launcher_image`
 - **gRPC Python**: Latest grpc versions may require Python versions not yet in rules_python
 
 ## Notes

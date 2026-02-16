@@ -5,7 +5,7 @@ module(
     version = "1.0",
 )
 
-PROTOBUF_VERSION = "32.1"
+PROTOBUF_VERSION = "33.5"
 
 PTYHON_VERSION = "3.11"
 
@@ -29,7 +29,7 @@ register_toolchains("@toolchains_protoc_hub//:all")
 ### Others
 
 bazel_dep(name = "rules_nodejs", version = "6.6.2")
-bazel_dep(name = "rules_go", version = "0.59.0")
+bazel_dep(name = "rules_go", version = "0.60.0")
 bazel_dep(name = "gazelle", version = "0.47.0")
 bazel_dep(name = "bazel_gomock", version = "0.2.0")
 bazel_dep(name = "googleapis", version = "0.0.0-20250826-a92cee39")
@@ -48,7 +48,7 @@ bazel_dep(name = "rules_proto_grpc_cpp", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_go", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_python", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_grpc_gateway", version = "5.8.0")
-bazel_dep(name = "grpc_ecosystem_grpc_gateway", version = "2.27.3")
+bazel_dep(name = "grpc_ecosystem_grpc_gateway", version = "2.27.6")
 bazel_dep(name = "apple_support", version = "1.23.1", repo_name = "build_bazel_apple_support")
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")

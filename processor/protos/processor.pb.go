@@ -3535,11 +3535,13 @@ func (x *MoveCallHandlerConfig) GetHandlerName() string {
 }
 
 type MoveResourceChangeConfig struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Type           string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	IncludeDeleted bool                   `protobuf:"varint,4,opt,name=include_deleted,json=includeDeleted,proto3" json:"include_deleted,omitempty"`
-	HandlerId      int32                  `protobuf:"varint,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
-	HandlerName    string                 `protobuf:"bytes,3,opt,name=handler_name,json=handlerName,proto3" json:"handler_name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
+	Type           string   `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Types          []string `protobuf:"bytes,5,rep,name=types,proto3" json:"types,omitempty"`
+	IncludeDeleted bool     `protobuf:"varint,4,opt,name=include_deleted,json=includeDeleted,proto3" json:"include_deleted,omitempty"`
+	HandlerId      int32    `protobuf:"varint,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
+	HandlerName    string   `protobuf:"bytes,3,opt,name=handler_name,json=handlerName,proto3" json:"handler_name,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -3574,11 +3576,19 @@ func (*MoveResourceChangeConfig) Descriptor() ([]byte, []int) {
 	return file_processor_protos_processor_proto_rawDescGZIP(), []int{40}
 }
 
+// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 func (x *MoveResourceChangeConfig) GetType() string {
 	if x != nil {
 		return x.Type
 	}
 	return ""
+}
+
+func (x *MoveResourceChangeConfig) GetTypes() []string {
+	if x != nil {
+		return x.Types
+	}
+	return nil
 }
 
 func (x *MoveResourceChangeConfig) GetIncludeDeleted() bool {
@@ -9132,9 +9142,10 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\n" +
 	"handler_id\x18\x02 \x01(\x05R\thandlerId\x12=\n" +
 	"\ffetch_config\x18\x03 \x01(\v2\x1a.processor.MoveFetchConfigR\vfetchConfig\x12!\n" +
-	"\fhandler_name\x18\x04 \x01(\tR\vhandlerName\"\x99\x01\n" +
-	"\x18MoveResourceChangeConfig\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12'\n" +
+	"\fhandler_name\x18\x04 \x01(\tR\vhandlerName\"\xb3\x01\n" +
+	"\x18MoveResourceChangeConfig\x12\x16\n" +
+	"\x04type\x18\x01 \x01(\tB\x02\x18\x01R\x04type\x12\x14\n" +
+	"\x05types\x18\x05 \x03(\tR\x05types\x12'\n" +
 	"\x0finclude_deleted\x18\x04 \x01(\bR\x0eincludeDeleted\x12\x1d\n" +
 	"\n" +
 	"handler_id\x18\x02 \x01(\x05R\thandlerId\x12!\n" +

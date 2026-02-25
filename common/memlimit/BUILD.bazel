@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "memlimit",
+    srcs = ["memlimit.go"],
+    importpath = "sentioxyz/sentio-core/common/memlimit",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_shirou_gopsutil//process"],
+)
+
+go_test(
+    name = "memlimit_test",
+    srcs = ["memlimit_test.go"],
+    embed = [":memlimit"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

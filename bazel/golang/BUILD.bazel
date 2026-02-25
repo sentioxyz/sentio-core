@@ -21,5 +21,6 @@ write_source_files(
         "//service/webhook/protos:protos.update_go_pb",
         "//service/rewriter/protos:protos.update_go_pb",
         "//service/analytic/protos:protos.update_go_pb",
+        "//service/formula/protos:protos.update_go_pb",
     ],
 )

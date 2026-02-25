@@ -130,6 +130,7 @@ use_repo(
     "com_github_redis_go_redis_v9",
     "com_github_samber_lo",
     "com_github_sentioxyz_golang_lru",
+    "com_github_shirou_gopsutil",
     "com_github_shopspring_decimal",
     "com_github_soheilhy_cmux",
     "com_github_stretchr_testify",

@@ -298,6 +298,36 @@ func (s *Store) listEntities(
 	filters []persistent.EntityFilter,
 	excludeDeleted bool,
 	limit int,
+) ([]*EntityBox, error) {
+	const maxRetry = 10
+	const retryInterval = time.Second
+	// List entity may use temporary table.
+	// If the session is interrupted, the temporary table will be automatically released,
+	// and will got a 'Table xxx does not exist' error. In this case, we should retry.
+	for retry := maxRetry; ; retry-- {
+		thisCtx, _ := log.FromContext(ctx, "retry", retry)
+		result, err := s._listEntities(thisCtx, entityType, chain, filters, excludeDeleted, limit)
+		if err == nil {
+			return result, nil
+		}
+		if retry == 0 || !strings.Contains(err.Error(), "does not exist") {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(retryInterval):
+		}
+	}
+}
+
+func (s *Store) _listEntities(
+	ctx context.Context,
+	entityType *schema.Entity,
+	chain string,
+	filters []persistent.EntityFilter,
+	excludeDeleted bool,
+	limit int,
 ) (result []*EntityBox, err error) {
 	if entityType.IsCache() {
 		return nil, nil

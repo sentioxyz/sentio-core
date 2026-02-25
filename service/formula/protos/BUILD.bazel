@@ -1,0 +1,23 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("//bazel/golang:gateway_go_library.bzl", "gateway_grpc_compile_and_go_library")
+
+proto_library(
+    name = "protos_proto",
+    srcs = ["formula_service.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/protos:protos_proto",
+        "@googleapis//google/api:annotations_proto",
+    ],
+)
+
+# gazelle:ignore
+gateway_grpc_compile_and_go_library(
+    name = "protos",
+    importpath = "sentioxyz/sentio-core/service/formula/protos",
+    protos = [":protos_proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//service/common/protos",
+    ],
+)

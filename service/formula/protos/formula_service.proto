@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package formula_service;
+
+option go_package = "sentioxyz/sentio-core/service/formula/protos";
+
+import "service/common/protos/common.proto";
+import "google/api/annotations.proto";
+
+service FormulaService {
+  rpc Evaluate(FormulaRequest) returns (FormulaResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/formula/evaluate"
+      body: "*"
+    };
+  }
+}
+
+message Parameter {
+  oneof value {
+    common.Matrix matrix = 1;
+  }
+  common.ComputeStats stats = 9;
+}
+
+message FormulaRequest {
+  string project_owner = 1;
+  string project_slug = 2;
+  string project_id = 3;
+  int32 version = 4;
+
+  string expression = 5;
+  map<string, Parameter> parameters = 6;
+}
+
+message FormulaResponse {
+   Parameter result = 1;
+}

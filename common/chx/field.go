@@ -243,8 +243,8 @@ func BuildFieldType(raw string) FieldType {
 		// Decimal(76, 30)
 		parts := strings.Split(getInnerPart(raw, '(', ')'), ",")
 		if len(parts) == 2 {
-			p, pe := strconv.ParseInt(parts[0], 10, 64)
-			s, se := strconv.ParseInt(parts[1], 10, 64)
+			p, pe := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+			s, se := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
 			if pe == nil && se == nil {
 				return FieldTypeDecimal{
 					Precision: uint8(p),
@@ -254,9 +254,10 @@ func BuildFieldType(raw string) FieldType {
 		}
 	}
 	if strings.HasPrefix(raw, "DateTime64") {
+		// DateTime64(6, 'UTC')
 		parts := strings.Split(getInnerPart(raw, '(', ')'), ",")
 		if len(parts) == 2 {
-			p, pe := strconv.ParseInt(parts[0], 10, 64)
+			p, pe := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
 			z := getInnerPart(parts[1], '\'', '\'')
 			if pe == nil {
 				return FieldTypeDateTime64{Precision: uint8(p), Timezone: z}

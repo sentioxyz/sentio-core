@@ -405,7 +405,7 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 		}
 		delete(preFields, field.Name)
 		if !pf.Type.SameAs(field.Type) {
-			if pf.Type.CheckModify(field.Type) {
+			if !pf.Type.CheckModify(field.Type) {
 				logger.Warnf("cannot modify type from %s to %s for column %s, will be ignored", pf.Type, field.Type, field.Name)
 			} else {
 				typeChangedFields = append(typeChangedFields, field)

@@ -31,3 +31,21 @@ func Test_BuildFieldType(t *testing.T) {
 		},
 	}, BuildFieldType("Array(Array(Nullable(Enum8('aaa' = 1, 'bbb' = 2))))"))
 }
+
+func Test_CheckModify(t *testing.T) {
+	{
+		a := BuildFieldType("Array(Nullable(Enum('AAA', 'BBB', 'CCC')))")
+		b := BuildFieldType("Array(Nullable(Enum('AAA', 'BBB', 'CCC', 'DDD')))")
+		assert.True(t, a.CheckModify(b))
+	}
+	{
+		a := BuildFieldType("Array(Nullable(Enum('AAA', 'BBB', 'CCC')))")
+		b := BuildFieldType("Array(Enum('AAA', 'BBB', 'CCC'))")
+		assert.False(t, a.CheckModify(b))
+	}
+	{
+		a := BuildFieldType("Array(Nullable(Enum('AAA', 'BBB', 'CCC')))")
+		b := BuildFieldType("Nullable(Enum('AAA', 'BBB', 'CCC', 'DDD'))")
+		assert.False(t, a.CheckModify(b))
+	}
+}

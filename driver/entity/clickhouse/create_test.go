@@ -557,7 +557,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propertyD` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`__genBlockNumber__` UInt64, " +
@@ -577,7 +577,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyC` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propertyD` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`meta.block_number` UInt64, " +
@@ -619,7 +619,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyC` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propertyD` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`meta.chain` String, " +
@@ -1195,7 +1195,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` String COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -1241,7 +1241,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` Array(String) COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` Array(String) COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -1313,7 +1313,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` Array(String) COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` Array(String) COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -1367,7 +1367,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` String COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -1413,7 +1413,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` Array(String) COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` Array(String) COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -1485,7 +1485,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` Array(String) COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` Array(String) COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -1565,7 +1565,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propC1` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
+				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
 				"`propC2` String COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal])', " +
@@ -1588,7 +1588,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propC1` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
+				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` Array(Nullable(String)) COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` Array(Nullable(String)) COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
 				"`propC2` Array(Nullable(String)) COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal])', " +
@@ -1636,7 +1636,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propC1` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
+				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` Array(Nullable(String)) COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` Array(Nullable(String)) COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
 				"`propC2` Array(Nullable(String)) COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal])', " +
@@ -1683,8 +1683,8 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
-				"`propB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`__genBlockNumber__` UInt64, " +
 				"`__genBlockTime__` DateTime64(6, 'UTC'), " +
 				"`__genBlockHash__` String, " +
@@ -1701,8 +1701,8 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
-				"`propB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`meta.block_number` UInt64, " +
 				"`__genBlockNumber__` UInt64, " +
 				"`meta.block_time` DateTime64(6, 'UTC'), " +
@@ -1739,8 +1739,8 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
-				"`propB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
 				") AS " +
@@ -1759,8 +1759,8 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`aggA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
-				"`aggB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
+				"`aggA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
+				"`aggB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
 				"`__genBlockNumber__` UInt64, " +
 				"`__genBlockTime__` DateTime64(6, 'UTC'), " +
 				"`__genBlockHash__` String, " +
@@ -1778,8 +1778,8 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`aggA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
-				"`aggB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
+				"`aggA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
+				"`aggB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
 				"`meta.block_number` UInt64, " +
 				"`__genBlockNumber__` UInt64, " +
 				"`meta.block_time` DateTime64(6, 'UTC'), " +
@@ -1820,8 +1820,8 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`aggA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
-				"`aggB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
+				"`aggA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
+				"`aggB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String, " +
 				"`meta.aggregation_interval` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)', " +
@@ -2248,7 +2248,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propertyD` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`__genBlockNumber__` UInt64, " +
@@ -2270,7 +2270,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propertyD` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`__genBlockNumber__` UInt64, " +
@@ -2292,7 +2292,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propertyD` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`__genBlockNumber__` UInt64, " +
@@ -2309,7 +2309,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propertyD` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`__genBlockNumber__` UInt64, " +
@@ -2340,7 +2340,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyC` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propertyD` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`meta.block_number` UInt64, " +
@@ -2382,7 +2382,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyC` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propertyD` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`meta.chain` String, " +
@@ -3198,7 +3198,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` String COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -3244,7 +3244,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` Array(String) COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` Array(String) COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -3254,7 +3254,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyM` Array(String) COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal!])', " +
 				"`propertyN` Array(String) COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA([EnumA!])', " +
 				"`propertyO` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
-				"`propertyP` Array(DateTime64(6)) COMMENT 'SCALAR(Timestamp) SCHEMA([Timestamp!])', " +
+				"`propertyP` Array(DateTime64(6, 'UTC')) COMMENT 'SCALAR(Timestamp) SCHEMA([Timestamp!])', " +
 				"`propertyQ` Float64 COMMENT 'SCALAR(Float) SCHEMA(Float!)', " +
 				"`propertyR` Array(Float64) COMMENT 'SCALAR(Float) SCHEMA([Float!])', " +
 				"`foreignA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
@@ -3316,7 +3316,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` Array(String) COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` Array(String) COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -3326,7 +3326,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyM` Array(String) COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal!])', " +
 				"`propertyN` Array(String) COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA([EnumA!])', " +
 				"`propertyO` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
-				"`propertyP` Array(DateTime64(6)) COMMENT 'SCALAR(Timestamp) SCHEMA([Timestamp!])', " +
+				"`propertyP` Array(DateTime64(6, 'UTC')) COMMENT 'SCALAR(Timestamp) SCHEMA([Timestamp!])', " +
 				"`propertyQ` Float64 COMMENT 'SCALAR(Float) SCHEMA(Float!)', " +
 				"`propertyR` Array(Float64) COMMENT 'SCALAR(Float) SCHEMA([Float!])', " +
 				"`foreignA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
@@ -3370,7 +3370,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` String COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -3418,7 +3418,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` String COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -3466,7 +3466,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` String COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -3498,7 +3498,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` String COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -3559,7 +3559,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` Array(String) COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` Array(String) COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -3569,7 +3569,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyM` Array(String) COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal!])', " +
 				"`propertyN` Array(String) COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA([EnumA!])', " +
 				"`propertyO` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
-				"`propertyP` Array(DateTime64(6)) COMMENT 'SCALAR(Timestamp) SCHEMA([Timestamp!])', " +
+				"`propertyP` Array(DateTime64(6, 'UTC')) COMMENT 'SCALAR(Timestamp) SCHEMA([Timestamp!])', " +
 				"`propertyQ` Float64 COMMENT 'SCALAR(Float) SCHEMA(Float!)', " +
 				"`propertyR` Array(Float64) COMMENT 'SCALAR(Float) SCHEMA([Float!])', " +
 				"`foreignA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
@@ -3631,7 +3631,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyE` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyF` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` Array(String) COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
 				"`propertyI` Array(String) COMMENT 'SCALAR(String) SCHEMA([String!])', " +
@@ -3641,7 +3641,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyM` Array(String) COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal!])', " +
 				"`propertyN` Array(String) COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA([EnumA!])', " +
 				"`propertyO` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
-				"`propertyP` Array(DateTime64(6)) COMMENT 'SCALAR(Timestamp) SCHEMA([Timestamp!])', " +
+				"`propertyP` Array(DateTime64(6, 'UTC')) COMMENT 'SCALAR(Timestamp) SCHEMA([Timestamp!])', " +
 				"`propertyQ` Float64 COMMENT 'SCALAR(Float) SCHEMA(Float!)', " +
 				"`propertyR` Array(Float64) COMMENT 'SCALAR(Float) SCHEMA([Float!])', " +
 				"`foreignA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
@@ -3711,7 +3711,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propC1` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
+				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
 				"`propC2` String COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal])', " +
@@ -3736,7 +3736,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propC1` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
+				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
 				"`propC2` String COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal])', " +
@@ -3761,7 +3761,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propC1` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
+				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
 				"`propC2` String COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal])', " +
@@ -3781,7 +3781,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propC1` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
+				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
 				"`propC2` String COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal])', " +
@@ -3818,7 +3818,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propC1` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
+				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` Array(Nullable(String)) COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` Array(Nullable(String)) COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
 				"`propC2` Array(Nullable(String)) COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal])', " +
@@ -3866,7 +3866,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
-				"`propC1` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
+				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` Array(Nullable(String)) COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` Array(Nullable(String)) COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
 				"`propC2` Array(Nullable(String)) COMMENT 'SCALAR(BigDecimal) SCHEMA([BigDecimal])', " +
@@ -3913,8 +3913,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
-				"`propB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`__genBlockNumber__` UInt64, " +
 				"`__genBlockTime__` DateTime64(6, 'UTC'), " +
 				"`__genBlockHash__` String, " +
@@ -3931,8 +3931,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
-				"`propB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`meta.block_number` UInt64, " +
 				"`__genBlockNumber__` UInt64, " +
 				"`meta.block_time` DateTime64(6, 'UTC'), " +
@@ -3969,8 +3969,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
-				"`propB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
+				"`propB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
 				") AS " +
@@ -3989,8 +3989,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`aggA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
-				"`aggB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
+				"`aggA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
+				"`aggB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
 				"`__genBlockNumber__` UInt64, " +
 				"`__genBlockTime__` DateTime64(6, 'UTC'), " +
 				"`__genBlockHash__` String, " +
@@ -4008,8 +4008,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`aggA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
-				"`aggB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
+				"`aggA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
+				"`aggB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
 				"`meta.block_number` UInt64, " +
 				"`__genBlockNumber__` UInt64, " +
 				"`meta.block_time` DateTime64(6, 'UTC'), " +
@@ -4050,8 +4050,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`aggA` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
-				"`aggB` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
+				"`aggA` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG(propA)', " +
+				"`aggB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!) AGG_FN(sum) AGG_ARG((propA + propB) / 2)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String, " +
 				"`meta.aggregation_interval` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)', " +

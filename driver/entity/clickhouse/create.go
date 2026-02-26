@@ -42,41 +42,44 @@ import (
 
 const (
 	genBlockNumberFieldName     = "__genBlockNumber__"
-	genBlockNumberFieldType     = "UInt64"
+	genBlockNumberFieldType     = chx.FieldTypeUInt64
 	genBlockNumberViewFieldName = "meta.block_number"
 
 	genBlockTimeFieldName     = "__genBlockTime__"
-	genBlockTimeFieldType     = "DateTime64(6, 'UTC')"
 	genBlockTimeViewFieldName = "meta.block_time"
 
 	genBlockHashFieldName     = "__genBlockHash__"
-	genBlockHashFieldType     = "String"
+	genBlockHashFieldType     = chx.FieldTypeString
 	genBlockHashViewFieldName = "meta.block_hash"
 
 	genBlockChainFieldName     = "__genBlockChain__"
-	genBlockChainFieldType     = "String"
+	genBlockChainFieldType     = chx.FieldTypeString
 	genBlockChainViewFieldName = "meta.chain"
 
 	deletedFieldName     = "__deleted__"
-	deletedFieldType     = "Bool"
+	deletedFieldType     = chx.FieldTypeBool
 	deletedViewFieldName = "meta.deleted"
 
 	signFieldName = "__sign__"
-	signFieldType = "Int8"
+	signFieldType = chx.FieldTypeInt8
 
 	versionFieldName = "__version__"
-	versionFieldType = "UInt64"
+	versionFieldType = chx.FieldTypeUInt64
 
 	timestampFieldName     = "__timestamp__"
-	timestampFieldType     = "DateTime64(3, 'UTC')"
 	timestampViewFieldName = "meta.timestamp"
 
 	implEntityFieldName     = "__implEntity__"
-	implEntityFieldType     = "String"
+	implEntityFieldType     = chx.FieldTypeString
 	implEntityViewFieldName = "meta.impl_entity"
 
 	aggIntervalFieldName     = "__interval__"
 	aggIntervalViewFieldName = "meta.aggregation_interval"
+)
+
+var (
+	genBlockTimeFieldType = chx.FieldTypeDateTime64{Precision: 6, Timezone: "UTC"}
+	timestampFieldType    = chx.FieldTypeDateTime64{Precision: 3, Timezone: "UTC"}
 )
 
 func (s *Store) loadExists(ctx context.Context, categories []string) (map[string]map[string]chx.TableOrView, error) {
@@ -164,7 +167,7 @@ func (s *Store) CreateViews(ctx context.Context) error {
 
 func (s *Store) getViewFields(item schema.EntityOrInterface, latestView bool) []ViewField {
 	fields := s.getViewClickhouseFields(item)
-	buildSystemViewField := func(tableFieldName, viewFieldName, fieldType string) []ViewField {
+	buildSystemViewField := func(tableFieldName, viewFieldName string, fieldType chx.FieldType) []ViewField {
 		return []ViewField{{
 			Field:     chx.Field{Name: viewFieldName, Type: fieldType},
 			SelectSQL: fmt.Sprintf("`%s` AS `%s`", tableFieldName, viewFieldName),

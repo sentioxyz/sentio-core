@@ -289,7 +289,7 @@ type EntityA @entity {
 
 	var fields []ViewField
 	getFieldType := func(f ViewField) string {
-		return f.Type
+		return f.Type.String()
 	}
 	getFieldSelect := func(f ViewField) string {
 		return f.SelectSQL
@@ -419,7 +419,7 @@ type EntityA @entity {
 
 	var fields []ViewField
 	getFieldType := func(f ViewField) string {
-		return f.Type
+		return f.Type.String()
 	}
 	getFieldSelect := func(f ViewField) string {
 		return f.SelectSQL

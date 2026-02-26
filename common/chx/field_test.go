@@ -1,0 +1,33 @@
+package chx
+
+import (
+	"github.com/stretchr/testify/assert"
+	"testing"
+)
+
+func Test_BuildFieldType(t *testing.T) {
+	assert.Equal(t, FieldTypeString, BuildFieldType("String"))
+	assert.Equal(t, FieldTypeBool, BuildFieldType("Bool"))
+	assert.Equal(t, FieldTypeInt8, BuildFieldType("Int8"))
+	assert.Equal(t, FieldTypeInt32, BuildFieldType("Int32"))
+	assert.Equal(t, FieldTypeInt64, BuildFieldType("Int64"))
+	assert.Equal(t, FieldTypeInt256, BuildFieldType("Int256"))
+	assert.Equal(t, FieldTypeUInt8, BuildFieldType("UInt8"))
+	assert.Equal(t, FieldTypeUInt32, BuildFieldType("UInt32"))
+	assert.Equal(t, FieldTypeUInt64, BuildFieldType("UInt64"))
+	assert.Equal(t, FieldTypeUInt256, BuildFieldType("UInt256"))
+	assert.Equal(t, FieldTypeFloat32, BuildFieldType("Float32"))
+	assert.Equal(t, FieldTypeFloat64, BuildFieldType("Float64"))
+	assert.Equal(t, FieldTypeEnum{"aaa", "bbb"}, BuildFieldType("Enum8('aaa' = 1, 'bbb' = 2)"))
+	assert.Equal(t, FieldTypeEnum{"aaa", "bbb"}, BuildFieldType("Enum('aaa', 'bbb')"))
+	assert.Equal(t, FieldTypeDateTime64{Precision: 6, Timezone: "UTC"}, BuildFieldType("DateTime64(6, 'UTC')"))
+	assert.Equal(t, FieldTypeDateTime64{Precision: 3, Timezone: "UTC"}, BuildFieldType("DateTime64(3, 'UTC')"))
+	assert.Equal(t, FieldTypeNullable{Inner: FieldTypeBool}, BuildFieldType("Nullable(Bool)"))
+	assert.Equal(t, FieldTypeArray{
+		Inner: FieldTypeArray{
+			Inner: FieldTypeNullable{
+				Inner: FieldTypeEnum{"aaa", "bbb"},
+			},
+		},
+	}, BuildFieldType("Array(Array(Nullable(Enum8('aaa' = 1, 'bbb' = 2))))"))
+}

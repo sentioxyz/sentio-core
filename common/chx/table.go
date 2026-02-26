@@ -1,7 +1,6 @@
 package chx
 
 import (
-	"bytes"
 	"fmt"
 	"sentioxyz/sentio-core/common/utils"
 	"strings"
@@ -24,23 +23,6 @@ func (fn FullName) String() string {
 
 func (fn FullName) InSQL() string {
 	return fmt.Sprintf("`%s`.`%s`", fn.Database, fn.Name)
-}
-
-type Fields []Field
-
-func (f Fields) FindByName(name string) (Field, int) {
-	for i, field := range f {
-		if field.Name == name {
-			return field, i
-		}
-	}
-	return Field{}, -1
-}
-
-func (f Fields) Names() []string {
-	return utils.MapSliceNoError(f, func(fd Field) string {
-		return fd.Name
-	})
 }
 
 type Table struct {
@@ -73,37 +55,6 @@ type TableConfig struct {
 	PartitionBy string
 	OrderBy     []string
 	Settings    map[string]string
-}
-
-type Field struct {
-	Name             string
-	Type             string
-	CompressionCodec string // for example 'CODEC(ZSTD(1))'
-	DefaultExpr      string
-	Comment          string
-}
-
-func (f Field) CreateSQL() string {
-	var sql bytes.Buffer
-	sql.WriteString(fmt.Sprintf("`%s` %s", f.Name, f.Type))
-	if f.DefaultExpr != "" {
-		sql.WriteString(fmt.Sprintf(" DEFAULT %s", f.DefaultExpr))
-	}
-	if f.Comment != "" {
-		sql.WriteString(fmt.Sprintf(" COMMENT '%s'", f.Comment))
-	}
-	if f.CompressionCodec != "" {
-		sql.WriteString(" ")
-		sql.WriteString(f.CompressionCodec)
-	}
-	return sql.String()
-}
-
-func (f Field) HasSameType(a Field) bool {
-	// remove all space and ignore case
-	return strings.EqualFold(
-		strings.ReplaceAll(f.Type, " ", ""),
-		strings.ReplaceAll(a.Type, " ", ""))
 }
 
 type Index struct {

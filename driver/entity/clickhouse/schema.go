@@ -203,10 +203,10 @@ type SimpleField struct {
 	BaseField
 }
 
-func (f SimpleField) fieldDBType() string {
-	dbType, has, _ := schema.GetFieldDBType(f.Def)
+func (f SimpleField) fieldDBType() (dbType chx.FieldType) {
+	userDBType, has, _ := schema.GetFieldDBType(f.Def)
 	if has {
-		return dbType
+		return chx.FieldTypeNormal(userDBType)
 	}
 	innerType := f.FieldTypeChain.InnerType()
 	switch innerType.Kind() {
@@ -219,15 +219,15 @@ func (f SimpleField) fieldDBType() string {
 		scalarType := innerType.(*types.ScalarTypeDefinition)
 		switch scalarType.Name {
 		case "Bytes", "String", "ID":
-			dbType = "String"
+			dbType = chx.FieldTypeString
 		case "Boolean":
-			dbType = "Bool"
+			dbType = chx.FieldTypeBool
 		case "Int":
-			dbType = "Int32"
+			dbType = chx.FieldTypeInt32
 		case "Int8", "Timestamp":
-			dbType = "Int64"
+			dbType = chx.FieldTypeInt64
 		case "Float":
-			dbType = "Float64"
+			dbType = chx.FieldTypeFloat64
 		case "BigInt":
 			// Official description is:
 			//   https://thegraph.com/docs/en/developing/creating-a-subgraph/#graphql-supported-scalars
@@ -235,7 +235,7 @@ func (f SimpleField) fieldDBType() string {
 			//   such as int32, uint24 or int8 is represented as i32.
 			// max is Max(UInt256) and min is Min(Int256),
 			// so may be out of range
-			dbType = "Int256"
+			dbType = chx.FieldTypeInt256
 		case "BigDecimal":
 			// Official description is:
 			//   https://thegraph.com/docs/en/developing/creating-a-subgraph/#graphql-supported-scalars
@@ -245,7 +245,7 @@ func (f SimpleField) fieldDBType() string {
 			//   https://clickhouse.com/docs/en/sql-reference/data-types/decimal#decimal-value-ranges
 			//   value range of Decimal256(S) is ( -1 * 10^(76 - S), 1 * 10^(76 - S) )
 			// may be out of range
-			dbType = "Decimal256(30)"
+			dbType = chx.FieldTypeDecimal{Precision: 76, Scale: 30} // Decimal256(30)
 		default:
 			panic(fmt.Errorf("invalid scalar type %q at %v, should in %v",
 				scalarType.Name, scalarType.Loc,
@@ -254,17 +254,17 @@ func (f SimpleField) fieldDBType() string {
 	case "ENUM":
 		var enumValues []string
 		for _, val := range innerType.(*types.EnumTypeDefinition).EnumValuesDefinition {
-			enumValues = append(enumValues, fmt.Sprintf("'%s'", val.EnumValue))
+			enumValues = append(enumValues, val.EnumValue)
 		}
-		dbType = fmt.Sprintf("Enum(%s)", strings.Join(enumValues, ", "))
+		dbType = chx.FieldTypeEnum(enumValues)
 	default:
 		panic(fmt.Errorf("invalid kind %q, should be SCALAR or ENUM", innerType.Kind()))
 	}
 	if f.FieldTypeChain.InnerTypeNullable() {
-		dbType = fmt.Sprintf("Nullable(%s)", dbType)
+		dbType = chx.FieldTypeNullable{Inner: dbType}
 	}
 	for i := f.FieldTypeChain.CountListLayer(); i > 0; i-- {
-		dbType = fmt.Sprintf("Array(%s)", dbType)
+		dbType = chx.FieldTypeArray{Inner: dbType}
 	}
 	return dbType
 }
@@ -396,12 +396,12 @@ type JSONTextField struct {
 func (f JSONTextField) GetClickhouseFields() []chx.Field {
 	return []chx.Field{{
 		Name:    f.FieldMainName(),
-		Type:    "String",
+		Type:    chx.FieldTypeString,
 		Comment: f.FieldComment(),
 	}}
 }
 
-func (f JSONTextField) _buildArrayViewField(typ types.Type, rawName string, deep int) (string, string) {
+func (f JSONTextField) _buildArrayViewField(typ types.Type, rawName string, deep int) (string, chx.FieldType) {
 	var nonNull bool
 	if nonNullType, is := typ.(*types.NonNull); is {
 		nonNull, typ = true, nonNullType.OfType
@@ -409,39 +409,42 @@ func (f JSONTextField) _buildArrayViewField(typ types.Type, rawName string, deep
 	if listType, is := typ.(*types.List); is {
 		eleName := fmt.Sprintf("x%d", deep)
 		ele, eleType := f._buildArrayViewField(listType.OfType, eleName, deep+1)
-		return fmt.Sprintf("arrayMap(%s -> %s, JSONExtractArrayRaw(%s))", eleName, ele, rawName), fmt.Sprintf("Array(%s)", eleType)
+		field := fmt.Sprintf("arrayMap(%s -> %s, JSONExtractArrayRaw(%s))", eleName, ele, rawName)
+		fieldType := chx.FieldTypeArray{Inner: eleType}
+		return field, fieldType
 	}
 	var extract string
-	var extType string
+	var extType chx.FieldType
 	switch t := typ.(type) {
 	case *types.ScalarTypeDefinition:
 		switch t.Name {
 		case "Bytes", "String", "ID":
-			extract, extType = fmt.Sprintf("JSONExtractString(%s)", rawName), "String"
+			extract, extType = fmt.Sprintf("JSONExtractString(%s)", rawName), chx.FieldTypeString
 		case "Boolean":
-			extract, extType = fmt.Sprintf("JSONExtractBool(%s)", rawName), "Bool"
+			extract, extType = fmt.Sprintf("JSONExtractBool(%s)", rawName), chx.FieldTypeBool
 		case "Int":
-			extract, extType = fmt.Sprintf("toInt32(%s)", rawName), "Int32"
+			extract, extType = fmt.Sprintf("toInt32(%s)", rawName), chx.FieldTypeInt32
 		case "Int8":
-			extract, extType = fmt.Sprintf("JSONExtractInt(%s)", rawName), "Int64"
+			extract, extType = fmt.Sprintf("JSONExtractInt(%s)", rawName), chx.FieldTypeInt64
 		case "Timestamp":
 			if f.timestampUseDateTime64 {
-				extract, extType = fmt.Sprintf("toDateTime64(JSONExtractInt(%s)/1000000,6)", rawName), "DateTime64(6)"
+				extract = fmt.Sprintf("toDateTime64(JSONExtractInt(%s)/1000000,6)", rawName)
+				extType = chx.FieldTypeDateTime64{Precision: 6, Timezone: "UTC"}
 			} else {
-				extract, extType = fmt.Sprintf("JSONExtractInt(%s)", rawName), "Int64"
+				extract, extType = fmt.Sprintf("JSONExtractInt(%s)", rawName), chx.FieldTypeInt64
 			}
 		case "Float":
-			extract, extType = fmt.Sprintf("JSONExtractFloat(%s)", rawName), "Float64"
+			extract, extType = fmt.Sprintf("JSONExtractFloat(%s)", rawName), chx.FieldTypeFloat64
 		case "BigDecimal", "BigInt":
-			extract, extType = fmt.Sprintf("JSONExtractString(%s)", rawName), "String"
+			extract, extType = fmt.Sprintf("JSONExtractString(%s)", rawName), chx.FieldTypeString
 		}
 	case *types.EnumTypeDefinition:
-		extract, extType = fmt.Sprintf("JSONExtractString(%s)", rawName), "String"
+		extract, extType = fmt.Sprintf("JSONExtractString(%s)", rawName), chx.FieldTypeString
 	}
 	if nonNull {
 		return extract, extType
 	}
-	return fmt.Sprintf("if(%s = 'null', NULL, %s)", rawName, extract), fmt.Sprintf("Nullable(%s)", extType)
+	return fmt.Sprintf("if(%s = 'null', NULL, %s)", rawName, extract), chx.FieldTypeNullable{Inner: extType}
 }
 
 func (f JSONTextField) GetViewClickhouseFields() []ViewField {
@@ -656,7 +659,7 @@ func (f TupleField) GetClickhouseFields() []chx.Field {
 		//  - val: ORIGINAL_VALUE for positive integer and ((1<<256) + ORIGINAL_VALUE) for negative integer
 		return []chx.Field{{
 			Name:    f.FieldMainName(),
-			Type:    "Tuple(has Bool,sign Int8,val UInt256)",
+			Type:    chx.FieldTypeNormal("Tuple(has Bool,sign Int8,val UInt256)"),
 			Comment: f.FieldComment(),
 		}}
 	default:
@@ -668,10 +671,14 @@ const dbMaxUInt256 = "CAST('1157920892373161954235709850086879078532699846656405
 
 func (f TupleField) GetViewClickhouseFields() []ViewField {
 	// use clickhouse if condition to convert Tuple(has Bool,sign Int8,val UInt256) to Float64
+	var fieldType chx.FieldType = chx.FieldTypeFloat64
+	if f.FieldTypeChain.InnerTypeNullable() {
+		fieldType = chx.FieldTypeNullable{Inner: fieldType}
+	}
 	return []ViewField{{
 		Field: chx.Field{
 			Name:    f.FieldMainName(),
-			Type:    utils.Select(f.FieldTypeChain.InnerTypeNullable(), "Nullable(Float64)", "Float64"),
+			Type:    fieldType,
 			Comment: f.FieldComment(),
 		},
 		SelectSQL: format.Format("if(%fn#s.1,"+
@@ -757,13 +764,13 @@ type StringDecimalField struct {
 	SimpleField
 }
 
-func (f StringDecimalField) fieldDBType() string {
-	dbType := "String"
+func (f StringDecimalField) fieldDBType() (dbType chx.FieldType) {
+	dbType = chx.FieldTypeString
 	if f.FieldTypeChain.InnerTypeNullable() {
-		dbType = fmt.Sprintf("Nullable(%s)", dbType)
+		dbType = chx.FieldTypeNullable{Inner: dbType}
 	}
 	for i := f.FieldTypeChain.CountListLayer(); i > 0; i-- {
-		dbType = fmt.Sprintf("Array(%s)", dbType)
+		dbType = chx.FieldTypeArray{Inner: dbType}
 	}
 	return dbType
 }
@@ -856,14 +863,14 @@ type Decimal512Field struct {
 const decimal512Precision = 154
 const decimal512Scale = 60 // Hardcoded scale for Decimal512
 
-func (f Decimal512Field) fieldDBType() string {
-	dbType := fmt.Sprintf("Decimal512(%d)", decimal512Scale)
+func (f Decimal512Field) fieldDBType() (dbType chx.FieldType) {
+	dbType = chx.FieldTypeDecimal{Precision: decimal512Precision, Scale: decimal512Scale}
 	if f.FieldTypeChain.InnerTypeNullable() {
-		dbType = fmt.Sprintf("Nullable(%s)", dbType)
+		dbType = chx.FieldTypeNullable{Inner: dbType}
 	}
 	// Arrays are handled elsewhere (JSONTextField when ArrayUseArray=false). This field focuses on scalars.
 	for i := f.FieldTypeChain.CountListLayer(); i > 0; i-- {
-		dbType = fmt.Sprintf("Array(%s)", dbType)
+		dbType = chx.FieldTypeArray{Inner: dbType}
 	}
 	return dbType
 }
@@ -980,13 +987,13 @@ type TimestampField struct {
 	SimpleField
 }
 
-func (f TimestampField) fieldDBType() string {
-	dbType := "DateTime64(6, 'UTC')"
+func (f TimestampField) fieldDBType() (dbType chx.FieldType) {
+	dbType = chx.FieldTypeDateTime64{Precision: 6, Timezone: "UTC"}
 	if f.FieldTypeChain.InnerTypeNullable() {
-		dbType = fmt.Sprintf("Nullable(%s)", dbType)
+		dbType = chx.FieldTypeNullable{Inner: dbType}
 	}
 	for i := f.FieldTypeChain.CountListLayer(); i > 0; i-- {
-		dbType = fmt.Sprintf("Array(%s)", dbType)
+		dbType = chx.FieldTypeArray{Inner: dbType}
 	}
 	return dbType
 }
@@ -1139,7 +1146,7 @@ func (f NullableOneDimArrayField) extraIsNullFieldName() string {
 func (f NullableOneDimArrayField) GetClickhouseFields() []chx.Field {
 	return append(f.SimpleField.GetClickhouseFields(), chx.Field{
 		Name: f.extraIsNullFieldName(),
-		Type: "Bool",
+		Type: chx.FieldTypeBool,
 	})
 }
 
@@ -1147,7 +1154,7 @@ func (f NullableOneDimArrayField) GetViewClickhouseFields() []ViewField {
 	return append(f.SimpleField.GetViewClickhouseFields(), ViewField{
 		Field: chx.Field{
 			Name: f.extraIsNullFieldName(),
-			Type: "Bool",
+			Type: chx.FieldTypeBool,
 		},
 		SelectSQL: quote(f.extraIsNullFieldName()),
 	})

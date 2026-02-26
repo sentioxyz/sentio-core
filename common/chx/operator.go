@@ -155,10 +155,11 @@ func (c Controller) Load(
 	err = c.Query(ctx, func(rows driver.Rows) error {
 		var tableName string
 		var field Field
+		var rawFieldType string
 		scanErr := rows.Scan(
 			&tableName,
 			&field.Name,
-			&field.Type,
+			&rawFieldType,
 			&field.DefaultExpr,
 			&field.Comment,
 			&field.CompressionCodec,
@@ -166,6 +167,7 @@ func (c Controller) Load(
 		if scanErr != nil {
 			return scanErr
 		}
+		field.Type = BuildFieldType(rawFieldType)
 		tableOrView, has := tables[tableName]
 		if !has {
 			// this is a field of a ignored table, just ignore it
@@ -394,27 +396,34 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	var addFields []Field
 	var commentChangedFields []Field
 	var defaultChangedFields []Field
+	var typeChangedFields []Field
 	for _, field := range cur.Fields {
 		pf, has := preFields[field.Name]
 		if !has {
 			addFields = append(addFields, field)
-		} else {
-			if !pf.HasSameType(field) {
-				// Enum, Decimal256 and some other types will be concretized (like Enum8, Enum16, Decimal(76,30), ...)
-				// after the field created, it will be different from the type specified in the declaration
-				logger.Warnf("type of field %q changed from %q to %q, will be ignored", field.Name, pf.Type, field.Type)
+			continue
+		}
+		delete(preFields, field.Name)
+		if !pf.Type.SameAs(field.Type) {
+			if pf.Type.CheckModify(field.Type) {
+				logger.Warnf("cannot modify type from %s to %s for column %s, will be ignored", pf.Type, field.Type, field.Name)
+			} else {
+				typeChangedFields = append(typeChangedFields, field)
+				if pf.DefaultExpr != "" && field.DefaultExpr == "" {
+					defaultChangedFields = append(defaultChangedFields, field)
+				}
+				continue
 			}
-			if !strings.EqualFold(pf.CompressionCodec, field.CompressionCodec) {
-				logger.Warnf("compression codec of field %q changed from %q to %q, will be ignored",
-					field.Name, pf.CompressionCodec, field.CompressionCodec)
-			}
-			if pf.Comment != field.Comment {
-				commentChangedFields = append(commentChangedFields, field)
-			}
-			if pf.DefaultExpr != field.DefaultExpr {
-				defaultChangedFields = append(defaultChangedFields, field)
-			}
-			delete(preFields, field.Name)
+		}
+		if !strings.EqualFold(pf.CompressionCodec, field.CompressionCodec) {
+			logger.Warnf("compression codec of field %q changed from %q to %q, will be ignored",
+				field.Name, pf.CompressionCodec, field.CompressionCodec)
+		}
+		if pf.Comment != field.Comment {
+			commentChangedFields = append(commentChangedFields, field)
+		}
+		if pf.DefaultExpr != field.DefaultExpr {
+			defaultChangedFields = append(defaultChangedFields, field)
 		}
 	}
 	delFields := utils.GetMapKeys(preFields)
@@ -496,6 +505,15 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 			return errors.Wrapf(err, "modify default of column %q failed", field.Name)
 		}
 		logger.With("defaultExpr", field.DefaultExpr).Infof("updated default of column %s", field.Name)
+	}
+	// modify field, should behind update field default because may be need to remove default first
+	for _, field := range typeChangedFields {
+		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s",
+			c.FullNameWithOnCluster(cur.FullName), field.CreateSQL()))
+		if err != nil {
+			return errors.Wrapf(err, "modify type to %s for column %q failed", field.Type, field.Name)
+		}
+		logger.With("field", field).Infof("modified column %s", field.Name)
 	}
 	// update field comment
 	for _, field := range commentChangedFields {

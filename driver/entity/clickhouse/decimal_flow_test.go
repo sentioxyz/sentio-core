@@ -32,8 +32,8 @@ func Test_Decimal256_Flow_Basic(t *testing.T) {
 
 	// DDL mapping
 	assert.Equal(t, "`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)'", et.Fields[0].GetClickhouseFields()[0].CreateSQL())
-	assert.Equal(t, "`d0` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)'", et.Fields[1].GetClickhouseFields()[0].CreateSQL())
-	assert.Equal(t, "`d1` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)'", et.Fields[2].GetClickhouseFields()[0].CreateSQL())
+	assert.Equal(t, "`d0` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)'", et.Fields[1].GetClickhouseFields()[0].CreateSQL())
+	assert.Equal(t, "`d1` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)'", et.Fields[2].GetClickhouseFields()[0].CreateSQL())
 
 	// Insert value wiring: values flow through as decimal.Decimal
 	now := time.UnixMicro(1234567890).UTC()
@@ -152,29 +152,29 @@ func TestDecimal512_FeatureToggle(t *testing.T) {
 	s, err := schema.ParseAndVerifySchema(decimalFlowSchema)
 	require.NoError(t, err)
 
-	// schemaVersion=0: default mode, Decimal256(30)
+	// schemaVersion=0: default mode, Decimal(76, 30)
 	store0 := &Store{feaOpt: BuildFeatures(0)}
 	et0 := store0.NewEntity(s.GetEntity("E"))
 
 	// Verify Decimal256 DDL generation
-	assert.Equal(t, "`d0` Nullable(Decimal256(30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)'", et0.Fields[1].GetClickhouseFields()[0].CreateSQL())
-	assert.Equal(t, "`d1` Decimal256(30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)'", et0.Fields[2].GetClickhouseFields()[0].CreateSQL())
+	assert.Equal(t, "`d0` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)'", et0.Fields[1].GetClickhouseFields()[0].CreateSQL())
+	assert.Equal(t, "`d1` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)'", et0.Fields[2].GetClickhouseFields()[0].CreateSQL())
 
 	// Verify view field types
-	assert.Equal(t, "Nullable(Decimal256(30))", et0.Fields[1].GetClickhouseFields()[0].Type)
-	assert.Equal(t, "Decimal256(30)", et0.Fields[2].GetClickhouseFields()[0].Type)
+	assert.Equal(t, "Nullable(Decimal(76, 30))", et0.Fields[1].GetClickhouseFields()[0].Type.String())
+	assert.Equal(t, "Decimal(76, 30)", et0.Fields[2].GetClickhouseFields()[0].Type.String())
 
 	// schemaVersion=8: enable Decimal512 (Bit 3), scale will be 60 (hardcoded)
 	store8 := &Store{feaOpt: BuildFeatures(8)}
 	et8 := store8.NewEntity(s.GetEntity("E"))
 
 	// Verify Decimal512 DDL generation (scale hardcoded to 60)
-	assert.Equal(t, "`d0` Nullable(Decimal512(60)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)'", et8.Fields[1].GetClickhouseFields()[0].CreateSQL())
-	assert.Equal(t, "`d1` Decimal512(60) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)'", et8.Fields[2].GetClickhouseFields()[0].CreateSQL())
+	assert.Equal(t, "`d0` Nullable(Decimal(154, 60)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)'", et8.Fields[1].GetClickhouseFields()[0].CreateSQL())
+	assert.Equal(t, "`d1` Decimal(154, 60) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)'", et8.Fields[2].GetClickhouseFields()[0].CreateSQL())
 
 	// Verify view field types (scale hardcoded to 60)
-	assert.Equal(t, "Nullable(Decimal512(60))", et8.Fields[1].GetClickhouseFields()[0].Type)
-	assert.Equal(t, "Decimal512(60)", et8.Fields[2].GetClickhouseFields()[0].Type)
+	assert.Equal(t, "Nullable(Decimal(154, 60))", et8.Fields[1].GetClickhouseFields()[0].Type.String())
+	assert.Equal(t, "Decimal(154, 60)", et8.Fields[2].GetClickhouseFields()[0].Type.String())
 
 	// Verify both modes accept decimal.Decimal values
 	val := decimal.RequireFromString("123.456")
@@ -205,8 +205,8 @@ func TestDecimal512_ScaleConfiguration(t *testing.T) {
 	// Test 1: Decimal512 scale is hardcoded to 60
 	store60 := &Store{feaOpt: BuildFeatures(8)} // schemaVersion=8 enables Decimal512
 	et60 := store60.NewEntity(s.GetEntity("E"))
-	assert.Equal(t, "`d0` Nullable(Decimal512(60)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)'", et60.Fields[1].GetClickhouseFields()[0].CreateSQL())
-	assert.Equal(t, "`d1` Decimal512(60) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)'", et60.Fields[2].GetClickhouseFields()[0].CreateSQL())
+	assert.Equal(t, "`d0` Nullable(Decimal(154, 60)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)'", et60.Fields[1].GetClickhouseFields()[0].CreateSQL())
+	assert.Equal(t, "`d1` Decimal(154, 60) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)'", et60.Fields[2].GetClickhouseFields()[0].CreateSQL())
 
 	// Test 2: Values are rounded to scale 60
 	val60 := decimal.RequireFromString("123." + strings.Repeat("4", 70))

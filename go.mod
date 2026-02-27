@@ -24,6 +24,7 @@ require (
 	github.com/ipfs/go-ipfs-api v0.7.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/knadh/koanf/parsers/json v1.0.0
+	github.com/knadh/koanf/parsers/yaml v1.1.0
 	github.com/knadh/koanf/v2 v2.3.0
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/mitchellh/hashstructure/v2 v2.0.2

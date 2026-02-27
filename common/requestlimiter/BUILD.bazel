@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+filegroup(
+    name = "config_file",
+    srcs = glob(["limiter_config.yaml"]),
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "requestlimiter",
+    srcs = [
+        "limiter.go",
+        "scripts.go",
+    ],
+    data = [":config_file"],
+    importpath = "sentioxyz/sentio-core/common/requestlimiter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/configmanager",
+        "//common/log",
+        "//service/common/protos",
+        "@com_github_knadh_koanf_parsers_yaml//:yaml",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_samber_lo//:lo",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_gorm_gorm//:gorm",
+        "@io_opentelemetry_go_otel//:otel",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
+    ],
+)
+
+go_test(
+    name = "requestlimiter_test",
+    srcs = ["limiter_test.go"],
+    embed = [":requestlimiter"],
+    deps = [
+        "//common/log",
+        "//service/common/protos",
+        "@com_github_alicebob_miniredis_v2//:miniredis",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

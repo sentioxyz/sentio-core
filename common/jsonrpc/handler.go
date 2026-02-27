@@ -30,8 +30,9 @@ type SourceGetter interface {
 type Handler struct {
 	name string
 
-	debug        bool
-	websocketSvr *WebsocketService
+	debug          bool
+	websocketSvr   *WebsocketService
+	catcherManager *catcherManager
 
 	// used to get driver name from pod ip
 	sourceGetter SourceGetter
@@ -68,6 +69,8 @@ func NewHandler(
 	}
 	if acceptWebsocket {
 		h.websocketSvr = newWebsocketService(h, time.Second*20, time.Minute, time.Second*20)
+		h.catcherManager = newCatcherManager()
+		h.RegisterMiddleware(h.catcherManager.newMiddleware())
 	}
 	return h
 }
@@ -93,8 +96,12 @@ type CtxData struct {
 	RawReqBody       []byte
 	WebsocketSession *WebsocketSession
 	ReqSrc           RequestSource
-	Method           string // maybe empty, mean this is not a jsonrpc request, need to use RespWriter to write the response
-	Params           json.RawMessage
+
+	// Method maybe HTTPRequestMethod and with empty Params and ReqUserID,
+	// mean this is a simple http request, need to use RespWriter to write the response
+	Method    string
+	Params    json.RawMessage
+	ReqUserID json.RawMessage
 
 	RespHeaders    http.Header
 	RespWriter     http.ResponseWriter
@@ -134,15 +141,9 @@ func (s *Handler) newEncoder(r *http.Request) Encoder {
 	}
 }
 
-func (s *Handler) callMethod(
-	ctx context.Context,
-	ctxData *CtxData,
-	method string,
-	params json.RawMessage,
-	encoder Encoder,
-) (any, error) {
+func (s *Handler) callMethod(ctx context.Context, ctxData *CtxData, encoder Encoder) (any, error) {
 	startAt := time.Now()
-	result, err := s.middleware.CallMethod(setCtxData(ctx, ctxData), method, params)
+	result, err := s.middleware.CallMethod(setCtxData(ctx, ctxData), ctxData.Method, ctxData.Params)
 	var ret any
 	var retLen int
 	var encodeErr error
@@ -161,7 +162,7 @@ func (s *Handler) callMethod(
 
 	attributes := []attribute.KeyValue{
 		attribute.String("name", s.name),
-		attribute.String("method", method),
+		attribute.String("method", ctxData.Method),
 		attribute.Bool("succeed", err == nil),
 		attribute.Bool("proxy", false),
 		attribute.Bool("cached", false),
@@ -171,7 +172,7 @@ func (s *Handler) callMethod(
 	if s.statUsed != nil {
 		s.statUsed.Record(context.Background(), used.Milliseconds(), opt)
 	}
-	s.stat.Append(newStatWindow(method, ctxData.ReqSrc, used))
+	s.stat.Append(newStatWindow(ctxData.Method, ctxData.ReqSrc, used))
 
 	rs := requestSample{
 		RequestID:    ctxData.ReqID,
@@ -197,6 +198,23 @@ func (s *Handler) callMethod(
 			ResponseEncodeUsed: encodeUsed,
 		})
 	}
+
+	if s.catcherManager != nil {
+		s.catcherManager.catch(catchResult{
+			ReqID:       ctxData.ReqID,
+			ReqSubID:    ctxData.ReqSubID,
+			ReqSrc:      ctxData.ReqSrc,
+			StartAt:     startAt,
+			Used:        used,
+			Method:      ctxData.Method,
+			Params:      ctxData.Params,
+			ReqUserID:   ctxData.ReqUserID,
+			RespHeaders: ctxData.RespHeaders,
+			Result:      ret,
+			Error:       err,
+		})
+	}
+
 	return ret, err
 }
 
@@ -290,9 +308,10 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			RawReqBody: rawBody,
 			RespWriter: w,
 			ReqSrc:     src,
+			Method:     HTTPRequestMethod,
 		}
 		// method for non-jsonrpc request should use ctxData.RespWriter to write response
-		_, err = s.callMethod(ctx, ctxData, HTTPRequestMethod, nil, nil)
+		_, err = s.callMethod(ctx, ctxData, nil)
 		used := time.Since(startTime)
 		logger = logger.With("used", used.String())
 		if err != nil {
@@ -345,8 +364,9 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ReqSrc:     src,
 				Method:     msg.Method,
 				Params:     msg.Params,
+				ReqUserID:  msg.ID,
 			}
-			res, err = s.callMethod(callCtx, ctxData, msg.Method, msg.Params, encoder)
+			res, err = s.callMethod(callCtx, ctxData, encoder)
 			// print log
 			used := time.Since(startTime)
 			if err != nil {
@@ -424,6 +444,9 @@ func (s *Handler) Snapshot() any {
 	}
 	if s.websocketSvr != nil {
 		sn["websocket"] = s.websocketSvr.Snapshot()
+	}
+	if s.catcherManager != nil {
+		sn["catcherManager"] = s.catcherManager.Snapshot()
 	}
 	return sn
 }

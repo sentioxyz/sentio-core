@@ -53,7 +53,6 @@ func NewHandler(
 	name string,
 	printAccess bool,
 	acceptWebsocket bool,
-	prologue func(ctx context.Context, data *CtxData) context.Context,
 	sourceGetter SourceGetter,
 	statUsed metric.Int64Histogram,
 ) *Handler {

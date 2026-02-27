@@ -17,7 +17,6 @@ go_library(
     importpath = "sentioxyz/sentio-core/common/jsonrpc",
     visibility = ["//visibility:public"],
     deps = [
-        "//common/clickhousemanager",
         "//common/errgroup",
         "//common/log",
         "//common/queue",
@@ -26,7 +25,6 @@ go_library(
         "//common/tracker",
         "//common/utils",
         "@com_github_bytedance_sonic//encoder",
-        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
         "@com_github_ethereum_go_ethereum//rpc",
         "@com_github_goccy_go_json//:go-json",
         "@com_github_gorilla_websocket//:websocket",

@@ -198,14 +198,16 @@ func (c *WebsocketConnection) newSession(ctx context.Context, rawReq json.RawMes
 	// calling middleware
 	ctxData := &CtxData{
 		ReqID:            c.id,
+		ReqSubID:         session.ID,
 		RawReq:           nil,
 		RawReqBody:       rawReq,
 		WebsocketSession: session,
 		ReqSrc:           c.source,
 		Method:           req.Method,
 		Params:           req.Params,
+		ReqUserID:        req.ID,
 	}
-	result, err := c.svr.handler.callMethod(session.ctx, ctxData, req.Method, req.Params, JsonEncoder{})
+	result, err := c.svr.handler.callMethod(session.ctx, ctxData, JsonEncoder{})
 
 	c.mu.Lock()
 	delete(c.sessions, session.ID)

@@ -4,6 +4,7 @@ go_library(
     name = "jsonrpc",
     srcs = [
         "buffer.go",
+        "catcher.go",
         "encoder.go",
         "handler.go",
         "handler_simple_http.go",
@@ -20,6 +21,7 @@ go_library(
         "//common/errgroup",
         "//common/log",
         "//common/queue",
+        "//common/set",
         "//common/timehist",
         "//common/timewin",
         "//common/tracker",

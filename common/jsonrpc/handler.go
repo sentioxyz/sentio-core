@@ -12,13 +12,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gorilla/websocket"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/queue"
 	"sentioxyz/sentio-core/common/timewin"
@@ -55,6 +53,7 @@ func NewHandler(
 	name string,
 	printAccess bool,
 	acceptWebsocket bool,
+	prologue func(ctx context.Context, data *CtxData) context.Context,
 	sourceGetter SourceGetter,
 	statUsed metric.Int64Histogram,
 ) *Handler {
@@ -104,16 +103,6 @@ type CtxData struct {
 	NotSlowRequest bool
 }
 
-func (c *CtxData) sign() string {
-	m := utils.CopyMap(c.ReqSrc.Labels)
-	m["method"] = c.Method
-	res, err := json.Marshal(m)
-	if err != nil {
-		return ""
-	}
-	return string(res)
-}
-
 func GetCtxData(ctx context.Context) *CtxData {
 	raw := ctx.Value(ctxDataKey)
 	if data, is := raw.(*CtxData); is {
@@ -123,14 +112,7 @@ func GetCtxData(ctx context.Context) *CtxData {
 }
 
 func setCtxData(ctx context.Context, data *CtxData) context.Context {
-	settings := clickhouse.Settings{
-		"log_comment": data.sign(),
-	}
-	ctx = clickhouse.Context(
-		context.WithValue(ctx, ctxDataKey, data),
-		clickhouse.WithSettings(settings),
-	)
-	return ckhmanager.ContextMergeSettings(ctx, settings)
+	return context.WithValue(ctx, ctxDataKey, data)
 }
 
 var upgrader = websocket.Upgrader{

@@ -1,0 +1,14 @@
+concurrent_quota_per_user: 5
+concurrent_quota_per_ip: 5
+concurrent_quota_per_project: 20
+concurrent_quota_by_tier:
+  FREE: 50
+  DEV: 50
+  PRO: 50
+  ENTERPRISE: 50
+  ANONYMOUS: 50
+concurrent_quota_user_tier:
+  FREE: 5
+  DEV: 10
+  PRO: 15
+  ENTERPRISE: 20

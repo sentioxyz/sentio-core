@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"context"
 	"encoding/json"
+	"github.com/pkg/errors"
 	"net/http"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
@@ -145,13 +146,18 @@ func (c catchResult) MarshalJSON() ([]byte, error) {
 }
 
 type catcherManager struct {
+	secret string
+
 	mu       sync.Mutex
 	counter  int
 	catchers map[int]*catcher
 }
 
-func newCatcherManager() *catcherManager {
-	return &catcherManager{catchers: make(map[int]*catcher)}
+func newCatcherManager(secret string) *catcherManager {
+	return &catcherManager{
+		secret:   secret,
+		catchers: make(map[int]*catcher),
+	}
 }
 
 const (
@@ -161,6 +167,7 @@ const (
 )
 
 type catchRequest struct {
+	Secret    string            `json:"secret"`
 	SrcLabels map[string]string `json:"srcLabels"`
 	Methods   []string          `json:"methods"`
 	Seconds   uint64            `json:"seconds"`
@@ -173,9 +180,6 @@ func (m *catcherManager) newMiddleware() Middleware {
 			if method != catchMethod {
 				return next(ctx, method, params)
 			}
-			if GetCtxData(ctx).WebsocketSession == nil {
-				return next(ctx, method, params)
-			}
 			return CallMethod(m.newCatcher, ctx, params)
 		}
 	}
@@ -185,6 +189,12 @@ func (m *catcherManager) newCatcher(ctx context.Context, req *catchRequest) (any
 	ctxData := GetCtxData(ctx)
 	ctxData.NotSlowRequest = true
 	session := ctxData.WebsocketSession
+	if session == nil {
+		return nil, errors.Errorf("websocket only")
+	}
+	if req.Secret != m.secret {
+		return nil, errors.Errorf("invalid secret")
+	}
 
 	c := &catcher{
 		srcLabels: req.SrcLabels,
@@ -257,6 +267,7 @@ func (m *catcherManager) Snapshot() any {
 	defer m.mu.Unlock()
 	return map[string]any{
 		"counter":  m.counter,
+		"secret":   m.secret,
 		"catchers": utils.MapMapNoError(m.catchers, (*catcher).Snapshot),
 	}
 }

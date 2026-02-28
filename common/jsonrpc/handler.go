@@ -56,6 +56,7 @@ func NewHandler(
 	acceptWebsocket bool,
 	sourceGetter SourceGetter,
 	statUsed metric.Int64Histogram,
+	catchSecret string,
 ) *Handler {
 	h := &Handler{
 		name:          name,
@@ -69,7 +70,7 @@ func NewHandler(
 	}
 	if acceptWebsocket {
 		h.websocketSvr = newWebsocketService(h, time.Second*20, time.Minute, time.Second*20)
-		h.catcherManager = newCatcherManager()
+		h.catcherManager = newCatcherManager(catchSecret)
 		h.RegisterMiddleware(h.catcherManager.newMiddleware())
 	}
 	return h

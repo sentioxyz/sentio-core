@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "functions",
+    srcs = [
+        "bottomk.go",
+        "delta.go",
+        "func.go",
+        "topk.go",
+        "truncate.go",
+        "util.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/functions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//service/common/protos",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cascade_function",
+    srcs = ["cascade.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/cascade_function",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/gonanoid",
+        "//common/sqlbuilder",
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "cascade_function_test",
+    srcs = ["cascade_test.go"],
+    embed = [":cascade_function"],
+    deps = [
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/mock",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/filter",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/math",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/rank",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/rate",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/sliding_window",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/testsuite",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

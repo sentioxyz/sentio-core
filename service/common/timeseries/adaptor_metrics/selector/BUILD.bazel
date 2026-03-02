@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "selector",
+    srcs = ["selector.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/selector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//driver/timeseries",
+        "//driver/timeseries/clickhouse",
+        "//service/common/timeseries/compatible",
+        "@com_github_samber_lo//:lo",
+    ],
+)

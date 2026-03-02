@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "converter",
+    srcs = [
+        "label.go",
+        "metric.go",
+        "sample.go",
+        "structpb.go",
+        "time.go",
+        "timeseries_matrix.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/converter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/utils",
+        "//service/common/protos",
+        "//service/common/timerange",
+        "//service/common/timeseries/adaptor_eventlogs",
+        "//service/common/timeseries/matrix",
+        "//service/observability/protos",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_samber_lo//:lo",
+        "@com_github_shopspring_decimal//:decimal",
+    ],
+)
+
+go_test(
+    name = "converter_test",
+    srcs = ["timeseries_matrix_test.go"],
+    embed = [":converter"],
+    deps = [
+        "//service/common/protos",
+        "//service/common/timerange",
+        "//service/common/timeseries/matrix",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

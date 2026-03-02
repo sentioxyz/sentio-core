@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "util",
+    srcs = [
+        "histogram.go",
+        "time_layout.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/util",
+    visibility = ["//visibility:public"],
+)

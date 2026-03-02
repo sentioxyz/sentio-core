@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "enginesettings",
+    srcs = ["settings.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseriessql/enginesettings",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/configmanager",
+        "//common/log",
+        "@com_github_knadh_koanf_parsers_yaml//:yaml",
+        "@com_github_pkg_errors//:errors",
+        "@io_gorm_gorm//:gorm",
+    ],
+)

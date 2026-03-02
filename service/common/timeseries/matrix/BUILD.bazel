@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "matrix",
+    srcs = ["matrix.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/matrix",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/anyutil",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_shopspring_decimal//:decimal",
+    ],
+)
+
+go_test(
+    name = "matrix_test",
+    srcs = ["matrix_test.go"],
+    embed = [":matrix"],
+    deps = [
+        "//common/utils",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_shopspring_decimal//:decimal",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

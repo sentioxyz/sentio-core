@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "schemaimpl",
+    srcs = ["args.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseriessql/schemaimpl",
+    visibility = ["//visibility:public"],
+    deps = ["//service/analytic/protos"],
+)

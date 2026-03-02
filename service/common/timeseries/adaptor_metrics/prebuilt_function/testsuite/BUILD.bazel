@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testsuite",
+    srcs = ["suite.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/prebuilt_function/testsuite",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/clickhousemanager",
+        "//common/log",
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/mock",
+        "//service/processor/models",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

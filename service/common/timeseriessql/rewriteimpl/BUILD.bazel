@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rewriteimpl",
+    srcs = [
+        "args.go",
+        "common_table_expression.go",
+        "database_table.go",
+        "remote.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/timeseriessql/rewriteimpl",
+    visibility = ["//visibility:public"],
+)

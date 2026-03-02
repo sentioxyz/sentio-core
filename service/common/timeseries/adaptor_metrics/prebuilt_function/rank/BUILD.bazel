@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rank",
+    srcs = ["rank.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/prebuilt_function/rank",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/sqlbuilder",
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+    ],
+)
+
+go_test(
+    name = "rank_test",
+    srcs = ["rank_test.go"],
+    embed = [":rank"],
+    deps = [
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/mock",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/testsuite",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cte",
+    srcs = ["cte.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_eventlogs/cte",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "cte_test",
+    srcs = ["cte_test.go"],
+    embed = [":cte"],
+)

@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sliding_window",
+    srcs = [
+        "aggregated.go",
+        "operator.go",
+        "rollup.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/prebuilt_function/sliding_window",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/sqlbuilder",
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "sliding_window_test",
+    srcs = [
+        "aggregated_test.go",
+        "rollup_test.go",
+    ],
+    embed = [":sliding_window"],
+    deps = [
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/mock",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/testsuite",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

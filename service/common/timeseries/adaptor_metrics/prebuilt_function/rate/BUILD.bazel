@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rate",
+    srcs = ["rate.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/prebuilt_function/rate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/sqlbuilder",
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "rate_test",
+    srcs = ["rate_test.go"],
+    embed = [":rate"],
+    deps = [
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/testsuite",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "lucene",
+    srcs = [
+        "clickhouse.go",
+        "driver.go",
+        "util.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/lucene",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/utils",
+        "//driver/timeseries",
+        "//driver/timeseries/clickhouse",
+        "//service/common/timeseries/compatible",
+        "@com_github_blevesearch_bleve//search/query",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_qs//:qs",
+    ],
+)

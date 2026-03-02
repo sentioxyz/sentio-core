@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "adaptor_metrics",
+    srcs = [
+        "function.go",
+        "parameters.go",
+        "range.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/sqlbuilder",
+        "//driver/timeseries",
+        "//service/common/protos",
+        "//service/common/timerange",
+        "//service/common/timeseries/adaptor_eventlogs",
+        "//service/common/timeseries/adaptor_metrics/cascade_function",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/filter",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/math",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/rank",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/rate",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/sample",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/sliding_window",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/time",
+        "//service/common/timeseries/adaptor_metrics/selector",
+        "//service/common/timeseries/matrix",
+        "//service/common/timeseries/util",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "adaptor_metrics_test",
+    srcs = [
+        "function_test.go",
+        "range_test.go",
+    ],
+    embed = [":adaptor_metrics"],
+    deps = [
+        "//common/log",
+        "//driver/timeseries",
+        "//service/common/protos",
+        "//service/common/timerange",
+        "//service/common/timeseries/adaptor_metrics/mock",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/testsuite",
+        "//service/common/timeseries/adaptor_metrics/selector",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_samber_lo//:lo",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

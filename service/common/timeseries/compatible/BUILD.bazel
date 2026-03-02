@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "compatible",
+    srcs = ["field_name.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/compatible",
+    visibility = ["//visibility:public"],
+    deps = ["//driver/timeseries"],
+)

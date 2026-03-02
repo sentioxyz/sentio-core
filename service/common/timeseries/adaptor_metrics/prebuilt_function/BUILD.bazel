@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "prebuilt_function",
+    srcs = [
+        "base.go",
+        "function.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/prebuilt_function",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/gonanoid",
+        "//common/log",
+        "//driver/timeseries",
+        "//service/common/timerange",
+        "//service/common/timeseries/adaptor_metrics/selector",
+        "//service/common/timeseries/util",
+        "@com_github_samber_lo//:lo",
+    ],
+)

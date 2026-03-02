@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = ["mock.go"],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/clickhousemanager",
+        "//driver/timeseries",
+        "//driver/timeseries/clickhouse",
+        "//service/common/timerange",
+        "//service/processor/models",
+        "@com_github_samber_lo//:lo",
+    ],
+)

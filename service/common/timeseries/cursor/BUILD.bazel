@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cursor",
+    srcs = [
+        "cursor.go",
+        "search_after.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/cursor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/gonanoid",
+        "//common/log",
+        "//common/utils",
+        "//service/common/protos",
+        "@com_github_bytedance_sonic//:sonic",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_samber_lo//:lo",
+    ],
+)

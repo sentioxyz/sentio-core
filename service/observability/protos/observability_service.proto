@@ -1,0 +1,196 @@
+syntax = "proto3";
+
+package metrics_service;
+
+option go_package = "sentioxyz/sentio-core/service/observability/protos";
+
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "service/common/protos/common.proto";
+import "google/protobuf/struct.proto";
+
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+service ObservabilityService {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_tag) = {
+    name: "Data"
+  };
+
+  // Get a list of metrics in a project
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse) {
+    option(common.auth) = {
+      permission: "project:read"
+      allow_anonymous: true
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+    option (google.api.http) = {
+      get: "/api/v1/metrics"
+    };
+  };
+
+  // Metric range queries
+  //
+  // The easiest way to build query is through UI, you could first create an insight chart, and then **Export as cURL**.
+  //
+  // ![screenshot](https://media.githubusercontent.com/media/sentioxyz/docs/HEAD/assets/image%20(101).png)
+  rpc QueryRange(QueryRangeRequest) returns (MetricsQueryResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+    };
+    option(common.auth) = {
+      permission: "project:read"
+      allow_anonymous: true
+    };
+    option (common.track_usage) = {
+      api_sku: "api_metrics"
+      webui_sku: "webui_metrics"
+    };
+    option (google.api.http) = {
+      post: "/api/v1/metrics/{project_owner}/{project_slug}/query_range"
+      body: "*"
+    };
+  };
+
+  //  Metric instant queries
+  rpc Query(QueryValueRequest) returns (QueryValueResponse) {
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      operation_id: "QueryInstant"
+    };
+    option(common.auth) = {
+      permission: "project:read"
+      allow_anonymous: true
+    };
+    option (common.track_usage) = {
+      api_sku: "api_metrics"
+      webui_sku: "webui_metrics"
+    };
+    option (google.api.http) = {
+      post: "/api/v1/metrics/{project_owner}/{project_slug}/query"
+      body: "*"
+    };
+  };
+}
+
+message GetMetricsRequest {
+  string project_id = 1;
+  string name = 2;
+  int32 version = 3;
+  uint64 label_limit = 4;
+  string label_search_query = 5;
+}
+
+message GetMetricsResponse {
+  repeated MetricInfo metrics = 1;
+  common.ComputeStats compute_stats = 2;
+}
+
+message MetricInfo {
+  string name = 1;
+  string display_name = 2;
+  string project_id = 3;
+  repeated string contract_name = 4;
+  repeated string contract_address = 5;
+  repeated string chain_id = 6;
+  message LabelValues {
+    repeated string values = 1;
+    uint64 total_count = 2;
+  }
+  map<string, LabelValues> labels = 7;
+  MetricMetadata metadata = 8;
+}
+
+message MetricMetadata {
+  string type = 1;
+  string unit = 2;
+  string help = 3;
+  int64 last_seen = 4;
+}
+
+message QueryRangeRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  repeated common.Query queries = 3;
+  repeated common.Formula formulas = 4 [deprecated = true];
+  int32 samples_limit = 5;
+  common.TimeRangeLite time_range = 6 [(google.api.field_behavior) = REQUIRED];
+  string project_id = 7;
+  int32 version = 8;
+  int32 samples_offset = 9;
+
+  bool enable_experimental_features = 10;
+
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    example: '{"queries":[{"query":"mint_sum","alias":"Mint (24 hours)","id":"a","labelSelector":{},"aggregate":null,"functions":[{"name":"rollup_sum","arguments":[{"durationValue":{"value":1,"unit":"d"}}]}],"disabled":false},{"query":"burn_sum","alias":"Burn (24 hours)","id":"b","labelSelector":{},"aggregate":null,"functions":[{"name":"rollup_sum","arguments":[{"durationValue":{"value":1,"unit":"d"}}]}],"disabled":false}],"formulas":[],"timeRange":{"start":"now-30d","end":"now","step":3600,"timezone":"America/Los_Angeles"},"samplesLimit":20}'
+  };
+}
+
+message QueryValueRequest {
+  // username or organization name
+  string project_owner = 1 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "owner"}}];
+  // project slug
+  string project_slug = 2 [(grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {field_configuration: {path_param_name: "slug"}}];
+  repeated common.Query queries = 3;
+  repeated common.Formula formulas = 4;
+  string time = 5;
+  int32 samples_limit = 6;
+  int32 version = 7;
+  string timezone = 8;
+  int32 samples_offset = 9;
+  bool enable_experimental_features = 10;
+}
+
+message QueryValueResponse {
+  message Result {
+    repeated MetricsQueryResponse.Sample sample = 1;
+    string error = 3;
+    string alias = 2;
+    string id = 4;
+    string color = 5;
+  }
+  repeated Result results = 1;
+}
+
+message MetricsQueryResponse {
+  message Matrix {
+    repeated Sample samples = 1;
+    int32 total_samples = 2;
+  }
+  message Sample {
+    Metric metric = 1;
+    repeated Value values = 2;
+  }
+  message Metric {
+    string name = 1;
+    map<string, string> labels = 2;
+    //    string project_id = 3;
+    string display_name = 4;
+  }
+  message Value {
+    int64 timestamp = 1;
+    double value = 2;
+    repeated double extra_values = 3;
+  }
+  message Result {
+    oneof metrics_query_response_type {
+      // TODO(chen@sentio.xyz): should use common.Matrix in the future
+      Matrix matrix = 1;
+      string error = 3;
+    }
+    string alias = 2;
+    string id = 4;
+    common.ComputeStats compute_stats = 5;
+    string color = 6;
+  }
+  repeated Result results = 1;
+}
+
+message Series {
+  string name = 1;
+  string project_id = 2;
+  string contract = 3;
+  string display_name = 4;
+  string contract_address = 5;
+  map<string, string> labels = 6;
+}

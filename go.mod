@@ -7,6 +7,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.42.0
 	github.com/DmitriyVTitov/size v1.5.0
 	github.com/alicebob/miniredis/v2 v2.35.0
+	github.com/blevesearch/bleve v1.0.14
 	github.com/bytedance/sonic v1.14.0
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/docker/docker v28.5.2+incompatible
@@ -35,6 +36,7 @@ require (
 	github.com/redis/go-redis/v9 v9.15.1
 	github.com/samber/lo v1.52.0
 	github.com/sentioxyz/golang-lru v0.0.0-20221206101024-a094e96c5283
+	github.com/sentioxyz/qs v0.0.0-20250901053804-ecf034c91d44
 	github.com/shopspring/decimal v1.4.0
 	github.com/soheilhy/cmux v0.1.5
 	github.com/stretchr/testify v1.11.1
@@ -67,6 +69,30 @@ require (
 	gorm.io/driver/postgres v1.5.0
 	gorm.io/gorm v1.31.0
 	modernc.org/mathutil v1.7.1
+)
+
+require (
+	github.com/RoaringBitmap/roaring v0.4.23 // indirect
+	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
+	github.com/blevesearch/mmap-go v1.0.2 // indirect
+	github.com/blevesearch/segment v0.9.0 // indirect
+	github.com/blevesearch/snowballstem v0.9.0 // indirect
+	github.com/blevesearch/zap/v11 v11.0.14 // indirect
+	github.com/blevesearch/zap/v12 v12.0.14 // indirect
+	github.com/blevesearch/zap/v13 v13.0.6 // indirect
+	github.com/blevesearch/zap/v14 v14.0.5 // indirect
+	github.com/blevesearch/zap/v15 v15.0.3 // indirect
+	github.com/couchbase/vellum v1.0.2 // indirect
+	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
+	github.com/mschoch/smat v0.2.0 // indirect
+	github.com/philhofer/fwd v1.0.0 // indirect
+	github.com/steveyen/gtreap v0.1.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/tinylib/msgp v1.1.0 // indirect
+	github.com/willf/bitset v1.1.10 // indirect
+	go.etcd.io/bbolt v1.3.5 // indirect
 )
 
 require (

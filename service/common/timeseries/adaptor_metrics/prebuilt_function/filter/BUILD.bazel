@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "filter",
+    srcs = [
+        "filter.go",
+        "with_fill_filter.go",
+    ],
+    importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/prebuilt_function/filter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/sqlbuilder",
+        "//driver/timeseries",
+        "//service/common/timerange",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "filter_test",
+    srcs = [
+        "filter_test.go",
+        "with_fill_filter_test.go",
+    ],
+    embed = [":filter"],
+    deps = [
+        "//driver/timeseries",
+        "//service/common/timeseries/adaptor_metrics/mock",
+        "//service/common/timeseries/adaptor_metrics/prebuilt_function/testsuite",
+        "//service/common/timeseries/adaptor_metrics/selector",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

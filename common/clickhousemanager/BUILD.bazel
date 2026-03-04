@@ -9,7 +9,6 @@ go_library(
         "constants.go",
         "error_code_map.go",
         "flags.go",
-        "jwt_token.go",
         "manager.go",
         "roles.go",
         "sharding.go",

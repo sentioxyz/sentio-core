@@ -1,4 +1,4 @@
-package ckhmanager
+package helper
 
 import (
 	"crypto/ecdsa"
@@ -41,7 +41,7 @@ const (
 	EthereumSignatureLength  = 65
 )
 
-func createJWSToken(privateKey *ecdsa.PrivateKey, query string) (string, error) {
+func CreateJWSToken(privateKey *ecdsa.PrivateKey, query string) (string, error) {
 	payloadBytes, _ := json.Marshal(JWSPayload{
 		Iat:       time.Now().Unix(),
 		QueryHash: keccak256Hex([]byte(query)),

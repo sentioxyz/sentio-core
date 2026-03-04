@@ -53,6 +53,7 @@ export enum EthChainId {
   TAC_TESTNET = '2390',
   KARAK = '2410',
   BEVM = '11501',
+  MEGAETH = '4326',
   MERLIN_MAINNET = '4200',
   MANTLE = '5000',
   BASE = '8453',
@@ -89,7 +90,6 @@ export enum EthChainId {
   ABSTRACT = '2741',
   GOAT_MAINNET = '2345',
   ARC_TESTNET = '5042002',
-  SENTIO_MAINNET = '789210',
   SENTIO_TESTNET = '7892101',
 
   CUSTOM = 'customized'

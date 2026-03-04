@@ -26,5 +26,9 @@
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enabledMcpjsonServers": [
+    "bazel-central-registry"
+  ],
+  "enableAllProjectMcpServers": true
 }

@@ -75,7 +75,7 @@ func (c *conn) GetPassword() string {
 
 func (c *conn) GetCluster() string {
 	c.once.Do(func() {
-		c.cluster = helper.MustAutoGetCluster(c.sign(context.Background(), helper.GetClusterStmt), c.conn)
+		c.cluster = helper.MustAutoGetCluster(c.sign(context.Background()), c.conn)
 	})
 	return c.cluster
 }
@@ -97,7 +97,7 @@ func (c *conn) Close() {
 	}
 }
 
-func (c *conn) sign(ctx context.Context, query string) (clickhouseCtx context.Context) {
+func (c *conn) sign(ctx context.Context) (clickhouseCtx context.Context) {
 	var settings = make(clickhouse.Settings)
 	defer func() {
 		exists, ok := ctx.Value(connSettingsKey).(clickhouse.Settings)
@@ -106,38 +106,34 @@ func (c *conn) sign(ctx context.Context, query string) (clickhouseCtx context.Co
 				settings[k] = v
 			}
 		}
-		clickhouseCtx = clickhouse.Context(ctx, clickhouse.WithSettings(settings))
+		if c.privateKey != nil {
+			clickhouseCtx = clickhouse.Context(ctx, clickhouse.WithSignFunc(func(query string) (string, error) {
+				return helper.CreateJWSToken(c.privateKey, query)
+			}))
+		}
+		if len(settings) > 0 {
+			clickhouseCtx = clickhouse.Context(ctx, clickhouse.WithSettings(settings))
+		}
 	}()
 
-	if c.privateKey == nil {
-		return
-	}
-	token, err := createJWSToken(c.privateKey, query)
-	if err != nil {
-		log.Errorfe(err, "failed to create JWT token, will let the query pass without authentication")
-		return
-	}
-	log.Debugf("sign query with JWT token: %s", token)
-	if *EnableSignQuery {
-		settings[ClickhouseSettings_ProxyAuthKey] = clickhouse.CustomSetting{Value: token}
-	}
+	// do something for settings update
 	return
 }
 
 func (c *conn) Exec(ctx context.Context, sql string, args ...any) error {
-	return c.conn.Exec(c.sign(ctx, sql), sql, args...)
+	return c.conn.Exec(c.sign(ctx), sql, args...)
 }
 
 func (c *conn) Query(ctx context.Context, sql string, args ...any) (driver.Rows, error) {
-	return c.conn.Query(c.sign(ctx, sql), sql, args...)
+	return c.conn.Query(c.sign(ctx), sql, args...)
 }
 
 func (c *conn) QueryRow(ctx context.Context, sql string, args ...any) driver.Row {
-	return c.conn.QueryRow(c.sign(ctx, sql), sql, args...)
+	return c.conn.QueryRow(c.sign(ctx), sql, args...)
 }
 
 func (c *conn) PrepareBatch(ctx context.Context, query string, opts ...driver.PrepareBatchOption) (driver.Batch, error) {
-	return c.conn.PrepareBatch(c.sign(ctx, query), query, opts...)
+	return c.conn.PrepareBatch(c.sign(ctx), query, opts...)
 }
 
 func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhouse.Options, *ecdsa.PrivateKey) {

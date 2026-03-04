@@ -98,25 +98,25 @@ func (c *conn) Close() {
 }
 
 func (c *conn) sign(ctx context.Context) (clickhouseCtx context.Context) {
-	var settings = make(clickhouse.Settings)
-	defer func() {
-		exists, ok := ctx.Value(connSettingsKey).(clickhouse.Settings)
-		if ok {
-			for k, v := range exists {
-				settings[k] = v
-			}
-		}
-		if c.privateKey != nil {
-			clickhouseCtx = clickhouse.Context(ctx, clickhouse.WithSignFunc(func(query string) (string, error) {
-				return helper.CreateJWSToken(c.privateKey, query)
-			}))
-		}
-		if len(settings) > 0 {
-			clickhouseCtx = clickhouse.Context(ctx, clickhouse.WithSettings(settings))
-		}
-	}()
+	clickhouseCtx = ctx
 
-	// do something for settings update
+	if c.privateKey != nil {
+		clickhouseCtx = clickhouse.Context(clickhouseCtx, clickhouse.WithSignFunc(func(query string) (string, error) {
+			return helper.CreateJWSToken(c.privateKey, query)
+		}))
+	}
+
+	// checking settings in context
+	var settings = make(clickhouse.Settings)
+	exists, ok := ctx.Value(connSettingsKey).(clickhouse.Settings)
+	if ok {
+		for k, v := range exists {
+			settings[k] = v
+		}
+	}
+	if len(settings) > 0 {
+		clickhouseCtx = clickhouse.Context(clickhouseCtx, clickhouse.WithSettings(settings))
+	}
 	return
 }
 

@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aptos",
+    srcs = ["types.go"],
+    importpath = "sentioxyz/sentio-core/chain/aptos",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/move",
+        "//common/set",
+        "//common/utils",
+        "@com_github_aptos_labs_aptos_go_sdk//:aptos-go-sdk",
+        "@com_github_aptos_labs_aptos_go_sdk//api",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_tidwall_sjson//:sjson",
+    ],
+)
+
+go_test(
+    name = "aptos_test",
+    srcs = ["types_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":aptos"],
+    embedsrcs = ["testdata/tx.json"],
+    deps = [
+        "//common/utils",
+        "@com_github_aptos_labs_aptos_go_sdk//api",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

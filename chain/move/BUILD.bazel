@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "move",
+    srcs = [
+        "types.go",
+        "utils.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/move",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/utils",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "move_test",
+    srcs = ["types_test.go"],
+    embed = [":move"],
+    deps = [
+        "//common/utils",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -155,13 +155,14 @@ func (r *rpcCache[X, Y]) set(ctx context.Context, key string, response Y, ttl, l
 				logger.Warnf("rpc cache lazy overwrite failed: %v", err)
 			}
 		})
+		logger.Debugf("rpc cache lazy set success")
 	default:
 		// use background context to avoid canceling by gateway
-		err = r.client.SetEx(context.WithoutCancel(ctx), key, string(responseBytes), ttl).Err()
-	}
-	if err != nil {
-		logger.Warnf("rpc cache maybe not working: %v", err)
-		return err
+		if err := r.client.SetEx(context.WithoutCancel(ctx), key, string(responseBytes), ttl).Err(); err != nil {
+			logger.Warnf("rpc cache set failed: %v", err)
+			return err
+		}
+		logger.Debugf("rpc cache set success")
 	}
 	return nil
 }

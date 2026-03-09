@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "cache.go",
         "key.go",
+        "models.go",
         "option.go",
     ],
     importpath = "sentioxyz/sentio-core/common/rpccache",
@@ -15,8 +16,10 @@ go_library(
         "//common/rpccache/scripts",
         "//common/tokenbucket",
         "//service/common/protos",
+        "@com_github_go_faster_errors//:errors",
         "@com_github_pkg_errors//:errors",
         "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_vmihailenco_msgpack_v5//:msgpack",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
     ],

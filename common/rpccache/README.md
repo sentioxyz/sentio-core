@@ -7,8 +7,10 @@ A high-performance, Redis-backed caching library for RPC responses with support 
 - **Generic Type-Safe API**: Utilizes Go generics for type-safe cache operations
 - **Read-Through Caching**: Automatically loads data on cache miss
 - **Background Refresh**: Asynchronously refresh stale cache entries without blocking requests
+- **Lazy Overwrite**: Delay cache write-back after background refresh to avoid redundant writes
 - **Concurrency Control**: Prevents thundering herd problem with distributed locking
 - **Compression Support**: Built-in compression for efficient storage
+- **Versioned Cache Format**: msgpack-wrapped v2 format with timestamp; graceful fallback to v1
 - **Schema Evolution**: Gracefully handles schema changes with automatic fallback
 - **Panic Protection**: Robust error handling prevents crashes from corrupt data
 - **Rate Limiting**: Optional token bucket integration for cache bypass protection
@@ -230,6 +232,25 @@ resp, err := rpcCache.Query(ctx, req, loader,
 )
 ```
 
+### WithRefreshLazyOverwrite(duration)
+
+Delay the cache write-back when a background refresh completes. Instead of writing the new response to Redis immediately, the write is deferred by the specified duration. Before writing, the cache checks whether a newer entry already exists (by comparing timestamps) and skips the write if so.
+
+This is useful when multiple background refreshes may race each other: rather than immediately overwriting a potentially fresher entry, the refresh waits and confirms it still has the most recent data.
+
+```go
+resp, err := rpcCache.Query(ctx, req, loader,
+    cache.WithRefreshBackground(),
+    cache.WithRefreshLazyOverwrite(500 * time.Millisecond),
+)
+```
+
+**Behavior:**
+- Only applies during background refresh (not foreground loads)
+- After the delay, reads the current Redis value and compares timestamps
+- Skips the write if the cached entry is already newer
+- Errors from the deferred write are logged as warnings
+
 ### WithLoaderArgv(args)
 
 Pass additional arguments to the loader function.
@@ -346,8 +367,8 @@ func (r *rpcCache[X, Y]) Load(ctx context.Context, req X, loader Loader[X, Y], o
             return resp, nil
         }
     }
-    // Cache the successful response
-    _ = r.set(ctx, req.Key().String(), resp, ttl)
+    // Cache the successful response (v2 format: msgpack-wrapped with timestamp)
+    _ = r.set(ctx, req.Key().String(), resp, ttl, 0)
     return resp, nil
 }
 ```
@@ -379,6 +400,7 @@ resp, err := rpcCache.Query(ctx, req, loader,
 resp, err := rpcCache.Query(ctx, req, loader,
     cache.WithRefreshBackground(),
     cache.WithConcurrencyControl(),
+    cache.WithRefreshLazyOverwrite(500 * time.Millisecond),
 )
 ```
 
@@ -407,20 +429,47 @@ func (r *MyRequest) Clone() cache.Request {
 }
 ```
 
+## Cache Format
+
+### v2 Format (current)
+
+Cache entries are stored as msgpack-serialized `cachedResponse` structs:
+
+```go
+type cachedResponse[Y Response] struct {
+    Body      string // compression-encoded response payload
+    Timestamp int64  // Unix milliseconds when the entry was created
+}
+```
+
+The timestamp enables staleness comparison for lazy overwrites: before a deferred write commits, it checks whether a newer entry has been written by another refresh.
+
+### v1 Format (legacy)
+
+Previously, entries were stored directly as compression-encoded bytes with no envelope. v1 entries remain readable: on decode, the library first attempts msgpack unmarshal; if that fails, it falls back to the v1 compression path. v1 entries are naturally replaced with v2 format as they expire and are refreshed.
+
 ## Schema Evolution
 
 The cache gracefully handles schema changes:
 
-1. **Decode Failure Detection**: When `compression.Decode` fails, it's logged as a potential schema change
-2. **Automatic Reload**: `Query` treats decode errors as cache miss and reloads fresh data
-3. **No Panic**: Decode errors never crash the application
-4. **Gradual Migration**: Old cached data expires naturally based on TTL
+1. **Format Detection**: Tries v2 (msgpack) unmarshal first; falls back to v1 (compression-only) on failure
+2. **Decode Failure Detection**: When the inner payload cannot be decoded, it's logged as a potential schema change
+3. **Automatic Reload**: `Query` treats decode errors as cache miss and reloads fresh data
+4. **No Panic**: Decode errors never crash the application
+5. **Gradual Migration**: Old cached data expires naturally based on TTL
 
 ```go
-decoded, err := compression.Decode[Y](string(data))
+cr, err = unmarshalCachedResponse[Y](data)
+switch {
+case err != nil:
+    // v1 fallback
+    logger.Debuge(err, "unmarshal cached response failed, downgrade to v1")
+    decoded, err = compression.Decode[Y](string(data))
+default:
+    decoded, err = cr.Response()
+}
 if err != nil {
     logger.Warnf("decode response failed, maybe there has schema changed: %v", err)
-    // Treat as cache miss and reload
     option.force = true
     return r.Load(ctx, req, loader, option)
 }
@@ -434,7 +483,7 @@ All Redis operations use `context.Background()` instead of request context:
 
 ```go
 // use background context to avoid canceling by gateway
-err = r.client.SetEx(context.Background(), key, responseBytes, ttl).Err()
+err = r.client.SetEx(context.WithoutCancel(ctx), key, responseBytes, ttl).Err()
 ```
 
 **Rationale:**
@@ -475,6 +524,12 @@ if !ok {
 - Ensure `WithRefreshBackground()` is set
 - Check refresh interval is less than TTL
 - Monitor worker queue: if `kQueue` is full, increase capacity or reduce refresh frequency
+
+### Lazy Overwrite Skipping Unexpectedly
+
+- Check that clocks are synchronized across instances (timestamp comparison is wall-clock based)
+- If another refresh wrote a newer entry during the delay window, the skip is intentional
+- Reduce `WithRefreshLazyOverwrite` duration if freshness is critical
 
 ### ErrResourceExhausted Errors
 

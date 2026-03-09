@@ -14,6 +14,7 @@ const (
 	specifyTTL
 	specifyRefreshInterval
 	noCacheTokenBucketOptID
+	refreshLazyOverwrite
 )
 
 type Option struct {
@@ -27,6 +28,7 @@ type Option struct {
 	specifiedRefreshInterval time.Duration
 	tokenBucket              tokenbucket.TokenBucket
 	tokenBucketConfig        *tokenbucket.RateLimitConfig
+	refreshLazyOverwrite     time.Duration
 }
 
 func WithRefreshBackground() *Option {
@@ -79,6 +81,13 @@ func WithNoCacheTokenBucket(tokenBucket tokenbucket.TokenBucket, config *tokenbu
 	}
 }
 
+func WithRefreshLazyOverwrite(t time.Duration) *Option {
+	return &Option{
+		optID:                refreshLazyOverwrite,
+		refreshLazyOverwrite: t,
+	}
+}
+
 func mergeOptions(options []*Option) *Option {
 	option := &Option{}
 	for _, o := range options {
@@ -98,6 +107,8 @@ func mergeOptions(options []*Option) *Option {
 		case noCacheTokenBucketOptID:
 			option.tokenBucket = o.tokenBucket
 			option.tokenBucketConfig = o.tokenBucketConfig
+		case refreshLazyOverwrite:
+			option.refreshLazyOverwrite = o.refreshLazyOverwrite
 		}
 	}
 	return option

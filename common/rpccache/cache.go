@@ -122,22 +122,43 @@ func cacheMiss(err error) bool {
 	return errors.Is(err, redis.Nil)
 }
 
-func (r *rpcCache[X, Y]) set(ctx context.Context, key string, response Y, ttl time.Duration) error {
+func (r *rpcCache[X, Y]) set(ctx context.Context, key string, response Y, ttl, lazy time.Duration) error {
 	var (
-		responseBytes string
+		cr            *cachedResponse[Y]
+		responseBytes []byte
 		err           error
 	)
 	ctx, logger := log.FromContext(ctx)
-	logger = logger.With("key", key, "ttl", ttl)
-	responseBytes, err = compression.Encode[Y](&response)
+	logger = logger.With("key", key, "ttl", ttl, "lazy", lazy)
+	cr, err = newCachedResponse(logger, response)
 	if err != nil {
-		logger.Warnf("rpc cache response encode failed: %v", err)
+		logger.Warnf("create new cached response failed: %v", err)
+		return err
+	}
+	responseBytes, err = cr.Marshal()
+	if err != nil {
+		logger.Warnf("marshal cached response failed: %v", err)
 		return err
 	}
 	logger = logger.With("response-size", len(responseBytes))
 
-	// use background context to avoid canceling by gateway
-	err = r.client.SetEx(context.WithoutCancel(ctx), key, responseBytes, ttl).Err()
+	switch {
+	case lazy > 0:
+		time.AfterFunc(lazy, func() {
+			// recheck cache is still valid
+			data, err := r.client.Get(context.Background(), key).Bytes()
+			if err == nil && !cr.Newer(data) {
+				logger.Infof("rpc cache lazy refresh skip, has newer cached already")
+				return
+			}
+			if err := r.client.SetEx(context.Background(), key, string(responseBytes), ttl).Err(); err != nil {
+				logger.Warnf("rpc cache lazy overwrite failed: %v", err)
+			}
+		})
+	default:
+		// use background context to avoid canceling by gateway
+		err = r.client.SetEx(context.WithoutCancel(ctx), key, string(responseBytes), ttl).Err()
+	}
 	if err != nil {
 		logger.Warnf("rpc cache maybe not working: %v", err)
 		return err
@@ -209,7 +230,14 @@ func (r *rpcCache[X, Y]) Load(ctx context.Context, req X, loader Loader[X, Y], o
 	if option.specifiedTTL > 0 {
 		ttl = option.specifiedTTL
 	}
-	_ = r.set(ctx, req.Key().String(), resp, ttl)
+
+	refreshBackground, ok := ctx.Value(refreshBgKey).(bool)
+	switch {
+	case refreshBackground && ok && option.refreshLazyOverwrite > 0:
+		_ = r.set(ctx, req.Key().String(), resp, ttl, option.refreshLazyOverwrite)
+	default:
+		_ = r.set(ctx, req.Key().String(), resp, ttl, time.Duration(0))
+	}
 	embedUpdateComputeStats(resp, false, false)
 	return resp, nil
 }
@@ -267,6 +295,7 @@ func (r *rpcCache[X, Y]) refresh(ctx context.Context, req X, loader Loader[X, Y]
 		}
 		return code == 1
 	}():
+		ctx = context.WithValue(ctx, refreshBgKey, true)
 		if !push(ctx, r, req, loader, *option) {
 			if !option.force && option.concurrencyControl {
 				// Release the concurrency control lock when background refresh fails to enqueue,
@@ -301,6 +330,8 @@ func (r *rpcCache[X, Y]) Query(ctx context.Context,
 	var (
 		data    []byte
 		refresh = false
+		cr      *cachedResponse[Y]
+		decoded *Y
 	)
 	key := req.Key().String()
 	if option.noCache {
@@ -329,8 +360,14 @@ func (r *rpcCache[X, Y]) Query(ctx context.Context,
 		option.force = true
 		return r.Load(ctx, req, loader, option)
 	}
-
-	decoded, err := compression.Decode[Y](string(data))
+	cr, err = unmarshalCachedResponse[Y](data)
+	switch {
+	case err != nil:
+		logger.Debuge(err, "unmarshal cached response failed, downgrade to v1")
+		decoded, err = compression.Decode[Y](string(data))
+	default:
+		decoded, err = cr.Response()
+	}
 	if err != nil {
 		logger.Warnf("decode response failed, maybe there has schema changed: %v", err)
 		option.force = true
@@ -345,7 +382,7 @@ func (r *rpcCache[X, Y]) Query(ctx context.Context,
 }
 
 func (r *rpcCache[X, Y]) Set(ctx context.Context, req X, response Y) error {
-	return r.set(ctx, req.Key().String(), response, req.TTL())
+	return r.set(ctx, req.Key().String(), response, req.TTL(), time.Duration(0))
 }
 
 func (r *rpcCache[X, Y]) Delete(ctx context.Context, req X) error {
@@ -360,6 +397,8 @@ func (r *rpcCache[X, Y]) Get(ctx context.Context,
 		key     = req.Key().String()
 		err     error
 		refresh = false
+		cr      *cachedResponse[Y]
+		decoded *Y
 	)
 	ok = false
 	ctx, logger := log.FromContext(ctx)
@@ -389,7 +428,14 @@ func (r *rpcCache[X, Y]) Get(ctx context.Context,
 		return
 	}
 
-	decoded, err := compression.Decode[Y](string(data))
+	cr, err = unmarshalCachedResponse[Y](data)
+	switch {
+	case err != nil:
+		logger.Debuge(err, "unmarshal cached response failed, downgrade to v1")
+		decoded, err = compression.Decode[Y](string(data))
+	default:
+		decoded, err = cr.Response()
+	}
 	if err != nil {
 		logger.Warnf("decode response failed, maybe there has schema change: %v", err)
 		// Decode failures may indicate schema drift or corrupted data. Treat as cache miss

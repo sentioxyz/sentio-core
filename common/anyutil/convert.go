@@ -11,7 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"sentioxyz/sentio-core/common/protojson"
+
 	"github.com/shopspring/decimal"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -26,6 +29,11 @@ var (
 	decimalMaxInt64  = decimal.NewFromInt(math.MaxInt64)
 	decimalMinInt64  = decimal.NewFromInt(math.MinInt64)
 )
+
+func isProtoMessage(v any) bool {
+	_, ok := v.(proto.Message)
+	return ok
+}
 
 func ToString(orig any) string {
 	return ParseString(orig)
@@ -376,6 +384,14 @@ func ParseString(origin any) string {
 	floatAlmostEqual := func(a, b float64) bool {
 		return math.Abs(a-b) <= float64EqualityThreshold
 	}
+
+	if isProtoMessage(origin) {
+		// On marshal error, fall through to the default fmt.Sprintf path.
+		if str, err := protojson.MarshalInStableWithIndent(origin.(proto.Message)); err == nil {
+			return string(str)
+		}
+	}
+
 	switch f := origin.(type) {
 	case float64:
 		if floatAlmostEqual(f, math.Trunc(f)) {
@@ -416,12 +432,6 @@ func ParseTime(origin any) time.Time {
 	switch v := origin.(type) {
 	case time.Time:
 		return v
-	case *time.Time:
-		// kept for backward compatibility, though deref already handled it
-		if v == nil {
-			return time.Time{}
-		}
-		return *v
 	case string:
 		s := strings.TrimSpace(v)
 		if s == "" {
@@ -454,11 +464,6 @@ func ParseTime(origin any) time.Time {
 		iv, _ := ParseInt(v)
 		return epochIntToTime(iv)
 	case timestamppb.Timestamp:
-		return v.AsTime()
-	case *timestamppb.Timestamp:
-		if v == nil {
-			return time.Time{}
-		}
 		return v.AsTime()
 	case decimal.Decimal:
 		f, _ := v.Float64()

@@ -22,13 +22,14 @@
       "Bash(bazel info:*)",
       "Bash(bazel mod graph:*)",
       "Bash(curl:*)",
-      "Bash(bazel test:*)"
+      "Bash(bazel test:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "bazel-central-registry"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

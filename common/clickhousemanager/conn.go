@@ -100,11 +100,11 @@ func (c *conn) Close() {
 func (c *conn) sign(ctx context.Context) (clickhouseCtx context.Context) {
 	clickhouseCtx = ctx
 
-	if c.privateKey != nil {
-		clickhouseCtx = clickhouse.Context(clickhouseCtx, clickhouse.WithSignFunc(func(query string) (string, error) {
-			return helper.CreateJWSToken(c.privateKey, query)
-		}))
-	}
+	// if c.privateKey != nil {
+	// 	clickhouseCtx = clickhouse.Context(clickhouseCtx, clickhouse.WithSignFunc(func(query string) (string, error) {
+	// 		return helper.CreateJWSToken(c.privateKey, query)
+	// 	}))
+	// }
 
 	// checking settings in context
 	var settings = make(clickhouse.Settings)

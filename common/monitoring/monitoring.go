@@ -152,6 +152,7 @@ var remapper = map[string]string{
 	"go.opentelemetry.io/otel/instrumentation/httptrace":                          "httptrace",
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp":               "http",
 	"github.com/redis/go-redis/extra/redisotel":                                   "redis",
+	"sentioxyz/sentio-core/common/clickhousemanager":                               "clickhouse",
 }
 
 type overrideTracerProvider struct {
@@ -220,6 +221,10 @@ func (e *filteredSpanExporter) ExportSpans(ctx context.Context, spans []sdktrace
 			}
 		} else if instrumentName == "redis" {
 			if duration.Milliseconds() < 10 {
+				continue
+			}
+		} else if instrumentName == "clickhouse" {
+			if duration.Milliseconds() < 5 {
 				continue
 			}
 		}

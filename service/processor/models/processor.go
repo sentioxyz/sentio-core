@@ -411,7 +411,8 @@ type ChainState struct {
 	ProcessedTimestampMicros   int64
 	ProcessedBlockHash         string
 	InitialStartBlockNumber    int64
-	EstimatedLatestBlockNumber int64
+	EstimatedLatestBlockNumber int64 // The currently achievable latest, will not exceed the current latest nor the user-specified last
+	LastBlockNumber            int64 // The user-specified last, may be greater than the current latest, 0 means +Inf
 
 	// Trackers should be replaced by MeterState in the future.
 	Trackers datatypes.JSON
@@ -469,6 +470,7 @@ func (cs *ChainState) ToPB() (*protos.ChainState, error) {
 		Templates:                  cs.Templates,
 		InitialStartBlockNumber:    cs.InitialStartBlockNumber,
 		EstimatedLatestBlockNumber: cs.EstimatedLatestBlockNumber,
+		LastBlockNumber:            cs.LastBlockNumber,
 	}, nil
 }
 
@@ -498,5 +500,6 @@ func (cs *ChainState) FromPB(chainState *protos.ChainState, processorID string) 
 	cs.Templates = chainState.Templates
 	cs.InitialStartBlockNumber = chainState.InitialStartBlockNumber
 	cs.EstimatedLatestBlockNumber = chainState.EstimatedLatestBlockNumber
+	cs.LastBlockNumber = chainState.LastBlockNumber
 	return nil
 }

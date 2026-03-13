@@ -396,6 +396,7 @@ message ChainState {
 
   int64 initial_start_block_number = 16;
   int64 estimated_latest_block_number = 17;
+  int64 last_block_number = 19;
 
   // To be deprecated after the migration.
   string trackers = 10;

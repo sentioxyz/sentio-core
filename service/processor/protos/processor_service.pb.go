@@ -1685,6 +1685,7 @@ type ChainState struct {
 	HandlerStat                string                 `protobuf:"bytes,18,opt,name=handler_stat,json=handlerStat,proto3" json:"handler_stat,omitempty"`
 	InitialStartBlockNumber    int64                  `protobuf:"varint,16,opt,name=initial_start_block_number,json=initialStartBlockNumber,proto3" json:"initial_start_block_number,omitempty"`
 	EstimatedLatestBlockNumber int64                  `protobuf:"varint,17,opt,name=estimated_latest_block_number,json=estimatedLatestBlockNumber,proto3" json:"estimated_latest_block_number,omitempty"`
+	LastBlockNumber            int64                  `protobuf:"varint,19,opt,name=last_block_number,json=lastBlockNumber,proto3" json:"last_block_number,omitempty"`
 	Trackers                   string                 `protobuf:"bytes,10,opt,name=trackers,proto3" json:"trackers,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
@@ -1807,6 +1808,13 @@ func (x *ChainState) GetInitialStartBlockNumber() int64 {
 func (x *ChainState) GetEstimatedLatestBlockNumber() int64 {
 	if x != nil {
 		return x.EstimatedLatestBlockNumber
+	}
+	return 0
+}
+
+func (x *ChainState) GetLastBlockNumber() int64 {
+	if x != nil {
+		return x.LastBlockNumber
 	}
 	return 0
 }
@@ -3854,7 +3862,7 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12>\n" +
 	"\vchain_state\x18\x02 \x01(\v2\x1d.processor_service.ChainStateR\n" +
 	"chainState\"$\n" +
-	"\"UpdateChainProcessorStatusResponse\"\x89\a\n" +
+	"\"UpdateChainProcessorStatusResponse\"\xb5\a\n" +
 	"\n" +
 	"ChainState\x12\x19\n" +
 	"\bchain_id\x18\x01 \x01(\tR\achainId\x124\n" +
@@ -3871,7 +3879,8 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"meterState\x12!\n" +
 	"\fhandler_stat\x18\x12 \x01(\tR\vhandlerStat\x12;\n" +
 	"\x1ainitial_start_block_number\x18\x10 \x01(\x03R\x17initialStartBlockNumber\x12A\n" +
-	"\x1destimated_latest_block_number\x18\x11 \x01(\x03R\x1aestimatedLatestBlockNumber\x12\x1a\n" +
+	"\x1destimated_latest_block_number\x18\x11 \x01(\x03R\x1aestimatedLatestBlockNumber\x12*\n" +
+	"\x11last_block_number\x18\x13 \x01(\x03R\x0flastBlockNumber\x12\x1a\n" +
 	"\btrackers\x18\n" +
 	" \x01(\tR\btrackers\x1a\xd8\x01\n" +
 	"\x06Status\x12@\n" +

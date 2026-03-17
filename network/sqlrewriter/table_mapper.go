@@ -85,6 +85,8 @@ func NewTableMapper(privateKeyHex, processorId string, ckhManager ckhmanager.Man
 		timeseries:    timeserieschs.NewStore(timeseriesConn, timeseriesConn.GetCluster(), timeseriesConn.GetDatabase(), processorId, timeserieschs.Option{}),
 		entity:        entity,
 		entitySchema:  entitySchema,
+		table:         make(map[string]string),
+		reverseTable:  make(map[string]string),
 	}, nil
 }
 
@@ -92,6 +94,7 @@ func (r *sentioNetworkTableMapper) retrieve() {
 	r.once.Do(func() {
 		timeseriesStore, ok := r.timeseries.(*timeserieschs.Store)
 		if ok {
+			_ = timeseriesStore.ReloadMeta(context.Background(), false)
 			for _, metaByType := range r.timeseries.Meta().GetAllMeta() {
 				for _, meta := range metaByType {
 					rawTable := timeseriesStore.BuildTableNameWithoutDatabase(meta)

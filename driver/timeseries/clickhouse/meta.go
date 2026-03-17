@@ -520,11 +520,12 @@ func (s *Store) fetchMetas(ctx context.Context, overWriteMeta bool) error {
 				metaFromComment, err := timeseries.LoadMeta(comment)
 				if err != nil {
 					logger.Warnf("invalid comment for table %q: %v", tableName, err)
-					continue
+					comments[meta.GetFullName()] = "#invalid-comment"
+				} else {
+					comments[meta.GetFullName()] = comment
+					meta.Aggregation = metaFromComment.Aggregation
+					meta.Fields = metaFromComment.Fields
 				}
-				comments[meta.GetFullName()] = comment
-				meta.Aggregation = metaFromComment.Aggregation
-				meta.Fields = metaFromComment.Fields
 			}
 			metas[tableName] = meta
 		}

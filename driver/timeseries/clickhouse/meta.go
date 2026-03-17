@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"flag"
 	"fmt"
 	"sort"
 	"strings"
@@ -20,6 +21,10 @@ import (
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/timeseries"
+)
+
+var (
+	timeseriesMetaLogPrintEveryN = flag.Int("timeseries-meta-log-print-debug-every-n", 1, "")
 )
 
 type storeMeta struct {
@@ -480,7 +485,7 @@ func (s *Store) loadMeta(ctx context.Context) (timeseries.StoreMeta, error) {
 		"load all meta, tables: %v, hash: %s, used: %s", tables, func() string {
 			return storeMeta.GetHash()
 		}, time.Since(startTime).String())
-	logger.DebugEveryN(100, "load meta debug, hash: %s, meta: %s",
+	logger.DebugEveryN(*timeseriesMetaLogPrintEveryN, "load meta debug, hash: %s, meta: %s",
 		storeMeta.GetHash(), storeMeta.String())
 	return storeMeta, nil
 }
@@ -604,7 +609,7 @@ func (s *Store) fetchMetas(ctx context.Context, overWriteMeta bool) error {
 		"fetch all meta, tables: %v, hash: %s, used: %s", utils.GetOrderedMapKeys(metas), func() string {
 			return s.meta.GetHash()
 		}, time.Since(startTime).String())
-	logger.DebugEveryN(100, "fetch meta debug, hash: %s, meta: %s", s.meta.GetHash(), s.meta.String())
+	logger.DebugEveryN(*timeseriesMetaLogPrintEveryN, "fetch meta debug, hash: %s, meta: %s", s.meta.GetHash(), s.meta.String())
 	return nil
 }
 

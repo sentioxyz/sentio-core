@@ -116,7 +116,7 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 	args := []string{
 		fmt.Sprintf("-processor-service=%s", d.config.ProcessorService),
 		fmt.Sprintf("-webhook-service=%s", ""),
-		fmt.Sprintf("-billing-server=%s", ""),
+		fmt.Sprintf("-billing-server=%s", d.config.BillingServer),
 		fmt.Sprintf("-rpcnode-service=%s", ""),
 		fmt.Sprintf("-pubsub-topic=%s", ""),
 		fmt.Sprintf("-timescale-db-config=%s", ""),

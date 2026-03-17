@@ -31,6 +31,7 @@ type DriverConfig struct {
 	// Common Config
 	DriverImage      string `yaml:"driver_image"`
 	ProcessorService string `yaml:"processor_service"`
+	BillingServer    string `yaml:"billing_server"`
 	CacheDir         string `yaml:"cache_dir"`
 	ChainsConfig     string `yaml:"chains_config"`
 

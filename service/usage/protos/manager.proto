@@ -1,0 +1,264 @@
+syntax = "proto3";
+
+package usage_service;
+
+option go_package = "sentioxyz/sentio-core/service/usage/protos";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service UsageService {
+  rpc AsyncSave(AsyncSaveRequest) returns (AsyncSaveResponse);
+  rpc CheckOverLimit(CheckOverLimitRequest) returns (CheckOverLimitResponse);
+  rpc Statistic(StatisticRequest) returns (StatisticResponse);
+
+  rpc CheckOverLimitExt(CheckOverLimitExtRequest) returns (CheckOverLimitResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/gateway-manager/check-over-limit"
+    };
+  };
+
+  rpc StatisticExt (StatisticRequest) returns (StatisticResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/gateway-manager/statistic"
+    };
+  };
+
+  rpc StatisticAdmin (StatisticRequest) returns (StatisticResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/gateway-manager/admin/statistic"
+    };
+  };
+
+  rpc Ranking(RankingRequest) returns (StatisticResponse);
+
+  rpc RankingAdmin (RankingRequest) returns (StatisticResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/gateway-manager/admin/ranking"
+    };
+  }
+
+  rpc ListSkuCostConfigAdmin(ListSkuCostConfigRequest) returns (ListSkuCostConfigResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/gateway-manager/admin/sku-cost"
+    };
+  }
+
+  rpc SetSkuCostAdmin(SetSkuCostRequest) returns (SetSkuCostResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/gateway-manager/admin/sku-cost"
+      body: "*"
+    };
+  }
+
+  rpc DelSkuCostAdmin(DelSkuCostRequest) returns (DelSkuCostResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/gateway-manager/admin/sku-cost"
+    };
+  }
+
+  rpc ListSKU(ListSKURequest) returns (ListSKUResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/gateway-manager/sku"
+    };
+  }
+
+  rpc UpdateSKUMetaAdmin(UpdateSKUMetaRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/api/v1/gateway-manager/admin/sku"
+      body: "*"
+    };
+  }
+}
+
+message CheckOverLimitExtRequest {
+  string project_owner = 1;
+  string project_slug = 2;
+}
+
+message CheckOverLimitRequest {
+  string owner_id = 1;
+  string owner_type = 2;
+  string project_id = 3;
+  string sku = 4;
+  google.protobuf.Timestamp now = 5;
+}
+
+message CheckOverLimitResponse {
+  repeated string over = 1;
+  repeated string over_detail = 2;
+
+  message Limiter {
+    enum Category {
+      OWNER_LIMITER = 0;
+      DEFAULT_TIER_LIMITER = 1;
+    }
+
+    Category category = 1;
+
+    // condition
+    google.protobuf.Timestamp effective_time = 2;
+    google.protobuf.Timestamp expire_time = 3;
+    string owner_id = 4;
+    string owner_type = 5;
+    string project_id = 6; // empty means *
+    string sku = 7;        // empty means *
+    Period period = 8;
+
+    // limit quantity, zero means no limit
+    uint64 cost = 9;
+    uint64 succeed = 10;
+  }
+
+  message OverLimiterStatus {
+    Limiter limiter = 1;
+    uint64 current_cost = 2;
+    uint64 current_succeed = 3;
+  }
+
+  message Status {
+    bool account_suspended = 1;
+    repeated OverLimiterStatus limiters = 2;
+  }
+
+  Status status = 3;
+}
+
+message Dialogue {
+  google.protobuf.Timestamp request_time = 1;
+  string owner_id = 2;
+  string owner_type = 3;
+  Tags tags = 4;
+  bool succeed = 5;
+  uint32 latency_ms = 6;
+  uint64 units = 7;
+}
+
+message AsyncSaveRequest {
+  repeated Dialogue dialogues = 1;
+}
+
+message AsyncSaveResponse {
+}
+
+message Tags {
+  string project_id = 1;
+  string user_id = 2;
+  string sku = 3;
+  map<string, string> custom_tags = 4;
+}
+
+message Period {
+  bool natual_month = 1;
+  uint64 seconds = 2;
+}
+
+message QueryTags {
+  string project_id = 1;
+  string user_id = 2;
+  string sku = 3;
+  bool split_custom_tags = 4;
+}
+
+message SkuCostConfig {
+  string sku = 1;
+  uint64 cost = 2;
+  google.protobuf.Timestamp effective_from = 3;
+}
+
+message Sku {
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  string name = 4;
+  string desc = 5;
+  uint64 cost = 6;
+  bool visible = 7;
+}
+
+message StatisticRequest {
+  string owner_id = 1;
+  string owner_type = 2;
+  QueryTags tags = 3;
+  Period period = 4;
+  google.protobuf.Timestamp start_time = 5;
+  google.protobuf.Timestamp end_time = 6;
+}
+
+message StatisticResponse {
+  message Stat {
+    google.protobuf.Timestamp time_window = 1;
+    string owner_id = 9;
+    string owner_type = 10;
+    Tags tags = 2;
+    uint64 cost = 3;
+    uint64 units = 8;
+    uint64 succeed = 4;
+    uint64 total = 5;
+    uint32 latency_ms_max = 6;
+    uint32 latency_ms_avg = 7;
+  }
+  repeated Stat stats = 1;
+}
+
+message RankingRequest{
+  enum Target {
+    OWNER = 0;
+    PROJECT = 1;
+  }
+  Target target = 1;
+  string sku = 2;      // Empty means do not specify
+  string user_id = 3;  // Empty means do not specify
+  string owner_id = 7; // If target is OWNER, this arg will be ignored, empty means do not specify
+  enum OwnerType {
+    ANY = 0;
+    USER = 1;
+    ORG = 2;
+  }
+  OwnerType owner_type = 8;
+  Period period = 4;
+  google.protobuf.Timestamp time = 5; // always ranking in only ONE period
+  uint32 offset = 9;
+  uint32 limit = 6;
+}
+
+message ListSkuCostConfigRequest {
+  bool ignore_history = 1;
+  bool ignore_future = 2;
+}
+
+message ListSkuCostConfigResponse {
+  repeated SkuCostConfig configs = 1;
+}
+
+message SetSkuCostRequest {
+  repeated SkuCostConfig configs = 1;
+}
+
+message DelSkuCostRequest {
+  string sku = 1;
+  google.protobuf.Timestamp effective_from = 2;
+}
+
+message SetSkuCostResponse {
+}
+
+message DelSkuCostResponse {
+}
+
+message ListSKURequest {
+  google.protobuf.Timestamp time = 1; // empty means now
+  bool with_invisible = 2;
+}
+
+message ListSKUResponse {
+  repeated Sku sku_list = 1;
+}
+
+message UpdateSKUMetaRequest {
+  string id = 1;
+  string name = 2;
+  string desc = 3;
+  bool visible = 6;
+}

@@ -16,6 +16,7 @@ type CacheableMeta struct {
 	ProcessorVersion int
 	ProjectID        string
 
+	conn            ckhmanager.Conn
 	ttl             time.Duration
 	refreshInterval time.Duration
 	store           timeseries.Store
@@ -23,7 +24,7 @@ type CacheableMeta struct {
 }
 
 func (t *CacheableMeta) Key() string {
-	return t.ProcessorID
+	return t.ProcessorID + "/" + t.conn.GetHost()
 }
 
 func (t *CacheableMeta) TTL() time.Duration {
@@ -56,6 +57,7 @@ func NewCacheableMetaWithTTL(
 		ProcessorID:      processorId,
 		ProjectID:        projectId,
 		ProcessorVersion: processorVersion,
+		conn:             conn,
 		ttl:              ttl,
 		refreshInterval:  refreshInterval,
 	}

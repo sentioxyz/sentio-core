@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cacheablelib",
+    srcs = ["cacheable_store.go"],
+    importpath = "sentioxyz/sentio-core/driver/timeseries/cacheablelib",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/cache",
+        "//common/clickhousemanager",
+        "//driver/timeseries",
+        "//driver/timeseries/clickhouse",
+    ],
+)

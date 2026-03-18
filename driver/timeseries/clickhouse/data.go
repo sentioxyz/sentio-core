@@ -235,8 +235,10 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 			return f.Name
 		})
 	aggFieldNames := utils.GetOrderedMapKeys(meta.Aggregation.Fields)
+	aggNeedInOrder := false
 	aggFields := utils.MapSliceNoError(aggFieldNames, func(fn string) string {
 		agg := meta.Aggregation.Fields[fn]
+		aggNeedInOrder = aggNeedInOrder || agg.Function == "first" || agg.Function == "last"
 		return fmt.Sprintf("%s(%s)", aggFunctionMapping[agg.Function], agg.Expression)
 	})
 
@@ -244,6 +246,15 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 	if !has {
 		return fmt.Errorf("%w: source for %q is %q, but not found",
 			timeseries.ErrInvalidMeta, meta.GetFullName(), meta.Aggregation.Source)
+	}
+	srcTable := s.buildTableName(srcMeta)
+	if aggNeedInOrder {
+		srcTable = fmt.Sprintf("(SELECT * FROM %s WHERE %s = '%s' ORDER BY %s ASC)",
+			srcTable,
+			srcMeta.GetChainIDField().Name,
+			chainID,
+			srcMeta.GetSlotNumberField().Name,
+		)
 	}
 
 	for _, interval := range meta.Aggregation.Intervals {
@@ -265,7 +276,7 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 			" '%intervalText#s',"+
 			" %dimFieldNames#s,"+
 			" %aggFields#s "+
-			"FROM %srcTableName#s "+
+			"FROM %srcTable#s "+
 			"WHERE"+
 			" __timeWin__ > ("+
 			" SELECT MAX(%timestampFieldName#s)"+
@@ -282,7 +293,7 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 				"timestampFieldName":     meta.GetTimestampField().Name,
 				"slotNumberFieldName":    meta.GetSlotNumberField().Name,
 				"intervalFieldName":      meta.GetAggIntervalField().Name,
-				"srcTableName":           s.buildTableName(srcMeta),
+				"srcTable":               srcTable,
 				"srcChainIDFieldName":    srcMeta.GetChainIDField().Name,
 				"srcTimestampFieldName":  srcMeta.GetTimestampField().Name,
 				"srcSlotNumberFieldName": srcMeta.GetSlotNumberField().Name,

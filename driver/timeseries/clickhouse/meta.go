@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	timeseriesMetaLogPrintEveryN = flag.Int("timeseries-meta-log-print-debug-every-n", 1, "")
+	timeseriesMetaLogPrintEveryN = flag.Int("timeseries-meta-log-print-debug-every-n", 10, "")
 )
 
 type storeMeta struct {
@@ -431,7 +431,7 @@ func (s *Store) saveMeta(ctx context.Context) error {
 
 func (s *Store) loadMeta(ctx context.Context) (timeseries.StoreMeta, error) {
 	startTime := time.Now()
-	_, logger := log.FromContext(ctx, "processorID", s.processorID)
+	_, logger := log.FromContext(ctx, "processorID", s.processorID, "function", "loadMeta")
 	var (
 		storeMeta = &storeMeta{
 			Metas: make(map[timeseries.MetaType]map[string]timeseries.Meta),
@@ -451,6 +451,7 @@ func (s *Store) loadMeta(ctx context.Context) (timeseries.StoreMeta, error) {
 			if scanErr := rows.Scan(&tableName, &comment); scanErr != nil {
 				return scanErr
 			}
+			logger.DebugEveryN(*timeseriesMetaLogPrintEveryN, "scanning table, name: %s, comment: %s", tableName, comment)
 			var meta timeseries.Meta
 			meta.Type, meta.Name = s.cutTableName(tableName)
 			if len(meta.Type) == 0 || len(meta.Name) == 0 {
@@ -458,6 +459,7 @@ func (s *Store) loadMeta(ctx context.Context) (timeseries.StoreMeta, error) {
 				continue
 			}
 			if !timeseries.IsValidMetaType(meta.Type) {
+				logger.Warnf("got invalid meta type %q from table name %q", meta.Type, tableName)
 				continue
 			}
 			if comment != "" {
@@ -467,6 +469,7 @@ func (s *Store) loadMeta(ctx context.Context) (timeseries.StoreMeta, error) {
 					return err
 				}
 				utils.PutIntoK2Map(storeMeta.Metas, meta.Type, meta.Name, metaFromComment)
+				logger.DebugEveryN(*timeseriesMetaLogPrintEveryN, "loaded meta from comment, table: %s, fields: %v", tableName, metaFromComment.Fields)
 				tables = append(tables, tableName)
 			}
 		}
@@ -493,7 +496,7 @@ func (s *Store) loadMeta(ctx context.Context) (timeseries.StoreMeta, error) {
 // fetchMetas is a heavy operation, only used in initialization or under ReloadMeta()
 func (s *Store) fetchMetas(ctx context.Context, overWriteMeta bool) error {
 	startTime := time.Now()
-	_, logger := log.FromContext(ctx, "processorID", s.processorID)
+	_, logger := log.FromContext(ctx, "processorID", s.processorID, "function", "fetchMetas")
 	metas := make(map[string]timeseries.Meta) // key is tableName
 	comments := make(map[string]string)       // key is meta FullName
 
@@ -506,6 +509,7 @@ func (s *Store) fetchMetas(ctx context.Context, overWriteMeta bool) error {
 			if scanErr := rows.Scan(&tableName, &comment); scanErr != nil {
 				return scanErr
 			}
+			logger.DebugEveryN(*timeseriesMetaLogPrintEveryN, "scanning table, name: %s, comment: %s", tableName, comment)
 			var meta timeseries.Meta
 			meta.Type, meta.Name = s.cutTableName(tableName)
 			meta.Fields = make(map[string]timeseries.Field)
@@ -514,6 +518,7 @@ func (s *Store) fetchMetas(ctx context.Context, overWriteMeta bool) error {
 				continue
 			}
 			if !timeseries.IsValidMetaType(meta.Type) {
+				logger.Warnf("got invalid meta type %q from table name %q", meta.Type, tableName)
 				continue
 			}
 			if comment != "" {
@@ -525,6 +530,7 @@ func (s *Store) fetchMetas(ctx context.Context, overWriteMeta bool) error {
 					comments[meta.GetFullName()] = comment
 					meta.Aggregation = metaFromComment.Aggregation
 					meta.Fields = metaFromComment.Fields
+					logger.DebugEveryN(*timeseriesMetaLogPrintEveryN, "loaded meta from comment, table: %s, fields: %v", tableName, metaFromComment.Fields)
 				}
 			}
 			metas[tableName] = meta
@@ -602,6 +608,8 @@ func (s *Store) fetchMetas(ctx context.Context, overWriteMeta bool) error {
 		if overWriteMeta && string(meta.Dump()) != comments[meta.GetFullName()] {
 			if err := s.alterCommentForTable(ctx, s.buildTableName(meta), meta); err != nil {
 				logger.Warnw("alter comment for table failed", "meta", meta.GetFullName(), "err", err)
+			} else {
+				logger.DebugEveryN(*timeseriesMetaLogPrintEveryN, "altered comment for table, meta: %s", meta.GetFullName())
 			}
 		}
 	}
@@ -750,9 +758,9 @@ func (s *Store) ReloadMeta(ctx context.Context, force bool) error {
 		case loadErr != nil:
 			logger.Warnw("load meta failed", "err", loadErr)
 		case newMeta == nil:
-			logger.InfoEveryNw(10, "no meta found")
+			logger.InfoEveryNw(*timeseriesMetaLogPrintEveryN, "no meta found")
 		case !s.meta.Different(newMeta):
-			logger.InfoEveryNw(10, "meta not changed")
+			logger.InfoEveryNw(*timeseriesMetaLogPrintEveryN, "meta not changed")
 			return nil
 		default:
 			logger = logger.With("newHash", newMeta.GetHash())

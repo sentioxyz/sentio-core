@@ -1,4 +1,4 @@
-import '../styles.css'
+import '../../styles.css'
 import { BaseDialog } from './BaseDialog'
 import { useState } from 'react'
 import NewButton from '../NewButton'

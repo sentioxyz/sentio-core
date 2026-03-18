@@ -59,7 +59,7 @@ func NewCacheableMetaWithTTL(
 		ttl:              ttl,
 		refreshInterval:  refreshInterval,
 	}
-	tsm.store = clickhouse.NewStore(conn, conn.GetCluster(), conn.GetDatabase(), projectId, clickhouse.Option{})
+	tsm.store = clickhouse.NewStore(conn, conn.GetCluster(), conn.GetDatabase(), processorId, clickhouse.Option{})
 	tsm.reload = func(ctx context.Context) (timeseries.Store, error) {
 		if err := tsm.store.ReloadMeta(ctx, false); err != nil {
 			return nil, err

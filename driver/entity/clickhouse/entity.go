@@ -341,6 +341,7 @@ func (s *Store) GrowthAggregation(ctx context.Context, chain string, curBlockTim
 		}
 		var aggFieldNames []string
 		var aggFields []string
+		var aggNeedInOrder bool
 		for _, f := range agg.AggFields {
 			aggFieldNames = append(aggFieldNames, quote(BaseField{Def: f.FieldDefinition}.FieldMainName()))
 			switch fn := f.GetAggFunc(); fn {
@@ -350,11 +351,22 @@ func (s *Store) GrowthAggregation(ctx context.Context, chain string, curBlockTim
 				aggFields = append(aggFields, "count(*)")
 			case "first":
 				aggFields = append(aggFields, fmt.Sprintf("first_value(%s)", f.GetAggExp().Text(chFuncAliasCtl)))
+				aggNeedInOrder = true
 			case "last":
 				aggFields = append(aggFields, fmt.Sprintf("last_value(%s)", f.GetAggExp().Text(chFuncAliasCtl)))
+				aggNeedInOrder = true
 			default:
 				return fmt.Errorf("unknown agg fn %q for %s.%s", fn, agg.GetName(), f.Name)
 			}
+		}
+		srcTable := s.fullName(s.TableName(s.sch.GetEntity(agg.GetSource())))
+		if aggNeedInOrder {
+			srcTable = fmt.Sprintf("(SELECT * FROM %s WHERE %s = '%s' ORDER BY %s ASC)",
+				srcTable,
+				quote(genBlockChainFieldName),
+				chain,
+				quote(genBlockNumberFieldName),
+			)
 		}
 		for _, interval := range agg.GetIntervals() {
 			uniqToken := strconv.FormatUint(rand.Uint64(), 16)
@@ -397,7 +409,7 @@ func (s *Store) GrowthAggregation(ctx context.Context, chain string, curBlockTim
 				" false,"+
 				" NOW(),"+
 				" '%intervalText#s' "+
-				"FROM %srcTableName#s "+
+				"FROM %srcTable#s "+
 				"WHERE"+
 				" __timeWin__ > ("+
 				" SELECT MAX(%timestampField#s)"+
@@ -409,7 +421,7 @@ func (s *Store) GrowthAggregation(ctx context.Context, chain string, curBlockTim
 				"GROUP BY __timeWin__, %dimFieldNames#s, %gbc#s",
 				map[string]any{
 					"aggTableName":    s.fullName(s.TableName(agg)),
-					"srcTableName":    s.fullName(s.TableName(s.sch.GetEntity(agg.GetSource()))),
+					"srcTable":        srcTable,
 					"primaryField":    quote(schema.EntityPrimaryFieldName),
 					"timestampField":  quote(schema.EntityTimestampFieldName),
 					"intervalField":   quote(aggIntervalFieldName),

@@ -1,4 +1,4 @@
-import { linkifyUrlsToHtml } from 'linkify-urls'
+import linkifyHtml from 'linkify-html'
 import DOMPurify from 'dompurify'
 import { memo } from 'react'
 import { isString, isUndefined, isNull } from 'lodash'
@@ -58,7 +58,7 @@ export const LinkifyText = memo(function LinkifyText({
     }
     return null
   }
-  const linkStr = linkifyUrlsToHtml(
+  const linkStr = linkifyHtml(
     isHighlightNumbers ? renderTextWithColoredNumbers(text) : text,
     {
       attributes: {

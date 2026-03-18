@@ -534,45 +534,97 @@ func (s *Store) ListEntities(
 }
 
 func (s *Store) CountEntity(ctx context.Context, entityType *schema.Entity, chain string) (count uint64, err error) {
-	start := time.Now()
+	_, logger := log.FromContext(ctx, "processorID", s.processorID, "entity", entityType.Name, "chain", chain)
 	var sql string
 	if entityType.IsImmutable() {
-		sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?",
-			quote(schema.EntityPrimaryFieldName),
-			s.TableName(entityType),
-			quote(genBlockChainFieldName))
+		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?",
+			s.fullName(s.TableName(entityType)),
+			quote(genBlockChainFieldName),
+		)
 	} else {
-		// SELECT COUNT(*)
-		// FROM (
-		//   SELECT id, MAX((__genBlockNumber__, __deleted__)) as __last__
-		//   FROM entity
-		//   WHERE __genBlockChain__ = ?
-		//   GROUP by id
-		// )
-		// WHERE NOT __last__.2
-		sql = format.Format("SELECT COUNT(*) "+
-			"FROM ( "+
-			"  SELECT %pk#s, MAX((%gbn#s,%ded#s)) AS __last__ "+
-			"  FROM %ft#s "+
-			"  WHERE %gbc#s = ?"+
-			"  GROUP BY %pk#s"+
-			") "+
-			"WHERE NOT __last__.2",
-			map[string]any{
-				"pk":  quote(schema.EntityPrimaryFieldName),
-				"gbn": quote(genBlockNumberFieldName),
-				"gbc": quote(genBlockChainFieldName),
-				"ded": quote(deletedFieldName),
-				"ft":  s.fullName(s.TableName(entityType)),
-			})
+		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
+			s.fullName(s.TableName(entityType)),
+			quote(genBlockChainFieldName),
+			quote(deletedFieldName),
+		)
+		startAt := time.Now()
+		count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
+		if err != nil {
+			logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted failed")
+			return 0, err
+		}
+		if count == 0 {
+			// No delete operation, can use simple query.
+			// Most of the time there is no deletion behavior, and this is enough.
+			sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?",
+				quote(schema.EntityPrimaryFieldName),
+				s.fullName(s.TableName(entityType)),
+				quote(genBlockChainFieldName),
+			)
+		} else if s.UseVersionedCollapsingTable(entityType) {
+			// SELECT COUNT(*)
+			// FROM (
+			//  SELECT id
+			//  FROM versionedLatestEntity
+			//  WHERE __genBlockChain__ = ? AND NOT __deleted__
+			//  GROUP BY id, __version__
+			//  HAVING sum(__sign__) > 0
+			// )
+			sql = format.Format("SELECT COUNT(*) "+
+				"FROM ("+
+				" SELECT %pk#s"+
+				" FROM %ft#s"+
+				" WHERE %gbc#s = ? AND NOT %ded#s"+
+				" GROUP BY %pk#s, %ver#s"+
+				" HAVING SUM(%sign#s) > 0"+
+				")",
+				map[string]any{
+					"pk":   quote(schema.EntityPrimaryFieldName),
+					"gbc":  quote(genBlockChainFieldName),
+					"ded":  quote(deletedFieldName),
+					"ver":  quote(versionFieldName),
+					"sign": quote(signFieldName),
+					"ft":   s.fullName(s.VersionedLatestTableName(entityType)),
+				})
+		} else {
+			// this query is slower but much less memory requirement
+			// -------------
+			// SELECT COUNT(*)
+			// FROM (
+			//   SELECT id
+			//   FROM (
+			//     SELECT id, __deleted__
+			//     FROM entity
+			//     WHERE __genBlockChain__ = ?
+			//     ORDER BY __genBlockNumber__
+			//   )
+			//   GROUP BY id
+			//   HAVING NOT last_value(__deleted__)
+			// )
+			sql = format.Format("SELECT COUNT(*) "+
+				"FROM ("+
+				" SELECT %pk#s"+
+				" FROM ("+
+				"  SELECT %pk#s, %ded#s"+
+				"  FROM %ft#s"+
+				"  WHERE %gbc#s = ?"+
+				"  ORDER BY %gbn#s"+
+				" )"+
+				" GROUP BY %pk#s"+
+				" HAVING NOT last_value(%ded#s)"+
+				")",
+				map[string]any{
+					"pk":  quote(schema.EntityPrimaryFieldName),
+					"gbn": quote(genBlockNumberFieldName),
+					"gbc": quote(genBlockChainFieldName),
+					"ded": quote(deletedFieldName),
+					"ft":  s.fullName(s.TableName(entityType)),
+				})
+		}
 	}
+	startAt := time.Now()
 	count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
-	_, logger := log.FromContext(ctx,
-		"processorID", s.processorID,
-		"entity", entityType.Name,
-		"chain", chain,
-		"sql", sql,
-		"used", time.Since(start).String())
+	logger = logger.With("sql", sql, "used", time.Since(startAt).String())
 	if err != nil {
 		logger.Errore(err, "count failed")
 	} else {
@@ -582,38 +634,82 @@ func (s *Store) CountEntity(ctx context.Context, entityType *schema.Entity, chai
 }
 
 func (s *Store) GetAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids []string, err error) {
-	start := time.Now()
+	_, logger := log.FromContext(ctx, "processorID", s.processorID, "entity", entityType.Name, "chain", chain)
 	var sql string
 	if entityType.IsImmutable() {
-		sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?",
+		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?",
 			quote(schema.EntityPrimaryFieldName),
 			s.TableName(entityType),
-			quote(genBlockChainFieldName))
+			quote(genBlockChainFieldName),
+		)
 	} else {
-		// SELECT id
-		// FROM (
-		//   SELECT id, MAX((__genBlockNumber__, __deleted__)) as __last__
-		//   FROM entity
-		//   WHERE __genBlockChain__ = ?
-		//   GROUP by id
-		// )
-		// WHERE NOT __last__.2
-		sql = format.Format("SELECT %pk#s "+
-			"FROM ( "+
-			"  SELECT %pk#s, MAX((%gbn#s,%ded#s)) AS __last__ "+
-			"  FROM %ft#s "+
-			"  WHERE %gbc#s = ?"+
-			"  GROUP BY %pk#s"+
-			") "+
-			"WHERE NOT __last__.2",
-			map[string]any{
-				"pk":  quote(schema.EntityPrimaryFieldName),
-				"gbn": quote(genBlockNumberFieldName),
-				"gbc": quote(genBlockChainFieldName),
-				"ded": quote(deletedFieldName),
-				"ft":  s.fullName(s.TableName(entityType)),
-			})
+		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
+			s.fullName(s.TableName(entityType)),
+			quote(genBlockChainFieldName),
+			quote(deletedFieldName),
+		)
+		startAt := time.Now()
+		count, countErr := s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
+		if countErr != nil {
+			logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted when list ids failed")
+			return nil, err
+		}
+		if count == 0 {
+			// No delete operation, can use simple query.
+			// Most of the time there is no deletion behavior, and this is enough.
+			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?",
+				quote(schema.EntityPrimaryFieldName),
+				s.fullName(s.TableName(entityType)),
+				quote(genBlockChainFieldName),
+			)
+		} else if s.UseVersionedCollapsingTable(entityType) {
+			// SELECT id
+			// FROM versionedLatestEntity
+			// WHERE __genBlockChain__ = ? AND NOT __deleted__
+			// GROUP BY id, __version__
+			// HAVING sum(__sign__) > 0
+			sql = format.Format("SELECT %pk#s "+
+				"FROM %ft#s "+
+				"WHERE %gbc#s = ? AND NOT %ded#s "+
+				"GROUP BY %pk#s, %ver#s "+
+				"HAVING SUM(%sign#s) > 0",
+				map[string]any{
+					"pk":   quote(schema.EntityPrimaryFieldName),
+					"gbc":  quote(genBlockChainFieldName),
+					"ded":  quote(deletedFieldName),
+					"ver":  quote(versionFieldName),
+					"sign": quote(signFieldName),
+					"ft":   s.fullName(s.VersionedLatestTableName(entityType)),
+				})
+		} else {
+			// SELECT id
+			// FROM (
+			//   SELECT id, __deleted__
+			//   FROM entity
+			//   WHERE __genBlockChain__ = ?
+			//   ORDER BY __genBlockNumber__
+			// )
+			// GROUP BY id
+			// HAVING NOT last_value(__deleted__)
+			sql = format.Format("SELECT %pk#s "+
+				"FROM ("+
+				" SELECT %pk#s, %ded#s"+
+				" FROM %ft#s"+
+				" WHERE %gbc#s = ?"+
+				" ORDER BY %gbn#s"+
+				") "+
+				"GROUP BY %pk#s "+
+				"HAVING NOT last_value(%ded#s)",
+				map[string]any{
+					"pk":  quote(schema.EntityPrimaryFieldName),
+					"gbn": quote(genBlockNumberFieldName),
+					"gbc": quote(genBlockChainFieldName),
+					"ded": quote(deletedFieldName),
+					"ft":  s.fullName(s.TableName(entityType)),
+				})
+		}
 	}
+	startAt := time.Now()
 	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
 		var id string
 		if scanErr := rows.Scan(&id); scanErr != nil {
@@ -622,12 +718,7 @@ func (s *Store) GetAllID(ctx context.Context, entityType *schema.Entity, chain s
 		ids = append(ids, id)
 		return nil
 	}, sql, chain)
-	_, logger := log.FromContext(ctx,
-		"processorID", s.processorID,
-		"entity", entityType.Name,
-		"chain", chain,
-		"sql", sql,
-		"used", time.Since(start).String())
+	logger = logger.With("sql", sql, "used", time.Since(startAt).String())
 	if err != nil {
 		logger.Errore(err, "list ids failed")
 	} else {

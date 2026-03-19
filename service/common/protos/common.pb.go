@@ -7435,6 +7435,7 @@ type SegmentationQuery_Resource struct {
 	//	*SegmentationQuery_Resource_CohortsId
 	//	*SegmentationQuery_Resource_CohortsQuery
 	CohortsValue  isSegmentationQuery_Resource_CohortsValue `protobuf_oneof:"cohorts_value"`
+	MultipleNames []string                                  `protobuf:"bytes,5,rep,name=multiple_names,json=multipleNames,proto3" json:"multiple_names,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7504,6 +7505,13 @@ func (x *SegmentationQuery_Resource) GetCohortsQuery() *CohortsQuery {
 		if x, ok := x.CohortsValue.(*SegmentationQuery_Resource_CohortsQuery); ok {
 			return x.CohortsQuery
 		}
+	}
+	return nil
+}
+
+func (x *SegmentationQuery_Resource) GetMultipleNames() []string {
+	if x != nil {
+		return x.MultipleNames
 	}
 	return nil
 }
@@ -9376,7 +9384,7 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	"\rjoin_operator\x18\x01 \x01(\x0e2\x14.common.JoinOperatorR\fjoinOperator\x12,\n" +
 	"\x06groups\x18\x02 \x03(\v2\x14.common.CohortsGroupR\x06groups\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x0e\n" +
-	"\x02id\x18\x04 \x01(\tR\x02id\"\xe5\x0e\n" +
+	"\x02id\x18\x04 \x01(\tR\x02id\"\x8c\x0f\n" +
 	"\x11SegmentationQuery\x12>\n" +
 	"\bresource\x18\x01 \x01(\v2\".common.SegmentationQuery.ResourceR\bresource\x12\x14\n" +
 	"\x05alias\x18\x02 \x01(\tR\x05alias\x12\x0e\n" +
@@ -9388,13 +9396,14 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	"\tfunctions\x18\t \x03(\v2\x10.common.FunctionR\tfunctions\x12\x14\n" +
 	"\x05color\x18\n" +
 	" \x01(\tR\x05color\x12\x1a\n" +
-	"\bdisabled\x18\a \x01(\bR\bdisabled\x1a\xc9\x01\n" +
+	"\bdisabled\x18\a \x01(\bR\bdisabled\x1a\xf0\x01\n" +
 	"\bResource\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12:\n" +
 	"\x04type\x18\x02 \x01(\x0e2&.common.SegmentationQuery.ResourceTypeR\x04type\x12\x1f\n" +
 	"\n" +
 	"cohorts_id\x18\x03 \x01(\tH\x00R\tcohortsId\x12;\n" +
-	"\rcohorts_query\x18\x04 \x01(\v2\x14.common.CohortsQueryH\x00R\fcohortsQueryB\x0f\n" +
+	"\rcohorts_query\x18\x04 \x01(\v2\x14.common.CohortsQueryH\x00R\fcohortsQuery\x12%\n" +
+	"\x0emultiple_names\x18\x05 \x03(\tR\rmultipleNamesB\x0f\n" +
 	"\rcohorts_value\x1a\xa1\a\n" +
 	"\vAggregation\x12C\n" +
 	"\x05total\x18\x01 \x01(\v2+.common.SegmentationQuery.Aggregation.TotalH\x00R\x05total\x12F\n" +

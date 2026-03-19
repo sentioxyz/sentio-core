@@ -446,6 +446,7 @@ message SegmentationQuery {
       string cohorts_id = 3;
       CohortsQuery cohorts_query = 4;
     }
+    repeated string multiple_names = 5;
   }
 
   enum ResourceType {

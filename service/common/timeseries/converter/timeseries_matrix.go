@@ -134,6 +134,8 @@ func (m *timeSeriesMatrix) nameOfSegmentationQuery() (name string) {
 		case protos.SegmentationQuery_EVENTS:
 			if eventName := resource.GetName(); eventName != "" {
 				name = eventName + " - "
+			} else if eventNames := resource.GetMultipleNames(); len(eventNames) > 0 {
+				name = "<" + strings.Join(eventNames, ",") + "> - "
 			} else {
 				name = "<All Events> - "
 			}

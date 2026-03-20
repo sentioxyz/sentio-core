@@ -23,7 +23,8 @@
       "Bash(bazel mod graph:*)",
       "Bash(curl:*)",
       "Bash(bazel test:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(gh pr:*)"
     ],
     "deny": [],
     "ask": []

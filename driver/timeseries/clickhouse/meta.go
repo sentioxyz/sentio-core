@@ -459,7 +459,6 @@ func (s *Store) loadMeta(ctx context.Context) (timeseries.StoreMeta, error) {
 				continue
 			}
 			if !timeseries.IsValidMetaType(meta.Type) {
-				logger.Warnf("got invalid meta type %q from table name %q", meta.Type, tableName)
 				continue
 			}
 			if comment != "" {

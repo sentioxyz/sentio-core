@@ -94,19 +94,31 @@ type queueImpl[T any] struct {
 	priorities    []queuePriority
 	prioritiesMap map[Priority]struct{}
 	scheduleType  ScheduleType
+	name          string
 }
 
-func NewPriorityQueue[T any](redisClient *redis.Client, scheduleType ScheduleType) PriorityQueue[T] {
-	q := &queueImpl[T]{
+func newQueueImpl[T any](redisClient *redis.Client, scheduleType ScheduleType, name string) *queueImpl[T] {
+	return &queueImpl[T]{
 		redisClient:   redisClient,
 		priorities:    []queuePriority{},
 		prioritiesMap: make(map[Priority]struct{}),
 		scheduleType:  scheduleType,
+		name:          name,
 	}
-	return q
+}
+
+func NewPriorityQueue[T any](redisClient *redis.Client, scheduleType ScheduleType) PriorityQueue[T] {
+	return newQueueImpl[T](redisClient, scheduleType, "")
+}
+
+func NewPriorityQueueWithName[T any](redisClient *redis.Client, scheduleType ScheduleType, name string) PriorityQueue[T] {
+	return newQueueImpl[T](redisClient, scheduleType, name)
 }
 
 func (q *queueImpl[T]) prefix() string {
+	if q.name != "" {
+		return "sentio_priority_queue:" + q.name + ":"
+	}
 	return "sentio_priority_queue:"
 }
 

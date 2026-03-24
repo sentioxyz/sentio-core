@@ -762,6 +762,40 @@ func (s *Service) StopProcessor(ctx context.Context, req *protos.StopProcessorRe
 	return nil, err
 }
 
+func (s *Service) ReconcileProcessor(ctx context.Context, req *protos.ReconcileProcessorRequest) (*protos.ReconcileProcessorResponse, error) {
+	running := s.driverJobManager.IsProcessorRunning(req.ProcessorId, 0)
+
+	if running && !req.ForceRestart {
+		return &protos.ReconcileProcessorResponse{
+			Action: protos.ReconcileProcessorResponse_NONE,
+		}, nil
+	}
+
+	if running && req.ForceRestart {
+		if err := s.driverJobManager.RestartProcessorByID(ctx, req.ProcessorId, 0); err != nil {
+			return nil, err
+		}
+		return &protos.ReconcileProcessorResponse{
+			Action: protos.ReconcileProcessorResponse_RESTARTED,
+		}, nil
+	}
+
+	// Swarm services missing — recreate from store
+	processor, err := s.processorRepo.PreloadProcessor(ctx, req.ProcessorId)
+	if err != nil {
+		return nil, err
+	}
+	if processor == nil {
+		return nil, status.Errorf(codes.NotFound, "processor %s not found in store", req.ProcessorId)
+	}
+	if err := s.driverJobManager.StartOrUpdateDriverJob(ctx, processor); err != nil {
+		return nil, err
+	}
+	return &protos.ReconcileProcessorResponse{
+		Action: protos.ReconcileProcessorResponse_CREATED,
+	}, nil
+}
+
 func (s *Service) GetLogs(ctx context.Context, req *protos.GetLogsRequest) (*protos.GetLogsResponse, error) {
 	until := ""
 	if len(req.Until) > 0 {

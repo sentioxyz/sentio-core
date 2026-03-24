@@ -340,6 +340,55 @@ func (GetProcessorStatusResponse_ProcessorStatus_State) EnumDescriptor() ([]byte
 	return file_service_processor_protos_processor_service_proto_rawDescGZIP(), []int{24, 1, 0}
 }
 
+type ReconcileProcessorResponse_Action int32
+
+const (
+	ReconcileProcessorResponse_NONE      ReconcileProcessorResponse_Action = 0
+	ReconcileProcessorResponse_RESTARTED ReconcileProcessorResponse_Action = 1
+	ReconcileProcessorResponse_CREATED   ReconcileProcessorResponse_Action = 2
+)
+
+// Enum value maps for ReconcileProcessorResponse_Action.
+var (
+	ReconcileProcessorResponse_Action_name = map[int32]string{
+		0: "NONE",
+		1: "RESTARTED",
+		2: "CREATED",
+	}
+	ReconcileProcessorResponse_Action_value = map[string]int32{
+		"NONE":      0,
+		"RESTARTED": 1,
+		"CREATED":   2,
+	}
+)
+
+func (x ReconcileProcessorResponse_Action) Enum() *ReconcileProcessorResponse_Action {
+	p := new(ReconcileProcessorResponse_Action)
+	*p = x
+	return p
+}
+
+func (x ReconcileProcessorResponse_Action) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ReconcileProcessorResponse_Action) Descriptor() protoreflect.EnumDescriptor {
+	return file_service_processor_protos_processor_service_proto_enumTypes[6].Descriptor()
+}
+
+func (ReconcileProcessorResponse_Action) Type() protoreflect.EnumType {
+	return &file_service_processor_protos_processor_service_proto_enumTypes[6]
+}
+
+func (x ReconcileProcessorResponse_Action) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ReconcileProcessorResponse_Action.Descriptor instead.
+func (ReconcileProcessorResponse_Action) EnumDescriptor() ([]byte, []int) {
+	return file_service_processor_protos_processor_service_proto_rawDescGZIP(), []int{38, 0}
+}
+
 type InitUploadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProjectSlug   string                 `protobuf:"bytes,1,opt,name=project_slug,json=projectSlug,proto3" json:"project_slug,omitempty"`
@@ -3038,6 +3087,102 @@ func (x *GetLogsResponse) GetTotal() int64 {
 	return 0
 }
 
+type ReconcileProcessorRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProcessorId   string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
+	ForceRestart  bool                   `protobuf:"varint,2,opt,name=force_restart,json=forceRestart,proto3" json:"force_restart,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReconcileProcessorRequest) Reset() {
+	*x = ReconcileProcessorRequest{}
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReconcileProcessorRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReconcileProcessorRequest) ProtoMessage() {}
+
+func (x *ReconcileProcessorRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReconcileProcessorRequest.ProtoReflect.Descriptor instead.
+func (*ReconcileProcessorRequest) Descriptor() ([]byte, []int) {
+	return file_service_processor_protos_processor_service_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ReconcileProcessorRequest) GetProcessorId() string {
+	if x != nil {
+		return x.ProcessorId
+	}
+	return ""
+}
+
+func (x *ReconcileProcessorRequest) GetForceRestart() bool {
+	if x != nil {
+		return x.ForceRestart
+	}
+	return false
+}
+
+type ReconcileProcessorResponse struct {
+	state         protoimpl.MessageState            `protogen:"open.v1"`
+	Action        ReconcileProcessorResponse_Action `protobuf:"varint,1,opt,name=action,proto3,enum=processor_service.ReconcileProcessorResponse_Action" json:"action,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReconcileProcessorResponse) Reset() {
+	*x = ReconcileProcessorResponse{}
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReconcileProcessorResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReconcileProcessorResponse) ProtoMessage() {}
+
+func (x *ReconcileProcessorResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReconcileProcessorResponse.ProtoReflect.Descriptor instead.
+func (*ReconcileProcessorResponse) Descriptor() ([]byte, []int) {
+	return file_service_processor_protos_processor_service_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *ReconcileProcessorResponse) GetAction() ReconcileProcessorResponse_Action {
+	if x != nil {
+		return x.Action
+	}
+	return ReconcileProcessorResponse_NONE
+}
+
 type UploadPayload_ObjectPayload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PutUrl        string                 `protobuf:"bytes,1,opt,name=put_url,json=putUrl,proto3" json:"put_url,omitempty"`
@@ -3050,7 +3195,7 @@ type UploadPayload_ObjectPayload struct {
 
 func (x *UploadPayload_ObjectPayload) Reset() {
 	*x = UploadPayload_ObjectPayload{}
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[39]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3062,7 +3207,7 @@ func (x *UploadPayload_ObjectPayload) String() string {
 func (*UploadPayload_ObjectPayload) ProtoMessage() {}
 
 func (x *UploadPayload_ObjectPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[39]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3119,7 +3264,7 @@ type UploadPayload_WalrusPayload struct {
 
 func (x *UploadPayload_WalrusPayload) Reset() {
 	*x = UploadPayload_WalrusPayload{}
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[40]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3131,7 +3276,7 @@ func (x *UploadPayload_WalrusPayload) String() string {
 func (*UploadPayload_WalrusPayload) ProtoMessage() {}
 
 func (x *UploadPayload_WalrusPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[40]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3194,7 +3339,7 @@ type UploadPayload_IpfsPayload struct {
 
 func (x *UploadPayload_IpfsPayload) Reset() {
 	*x = UploadPayload_IpfsPayload{}
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[41]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3206,7 +3351,7 @@ func (x *UploadPayload_IpfsPayload) String() string {
 func (*UploadPayload_IpfsPayload) ProtoMessage() {}
 
 func (x *UploadPayload_IpfsPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[41]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3260,7 +3405,7 @@ type ChainState_Status struct {
 
 func (x *ChainState_Status) Reset() {
 	*x = ChainState_Status{}
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[46]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3272,7 +3417,7 @@ func (x *ChainState_Status) String() string {
 func (*ChainState_Status) ProtoMessage() {}
 
 func (x *ChainState_Status) ProtoReflect() protoreflect.Message {
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[46]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3337,7 +3482,7 @@ type GetProcessorStatusResponse_ProcessorEx struct {
 
 func (x *GetProcessorStatusResponse_ProcessorEx) Reset() {
 	*x = GetProcessorStatusResponse_ProcessorEx{}
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[47]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3349,7 +3494,7 @@ func (x *GetProcessorStatusResponse_ProcessorEx) String() string {
 func (*GetProcessorStatusResponse_ProcessorEx) ProtoMessage() {}
 
 func (x *GetProcessorStatusResponse_ProcessorEx) ProtoReflect() protoreflect.Message {
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[47]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3564,7 +3709,7 @@ type GetProcessorStatusResponse_ProcessorStatus struct {
 
 func (x *GetProcessorStatusResponse_ProcessorStatus) Reset() {
 	*x = GetProcessorStatusResponse_ProcessorStatus{}
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[48]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3576,7 +3721,7 @@ func (x *GetProcessorStatusResponse_ProcessorStatus) String() string {
 func (*GetProcessorStatusResponse_ProcessorStatus) ProtoMessage() {}
 
 func (x *GetProcessorStatusResponse_ProcessorStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[48]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3622,7 +3767,7 @@ type GetLogsResponse_Log struct {
 
 func (x *GetLogsResponse_Log) Reset() {
 	*x = GetLogsResponse_Log{}
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[49]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3634,7 +3779,7 @@ func (x *GetLogsResponse_Log) String() string {
 func (*GetLogsResponse_Log) ProtoMessage() {}
 
 func (x *GetLogsResponse_Log) ProtoReflect() protoreflect.Message {
-	mi := &file_service_processor_protos_processor_service_proto_msgTypes[49]
+	mi := &file_service_processor_protos_processor_service_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4062,7 +4207,16 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\blog_type\x18\x05 \x01(\tR\alogType\x12\x14\n" +
 	"\x05level\x18\x06 \x01(\tR\x05level\x12/\n" +
 	"\x13highlighted_message\x18\a \x01(\tR\x12highlightedMessage\x12\x19\n" +
-	"\bchain_id\x18\b \x01(\tR\achainId*Q\n" +
+	"\bchain_id\x18\b \x01(\tR\achainId\"c\n" +
+	"\x19ReconcileProcessorRequest\x12!\n" +
+	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12#\n" +
+	"\rforce_restart\x18\x02 \x01(\bR\fforceRestart\"\x9a\x01\n" +
+	"\x1aReconcileProcessorResponse\x12L\n" +
+	"\x06action\x18\x01 \x01(\x0e24.processor_service.ReconcileProcessorResponse.ActionR\x06action\".\n" +
+	"\x06Action\x12\b\n" +
+	"\x04NONE\x10\x00\x12\r\n" +
+	"\tRESTARTED\x10\x01\x12\v\n" +
+	"\aCREATED\x10\x02*Q\n" +
 	"\rStorageEngine\x12\v\n" +
 	"\aDEFAULT\x10\x00\x12\x06\n" +
 	"\x02S3\x10\x01\x12\a\n" +
@@ -4126,7 +4280,7 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\x11FinishBatchUpload\x12+.processor_service.FinishBatchUploadRequest\x1a,.processor_service.FinishBatchUploadResponse\"T\x92\xb5\x18\x0f\n" +
 	"\rproject:write\xfa\xd2\xe4\x93\x02\n" +
 	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02+:\x01*\"&/api/v1/processors/finish_batch_upload\x1a\x0e\x92A\v\n" +
-	"\tProcessor2\xe7\x04\n" +
+	"\tProcessor2\xa3\x06\n" +
 	"\x17ProcessorRuntimeService\x12\x87\x01\n" +
 	"\fRunProcessor\x12&.processor_service.RunProcessorRequest\x1a\x1c.processor_service.Processor\"1\xfa\xd2\xe4\x93\x02\n" +
 	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/api/v1/processors/run\x12\x84\x01\n" +
@@ -4135,7 +4289,9 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\x12GetProcessorStatus\x12,.processor_service.GetProcessorStatusRequest\x1a-.processor_service.GetProcessorStatusResponse\"1\xfa\xd2\xe4\x93\x02\n" +
 	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/processors/status\x12\x93\x01\n" +
 	"\aGetLogs\x12!.processor_service.GetLogsRequest\x1a\".processor_service.GetLogsResponse\"A\xfa\xd2\xe4\x93\x02\n" +
-	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02+:\x01*\"&/api/v1/processors/{processor_id}/logsB0Z.sentioxyz/sentio-core/service/processor/protosb\x06proto3"
+	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02+:\x01*\"&/api/v1/processors/{processor_id}/logs\x12\xb9\x01\n" +
+	"\x12ReconcileProcessor\x12,.processor_service.ReconcileProcessorRequest\x1a-.processor_service.ReconcileProcessorResponse\"F\xfa\xd2\xe4\x93\x02\n" +
+	"\x12\bINTERNAL\x82\xd3\xe4\x93\x020:\x01*\"+/api/v1/processors/{processor_id}/reconcileB0Z.sentioxyz/sentio-core/service/processor/protosb\x06proto3"
 
 var (
 	file_service_processor_protos_processor_service_proto_rawDescOnce sync.Once
@@ -4149,8 +4305,8 @@ func file_service_processor_protos_processor_service_proto_rawDescGZIP() []byte 
 	return file_service_processor_protos_processor_service_proto_rawDescData
 }
 
-var file_service_processor_protos_processor_service_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_service_processor_protos_processor_service_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
+var file_service_processor_protos_processor_service_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_service_processor_protos_processor_service_proto_msgTypes = make([]protoimpl.MessageInfo, 52)
 var file_service_processor_protos_processor_service_proto_goTypes = []any{
 	(StorageEngine)(0),                                    // 0: processor_service.StorageEngine
 	(FileType)(0),                                         // 1: processor_service.FileType
@@ -4158,174 +4314,180 @@ var file_service_processor_protos_processor_service_proto_goTypes = []any{
 	(ChainState_Status_State)(0),                          // 3: processor_service.ChainState.Status.State
 	(GetProcessorStatusRequestV2_VersionSelector)(0),      // 4: processor_service.GetProcessorStatusRequestV2.VersionSelector
 	(GetProcessorStatusResponse_ProcessorStatus_State)(0), // 5: processor_service.GetProcessorStatusResponse.ProcessorStatus.State
-	(*InitUploadRequest)(nil),                             // 6: processor_service.InitUploadRequest
-	(*InitUploadResponse)(nil),                            // 7: processor_service.InitUploadResponse
-	(*NetworkOverride)(nil),                               // 8: processor_service.NetworkOverride
-	(*FinishUploadRequest)(nil),                           // 9: processor_service.FinishUploadRequest
-	(*FinishUploadResponse)(nil),                          // 10: processor_service.FinishUploadResponse
-	(*InitBatchUploadRequest)(nil),                        // 11: processor_service.InitBatchUploadRequest
-	(*UploadPayload)(nil),                                 // 12: processor_service.UploadPayload
-	(*InitBatchUploadResponse)(nil),                       // 13: processor_service.InitBatchUploadResponse
-	(*FinishBatchUploadRequest)(nil),                      // 14: processor_service.FinishBatchUploadRequest
-	(*FinishBatchUploadResponse)(nil),                     // 15: processor_service.FinishBatchUploadResponse
-	(*DownloadProcessorRequest)(nil),                      // 16: processor_service.DownloadProcessorRequest
-	(*DownloadProcessorResponse)(nil),                     // 17: processor_service.DownloadProcessorResponse
-	(*GetProcessorsRequest)(nil),                          // 18: processor_service.GetProcessorsRequest
-	(*GetProcessorsResponse)(nil),                         // 19: processor_service.GetProcessorsResponse
-	(*GetProcessorRequest)(nil),                           // 20: processor_service.GetProcessorRequest
-	(*GetProcessorResponse)(nil),                          // 21: processor_service.GetProcessorResponse
-	(*GetProcessorWithProjectResponse)(nil),               // 22: processor_service.GetProcessorWithProjectResponse
-	(*UpdateChainProcessorStatusRequest)(nil),             // 23: processor_service.UpdateChainProcessorStatusRequest
-	(*UpdateChainProcessorStatusResponse)(nil),            // 24: processor_service.UpdateChainProcessorStatusResponse
-	(*ChainState)(nil),                                    // 25: processor_service.ChainState
-	(*Processor)(nil),                                     // 26: processor_service.Processor
-	(*ProcessorUpgradeHistory)(nil),                       // 27: processor_service.ProcessorUpgradeHistory
-	(*GetProcessorStatusRequest)(nil),                     // 28: processor_service.GetProcessorStatusRequest
-	(*GetProcessorStatusRequestV2)(nil),                   // 29: processor_service.GetProcessorStatusRequestV2
-	(*GetProcessorStatusResponse)(nil),                    // 30: processor_service.GetProcessorStatusResponse
-	(*ProcessorIdRequest)(nil),                            // 31: processor_service.ProcessorIdRequest
-	(*RemoveProcessorResponse)(nil),                       // 32: processor_service.RemoveProcessorResponse
-	(*ActivatePendingRequest)(nil),                        // 33: processor_service.ActivatePendingRequest
-	(*GetProcessorUpgradeHistoryRequest)(nil),             // 34: processor_service.GetProcessorUpgradeHistoryRequest
-	(*GetProcessorUpgradeHistoryResponse)(nil),            // 35: processor_service.GetProcessorUpgradeHistoryResponse
-	(*GetProjectVariablesRequest)(nil),                    // 36: processor_service.GetProjectVariablesRequest
-	(*SetProcessorEntitySchemaRequest)(nil),               // 37: processor_service.SetProcessorEntitySchemaRequest
-	(*PauseProcessorRequest)(nil),                         // 38: processor_service.PauseProcessorRequest
-	(*RunProcessorRequest)(nil),                           // 39: processor_service.RunProcessorRequest
-	(*StopProcessorRequest)(nil),                          // 40: processor_service.StopProcessorRequest
-	(*GetLogsRequest)(nil),                                // 41: processor_service.GetLogsRequest
-	(*GetLogsResponse)(nil),                               // 42: processor_service.GetLogsResponse
-	nil,                                                   // 43: processor_service.FinishUploadRequest.RollbackEntry
-	nil,                                                   // 44: processor_service.InitBatchUploadRequest.FileTypesEntry
-	(*UploadPayload_ObjectPayload)(nil),                   // 45: processor_service.UploadPayload.ObjectPayload
-	(*UploadPayload_WalrusPayload)(nil),                   // 46: processor_service.UploadPayload.WalrusPayload
-	(*UploadPayload_IpfsPayload)(nil),                     // 47: processor_service.UploadPayload.IpfsPayload
-	nil,                                                   // 48: processor_service.InitBatchUploadResponse.PayloadsEntry
-	nil,                                                   // 49: processor_service.FinishBatchUploadRequest.Sha256MapEntry
-	nil,                                                   // 50: processor_service.FinishBatchUploadRequest.RollbackEntry
-	nil,                                                   // 51: processor_service.FinishBatchUploadRequest.PayloadsEntry
-	(*ChainState_Status)(nil),                             // 52: processor_service.ChainState.Status
-	(*GetProcessorStatusResponse_ProcessorEx)(nil),        // 53: processor_service.GetProcessorStatusResponse.ProcessorEx
-	(*GetProcessorStatusResponse_ProcessorStatus)(nil),    // 54: processor_service.GetProcessorStatusResponse.ProcessorStatus
-	(*GetLogsResponse_Log)(nil),                           // 55: processor_service.GetLogsResponse.Log
-	(*protos.Project)(nil),                                // 56: common.Project
-	(*timestamppb.Timestamp)(nil),                         // 57: google.protobuf.Timestamp
-	(*protos.Any)(nil),                                    // 58: common.Any
-	(*protos.ErrorRecord)(nil),                            // 59: common.ErrorRecord
-	(*protos.UserInfo)(nil),                               // 60: common.UserInfo
-	(*structpb.Struct)(nil),                               // 61: google.protobuf.Struct
-	(*protos.ProjectVariables)(nil),                       // 62: common.ProjectVariables
-	(*emptypb.Empty)(nil),                                 // 63: google.protobuf.Empty
+	(ReconcileProcessorResponse_Action)(0),                // 6: processor_service.ReconcileProcessorResponse.Action
+	(*InitUploadRequest)(nil),                             // 7: processor_service.InitUploadRequest
+	(*InitUploadResponse)(nil),                            // 8: processor_service.InitUploadResponse
+	(*NetworkOverride)(nil),                               // 9: processor_service.NetworkOverride
+	(*FinishUploadRequest)(nil),                           // 10: processor_service.FinishUploadRequest
+	(*FinishUploadResponse)(nil),                          // 11: processor_service.FinishUploadResponse
+	(*InitBatchUploadRequest)(nil),                        // 12: processor_service.InitBatchUploadRequest
+	(*UploadPayload)(nil),                                 // 13: processor_service.UploadPayload
+	(*InitBatchUploadResponse)(nil),                       // 14: processor_service.InitBatchUploadResponse
+	(*FinishBatchUploadRequest)(nil),                      // 15: processor_service.FinishBatchUploadRequest
+	(*FinishBatchUploadResponse)(nil),                     // 16: processor_service.FinishBatchUploadResponse
+	(*DownloadProcessorRequest)(nil),                      // 17: processor_service.DownloadProcessorRequest
+	(*DownloadProcessorResponse)(nil),                     // 18: processor_service.DownloadProcessorResponse
+	(*GetProcessorsRequest)(nil),                          // 19: processor_service.GetProcessorsRequest
+	(*GetProcessorsResponse)(nil),                         // 20: processor_service.GetProcessorsResponse
+	(*GetProcessorRequest)(nil),                           // 21: processor_service.GetProcessorRequest
+	(*GetProcessorResponse)(nil),                          // 22: processor_service.GetProcessorResponse
+	(*GetProcessorWithProjectResponse)(nil),               // 23: processor_service.GetProcessorWithProjectResponse
+	(*UpdateChainProcessorStatusRequest)(nil),             // 24: processor_service.UpdateChainProcessorStatusRequest
+	(*UpdateChainProcessorStatusResponse)(nil),            // 25: processor_service.UpdateChainProcessorStatusResponse
+	(*ChainState)(nil),                                    // 26: processor_service.ChainState
+	(*Processor)(nil),                                     // 27: processor_service.Processor
+	(*ProcessorUpgradeHistory)(nil),                       // 28: processor_service.ProcessorUpgradeHistory
+	(*GetProcessorStatusRequest)(nil),                     // 29: processor_service.GetProcessorStatusRequest
+	(*GetProcessorStatusRequestV2)(nil),                   // 30: processor_service.GetProcessorStatusRequestV2
+	(*GetProcessorStatusResponse)(nil),                    // 31: processor_service.GetProcessorStatusResponse
+	(*ProcessorIdRequest)(nil),                            // 32: processor_service.ProcessorIdRequest
+	(*RemoveProcessorResponse)(nil),                       // 33: processor_service.RemoveProcessorResponse
+	(*ActivatePendingRequest)(nil),                        // 34: processor_service.ActivatePendingRequest
+	(*GetProcessorUpgradeHistoryRequest)(nil),             // 35: processor_service.GetProcessorUpgradeHistoryRequest
+	(*GetProcessorUpgradeHistoryResponse)(nil),            // 36: processor_service.GetProcessorUpgradeHistoryResponse
+	(*GetProjectVariablesRequest)(nil),                    // 37: processor_service.GetProjectVariablesRequest
+	(*SetProcessorEntitySchemaRequest)(nil),               // 38: processor_service.SetProcessorEntitySchemaRequest
+	(*PauseProcessorRequest)(nil),                         // 39: processor_service.PauseProcessorRequest
+	(*RunProcessorRequest)(nil),                           // 40: processor_service.RunProcessorRequest
+	(*StopProcessorRequest)(nil),                          // 41: processor_service.StopProcessorRequest
+	(*GetLogsRequest)(nil),                                // 42: processor_service.GetLogsRequest
+	(*GetLogsResponse)(nil),                               // 43: processor_service.GetLogsResponse
+	(*ReconcileProcessorRequest)(nil),                     // 44: processor_service.ReconcileProcessorRequest
+	(*ReconcileProcessorResponse)(nil),                    // 45: processor_service.ReconcileProcessorResponse
+	nil,                                                   // 46: processor_service.FinishUploadRequest.RollbackEntry
+	nil,                                                   // 47: processor_service.InitBatchUploadRequest.FileTypesEntry
+	(*UploadPayload_ObjectPayload)(nil),                   // 48: processor_service.UploadPayload.ObjectPayload
+	(*UploadPayload_WalrusPayload)(nil),                   // 49: processor_service.UploadPayload.WalrusPayload
+	(*UploadPayload_IpfsPayload)(nil),                     // 50: processor_service.UploadPayload.IpfsPayload
+	nil,                                                   // 51: processor_service.InitBatchUploadResponse.PayloadsEntry
+	nil,                                                   // 52: processor_service.FinishBatchUploadRequest.Sha256MapEntry
+	nil,                                                   // 53: processor_service.FinishBatchUploadRequest.RollbackEntry
+	nil,                                                   // 54: processor_service.FinishBatchUploadRequest.PayloadsEntry
+	(*ChainState_Status)(nil),                             // 55: processor_service.ChainState.Status
+	(*GetProcessorStatusResponse_ProcessorEx)(nil),        // 56: processor_service.GetProcessorStatusResponse.ProcessorEx
+	(*GetProcessorStatusResponse_ProcessorStatus)(nil),    // 57: processor_service.GetProcessorStatusResponse.ProcessorStatus
+	(*GetLogsResponse_Log)(nil),                           // 58: processor_service.GetLogsResponse.Log
+	(*protos.Project)(nil),                                // 59: common.Project
+	(*timestamppb.Timestamp)(nil),                         // 60: google.protobuf.Timestamp
+	(*protos.Any)(nil),                                    // 61: common.Any
+	(*protos.ErrorRecord)(nil),                            // 62: common.ErrorRecord
+	(*protos.UserInfo)(nil),                               // 63: common.UserInfo
+	(*structpb.Struct)(nil),                               // 64: google.protobuf.Struct
+	(*protos.ProjectVariables)(nil),                       // 65: common.ProjectVariables
+	(*emptypb.Empty)(nil),                                 // 66: google.protobuf.Empty
 }
 var file_service_processor_protos_processor_service_proto_depIdxs = []int32{
-	43, // 0: processor_service.FinishUploadRequest.rollback:type_name -> processor_service.FinishUploadRequest.RollbackEntry
-	8,  // 1: processor_service.FinishUploadRequest.network_overrides:type_name -> processor_service.NetworkOverride
+	46, // 0: processor_service.FinishUploadRequest.rollback:type_name -> processor_service.FinishUploadRequest.RollbackEntry
+	9,  // 1: processor_service.FinishUploadRequest.network_overrides:type_name -> processor_service.NetworkOverride
 	0,  // 2: processor_service.InitBatchUploadRequest.engine:type_name -> processor_service.StorageEngine
-	44, // 3: processor_service.InitBatchUploadRequest.file_types:type_name -> processor_service.InitBatchUploadRequest.FileTypesEntry
-	45, // 4: processor_service.UploadPayload.object:type_name -> processor_service.UploadPayload.ObjectPayload
-	46, // 5: processor_service.UploadPayload.walrus:type_name -> processor_service.UploadPayload.WalrusPayload
-	47, // 6: processor_service.UploadPayload.ipfs:type_name -> processor_service.UploadPayload.IpfsPayload
+	47, // 3: processor_service.InitBatchUploadRequest.file_types:type_name -> processor_service.InitBatchUploadRequest.FileTypesEntry
+	48, // 4: processor_service.UploadPayload.object:type_name -> processor_service.UploadPayload.ObjectPayload
+	49, // 5: processor_service.UploadPayload.walrus:type_name -> processor_service.UploadPayload.WalrusPayload
+	50, // 6: processor_service.UploadPayload.ipfs:type_name -> processor_service.UploadPayload.IpfsPayload
 	1,  // 7: processor_service.UploadPayload.file_type:type_name -> processor_service.FileType
 	0,  // 8: processor_service.InitBatchUploadResponse.engine:type_name -> processor_service.StorageEngine
-	48, // 9: processor_service.InitBatchUploadResponse.payloads:type_name -> processor_service.InitBatchUploadResponse.PayloadsEntry
-	49, // 10: processor_service.FinishBatchUploadRequest.sha256_map:type_name -> processor_service.FinishBatchUploadRequest.Sha256MapEntry
-	50, // 11: processor_service.FinishBatchUploadRequest.rollback:type_name -> processor_service.FinishBatchUploadRequest.RollbackEntry
-	8,  // 12: processor_service.FinishBatchUploadRequest.network_overrides:type_name -> processor_service.NetworkOverride
+	51, // 9: processor_service.InitBatchUploadResponse.payloads:type_name -> processor_service.InitBatchUploadResponse.PayloadsEntry
+	52, // 10: processor_service.FinishBatchUploadRequest.sha256_map:type_name -> processor_service.FinishBatchUploadRequest.Sha256MapEntry
+	53, // 11: processor_service.FinishBatchUploadRequest.rollback:type_name -> processor_service.FinishBatchUploadRequest.RollbackEntry
+	9,  // 12: processor_service.FinishBatchUploadRequest.network_overrides:type_name -> processor_service.NetworkOverride
 	0,  // 13: processor_service.FinishBatchUploadRequest.engine:type_name -> processor_service.StorageEngine
-	51, // 14: processor_service.FinishBatchUploadRequest.payloads:type_name -> processor_service.FinishBatchUploadRequest.PayloadsEntry
-	26, // 15: processor_service.GetProcessorsResponse.processors:type_name -> processor_service.Processor
-	26, // 16: processor_service.GetProcessorResponse.processor:type_name -> processor_service.Processor
-	26, // 17: processor_service.GetProcessorWithProjectResponse.processor:type_name -> processor_service.Processor
-	56, // 18: processor_service.GetProcessorWithProjectResponse.project:type_name -> common.Project
-	25, // 19: processor_service.UpdateChainProcessorStatusRequest.chain_state:type_name -> processor_service.ChainState
-	52, // 20: processor_service.ChainState.status:type_name -> processor_service.ChainState.Status
-	57, // 21: processor_service.ChainState.updated_at:type_name -> google.protobuf.Timestamp
-	25, // 22: processor_service.Processor.chain_states:type_name -> processor_service.ChainState
+	54, // 14: processor_service.FinishBatchUploadRequest.payloads:type_name -> processor_service.FinishBatchUploadRequest.PayloadsEntry
+	27, // 15: processor_service.GetProcessorsResponse.processors:type_name -> processor_service.Processor
+	27, // 16: processor_service.GetProcessorResponse.processor:type_name -> processor_service.Processor
+	27, // 17: processor_service.GetProcessorWithProjectResponse.processor:type_name -> processor_service.Processor
+	59, // 18: processor_service.GetProcessorWithProjectResponse.project:type_name -> common.Project
+	26, // 19: processor_service.UpdateChainProcessorStatusRequest.chain_state:type_name -> processor_service.ChainState
+	55, // 20: processor_service.ChainState.status:type_name -> processor_service.ChainState.Status
+	60, // 21: processor_service.ChainState.updated_at:type_name -> google.protobuf.Timestamp
+	26, // 22: processor_service.Processor.chain_states:type_name -> processor_service.ChainState
 	2,  // 23: processor_service.Processor.version_state:type_name -> processor_service.ProcessorVersionState
-	8,  // 24: processor_service.Processor.network_overrides:type_name -> processor_service.NetworkOverride
-	57, // 25: processor_service.Processor.pause_at:type_name -> google.protobuf.Timestamp
-	57, // 26: processor_service.ProcessorUpgradeHistory.uploaded_at:type_name -> google.protobuf.Timestamp
-	57, // 27: processor_service.ProcessorUpgradeHistory.obsolete_at:type_name -> google.protobuf.Timestamp
-	26, // 28: processor_service.ProcessorUpgradeHistory.snapshot:type_name -> processor_service.Processor
+	9,  // 24: processor_service.Processor.network_overrides:type_name -> processor_service.NetworkOverride
+	60, // 25: processor_service.Processor.pause_at:type_name -> google.protobuf.Timestamp
+	60, // 26: processor_service.ProcessorUpgradeHistory.uploaded_at:type_name -> google.protobuf.Timestamp
+	60, // 27: processor_service.ProcessorUpgradeHistory.obsolete_at:type_name -> google.protobuf.Timestamp
+	27, // 28: processor_service.ProcessorUpgradeHistory.snapshot:type_name -> processor_service.Processor
 	4,  // 29: processor_service.GetProcessorStatusRequestV2.version:type_name -> processor_service.GetProcessorStatusRequestV2.VersionSelector
-	53, // 30: processor_service.GetProcessorStatusResponse.processors:type_name -> processor_service.GetProcessorStatusResponse.ProcessorEx
-	26, // 31: processor_service.RemoveProcessorResponse.deleted:type_name -> processor_service.Processor
-	27, // 32: processor_service.GetProcessorUpgradeHistoryResponse.histories:type_name -> processor_service.ProcessorUpgradeHistory
-	57, // 33: processor_service.RunProcessorRequest.created_at:type_name -> google.protobuf.Timestamp
-	58, // 34: processor_service.GetLogsRequest.until:type_name -> common.Any
-	55, // 35: processor_service.GetLogsResponse.logs:type_name -> processor_service.GetLogsResponse.Log
-	58, // 36: processor_service.GetLogsResponse.until:type_name -> common.Any
-	1,  // 37: processor_service.InitBatchUploadRequest.FileTypesEntry.value:type_name -> processor_service.FileType
-	12, // 38: processor_service.InitBatchUploadResponse.PayloadsEntry.value:type_name -> processor_service.UploadPayload
-	12, // 39: processor_service.FinishBatchUploadRequest.PayloadsEntry.value:type_name -> processor_service.UploadPayload
-	3,  // 40: processor_service.ChainState.Status.state:type_name -> processor_service.ChainState.Status.State
-	59, // 41: processor_service.ChainState.Status.error_record:type_name -> common.ErrorRecord
-	25, // 42: processor_service.GetProcessorStatusResponse.ProcessorEx.states:type_name -> processor_service.ChainState
-	60, // 43: processor_service.GetProcessorStatusResponse.ProcessorEx.uploaded_by:type_name -> common.UserInfo
-	57, // 44: processor_service.GetProcessorStatusResponse.ProcessorEx.uploaded_at:type_name -> google.protobuf.Timestamp
-	54, // 45: processor_service.GetProcessorStatusResponse.ProcessorEx.processor_status:type_name -> processor_service.GetProcessorStatusResponse.ProcessorStatus
-	2,  // 46: processor_service.GetProcessorStatusResponse.ProcessorEx.version_state:type_name -> processor_service.ProcessorVersionState
-	57, // 47: processor_service.GetProcessorStatusResponse.ProcessorEx.pause_at:type_name -> google.protobuf.Timestamp
-	8,  // 48: processor_service.GetProcessorStatusResponse.ProcessorEx.network_overrides:type_name -> processor_service.NetworkOverride
-	5,  // 49: processor_service.GetProcessorStatusResponse.ProcessorStatus.state:type_name -> processor_service.GetProcessorStatusResponse.ProcessorStatus.State
-	59, // 50: processor_service.GetProcessorStatusResponse.ProcessorStatus.error_record:type_name -> common.ErrorRecord
-	57, // 51: processor_service.GetLogsResponse.Log.timestamp:type_name -> google.protobuf.Timestamp
-	61, // 52: processor_service.GetLogsResponse.Log.attributes:type_name -> google.protobuf.Struct
-	18, // 53: processor_service.ProcessorService.GetProcessors:input_type -> processor_service.GetProcessorsRequest
-	20, // 54: processor_service.ProcessorService.GetProcessor:input_type -> processor_service.GetProcessorRequest
-	20, // 55: processor_service.ProcessorService.GetProcessorWithProject:input_type -> processor_service.GetProcessorRequest
-	36, // 56: processor_service.ProcessorService.GetProjectVariables:input_type -> processor_service.GetProjectVariablesRequest
-	37, // 57: processor_service.ProcessorService.SetProcessorEntitySchema:input_type -> processor_service.SetProcessorEntitySchemaRequest
-	23, // 58: processor_service.ProcessorService.UpdateChainProcessorStatus:input_type -> processor_service.UpdateChainProcessorStatusRequest
-	16, // 59: processor_service.ProcessorService.DownloadProcessor:input_type -> processor_service.DownloadProcessorRequest
-	28, // 60: processor_service.ProcessorService.GetProcessorStatusInternal:input_type -> processor_service.GetProcessorStatusRequest
-	38, // 61: processor_service.ProcessorService.PauseProcessorInternal:input_type -> processor_service.PauseProcessorRequest
-	29, // 62: processor_service.ProcessorService.GetProcessorStatusV2:input_type -> processor_service.GetProcessorStatusRequestV2
-	31, // 63: processor_service.ProcessorService.RemoveProcessor:input_type -> processor_service.ProcessorIdRequest
-	34, // 64: processor_service.ProcessorService.GetProcessorUpgradeHistories:input_type -> processor_service.GetProcessorUpgradeHistoryRequest
-	38, // 65: processor_service.ProcessorService.PauseProcessor:input_type -> processor_service.PauseProcessorRequest
-	20, // 66: processor_service.ProcessorService.ResumeProcessor:input_type -> processor_service.GetProcessorRequest
-	20, // 67: processor_service.ProcessorService.SetVersionActive:input_type -> processor_service.GetProcessorRequest
-	33, // 68: processor_service.ProcessorService.ActivatePendingVersion:input_type -> processor_service.ActivatePendingRequest
-	20, // 69: processor_service.ProcessorService.RestartProcessor:input_type -> processor_service.GetProcessorRequest
-	6,  // 70: processor_service.ProcessorService.InitUpload:input_type -> processor_service.InitUploadRequest
-	9,  // 71: processor_service.ProcessorService.FinishUpload:input_type -> processor_service.FinishUploadRequest
-	11, // 72: processor_service.ProcessorService.InitBatchUpload:input_type -> processor_service.InitBatchUploadRequest
-	14, // 73: processor_service.ProcessorService.FinishBatchUpload:input_type -> processor_service.FinishBatchUploadRequest
-	39, // 74: processor_service.ProcessorRuntimeService.RunProcessor:input_type -> processor_service.RunProcessorRequest
-	40, // 75: processor_service.ProcessorRuntimeService.StopProcessor:input_type -> processor_service.StopProcessorRequest
-	28, // 76: processor_service.ProcessorRuntimeService.GetProcessorStatus:input_type -> processor_service.GetProcessorStatusRequest
-	41, // 77: processor_service.ProcessorRuntimeService.GetLogs:input_type -> processor_service.GetLogsRequest
-	19, // 78: processor_service.ProcessorService.GetProcessors:output_type -> processor_service.GetProcessorsResponse
-	21, // 79: processor_service.ProcessorService.GetProcessor:output_type -> processor_service.GetProcessorResponse
-	22, // 80: processor_service.ProcessorService.GetProcessorWithProject:output_type -> processor_service.GetProcessorWithProjectResponse
-	62, // 81: processor_service.ProcessorService.GetProjectVariables:output_type -> common.ProjectVariables
-	63, // 82: processor_service.ProcessorService.SetProcessorEntitySchema:output_type -> google.protobuf.Empty
-	24, // 83: processor_service.ProcessorService.UpdateChainProcessorStatus:output_type -> processor_service.UpdateChainProcessorStatusResponse
-	17, // 84: processor_service.ProcessorService.DownloadProcessor:output_type -> processor_service.DownloadProcessorResponse
-	30, // 85: processor_service.ProcessorService.GetProcessorStatusInternal:output_type -> processor_service.GetProcessorStatusResponse
-	63, // 86: processor_service.ProcessorService.PauseProcessorInternal:output_type -> google.protobuf.Empty
-	30, // 87: processor_service.ProcessorService.GetProcessorStatusV2:output_type -> processor_service.GetProcessorStatusResponse
-	32, // 88: processor_service.ProcessorService.RemoveProcessor:output_type -> processor_service.RemoveProcessorResponse
-	35, // 89: processor_service.ProcessorService.GetProcessorUpgradeHistories:output_type -> processor_service.GetProcessorUpgradeHistoryResponse
-	63, // 90: processor_service.ProcessorService.PauseProcessor:output_type -> google.protobuf.Empty
-	63, // 91: processor_service.ProcessorService.ResumeProcessor:output_type -> google.protobuf.Empty
-	63, // 92: processor_service.ProcessorService.SetVersionActive:output_type -> google.protobuf.Empty
-	63, // 93: processor_service.ProcessorService.ActivatePendingVersion:output_type -> google.protobuf.Empty
-	63, // 94: processor_service.ProcessorService.RestartProcessor:output_type -> google.protobuf.Empty
-	7,  // 95: processor_service.ProcessorService.InitUpload:output_type -> processor_service.InitUploadResponse
-	10, // 96: processor_service.ProcessorService.FinishUpload:output_type -> processor_service.FinishUploadResponse
-	13, // 97: processor_service.ProcessorService.InitBatchUpload:output_type -> processor_service.InitBatchUploadResponse
-	15, // 98: processor_service.ProcessorService.FinishBatchUpload:output_type -> processor_service.FinishBatchUploadResponse
-	26, // 99: processor_service.ProcessorRuntimeService.RunProcessor:output_type -> processor_service.Processor
-	63, // 100: processor_service.ProcessorRuntimeService.StopProcessor:output_type -> google.protobuf.Empty
-	30, // 101: processor_service.ProcessorRuntimeService.GetProcessorStatus:output_type -> processor_service.GetProcessorStatusResponse
-	42, // 102: processor_service.ProcessorRuntimeService.GetLogs:output_type -> processor_service.GetLogsResponse
-	78, // [78:103] is the sub-list for method output_type
-	53, // [53:78] is the sub-list for method input_type
-	53, // [53:53] is the sub-list for extension type_name
-	53, // [53:53] is the sub-list for extension extendee
-	0,  // [0:53] is the sub-list for field type_name
+	56, // 30: processor_service.GetProcessorStatusResponse.processors:type_name -> processor_service.GetProcessorStatusResponse.ProcessorEx
+	27, // 31: processor_service.RemoveProcessorResponse.deleted:type_name -> processor_service.Processor
+	28, // 32: processor_service.GetProcessorUpgradeHistoryResponse.histories:type_name -> processor_service.ProcessorUpgradeHistory
+	60, // 33: processor_service.RunProcessorRequest.created_at:type_name -> google.protobuf.Timestamp
+	61, // 34: processor_service.GetLogsRequest.until:type_name -> common.Any
+	58, // 35: processor_service.GetLogsResponse.logs:type_name -> processor_service.GetLogsResponse.Log
+	61, // 36: processor_service.GetLogsResponse.until:type_name -> common.Any
+	6,  // 37: processor_service.ReconcileProcessorResponse.action:type_name -> processor_service.ReconcileProcessorResponse.Action
+	1,  // 38: processor_service.InitBatchUploadRequest.FileTypesEntry.value:type_name -> processor_service.FileType
+	13, // 39: processor_service.InitBatchUploadResponse.PayloadsEntry.value:type_name -> processor_service.UploadPayload
+	13, // 40: processor_service.FinishBatchUploadRequest.PayloadsEntry.value:type_name -> processor_service.UploadPayload
+	3,  // 41: processor_service.ChainState.Status.state:type_name -> processor_service.ChainState.Status.State
+	62, // 42: processor_service.ChainState.Status.error_record:type_name -> common.ErrorRecord
+	26, // 43: processor_service.GetProcessorStatusResponse.ProcessorEx.states:type_name -> processor_service.ChainState
+	63, // 44: processor_service.GetProcessorStatusResponse.ProcessorEx.uploaded_by:type_name -> common.UserInfo
+	60, // 45: processor_service.GetProcessorStatusResponse.ProcessorEx.uploaded_at:type_name -> google.protobuf.Timestamp
+	57, // 46: processor_service.GetProcessorStatusResponse.ProcessorEx.processor_status:type_name -> processor_service.GetProcessorStatusResponse.ProcessorStatus
+	2,  // 47: processor_service.GetProcessorStatusResponse.ProcessorEx.version_state:type_name -> processor_service.ProcessorVersionState
+	60, // 48: processor_service.GetProcessorStatusResponse.ProcessorEx.pause_at:type_name -> google.protobuf.Timestamp
+	9,  // 49: processor_service.GetProcessorStatusResponse.ProcessorEx.network_overrides:type_name -> processor_service.NetworkOverride
+	5,  // 50: processor_service.GetProcessorStatusResponse.ProcessorStatus.state:type_name -> processor_service.GetProcessorStatusResponse.ProcessorStatus.State
+	62, // 51: processor_service.GetProcessorStatusResponse.ProcessorStatus.error_record:type_name -> common.ErrorRecord
+	60, // 52: processor_service.GetLogsResponse.Log.timestamp:type_name -> google.protobuf.Timestamp
+	64, // 53: processor_service.GetLogsResponse.Log.attributes:type_name -> google.protobuf.Struct
+	19, // 54: processor_service.ProcessorService.GetProcessors:input_type -> processor_service.GetProcessorsRequest
+	21, // 55: processor_service.ProcessorService.GetProcessor:input_type -> processor_service.GetProcessorRequest
+	21, // 56: processor_service.ProcessorService.GetProcessorWithProject:input_type -> processor_service.GetProcessorRequest
+	37, // 57: processor_service.ProcessorService.GetProjectVariables:input_type -> processor_service.GetProjectVariablesRequest
+	38, // 58: processor_service.ProcessorService.SetProcessorEntitySchema:input_type -> processor_service.SetProcessorEntitySchemaRequest
+	24, // 59: processor_service.ProcessorService.UpdateChainProcessorStatus:input_type -> processor_service.UpdateChainProcessorStatusRequest
+	17, // 60: processor_service.ProcessorService.DownloadProcessor:input_type -> processor_service.DownloadProcessorRequest
+	29, // 61: processor_service.ProcessorService.GetProcessorStatusInternal:input_type -> processor_service.GetProcessorStatusRequest
+	39, // 62: processor_service.ProcessorService.PauseProcessorInternal:input_type -> processor_service.PauseProcessorRequest
+	30, // 63: processor_service.ProcessorService.GetProcessorStatusV2:input_type -> processor_service.GetProcessorStatusRequestV2
+	32, // 64: processor_service.ProcessorService.RemoveProcessor:input_type -> processor_service.ProcessorIdRequest
+	35, // 65: processor_service.ProcessorService.GetProcessorUpgradeHistories:input_type -> processor_service.GetProcessorUpgradeHistoryRequest
+	39, // 66: processor_service.ProcessorService.PauseProcessor:input_type -> processor_service.PauseProcessorRequest
+	21, // 67: processor_service.ProcessorService.ResumeProcessor:input_type -> processor_service.GetProcessorRequest
+	21, // 68: processor_service.ProcessorService.SetVersionActive:input_type -> processor_service.GetProcessorRequest
+	34, // 69: processor_service.ProcessorService.ActivatePendingVersion:input_type -> processor_service.ActivatePendingRequest
+	21, // 70: processor_service.ProcessorService.RestartProcessor:input_type -> processor_service.GetProcessorRequest
+	7,  // 71: processor_service.ProcessorService.InitUpload:input_type -> processor_service.InitUploadRequest
+	10, // 72: processor_service.ProcessorService.FinishUpload:input_type -> processor_service.FinishUploadRequest
+	12, // 73: processor_service.ProcessorService.InitBatchUpload:input_type -> processor_service.InitBatchUploadRequest
+	15, // 74: processor_service.ProcessorService.FinishBatchUpload:input_type -> processor_service.FinishBatchUploadRequest
+	40, // 75: processor_service.ProcessorRuntimeService.RunProcessor:input_type -> processor_service.RunProcessorRequest
+	41, // 76: processor_service.ProcessorRuntimeService.StopProcessor:input_type -> processor_service.StopProcessorRequest
+	29, // 77: processor_service.ProcessorRuntimeService.GetProcessorStatus:input_type -> processor_service.GetProcessorStatusRequest
+	42, // 78: processor_service.ProcessorRuntimeService.GetLogs:input_type -> processor_service.GetLogsRequest
+	44, // 79: processor_service.ProcessorRuntimeService.ReconcileProcessor:input_type -> processor_service.ReconcileProcessorRequest
+	20, // 80: processor_service.ProcessorService.GetProcessors:output_type -> processor_service.GetProcessorsResponse
+	22, // 81: processor_service.ProcessorService.GetProcessor:output_type -> processor_service.GetProcessorResponse
+	23, // 82: processor_service.ProcessorService.GetProcessorWithProject:output_type -> processor_service.GetProcessorWithProjectResponse
+	65, // 83: processor_service.ProcessorService.GetProjectVariables:output_type -> common.ProjectVariables
+	66, // 84: processor_service.ProcessorService.SetProcessorEntitySchema:output_type -> google.protobuf.Empty
+	25, // 85: processor_service.ProcessorService.UpdateChainProcessorStatus:output_type -> processor_service.UpdateChainProcessorStatusResponse
+	18, // 86: processor_service.ProcessorService.DownloadProcessor:output_type -> processor_service.DownloadProcessorResponse
+	31, // 87: processor_service.ProcessorService.GetProcessorStatusInternal:output_type -> processor_service.GetProcessorStatusResponse
+	66, // 88: processor_service.ProcessorService.PauseProcessorInternal:output_type -> google.protobuf.Empty
+	31, // 89: processor_service.ProcessorService.GetProcessorStatusV2:output_type -> processor_service.GetProcessorStatusResponse
+	33, // 90: processor_service.ProcessorService.RemoveProcessor:output_type -> processor_service.RemoveProcessorResponse
+	36, // 91: processor_service.ProcessorService.GetProcessorUpgradeHistories:output_type -> processor_service.GetProcessorUpgradeHistoryResponse
+	66, // 92: processor_service.ProcessorService.PauseProcessor:output_type -> google.protobuf.Empty
+	66, // 93: processor_service.ProcessorService.ResumeProcessor:output_type -> google.protobuf.Empty
+	66, // 94: processor_service.ProcessorService.SetVersionActive:output_type -> google.protobuf.Empty
+	66, // 95: processor_service.ProcessorService.ActivatePendingVersion:output_type -> google.protobuf.Empty
+	66, // 96: processor_service.ProcessorService.RestartProcessor:output_type -> google.protobuf.Empty
+	8,  // 97: processor_service.ProcessorService.InitUpload:output_type -> processor_service.InitUploadResponse
+	11, // 98: processor_service.ProcessorService.FinishUpload:output_type -> processor_service.FinishUploadResponse
+	14, // 99: processor_service.ProcessorService.InitBatchUpload:output_type -> processor_service.InitBatchUploadResponse
+	16, // 100: processor_service.ProcessorService.FinishBatchUpload:output_type -> processor_service.FinishBatchUploadResponse
+	27, // 101: processor_service.ProcessorRuntimeService.RunProcessor:output_type -> processor_service.Processor
+	66, // 102: processor_service.ProcessorRuntimeService.StopProcessor:output_type -> google.protobuf.Empty
+	31, // 103: processor_service.ProcessorRuntimeService.GetProcessorStatus:output_type -> processor_service.GetProcessorStatusResponse
+	43, // 104: processor_service.ProcessorRuntimeService.GetLogs:output_type -> processor_service.GetLogsResponse
+	45, // 105: processor_service.ProcessorRuntimeService.ReconcileProcessor:output_type -> processor_service.ReconcileProcessorResponse
+	80, // [80:106] is the sub-list for method output_type
+	54, // [54:80] is the sub-list for method input_type
+	54, // [54:54] is the sub-list for extension type_name
+	54, // [54:54] is the sub-list for extension extendee
+	0,  // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_service_processor_protos_processor_service_proto_init() }
@@ -4349,8 +4511,8 @@ func file_service_processor_protos_processor_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_processor_protos_processor_service_proto_rawDesc), len(file_service_processor_protos_processor_service_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   50,
+			NumEnums:      7,
+			NumMessages:   52,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

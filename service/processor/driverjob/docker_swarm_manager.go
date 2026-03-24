@@ -482,8 +482,9 @@ func (d *DockerSwarmManager) restartServiceByName(ctx context.Context, serviceNa
 		return fmt.Errorf("failed to inspect service %s: %w", serviceName, err)
 	}
 
-	// Force update the service to trigger a restart
-	service.Spec.TaskTemplate.ForceUpdate++
+	// Save current ForceUpdate before rebuilding spec (rebuild overwrites it with zero)
+	currentForceUpdate := service.Spec.TaskTemplate.ForceUpdate
+
 	if strings.HasSuffix(serviceName, "-driver") {
 		// Rebuild driver spec
 		networkID := service.Spec.TaskTemplate.Networks[0].Target
@@ -504,6 +505,10 @@ func (d *DockerSwarmManager) restartServiceByName(ctx context.Context, serviceNa
 			return err
 		}
 	}
+
+	// Apply ForceUpdate after spec rebuild to trigger a restart
+	service.Spec.TaskTemplate.ForceUpdate = currentForceUpdate + 1
+
 	resp, err := d.dockerClient.ServiceUpdate(ctx, service.ID, service.Version, service.Spec, types.ServiceUpdateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to restart service %s: %w", serviceName, err)

@@ -887,6 +887,7 @@ const (
 	ProcessorRuntimeService_StopProcessor_FullMethodName      = "/processor_service.ProcessorRuntimeService/StopProcessor"
 	ProcessorRuntimeService_GetProcessorStatus_FullMethodName = "/processor_service.ProcessorRuntimeService/GetProcessorStatus"
 	ProcessorRuntimeService_GetLogs_FullMethodName            = "/processor_service.ProcessorRuntimeService/GetLogs"
+	ProcessorRuntimeService_ReconcileProcessor_FullMethodName = "/processor_service.ProcessorRuntimeService/ReconcileProcessor"
 )
 
 // ProcessorRuntimeServiceClient is the client API for ProcessorRuntimeService service.
@@ -897,6 +898,7 @@ type ProcessorRuntimeServiceClient interface {
 	StopProcessor(ctx context.Context, in *StopProcessorRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetProcessorStatus(ctx context.Context, in *GetProcessorStatusRequest, opts ...grpc.CallOption) (*GetProcessorStatusResponse, error)
 	GetLogs(ctx context.Context, in *GetLogsRequest, opts ...grpc.CallOption) (*GetLogsResponse, error)
+	ReconcileProcessor(ctx context.Context, in *ReconcileProcessorRequest, opts ...grpc.CallOption) (*ReconcileProcessorResponse, error)
 }
 
 type processorRuntimeServiceClient struct {
@@ -947,6 +949,16 @@ func (c *processorRuntimeServiceClient) GetLogs(ctx context.Context, in *GetLogs
 	return out, nil
 }
 
+func (c *processorRuntimeServiceClient) ReconcileProcessor(ctx context.Context, in *ReconcileProcessorRequest, opts ...grpc.CallOption) (*ReconcileProcessorResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReconcileProcessorResponse)
+	err := c.cc.Invoke(ctx, ProcessorRuntimeService_ReconcileProcessor_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProcessorRuntimeServiceServer is the server API for ProcessorRuntimeService service.
 // All implementations must embed UnimplementedProcessorRuntimeServiceServer
 // for forward compatibility.
@@ -955,6 +967,7 @@ type ProcessorRuntimeServiceServer interface {
 	StopProcessor(context.Context, *StopProcessorRequest) (*emptypb.Empty, error)
 	GetProcessorStatus(context.Context, *GetProcessorStatusRequest) (*GetProcessorStatusResponse, error)
 	GetLogs(context.Context, *GetLogsRequest) (*GetLogsResponse, error)
+	ReconcileProcessor(context.Context, *ReconcileProcessorRequest) (*ReconcileProcessorResponse, error)
 	mustEmbedUnimplementedProcessorRuntimeServiceServer()
 }
 
@@ -976,6 +989,9 @@ func (UnimplementedProcessorRuntimeServiceServer) GetProcessorStatus(context.Con
 }
 func (UnimplementedProcessorRuntimeServiceServer) GetLogs(context.Context, *GetLogsRequest) (*GetLogsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLogs not implemented")
+}
+func (UnimplementedProcessorRuntimeServiceServer) ReconcileProcessor(context.Context, *ReconcileProcessorRequest) (*ReconcileProcessorResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReconcileProcessor not implemented")
 }
 func (UnimplementedProcessorRuntimeServiceServer) mustEmbedUnimplementedProcessorRuntimeServiceServer() {
 }
@@ -1071,6 +1087,24 @@ func _ProcessorRuntimeService_GetLogs_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProcessorRuntimeService_ReconcileProcessor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReconcileProcessorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessorRuntimeServiceServer).ReconcileProcessor(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProcessorRuntimeService_ReconcileProcessor_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessorRuntimeServiceServer).ReconcileProcessor(ctx, req.(*ReconcileProcessorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProcessorRuntimeService_ServiceDesc is the grpc.ServiceDesc for ProcessorRuntimeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1093,6 +1127,10 @@ var ProcessorRuntimeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLogs",
 			Handler:    _ProcessorRuntimeService_GetLogs_Handler,
+		},
+		{
+			MethodName: "ReconcileProcessor",
+			Handler:    _ProcessorRuntimeService_ReconcileProcessor_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

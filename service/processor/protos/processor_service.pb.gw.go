@@ -641,6 +641,51 @@ func local_request_ProcessorRuntimeService_GetLogs_0(ctx context.Context, marsha
 	return msg, metadata, err
 }
 
+func request_ProcessorRuntimeService_ReconcileProcessor_0(ctx context.Context, marshaler runtime.Marshaler, client ProcessorRuntimeServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ReconcileProcessorRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	val, ok := pathParams["processor_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "processor_id")
+	}
+	protoReq.ProcessorId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "processor_id", err)
+	}
+	msg, err := client.ReconcileProcessor(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_ProcessorRuntimeService_ReconcileProcessor_0(ctx context.Context, marshaler runtime.Marshaler, server ProcessorRuntimeServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq ReconcileProcessorRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["processor_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "processor_id")
+	}
+	protoReq.ProcessorId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "processor_id", err)
+	}
+	msg, err := server.ReconcileProcessor(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 // RegisterProcessorServiceHandlerServer registers the http handlers for service ProcessorService to "mux".
 // UnaryRPC     :call ProcessorServiceServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
@@ -976,6 +1021,26 @@ func RegisterProcessorRuntimeServiceHandlerServer(ctx context.Context, mux *runt
 			return
 		}
 		forward_ProcessorRuntimeService_GetLogs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_ReconcileProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/processor_service.ProcessorRuntimeService/ReconcileProcessor", runtime.WithHTTPPathPattern("/api/v1/processors/{processor_id}/reconcile"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_ProcessorRuntimeService_ReconcileProcessor_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_ProcessorRuntimeService_ReconcileProcessor_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 
 	return nil
@@ -1358,6 +1423,23 @@ func RegisterProcessorRuntimeServiceHandlerClient(ctx context.Context, mux *runt
 		}
 		forward_ProcessorRuntimeService_GetLogs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_ReconcileProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/processor_service.ProcessorRuntimeService/ReconcileProcessor", runtime.WithHTTPPathPattern("/api/v1/processors/{processor_id}/reconcile"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_ProcessorRuntimeService_ReconcileProcessor_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_ProcessorRuntimeService_ReconcileProcessor_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	return nil
 }
 
@@ -1366,6 +1448,7 @@ var (
 	pattern_ProcessorRuntimeService_StopProcessor_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "processors", "stop"}, ""))
 	pattern_ProcessorRuntimeService_GetProcessorStatus_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "processors", "status"}, ""))
 	pattern_ProcessorRuntimeService_GetLogs_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "logs"}, ""))
+	pattern_ProcessorRuntimeService_ReconcileProcessor_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "reconcile"}, ""))
 )
 
 var (
@@ -1373,4 +1456,5 @@ var (
 	forward_ProcessorRuntimeService_StopProcessor_0      = runtime.ForwardResponseMessage
 	forward_ProcessorRuntimeService_GetProcessorStatus_0 = runtime.ForwardResponseMessage
 	forward_ProcessorRuntimeService_GetLogs_0            = runtime.ForwardResponseMessage
+	forward_ProcessorRuntimeService_ReconcileProcessor_0 = runtime.ForwardResponseMessage
 )

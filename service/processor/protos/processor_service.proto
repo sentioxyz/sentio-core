@@ -666,6 +666,16 @@ service ProcessorRuntimeService {
       body : "*"
     };
   }
+
+  rpc ReconcileProcessor(ReconcileProcessorRequest)
+      returns (ReconcileProcessorResponse) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      post : "/api/v1/processors/{processor_id}/reconcile",
+      body : "*"
+    };
+  }
 }
 
 message GetLogsRequest {
@@ -690,4 +700,18 @@ message GetLogsResponse {
   }
   repeated common.Any until = 2;
   int64 total = 3;
+}
+
+message ReconcileProcessorRequest {
+  string processor_id = 1;
+  bool force_restart = 2;
+}
+
+message ReconcileProcessorResponse {
+  enum Action {
+    NONE = 0;
+    RESTARTED = 1;
+    CREATED = 2;
+  }
+  Action action = 1;
 }

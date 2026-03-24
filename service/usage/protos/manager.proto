@@ -262,3 +262,34 @@ message UpdateSKUMetaRequest {
   string desc = 3;
   bool visible = 6;
 }
+
+// QueryUsageService is used by clickhouse-proxy to check billing balance
+// and report query usage to sentio-node.
+service QueryUsageService {
+  // CheckQueryBalance checks if an account has sufficient billing balance.
+  // The proxy caches the result for 5 minutes via Redis.
+  rpc CheckQueryBalance(CheckQueryBalanceRequest) returns (CheckQueryBalanceResponse);
+
+  // ReportQueryUsage reports query usage for on-chain billing.
+  rpc ReportQueryUsage(ReportQueryUsageRequest) returns (ReportQueryUsageResponse);
+}
+
+message CheckQueryBalanceRequest {
+  string account = 1; // Ethereum address to check balance for (signer or payer)
+}
+
+message CheckQueryBalanceResponse {
+  bool has_balance = 1; // Whether the account has positive billing balance
+}
+
+message ReportQueryUsageRequest {
+  string account = 1; // Payer address (account to be charged)
+  uint64 amount = 2;  // Usage units (currently fixed 1 per query)
+  string signer = 3;  // Actual query signer address (for operator/payer separation)
+  // When signer != account, this indicates operator-pays mode:
+  //   signer = the operator who signed the query
+  //   account = the payer whose balance is charged
+}
+
+message ReportQueryUsageResponse {
+}

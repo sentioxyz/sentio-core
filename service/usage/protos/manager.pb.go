@@ -1529,6 +1529,190 @@ func (x *UpdateSKUMetaRequest) GetVisible() bool {
 	return false
 }
 
+type CheckQueryBalanceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       string                 `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckQueryBalanceRequest) Reset() {
+	*x = CheckQueryBalanceRequest{}
+	mi := &file_service_usage_protos_manager_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckQueryBalanceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckQueryBalanceRequest) ProtoMessage() {}
+
+func (x *CheckQueryBalanceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_service_usage_protos_manager_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckQueryBalanceRequest.ProtoReflect.Descriptor instead.
+func (*CheckQueryBalanceRequest) Descriptor() ([]byte, []int) {
+	return file_service_usage_protos_manager_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *CheckQueryBalanceRequest) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+type CheckQueryBalanceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	HasBalance    bool                   `protobuf:"varint,1,opt,name=has_balance,json=hasBalance,proto3" json:"has_balance,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckQueryBalanceResponse) Reset() {
+	*x = CheckQueryBalanceResponse{}
+	mi := &file_service_usage_protos_manager_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckQueryBalanceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckQueryBalanceResponse) ProtoMessage() {}
+
+func (x *CheckQueryBalanceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_service_usage_protos_manager_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckQueryBalanceResponse.ProtoReflect.Descriptor instead.
+func (*CheckQueryBalanceResponse) Descriptor() ([]byte, []int) {
+	return file_service_usage_protos_manager_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *CheckQueryBalanceResponse) GetHasBalance() bool {
+	if x != nil {
+		return x.HasBalance
+	}
+	return false
+}
+
+type ReportQueryUsageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       string                 `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	Amount        uint64                 `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	Signer        string                 `protobuf:"bytes,3,opt,name=signer,proto3" json:"signer,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportQueryUsageRequest) Reset() {
+	*x = ReportQueryUsageRequest{}
+	mi := &file_service_usage_protos_manager_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportQueryUsageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportQueryUsageRequest) ProtoMessage() {}
+
+func (x *ReportQueryUsageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_service_usage_protos_manager_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportQueryUsageRequest.ProtoReflect.Descriptor instead.
+func (*ReportQueryUsageRequest) Descriptor() ([]byte, []int) {
+	return file_service_usage_protos_manager_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ReportQueryUsageRequest) GetAccount() string {
+	if x != nil {
+		return x.Account
+	}
+	return ""
+}
+
+func (x *ReportQueryUsageRequest) GetAmount() uint64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *ReportQueryUsageRequest) GetSigner() string {
+	if x != nil {
+		return x.Signer
+	}
+	return ""
+}
+
+type ReportQueryUsageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportQueryUsageResponse) Reset() {
+	*x = ReportQueryUsageResponse{}
+	mi := &file_service_usage_protos_manager_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportQueryUsageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportQueryUsageResponse) ProtoMessage() {}
+
+func (x *ReportQueryUsageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_service_usage_protos_manager_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportQueryUsageResponse.ProtoReflect.Descriptor instead.
+func (*ReportQueryUsageResponse) Descriptor() ([]byte, []int) {
+	return file_service_usage_protos_manager_proto_rawDescGZIP(), []int{26}
+}
+
 type CheckOverLimitResponse_Limiter struct {
 	state         protoimpl.MessageState                  `protogen:"open.v1"`
 	Category      CheckOverLimitResponse_Limiter_Category `protobuf:"varint,1,opt,name=category,proto3,enum=usage_service.CheckOverLimitResponse_Limiter_Category" json:"category,omitempty"`
@@ -1547,7 +1731,7 @@ type CheckOverLimitResponse_Limiter struct {
 
 func (x *CheckOverLimitResponse_Limiter) Reset() {
 	*x = CheckOverLimitResponse_Limiter{}
-	mi := &file_service_usage_protos_manager_proto_msgTypes[23]
+	mi := &file_service_usage_protos_manager_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1559,7 +1743,7 @@ func (x *CheckOverLimitResponse_Limiter) String() string {
 func (*CheckOverLimitResponse_Limiter) ProtoMessage() {}
 
 func (x *CheckOverLimitResponse_Limiter) ProtoReflect() protoreflect.Message {
-	mi := &file_service_usage_protos_manager_proto_msgTypes[23]
+	mi := &file_service_usage_protos_manager_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1656,7 +1840,7 @@ type CheckOverLimitResponse_OverLimiterStatus struct {
 
 func (x *CheckOverLimitResponse_OverLimiterStatus) Reset() {
 	*x = CheckOverLimitResponse_OverLimiterStatus{}
-	mi := &file_service_usage_protos_manager_proto_msgTypes[24]
+	mi := &file_service_usage_protos_manager_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1668,7 +1852,7 @@ func (x *CheckOverLimitResponse_OverLimiterStatus) String() string {
 func (*CheckOverLimitResponse_OverLimiterStatus) ProtoMessage() {}
 
 func (x *CheckOverLimitResponse_OverLimiterStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_service_usage_protos_manager_proto_msgTypes[24]
+	mi := &file_service_usage_protos_manager_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1715,7 +1899,7 @@ type CheckOverLimitResponse_Status struct {
 
 func (x *CheckOverLimitResponse_Status) Reset() {
 	*x = CheckOverLimitResponse_Status{}
-	mi := &file_service_usage_protos_manager_proto_msgTypes[25]
+	mi := &file_service_usage_protos_manager_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1727,7 +1911,7 @@ func (x *CheckOverLimitResponse_Status) String() string {
 func (*CheckOverLimitResponse_Status) ProtoMessage() {}
 
 func (x *CheckOverLimitResponse_Status) ProtoReflect() protoreflect.Message {
-	mi := &file_service_usage_protos_manager_proto_msgTypes[25]
+	mi := &file_service_usage_protos_manager_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1775,7 +1959,7 @@ type StatisticResponse_Stat struct {
 
 func (x *StatisticResponse_Stat) Reset() {
 	*x = StatisticResponse_Stat{}
-	mi := &file_service_usage_protos_manager_proto_msgTypes[27]
+	mi := &file_service_usage_protos_manager_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1787,7 +1971,7 @@ func (x *StatisticResponse_Stat) String() string {
 func (*StatisticResponse_Stat) ProtoMessage() {}
 
 func (x *StatisticResponse_Stat) ProtoReflect() protoreflect.Message {
-	mi := &file_service_usage_protos_manager_proto_msgTypes[27]
+	mi := &file_service_usage_protos_manager_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2029,7 +2213,17 @@ const file_service_usage_protos_manager_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
 	"\x04desc\x18\x03 \x01(\tR\x04desc\x12\x18\n" +
-	"\avisible\x18\x06 \x01(\bR\avisible2\x99\f\n" +
+	"\avisible\x18\x06 \x01(\bR\avisible\"4\n" +
+	"\x18CheckQueryBalanceRequest\x12\x18\n" +
+	"\aaccount\x18\x01 \x01(\tR\aaccount\"<\n" +
+	"\x19CheckQueryBalanceResponse\x12\x1f\n" +
+	"\vhas_balance\x18\x01 \x01(\bR\n" +
+	"hasBalance\"c\n" +
+	"\x17ReportQueryUsageRequest\x12\x18\n" +
+	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x16\n" +
+	"\x06amount\x18\x02 \x01(\x04R\x06amount\x12\x16\n" +
+	"\x06signer\x18\x03 \x01(\tR\x06signer\"\x1a\n" +
+	"\x18ReportQueryUsageResponse2\x99\f\n" +
 	"\fUsageService\x12N\n" +
 	"\tAsyncSave\x12\x1f.usage_service.AsyncSaveRequest\x1a .usage_service.AsyncSaveResponse\x12]\n" +
 	"\x0eCheckOverLimit\x12$.usage_service.CheckOverLimitRequest\x1a%.usage_service.CheckOverLimitResponse\x12N\n" +
@@ -2043,7 +2237,10 @@ const file_service_usage_protos_manager_proto_rawDesc = "" +
 	"\x0fSetSkuCostAdmin\x12 .usage_service.SetSkuCostRequest\x1a!.usage_service.SetSkuCostResponse\"1\x82\xd3\xe4\x93\x02+:\x01*\"&/api/v1/gateway-manager/admin/sku-cost\x12\x86\x01\n" +
 	"\x0fDelSkuCostAdmin\x12 .usage_service.DelSkuCostRequest\x1a!.usage_service.DelSkuCostResponse\".\x82\xd3\xe4\x93\x02(*&/api/v1/gateway-manager/admin/sku-cost\x12m\n" +
 	"\aListSKU\x12\x1d.usage_service.ListSKURequest\x1a\x1e.usage_service.ListSKUResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/api/v1/gateway-manager/sku\x12\x7f\n" +
-	"\x12UpdateSKUMetaAdmin\x12#.usage_service.UpdateSKUMetaRequest\x1a\x16.google.protobuf.Empty\",\x82\xd3\xe4\x93\x02&:\x01*\"!/api/v1/gateway-manager/admin/skuB,Z*sentioxyz/sentio-core/service/usage/protosb\x06proto3"
+	"\x12UpdateSKUMetaAdmin\x12#.usage_service.UpdateSKUMetaRequest\x1a\x16.google.protobuf.Empty\",\x82\xd3\xe4\x93\x02&:\x01*\"!/api/v1/gateway-manager/admin/sku2\xe0\x01\n" +
+	"\x11QueryUsageService\x12f\n" +
+	"\x11CheckQueryBalance\x12'.usage_service.CheckQueryBalanceRequest\x1a(.usage_service.CheckQueryBalanceResponse\x12c\n" +
+	"\x10ReportQueryUsage\x12&.usage_service.ReportQueryUsageRequest\x1a'.usage_service.ReportQueryUsageResponseB,Z*sentioxyz/sentio-core/service/usage/protosb\x06proto3"
 
 var (
 	file_service_usage_protos_manager_proto_rawDescOnce sync.Once
@@ -2058,7 +2255,7 @@ func file_service_usage_protos_manager_proto_rawDescGZIP() []byte {
 }
 
 var file_service_usage_protos_manager_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_service_usage_protos_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_service_usage_protos_manager_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_service_usage_protos_manager_proto_goTypes = []any{
 	(CheckOverLimitResponse_Limiter_Category)(0),     // 0: usage_service.CheckOverLimitResponse.Limiter.Category
 	(RankingRequest_Target)(0),                       // 1: usage_service.RankingRequest.Target
@@ -2086,45 +2283,49 @@ var file_service_usage_protos_manager_proto_goTypes = []any{
 	(*ListSKURequest)(nil),                           // 23: usage_service.ListSKURequest
 	(*ListSKUResponse)(nil),                          // 24: usage_service.ListSKUResponse
 	(*UpdateSKUMetaRequest)(nil),                     // 25: usage_service.UpdateSKUMetaRequest
-	(*CheckOverLimitResponse_Limiter)(nil),           // 26: usage_service.CheckOverLimitResponse.Limiter
-	(*CheckOverLimitResponse_OverLimiterStatus)(nil), // 27: usage_service.CheckOverLimitResponse.OverLimiterStatus
-	(*CheckOverLimitResponse_Status)(nil),            // 28: usage_service.CheckOverLimitResponse.Status
-	nil,                                              // 29: usage_service.Tags.CustomTagsEntry
-	(*StatisticResponse_Stat)(nil),                   // 30: usage_service.StatisticResponse.Stat
-	(*timestamppb.Timestamp)(nil),                    // 31: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                            // 32: google.protobuf.Empty
+	(*CheckQueryBalanceRequest)(nil),                 // 26: usage_service.CheckQueryBalanceRequest
+	(*CheckQueryBalanceResponse)(nil),                // 27: usage_service.CheckQueryBalanceResponse
+	(*ReportQueryUsageRequest)(nil),                  // 28: usage_service.ReportQueryUsageRequest
+	(*ReportQueryUsageResponse)(nil),                 // 29: usage_service.ReportQueryUsageResponse
+	(*CheckOverLimitResponse_Limiter)(nil),           // 30: usage_service.CheckOverLimitResponse.Limiter
+	(*CheckOverLimitResponse_OverLimiterStatus)(nil), // 31: usage_service.CheckOverLimitResponse.OverLimiterStatus
+	(*CheckOverLimitResponse_Status)(nil),            // 32: usage_service.CheckOverLimitResponse.Status
+	nil,                                              // 33: usage_service.Tags.CustomTagsEntry
+	(*StatisticResponse_Stat)(nil),                   // 34: usage_service.StatisticResponse.Stat
+	(*timestamppb.Timestamp)(nil),                    // 35: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                            // 36: google.protobuf.Empty
 }
 var file_service_usage_protos_manager_proto_depIdxs = []int32{
-	31, // 0: usage_service.CheckOverLimitRequest.now:type_name -> google.protobuf.Timestamp
-	28, // 1: usage_service.CheckOverLimitResponse.status:type_name -> usage_service.CheckOverLimitResponse.Status
-	31, // 2: usage_service.Dialogue.request_time:type_name -> google.protobuf.Timestamp
+	35, // 0: usage_service.CheckOverLimitRequest.now:type_name -> google.protobuf.Timestamp
+	32, // 1: usage_service.CheckOverLimitResponse.status:type_name -> usage_service.CheckOverLimitResponse.Status
+	35, // 2: usage_service.Dialogue.request_time:type_name -> google.protobuf.Timestamp
 	9,  // 3: usage_service.Dialogue.tags:type_name -> usage_service.Tags
 	6,  // 4: usage_service.AsyncSaveRequest.dialogues:type_name -> usage_service.Dialogue
-	29, // 5: usage_service.Tags.custom_tags:type_name -> usage_service.Tags.CustomTagsEntry
-	31, // 6: usage_service.SkuCostConfig.effective_from:type_name -> google.protobuf.Timestamp
-	31, // 7: usage_service.Sku.created_at:type_name -> google.protobuf.Timestamp
-	31, // 8: usage_service.Sku.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 5: usage_service.Tags.custom_tags:type_name -> usage_service.Tags.CustomTagsEntry
+	35, // 6: usage_service.SkuCostConfig.effective_from:type_name -> google.protobuf.Timestamp
+	35, // 7: usage_service.Sku.created_at:type_name -> google.protobuf.Timestamp
+	35, // 8: usage_service.Sku.updated_at:type_name -> google.protobuf.Timestamp
 	11, // 9: usage_service.StatisticRequest.tags:type_name -> usage_service.QueryTags
 	10, // 10: usage_service.StatisticRequest.period:type_name -> usage_service.Period
-	31, // 11: usage_service.StatisticRequest.start_time:type_name -> google.protobuf.Timestamp
-	31, // 12: usage_service.StatisticRequest.end_time:type_name -> google.protobuf.Timestamp
-	30, // 13: usage_service.StatisticResponse.stats:type_name -> usage_service.StatisticResponse.Stat
+	35, // 11: usage_service.StatisticRequest.start_time:type_name -> google.protobuf.Timestamp
+	35, // 12: usage_service.StatisticRequest.end_time:type_name -> google.protobuf.Timestamp
+	34, // 13: usage_service.StatisticResponse.stats:type_name -> usage_service.StatisticResponse.Stat
 	1,  // 14: usage_service.RankingRequest.target:type_name -> usage_service.RankingRequest.Target
 	2,  // 15: usage_service.RankingRequest.owner_type:type_name -> usage_service.RankingRequest.OwnerType
 	10, // 16: usage_service.RankingRequest.period:type_name -> usage_service.Period
-	31, // 17: usage_service.RankingRequest.time:type_name -> google.protobuf.Timestamp
+	35, // 17: usage_service.RankingRequest.time:type_name -> google.protobuf.Timestamp
 	12, // 18: usage_service.ListSkuCostConfigResponse.configs:type_name -> usage_service.SkuCostConfig
 	12, // 19: usage_service.SetSkuCostRequest.configs:type_name -> usage_service.SkuCostConfig
-	31, // 20: usage_service.DelSkuCostRequest.effective_from:type_name -> google.protobuf.Timestamp
-	31, // 21: usage_service.ListSKURequest.time:type_name -> google.protobuf.Timestamp
+	35, // 20: usage_service.DelSkuCostRequest.effective_from:type_name -> google.protobuf.Timestamp
+	35, // 21: usage_service.ListSKURequest.time:type_name -> google.protobuf.Timestamp
 	13, // 22: usage_service.ListSKUResponse.sku_list:type_name -> usage_service.Sku
 	0,  // 23: usage_service.CheckOverLimitResponse.Limiter.category:type_name -> usage_service.CheckOverLimitResponse.Limiter.Category
-	31, // 24: usage_service.CheckOverLimitResponse.Limiter.effective_time:type_name -> google.protobuf.Timestamp
-	31, // 25: usage_service.CheckOverLimitResponse.Limiter.expire_time:type_name -> google.protobuf.Timestamp
+	35, // 24: usage_service.CheckOverLimitResponse.Limiter.effective_time:type_name -> google.protobuf.Timestamp
+	35, // 25: usage_service.CheckOverLimitResponse.Limiter.expire_time:type_name -> google.protobuf.Timestamp
 	10, // 26: usage_service.CheckOverLimitResponse.Limiter.period:type_name -> usage_service.Period
-	26, // 27: usage_service.CheckOverLimitResponse.OverLimiterStatus.limiter:type_name -> usage_service.CheckOverLimitResponse.Limiter
-	27, // 28: usage_service.CheckOverLimitResponse.Status.limiters:type_name -> usage_service.CheckOverLimitResponse.OverLimiterStatus
-	31, // 29: usage_service.StatisticResponse.Stat.time_window:type_name -> google.protobuf.Timestamp
+	30, // 27: usage_service.CheckOverLimitResponse.OverLimiterStatus.limiter:type_name -> usage_service.CheckOverLimitResponse.Limiter
+	31, // 28: usage_service.CheckOverLimitResponse.Status.limiters:type_name -> usage_service.CheckOverLimitResponse.OverLimiterStatus
+	35, // 29: usage_service.StatisticResponse.Stat.time_window:type_name -> google.protobuf.Timestamp
 	9,  // 30: usage_service.StatisticResponse.Stat.tags:type_name -> usage_service.Tags
 	7,  // 31: usage_service.UsageService.AsyncSave:input_type -> usage_service.AsyncSaveRequest
 	4,  // 32: usage_service.UsageService.CheckOverLimit:input_type -> usage_service.CheckOverLimitRequest
@@ -2139,21 +2340,25 @@ var file_service_usage_protos_manager_proto_depIdxs = []int32{
 	20, // 41: usage_service.UsageService.DelSkuCostAdmin:input_type -> usage_service.DelSkuCostRequest
 	23, // 42: usage_service.UsageService.ListSKU:input_type -> usage_service.ListSKURequest
 	25, // 43: usage_service.UsageService.UpdateSKUMetaAdmin:input_type -> usage_service.UpdateSKUMetaRequest
-	8,  // 44: usage_service.UsageService.AsyncSave:output_type -> usage_service.AsyncSaveResponse
-	5,  // 45: usage_service.UsageService.CheckOverLimit:output_type -> usage_service.CheckOverLimitResponse
-	15, // 46: usage_service.UsageService.Statistic:output_type -> usage_service.StatisticResponse
-	5,  // 47: usage_service.UsageService.CheckOverLimitExt:output_type -> usage_service.CheckOverLimitResponse
-	15, // 48: usage_service.UsageService.StatisticExt:output_type -> usage_service.StatisticResponse
-	15, // 49: usage_service.UsageService.StatisticAdmin:output_type -> usage_service.StatisticResponse
-	15, // 50: usage_service.UsageService.Ranking:output_type -> usage_service.StatisticResponse
-	15, // 51: usage_service.UsageService.RankingAdmin:output_type -> usage_service.StatisticResponse
-	18, // 52: usage_service.UsageService.ListSkuCostConfigAdmin:output_type -> usage_service.ListSkuCostConfigResponse
-	21, // 53: usage_service.UsageService.SetSkuCostAdmin:output_type -> usage_service.SetSkuCostResponse
-	22, // 54: usage_service.UsageService.DelSkuCostAdmin:output_type -> usage_service.DelSkuCostResponse
-	24, // 55: usage_service.UsageService.ListSKU:output_type -> usage_service.ListSKUResponse
-	32, // 56: usage_service.UsageService.UpdateSKUMetaAdmin:output_type -> google.protobuf.Empty
-	44, // [44:57] is the sub-list for method output_type
-	31, // [31:44] is the sub-list for method input_type
+	26, // 44: usage_service.QueryUsageService.CheckQueryBalance:input_type -> usage_service.CheckQueryBalanceRequest
+	28, // 45: usage_service.QueryUsageService.ReportQueryUsage:input_type -> usage_service.ReportQueryUsageRequest
+	8,  // 46: usage_service.UsageService.AsyncSave:output_type -> usage_service.AsyncSaveResponse
+	5,  // 47: usage_service.UsageService.CheckOverLimit:output_type -> usage_service.CheckOverLimitResponse
+	15, // 48: usage_service.UsageService.Statistic:output_type -> usage_service.StatisticResponse
+	5,  // 49: usage_service.UsageService.CheckOverLimitExt:output_type -> usage_service.CheckOverLimitResponse
+	15, // 50: usage_service.UsageService.StatisticExt:output_type -> usage_service.StatisticResponse
+	15, // 51: usage_service.UsageService.StatisticAdmin:output_type -> usage_service.StatisticResponse
+	15, // 52: usage_service.UsageService.Ranking:output_type -> usage_service.StatisticResponse
+	15, // 53: usage_service.UsageService.RankingAdmin:output_type -> usage_service.StatisticResponse
+	18, // 54: usage_service.UsageService.ListSkuCostConfigAdmin:output_type -> usage_service.ListSkuCostConfigResponse
+	21, // 55: usage_service.UsageService.SetSkuCostAdmin:output_type -> usage_service.SetSkuCostResponse
+	22, // 56: usage_service.UsageService.DelSkuCostAdmin:output_type -> usage_service.DelSkuCostResponse
+	24, // 57: usage_service.UsageService.ListSKU:output_type -> usage_service.ListSKUResponse
+	36, // 58: usage_service.UsageService.UpdateSKUMetaAdmin:output_type -> google.protobuf.Empty
+	27, // 59: usage_service.QueryUsageService.CheckQueryBalance:output_type -> usage_service.CheckQueryBalanceResponse
+	29, // 60: usage_service.QueryUsageService.ReportQueryUsage:output_type -> usage_service.ReportQueryUsageResponse
+	46, // [46:61] is the sub-list for method output_type
+	31, // [31:46] is the sub-list for method input_type
 	31, // [31:31] is the sub-list for extension type_name
 	31, // [31:31] is the sub-list for extension extendee
 	0,  // [0:31] is the sub-list for field type_name
@@ -2170,9 +2375,9 @@ func file_service_usage_protos_manager_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_usage_protos_manager_proto_rawDesc), len(file_service_usage_protos_manager_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   28,
+			NumMessages:   32,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_service_usage_protos_manager_proto_goTypes,
 		DependencyIndexes: file_service_usage_protos_manager_proto_depIdxs,

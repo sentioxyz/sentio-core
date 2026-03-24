@@ -576,3 +576,143 @@ var UsageService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "service/usage/protos/manager.proto",
 }
+
+const (
+	QueryUsageService_CheckQueryBalance_FullMethodName = "/usage_service.QueryUsageService/CheckQueryBalance"
+	QueryUsageService_ReportQueryUsage_FullMethodName  = "/usage_service.QueryUsageService/ReportQueryUsage"
+)
+
+// QueryUsageServiceClient is the client API for QueryUsageService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type QueryUsageServiceClient interface {
+	CheckQueryBalance(ctx context.Context, in *CheckQueryBalanceRequest, opts ...grpc.CallOption) (*CheckQueryBalanceResponse, error)
+	ReportQueryUsage(ctx context.Context, in *ReportQueryUsageRequest, opts ...grpc.CallOption) (*ReportQueryUsageResponse, error)
+}
+
+type queryUsageServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewQueryUsageServiceClient(cc grpc.ClientConnInterface) QueryUsageServiceClient {
+	return &queryUsageServiceClient{cc}
+}
+
+func (c *queryUsageServiceClient) CheckQueryBalance(ctx context.Context, in *CheckQueryBalanceRequest, opts ...grpc.CallOption) (*CheckQueryBalanceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckQueryBalanceResponse)
+	err := c.cc.Invoke(ctx, QueryUsageService_CheckQueryBalance_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryUsageServiceClient) ReportQueryUsage(ctx context.Context, in *ReportQueryUsageRequest, opts ...grpc.CallOption) (*ReportQueryUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportQueryUsageResponse)
+	err := c.cc.Invoke(ctx, QueryUsageService_ReportQueryUsage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// QueryUsageServiceServer is the server API for QueryUsageService service.
+// All implementations must embed UnimplementedQueryUsageServiceServer
+// for forward compatibility.
+type QueryUsageServiceServer interface {
+	CheckQueryBalance(context.Context, *CheckQueryBalanceRequest) (*CheckQueryBalanceResponse, error)
+	ReportQueryUsage(context.Context, *ReportQueryUsageRequest) (*ReportQueryUsageResponse, error)
+	mustEmbedUnimplementedQueryUsageServiceServer()
+}
+
+// UnimplementedQueryUsageServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedQueryUsageServiceServer struct{}
+
+func (UnimplementedQueryUsageServiceServer) CheckQueryBalance(context.Context, *CheckQueryBalanceRequest) (*CheckQueryBalanceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckQueryBalance not implemented")
+}
+func (UnimplementedQueryUsageServiceServer) ReportQueryUsage(context.Context, *ReportQueryUsageRequest) (*ReportQueryUsageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportQueryUsage not implemented")
+}
+func (UnimplementedQueryUsageServiceServer) mustEmbedUnimplementedQueryUsageServiceServer() {}
+func (UnimplementedQueryUsageServiceServer) testEmbeddedByValue()                           {}
+
+// UnsafeQueryUsageServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to QueryUsageServiceServer will
+// result in compilation errors.
+type UnsafeQueryUsageServiceServer interface {
+	mustEmbedUnimplementedQueryUsageServiceServer()
+}
+
+func RegisterQueryUsageServiceServer(s grpc.ServiceRegistrar, srv QueryUsageServiceServer) {
+	// If the following call pancis, it indicates UnimplementedQueryUsageServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&QueryUsageService_ServiceDesc, srv)
+}
+
+func _QueryUsageService_CheckQueryBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckQueryBalanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryUsageServiceServer).CheckQueryBalance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryUsageService_CheckQueryBalance_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryUsageServiceServer).CheckQueryBalance(ctx, req.(*CheckQueryBalanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QueryUsageService_ReportQueryUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportQueryUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryUsageServiceServer).ReportQueryUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryUsageService_ReportQueryUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryUsageServiceServer).ReportQueryUsage(ctx, req.(*ReportQueryUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// QueryUsageService_ServiceDesc is the grpc.ServiceDesc for QueryUsageService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var QueryUsageService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "usage_service.QueryUsageService",
+	HandlerType: (*QueryUsageServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CheckQueryBalance",
+			Handler:    _QueryUsageService_CheckQueryBalance_Handler,
+		},
+		{
+			MethodName: "ReportQueryUsage",
+			Handler:    _QueryUsageService_ReportQueryUsage_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "service/usage/protos/manager.proto",
+}

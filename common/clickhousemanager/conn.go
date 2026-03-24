@@ -254,7 +254,7 @@ func NewOrGetConn(dsn string, connectOptions ...func(*Options)) Conn {
 	conn, ok := connections.Get(dsn + connOptions.Serialization())
 	if ok {
 		log.Infof("reuse sentio-clickhouse wrapped connection: %s", dsn+"@"+connOptions.Serialization())
-		return conn
+		return wrapWithTracing(conn)
 	}
 	return NewConn(dsn, connectOptions...)
 }
@@ -268,5 +268,5 @@ func NewConn(dsn string, connectOptions ...func(*Options)) Conn {
 	conn := connect(dsn, connectOptions...)
 	connections.Put(dsn+connOptions.Serialization(), conn)
 	log.Infof("connect sentio-clickhouse wrapped connection: %s", dsn+"@"+connOptions.Serialization())
-	return conn
+	return wrapWithTracing(conn)
 }

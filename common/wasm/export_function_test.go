@@ -897,9 +897,9 @@ func Test_recursion(t *testing.T) {
 			Data:           "init",
 		})
 	assert.NoError(t, err)
-	assert.Equal(t, uint(4), report.ExportFuncCalled)
-	assert.Equal(t, uint(5), report.ImportFuncCalled)
-	assert.True(t, report.ImportFuncCallUsed > report.TimeUsed) // because recursion
+	assert.Equal(t, map[string]uint{"testInst1::testRecursion": 2, "testInst2::testRecursion": 2}, report.ExportFuncCalled)
+	assert.Equal(t, map[string]uint{"index/log.log": 5}, report.ImportFuncCalled)
+	assert.True(t, report.ImportFuncCallUsed["index/log.log"] > report.TimeUsed) // because recursion
 	assert.Nil(t, inst1.callCtx)
 	assert.Nil(t, inst2.callCtx)
 	log.Infof("report: %#v", report)

@@ -76,8 +76,7 @@ func (inst *Instance[DATA]) newImportBox(namespace, name string, fn any) (box im
 		inst.callImportFuncDebugLog("begin")
 		start := time.Now()
 		defer func() {
-			top.ImportFuncCalled++
-			top.ImportFuncCallUsed += time.Since(start)
+			top.incImportFunc(fullName, time.Since(start))
 			if e := recover(); e != nil {
 				var is bool
 				if err, is = e.(error); !is {

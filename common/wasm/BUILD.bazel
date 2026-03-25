@@ -8,6 +8,8 @@ go_library(
         "export_function.go",
         "import_function.go",
         "instance.go",
+        "madvise_other.go",
+        "madvise_unix.go",
         "memory.go",
         "object_array.go",
         "object_bytearray.go",
@@ -15,6 +17,7 @@ go_library(
         "types.go",
         "utils.go",
     ],
+    cgo = True,
     importpath = "sentioxyz/sentio-core/common/wasm",
     visibility = ["//visibility:public"],
     deps = [

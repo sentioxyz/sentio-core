@@ -139,8 +139,17 @@ func (inst *Instance[DATA]) Reset(logger *log.SentioLogger) error {
 func (inst *Instance[DATA]) reset(logger *log.SentioLogger) error {
 	// Only close the Instance — Store and Module are reused across resets.
 	if inst.instance != nil {
+		// Capture the Wasm linear memory slice before tearing down the instance.
+		// After Close(), the instance no longer owns the memory, so we advise the
+		// OS to reclaim the physical pages immediately rather than waiting for
+		// memory pressure (relevant on macOS with MADV_FREE semantics).
+		var wasmMem []byte
+		if inst.memoryMgr != nil {
+			wasmMem = inst.memoryMgr.memory.Data()
+		}
 		inst.instance.Close()
 		inst.instance = nil
+		adviseRelease(wasmMem)
 	}
 	inst.memoryMgr = nil
 	inst.exportedFunc = nil

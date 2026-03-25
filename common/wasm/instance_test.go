@@ -11,21 +11,32 @@ import (
 	"sentioxyz/sentio-core/common/log"
 )
 
-// Test_globalEngineReuse verifies that all Instance.Init() calls reuse the package-level
-// globalEngine rather than creating a new engine each time. This prevents engine memory
-// pools from accumulating across reset() calls.
-func Test_globalEngineReuse(t *testing.T) {
+// Test_storeAndModuleReuse verifies that Store and Module objects are created only once
+// and reused across reset() calls. Only the Instance is recreated on each reset.
+// Reusing the Store avoids store-level memory pool churn; reusing the Module avoids
+// redundant JIT recompilation of the Wasm bytecode.
+func Test_storeAndModuleReuse(t *testing.T) {
 	inst := newTestInst("testInst")
 	defer inst.Close()
 
 	assert.NoError(t, inst.Init(log.With()))
-	assert.Same(t, globalEngine, inst.store.Engine, "after Init, store must use globalEngine")
+	assert.Same(t, globalEngine, inst.store.Engine, "store must use globalEngine")
+
+	store0 := inst.store
+	module0 := inst.module
+	instance0 := inst.instance
 
 	assert.NoError(t, inst.reset(log.With()))
-	assert.Same(t, globalEngine, inst.store.Engine, "after reset, store must reuse globalEngine")
+	assert.Same(t, store0, inst.store, "store must be reused after reset")
+	assert.Same(t, module0, inst.module, "module must be reused after reset")
+	assert.NotSame(t, instance0, inst.instance, "instance must be recreated after reset")
+
+	store1 := inst.store
+	module1 := inst.module
 
 	assert.NoError(t, inst.reset(log.With()))
-	assert.Same(t, globalEngine, inst.store.Engine, "after second reset, store must still reuse globalEngine")
+	assert.Same(t, store1, inst.store, "store must be reused after second reset")
+	assert.Same(t, module1, inst.module, "module must be reused after second reset")
 }
 
 // Test_resetDoesNotLeakMemory verifies that repeated reset() calls do not cause the process

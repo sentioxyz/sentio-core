@@ -48,11 +48,19 @@ func (inst *Instance[DATA]) Name() string {
 }
 
 func (inst *Instance[DATA]) Init(logger *log.SentioLogger) error {
-	inst.store = wasmer.NewStore(globalEngine)
+	// Store and Module are created once and reused across resets to avoid
+	// repeatedly allocating/freeing store-level memory pools and recompiling
+	// JIT code. Only the Instance (which owns the Wasm linear memory and heap
+	// state) is recreated on each reset.
+	if inst.store == nil {
+		inst.store = wasmer.NewStore(globalEngine)
+	}
 	var err error
-	inst.module, err = wasmer.NewModule(inst.store, inst.modBytes)
-	if err != nil {
-		return fmt.Errorf("new wasm module failed: %w", err)
+	if inst.module == nil {
+		inst.module, err = wasmer.NewModule(inst.store, inst.modBytes)
+		if err != nil {
+			return fmt.Errorf("new wasm module failed: %w", err)
+		}
 	}
 	inst.instance, err = wasmer.NewInstance(inst.module, inst.prepareImportObject(inst.module, inst.store))
 	if err != nil {
@@ -129,7 +137,13 @@ func (inst *Instance[DATA]) Reset(logger *log.SentioLogger) error {
 }
 
 func (inst *Instance[DATA]) reset(logger *log.SentioLogger) error {
-	inst.Close()
+	// Only close the Instance — Store and Module are reused across resets.
+	if inst.instance != nil {
+		inst.instance.Close()
+		inst.instance = nil
+	}
+	inst.memoryMgr = nil
+	inst.exportedFunc = nil
 	logger.Infof("will reset wasm instance %s", inst.name)
 	inst.resetCounter++
 	return inst.Init(logger)

@@ -30,6 +30,7 @@ go_test(
     srcs = [
         "convert_test.go",
         "export_function_test.go",
+        "instance_test.go",
         "object_bytearray_test.go",
         "object_string_test.go",
         "utils_test.go",

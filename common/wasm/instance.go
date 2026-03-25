@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"runtime"
 
 	"github.com/wasmerio/wasmer-go/wasmer"
 
@@ -23,6 +22,8 @@ type Instance[DATA fmt.Stringer] struct {
 	exportFuncCalled uint
 	resetCounter     uint
 
+	store        *wasmer.Store
+	module       *wasmer.Module
 	instance     *wasmer.Instance
 	exportedFunc map[string]wasmer.NativeFunction
 	memoryMgr    *MemoryManager
@@ -46,12 +47,13 @@ func (inst *Instance[DATA]) Name() string {
 
 func (inst *Instance[DATA]) Init(logger *log.SentioLogger) error {
 	engine := wasmer.NewEngine()
-	store := wasmer.NewStore(engine)
-	module, err := wasmer.NewModule(store, inst.modBytes)
+	inst.store = wasmer.NewStore(engine)
+	var err error
+	inst.module, err = wasmer.NewModule(inst.store, inst.modBytes)
 	if err != nil {
 		return fmt.Errorf("new wasm module failed: %w", err)
 	}
-	inst.instance, err = wasmer.NewInstance(module, inst.prepareImportObject(module, store))
+	inst.instance, err = wasmer.NewInstance(inst.module, inst.prepareImportObject(inst.module, inst.store))
 	if err != nil {
 		return fmt.Errorf("new wasm instance failed: %w", err)
 	}
@@ -105,9 +107,16 @@ func (inst *Instance[DATA]) Close() {
 		inst.instance.Close()
 		inst.instance = nil
 	}
+	if inst.module != nil {
+		inst.module.Close()
+		inst.module = nil
+	}
+	if inst.store != nil {
+		inst.store.Close()
+		inst.store = nil
+	}
 	inst.memoryMgr = nil
 	inst.exportedFunc = nil
-	runtime.GC()
 }
 
 func (inst *Instance[DATA]) Reset(logger *log.SentioLogger) error {

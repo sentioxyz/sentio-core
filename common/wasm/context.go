@@ -16,9 +16,33 @@ type CallParams[DATA fmt.Stringer] struct {
 }
 
 type CallStat struct {
-	ExportFuncCalled   uint
-	ImportFuncCalled   uint
-	ImportFuncCallUsed time.Duration
+	ExportFuncCalled   map[string]uint
+	ImportFuncCalled   map[string]uint
+	ImportFuncCallUsed map[string]time.Duration
+}
+
+func (s *CallStat) incExportFunc(name string) {
+	if s.ExportFuncCalled == nil {
+		s.ExportFuncCalled = make(map[string]uint)
+	}
+	s.ExportFuncCalled[name]++
+}
+
+func (s *CallStat) incImportFunc(name string, used time.Duration) {
+	if s.ImportFuncCalled == nil {
+		s.ImportFuncCalled = make(map[string]uint)
+	}
+	s.ImportFuncCalled[name]++
+	if s.ImportFuncCallUsed == nil {
+		s.ImportFuncCallUsed = make(map[string]time.Duration)
+	}
+	s.ImportFuncCallUsed[name] += used
+}
+
+func (s *CallStat) mergeFrom(other *CallStat) {
+	s.ExportFuncCalled = utils.MergeMapSum(s.ExportFuncCalled, other.ExportFuncCalled)
+	s.ImportFuncCalled = utils.MergeMapSum(s.ImportFuncCalled, other.ImportFuncCalled)
+	s.ImportFuncCallUsed = utils.MergeMapSum(s.ImportFuncCallUsed, other.ImportFuncCallUsed)
 }
 
 type call[DATA fmt.Stringer] struct {

@@ -61,9 +61,9 @@ func (inst *Instance[DATA]) MustExportFunction(name string, fn any) *Instance[DA
 
 type CallResult struct {
 	TimeUsed           time.Duration
-	ExportFuncCalled   uint
-	ImportFuncCalled   uint
-	ImportFuncCallUsed time.Duration
+	ExportFuncCalled   map[string]uint
+	ImportFuncCalled   map[string]uint
+	ImportFuncCallUsed map[string]time.Duration
 	MemoryUsed         uint32 // Include only the main module's memory usage
 }
 
@@ -181,9 +181,8 @@ func (inst *Instance[DATA]) CallExportFunction(
 
 	if !ctx.stack.isEmpty() {
 		top := ctx.stack.top()
-		top.ExportFuncCalled += calling.ExportFuncCalled + 1
-		top.ImportFuncCalled += calling.ImportFuncCalled
-		top.ImportFuncCallUsed += calling.ImportFuncCallUsed
+		top.mergeFrom(&calling.CallStat)
+		top.incExportFunc(fullName)
 	}
 
 	return

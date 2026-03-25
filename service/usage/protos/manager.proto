@@ -275,11 +275,19 @@ service QueryUsageService {
 }
 
 message CheckQueryBalanceRequest {
-  string account = 1; // Ethereum address to check balance for (signer or payer)
+  string account = 1; // Payer address (account to be charged)
+  string signer = 2;  // Query signer address; when different from account, node verifies authorization
+}
+
+enum CheckQueryBalanceRejection {
+  UNKNOWN = 0;
+  INSUFFICIENT_BALANCE = 1;
+  UNAUTHORIZED_SIGNER = 2;
 }
 
 message CheckQueryBalanceResponse {
-  bool has_balance = 1; // Whether the account has positive billing balance
+  bool status = 1;                       // false = query rejected
+  CheckQueryBalanceRejection reason = 2; // Rejection reason when status=false
 }
 
 message ReportQueryUsageRequest {

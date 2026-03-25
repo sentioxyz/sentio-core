@@ -10,6 +10,8 @@ import (
 	"sentioxyz/sentio-core/common/log"
 )
 
+var globalEngine = wasmer.NewEngine()
+
 type Instance[DATA fmt.Stringer] struct {
 	name         string
 	modBytes     []byte
@@ -46,8 +48,7 @@ func (inst *Instance[DATA]) Name() string {
 }
 
 func (inst *Instance[DATA]) Init(logger *log.SentioLogger) error {
-	engine := wasmer.NewEngine()
-	inst.store = wasmer.NewStore(engine)
+	inst.store = wasmer.NewStore(globalEngine)
 	var err error
 	inst.module, err = wasmer.NewModule(inst.store, inst.modBytes)
 	if err != nil {

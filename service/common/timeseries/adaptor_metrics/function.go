@@ -363,15 +363,15 @@ func (fa *functionAdaptor) convert() (err error) {
 			return fmt.Errorf("unknown function: %s", f.Name)
 		}
 
-		pf = pf.WithLabels(fa.labels)
+		pf = pf.WithLabels(fa.labels).WithSelector(fa.parameter.labelSelector)
 		fa.prebuilt = append(fa.prebuilt, pf)
 	}
 
 	var filterFunction prebuilt.Function
 	if withFill {
-		filterFunction = filter.NewWithFillFilterFunction(fa.meta, fa.store).Filter().WithLabels(fa.labels)
+		filterFunction = filter.NewWithFillFilterFunction(fa.meta, fa.store).Filter().WithLabels(fa.labels).WithSelector(fa.parameter.labelSelector)
 	} else {
-		filterFunction = filter.NewFilterFunction(fa.meta, fa.store).Filter().WithLabels(fa.labels)
+		filterFunction = filter.NewFilterFunction(fa.meta, fa.store).Filter().WithLabels(fa.labels).WithSelector(fa.parameter.labelSelector)
 	}
 	fa.prebuilt = append([]prebuilt.Function{filterFunction}, fa.prebuilt...)
 
@@ -383,7 +383,7 @@ func (fa *functionAdaptor) convert() (err error) {
 		}
 		fa.prebuilt = append(fa.prebuilt, sample.NewSampleFunction(fa.meta, fa.store).
 			Sample(fa.extendTimeRange.Step).WithTimeRange(fa.extendTimeRange).
-			WithLabels(fa.labels))
+			WithLabels(fa.labels).WithSelector(fa.parameter.labelSelector))
 	}
 
 	for _, f := range fa.prebuilt {

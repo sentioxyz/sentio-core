@@ -320,6 +320,71 @@ func TestUpdateEvents_BigdecimalField(t *testing.T) {
 	assert.NotNil(t, bigFloatVal)
 }
 
+func TestUpdateEvents_BigdecimalField_MaxDecimal76_30(t *testing.T) {
+	row := make(Row)
+	meta := &Meta{
+		Name:   "test_event",
+		Type:   MetaTypeEvent,
+		Fields: make(map[string]Field),
+	}
+
+	// max value = (10^76 - 1) / 10^30 (boundary, should succeed)
+	maxVal := decimal76_30_max
+	data := &commonProtos.RichStruct{
+		Fields: map[string]*commonProtos.RichValue{
+			"bigdecimalField": rsh.NewBigDecimalValue(maxVal),
+		},
+	}
+
+	err := UpdateEvents(data, &row, meta, time.Now())
+	require.NoError(t, err)
+	result, ok := row["bigdecimalField"].(decimal.Decimal)
+	require.True(t, ok)
+	assert.True(t, maxVal.Equal(result))
+}
+
+func TestUpdateEvents_BigdecimalField_OverflowDecimal76_30(t *testing.T) {
+	row := make(Row)
+	meta := &Meta{
+		Name:   "test_event",
+		Type:   MetaTypeEvent,
+		Fields: make(map[string]Field),
+	}
+
+	// max + 1 ULP at scale 30: (10^76) / 10^30 = 10^46, exceeds the upper bound
+	overflowVal := decimal76_30_max.Add(decimal.NewFromInt(1))
+	data := &commonProtos.RichStruct{
+		Fields: map[string]*commonProtos.RichValue{
+			"bigdecimalField": rsh.NewBigDecimalValue(overflowVal),
+		},
+	}
+
+	err := UpdateEvents(data, &row, meta, time.Now())
+	require.ErrorIs(t, err, ErrInvalidMeta)
+	assert.ErrorContains(t, err, "out of range")
+}
+
+func TestUpdateEvents_BigdecimalField_UnderflowDecimal76_30(t *testing.T) {
+	row := make(Row)
+	meta := &Meta{
+		Name:   "test_event",
+		Type:   MetaTypeEvent,
+		Fields: make(map[string]Field),
+	}
+
+	// -(max + 1): below the lower bound
+	underflowVal := decimal76_30_max.Add(decimal.NewFromInt(1)).Neg()
+	data := &commonProtos.RichStruct{
+		Fields: map[string]*commonProtos.RichValue{
+			"bigdecimalField": rsh.NewBigDecimalValue(underflowVal),
+		},
+	}
+
+	err := UpdateEvents(data, &row, meta, time.Now())
+	require.ErrorIs(t, err, ErrInvalidMeta)
+	assert.ErrorContains(t, err, "out of range")
+}
+
 func TestUpdateEvents_ListValue(t *testing.T) {
 	row := make(Row)
 	meta := &Meta{

@@ -3,6 +3,7 @@ package timeseries
 import (
 	"math/big"
 	"strconv"
+
 	"strings"
 	"time"
 
@@ -14,12 +15,17 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 )
 
 var (
 	// Int256 range: [-2^255, 2^255-1]
 	int256Min = new(big.Int).Neg(new(big.Int).Lsh(big.NewInt(1), 255))
 	int256Max = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(1))
+
+	// Decimal(76, 30) range: [-(10^76-1)/10^30, (10^76-1)/10^30]
+	// ClickHouse stores FieldTypeBigFloat as Decimal(76, 30).
+	decimal76_30_max = decimal.NewFromBigInt(new(big.Int).Sub(new(big.Int).Exp(big.NewInt(10), big.NewInt(76), nil), big.NewInt(1)), -30)
 
 	metricTypeMapping = map[protos.MetricType]MetaType{
 		protos.MetricType_COUNTER: MetaTypeCounter,
@@ -146,7 +152,10 @@ func UpdateEvents(data *commonProtos.RichStruct, row *Row, meta *Meta, blockTime
 			fieldType, (*row)[fn] = FieldTypeBigInt, bigIntVal
 		case *commonProtos.RichValue_BigdecimalValue:
 			bigFloatVal, _ := rsh.GetBigDecimal(val)
-			// TODO check range for bigFloatVal just like BigInt above
+			if bigFloatVal.Abs().GreaterThan(decimal76_30_max) {
+				return errors.Wrapf(ErrInvalidMeta,
+					"field %s.%s has bigdecimal value %s out of range", meta.GetFullName(), fn, bigFloatVal.String())
+			}
 			fieldType, (*row)[fn] = FieldTypeBigFloat, bigFloatVal
 		case *commonProtos.RichValue_ListValue, *commonProtos.RichValue_TokenValue:
 			const wrappedKey = "_wrapped_value_"

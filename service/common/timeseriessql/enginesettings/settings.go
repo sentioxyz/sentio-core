@@ -216,7 +216,8 @@ func (s *settings) ToClickhouseSettings(name string) map[string]any {
 		}
 		settings["priority"] = engine.Priority()
 	}
-	return nil
+	log.Debugf("clickhouse settings for engine %s: %v", name, settings)
+	return settings
 }
 
 func (s *settings) OverwriteClickhouseSettings(name string, settings map[string]any) {
@@ -224,17 +225,15 @@ func (s *settings) OverwriteClickhouseSettings(name string, settings map[string]
 	defer s.mutex.RUnlock()
 	if engine, ok := s.engines[strings.ToLower(name)]; ok {
 		if engine.MaxMemory() > 0 {
-			log.Debugf("overwrite max_memory_usage to %d", engine.MaxMemory())
 			settings["max_memory_usage"] = uint64(engine.MaxMemory())
 		}
 		if engine.MaxExecutionTime() > 0 {
-			log.Debugf("overwrite max_execution_time to %d", engine.MaxExecutionTime())
 			settings["max_execution_time"] = engine.MaxExecutionTime()
 		}
 		if engine.CPUThreads() > 0 {
-			log.Debugf("overwrite max_threads to %d", engine.CPUThreads())
 			settings["max_threads"] = engine.CPUThreads()
 		}
 		settings["priority"] = engine.Priority()
 	}
+	log.Debugf("overwrite clickhouse settings for engine %s: %v", name, settings)
 }

@@ -83,6 +83,9 @@ message CheckOverLimitRequest {
   string project_id = 3;
   string sku = 4;
   google.protobuf.Timestamp now = 5;
+  // Optional processor ID for decentralized network billing.
+  // When set, used instead of project_id for on-chain quota checks.
+  optional string processor_id = 6;
 }
 
 message CheckOverLimitResponse {
@@ -147,6 +150,9 @@ message Tags {
   string user_id = 2;
   string sku = 3;
   map<string, string> custom_tags = 4;
+  // Optional processor ID for decentralized network usage tracking.
+  // When set, used instead of project_id for on-chain billing.
+  optional string processor_id = 5;
 }
 
 message Period {

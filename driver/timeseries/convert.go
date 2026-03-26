@@ -1,6 +1,7 @@
 package timeseries
 
 import (
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,10 @@ import (
 )
 
 var (
+	// Int256 range: [-2^255, 2^255-1]
+	int256Min = new(big.Int).Neg(new(big.Int).Lsh(big.NewInt(1), 255))
+	int256Max = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(1))
+
 	metricTypeMapping = map[protos.MetricType]MetaType{
 		protos.MetricType_COUNTER: MetaTypeCounter,
 		protos.MetricType_GAUGE:   MetaTypeGauge,
@@ -134,9 +139,14 @@ func UpdateEvents(data *commonProtos.RichStruct, row *Row, meta *Meta, blockTime
 			fieldType, (*row)[fn] = FieldTypeFloat, v.FloatValue
 		case *commonProtos.RichValue_BigintValue:
 			bigIntVal, _ := rsh.GetBigInt(val)
+			if bigIntVal.Cmp(int256Min) < 0 || bigIntVal.Cmp(int256Max) > 0 {
+				return errors.Wrapf(ErrInvalidMeta,
+					"field %s.%s has bigint value out of Int256 range", meta.GetFullName(), fn)
+			}
 			fieldType, (*row)[fn] = FieldTypeBigInt, bigIntVal
 		case *commonProtos.RichValue_BigdecimalValue:
 			bigFloatVal, _ := rsh.GetBigDecimal(val)
+			// TODO check range for bigFloatVal just like BigInt above
 			fieldType, (*row)[fn] = FieldTypeBigFloat, bigFloatVal
 		case *commonProtos.RichValue_ListValue, *commonProtos.RichValue_TokenValue:
 			const wrappedKey = "_wrapped_value_"

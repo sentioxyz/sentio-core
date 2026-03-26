@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"sentioxyz/sentio-core/common/log"
+	rsh "sentioxyz/sentio-core/common/richstructhelper"
 	commonProtos "sentioxyz/sentio-core/service/common/protos"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -218,6 +219,70 @@ func TestUpdateEvents_BigintField(t *testing.T) {
 	require.True(t, ok)
 	assert.NotNil(t, bigIntVal)
 	assert.Equal(t, int64(256), bigIntVal.Int64())
+}
+
+func TestUpdateEvents_BigintField_MaxInt256(t *testing.T) {
+	row := make(Row)
+	meta := &Meta{
+		Name:   "test_event",
+		Type:   MetaTypeEvent,
+		Fields: make(map[string]Field),
+	}
+
+	// int256Max = 2^255 - 1 (boundary value, should succeed)
+	maxVal := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(1))
+	data := &commonProtos.RichStruct{
+		Fields: map[string]*commonProtos.RichValue{
+			"bigintField": rsh.NewBigIntValue(maxVal),
+		},
+	}
+
+	err := UpdateEvents(data, &row, meta, time.Now())
+	require.NoError(t, err)
+	require.IsType(t, (*big.Int)(nil), row["bigintField"])
+	assert.Equal(t, 0, row["bigintField"].(*big.Int).Cmp(maxVal))
+}
+
+func TestUpdateEvents_BigintField_OverflowInt256(t *testing.T) {
+	row := make(Row)
+	meta := &Meta{
+		Name:   "test_event",
+		Type:   MetaTypeEvent,
+		Fields: make(map[string]Field),
+	}
+
+	// int256Max + 1 = +2^255, exceeds the upper bound
+	overflowVal := new(big.Int).Lsh(big.NewInt(1), 255) // positive: +2^255
+	data := &commonProtos.RichStruct{
+		Fields: map[string]*commonProtos.RichValue{
+			"bigintField": rsh.NewBigIntValue(overflowVal),
+		},
+	}
+
+	err := UpdateEvents(data, &row, meta, time.Now())
+	require.ErrorIs(t, err, ErrInvalidMeta)
+	assert.ErrorContains(t, err, "out of Int256 range")
+}
+
+func TestUpdateEvents_BigintField_UnderflowInt256(t *testing.T) {
+	row := make(Row)
+	meta := &Meta{
+		Name:   "test_event",
+		Type:   MetaTypeEvent,
+		Fields: make(map[string]Field),
+	}
+
+	// int256Min - 1 = -2^255 - 1, exceeds the lower bound
+	underflowVal := new(big.Int).Sub(new(big.Int).Neg(new(big.Int).Lsh(big.NewInt(1), 255)), big.NewInt(1)) // negative: -(2^255+1)
+	data := &commonProtos.RichStruct{
+		Fields: map[string]*commonProtos.RichValue{
+			"bigintField": rsh.NewBigIntValue(underflowVal),
+		},
+	}
+
+	err := UpdateEvents(data, &row, meta, time.Now())
+	require.ErrorIs(t, err, ErrInvalidMeta)
+	assert.ErrorContains(t, err, "out of Int256 range")
 }
 
 func TestUpdateEvents_BigdecimalField(t *testing.T) {

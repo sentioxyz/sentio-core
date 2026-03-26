@@ -141,7 +141,7 @@ func UpdateEvents(data *commonProtos.RichStruct, row *Row, meta *Meta, blockTime
 			bigIntVal, _ := rsh.GetBigInt(val)
 			if bigIntVal.Cmp(int256Min) < 0 || bigIntVal.Cmp(int256Max) > 0 {
 				return errors.Wrapf(ErrInvalidMeta,
-					"field %s.%s has bigint value out of Int256 range", meta.GetFullName(), fn)
+					"field %s.%s has bigint value %s out of Int256 range", meta.GetFullName(), fn, bigIntVal.String())
 			}
 			fieldType, (*row)[fn] = FieldTypeBigInt, bigIntVal
 		case *commonProtos.RichValue_BigdecimalValue:

@@ -319,7 +319,7 @@ func (m *timeSeriesMatrix) isWithFill() {
 }
 
 func (m *timeSeriesMatrix) processTimeRange(matrix matrix.Matrix, withFill bool) {
-	t := newTime(m.timeRange)
+	t := newTime(m.timeRange, matrix)
 	for idx := 0; idx < matrix.Len(); idx++ {
 		timeSlot := matrix.TimeSeriesTimeValue(idx)
 		if timeSlot.IsZero() {

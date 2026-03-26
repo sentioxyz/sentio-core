@@ -273,6 +273,7 @@ type CheckOverLimitRequest struct {
 	ProjectId     string                 `protobuf:"bytes,3,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	Sku           string                 `protobuf:"bytes,4,opt,name=sku,proto3" json:"sku,omitempty"`
 	Now           *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=now,proto3" json:"now,omitempty"`
+	ProcessorId   *string                `protobuf:"bytes,6,opt,name=processor_id,json=processorId,proto3,oneof" json:"processor_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -340,6 +341,13 @@ func (x *CheckOverLimitRequest) GetNow() *timestamppb.Timestamp {
 		return x.Now
 	}
 	return nil
+}
+
+func (x *CheckOverLimitRequest) GetProcessorId() string {
+	if x != nil && x.ProcessorId != nil {
+		return *x.ProcessorId
+	}
+	return ""
 }
 
 type CheckOverLimitResponse struct {
@@ -580,6 +588,7 @@ type Tags struct {
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Sku           string                 `protobuf:"bytes,3,opt,name=sku,proto3" json:"sku,omitempty"`
 	CustomTags    map[string]string      `protobuf:"bytes,4,rep,name=custom_tags,json=customTags,proto3" json:"custom_tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ProcessorId   *string                `protobuf:"bytes,5,opt,name=processor_id,json=processorId,proto3,oneof" json:"processor_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -640,6 +649,13 @@ func (x *Tags) GetCustomTags() map[string]string {
 		return x.CustomTags
 	}
 	return nil
+}
+
+func (x *Tags) GetProcessorId() string {
+	if x != nil && x.ProcessorId != nil {
+		return *x.ProcessorId
+	}
+	return ""
 }
 
 type Period struct {
@@ -2129,7 +2145,7 @@ const file_service_usage_protos_manager_proto_rawDesc = "" +
 	"\"service/usage/protos/manager.proto\x12\rusage_service\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"b\n" +
 	"\x18CheckOverLimitExtRequest\x12#\n" +
 	"\rproject_owner\x18\x01 \x01(\tR\fprojectOwner\x12!\n" +
-	"\fproject_slug\x18\x02 \x01(\tR\vprojectSlug\"\xb0\x01\n" +
+	"\fproject_slug\x18\x02 \x01(\tR\vprojectSlug\"\xe9\x01\n" +
 	"\x15CheckOverLimitRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\tR\aownerId\x12\x1d\n" +
 	"\n" +
@@ -2137,7 +2153,9 @@ const file_service_usage_protos_manager_proto_rawDesc = "" +
 	"\n" +
 	"project_id\x18\x03 \x01(\tR\tprojectId\x12\x10\n" +
 	"\x03sku\x18\x04 \x01(\tR\x03sku\x12,\n" +
-	"\x03now\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x03now\"\xac\a\n" +
+	"\x03now\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x03now\x12&\n" +
+	"\fprocessor_id\x18\x06 \x01(\tH\x00R\vprocessorId\x88\x01\x01B\x0f\n" +
+	"\r_processor_id\"\xac\a\n" +
 	"\x16CheckOverLimitResponse\x12\x12\n" +
 	"\x04over\x18\x01 \x03(\tR\x04over\x12\x1f\n" +
 	"\vover_detail\x18\x02 \x03(\tR\n" +
@@ -2180,17 +2198,19 @@ const file_service_usage_protos_manager_proto_rawDesc = "" +
 	"\x05units\x18\a \x01(\x04R\x05units\"I\n" +
 	"\x10AsyncSaveRequest\x125\n" +
 	"\tdialogues\x18\x01 \x03(\v2\x17.usage_service.DialogueR\tdialogues\"\x13\n" +
-	"\x11AsyncSaveResponse\"\xd5\x01\n" +
+	"\x11AsyncSaveResponse\"\x8e\x02\n" +
 	"\x04Tags\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x10\n" +
 	"\x03sku\x18\x03 \x01(\tR\x03sku\x12D\n" +
 	"\vcustom_tags\x18\x04 \x03(\v2#.usage_service.Tags.CustomTagsEntryR\n" +
-	"customTags\x1a=\n" +
+	"customTags\x12&\n" +
+	"\fprocessor_id\x18\x05 \x01(\tH\x00R\vprocessorId\x88\x01\x01\x1a=\n" +
 	"\x0fCustomTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x0f\n" +
+	"\r_processor_id\"E\n" +
 	"\x06Period\x12!\n" +
 	"\fnatual_month\x18\x01 \x01(\bR\vnatualMonth\x12\x18\n" +
 	"\aseconds\x18\x02 \x01(\x04R\aseconds\"\x81\x01\n" +
@@ -2441,6 +2461,8 @@ func file_service_usage_protos_manager_proto_init() {
 	if File_service_usage_protos_manager_proto != nil {
 		return
 	}
+	file_service_usage_protos_manager_proto_msgTypes[1].OneofWrappers = []any{}
+	file_service_usage_protos_manager_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

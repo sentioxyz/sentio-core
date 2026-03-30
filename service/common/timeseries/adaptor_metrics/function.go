@@ -112,13 +112,7 @@ func (fa *functionAdaptor) convert() (err error) {
 		extendPrevious, extendNext time.Duration
 	)
 	if fa.parameter != nil && fa.parameter.timeRange != nil {
-		fa.extendTimeRange = &timerange.TimeRange{
-			Start:     fa.parameter.timeRange.Start,
-			End:       fa.parameter.timeRange.End,
-			Step:      fa.parameter.timeRange.Step,
-			Timezone:  fa.parameter.timeRange.Timezone,
-			RangeMode: fa.parameter.timeRange.RangeMode,
-		}
+		fa.extendTimeRange = fa.parameter.timeRange.Copy()
 	}
 	for _, f := range fa.functions {
 		var pf prebuilt.Function

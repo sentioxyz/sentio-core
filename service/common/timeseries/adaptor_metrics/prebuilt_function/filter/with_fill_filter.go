@@ -59,7 +59,7 @@ func (f *withFillFilterFunction) Generate() (string, error) {
 		"where_clause":  f.WhereClause(f.TimeRange),
 		"start_time":    f.StartAlignedTime(f.TimeRange),
 		"end_time":      f.EndAlignedTime(f.TimeRange),
-		"step":          f.StepAlignedInterval(f.TimeRange),
+		"step":          f.RateSampleAlignedInterval(f.TimeRange),
 	}), nil
 }
 

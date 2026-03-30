@@ -223,10 +223,11 @@ func NewTimeRange(options ...MockTimeRangeOption) *timerange.TimeRange {
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, option.Tz)
 	end := start.Add(option.D)
 	return &timerange.TimeRange{
-		Start:     start,
-		End:       end,
-		Step:      option.Step,
-		Timezone:  option.Tz,
-		RangeMode: option.RangeMode,
+		Start:      start,
+		End:        end,
+		Step:       option.Step,
+		Timezone:   option.Tz,
+		RangeMode:  option.RangeMode,
+		SampleRate: option.Step,
 	}
 }

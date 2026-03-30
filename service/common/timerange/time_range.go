@@ -29,11 +29,23 @@ const (
 )
 
 type TimeRange struct {
-	Start     time.Time
-	End       time.Time
-	Step      time.Duration
-	Timezone  *time.Location
-	RangeMode int
+	Start      time.Time
+	End        time.Time
+	Step       time.Duration
+	SampleRate time.Duration
+	Timezone   *time.Location
+	RangeMode  int
+}
+
+func (t *TimeRange) Copy() *TimeRange {
+	return &TimeRange{
+		Start:      t.Start,
+		End:        t.End,
+		Step:       t.Step,
+		SampleRate: t.SampleRate,
+		Timezone:   t.Timezone,
+		RangeMode:  t.RangeMode,
+	}
 }
 
 func NewTimeRangeFromLite(ctx context.Context, timeRange *protos.TimeRangeLite) (*TimeRange, error) {
@@ -73,6 +85,7 @@ func NewTimeRangeFromLite(ctx context.Context, timeRange *protos.TimeRangeLite) 
 	if t.Step < minStep {
 		t.Step = minStep
 	}
+	t.SampleRate = t.Step
 
 	return t, nil
 }
@@ -123,6 +136,7 @@ func NewTimeRangeFromProto(ctx context.Context, timeRange *protos.TimeRange) (*T
 			t.Step = time.Duration(timeRange.GetInterval().GetValue()) * time.Hour * 24 * 365
 		}
 	}
+	t.SampleRate = t.Step
 
 	return t, nil
 }

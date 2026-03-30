@@ -111,12 +111,13 @@ func (f *BaseFunction) EndAlignedTime(specifiedTimeRange *timerange.TimeRange) s
 	return f.clickhouseAlignedTime(timeRange.End, timeRange.Step)
 }
 
-func (f *BaseFunction) StepAlignedInterval(specifiedTimeRange *timerange.TimeRange) string {
+func (f *BaseFunction) RateSampleAlignedInterval(specifiedTimeRange *timerange.TimeRange) string {
 	var timeRange = f.timeRange(specifiedTimeRange)
 	if timeRange == nil {
 		return "toIntervalSecond(1)"
 	}
-	return fmt.Sprintf("toIntervalSecond(%d)", int64(timeRange.Step.Seconds()))
+	var d = lo.If(timeRange.SampleRate > 0, timeRange.SampleRate).Else(timeRange.Step) // use step as compatible choice
+	return fmt.Sprintf("toIntervalSecond(%d)", int64(d.Seconds()))
 }
 
 func (f *BaseFunction) StepUnit(specifiedTimeRange *timerange.TimeRange) string {

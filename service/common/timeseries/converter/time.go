@@ -24,10 +24,11 @@ func newTime(timeRange *timerange.TimeRange, matrix matrix.Matrix) *Time {
 	)
 	return &Time{
 		TimeRange: &timerange.TimeRange{
-			Start:    start,
-			End:      end,
-			Step:     timeRange.Step,
-			Timezone: timeRange.Timezone,
+			Start:      start,
+			End:        end,
+			Step:       timeRange.Step,
+			Timezone:   timeRange.Timezone,
+			SampleRate: timeRange.SampleRate,
 		},
 		reqStartTime: timeRange.Start,
 		reqEndTime:   timeRange.End,

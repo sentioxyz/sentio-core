@@ -50,7 +50,7 @@ func (grpcRawCodec) Unmarshal(data []byte, v any) error {
 
 func (grpcRawCodec) Name() string { return "proto" }
 
-// GRPCHandler is an http.Handler that transparently proxies all incoming gRPC
+// GRPCProxyHandler is an http.Handler that transparently proxies all incoming gRPC
 // requests to a backend gRPC server selected from a connection pool.
 //
 // It works at the HTTP/2 framing level: raw length-prefixed message frames are
@@ -66,9 +66,9 @@ func (grpcRawCodec) Name() string { return "proto" }
 //
 //	pool := grpcpool.New([]*grpc.ClientConn{conn1, conn2})
 //	go pool.Start(ctx)
-//	h := jsonrpc.NewGRPCHandler(pool)
+//	h := jsonrpc.NewGRPCProxyHandler(pool)
 //	http.ListenAndServe(":8080", h)
-type GRPCHandler struct {
+type GRPCProxyHandler struct {
 	pool    *grpcpool.Pool
 	handler http.Handler // h2c-wrapped inner handler
 
@@ -81,10 +81,10 @@ type GRPCHandler struct {
 	stat *timewin.TimeWindowsManager[*statWindow]
 }
 
-// NewGRPCHandler returns a GRPCHandler that forwards gRPC calls to connections
+// NewGRPCProxyHandler returns a GRPCProxyHandler that forwards gRPC calls to connections
 // obtained from pool.
-func NewGRPCHandler(pool *grpcpool.Pool) *GRPCHandler {
-	h := &GRPCHandler{
+func NewGRPCProxyHandler(pool *grpcpool.Pool) *GRPCProxyHandler {
+	h := &GRPCProxyHandler{
 		pool: pool,
 		stat: timewin.NewTimeWindowsManager[*statWindow](time.Minute),
 	}
@@ -93,13 +93,13 @@ func NewGRPCHandler(pool *grpcpool.Pool) *GRPCHandler {
 }
 
 // ServeHTTP implements http.Handler.
-func (h *GRPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *GRPCProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handler.ServeHTTP(w, r)
 }
 
 // Snapshot returns a point-in-time summary of the handler's state and
 // forwarding statistics (mirrors the shape of SimpleHTTPHandler.Snapshot).
-func (h *GRPCHandler) Snapshot() any {
+func (h *GRPCProxyHandler) Snapshot() any {
 	return map[string]any{
 		"name":           h.name,
 		"debug":          h.debug,
@@ -116,23 +116,22 @@ func (h *GRPCHandler) Snapshot() any {
 //
 // The full gRPC method is taken from r.URL.Path, which must follow the
 // standard gRPC URL format "/{package}.{Service}/{Method}".
-func (h *GRPCHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
+func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 	remoteHost, _, _ := strings.Cut(r.RemoteAddr, ":")
+	method := r.URL.Path
 	ctx, logger := log.FromContextWithTrace(r.Context(),
 		"svr", h.name,
 		"rid", h.requestCounter.Add(1),
-		"url", r.URL.String(),
-		"header", r.Header,
+		"method", method,
 		"remote", remoteHost)
 
 	startTime := time.Now()
-	method := r.URL.Path
 	defer func() {
 		h.stat.Append(newStatWindow(method, RequestSource{RemoteHost: remoteHost}, time.Since(startTime)))
 	}()
 
 	if h.debug {
-		logger.Debug("coming")
+		logger.Debugw("coming", "header", r.Header)
 		defer func() {
 			logger.Debug("leave")
 		}()

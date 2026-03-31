@@ -156,13 +156,13 @@ func Test_grpcHandler(t *testing.T) {
 	pool := grpcpool.New([]*grpc.ClientConn{conn})
 	go pool.Start(ctx)
 
-	// Start the proxy server on another random free port (h2c is built into GRPCHandler).
+	// Start the proxy server on another random free port (h2c is built into GRPCProxyHandler).
 	proxyLis, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.NoError(t, err)
 	proxyAddr := proxyLis.Addr().String()
 	_ = proxyLis.Close() // release so listenAndServe can bind it
 	go func() {
-		_ = listenAndServe(ctx, proxyAddr, NewGRPCHandler(pool))
+		_ = listenAndServe(ctx, proxyAddr, NewGRPCProxyHandler(pool))
 	}()
 
 	// Allow both servers a moment to begin accepting connections.

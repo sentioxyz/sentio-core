@@ -13,8 +13,11 @@ import (
 	"net/textproto"
 	"sentioxyz/sentio-core/common/grpcpool"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/timewin"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 )
 
 // grpcRawCodec is a passthrough codec used on the backend (client) side of
@@ -68,12 +71,23 @@ func (grpcRawCodec) Name() string { return "proto" }
 type GRPCHandler struct {
 	pool    *grpcpool.Pool
 	handler http.Handler // h2c-wrapped inner handler
+
+	name  string
+	debug bool
+
+	// used to build rid
+	requestCounter atomic.Uint64
+
+	stat *timewin.TimeWindowsManager[*statWindow]
 }
 
 // NewGRPCHandler returns a GRPCHandler that forwards gRPC calls to connections
 // obtained from pool.
 func NewGRPCHandler(pool *grpcpool.Pool) *GRPCHandler {
-	h := &GRPCHandler{pool: pool}
+	h := &GRPCHandler{
+		pool: pool,
+		stat: timewin.NewTimeWindowsManager[*statWindow](time.Minute),
+	}
 	h.handler = h2c.NewHandler(http.HandlerFunc(h.serveGRPC), &http2.Server{})
 	return h
 }
@@ -81,6 +95,18 @@ func NewGRPCHandler(pool *grpcpool.Pool) *GRPCHandler {
 // ServeHTTP implements http.Handler.
 func (h *GRPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handler.ServeHTTP(w, r)
+}
+
+// Snapshot returns a point-in-time summary of the handler's state and
+// forwarding statistics (mirrors the shape of SimpleHTTPHandler.Snapshot).
+func (h *GRPCHandler) Snapshot() any {
+	return map[string]any{
+		"name":           h.name,
+		"debug":          h.debug,
+		"requestCounter": h.requestCounter.Load(),
+		"poolSize":       h.pool.Len(),
+		"statistics":     h.stat.Snapshot(),
+	}
 }
 
 // serveGRPC is the actual proxy logic, called after h2c negotiation.
@@ -91,10 +117,26 @@ func (h *GRPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // The full gRPC method is taken from r.URL.Path, which must follow the
 // standard gRPC URL format "/{package}.{Service}/{Method}".
 func (h *GRPCHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
-	log.Infof("coming, url=%s, ct=%#v", r.URL.String(), r.Header)
+	remoteHost, _, _ := strings.Cut(r.RemoteAddr, ":")
+	ctx, logger := log.FromContextWithTrace(r.Context(),
+		"svr", h.name,
+		"rid", h.requestCounter.Add(1),
+		"url", r.URL.String(),
+		"header", r.Header,
+		"remote", remoteHost)
+
+	startTime := time.Now()
+	method := r.URL.Path
 	defer func() {
-		log.Infof("leave, url=%s, ct=%#v", r.URL.String(), r.Header)
+		h.stat.Append(newStatWindow(method, RequestSource{RemoteHost: remoteHost}, time.Since(startTime)))
 	}()
+
+	if h.debug {
+		logger.Debug("coming")
+		defer func() {
+			logger.Debug("leave")
+		}()
+	}
 
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 		http.Error(w, "Content-Type must start with application/grpc", http.StatusUnsupportedMediaType)
@@ -109,7 +151,7 @@ func (h *GRPCHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Propagate request metadata (HTTP headers) as gRPC outgoing metadata.
-	outCtx := metadata.NewOutgoingContext(r.Context(), grpcMetadataFromHTTPHeaders(r.Header))
+	outCtx := metadata.NewOutgoingContext(ctx, grpcMetadataFromHTTPHeaders(r.Header))
 
 	// Open a bidirectional stream to the backend using raw byte passthrough.
 	// grpc.ForceCodec bypasses the global codec registry: grpcRawCodec is used

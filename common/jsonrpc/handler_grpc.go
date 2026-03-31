@@ -69,11 +69,12 @@ func (grpcRawCodec) Name() string { return "proto" }
 //	h := jsonrpc.NewGRPCProxyHandler(pool)
 //	http.ListenAndServe(":8080", h)
 type GRPCProxyHandler struct {
-	pool    *grpcpool.Pool
-	handler http.Handler // h2c-wrapped inner handler
-
+	pool  *grpcpool.Pool
 	name  string
 	debug bool
+
+	// h2c-wrapped inner handler
+	handler http.Handler
 
 	// used to build rid
 	requestCounter atomic.Uint64
@@ -83,10 +84,12 @@ type GRPCProxyHandler struct {
 
 // NewGRPCProxyHandler returns a GRPCProxyHandler that forwards gRPC calls to connections
 // obtained from pool.
-func NewGRPCProxyHandler(pool *grpcpool.Pool) *GRPCProxyHandler {
+func NewGRPCProxyHandler(pool *grpcpool.Pool, name string, debug bool) *GRPCProxyHandler {
 	h := &GRPCProxyHandler{
-		pool: pool,
-		stat: timewin.NewTimeWindowsManager[*statWindow](time.Minute),
+		pool:  pool,
+		name:  name,
+		debug: debug,
+		stat:  timewin.NewTimeWindowsManager[*statWindow](time.Minute),
 	}
 	h.handler = h2c.NewHandler(http.HandlerFunc(h.serveGRPC), &http2.Server{})
 	return h
@@ -131,9 +134,9 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	if h.debug {
-		logger.Debugw("coming", "header", r.Header)
+		logger.Debugw("access", "header", r.Header)
 		defer func() {
-			logger.Debug("leave")
+			logger.Debugw("leave", "used", time.Since(startTime).String())
 		}()
 	}
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"net"
@@ -104,6 +105,9 @@ func getServiceInfo(t *testing.T, ctx context.Context, ep string) {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	assert.NoError(t, pe)
+	defer func() {
+		_ = pc.Close()
+	}()
 
 	cli := rpcv2.NewLedgerServiceClient(pc)
 	resp, pe := cli.GetServiceInfo(ctx, &rpcv2.GetServiceInfoRequest{})
@@ -119,6 +123,9 @@ func subscribe(t *testing.T, ctx context.Context, ep string, round int) {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	assert.NoError(t, pe)
+	defer func() {
+		_ = pc.Close()
+	}()
 
 	cli := rpcv2.NewSubscriptionServiceClient(pc)
 	stream, err := cli.SubscribeCheckpoints(ctx, &rpcv2.SubscribeCheckpointsRequest{})
@@ -141,6 +148,9 @@ func subscribe(t *testing.T, ctx context.Context, ep string, round int) {
 }
 
 func Test_grpcHandler(t *testing.T) {
+	log.ManuallySetLevel(zap.DebugLevel)
+	log.BindFlag()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -161,8 +171,9 @@ func Test_grpcHandler(t *testing.T) {
 	assert.NoError(t, err)
 	proxyAddr := proxyLis.Addr().String()
 	_ = proxyLis.Close() // release so listenAndServe can bind it
+	proxyHandler := NewGRPCProxyHandler(pool, "proxy", true)
 	go func() {
-		_ = listenAndServe(ctx, proxyAddr, NewGRPCProxyHandler(pool))
+		_ = listenAndServe(ctx, proxyAddr, proxyHandler)
 	}()
 
 	// Allow both servers a moment to begin accepting connections.
@@ -175,4 +186,8 @@ func Test_grpcHandler(t *testing.T) {
 	// Verify the same calls routed through the proxy work.
 	getServiceInfo(t, ctx, proxyAddr)
 	subscribe(t, ctx, proxyAddr, 10)
+
+	time.Sleep(time.Second)
+	b, _ := json.MarshalIndent(proxyHandler.Snapshot(), "", "  ")
+	log.Infof("snapshot: %s", string(b))
 }

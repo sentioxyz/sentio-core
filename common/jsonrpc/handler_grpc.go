@@ -1,6 +1,7 @@
 package jsonrpc
 
 import (
+	"context"
 	"encoding/binary"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -11,7 +12,6 @@ import (
 	"io"
 	"net/http"
 	"net/textproto"
-	"sentioxyz/sentio-core/common/grpcpool"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/timewin"
 	"strconv"
@@ -50,6 +50,11 @@ func (grpcRawCodec) Unmarshal(data []byte, v any) error {
 
 func (grpcRawCodec) Name() string { return "proto" }
 
+type ConnectionPool interface {
+	Get(ctx context.Context) (*grpc.ClientConn, error)
+	Snapshot() any
+}
+
 // GRPCProxyHandler is an http.Handler that transparently proxies all incoming gRPC
 // requests to a backend gRPC server selected from a connection pool.
 //
@@ -69,7 +74,7 @@ func (grpcRawCodec) Name() string { return "proto" }
 //	h := jsonrpc.NewGRPCProxyHandler(pool)
 //	http.ListenAndServe(":8080", h)
 type GRPCProxyHandler struct {
-	pool  *grpcpool.Pool
+	pool  ConnectionPool
 	name  string
 	debug bool
 
@@ -84,7 +89,7 @@ type GRPCProxyHandler struct {
 
 // NewGRPCProxyHandler returns a GRPCProxyHandler that forwards gRPC calls to connections
 // obtained from pool.
-func NewGRPCProxyHandler(pool *grpcpool.Pool, name string, debug bool) *GRPCProxyHandler {
+func NewGRPCProxyHandler(pool ConnectionPool, name string, debug bool) *GRPCProxyHandler {
 	h := &GRPCProxyHandler{
 		pool:  pool,
 		name:  name,
@@ -107,7 +112,7 @@ func (h *GRPCProxyHandler) Snapshot() any {
 		"name":           h.name,
 		"debug":          h.debug,
 		"requestCounter": h.requestCounter.Load(),
-		"poolSize":       h.pool.Len(),
+		"pool":           h.pool.Snapshot(),
 		"statistics":     h.stat.Snapshot(),
 	}
 }
@@ -146,7 +151,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Pick a healthy backend connection from the pool.
-	conn, err := h.pool.Get()
+	conn, err := h.pool.Get(ctx)
 	if err != nil {
 		grpcWriteError(w, status.Errorf(codes.Unavailable, "no healthy backend: %v", err))
 		return

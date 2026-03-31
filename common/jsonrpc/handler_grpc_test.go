@@ -11,11 +11,23 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"net/http"
-	"sentioxyz/sentio-core/common/grpcpool"
 	"sentioxyz/sentio-core/common/log"
 	"testing"
 	"time"
 )
+
+// singleConnPool is a minimal ConnectionPool for tests that wraps one connection.
+type singleConnPool struct {
+	conn *grpc.ClientConn
+}
+
+func (p *singleConnPool) Get(_ context.Context) (*grpc.ClientConn, error) {
+	return p.conn, nil
+}
+
+func (p *singleConnPool) Snapshot() any {
+	return map[string]any{"size": 1}
+}
 
 // testLedgerServer is a minimal in-process backend for Test_grpcHandler.
 type testLedgerServer struct {
@@ -163,8 +175,8 @@ func Test_grpcHandler(t *testing.T) {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	assert.NoError(t, err)
-	pool := grpcpool.New([]*grpc.ClientConn{conn})
-	go pool.Start(ctx)
+	defer func() { _ = conn.Close() }()
+	pool := &singleConnPool{conn: conn}
 
 	// Start the proxy server on another random free port (h2c is built into GRPCProxyHandler).
 	proxyLis, err := net.Listen("tcp", "127.0.0.1:0")

@@ -20,7 +20,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common/errgroup",
-        "//common/grpcpool",
         "//common/log",
         "//common/queue",
         "//common/set",
@@ -57,7 +56,6 @@ go_test(
     ],
     embed = [":jsonrpc"],
     deps = [
-        "//common/grpcpool",
         "//common/log",
         "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
         "@com_github_stretchr_testify//assert",

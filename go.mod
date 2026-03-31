@@ -37,6 +37,7 @@ require (
 	github.com/samber/lo v1.52.0
 	github.com/sentioxyz/golang-lru v0.0.0-20221206101024-a094e96c5283
 	github.com/sentioxyz/qs v0.0.0-20250901053804-ecf034c91d44
+	github.com/sentioxyz/sui-apis v0.0.0-20260130063639-b30aa79134d1
 	github.com/shopspring/decimal v1.4.0
 	github.com/soheilhy/cmux v0.1.5
 	github.com/stretchr/testify v1.11.1
@@ -58,6 +59,7 @@ require (
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
+	golang.org/x/net v0.49.0
 	google.golang.org/genproto v0.0.0-20251007200510-49b9836ed3ff
 	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409
 	google.golang.org/grpc v1.78.0
@@ -197,7 +199,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	golang.org/x/crypto v0.47.0 // indirect
-	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect

@@ -24,7 +24,8 @@
       "Bash(curl:*)",
       "Bash(bazel test:*)",
       "Bash(grep:*)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

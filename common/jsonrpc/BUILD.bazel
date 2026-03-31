@@ -7,6 +7,7 @@ go_library(
         "catcher.go",
         "encoder.go",
         "handler.go",
+        "handler_grpc.go",
         "handler_simple_http.go",
         "helper.go",
         "json.go",
@@ -35,6 +36,12 @@ go_library(
         "@io_opentelemetry_go_otel//attribute",
         "@io_opentelemetry_go_otel_metric//:metric",
         "@io_opentelemetry_go_otel_trace//:trace",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//status",
+        "@org_golang_x_net//http2",
+        "@org_golang_x_net//http2/h2c",
     ],
 )
 
@@ -42,6 +49,7 @@ go_test(
     name = "jsonrpc_test",
     srcs = [
         "buffer_test.go",
+        "handler_grpc_test.go",
         "helper_test.go",
         "json_test.go",
         "middleware_test.go",
@@ -49,7 +57,11 @@ go_test(
     embed = [":jsonrpc"],
     deps = [
         "//common/log",
+        "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
         "@com_github_stretchr_testify//assert",
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_uber_go_zap//:zap",
     ],
 )

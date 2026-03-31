@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "concurrency",
+    srcs = [
+        "do_with_context.go",
+        "executor.go",
+        "map.go",
+        "resource_manager.go",
+        "resource_waiter.go",
+        "signal.go",
+        "status_waiter.go",
+        "stream.go",
+        "switch_waiter.go",
+        "sync.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/concurrency",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/errgroup",
+        "//common/log",
+        "//common/utils",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "concurrency_test",
+    srcs = [
+        "executor_test.go",
+        "map_test.go",
+        "resource_manager_test.go",
+        "resource_waiter_test.go",
+        "status_waiter_test.go",
+        "sync_test.go",
+    ],
+    embed = [":concurrency"],
+    deps = [
+        "//common/errgroup",
+        "//common/log",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_zap//:zap",
+    ],
+)

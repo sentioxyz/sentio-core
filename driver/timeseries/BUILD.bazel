@@ -42,6 +42,7 @@ go_test(
     embed = [":timeseries"],
     deps = [
         "//common/log",
+        "//common/richstructhelper",
         "//service/common/protos",
         "@com_github_ethereum_go_ethereum//common/hexutil",
         "@com_github_shopspring_decimal//:decimal",

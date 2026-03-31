@@ -17,6 +17,7 @@ type ShardingParameter struct {
 	UnderlyingProxy bool     `yaml:"underlying-proxy" json:"underlying_proxy"`
 	InternalOnly    bool     `yaml:"internal-only" json:"internal_only"`
 	PrivateKeyHex   string   `yaml:"private-key-hex" json:"private_key_hex"`
+	Payer           string   `yaml:"payer" json:"payer"`
 }
 
 func WithCategory(category Category) func(*ShardingParameter) {
@@ -40,6 +41,12 @@ func WithUnderlyingProxy(underlyingProxy bool) func(*ShardingParameter) {
 func WithPrivateKeyHex(privateKeyHex string) func(*ShardingParameter) {
 	return func(param *ShardingParameter) {
 		param.PrivateKeyHex = privateKeyHex
+	}
+}
+
+func WithPayer(payer string) func(*ShardingParameter) {
+	return func(param *ShardingParameter) {
+		param.Payer = payer
 	}
 }
 

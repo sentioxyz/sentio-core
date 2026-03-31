@@ -32,5 +32,6 @@ const (
 )
 
 const (
-	ClickhouseSettings_ProxyAuthKey = "SQL_x_auth_token"
+	ClickhouseSettings_ProxyAuthKey  = "SQL_x_auth_token"
+	ClickhouseSettings_ProxyPayerKey = "SQL_x_payer"
 )

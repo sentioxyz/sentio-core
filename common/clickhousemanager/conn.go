@@ -52,7 +52,6 @@ type conn struct {
 	connOptions *clickhouse.Options
 	dsn         string
 	privateKey  *ecdsa.PrivateKey
-	payer       string
 
 	cluster string
 	once    sync.Once
@@ -115,9 +114,6 @@ func (c *conn) sign(ctx context.Context) (clickhouseCtx context.Context) {
 			settings[k] = v
 		}
 	}
-	if c.payer != "" {
-		settings[ClickhouseSettings_ProxyPayerKey] = clickhouse.CustomSetting{Value: c.payer}
-	}
 	if len(settings) > 0 {
 		clickhouseCtx = clickhouse.Context(clickhouseCtx, clickhouse.WithSettings(settings))
 	}
@@ -140,7 +136,7 @@ func (c *conn) PrepareBatch(ctx context.Context, query string, opts ...driver.Pr
 	return c.conn.PrepareBatch(c.sign(ctx), query, opts...)
 }
 
-func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhouse.Options, *ecdsa.PrivateKey, string) {
+func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhouse.Options, *ecdsa.PrivateKey) {
 	ckhOptions := &clickhouse.Options{
 		Addr: []string{"localhost:9000"},
 		Auth: clickhouse.Auth{
@@ -170,6 +166,9 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 			ckhOptions.Settings[k] = v
 		}
 	}
+	if connOptions.payer != "" {
+		ckhOptions.Settings[ClickhouseSettings_ProxyPayerKey] = clickhouse.CustomSetting{Value: connOptions.payer}
+	}
 	if connOptions.maxIdleConns > 0 {
 		ckhOptions.MaxIdleConns = connOptions.maxIdleConns
 	} else if *MaxIdleConns > 0 {
@@ -193,7 +192,7 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 	if connOptions.connMaxLifeTime > 0 {
 		ckhOptions.ConnMaxLifetime = connOptions.connMaxLifeTime
 	}
-	return ckhOptions, connOptions.privateKey, connOptions.payer
+	return ckhOptions, connOptions.privateKey
 }
 
 type ckhHashStruct struct {
@@ -208,7 +207,7 @@ type ckhHashStruct struct {
 }
 
 func connect(dsn string, connectOptions ...func(*Options)) Conn {
-	ckhOptions, privateKey, payer := parseDSNAndOptions(dsn, connectOptions...)
+	ckhOptions, privateKey := parseDSNAndOptions(dsn, connectOptions...)
 	ckhHash, err := hashstructure.Hash(ckhHashStruct{
 		Addr:            ckhOptions.Addr,
 		Auth:            ckhOptions.Auth,
@@ -233,7 +232,6 @@ func connect(dsn string, connectOptions ...func(*Options)) Conn {
 			connOptions: ckhOptions,
 			dsn:         dsn,
 			privateKey:  privateKey,
-			payer:       payer,
 		}
 	}
 	ckhConn, err = clickhouse.Open(ckhOptions)
@@ -248,7 +246,6 @@ func connect(dsn string, connectOptions ...func(*Options)) Conn {
 		connOptions: ckhOptions,
 		dsn:         dsn,
 		privateKey:  privateKey,
-		payer:       payer,
 	}
 }
 

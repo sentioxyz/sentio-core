@@ -52,6 +52,7 @@ type conn struct {
 	connOptions *clickhouse.Options
 	dsn         string
 	privateKey  *ecdsa.PrivateKey
+	payer       string
 
 	cluster string
 	once    sync.Once
@@ -114,6 +115,9 @@ func (c *conn) sign(ctx context.Context) (clickhouseCtx context.Context) {
 			settings[k] = v
 		}
 	}
+	if c.payer != "" {
+		settings[ClickhouseSettings_ProxyPayerKey] = c.payer
+	}
 	if len(settings) > 0 {
 		clickhouseCtx = clickhouse.Context(clickhouseCtx, clickhouse.WithSettings(settings))
 	}
@@ -136,7 +140,7 @@ func (c *conn) PrepareBatch(ctx context.Context, query string, opts ...driver.Pr
 	return c.conn.PrepareBatch(c.sign(ctx), query, opts...)
 }
 
-func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhouse.Options, *ecdsa.PrivateKey) {
+func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhouse.Options, *ecdsa.PrivateKey, string) {
 	ckhOptions := &clickhouse.Options{
 		Addr: []string{"localhost:9000"},
 		Auth: clickhouse.Auth{
@@ -189,7 +193,7 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 	if connOptions.connMaxLifeTime > 0 {
 		ckhOptions.ConnMaxLifetime = connOptions.connMaxLifeTime
 	}
-	return ckhOptions, connOptions.privateKey
+	return ckhOptions, connOptions.privateKey, connOptions.payer
 }
 
 type ckhHashStruct struct {
@@ -204,7 +208,7 @@ type ckhHashStruct struct {
 }
 
 func connect(dsn string, connectOptions ...func(*Options)) Conn {
-	ckhOptions, privateKey := parseDSNAndOptions(dsn, connectOptions...)
+	ckhOptions, privateKey, payer := parseDSNAndOptions(dsn, connectOptions...)
 	ckhHash, err := hashstructure.Hash(ckhHashStruct{
 		Addr:            ckhOptions.Addr,
 		Auth:            ckhOptions.Auth,
@@ -229,6 +233,7 @@ func connect(dsn string, connectOptions ...func(*Options)) Conn {
 			connOptions: ckhOptions,
 			dsn:         dsn,
 			privateKey:  privateKey,
+			payer:       payer,
 		}
 	}
 	ckhConn, err = clickhouse.Open(ckhOptions)
@@ -243,6 +248,7 @@ func connect(dsn string, connectOptions ...func(*Options)) Conn {
 		connOptions: ckhOptions,
 		dsn:         dsn,
 		privateKey:  privateKey,
+		payer:       payer,
 	}
 }
 

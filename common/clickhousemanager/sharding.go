@@ -120,7 +120,7 @@ func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
 		connOptions = append(connOptions, ConnectWithPrivateKey(parameter.PrivateKeyHex))
 	}
 	if parameter.Payer != "" {
-		connOptions = append(connOptions, ConnectWithSettings(map[string]any{ClickhouseSettings_ProxyPayerKey: parameter.Payer}))
+		connOptions = append(connOptions, ConnectWithPayer(parameter.Payer))
 	}
 
 	conn := NewOrGetConn(s.formatDSN(cred.Username, cred.Password, cred.Database, addr), connOptions...)
@@ -151,7 +151,7 @@ func (s *sharding) connectReplicas(parameter *ShardingParameter) ([]Conn, error)
 		connOptions = append(connOptions, ConnectWithPrivateKey(parameter.PrivateKeyHex))
 	}
 	if parameter.Payer != "" {
-		connOptions = append(connOptions, ConnectWithSettings(map[string]any{ClickhouseSettings_ProxyPayerKey: parameter.Payer}))
+		connOptions = append(connOptions, ConnectWithPayer(parameter.Payer))
 	}
 
 	for _, addr := range addrs {
@@ -244,7 +244,7 @@ func (s *sharding) GetAllConn(options ...func(*ShardingParameter)) map[string]Co
 		connOptions = append(connOptions, ConnectWithPrivateKey(parameter.PrivateKeyHex))
 	}
 	if parameter.Payer != "" {
-		connOptions = append(connOptions, ConnectWithSettings(map[string]any{ClickhouseSettings_ProxyPayerKey: parameter.Payer}))
+		connOptions = append(connOptions, ConnectWithPayer(parameter.Payer))
 	}
 
 	var results = make(map[string]Conn)

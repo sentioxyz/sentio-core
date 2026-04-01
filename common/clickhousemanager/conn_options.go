@@ -52,7 +52,13 @@ func (o *Options) Serialization() string {
 
 func ConnectWithSettings(settings map[string]any) func(o *Options) {
 	return func(o *Options) {
-		o.settings = settings
+		// merge settings if already exists, otherwise set directly
+		if o.settings == nil {
+			o.settings = make(map[string]any)
+		}
+		for k, v := range settings {
+			o.settings[k] = v
+		}
 	}
 }
 

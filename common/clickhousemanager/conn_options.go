@@ -19,6 +19,7 @@ type Options struct {
 	// serialization ignored
 	privateKeyHex string
 	privateKey    *ecdsa.PrivateKey
+	payer         string
 }
 
 func (o *Options) Serialization() string {
@@ -44,6 +45,9 @@ func (o *Options) Serialization() string {
 	if o.privateKeyHex != "" {
 		s += "private_key=" + o.privateKeyHex + ","
 	}
+	if o.payer != "" {
+		s += "payer=" + o.payer + ","
+	}
 	if len(s) > 0 {
 		s = s[:len(s)-1]
 	}
@@ -59,6 +63,12 @@ func ConnectWithSettings(settings map[string]any) func(o *Options) {
 		for k, v := range settings {
 			o.settings[k] = v
 		}
+	}
+}
+
+func ConnectWithPayer(payer string) func(o *Options) {
+	return func(o *Options) {
+		o.payer = payer
 	}
 }
 

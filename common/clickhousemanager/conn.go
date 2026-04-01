@@ -116,7 +116,7 @@ func (c *conn) sign(ctx context.Context) (clickhouseCtx context.Context) {
 		}
 	}
 	if c.payer != "" {
-		settings[ClickhouseSettings_ProxyPayerKey] = c.payer
+		settings[ClickhouseSettings_ProxyPayerKey] = clickhouse.CustomSetting{Value: c.payer}
 	}
 	if len(settings) > 0 {
 		clickhouseCtx = clickhouse.Context(clickhouseCtx, clickhouse.WithSettings(settings))

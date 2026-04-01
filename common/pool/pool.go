@@ -18,6 +18,7 @@ type EntryConfig[C any] interface {
 type Entry[EC any, ES any] struct {
 	Config EC
 	Status ES
+	Enable bool
 }
 
 type entryInPool[EC any, ES any] struct {
@@ -68,31 +69,39 @@ func (p *Pool[EC, ES, PS]) refreshPoolStatus() {
 func (p *Pool[EC, ES, PS]) Add(name string, config EC) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	exist, has := p.entries[name]
-	if has && exist.Config.Equal(config) {
-		// dup add, just return false
-		return false
-	}
-	if has {
+	if exist, has := p.entries[name]; has {
+		if exist.Config.Equal(config) {
+			// dup add, just return false
+			return false
+		}
 		// config updated, remove old entry first
 		p.remove(name)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	ent := &entryInPool[EC, ES]{
+	p.entries[name] = &entryInPool[EC, ES]{
 		Entry: Entry[EC, ES]{
 			Config: config,
 		},
-		refreshCancel: cancel,
-		refreshDone:   done,
 	}
-	p.entries[name] = ent
 	p.refreshPoolStatus()
+	return true
+}
+
+func (p *Pool[EC, ES, PS]) Enable(name string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ent, has := p.entries[name]
+	if !has || ent.Enable {
+		return false
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	ent.refreshCancel = cancel
+	ent.refreshDone = done
 	ch := make(chan ES)
 	go func() {
 		defer close(done)
 		defer close(ch)
-		p.entryStatusRefresher(ctx, config, ch)
+		p.entryStatusRefresher(ctx, ent.Config, ch)
 	}()
 	go func() {
 		for status := range ch {
@@ -102,13 +111,31 @@ func (p *Pool[EC, ES, PS]) Add(name string, config EC) bool {
 			p.mu.Unlock()
 		}
 	}()
+	ent.Enable = true
+	p.refreshPoolStatus()
 	return true
 }
 
+func (p *Pool[EC, ES, PS]) disable(name string) bool {
+	ent, has := p.entries[name]
+	if !has || !ent.Enable {
+		return false
+	}
+	ent.refreshCancel()
+	ent.Enable = false
+	<-ent.refreshDone
+	return true
+}
+
+func (p *Pool[EC, ES, PS]) Disable(name string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.disable(name)
+}
+
 func (p *Pool[EC, ES, PS]) remove(name string) bool {
-	if ent, has := p.entries[name]; has {
-		ent.refreshCancel()
-		<-ent.refreshDone
+	if _, has := p.entries[name]; has {
+		p.disable(name)
 		delete(p.entries, name)
 		return true
 	}
@@ -166,6 +193,7 @@ func (p *Pool[EC, ES, PS]) Snapshot() any {
 			return map[string]any{
 				"config": ent.Config,
 				"status": ent.Status.Snapshot(),
+				"enable": ent.Enable,
 			}
 		}),
 	}

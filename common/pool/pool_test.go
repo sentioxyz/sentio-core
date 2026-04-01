@@ -251,6 +251,7 @@ func TestPool_EntryStatusUpdated(t *testing.T) {
 	defer p.RemoveAll()
 
 	p.Add("entry1", testConfig{Value: "v1"})
+	p.Enable("entry1")
 
 	select {
 	case <-statusSent:

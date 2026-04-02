@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"math"
 	"math/rand"
+	"reflect"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/pool"
 	"sentioxyz/sentio-core/common/queue"
@@ -30,8 +31,10 @@ type entryStatus[CLIENT pool.Status] struct {
 
 func (es entryStatus[CLIENT]) Snapshot() any {
 	sn := map[string]any{
-		"client":      es.Client.Snapshot(),
 		"initialized": es.Initialized,
+	}
+	if !reflect.ValueOf(es.Client).IsNil() {
+		sn["client"] = es.Client.Snapshot()
 	}
 	if es.InitializeFailedTimes > 0 {
 		sn["initializeFailedTimes"] = es.InitializeFailedTimes
@@ -40,7 +43,7 @@ func (es entryStatus[CLIENT]) Snapshot() any {
 	}
 	if es.Initialized {
 		sn["initializedAt"] = es.InitializedAt.String()
-		sn["latestBlock"] = es.LatestBlock
+		sn["latestBlock"] = es.LatestBlock.String()
 	}
 	return sn
 }

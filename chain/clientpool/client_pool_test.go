@@ -627,3 +627,4 @@ func Test_adjustPriority_withWaiters_downgradesCursor(t *testing.T) {
 	assert.Equal(t, 1, p.priorityCursor) // moved from 0→1 (priority 1→3)
 	p.mu.Unlock()
 }
+

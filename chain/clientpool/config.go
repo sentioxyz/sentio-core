@@ -1,13 +1,45 @@
 package clientpool
 
 import (
+	"encoding/json"
 	"sentioxyz/sentio-core/common/utils"
 	"time"
 )
 
 type ClientConfig[CONFIG EntryConfig[CONFIG]] struct {
-	Priority uint32
-	Config   CONFIG
+	Priority uint32 `json:"priority" yaml:"priority"`
+	Config   CONFIG `json:",inline" yaml:",inline"`
+}
+
+// MarshalJSON flattens Config fields into the same JSON object as Priority.
+func (c ClientConfig[CONFIG]) MarshalJSON() ([]byte, error) {
+	configBytes, err := json.Marshal(c.Config)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]json.RawMessage
+	if err = json.Unmarshal(configBytes, &m); err != nil {
+		return nil, err
+	}
+	if m == nil {
+		m = make(map[string]json.RawMessage)
+	}
+	if m["priority"], err = json.Marshal(c.Priority); err != nil {
+		return nil, err
+	}
+	return json.Marshal(m)
+}
+
+// UnmarshalJSON reads Priority plus all Config fields from the same JSON object.
+func (c *ClientConfig[CONFIG]) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		Priority uint32 `json:"priority"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	c.Priority = aux.Priority
+	return json.Unmarshal(data, &c.Config)
 }
 
 func (c ClientConfig[CONFIG]) Equal(a ClientConfig[CONFIG]) bool {

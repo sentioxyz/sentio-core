@@ -40,7 +40,7 @@ func (w *statWindow) Snapshot(endAt time.Time) any {
 	return map[string]any{
 		"startAt":  w.startAt,
 		"endAt":    endAt,
-		"duration": endAt.Sub(w.startAt),
+		"duration": endAt.Sub(w.startAt).String(),
 		"methodUsed": utils.MapMapNoError(w.used, func(stat map[string]timehist.Histogram) string {
 			return utils.ReduceMapValues(stat, timehist.Histogram.Add).String()
 		}),

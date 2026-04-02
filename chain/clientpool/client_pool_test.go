@@ -95,9 +95,6 @@ func (c *testClient) Do(what string) {
 }
 
 func (c *testClient) Snapshot() any {
-	if c == nil {
-		return nil
-	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return utils.CopyMap(c.stat)
@@ -627,4 +624,3 @@ func Test_adjustPriority_withWaiters_downgradesCursor(t *testing.T) {
 	assert.Equal(t, 1, p.priorityCursor) // moved from 0→1 (priority 1→3)
 	p.mu.Unlock()
 }
-

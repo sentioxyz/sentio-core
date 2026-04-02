@@ -87,7 +87,7 @@ func Test_statusWaiter2(t *testing.T) {
 	select {
 	case <-done1:
 	case <-time.After(time.Second):
-		t.Fatalf("[#%d] timeout", 1)
+		t.Fatalf("[#1] timeout")
 	}
 	assert.Equal(t, 1, w.Waiting())
 
@@ -95,7 +95,7 @@ func Test_statusWaiter2(t *testing.T) {
 	select {
 	case <-done2:
 	case <-time.After(time.Second):
-		t.Fatalf("[#%d] timeout", 1)
+		t.Fatalf("[#2] timeout")
 	}
 	assert.Equal(t, 0, w.Waiting())
 }

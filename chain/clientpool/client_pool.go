@@ -69,9 +69,9 @@ func (b *ban) enable(now time.Time) bool {
 }
 
 func (b *ban) extend(c BanConfig, now time.Time, reason error) {
-	b.from = now
+	passed := now.Sub(b.from)
+	b.dur = passed + min(time.Duration(float64(passed)*c.ExtendRate), c.ExtendMax)
 	b.reason = reason
-	b.dur = min(time.Duration(float64(b.dur)*c.ExtendRate), c.ExtendMax)
 }
 
 func (b *ban) String() string {
@@ -673,7 +673,7 @@ func (p *ClientPool[CONFIG, CLIENT]) Start(ctx context.Context, ch <-chan PoolCo
 		case <-ctx.Done():
 			return
 		case cfg := <-ch:
-			p.updateConfig(cfg)
+			p.updateConfig(cfg.Trim())
 		case <-next:
 			p.adjustPriority()
 		}

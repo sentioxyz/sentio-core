@@ -17,9 +17,15 @@ import (
 )
 
 type ClientConfig struct {
-	Endpoint string
+	Endpoint           string `json:"sui_grpc_endpoint" yaml:"sui_grpc_endpoint"`
+	MaxCallRecvMsgSize int    `json:"sui_grpc_max_msg_size" yaml:"sui_grpc_max_msg_size"`
+}
 
-	MaxCallRecvMsgSize int
+func (c ClientConfig) Trim() ClientConfig {
+	return ClientConfig{
+		Endpoint:           c.Endpoint,
+		MaxCallRecvMsgSize: max(c.MaxCallRecvMsgSize, 1024*1024*5), // at lease 5MB
+	}
 }
 
 func (c ClientConfig) GetName() string {
@@ -42,6 +48,9 @@ func NewClient(config ClientConfig) *Client {
 
 func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 	if c.conn == nil {
+		if c.config.Endpoint == "" {
+			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig, "empty endpoint")
+		}
 		var ep string
 		opts := []grpc.DialOption{grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(c.config.MaxCallRecvMsgSize))}
 		if strings.HasPrefix(c.config.Endpoint, "http://") {

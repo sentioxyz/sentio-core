@@ -41,5 +41,6 @@ type Client interface {
 
 type EntryConfig[CONFIG any] interface {
 	GetName() string
+	Trim() CONFIG
 	Equal(a CONFIG) bool
 }

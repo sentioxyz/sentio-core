@@ -39,14 +39,14 @@ type PoolConfig[CONFIG EntryConfig[CONFIG]] struct {
 func (c PoolConfig[CONFIG]) Trim() PoolConfig[CONFIG] {
 	return PoolConfig[CONFIG]{
 		BrokenFallBehind:   max(c.BrokenFallBehind, 0),
-		CheckSpeedInterval: max(c.CheckSpeedInterval, time.Minute),
+		CheckSpeedInterval: utils.Select(c.CheckSpeedInterval > 0, c.CheckSpeedInterval, time.Minute),
 		BanConfig: BanConfig{
-			Min:        max(c.BanConfig.Min, time.Second),
-			ExtendMax:  max(c.BanConfig.ExtendMax, time.Minute*5),
-			ExtendRate: max(c.BanConfig.ExtendRate, 0.5),
+			Min:        utils.Select(c.BanConfig.Min > 0, c.BanConfig.Min, time.Second),
+			ExtendMax:  utils.Select(c.BanConfig.ExtendMax > 0, c.BanConfig.ExtendMax, time.Minute*5),
+			ExtendRate: utils.Select(c.BanConfig.ExtendRate > 0, c.BanConfig.ExtendRate, 0.5),
 		},
-		AdjustPriorityInterval: max(c.AdjustPriorityInterval, time.Second*30),
-		UpgradeSensitivity:     max(c.UpgradeSensitivity, time.Minute*3),
+		AdjustPriorityInterval: utils.Select(c.AdjustPriorityInterval > 0, c.AdjustPriorityInterval, time.Second*30),
+		UpgradeSensitivity:     utils.Select(c.UpgradeSensitivity > 0, c.UpgradeSensitivity, time.Minute*3),
 		ClientConfigs: utils.MapSliceNoError(c.ClientConfigs, func(cc ClientConfig[CONFIG]) ClientConfig[CONFIG] {
 			return ClientConfig[CONFIG]{
 				Priority: cc.Priority,

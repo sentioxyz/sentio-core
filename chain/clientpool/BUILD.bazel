@@ -25,7 +25,10 @@ go_library(
 
 go_test(
     name = "clientpool_test",
-    srcs = ["client_pool_test.go"],
+    srcs = [
+        "client_pool_test.go",
+        "config_test.go",
+    ],
     embed = [":clientpool"],
     deps = [
         "//common/log",
@@ -34,6 +37,7 @@ go_test(
         "@com_github_pkg_errors//:errors",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
         "@org_uber_go_zap//:zap",
     ],
 )

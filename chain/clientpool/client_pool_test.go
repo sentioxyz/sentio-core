@@ -33,6 +33,10 @@ func (c testClientConfig) GetName() string {
 	return c.Name
 }
 
+func (c testClientConfig) Trim() testClientConfig {
+	return c
+}
+
 func (c testClientConfig) Equal(a testClientConfig) bool {
 	return reflect.DeepEqual(c, a)
 }
@@ -218,15 +222,13 @@ func Test_ban_extend(t *testing.T) {
 	err := fmt.Errorf("test error")
 	b := &ban{from: now, dur: time.Second, reason: err}
 
-	later := now.Add(time.Second)
-	b.extend(cfg, later, err)
-	assert.Equal(t, later, b.from)
-	assert.Equal(t, 2*time.Second, b.dur) // 1s * 2.0
+	b.extend(cfg, now.Add(time.Second), err)
+	assert.Equal(t, now, b.from)
+	assert.Equal(t, 3*time.Second, b.dur) // 1s + 1s * 2.0
 
 	// duration is capped at ExtendMax
-	b.dur = 4 * time.Second
-	b.extend(cfg, later, err)
-	assert.Equal(t, 5*time.Second, b.dur) // min(4s * 2.0, 5s) = 5s
+	b.extend(cfg, now.Add(time.Second*4), err)
+	assert.Equal(t, 9*time.Second, b.dur) // 4s + min(4s * 2.0, 5s)
 }
 
 // ── _poolStatusBuilder ───────────────────────────────────────────────────────
@@ -625,3 +627,4 @@ func Test_adjustPriority_withWaiters_downgradesCursor(t *testing.T) {
 	assert.Equal(t, 1, p.priorityCursor) // moved from 0→1 (priority 1→3)
 	p.mu.Unlock()
 }
+

@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sui",
+    srcs = ["grpc_client_pool.go"],
+    importpath = "sentioxyz/sentio-core/chain/sui",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/clientpool",
+        "//chain/clientpool/ex",
+        "//common/log",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_protobuf//types/known/fieldmaskpb",
+    ],
+)

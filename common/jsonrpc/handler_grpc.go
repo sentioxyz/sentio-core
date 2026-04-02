@@ -51,7 +51,11 @@ func (grpcRawCodec) Unmarshal(data []byte, v any) error {
 func (grpcRawCodec) Name() string { return "proto" }
 
 type ConnectionPool interface {
-	Get(ctx context.Context) (*grpc.ClientConn, error)
+	UseRawConnection(
+		ctx context.Context,
+		method string,
+		fn func(ctx context.Context, conn *grpc.ClientConn) error,
+	) (bool, error)
 	Snapshot() any
 }
 
@@ -150,94 +154,95 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Pick a healthy backend connection from the pool.
-	conn, err := h.pool.Get(ctx)
-	if err != nil {
-		grpcWriteError(w, status.Errorf(codes.Unavailable, "no healthy backend: %v", err))
-		return
-	}
+	done, err := h.pool.UseRawConnection(ctx, method, func(ctx context.Context, conn *grpc.ClientConn) error {
+		// Propagate request metadata (HTTP headers) as gRPC outgoing metadata.
+		outCtx := metadata.NewOutgoingContext(ctx, grpcMetadataFromHTTPHeaders(r.Header))
 
-	// Propagate request metadata (HTTP headers) as gRPC outgoing metadata.
-	outCtx := metadata.NewOutgoingContext(ctx, grpcMetadataFromHTTPHeaders(r.Header))
+		// Open a bidirectional stream to the backend using raw byte passthrough.
+		// grpc.ForceCodec bypasses the global codec registry: grpcRawCodec is used
+		// only for this call and does not affect other gRPC services.
+		cs, err := conn.NewStream(outCtx,
+			&grpc.StreamDesc{ServerStreams: true, ClientStreams: true},
+			r.URL.Path,
+			grpc.ForceCodec(grpcRawCodec{}),
+		)
+		if err != nil {
+			grpcWriteError(w, err)
+			return err
+		}
 
-	// Open a bidirectional stream to the backend using raw byte passthrough.
-	// grpc.ForceCodec bypasses the global codec registry: grpcRawCodec is used
-	// only for this call and does not affect other gRPC services.
-	cs, err := conn.NewStream(outCtx,
-		&grpc.StreamDesc{ServerStreams: true, ClientStreams: true},
-		r.URL.Path,
-		grpc.ForceCodec(grpcRawCodec{}),
-	)
-	if err != nil {
-		grpcWriteError(w, err)
-		return
-	}
-
-	// Forward client → backend frames in a background goroutine.
-	// The goroutine exits when the client body closes or the stream context is
-	// cancelled (which happens when ServeHTTP returns).
-	go func() {
-		for {
-			frame, err := grpcReadFrame(r.Body)
-			if err != nil {
-				_ = cs.CloseSend()
-				return
+		// Forward client → backend frames in a background goroutine.
+		// The goroutine exits when the client body closes or the stream context is
+		// cancelled (which happens when ServeHTTP returns).
+		go func() {
+			for {
+				frame, err := grpcReadFrame(r.Body)
+				if err != nil {
+					_ = cs.CloseSend()
+					return
+				}
+				if err := cs.SendMsg(frame); err != nil {
+					return
+				}
 			}
-			if err := cs.SendMsg(frame); err != nil {
-				return
+		}()
+
+		// Wait for the backend's initial response headers.  An error here means
+		// the RPC failed before the backend produced any response.
+		hdr, err := cs.Header()
+		if err != nil {
+			grpcWriteError(w, err)
+			return err
+		}
+
+		// Write HTTP response status and headers.
+		w.Header().Set("Content-Type", "application/grpc")
+		for k, vs := range hdr {
+			for _, v := range vs {
+				w.Header().Add(k, v)
 			}
 		}
-	}()
-
-	// Wait for the backend's initial response headers.  An error here means
-	// the RPC failed before the backend produced any response.
-	hdr, err := cs.Header()
-	if err != nil {
-		grpcWriteError(w, err)
-		return
-	}
-
-	// Write HTTP response status and headers.
-	w.Header().Set("Content-Type", "application/grpc")
-	for k, vs := range hdr {
-		for _, v := range vs {
-			w.Header().Add(k, v)
-		}
-	}
-	w.WriteHeader(http.StatusOK)
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush()
-	}
-
-	// Stream backend → client frames.
-	var streamErr error
-	for {
-		var frame []byte
-		if err := cs.RecvMsg(&frame); err != nil {
-			if err != io.EOF {
-				streamErr = err
-			}
-			break
-		}
-		if err := grpcWriteFrame(w, frame); err != nil {
-			break
-		}
+		w.WriteHeader(http.StatusOK)
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-	}
 
-	// Forward backend trailing metadata.
-	for k, vs := range cs.Trailer() {
-		w.Header()[http.TrailerPrefix+textproto.CanonicalMIMEHeaderKey(k)] = vs
-	}
-	// Ensure Grpc-Status is always present in the trailers.
-	if _, ok := cs.Trailer()["grpc-status"]; !ok {
-		st, _ := status.FromError(streamErr)
-		w.Header()[http.TrailerPrefix+"Grpc-Status"] = []string{strconv.Itoa(int(st.Code()))}
-		if msg := st.Message(); msg != "" {
-			w.Header()[http.TrailerPrefix+"Grpc-Message"] = []string{msg}
+		// Stream backend → client frames.
+		var streamErr error
+		for {
+			var frame []byte
+			if err := cs.RecvMsg(&frame); err != nil {
+				if err != io.EOF {
+					streamErr = err
+				}
+				break
+			}
+			if err := grpcWriteFrame(w, frame); err != nil {
+				break
+			}
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
 		}
+
+		// Forward backend trailing metadata.
+		for k, vs := range cs.Trailer() {
+			w.Header()[http.TrailerPrefix+textproto.CanonicalMIMEHeaderKey(k)] = vs
+		}
+		// Ensure Grpc-Status is always present in the trailers.
+		if _, ok := cs.Trailer()["grpc-status"]; !ok {
+			st, _ := status.FromError(streamErr)
+			w.Header()[http.TrailerPrefix+"Grpc-Status"] = []string{strconv.Itoa(int(st.Code()))}
+			if msg := st.Message(); msg != "" {
+				w.Header()[http.TrailerPrefix+"Grpc-Message"] = []string{msg}
+			}
+		}
+
+		return nil
+	})
+
+	if !done {
+		grpcWriteError(w, status.Errorf(codes.Unavailable, "no healthy backend: %v", err))
 	}
 }
 

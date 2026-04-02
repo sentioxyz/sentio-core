@@ -21,8 +21,12 @@ type singleConnPool struct {
 	conn *grpc.ClientConn
 }
 
-func (p *singleConnPool) Get(_ context.Context) (*grpc.ClientConn, error) {
-	return p.conn, nil
+func (p *singleConnPool) UseRawConnection(
+	ctx context.Context,
+	method string,
+	fn func(ctx context.Context, conn *grpc.ClientConn) error,
+) (bool, error) {
+	return true, fn(ctx, p.conn)
 }
 
 func (p *singleConnPool) Snapshot() any {

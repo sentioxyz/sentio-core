@@ -43,6 +43,12 @@ func (w *StatusWaiter[STATUS]) Current() STATUS {
 	return w.current
 }
 
+func (w *StatusWaiter[STATUS]) Waiting() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.waiters)
+}
+
 func (w *StatusWaiter[STATUS]) Wait(ctx context.Context, checker StatusChecker[STATUS]) (STATUS, error) {
 	// new waiter
 	w.mu.Lock()

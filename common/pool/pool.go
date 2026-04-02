@@ -31,8 +31,8 @@ type entryInPool[EC any, ES any] struct {
 type Pool[EC EntryConfig[EC], ES Status, PS Status] struct {
 	name string
 
-	poolStatusBuilder    func(map[string]Entry[EC, ES]) PS
-	entryStatusRefresher func(context.Context, EC, chan<- ES)
+	poolStatusBuilder    func(map[string]Entry[EC, ES], PS, uint64) PS
+	entryStatusRefresher func(context.Context, EC, ES, chan<- ES)
 
 	mu      sync.Mutex
 	entries map[string]*entryInPool[EC, ES]
@@ -44,8 +44,8 @@ type Pool[EC EntryConfig[EC], ES Status, PS Status] struct {
 
 func NewPool[EC EntryConfig[EC], ES Status, PS Status](
 	name string,
-	poolStatusBuilder func(map[string]Entry[EC, ES]) PS,
-	entryStatusRefresher func(context.Context, EC, chan<- ES),
+	poolStatusBuilder func(map[string]Entry[EC, ES], PS, uint64) PS,
+	entryStatusRefresher func(context.Context, EC, ES, chan<- ES),
 ) *Pool[EC, ES, PS] {
 	return &Pool[EC, ES, PS]{
 		name:                 name,
@@ -56,12 +56,22 @@ func NewPool[EC EntryConfig[EC], ES Status, PS Status](
 	}
 }
 
+func (p *Pool[EC, ES, PS]) Name() string {
+	return p.name
+}
+
+func (p *Pool[EC, ES, PS]) Status() (PS, uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.status, p.statusIndex
+}
+
 func (p *Pool[EC, ES, PS]) refreshPoolStatus() {
 	entries := make(map[string]Entry[EC, ES])
 	for name, ent := range p.entries {
 		entries[name] = ent.Entry
 	}
-	p.status = p.poolStatusBuilder(entries)
+	p.status = p.poolStatusBuilder(entries, p.status, p.statusIndex)
 	p.statusIndex++
 	p.statusWaiter.NewStatus(p.statusIndex)
 }
@@ -101,7 +111,7 @@ func (p *Pool[EC, ES, PS]) Enable(name string) bool {
 	go func() {
 		defer close(done)
 		defer close(ch)
-		p.entryStatusRefresher(ctx, ent.Config, ch)
+		p.entryStatusRefresher(ctx, ent.Config, ent.Status, ch)
 	}()
 	go func() {
 		for status := range ch {
@@ -182,6 +192,10 @@ func (p *Pool[EC, ES, PS]) Wait(ctx context.Context, statusIndexGT uint64) error
 	return err
 }
 
+func (p *Pool[EC, ES, PS]) Waiting() int {
+	return p.statusWaiter.Waiting()
+}
+
 func (p *Pool[EC, ES, PS]) Snapshot() any {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -189,6 +203,7 @@ func (p *Pool[EC, ES, PS]) Snapshot() any {
 		"name":        p.name,
 		"status":      p.status.Snapshot(),
 		"statusIndex": p.statusIndex,
+		"waiting":     p.Waiting(),
 		"entries": utils.MapMapNoError(p.entries, func(ent *entryInPool[EC, ES]) map[string]any {
 			return map[string]any{
 				"config": ent.Config,

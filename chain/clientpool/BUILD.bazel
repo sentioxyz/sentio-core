@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clientpool",
+    srcs = [
+        "client_pool.go",
+        "config.go",
+        "external.go",
+        "snapshot.go",
+        "statistic.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/clientpool",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/pool",
+        "//common/queue",
+        "//common/set",
+        "//common/timewin",
+        "//common/utils",
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "clientpool_test",
+    srcs = ["client_pool_test.go"],
+    embed = [":clientpool"],
+    deps = [
+        "//common/log",
+        "//common/pool",
+        "//common/utils",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_zap//:zap",
+    ],
+)

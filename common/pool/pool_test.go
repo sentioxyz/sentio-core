@@ -35,14 +35,14 @@ func (s testPoolStatus) Snapshot() any {
 }
 
 // noopRefresher blocks until context is cancelled (simulates a long-running background worker).
-func noopRefresher(ctx context.Context, _ testConfig, _ chan<- testEntryStatus) {
+func noopRefresher(ctx context.Context, _ testConfig, _ testEntryStatus, _ chan<- testEntryStatus) {
 	<-ctx.Done()
 }
 
 func newTestPool() *Pool[testConfig, testEntryStatus, testPoolStatus] {
 	return NewPool[testConfig, testEntryStatus, testPoolStatus](
 		"test",
-		func(entries map[string]Entry[testConfig, testEntryStatus]) testPoolStatus {
+		func(entries map[string]Entry[testConfig, testEntryStatus], pre testPoolStatus, psi uint64) testPoolStatus {
 			return testPoolStatus{Count: len(entries)}
 		},
 		noopRefresher,
@@ -239,12 +239,12 @@ func TestPool_EntryStatusUpdated(t *testing.T) {
 	statusSent := make(chan struct{})
 	p := NewPool[testConfig, testEntryStatus, testPoolStatus](
 		"test",
-		func(entries map[string]Entry[testConfig, testEntryStatus]) testPoolStatus {
+		func(entries map[string]Entry[testConfig, testEntryStatus], pre testPoolStatus, psi uint64) testPoolStatus {
 			return testPoolStatus{Count: len(entries)}
 		},
-		func(ctx context.Context, _ testConfig, ch chan<- testEntryStatus) {
-			ch <- testEntryStatus{Value: 42}
-			close(statusSent)
+		func(ctx context.Context, _ testConfig, pre testEntryStatus, ch chan<- testEntryStatus) {
+			ch <- testEntryStatus{Value: pre.Value + 1}
+			statusSent <- struct{}{}
 			<-ctx.Done()
 		},
 	)
@@ -262,7 +262,22 @@ func TestPool_EntryStatusUpdated(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	entries, _, _ := p.Fetch(func(_ string, _ Entry[testConfig, testEntryStatus], _ testPoolStatus) bool { return true })
-	assert.Equal(t, 42, entries["entry1"].Status.Value)
+	assert.Equal(t, 1, entries["entry1"].Status.Value)
+
+	p.Disable("entry1")
+	p.Enable("entry1")
+
+	select {
+	case <-statusSent:
+	case <-time.After(time.Second):
+		t.Fatal("refresher did not send status")
+	}
+
+	// wait for the status goroutine to process
+	time.Sleep(10 * time.Millisecond)
+
+	entries, _, _ = p.Fetch(func(_ string, _ Entry[testConfig, testEntryStatus], _ testPoolStatus) bool { return true })
+	assert.Equal(t, 2, entries["entry1"].Status.Value)
 }
 
 func TestPool_Snapshot(t *testing.T) {

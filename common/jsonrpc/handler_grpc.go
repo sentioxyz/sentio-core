@@ -198,11 +198,13 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 	// Probe: OnRequest — gives the caller a chance to reject early and to
 	// enrich the context with request-scoped data (e.g. resolved endpoint).
 	if h.probe != nil {
-		var err error
-		ctx, err = h.probe.OnRequest(ctx, method, r)
+		probeCtx, err := h.probe.OnRequest(ctx, method, r)
 		if err != nil {
 			grpcWriteError(w, err)
 			return
+		}
+		if probeCtx != nil {
+			ctx = probeCtx
 		}
 	}
 

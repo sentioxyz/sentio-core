@@ -305,10 +305,11 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if !done {
-		grpcWriteError(w, status.Errorf(codes.Unavailable, "no healthy backend: %v", err))
+		grpcErr := status.Errorf(codes.Unavailable, "no healthy backend: %v", err)
+		grpcWriteError(w, grpcErr)
 		// Probe: OnFinish for pool-miss.
 		if h.probe != nil {
-			h.probe.OnFinish(ctx, method, 0, err)
+			h.probe.OnFinish(ctx, method, 0, grpcErr)
 		}
 	}
 }

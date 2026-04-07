@@ -16,6 +16,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const pgConfigKey = "analytic_clickhouse_resource"
+
 type Engine interface {
 	CPUThreads() int
 	MaxMemory() int64
@@ -93,8 +95,8 @@ type settings struct {
 
 func NewSettings(ctx context.Context, db *gorm.DB) (Setting, error) {
 	if db != nil {
-		if err := configmanager.Set("analytic_clickhouse_resource", configmanager.NewPgProvider(
-			db, configmanager.WithPgKey("analytic_clickhouse_resource_configs")), kyaml.Parser(),
+		if err := configmanager.Set(pgConfigKey, configmanager.NewPgProvider(
+			db, configmanager.WithPgKey(pgConfigKey)), kyaml.Parser(),
 			&configmanager.LoadParams{
 				EnableReload: true,
 				ReloadPeriod: time.Minute * 10,
@@ -146,7 +148,7 @@ func parseMemory(memory string) (int64, error) {
 }
 
 func (s *settings) watchConfig() error {
-	config, ok := configmanager.Get("analytic_clickhouse_resource")
+	config, ok := configmanager.Get(pgConfigKey)
 	if !ok {
 		log.Errorf("failed to get clickhouse resource config")
 		return fmt.Errorf("config not found")

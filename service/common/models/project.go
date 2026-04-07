@@ -305,6 +305,10 @@ func (p *Project) GetDefaultTimerange() *protos.TimeRangeLite {
 	return nil
 }
 
+func (p *Project) IsSentioNetworkProject() bool {
+	return p.SentioNetworkProject
+}
+
 type ProjectView struct {
 	gorm.Model
 	ID        string   `gorm:"primaryKey"`

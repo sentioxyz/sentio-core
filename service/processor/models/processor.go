@@ -222,6 +222,10 @@ func (p Processor) IsEventlogV2() bool {
 }
 
 func (p Processor) IsSentioNetworkProcessor() bool {
+	if p.Project != nil {
+		return p.Project.IsSentioNetworkProject()
+	}
+	// fallback to check chain id, which should be non-empty for sentio network processor and empty for non-sentio network processor
 	return p.SentioNetworkProperties.ChainID != ""
 }
 

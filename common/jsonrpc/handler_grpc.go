@@ -59,6 +59,34 @@ type ConnectionPool interface {
 	Snapshot() any
 }
 
+// GRPCProbe is an optional callback interface that allows callers to observe
+// gRPC proxy events without modifying the core proxy logic.  Useful for
+// billing, metering, logging, and access control.
+//
+// All methods are called synchronously from the proxy goroutine, so
+// implementations should be fast and non-blocking.
+type GRPCProbe interface {
+	// OnRequest is called once when a new gRPC request arrives, before the
+	// upstream connection is established.  Returning a non-nil error aborts
+	// the request and sends the error back as a gRPC status to the client.
+	//
+	// The returned context replaces the request context for the rest of the
+	// proxy call (passed to ConnectionPool.UseRawConnection and to OnFinish).
+	// Implementations can use context.WithValue to stash request-scoped data
+	// (e.g. resolved endpoint, billing metadata) that the ConnectionPool or
+	// OnFinish can later retrieve.
+	OnRequest(ctx context.Context, method string, r *http.Request) (context.Context, error)
+
+	// OnResponseMsg is called for each response message frame forwarded
+	// from the backend to the client.  msgIndex is 0-based.
+	OnResponseMsg(ctx context.Context, method string, msgIndex int)
+
+	// OnFinish is called once after the stream ends (success or failure).
+	// msgCount is the total number of response messages forwarded.
+	// err is nil on clean EOF, otherwise the gRPC error.
+	OnFinish(ctx context.Context, method string, msgCount int, err error)
+}
+
 // GRPCProxyHandler is an http.Handler that transparently proxies all incoming gRPC
 // requests to a backend gRPC server selected from a connection pool.
 //
@@ -79,6 +107,7 @@ type ConnectionPool interface {
 //	http.ListenAndServe(":8080", h)
 type GRPCProxyHandler struct {
 	pool  ConnectionPool
+	probe GRPCProbe
 	name  string
 	debug bool
 
@@ -91,14 +120,26 @@ type GRPCProxyHandler struct {
 	stat *timewin.TimeWindowsManager[*statWindow]
 }
 
+// GRPCProxyOption configures optional behaviour of the proxy handler.
+type GRPCProxyOption func(*GRPCProxyHandler)
+
+// WithGRPCProbe attaches a probe to the handler.  At most one probe can be
+// set; a later call replaces any earlier probe.
+func WithGRPCProbe(p GRPCProbe) GRPCProxyOption {
+	return func(h *GRPCProxyHandler) { h.probe = p }
+}
+
 // NewGRPCProxyHandler returns a GRPCProxyHandler that forwards gRPC calls to connections
 // obtained from pool.
-func NewGRPCProxyHandler(pool ConnectionPool, name string, debug bool) *GRPCProxyHandler {
+func NewGRPCProxyHandler(pool ConnectionPool, name string, debug bool, opts ...GRPCProxyOption) *GRPCProxyHandler {
 	h := &GRPCProxyHandler{
 		pool:  pool,
 		name:  name,
 		debug: debug,
 		stat:  timewin.NewTimeWindowsManager[*statWindow](time.Minute),
+	}
+	for _, o := range opts {
+		o(h)
 	}
 	h.handler = h2c.NewHandler(http.HandlerFunc(h.serveGRPC), &http2.Server{})
 	return h
@@ -152,6 +193,17 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 		http.Error(w, "Content-Type must start with application/grpc", http.StatusUnsupportedMediaType)
 		return
+	}
+
+	// Probe: OnRequest — gives the caller a chance to reject early and to
+	// enrich the context with request-scoped data (e.g. resolved endpoint).
+	if h.probe != nil {
+		var err error
+		ctx, err = h.probe.OnRequest(ctx, method, r)
+		if err != nil {
+			grpcWriteError(w, err)
+			return
+		}
 	}
 
 	done, err := h.pool.UseRawConnection(ctx, method, func(ctx context.Context, conn *grpc.ClientConn) error {
@@ -209,6 +261,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 
 		// Stream backend → client frames.
 		var streamErr error
+		msgCount := 0
 		for {
 			var frame []byte
 			if err := cs.RecvMsg(&frame); err != nil {
@@ -217,12 +270,22 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 				}
 				break
 			}
+			// Probe: OnResponseMsg — called for each forwarded response frame.
+			if h.probe != nil {
+				h.probe.OnResponseMsg(ctx, method, msgCount)
+			}
+			msgCount++
 			if err := grpcWriteFrame(w, frame); err != nil {
 				break
 			}
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
+		}
+
+		// Probe: OnFinish — called once after the stream ends.
+		if h.probe != nil {
+			h.probe.OnFinish(ctx, method, msgCount, streamErr)
 		}
 
 		// Forward backend trailing metadata.
@@ -243,6 +306,10 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 
 	if !done {
 		grpcWriteError(w, status.Errorf(codes.Unavailable, "no healthy backend: %v", err))
+		// Probe: OnFinish for pool-miss.
+		if h.probe != nil {
+			h.probe.OnFinish(ctx, method, 0, err)
+		}
 	}
 }
 

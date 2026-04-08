@@ -175,6 +175,10 @@ func (c *CachedStore) GrowthAggregation(ctx context.Context, curBlockTime time.T
 	return c.store.GrowthAggregation(ctx, c.chain, curBlockTime)
 }
 
+func (c *CachedStore) CheckValue(entityType *schema.Entity, data map[string]any) error {
+	return c.store.CheckValue(entityType, data)
+}
+
 func (c *CachedStore) tryLoadFullCache(
 	ctx context.Context,
 	entityType *schema.Entity,

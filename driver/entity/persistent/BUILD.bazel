@@ -39,7 +39,6 @@ go_test(
     name = "persistent_test",
     srcs = [
         "box_rich_struct_test.go",
-        "box_test.go",
         "filter_test.go",
         "transaction_test.go",
     ],

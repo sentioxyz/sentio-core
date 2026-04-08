@@ -266,6 +266,10 @@ func (s *mockPersistentStore) GrowthAggregation(ctx context.Context, chain strin
 	return nil
 }
 
+func (s *mockPersistentStore) CheckValue(entityType *schema.Entity, data map[string]any) error {
+	return nil
+}
+
 func (s *mockPersistentStore) Reorg(ctx context.Context, blockNumber int64, chain string) error {
 	panic("not implemented")
 }

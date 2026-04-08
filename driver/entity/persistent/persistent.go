@@ -29,6 +29,9 @@ type Store interface {
 	SetEntities(ctx context.Context, entityType *schema.Entity, boxes []EntityBox) (int, error)
 	GrowthAggregation(ctx context.Context, chain string, curBlockTime time.Time) error
 	Reorg(ctx context.Context, blockNumber int64, chain string) error
+
+	// CheckValue checks whether values in data are valid for the storage backend.
+	CheckValue(entityType *schema.Entity, data map[string]any) error
 }
 
 type EntityFilterOp int

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "clickhouse",
     srcs = [
+        "check_value.go",
         "create.go",
         "entity.go",
         "entity_list.go",
@@ -35,6 +36,7 @@ go_library(
 go_test(
     name = "clickhouse_test",
     srcs = [
+        "check_value_test.go",
         "create_test.go",
         "decimal512_integration_test.go",
         "decimal_flow_test.go",

@@ -3,9 +3,6 @@ package persistent
 import (
 	"fmt"
 	"github.com/DmitriyVTitov/size"
-	"github.com/graph-gophers/graphql-go/types"
-	"math/big"
-	"reflect"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/schema"
 	"sort"
@@ -129,71 +126,6 @@ func (e *EntityBox) FillLostFields(origin map[string]any, entityType *schema.Ent
 		}
 		e.Data[name] = v
 	}
-}
-
-func checkFieldValue(val any, typ types.Type) error {
-	nonNullType, nonNull := typ.(*types.NonNull)
-	if nonNull {
-		if utils.IsNil(val) {
-			return fmt.Errorf("cannot be null")
-		}
-		typ = nonNullType.OfType
-	} else {
-		if utils.IsNil(val) {
-			return nil
-		}
-		rv := reflect.ValueOf(val)
-		if rv.Kind() == reflect.Pointer {
-			if _, is := val.(*big.Int); !is {
-				val = rv.Elem().Interface()
-			}
-		}
-	}
-
-	switch wrapType := typ.(type) {
-	case *types.List:
-		rv := reflect.ValueOf(val)
-		if rv.Kind() != reflect.Slice {
-			return fmt.Errorf("must be slice")
-		}
-		for i := 0; i < rv.Len(); i++ {
-			if err := checkFieldValue(rv.Index(i).Interface(), wrapType.OfType); err != nil {
-				return err
-			}
-		}
-	case *types.ScalarTypeDefinition:
-		// TODO check value range
-	case *types.EnumTypeDefinition:
-		if v, is := val.(string); !is {
-			return fmt.Errorf("must be string")
-		} else {
-			ok := utils.HasAny(wrapType.EnumValuesDefinition, func(enumVal *types.EnumValueDefinition) bool {
-				return enumVal.EnumValue == v
-			})
-			if !ok {
-				return fmt.Errorf("unexpected enum value %s for %s", v, wrapType)
-			}
-		}
-	case *types.ObjectTypeDefinition, *types.InterfaceTypeDefinition:
-		// TODO check value type, may be string or int64
-	}
-	return nil
-}
-
-func (e *EntityBox) CheckValue(entityType *schema.Entity) error {
-	if e.Data == nil {
-		return nil
-	}
-	for fieldName, fieldValue := range e.Data {
-		field := entityType.GetFieldByName(fieldName)
-		if field == nil {
-			return fmt.Errorf("%s.%s is not exist", entityType.Name, fieldName)
-		}
-		if err := checkFieldValue(fieldValue, field.Type); err != nil {
-			return fmt.Errorf("value of %s.%s (%s) is invalid: %w", entityType.Name, fieldName, field.Type.String(), err)
-		}
-	}
-	return nil
 }
 
 func SortEntityBoxes(list []*EntityBox) {

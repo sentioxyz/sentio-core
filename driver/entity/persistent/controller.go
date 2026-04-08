@@ -353,6 +353,8 @@ func (t *Controller) GetEntityType(entity string) *schema.Entity {
 	return t.store.GetEntityType(entity)
 }
 
+// GetEntity returns the latest version of the entity at or before
+// the given block number. May return ErrInvalidFieldValue.
 func (t *Controller) GetEntity(
 	ctx context.Context,
 	typ schema.EntityOrInterface,
@@ -362,6 +364,8 @@ func (t *Controller) GetEntity(
 	return t.getEntityOrInterface(ctx, typ, id, blockNumber, false)
 }
 
+// GetEntityInBlock returns the entity only if it was created or
+// updated in the given block number. May return ErrInvalidFieldValue.
 func (t *Controller) GetEntityInBlock(
 	ctx context.Context,
 	typ schema.EntityOrInterface,
@@ -430,6 +434,12 @@ func (t *Controller) executeEntityOperator(
 				_, originVal = buildType(field.Type)
 			}
 			box.Data[fieldName] = calcOperator(field.Type, originVal, op)
+		}
+		if err = t.store.CheckValue(entityType, box.Data); err != nil {
+			return from, fmt.Errorf(
+				"%w: entity operator result for %s with id %s: %v",
+				ErrInvalidFieldValue, entityType.GetFullName(), id, err,
+			)
 		}
 		box.Operator = nil
 	}
@@ -520,6 +530,8 @@ var (
 	ErrInvalidFieldValue = errors.New("invalid field value")
 )
 
+// ListRelated returns entities related to the given entity via a reverse foreign key field.
+// May return ErrInvalidField.
 func (t *Controller) ListRelated(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -570,6 +582,8 @@ func (t *Controller) ListRelated(
 	return
 }
 
+// ListEntity returns entities matching the given filters.
+// May return ErrInvalidFieldValue or ErrInvalidListFilter.
 func (t *Controller) ListEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -702,6 +716,8 @@ func (t *Controller) listEntity(
 
 var uniqTimeSeriesID atomic.Int64
 
+// SetEntity stores an entity into the uncommitted change set.
+// May return ErrInvalidFieldValue or ErrUpdateImmutable.
 func (t *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, box EntityBox) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -712,9 +728,14 @@ func (t *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	}
 	box.Entity = entityType.Name
 
-	if err := box.CheckValue(entityType); err != nil {
-		return fmt.Errorf("%w: set entity %s/%s in chain %s failed: %v",
-			ErrInvalidFieldValue, entityType.Name, box.ID, box.GenBlockChain, err)
+	if box.Data != nil {
+		if err := t.store.CheckValue(entityType, box.Data); err != nil {
+			return fmt.Errorf(
+				"%w: set entity %s/%s in chain %s failed: %v",
+				ErrInvalidFieldValue, entityType.Name,
+				box.ID, box.GenBlockChain, err,
+			)
+		}
 	}
 
 	start := time.Now()
@@ -776,6 +797,8 @@ func (t *Controller) CountUncommittedChanges(blockNumber uint64) int {
 	return t.changes.Count(blockNumber)
 }
 
+// Commit persists all uncommitted changes up to the given block
+// number. May return ErrInvalidFieldValue or ErrUpdateImmutable.
 func (t *Controller) Commit(
 	ctx context.Context,
 	blockNumber uint64,

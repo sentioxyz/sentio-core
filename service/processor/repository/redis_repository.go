@@ -779,6 +779,7 @@ func (r *RedisChainStateRepo) GetChainStates(ctx context.Context, processorID st
 
 // UpdateChainState updates a chain state
 func (r *RedisChainStateRepo) UpdateChainState(ctx context.Context, chainState *models.ChainState) error {
+	chainState.UpdatedAt = time.Now()
 	data, err := json.Marshal(chainState)
 	if err != nil {
 		return err

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -18,6 +19,90 @@ import (
 	commonmodels "sentioxyz/sentio-core/service/common/models"
 	"sentioxyz/sentio-core/service/processor/protos"
 )
+
+// PgTextArray serializes []string as a Postgres text[] literal ('{"a","b"}').
+// GORM's default reflection emits a row literal ('(a,b)') which Postgres
+// rejects with "malformed array literal" on text[] columns.
+type PgTextArray []string
+
+func (a PgTextArray) Value() (driver.Value, error) {
+	if a == nil {
+		return nil, nil
+	}
+	if len(a) == 0 {
+		return "{}", nil
+	}
+	var b strings.Builder
+	b.WriteByte('{')
+	for i, s := range a {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteByte('"')
+		for _, r := range s {
+			if r == '"' || r == '\\' {
+				b.WriteByte('\\')
+			}
+			b.WriteRune(r)
+		}
+		b.WriteByte('"')
+	}
+	b.WriteByte('}')
+	return b.String(), nil
+}
+
+func (a *PgTextArray) Scan(src any) error {
+	if src == nil {
+		*a = nil
+		return nil
+	}
+	var s string
+	switch v := src.(type) {
+	case string:
+		s = v
+	case []byte:
+		s = string(v)
+	default:
+		return fmt.Errorf("PgTextArray.Scan: unsupported type %T", src)
+	}
+	if s == "" || s == "{}" {
+		*a = PgTextArray{}
+		return nil
+	}
+	if len(s) < 2 || s[0] != '{' || s[len(s)-1] != '}' {
+		return fmt.Errorf("PgTextArray.Scan: invalid array literal %q", s)
+	}
+	inner := s[1 : len(s)-1]
+	out := make(PgTextArray, 0)
+	var cur strings.Builder
+	quoted := false
+	escaped := false
+	for i := 0; i < len(inner); i++ {
+		c := inner[i]
+		if escaped {
+			cur.WriteByte(c)
+			escaped = false
+			continue
+		}
+		if c == '\\' && quoted {
+			escaped = true
+			continue
+		}
+		if c == '"' {
+			quoted = !quoted
+			continue
+		}
+		if c == ',' && !quoted {
+			out = append(out, cur.String())
+			cur.Reset()
+			continue
+		}
+		cur.WriteByte(c)
+	}
+	out = append(out, cur.String())
+	*a = out
+	return nil
+}
 
 // TODO, should this be outside of models?
 type NetworkOverride struct {
@@ -99,7 +184,7 @@ type ReferenceProcessorProperties struct {
 
 type SentioNetworkProperties struct {
 	ChainID        chains.ChainID `gorm:"column:sentio_network_chain_id"` // default to empty string for non-sentio network processors
-	RequiredChains []string       `gorm:"column:sentio_network_required_chains;type:text[]"`
+	RequiredChains PgTextArray    `gorm:"column:sentio_network_required_chains;type:text[]"`
 	CreateTxHash   string         // the transaction hash that created the processor
 }
 
@@ -340,7 +425,7 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		PauseReason:             p.PauseReason,
 		IsBinary:                p.Binary,
 		ChainId:                 string(p.ChainID),
-		RequiredChains:          p.RequiredChains,
+		RequiredChains:          []string(p.RequiredChains),
 		CreateTxHash:            p.CreateTxHash,
 	}
 
@@ -389,7 +474,7 @@ func (p *Processor) FromPB(processor *protos.Processor) error {
 		*p.ContractID = processor.ContractId
 	}
 	p.VersionState = int32(processor.VersionState.Number())
-	p.RequiredChains = processor.RequiredChains
+	p.RequiredChains = PgTextArray(processor.RequiredChains)
 	return nil
 }
 

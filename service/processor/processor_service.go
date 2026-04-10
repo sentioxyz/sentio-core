@@ -380,7 +380,7 @@ func (s *Service) getProcessorStatus(
 			NumWorkers:          strconv.FormatInt(int64(processor.NumWorkers), 10),
 			EntitySchema:        processor.EntitySchema,
 			SnChainId:           string(processor.ChainID),
-			SnRequiredChains:    processor.RequiredChains,
+			SnRequiredChains:    []string(processor.RequiredChains),
 			EntitySchemaVersion: processor.EntitySchemaVersion,
 		}
 		if originProcessor.ID != processor.ID {

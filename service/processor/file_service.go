@@ -232,7 +232,7 @@ func (s *Service) FinishUpload(
 		models.SubgraphProcessorProperties{},
 		models.SentioNetworkProperties{
 			ChainID:        chains.ChainID(req.GetSentioNetwork()),
-			RequiredChains: req.RequiredChains,
+			RequiredChains: models.PgTextArray(req.RequiredChains),
 		},
 	)
 	if err != nil {
@@ -507,7 +507,7 @@ func (s *Service) FinishBatchUpload(
 		models.SubgraphProcessorProperties{},
 		models.SentioNetworkProperties{
 			ChainID:        chains.ChainID(req.GetSentioNetwork()),
-			RequiredChains: req.RequiredChains,
+			RequiredChains: models.PgTextArray(req.RequiredChains),
 		},
 	)
 	if err != nil {

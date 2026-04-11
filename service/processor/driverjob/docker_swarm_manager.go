@@ -335,6 +335,7 @@ func (d *DockerSwarmManager) createNetwork(ctx context.Context, processor *model
 }
 
 const processorScriptTemplate = `#!/bin/sh
+set -e
 cd /app/driver/cmd/cmd_/cmd.runfiles/_main
 # prepare
 /app/driver/cmd/cmd_/cmd -processor-service={{.ProcessorService}} \
@@ -349,7 +350,18 @@ cd /app/driver/cmd/cmd_/cmd.runfiles/_main
 
 mkdir -p {{.CacheDir}}/.pnpm-store/dumps && chmod 777 {{.CacheDir}}/.pnpm-store/dumps
 
+# Guard against stale .processor-path from another processor's cache (shared bind mount).
+# The prepare step above writes {{.CacheDir}}/.processor-path only on success; if it crashed,
+# set -e has already aborted us. This additional check ensures the cached target path actually
+# belongs to THIS processor ({{.ProcessorID}}), refusing to silently run someone else's code.
 TARGET_PATH=$(tail -n 1 {{.CacheDir}}/.processor-path)
+case "$TARGET_PATH" in
+    */sentio/{{.ProcessorID}}/*) ;;
+    *)
+        echo "FATAL: .processor-path points to $TARGET_PATH which is not for processor {{.ProcessorID}}" >&2
+        exit 1
+        ;;
+esac
 
 if [[ "$TARGET_PATH" == */main ]]; then
     chmod +x "$TARGET_PATH"

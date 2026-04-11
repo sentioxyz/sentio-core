@@ -285,6 +285,7 @@ func (d *DockerSwarmManager) buildProcessorServiceSpec(processor *models.Process
 				Image:   d.config.DriverImage,
 				Labels:  labels,
 				Command: []string{"/bin/sh", "/start-processor.sh"},
+				Env:     []string{"WRITE_V2_EVENT_LOGS=false"},
 				Mounts:  mounts,
 				Hosts:   []string{"host-gateway host.docker.internal"},
 			},

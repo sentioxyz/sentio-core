@@ -1,6 +1,7 @@
 package ckhmanager
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -40,11 +41,14 @@ type shardingConnectionKey string
 func (s *ShardingParameter) shardingConnectionKey() shardingConnectionKey {
 	return shardingConnectionKey("[category:" + string(s.Category) +
 		",role:" + string(s.Role) +
+		",decentralized:" + string(s.DecentralizedNetwork) +
 		",proxy:" + anyutil.ToString(s.UnderlyingProxy) +
 		",signature:" + anyutil.ToString(s.PrivateKeyHex) +
 		",payer:" + anyutil.ToString(s.Payer) + "]")
 }
 
+// shardingCredentialsKey used to find credential connect parameters from a config map
+// such as user, password
 func (s *ShardingParameter) shardingCredentialsKey() string {
 	key := string(s.Category)
 	if string(s.Role) != "" {
@@ -61,10 +65,13 @@ type sharding struct {
 	connections        *utils.SafeMap[shardingConnectionKey, Conn]
 	connectionReplicas *utils.SafeMap[shardingConnectionKey, []Conn]
 	opts               []func(*Options)
+	logger             *log.SentioLogger
 }
 
 func NewSharding(index ShardingIndex, name string, credentials map[string]Credential,
 	addresses map[string]string, opts ...func(*Options)) Sharding {
+	_, logger := log.FromContext(context.Background(),
+		"index", index, "name", name, "credentials", anyutil.ToString(credentials), "addresses", anyutil.ToString(addresses))
 	return &sharding{
 		index:              index,
 		name:               name,
@@ -73,6 +80,7 @@ func NewSharding(index ShardingIndex, name string, credentials map[string]Creden
 		opts:               opts,
 		connections:        utils.NewSafeMap[shardingConnectionKey, Conn](),
 		connectionReplicas: utils.NewSafeMap[shardingConnectionKey, []Conn](),
+		logger:             logger,
 	}
 }
 
@@ -83,8 +91,12 @@ func (s *sharding) formatDSN(username, password, database, addr string) string {
 func (s *sharding) getCredential(parameter *ShardingParameter) (Credential, string, error) {
 	cred, ok := s.credentials[parameter.shardingCredentialsKey()]
 	if !ok {
-		log.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
+		s.logger.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 		return Credential{}, "", fmt.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
+	}
+	if parameter.DecentralizedNetwork != NoneNetwork && decentralizedNetworkDatabase[parameter.DecentralizedNetwork] != "" {
+		cred.Database = decentralizedNetworkDatabase[parameter.DecentralizedNetwork]
+		s.logger.Debugf("using decentralized network %s with database %s", parameter.DecentralizedNetwork, cred.Database)
 	}
 
 	var addr string
@@ -102,8 +114,8 @@ func (s *sharding) getCredential(parameter *ShardingParameter) (Credential, stri
 		}
 	}
 	if addr == "" {
-		return Credential{}, "", fmt.Errorf("no address configured for role %s (internal=%v, proxy=%v)",
-			parameter.shardingCredentialsKey(), parameter.InternalOnly, parameter.UnderlyingProxy)
+		return Credential{}, "", fmt.Errorf("no address configured for role %s (internal=%v, proxy=%v, decentralized=%s)",
+			parameter.shardingCredentialsKey(), parameter.InternalOnly, parameter.UnderlyingProxy, parameter.DecentralizedNetwork)
 	}
 	return cred, addr, nil
 }
@@ -131,7 +143,7 @@ func (s *sharding) connect(parameter *ShardingParameter) (Conn, error) {
 func (s *sharding) connectReplicas(parameter *ShardingParameter) ([]Conn, error) {
 	cred, ok := s.credentials[parameter.shardingCredentialsKey()]
 	if !ok {
-		log.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
+		s.logger.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 		return nil, fmt.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 	}
 

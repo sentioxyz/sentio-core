@@ -133,6 +133,55 @@ See constants in `roles.go`:
 - Categories: `SentioCategory`, `SubgraphCategory` (default)
 - Roles: `default_viewer`, `small_viewer`, ... and `admin` (special)
 
+### Decentralized Network Database Routing
+
+The manager supports routing queries to different ClickHouse databases based on the decentralized network (mainnet vs testnet).
+
+When a `DecentralizedNetwork` is specified (other than `NoneNetwork`), the database name in the connection credentials is automatically overridden to the corresponding network database.
+
+Supported networks (defined in `roles.go`):
+
+- `SentioNetworkMainnet` ("mainnet") → routes to database "mainnet"
+- `SentioNetworkTestnet` ("testnet") → routes to database "testnet"
+- `NoneNetwork` ("") → uses the default database from credentials
+
+**Example:**
+
+```go
+// Connect to mainnet database
+ck, err := shard.GetConn(
+    ckhmanager.WithDecentralizedNetwork(ckhmanager.SentioNetworkMainnet),
+    ckhmanager.WithCategory(ckhmanager.SentioCategory),
+    ckhmanager.WithRole("admin"),
+)
+
+// Connect to testnet database
+ck, err := shard.GetConn(
+    ckhmanager.WithDecentralizedNetwork(ckhmanager.SentioNetworkTestnet),
+    ckhmanager.WithCategory(ckhmanager.SentioCategory),
+    ckhmanager.WithRole("admin"),
+)
+
+// Use default database (no network override)
+ck, err := shard.GetConn(
+    ckhmanager.WithDecentralizedNetwork(ckhmanager.NoneNetwork),
+    ckhmanager.WithCategory(ckhmanager.SentioCategory),
+    ckhmanager.WithRole("admin"),
+)
+```
+
+**Connection Isolation:**
+
+Connections are cached per unique combination of:
+- Category
+- Role
+- DecentralizedNetwork
+- UnderlyingProxy
+- PrivateKeyHex
+- Payer
+
+This means separate connection pools are maintained for mainnet and testnet, ensuring proper isolation.
+
 ---
 
 ## Usage
@@ -200,6 +249,8 @@ m := ckhmanager.LoadManager("/path/to/config.yaml",
 
 ### Get a connection from a shard
 
+Basic usage:
+
 ```go
 ck, err := shard.GetConn(
     ckhmanager.WithCategory(ckhmanager.SentioCategory),
@@ -217,11 +268,43 @@ ctx := context.Background()
 _ = ck.Exec(ctx, "SELECT 1")
 ```
 
-### Settings / dial options
+With decentralized network routing:
 
-Dial + pool sizing + settings are configured at the manager level (in YAML) and applied when creating shard connections.
+```go
+// Connect to mainnet database
+ck, err := shard.GetConn(
+    ckhmanager.WithDecentralizedNetwork(ckhmanager.SentioNetworkMainnet),
+    ckhmanager.WithCategory(ckhmanager.SentioCategory),
+    ckhmanager.WithRole("admin"),
+)
+if err != nil {
+    // handle
+}
 
-If you need query signing, set `PrivateKey` in `ShardingParameter` (see `WithSign`).
+ctx := context.Background()
+_ = ck.Exec(ctx, "SELECT 1")
+```
+
+### ShardingParameter Options
+
+The `ShardingParameter` struct controls connection behavior and routing:
+
+- **Category**: Which service category to connect as (`sentio` or `subgraph`)
+- **Role**: Which role/permission level to use (`admin`, `default_viewer`, `small_viewer`, etc.)
+- **DecentralizedNetwork**: Which network database to route to (`mainnet`, `testnet`, or `""` for default)
+- **UnderlyingProxy**: Whether to use proxy addresses instead of direct addresses
+- **InternalOnly**: Whether to use internal addresses (vs external)
+- **PrivateKeyHex**: Private key for query signing (optional)
+- **Payer**: Payer identifier for query signing (optional)
+
+All parameters have functional option helpers:
+- `WithCategory(category Category)`
+- `WithRole(role Role)`
+- `WithDecentralizedNetwork(network DecentralizedNetwork)`
+- `WithUnderlyingProxy(bool)`
+- `WithInternalOnly(bool)`
+- `WithPrivateKeyHex(string)`
+- `WithPayer(string)`
 
 #### Settings Priority
 

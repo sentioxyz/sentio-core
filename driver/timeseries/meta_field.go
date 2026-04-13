@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio-core/service/analytic/common/schema"
 
 	"github.com/jinzhu/copier"
 	"github.com/shopspring/decimal"
@@ -264,8 +263,6 @@ type Field struct {
 	NestedIndex map[string]FieldType
 }
 
-var _ schema.Field = (*Field)(nil)
-
 func (f *Field) Copy() Field {
 	n := Field{}
 	_ = copier.CopyWithOption(&n, f, copier.Option{
@@ -390,10 +387,6 @@ func (f *Field) IsBuiltIn() bool {
 	return f.BuiltIn
 }
 
-func (f *Field) Equal(other schema.Field) (bool, string) {
-	return f.GetName() == other.GetName() && f.GetType() == other.GetType(), ""
-}
-
 func (f *Field) GetDisplayName() string {
 	return f.Name
 }
@@ -404,10 +397,6 @@ func (f *Field) GetName() string {
 
 func (f *Field) GetType() string {
 	return string(f.Type)
-}
-
-func (f *Field) GetExtend() map[string]schema.Field {
-	return nil
 }
 
 func (f *Field) IsJSON() bool {

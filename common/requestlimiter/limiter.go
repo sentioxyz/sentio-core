@@ -163,8 +163,7 @@ func NewLimiter(name string, db *gorm.DB, client *redis.Client, timeout time.Dur
 		remoteConf configmanager.Config = nil
 		ok         bool
 	)
-	const confName = "requestlimiter"
-	if err := configmanager.Set(confName,
+	if err := configmanager.Set(name,
 		configmanager.NewPgProvider(db, configmanager.WithPgKey(name)),
 		kyaml.Parser(), &configmanager.LoadParams{
 			EnableReload: true,
@@ -172,7 +171,7 @@ func NewLimiter(name string, db *gorm.DB, client *redis.Client, timeout time.Dur
 		}); err != nil {
 		log.Errorf("Failed to load config: %v", err)
 	} else {
-		remoteConf, ok = configmanager.Get(confName)
+		remoteConf, ok = configmanager.Get(name)
 		if !ok {
 			log.Errorf("Failed to get config from config manager")
 			remoteConf = nil

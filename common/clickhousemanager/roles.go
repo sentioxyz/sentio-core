@@ -22,3 +22,17 @@ const (
 
 	DefaultCategory = SubgraphCategory
 )
+
+type DecentralizedNetwork string
+
+const (
+	SentioNetworkMainnet DecentralizedNetwork = "mainnet"
+	SentioNetworkTestnet DecentralizedNetwork = "testnet"
+
+	NoneNetwork DecentralizedNetwork = ""
+)
+
+var decentralizedNetworkDatabase = map[DecentralizedNetwork]string{
+	SentioNetworkMainnet: "mainnet",
+	SentioNetworkTestnet: "testnet",
+}

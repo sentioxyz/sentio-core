@@ -18,7 +18,6 @@ go_library(
         "//common/richstructhelper",
         "//common/utils",
         "//processor/protos",
-        "//service/analytic/common/schema",
         "//service/common/protos",
         "@com_github_bytedance_sonic//:sonic",
         "@com_github_bytedance_sonic//encoder",
@@ -26,7 +25,6 @@ go_library(
         "@com_github_ethereum_go_ethereum//common/hexutil",
         "@com_github_jinzhu_copier//:copier",
         "@com_github_pkg_errors//:errors",
-        "@com_github_samber_lo//:lo",
         "@com_github_shopspring_decimal//:decimal",
     ],
 )

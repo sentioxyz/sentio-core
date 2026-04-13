@@ -14,12 +14,10 @@ import (
 	"time"
 
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio-core/service/analytic/common/schema"
 
 	"github.com/bytedance/sonic"
 	"github.com/bytedance/sonic/encoder"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 )
 
@@ -48,8 +46,6 @@ type Meta struct {
 	Aggregation *Aggregation `json:"omitempty"`
 	HashData    string       `json:"-"`
 }
-
-var _ schema.Meta = (*Meta)(nil)
 
 func (m Meta) Dump() []byte {
 	data, err := sonic.Marshal(m)
@@ -312,24 +308,6 @@ func (m Meta) IsArray(fieldName string) bool {
 		}
 	}
 	return false
-}
-
-func (m Meta) GetFields() map[string]schema.Field {
-	var result = make(map[string]schema.Field)
-	for _, field := range utils.GetOrderedMapKeys(m.Fields) {
-		result[m.Fields[field].Name] = lo.ToPtr(m.Fields[field])
-	}
-	return result
-}
-
-func (m Meta) GetReservedFields() []schema.Field {
-	var result []schema.Field
-	for _, field := range m.Fields {
-		if field.BuiltIn {
-			result = append(result, &field)
-		}
-	}
-	return result
 }
 
 func (m Meta) GetFieldTypeValue(name string) any {

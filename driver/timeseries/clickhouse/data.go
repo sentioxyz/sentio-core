@@ -115,12 +115,13 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 			// has new fields, the previously cached data needs to be discarded
 			// because the calculation result of the series ID may be different
 			sql := format.Format("SELECT %labelFieldNames#s, %lastValueFields#s "+
-				"FROM (SELECT * FROM %tableName#s WHERE %chainIDFieldName#s = '%chainID#s' ORDER BY %timestampFieldName#s) "+
+				"FROM %tableName#s "+
+				"WHERE %chainIDFieldName#s = '%chainID#s' "+
 				"GROUP BY %labelFieldNames#s",
 				map[string]any{
 					"labelFieldNames": strings.Join(utils.MapSliceNoError(labelFields, s.buildFieldName), ", "),
 					"lastValueFields": strings.Join(utils.MapSliceNoError(valueFields, func(f timeseries.Field) string {
-						return fmt.Sprintf("last_value(%s)", s.buildFieldName(f))
+						return fmt.Sprintf("argMax(%s, %s)", s.buildFieldName(f), s.buildFieldName(ds.Meta.GetTimestampField()))
 					}), ", "),
 					"tableName":          s.buildTableName(ds.Meta),
 					"timestampFieldName": s.buildFieldName(ds.Meta.GetTimestampField()),
@@ -212,13 +213,13 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 }
 
 var aggFunctionMapping = map[string]string{
-	"count": "count",
-	"sum":   "sum",
-	"avg":   "avg",
-	"max":   "max",
-	"min":   "min",
-	"last":  "last_value",
-	"first": "first_value",
+	"count": "count(%expr#s)",
+	"sum":   "sum(%expr#s)",
+	"avg":   "avg(%expr#s)",
+	"max":   "max(%expr#s)",
+	"min":   "min(%expr#s)",
+	"last":  "argMax(%expr#s,%ts#s)",
+	"first": "argMin(%expr#s,%ts#s)",
 }
 
 func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, chainID string, curTime time.Time) error {
@@ -234,28 +235,20 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 		func(f timeseries.Field) string {
 			return f.Name
 		})
-	aggFieldNames := utils.GetOrderedMapKeys(meta.Aggregation.Fields)
-	aggNeedInOrder := false
-	aggFields := utils.MapSliceNoError(aggFieldNames, func(fn string) string {
-		agg := meta.Aggregation.Fields[fn]
-		aggNeedInOrder = aggNeedInOrder || agg.Function == "first" || agg.Function == "last"
-		return fmt.Sprintf("%s(%s)", aggFunctionMapping[agg.Function], agg.Expression)
-	})
-
 	srcMeta, has := utils.GetFromK2Map(s.meta.Metas, meta.Type, meta.Aggregation.Source)
 	if !has {
 		return fmt.Errorf("%w: source for %q is %q, but not found",
 			timeseries.ErrInvalidMeta, meta.GetFullName(), meta.Aggregation.Source)
 	}
 	srcTable := s.buildTableName(srcMeta)
-	if aggNeedInOrder {
-		srcTable = fmt.Sprintf("(SELECT * FROM %s WHERE %s = '%s' ORDER BY %s ASC)",
-			srcTable,
-			srcMeta.GetChainIDField().Name,
-			chainID,
-			srcMeta.GetSlotNumberField().Name,
-		)
-	}
+	aggFieldNames := utils.GetOrderedMapKeys(meta.Aggregation.Fields)
+	aggFields := utils.MapSliceNoError(aggFieldNames, func(fn string) string {
+		agg := meta.Aggregation.Fields[fn]
+		return format.Format(aggFunctionMapping[agg.Function], map[string]any{
+			"expr": agg.Expression,
+			"ts":   srcMeta.GetTimestampField().Name,
+		})
+	})
 
 	for _, interval := range meta.Aggregation.Intervals {
 		// time window of the <target> for <interval> is:

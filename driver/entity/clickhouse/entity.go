@@ -341,7 +341,6 @@ func (s *Store) GrowthAggregation(ctx context.Context, chain string, curBlockTim
 		}
 		var aggFieldNames []string
 		var aggFields []string
-		var aggNeedInOrder bool
 		for _, f := range agg.AggFields {
 			aggFieldNames = append(aggFieldNames, quote(BaseField{Def: f.FieldDefinition}.FieldMainName()))
 			switch fn := f.GetAggFunc(); fn {
@@ -350,24 +349,16 @@ func (s *Store) GrowthAggregation(ctx context.Context, chain string, curBlockTim
 			case "count":
 				aggFields = append(aggFields, "count(*)")
 			case "first":
-				aggFields = append(aggFields, fmt.Sprintf("first_value(%s)", f.GetAggExp().Text(chFuncAliasCtl)))
-				aggNeedInOrder = true
+				aggFields = append(aggFields,
+					fmt.Sprintf("argMin(%s,%s)", f.GetAggExp().Text(chFuncAliasCtl), genBlockNumberFieldName))
 			case "last":
-				aggFields = append(aggFields, fmt.Sprintf("last_value(%s)", f.GetAggExp().Text(chFuncAliasCtl)))
-				aggNeedInOrder = true
+				aggFields = append(aggFields,
+					fmt.Sprintf("argMax(%s,%s)", f.GetAggExp().Text(chFuncAliasCtl), genBlockNumberFieldName))
 			default:
 				return fmt.Errorf("unknown agg fn %q for %s.%s", fn, agg.GetName(), f.Name)
 			}
 		}
 		srcTable := s.fullName(s.TableName(s.sch.GetEntity(agg.GetSource())))
-		if aggNeedInOrder {
-			srcTable = fmt.Sprintf("(SELECT * FROM %s WHERE %s = '%s' ORDER BY %s ASC)",
-				srcTable,
-				quote(genBlockChainFieldName),
-				chain,
-				quote(genBlockNumberFieldName),
-			)
-		}
 		for _, interval := range agg.GetIntervals() {
 			uniqToken := strconv.FormatUint(rand.Uint64(), 16)
 			var twField string         // time window of the timestamp, type is equal to the timestamp field

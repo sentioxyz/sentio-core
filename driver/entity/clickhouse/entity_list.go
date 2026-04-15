@@ -592,26 +592,18 @@ func (s *Store) CountEntity(ctx context.Context, entityType *schema.Entity, chai
 			// SELECT COUNT(*)
 			// FROM (
 			//   SELECT id
-			//   FROM (
-			//     SELECT id, __deleted__
-			//     FROM entity
-			//     WHERE __genBlockChain__ = ?
-			//     ORDER BY __genBlockNumber__
-			//   )
+			//   FROM entity
+			//   WHERE __genBlockChain__ = ?
 			//   GROUP BY id
-			//   HAVING NOT last_value(__deleted__)
+			//   HAVING NOT argMax(__deleted__,__genBlockNumber__)
 			// )
 			sql = format.Format("SELECT COUNT(*) "+
 				"FROM ("+
 				" SELECT %pk#s"+
-				" FROM ("+
-				"  SELECT %pk#s, %ded#s"+
-				"  FROM %ft#s"+
-				"  WHERE %gbc#s = ?"+
-				"  ORDER BY %gbn#s"+
-				" )"+
+				" FROM %ft#s"+
+				" WHERE %gbc#s = ?"+
 				" GROUP BY %pk#s"+
-				" HAVING NOT last_value(%ded#s)"+
+				" HAVING NOT argMax(%ded#s,%gbn#s)"+
 				")",
 				map[string]any{
 					"pk":  quote(schema.EntityPrimaryFieldName),
@@ -683,23 +675,15 @@ func (s *Store) GetAllID(ctx context.Context, entityType *schema.Entity, chain s
 				})
 		} else {
 			// SELECT id
-			// FROM (
-			//   SELECT id, __deleted__
-			//   FROM entity
-			//   WHERE __genBlockChain__ = ?
-			//   ORDER BY __genBlockNumber__
-			// )
+			// FROM entity
+			// WHERE __genBlockChain__ = ?
 			// GROUP BY id
-			// HAVING NOT last_value(__deleted__)
+			// HAVING NOT argMax(__deleted__,__genBlockNumber__)
 			sql = format.Format("SELECT %pk#s "+
-				"FROM ("+
-				" SELECT %pk#s, %ded#s"+
-				" FROM %ft#s"+
-				" WHERE %gbc#s = ?"+
-				" ORDER BY %gbn#s"+
-				") "+
+				"FROM %ft#s "+
+				"WHERE %gbc#s = ? "+
 				"GROUP BY %pk#s "+
-				"HAVING NOT last_value(%ded#s)",
+				"HAVING NOT argMax(%ded#s,%gbn#s)",
 				map[string]any{
 					"pk":  quote(schema.EntityPrimaryFieldName),
 					"gbn": quote(genBlockNumberFieldName),

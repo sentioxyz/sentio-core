@@ -490,6 +490,22 @@ message ProcessorUpgradeHistory {
   string id = 5;
 }
 
+message ProcessorStateHistory {
+  string id = 1;
+  string processor_id = 2;
+  string action = 3; // "pause" | "resume" | "active" | "obsolete"
+  string operator_id = 4;
+  string operator_sub = 5;
+  string reason = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message GetProcessorStateHistoryRequest { string processor_id = 1; }
+
+message GetProcessorStateHistoryResponse {
+  repeated ProcessorStateHistory histories = 1;
+}
+
 message GetProcessorStatusRequest {
   oneof get_metrics_by {
     string project_id = 1;

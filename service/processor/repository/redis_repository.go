@@ -65,6 +65,9 @@ type RedisProcessorRepoInterface interface {
 	GetProcessorUpgradeHistoryByID(ctx context.Context, historyID string, processorID string) (*models.ProcessorUpgradeHistory, error)
 	SaveProcessorUpgradeHistory(ctx context.Context, processor *models.Processor) error
 
+	ListProcessorStateHistory(ctx context.Context, processorID string) ([]models.ProcessorStateHistory, error)
+	SaveProcessorStateHistory(ctx context.Context, history *models.ProcessorStateHistory) error
+
 	GetProjectByID(ctx context.Context, projectID string) (*commonmodels.Project, error)
 	GetProjectVersions(ctx context.Context, projectID string) ([]*models.Processor, error)
 	GetProjectVariables(ctx context.Context, projectID string) ([]*commonmodels.ProjectVariable, error)
@@ -559,6 +562,16 @@ func (r *RedisProcessorRepo) SaveProcessorUpgradeHistory(ctx context.Context, pr
 
 	key := upgradeHistoryKeyPrefix + processor.ID + ":" + history.ID
 	return r.client.Set(ctx, key, data, 0).Err()
+}
+
+// ListProcessorStateHistory lists processor state change history (no-op for Redis)
+func (r *RedisProcessorRepo) ListProcessorStateHistory(ctx context.Context, processorID string) ([]models.ProcessorStateHistory, error) {
+	return nil, nil
+}
+
+// SaveProcessorStateHistory saves processor state change history (no-op for Redis)
+func (r *RedisProcessorRepo) SaveProcessorStateHistory(ctx context.Context, history *models.ProcessorStateHistory) error {
+	return nil
 }
 
 // GetProjectByID gets a project by ID

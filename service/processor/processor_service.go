@@ -8,6 +8,7 @@ import (
 	commonerrors "sentioxyz/sentio-core/service/common/errors"
 	commonmodels "sentioxyz/sentio-core/service/common/models"
 	commonprotos "sentioxyz/sentio-core/service/common/protos"
+	"sentioxyz/sentio-core/service/common/preloader"
 	"sentioxyz/sentio-core/service/common/storagesystem"
 	"sentioxyz/sentio-core/service/processor/driverjob"
 	"sentioxyz/sentio-core/service/processor/models"
@@ -589,6 +590,7 @@ func (s *Service) activateProcessor(ctx context.Context, processor *models.Proce
 			}
 		}
 	}
+	s.saveStateHistory(ctx, processor.ID, models.ProcessorStateActionActive, "")
 	return s.notifyProcessorActivated(ctx, processor)
 }
 
@@ -599,6 +601,7 @@ func (s *Service) obsoleteProcessor(ctx context.Context, p *models.Processor) er
 	if err != nil {
 		return err
 	}
+	s.saveStateHistory(ctx, p.ID, models.ProcessorStateActionObsolete, "")
 	return nil
 }
 
@@ -671,6 +674,11 @@ func (s *Service) updateProcessorPause(
 	if err := s.processorRepo.SaveProcessor(ctx, processor); err != nil {
 		return nil, err
 	}
+	if pause {
+		s.saveStateHistory(ctx, processorID, models.ProcessorStateActionPause, reason)
+	} else {
+		s.saveStateHistory(ctx, processorID, models.ProcessorStateActionResume, "")
+	}
 	if err := s.driverJobManager.StartOrUpdateDriverJob(ctx, processor); err != nil {
 		log.Errorfe(err, "failed to update driverJob for processor %q", processorID)
 		return nil, err
@@ -685,6 +693,22 @@ func (s *Service) updateProcessorPause(
 		return nil, hookErr
 	}
 	return &emptypb.Empty{}, nil
+}
+
+func (s *Service) saveStateHistory(ctx context.Context, processorID string, action models.ProcessorStateAction, reason string) {
+	identity := preloader.PreLoadedIdentity(ctx)
+	history := &models.ProcessorStateHistory{
+		ProcessorID: processorID,
+		Action:      action,
+		Reason:      reason,
+	}
+	if identity != nil {
+		history.OperatorID = identity.GetUserID()
+		history.OperatorSub = identity.Sub
+	}
+	if err := s.processorRepo.SaveProcessorStateHistory(ctx, history); err != nil {
+		log.Errorfe(err, "failed to save processor state history for %q action %q", processorID, action)
+	}
 }
 
 func (s *Service) notifyProcessorActivated(ctx context.Context, processor *models.Processor) error {

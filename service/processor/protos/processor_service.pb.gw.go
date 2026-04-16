@@ -182,6 +182,45 @@ func local_request_ProcessorService_GetProcessorUpgradeHistories_0(ctx context.C
 	return msg, metadata, err
 }
 
+func request_ProcessorService_GetProcessorStateHistories_0(ctx context.Context, marshaler runtime.Marshaler, client ProcessorServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetProcessorStateHistoryRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	val, ok := pathParams["processor_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "processor_id")
+	}
+	protoReq.ProcessorId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "processor_id", err)
+	}
+	msg, err := client.GetProcessorStateHistories(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_ProcessorService_GetProcessorStateHistories_0(ctx context.Context, marshaler runtime.Marshaler, server ProcessorServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetProcessorStateHistoryRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	val, ok := pathParams["processor_id"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "processor_id")
+	}
+	protoReq.ProcessorId, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "processor_id", err)
+	}
+	msg, err := server.GetProcessorStateHistories(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 func request_ProcessorService_PauseProcessor_0(ctx context.Context, marshaler runtime.Marshaler, client ProcessorServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
 		protoReq PauseProcessorRequest
@@ -752,6 +791,26 @@ func RegisterProcessorServiceHandlerServer(ctx context.Context, mux *runtime.Ser
 		}
 		forward_ProcessorService_GetProcessorUpgradeHistories_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_ProcessorService_GetProcessorStateHistories_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/processor_service.ProcessorService/GetProcessorStateHistories", runtime.WithHTTPPathPattern("/api/v1/processors/{processor_id}/state_history"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_ProcessorService_GetProcessorStateHistories_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_ProcessorService_GetProcessorStateHistories_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodPut, pattern_ProcessorService_PauseProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -1133,6 +1192,23 @@ func RegisterProcessorServiceHandlerClient(ctx context.Context, mux *runtime.Ser
 		}
 		forward_ProcessorService_GetProcessorUpgradeHistories_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodGet, pattern_ProcessorService_GetProcessorStateHistories_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/processor_service.ProcessorService/GetProcessorStateHistories", runtime.WithHTTPPathPattern("/api/v1/processors/{processor_id}/state_history"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_ProcessorService_GetProcessorStateHistories_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_ProcessorService_GetProcessorStateHistories_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodPut, pattern_ProcessorService_PauseProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -1293,6 +1369,7 @@ var (
 	pattern_ProcessorService_GetProcessorStatusV2_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 1, 0, 4, 1, 5, 4, 2, 5}, []string{"api", "v1", "processors", "project_owner", "project_slug", "status"}, ""))
 	pattern_ProcessorService_RemoveProcessor_0              = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"api", "v1", "processors", "id"}, ""))
 	pattern_ProcessorService_GetProcessorUpgradeHistories_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "history"}, ""))
+	pattern_ProcessorService_GetProcessorStateHistories_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "state_history"}, ""))
 	pattern_ProcessorService_PauseProcessor_0               = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "pause"}, ""))
 	pattern_ProcessorService_ResumeProcessor_0              = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "resume"}, ""))
 	pattern_ProcessorService_SetVersionActive_0             = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "active"}, ""))
@@ -1308,6 +1385,7 @@ var (
 	forward_ProcessorService_GetProcessorStatusV2_0         = runtime.ForwardResponseMessage
 	forward_ProcessorService_RemoveProcessor_0              = runtime.ForwardResponseMessage
 	forward_ProcessorService_GetProcessorUpgradeHistories_0 = runtime.ForwardResponseMessage
+	forward_ProcessorService_GetProcessorStateHistories_0   = runtime.ForwardResponseMessage
 	forward_ProcessorService_PauseProcessor_0               = runtime.ForwardResponseMessage
 	forward_ProcessorService_ResumeProcessor_0              = runtime.ForwardResponseMessage
 	forward_ProcessorService_SetVersionActive_0             = runtime.ForwardResponseMessage

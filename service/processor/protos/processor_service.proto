@@ -85,6 +85,18 @@ service ProcessorService {
     };
   }
 
+  rpc GetProcessorStateHistories(GetProcessorStateHistoryRequest)
+      returns (GetProcessorStateHistoryResponse) {
+    option (common.auth) = {
+      permission : "project:read"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+
+    option (google.api.http) = {
+      get : "/api/v1/processors/{processor_id}/state_history"
+    };
+  }
+
   rpc PauseProcessor(PauseProcessorRequest) returns (google.protobuf.Empty) {
     option (common.auth) = {
       permission : "project:write"

@@ -590,7 +590,9 @@ func (s *Service) activateProcessor(ctx context.Context, processor *models.Proce
 			}
 		}
 	}
-	s.saveStateHistory(ctx, processor.ID, models.ProcessorStateActionActive, "")
+	if processor.VersionState == int32(protos.ProcessorVersionState_ACTIVE) {
+		s.saveStateHistory(ctx, processor.ID, models.ProcessorStateActionActive, "")
+	}
 	return s.notifyProcessorActivated(ctx, processor)
 }
 

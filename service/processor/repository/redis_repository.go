@@ -23,6 +23,7 @@ const (
 	chainStateKeyPrefix       = "chain_state:"
 	chainStatesKeyPrefix      = "chain_states:"
 	upgradeHistoryKeyPrefix   = "upgrade_history:"
+	stateHistoryKeyPrefix     = "state_history:"
 	projectKeyPrefix          = "project:"
 	projectVersionsKeyPrefix  = "project:versions:"
 	projectVariablesKeyPrefix = "project:variables:"
@@ -564,14 +565,47 @@ func (r *RedisProcessorRepo) SaveProcessorUpgradeHistory(ctx context.Context, pr
 	return r.client.Set(ctx, key, data, 0).Err()
 }
 
-// ListProcessorStateHistory lists processor state change history (no-op for Redis)
+// ListProcessorStateHistory lists processor state change history
 func (r *RedisProcessorRepo) ListProcessorStateHistory(ctx context.Context, processorID string) ([]models.ProcessorStateHistory, error) {
-	return nil, nil
+	pattern := stateHistoryKeyPrefix + processorID + ":*"
+	var histories []models.ProcessorStateHistory
+
+	iter := r.client.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		data, err := r.client.Get(ctx, iter.Val()).Result()
+		if err != nil {
+			continue
+		}
+		var h models.ProcessorStateHistory
+		if err := json.Unmarshal([]byte(data), &h); err != nil {
+			continue
+		}
+		histories = append(histories, h)
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	sort.Slice(histories, func(i, j int) bool {
+		return histories[i].CreatedAt.After(histories[j].CreatedAt)
+	})
+	return histories, nil
 }
 
-// SaveProcessorStateHistory saves processor state change history (no-op for Redis)
+// SaveProcessorStateHistory saves processor state change history
 func (r *RedisProcessorRepo) SaveProcessorStateHistory(ctx context.Context, history *models.ProcessorStateHistory) error {
-	return nil
+	if history.ID == "" {
+		history.ID = fmt.Sprintf("state_%d", time.Now().UnixNano())
+	}
+	if history.CreatedAt.IsZero() {
+		history.CreatedAt = time.Now()
+	}
+	data, err := json.Marshal(history)
+	if err != nil {
+		return err
+	}
+	key := stateHistoryKeyPrefix + history.ProcessorID + ":" + history.ID
+	return r.client.Set(ctx, key, data, 0).Err()
 }
 
 // GetProjectByID gets a project by ID

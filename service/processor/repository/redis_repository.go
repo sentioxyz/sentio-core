@@ -23,6 +23,7 @@ const (
 	chainStateKeyPrefix       = "chain_state:"
 	chainStatesKeyPrefix      = "chain_states:"
 	upgradeHistoryKeyPrefix   = "upgrade_history:"
+	stateHistoryKeyPrefix     = "state_history:"
 	projectKeyPrefix          = "project:"
 	projectVersionsKeyPrefix  = "project:versions:"
 	projectVariablesKeyPrefix = "project:variables:"
@@ -64,6 +65,9 @@ type RedisProcessorRepoInterface interface {
 	ListProcessorUpgradeHistory(ctx context.Context, processorID string) ([]models.ProcessorUpgradeHistory, error)
 	GetProcessorUpgradeHistoryByID(ctx context.Context, historyID string, processorID string) (*models.ProcessorUpgradeHistory, error)
 	SaveProcessorUpgradeHistory(ctx context.Context, processor *models.Processor) error
+
+	ListProcessorStateHistory(ctx context.Context, processorID string) ([]models.ProcessorStateHistory, error)
+	SaveProcessorStateHistory(ctx context.Context, history *models.ProcessorStateHistory) error
 
 	GetProjectByID(ctx context.Context, projectID string) (*commonmodels.Project, error)
 	GetProjectVersions(ctx context.Context, projectID string) ([]*models.Processor, error)
@@ -558,6 +562,49 @@ func (r *RedisProcessorRepo) SaveProcessorUpgradeHistory(ctx context.Context, pr
 	}
 
 	key := upgradeHistoryKeyPrefix + processor.ID + ":" + history.ID
+	return r.client.Set(ctx, key, data, 0).Err()
+}
+
+// ListProcessorStateHistory lists processor state change history
+func (r *RedisProcessorRepo) ListProcessorStateHistory(ctx context.Context, processorID string) ([]models.ProcessorStateHistory, error) {
+	pattern := stateHistoryKeyPrefix + processorID + ":*"
+	var histories []models.ProcessorStateHistory
+
+	iter := r.client.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		data, err := r.client.Get(ctx, iter.Val()).Result()
+		if err != nil {
+			continue
+		}
+		var h models.ProcessorStateHistory
+		if err := json.Unmarshal([]byte(data), &h); err != nil {
+			continue
+		}
+		histories = append(histories, h)
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	sort.Slice(histories, func(i, j int) bool {
+		return histories[i].CreatedAt.After(histories[j].CreatedAt)
+	})
+	return histories, nil
+}
+
+// SaveProcessorStateHistory saves processor state change history
+func (r *RedisProcessorRepo) SaveProcessorStateHistory(ctx context.Context, history *models.ProcessorStateHistory) error {
+	if history.ID == "" {
+		history.ID = fmt.Sprintf("state_%d", time.Now().UnixNano())
+	}
+	if history.CreatedAt.IsZero() {
+		history.CreatedAt = time.Now()
+	}
+	data, err := json.Marshal(history)
+	if err != nil {
+		return err
+	}
+	key := stateHistoryKeyPrefix + history.ProcessorID + ":" + history.ID
 	return r.client.Set(ctx, key, data, 0).Err()
 }
 

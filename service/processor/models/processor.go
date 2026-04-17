@@ -175,6 +175,44 @@ type ProcessorUpgradeHistory struct {
 	ChainStates     []*ChainState `gorm:"-"`
 }
 
+type ProcessorStateAction string
+
+const (
+	ProcessorStateActionPause    ProcessorStateAction = "pause"
+	ProcessorStateActionResume   ProcessorStateAction = "resume"
+	ProcessorStateActionActive   ProcessorStateAction = "active"
+	ProcessorStateActionObsolete ProcessorStateAction = "obsolete"
+)
+
+type ProcessorStateHistory struct {
+	ID          string               `gorm:"primaryKey"`
+	ProcessorID string               `gorm:"index"`
+	Action      ProcessorStateAction `gorm:"type:varchar(32)"`
+	OperatorID  string               // Identity.UserID
+	OperatorSub string               // Identity.Sub
+	Reason      string               // optional, used for pause reason
+	CreatedAt   time.Time
+}
+
+func (h *ProcessorStateHistory) BeforeCreate(tx *gorm.DB) (err error) {
+	if h.ID == "" {
+		h.ID, err = gonanoid.GenerateID()
+	}
+	return err
+}
+
+func (h *ProcessorStateHistory) ToPB() *protos.ProcessorStateHistory {
+	return &protos.ProcessorStateHistory{
+		Id:          h.ID,
+		ProcessorId: h.ProcessorID,
+		Action:      string(h.Action),
+		OperatorId:  h.OperatorID,
+		OperatorSub: h.OperatorSub,
+		Reason:      h.Reason,
+		CreatedAt:   timestamppb.New(h.CreatedAt),
+	}
+}
+
 type ReferenceProcessorProperties struct {
 	// reference to latest version of project
 	ReferenceProjectID string

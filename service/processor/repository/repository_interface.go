@@ -43,6 +43,9 @@ type ProcessorRepo interface {
 	GetProcessorUpgradeHistoryByID(ctx context.Context, historyID string, processorID string) (*models.ProcessorUpgradeHistory, error)
 	SaveProcessorUpgradeHistory(ctx context.Context, processor *models.Processor) error
 
+	ListProcessorStateHistory(ctx context.Context, processorID string) ([]models.ProcessorStateHistory, error)
+	SaveProcessorStateHistory(ctx context.Context, history *models.ProcessorStateHistory) error
+
 	GetProjectByID(ctx context.Context, projectID string) (*commonmodels.Project, error)
 	GetProjectVersions(ctx context.Context, projectID string) ([]*models.Processor, error)
 	GetProjectVariables(ctx context.Context, projectID string) ([]*commonmodels.ProjectVariable, error)

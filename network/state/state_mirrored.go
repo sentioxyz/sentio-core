@@ -13,6 +13,7 @@ type StateMirrored struct {
 	indexerInfoCodec         statemirror.JSONCodec[string, IndexerInfo]
 	processorAllocationCodec statemirror.JSONCodec[string, []ProcessorAllocation]
 	processorInfoCodec       statemirror.JSONCodec[string, ProcessorInfo]
+	databaseCodec            statemirror.JSONCodec[string, DatabaseInfo]
 }
 
 func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror.Mirror) (*StateMirrored, error) {
@@ -22,6 +23,7 @@ func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror
 		indexerInfoCodec:         newCodec[IndexerInfo](),
 		processorAllocationCodec: newCodec[[]ProcessorAllocation](),
 		processorInfoCodec:       newCodec[ProcessorInfo](),
+		databaseCodec:            newCodec[DatabaseInfo](),
 	}
 	if err := st.SyncMirror(ctx); err != nil {
 		return nil, err
@@ -145,6 +147,106 @@ func (s *StateMirrored) IsHostedProcessor(processorId string) bool {
 	return s.inner.IsHostedProcessor(processorId)
 }
 
+func (s *StateMirrored) GetDatabases() map[string]DatabaseInfo {
+	return s.inner.GetDatabases()
+}
+
+func (s *StateMirrored) GetDatabase(databaseId string) (DatabaseInfo, bool) {
+	return s.inner.GetDatabase(databaseId)
+}
+
+func (s *StateMirrored) UpsertDatabase(ctx context.Context, info DatabaseInfo) error {
+	if err := s.inner.UpsertDatabase(ctx, info); err != nil {
+		return err
+	}
+	return s.syncDatabase(ctx, info.DatabaseId)
+}
+
+func (s *StateMirrored) DeleteDatabase(ctx context.Context, databaseId string) error {
+	if err := s.inner.DeleteDatabase(ctx, databaseId); err != nil {
+		return err
+	}
+	return s.syncDatabase(ctx, databaseId)
+}
+
+func (s *StateMirrored) SetDatabaseOwner(ctx context.Context, databaseId string, owner string) error {
+	if err := s.inner.SetDatabaseOwner(ctx, databaseId, owner); err != nil {
+		return err
+	}
+	return s.syncDatabase(ctx, databaseId)
+}
+
+func (s *StateMirrored) AddDatabaseOperator(ctx context.Context, databaseId string, operator string) error {
+	if err := s.inner.AddDatabaseOperator(ctx, databaseId, operator); err != nil {
+		return err
+	}
+	return s.syncDatabase(ctx, databaseId)
+}
+
+func (s *StateMirrored) RemoveDatabaseOperator(ctx context.Context, databaseId string, operator string) error {
+	if err := s.inner.RemoveDatabaseOperator(ctx, databaseId, operator); err != nil {
+		return err
+	}
+	return s.syncDatabase(ctx, databaseId)
+}
+
+func (s *StateMirrored) UpsertDatabaseAllocation(ctx context.Context, databaseId string, allocation DatabaseAllocation) error {
+	if err := s.inner.UpsertDatabaseAllocation(ctx, databaseId, allocation); err != nil {
+		return err
+	}
+	return s.syncDatabase(ctx, databaseId)
+}
+
+func (s *StateMirrored) DeleteDatabaseAllocation(ctx context.Context, databaseId string, indexerId uint64) error {
+	if err := s.inner.DeleteDatabaseAllocation(ctx, databaseId, indexerId); err != nil {
+		return err
+	}
+	return s.syncDatabase(ctx, databaseId)
+}
+
+func (s *StateMirrored) UpsertDatabaseTable(ctx context.Context, databaseId string, table TableInfo) error {
+	if err := s.inner.UpsertDatabaseTable(ctx, databaseId, table); err != nil {
+		return err
+	}
+	return s.syncDatabase(ctx, databaseId)
+}
+
+func (s *StateMirrored) DeleteDatabaseTable(ctx context.Context, tableId string) error {
+	databaseIdsBefore := make(map[string]struct{}, len(s.inner.Databases))
+	for databaseId, info := range s.inner.Databases {
+		for _, t := range info.Tables {
+			if t.TableId == tableId {
+				databaseIdsBefore[databaseId] = struct{}{}
+				break
+			}
+		}
+	}
+	if err := s.inner.DeleteDatabaseTable(ctx, tableId); err != nil {
+		return err
+	}
+	for databaseId := range databaseIdsBefore {
+		if err := s.syncDatabase(ctx, databaseId); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *StateMirrored) syncDatabase(ctx context.Context, databaseId string) error {
+	info, ok := s.inner.Databases[databaseId]
+	var diff statemirror.TypedDiff[string, DatabaseInfo]
+	if ok {
+		diff = statemirror.TypedDiff[string, DatabaseInfo]{
+			Added: map[string]DatabaseInfo{databaseId: info},
+		}
+	} else {
+		diff = statemirror.TypedDiff[string, DatabaseInfo]{
+			Deleted: []string{databaseId},
+		}
+	}
+	return applyDiff(ctx, s.mirror, statemirror.MappingDatabases, s.databaseCodec, &diff)
+}
+
 func (s *StateMirrored) SyncMirror(ctx context.Context) error {
 	indexerDiff := &statemirror.TypedDiff[string, IndexerInfo]{
 		Added: make(map[string]IndexerInfo),
@@ -177,6 +279,16 @@ func (s *StateMirrored) SyncMirror(ctx context.Context) error {
 		processorInfoDiff.Added[processorId] = info
 	}
 	if err := applyDiff(ctx, s.mirror, statemirror.MappingProcessorInfos, s.processorInfoCodec, processorInfoDiff); err != nil {
+		return err
+	}
+
+	databaseDiff := &statemirror.TypedDiff[string, DatabaseInfo]{
+		Added: make(map[string]DatabaseInfo),
+	}
+	for databaseId, info := range s.inner.GetDatabases() {
+		databaseDiff.Added[databaseId] = info
+	}
+	if err := applyDiff(ctx, s.mirror, statemirror.MappingDatabases, s.databaseCodec, databaseDiff); err != nil {
 		return err
 	}
 	return nil

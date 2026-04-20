@@ -7,6 +7,7 @@ import (
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/timeseries"
+	"sentioxyz/sentio-core/service/processor/models"
 )
 
 type Option struct {
@@ -15,12 +16,14 @@ type Option struct {
 }
 
 type Store struct {
-	client        chx.Conn
-	cluster       string
-	database      string
-	tableSettings string
-	processorID   string
-	option        Option
+	client                chx.Conn
+	cluster               string
+	database              string
+	tableSettings         string
+	processorID           string
+	processorReplica      int
+	processorTablePattern models.TablePattern
+	option                Option
 
 	meta *storeMeta
 
@@ -43,17 +46,21 @@ func NewStore(
 	cluster string,
 	database string,
 	processorID string,
+	processorReplica int,
+	processorTablePattern models.TablePattern,
 	option Option,
 ) *Store {
 	if option.BatchInsertSizeLimit == 0 {
 		option.BatchInsertSizeLimit = int(defaultBatchInsertSizeLimit)
 	}
 	return &Store{
-		client:      client,
-		cluster:     cluster,
-		database:    database,
-		processorID: processorID,
-		option:      option,
+		client:                client,
+		cluster:               cluster,
+		database:              database,
+		processorID:           processorID,
+		processorReplica:      processorReplica,
+		processorTablePattern: processorTablePattern,
+		option:                option,
 		meta: &storeMeta{
 			Metas: make(map[timeseries.MetaType]map[string]timeseries.Meta),
 		},

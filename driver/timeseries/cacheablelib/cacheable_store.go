@@ -9,6 +9,7 @@ import (
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/driver/timeseries"
 	"sentioxyz/sentio-core/driver/timeseries/clickhouse"
+	"sentioxyz/sentio-core/service/processor/models"
 )
 
 type CacheableMeta struct {
@@ -43,13 +44,34 @@ func (t *CacheableMeta) Reload(ctx context.Context) (timeseries.Store, error) {
 }
 
 func NewCacheableMeta(
-	processorId string, processorVersion int, projectId string, conn ckhmanager.Conn) (cache.Cacheable[timeseries.Store], error) {
-	return NewCacheableMetaWithTTL(processorId, processorVersion, projectId, conn, time.Hour, time.Minute*5)
+	processorId string,
+	processorVersion int,
+	processorReplica int,
+	projectId string,
+	tablePattern models.TablePattern,
+	conn ckhmanager.Conn,
+) (cache.Cacheable[timeseries.Store], error) {
+	return NewCacheableMetaWithTTL(
+		processorId,
+		processorVersion,
+		processorReplica,
+		projectId,
+		tablePattern,
+		conn,
+		time.Hour,
+		time.Minute*5,
+	)
 }
 
 func NewCacheableMetaWithTTL(
-	processorId string, processorVersion int, projectId string,
-	conn ckhmanager.Conn, ttl, refreshInterval time.Duration) (cache.Cacheable[timeseries.Store], error) {
+	processorId string,
+	processorVersion int,
+	processorReplica int,
+	projectId string,
+	tablePattern models.TablePattern,
+	conn ckhmanager.Conn,
+	ttl, refreshInterval time.Duration,
+) (cache.Cacheable[timeseries.Store], error) {
 	if conn == nil {
 		return nil, fmt.Errorf("processor %s clickhouse conn is nil", processorId)
 	}
@@ -61,7 +83,15 @@ func NewCacheableMetaWithTTL(
 		ttl:              ttl,
 		refreshInterval:  refreshInterval,
 	}
-	tsm.store = clickhouse.NewStore(conn, conn.GetCluster(), conn.GetDatabase(), processorId, clickhouse.Option{})
+	tsm.store = clickhouse.NewStore(
+		conn,
+		conn.GetCluster(),
+		conn.GetDatabase(),
+		processorId,
+		processorReplica,
+		tablePattern,
+		clickhouse.Option{},
+	)
 	tsm.reload = func(ctx context.Context) (timeseries.Store, error) {
 		if err := tsm.store.ReloadMeta(ctx, false); err != nil {
 			return nil, err

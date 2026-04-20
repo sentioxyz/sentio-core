@@ -40,6 +40,7 @@ go_test(
         "//common/clickhousemanager",
         "//common/period",
         "//driver/timeseries",
+        "//service/processor/models",
         "@com_github_shopspring_decimal//:decimal",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

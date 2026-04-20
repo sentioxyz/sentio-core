@@ -195,7 +195,7 @@ func newMockStoreMeta() timeseries.StoreMeta {
 }
 
 func NewMockStore(processor *processormodel.Processor, conn ckhmanager.Conn) *MockStore {
-	s := chstimeseries.NewStore(conn, "", conn.GetDatabase(), processor.ID, chstimeseries.Option{})
+	s := chstimeseries.NewStore(conn, "", conn.GetDatabase(), processor.ID, 0, processormodel.TablePatternPlatformV1, chstimeseries.Option{})
 	return &MockStore{
 		Store:       *s,
 		storeMeta:   newMockStoreMeta(),

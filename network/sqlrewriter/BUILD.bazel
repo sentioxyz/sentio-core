@@ -14,5 +14,6 @@ go_library(
         "//driver/timeseries",
         "//driver/timeseries/clickhouse",
         "//network/state",
+        "//service/processor/models",
     ],
 )

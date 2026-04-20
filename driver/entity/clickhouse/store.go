@@ -6,11 +6,12 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"reflect"
-
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/schema"
+	"sentioxyz/sentio-core/service/processor/models"
+	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	clickhouselib "github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -101,13 +102,15 @@ func (f Features) BuildVerifyOptions() []schema.VerifyOption {
 }
 
 type Store struct {
-	ctrl        chx.Controller
-	database    string
-	processorID string
-	feaOpt      Features
-	sch         *schema.Schema
-	schHash     string
-	tableOpt    TableOption
+	ctrl                  chx.Controller
+	database              string
+	processorID           string
+	processorReplica      int
+	processorTablePattern models.TablePattern
+	feaOpt                Features
+	sch                   *schema.Schema
+	schHash               string
+	tableOpt              TableOption
 }
 
 func enableVersionedCollapsingInsertSettings() map[string]any {
@@ -135,6 +138,8 @@ const schemaHashSalt = "2"
 func NewStore(
 	ctrl chx.Controller,
 	processorID string,
+	processorReplica int,
+	processorTablePattern models.TablePattern,
 	feaOpt Features,
 	sch *schema.Schema,
 	tableOpt TableOption,
@@ -148,13 +153,15 @@ func NewStore(
 	}
 	h.Write([]byte(sch.SchemaString))
 	return &Store{
-		ctrl:        ctrl,
-		database:    ctrl.GetDatabase(),
-		processorID: processorID,
-		feaOpt:      feaOpt,
-		sch:         sch,
-		schHash:     fmt.Sprintf("%x", h.Sum(nil)),
-		tableOpt:    tableOpt,
+		ctrl:                  ctrl,
+		database:              ctrl.GetDatabase(),
+		processorID:           processorID,
+		processorReplica:      processorReplica,
+		processorTablePattern: processorTablePattern,
+		feaOpt:                feaOpt,
+		sch:                   sch,
+		schHash:               fmt.Sprintf("%x", h.Sum(nil)),
+		tableOpt:              tableOpt,
 	}
 }
 
@@ -166,8 +173,21 @@ func (s *Store) GetEntityOrInterfaceType(name string) schema.EntityOrInterface {
 	return s.sch.GetEntityOrInterface(name)
 }
 
+func (s *Store) tableNamePrefix() string {
+	return s.processorTablePattern.TableNamePrefix(s.processorID, s.processorReplica)
+}
+
+func (s *Store) buildTableNameLike() string {
+	return s.processorTablePattern.TableNameLike(s.processorID, s.processorReplica)
+}
+
 func (s *Store) buildTableOrViewName(category string, name string) string {
-	return fmt.Sprintf("%s_%s_%s", s.processorID, category, name)
+	return s.tableNamePrefix() + fmt.Sprintf("%s_%s", category, name)
+}
+
+func (s *Store) cutTableName(tableName string) (category, name string) {
+	category, name, _ = strings.Cut(strings.TrimPrefix(tableName, s.tableNamePrefix()), "_")
+	return
 }
 
 func (s *Store) fullName(tableName string) string {

@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"sentioxyz/sentio-core/service/processor/models"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func Test_common(t *testing.T) {
 
 	ctx := context.Background()
 
-	store := NewStore(conn, "", conn.GetDatabase(), "processor0", Option{})
+	store := NewStore(conn, "", conn.GetDatabase(), "processor0", 0, models.TablePatternPlatformV1, Option{})
 
 	assert.NoError(t, store.Init(ctx, true))
 

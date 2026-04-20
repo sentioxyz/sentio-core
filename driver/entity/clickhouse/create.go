@@ -83,14 +83,14 @@ var (
 )
 
 func (s *Store) loadExists(ctx context.Context, categories []string) (map[string]map[string]chx.TableOrView, error) {
-	loaded, err := s.ctrl.Load(ctx, s.database, s.processorID+"\\_%")
+	loaded, err := s.ctrl.Load(ctx, s.database, s.buildTableNameLike())
 	if err != nil {
 		return nil, err
 	}
 	valid := set.New(categories...)
 	tvs := make(map[string]map[string]chx.TableOrView)
 	for tableName, tv := range loaded {
-		category, entityName, _ := strings.Cut(strings.TrimPrefix(tableName, s.processorID+"_"), "_")
+		category, entityName := s.cutTableName(tableName)
 		if valid.Contains(category) {
 			utils.PutIntoK2Map(tvs, entityName, tableName, tv)
 		}

@@ -488,6 +488,7 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		ChainId:                 string(p.ChainID),
 		RequiredChains:          []string(p.RequiredChains),
 		CreateTxHash:            p.CreateTxHash,
+		TablePattern:            string(p.TablePattern),
 	}
 
 	return ret, nil
@@ -518,6 +519,7 @@ func (p *Processor) FromPB(processor *protos.Processor) error {
 	p.DriverVersion = processor.DriverVersion
 	p.NumWorkers = processor.NumWorkers
 	p.Binary = processor.IsBinary
+	p.TablePattern = TablePattern(processor.TablePattern)
 
 	// state
 	if p.ChainStates, err = utils.MapSlice(

@@ -320,12 +320,20 @@ func (s *Store) buildAddIndexSQL(sqlPrefix string, field timeseries.Field) []str
 	}
 }
 
+func (s *Store) tableNamePrefix() string {
+	return s.processorTablePattern.TableNamePrefix(s.processorID, s.processorReplica)
+}
+
+func (s *Store) buildTableNameLike() string {
+	return s.processorTablePattern.TableNameLike(s.processorID, s.processorReplica)
+}
+
 func (s *Store) buildTableName(meta timeseries.Meta) string {
-	return fmt.Sprintf("`%s`.`%s_%s`", s.database, s.processorID, meta.GetTableSuffix())
+	return fmt.Sprintf("`%s`.`%s`", s.database, s.BuildTableNameWithoutDatabase(meta))
 }
 
 func (s *Store) BuildTableNameWithoutDatabase(meta timeseries.Meta) string {
-	return fmt.Sprintf("%s_%s", s.processorID, meta.GetTableSuffix())
+	return s.tableNamePrefix() + meta.GetTableSuffix()
 }
 
 func (s *Store) MetaTable(meta timeseries.Meta) string {
@@ -333,7 +341,7 @@ func (s *Store) MetaTable(meta timeseries.Meta) string {
 }
 
 func (s *Store) cutTableName(tableName string) (timeseries.MetaType, string) {
-	typ, name, _ := strings.Cut(strings.TrimPrefix(tableName, s.processorID+"_"), "_")
+	typ, name, _ := strings.Cut(strings.TrimPrefix(tableName, s.tableNamePrefix()), "_")
 	return timeseries.MetaType(typ), name
 }
 
@@ -343,10 +351,6 @@ func (s *Store) buildFieldName(field timeseries.Field) string {
 
 func (s *Store) buildFieldNestedCast(field timeseries.Field, nestedName string, nestedType timeseries.FieldType) string {
 	return fmt.Sprintf("CAST(`%s.%s`, '%s')", field.Name, nestedName, nestedType)
-}
-
-func (s *Store) buildTableNameLike() string {
-	return fmt.Sprintf("%s\\_%%", s.processorID)
 }
 
 func (s *Store) buildCreateTableSQL(meta timeseries.Meta) string {

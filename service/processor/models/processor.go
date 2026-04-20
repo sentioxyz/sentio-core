@@ -292,6 +292,28 @@ func (e EventlogVersion) String() string {
 	return []string{"V1", "V2", "V3"}[e-1]
 }
 
+type TablePattern string
+
+const (
+	TablePatternPlatformV1 TablePattern = "platform_v1"
+	TablePatternNetworkV1  TablePattern = "network_v1"
+)
+
+func (p TablePattern) TableNamePrefix(processorID string, processorReplica int) string {
+	switch p {
+	case TablePatternPlatformV1:
+		return fmt.Sprintf("%s_", processorID)
+	case TablePatternNetworkV1:
+		return fmt.Sprintf("%s_%d.", processorID, processorReplica)
+	default:
+		panic(fmt.Errorf("unsupported table pattern %s", p))
+	}
+}
+
+func (p TablePattern) TableNameLike(processorID string, processorReplica int) string {
+	return strings.ReplaceAll(p.TableNamePrefix(processorID, processorReplica), "_", "\\_") + "%"
+}
+
 type Processor struct {
 	gorm.Model
 	ID         string `gorm:"primaryKey"`
@@ -312,8 +334,9 @@ type Processor struct {
 	EventlogVersion     int32 `gorm:"default:1"`
 	EntitySchemaVersion int32
 
-	DriverVersion int32 `gorm:"default:0"`
-	NumWorkers    int32 `gorm:"default:1"`
+	DriverVersion int32        `gorm:"default:0"`
+	NumWorkers    int32        `gorm:"default:1"`
+	TablePattern  TablePattern `gorm:"default:'platform_v1'"`
 
 	Pause       bool
 	PauseAt     time.Time
@@ -465,6 +488,7 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		ChainId:                 string(p.ChainID),
 		RequiredChains:          []string(p.RequiredChains),
 		CreateTxHash:            p.CreateTxHash,
+		TablePattern:            string(p.TablePattern),
 	}
 
 	return ret, nil
@@ -495,6 +519,7 @@ func (p *Processor) FromPB(processor *protos.Processor) error {
 	p.DriverVersion = processor.DriverVersion
 	p.NumWorkers = processor.NumWorkers
 	p.Binary = processor.IsBinary
+	p.TablePattern = TablePattern(processor.TablePattern)
 
 	// state
 	if p.ChainStates, err = utils.MapSlice(

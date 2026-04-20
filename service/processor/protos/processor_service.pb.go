@@ -1909,6 +1909,7 @@ type Processor struct {
 	ChainId                string                 `protobuf:"bytes,29,opt,name=chain_id,json=chainId,proto3" json:"chain_id,omitempty"`
 	RequiredChains         []string               `protobuf:"bytes,30,rep,name=required_chains,json=requiredChains,proto3" json:"required_chains,omitempty"`
 	CreateTxHash           string                 `protobuf:"bytes,31,opt,name=create_tx_hash,json=createTxHash,proto3" json:"create_tx_hash,omitempty"`
+	TablePattern           string                 `protobuf:"bytes,32,opt,name=table_pattern,json=tablePattern,proto3" json:"table_pattern,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -2157,6 +2158,13 @@ func (x *Processor) GetRequiredChains() []string {
 func (x *Processor) GetCreateTxHash() string {
 	if x != nil {
 		return x.CreateTxHash
+	}
+	return ""
+}
+
+func (x *Processor) GetTablePattern() string {
+	if x != nil {
+		return x.TablePattern
 	}
 	return ""
 }
@@ -4216,7 +4224,7 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\x05ERROR\x10\x01\x12\x0f\n" +
 	"\vCATCHING_UP\x10\x02\x12\x15\n" +
 	"\x11PROCESSING_LATEST\x10\x03\x12\v\n" +
-	"\aQUEUING\x10\x04J\x04\b\v\x10\fJ\x04\b\f\x10\rJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"\x9e\n" +
+	"\aQUEUING\x10\x04J\x04\b\v\x10\fJ\x04\b\f\x10\rJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"\xc3\n" +
 	"\n" +
 	"\tProcessor\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x1d\n" +
@@ -4256,7 +4264,8 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\tis_binary\x18\x18 \x01(\bR\bisBinary\x12\x19\n" +
 	"\bchain_id\x18\x1d \x01(\tR\achainId\x12'\n" +
 	"\x0frequired_chains\x18\x1e \x03(\tR\x0erequiredChains\x12$\n" +
-	"\x0ecreate_tx_hash\x18\x1f \x01(\tR\fcreateTxHash\"\xf3\x01\n" +
+	"\x0ecreate_tx_hash\x18\x1f \x01(\tR\fcreateTxHash\x12#\n" +
+	"\rtable_pattern\x18  \x01(\tR\ftablePattern\"\xf3\x01\n" +
 	"\x17ProcessorUpgradeHistory\x12\x14\n" +
 	"\x05index\x18\x02 \x01(\x05R\x05index\x12;\n" +
 	"\vuploaded_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +

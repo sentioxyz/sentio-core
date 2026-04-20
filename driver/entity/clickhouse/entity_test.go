@@ -16,6 +16,7 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
+	"sentioxyz/sentio-core/service/processor/models"
 )
 
 const (
@@ -106,6 +107,8 @@ func (es *EntitySuite) init(ctx context.Context) {
 	es.s = NewStore(
 		es.ctrl,
 		processorID,
+		0,
+		models.TablePatternPlatformV1,
 		Features{
 			VersionedCollapsing:    true,
 			TimestampUseDateTime64: true,

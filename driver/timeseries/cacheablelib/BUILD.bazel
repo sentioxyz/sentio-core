@@ -10,5 +10,6 @@ go_library(
         "//common/clickhousemanager",
         "//driver/timeseries",
         "//driver/timeseries/clickhouse",
+        "//service/processor/models",
     ],
 )

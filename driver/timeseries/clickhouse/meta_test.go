@@ -3,6 +3,7 @@ package clickhouse
 
 import (
 	"context"
+	"sentioxyz/sentio-core/service/processor/models"
 	"testing"
 
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
@@ -72,7 +73,7 @@ func newDataset(name string, option testMetaOption) timeseries.Dataset {
 }
 
 func TestCalculateMetasHash_BasicStability(t *testing.T) {
-	store := NewStore(nil, "", "", "proc", Option{})
+	store := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{})
 
 	// Initial (empty) hash
 	h1 := store.Meta().GetHash()
@@ -85,7 +86,7 @@ func TestCalculateMetasHash_BasicStability(t *testing.T) {
 
 func TestCalculateMetasHash_OrderIndependence(t *testing.T) {
 	// Store A insertion order A then B
-	a := NewStore(nil, "", "", "proc", Option{})
+	a := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{})
 	a.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{
 		timeseries.MetaTypeGauge: {
 			"alpha": newMeta("alpha", testMetaOption{}),
@@ -95,7 +96,7 @@ func TestCalculateMetasHash_OrderIndependence(t *testing.T) {
 	hashA := a.Meta().GetHash()
 
 	// Store B insertion order reversed
-	b := NewStore(nil, "", "", "proc", Option{})
+	b := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{})
 	b.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{
 		timeseries.MetaTypeGauge: {
 			"beta":  newMeta("beta", testMetaOption{}),
@@ -108,7 +109,7 @@ func TestCalculateMetasHash_OrderIndependence(t *testing.T) {
 }
 
 func TestCalculateMetasHash_FieldChangeAffectsHash(t *testing.T) {
-	store := NewStore(nil, "", "", "proc", Option{})
+	store := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{})
 	store.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{
 		timeseries.MetaTypeGauge: {
 			"alpha": newMeta("alpha", testMetaOption{}),
@@ -124,7 +125,7 @@ func TestCalculateMetasHash_FieldChangeAffectsHash(t *testing.T) {
 }
 
 func TestCalculateMetasHash_AggregationAffectsHash(t *testing.T) {
-	store := NewStore(nil, "", "", "proc", Option{})
+	store := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{})
 	store.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{
 		timeseries.MetaTypeGauge: {
 			"alpha": newMeta("alpha", testMetaOption{}),
@@ -149,7 +150,7 @@ func TestMeta_BuildSQL(t *testing.T) {
 
 	conn := ckhmanager.NewConn(localClickhouseDSN)
 
-	store := NewStore(conn, "", conn.GetDatabase(), "proc", Option{})
+	store := NewStore(conn, "", conn.GetDatabase(), "proc", 0, models.TablePatternPlatformV1, Option{})
 	require.Nil(t, store.Init(context.Background(), true))
 }
 
@@ -159,7 +160,7 @@ func TestMeta_RWMeta(t *testing.T) {
 	conn := ckhmanager.NewConn(localClickhouseDSN)
 
 	ctx := context.Background()
-	store := NewStore(conn, "", conn.GetDatabase(), "proc", Option{})
+	store := NewStore(conn, "", conn.GetDatabase(), "proc", 0, models.TablePatternPlatformV1, Option{})
 	store.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{}
 
 	_ = conn.Exec(ctx, "DROP TABLE IF EXISTS proc_gauge_beta, proc_gauge_alpha, proc_gauge_sigma, proc_gauge_gamma, proc_gauge_zetta")

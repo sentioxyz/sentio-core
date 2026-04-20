@@ -3,8 +3,6 @@ package clickhouse
 import (
 	"context"
 	"fmt"
-	"sentioxyz/sentio-core/common/chx"
-	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"strings"
 	"testing"
 	"time"
@@ -13,8 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"sentioxyz/sentio-core/common/chx"
+	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
+	"sentioxyz/sentio-core/service/processor/models"
 )
 
 // Real DeFi scenario - Uniswap V3 Pool
@@ -69,6 +70,8 @@ func TestDecimal512_E2E_UserWorkflow(t *testing.T) {
 	store := NewStore(
 		chx.NewController(conn),
 		processorID,
+		0,
+		models.TablePatternPlatformV1,
 		BuildFeatures(8), // EntitySchemaVersion = 8 enables Decimal512
 		sch,
 		TableOption{},

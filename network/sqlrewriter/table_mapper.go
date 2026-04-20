@@ -2,6 +2,7 @@ package sqlrewriter
 
 import (
 	"context"
+	"sentioxyz/sentio-core/service/processor/models"
 	"sync"
 
 	"sentioxyz/sentio-core/common/chx"
@@ -51,8 +52,15 @@ type sentioNetworkTableMapper struct {
 	reverseTable map[string]string
 }
 
-func NewTableMapper(privateKeyHex, processorId string, ckhManager ckhmanager.Manager,
-	indexerInfo state.IndexerInfo, processorInfo state.ProcessorInfo) (TableMapper, error) {
+func NewTableMapper(
+	privateKeyHex string,
+	processorId string,
+	processorReplica int,
+	processorTablePattern models.TablePattern,
+	ckhManager ckhmanager.Manager,
+	indexerInfo state.IndexerInfo,
+	processorInfo state.ProcessorInfo,
+) (TableMapper, error) {
 
 	var (
 		sharding = ckhManager.NewShardByStateIndexer(indexerInfo)
@@ -74,7 +82,15 @@ func NewTableMapper(privateKeyHex, processorId string, ckhManager ckhmanager.Man
 		if err != nil {
 			return nil, err
 		}
-		entity = entitychs.NewStore(chx.NewController(timeseriesConn), processorId, entitychs.BuildFeatures(processorInfo.EntitySchemaVersion), entitySchema, entitychs.DefaultCreateTableOption)
+		entity = entitychs.NewStore(
+			chx.NewController(timeseriesConn),
+			processorId,
+			processorReplica,
+			processorTablePattern,
+			entitychs.BuildFeatures(processorInfo.EntitySchemaVersion),
+			entitySchema,
+			entitychs.DefaultCreateTableOption,
+		)
 	}
 	return &sentioNetworkTableMapper{
 		privateKeyHex: privateKeyHex,
@@ -82,11 +98,19 @@ func NewTableMapper(privateKeyHex, processorId string, ckhManager ckhmanager.Man
 		indexerInfo:   indexerInfo,
 		processorInfo: processorInfo,
 		conn:          timeseriesConn,
-		timeseries:    timeserieschs.NewStore(timeseriesConn, timeseriesConn.GetCluster(), timeseriesConn.GetDatabase(), processorId, timeserieschs.Option{}),
-		entity:        entity,
-		entitySchema:  entitySchema,
-		table:         make(map[string]string),
-		reverseTable:  make(map[string]string),
+		timeseries: timeserieschs.NewStore(
+			timeseriesConn,
+			timeseriesConn.GetCluster(),
+			timeseriesConn.GetDatabase(),
+			processorId,
+			processorReplica,
+			processorTablePattern,
+			timeserieschs.Option{},
+		),
+		entity:       entity,
+		entitySchema: entitySchema,
+		table:        make(map[string]string),
+		reverseTable: make(map[string]string),
 	}, nil
 }
 

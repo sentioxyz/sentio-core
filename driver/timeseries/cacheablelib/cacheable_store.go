@@ -47,16 +47,16 @@ func NewCacheableMeta(
 	processorId string,
 	processorVersion int,
 	processorReplica int,
+	processorTablePattern models.TablePattern,
 	projectId string,
-	tablePattern models.TablePattern,
 	conn ckhmanager.Conn,
 ) (cache.Cacheable[timeseries.Store], error) {
 	return NewCacheableMetaWithTTL(
 		processorId,
 		processorVersion,
 		processorReplica,
+		processorTablePattern,
 		projectId,
-		tablePattern,
 		conn,
 		time.Hour,
 		time.Minute*5,
@@ -67,8 +67,8 @@ func NewCacheableMetaWithTTL(
 	processorId string,
 	processorVersion int,
 	processorReplica int,
+	processorTablePattern models.TablePattern,
 	projectId string,
-	tablePattern models.TablePattern,
 	conn ckhmanager.Conn,
 	ttl, refreshInterval time.Duration,
 ) (cache.Cacheable[timeseries.Store], error) {
@@ -89,7 +89,7 @@ func NewCacheableMetaWithTTL(
 		conn.GetDatabase(),
 		processorId,
 		processorReplica,
-		tablePattern,
+		processorTablePattern,
 		clickhouse.Option{},
 	)
 	tsm.reload = func(ctx context.Context) (timeseries.Store, error) {

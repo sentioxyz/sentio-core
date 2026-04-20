@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"gorm.io/driver/postgres"
@@ -59,6 +60,18 @@ type HostedProcessorRow struct {
 
 func (HostedProcessorRow) TableName() string { return "sentio_node_hosted_processors" }
 
+type DatabaseInfoRow struct {
+	gorm.Model
+	StateKey    string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:state_key"`
+	DatabaseId  string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:database_id"`
+	Owner       string `gorm:"not null;column:owner"`
+	Operators   string `gorm:"type:jsonb;not null;default:'[]';column:operators"`
+	Allocations string `gorm:"type:jsonb;not null;default:'[]';column:allocations"`
+	Tables      string `gorm:"type:jsonb;not null;default:'[]';column:tables"`
+}
+
+func (DatabaseInfoRow) TableName() string { return "sentio_node_databases" }
+
 func NewPostgresStore(dsn string, stateKey string) (*PostgresStore, error) {
 	if dsn == "" {
 		return nil, errors.New("postgres dsn is required")
@@ -72,7 +85,7 @@ func NewPostgresStore(dsn string, stateKey string) (*PostgresStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&StateRow{}, &IndexerInfoRow{}, &ProcessorAllocationRow{}, &ProcessorInfoRow{}, &HostedProcessorRow{}); err != nil {
+	if err := db.AutoMigrate(&StateRow{}, &IndexerInfoRow{}, &ProcessorAllocationRow{}, &ProcessorInfoRow{}, &HostedProcessorRow{}, &DatabaseInfoRow{}); err != nil {
 		return nil, err
 	}
 	return &PostgresStore{db: db, stateKey: stateKey}, nil
@@ -92,6 +105,7 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 		ProcessorInfos:       map[string]ProcessorInfo{},
 		IndexerInfos:         map[uint64]IndexerInfo{},
 		HostedProcessors:     map[string]bool{},
+		Databases:            map[string]DatabaseInfo{},
 	}
 
 	var stateRow StateRow
@@ -159,6 +173,35 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 	for _, r := range hostedProcessors {
 		st.HostedProcessors[r.ProcessorId] = true
 	}
+
+	var databases []DatabaseInfoRow
+	if err := s.db.WithContext(ctx).
+		Where("state_key = ?", s.stateKey).
+		Find(&databases).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range databases {
+		info := DatabaseInfo{
+			DatabaseId: r.DatabaseId,
+			Owner:      r.Owner,
+		}
+		if r.Operators != "" {
+			if err := json.Unmarshal([]byte(r.Operators), &info.Operators); err != nil {
+				return nil, err
+			}
+		}
+		if r.Allocations != "" {
+			if err := json.Unmarshal([]byte(r.Allocations), &info.Allocations); err != nil {
+				return nil, err
+			}
+		}
+		if r.Tables != "" {
+			if err := json.Unmarshal([]byte(r.Tables), &info.Tables); err != nil {
+				return nil, err
+			}
+		}
+		st.Databases[r.DatabaseId] = info
+	}
 	return st, nil
 }
 
@@ -177,6 +220,9 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 			return err
 		}
 		if err := tx.Where("state_key = ?", s.stateKey).Delete(&HostedProcessorRow{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("state_key = ?", s.stateKey).Delete(&DatabaseInfoRow{}).Error; err != nil {
 			return err
 		}
 
@@ -247,6 +293,37 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 				rows = append(rows, HostedProcessorRow{
 					StateKey:    s.stateKey,
 					ProcessorId: processorId,
+				})
+			}
+			if len(rows) > 0 {
+				if err := tx.Create(&rows).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		{
+			var rows []DatabaseInfoRow
+			for databaseId, info := range state.GetDatabases() {
+				operators, err := json.Marshal(info.Operators)
+				if err != nil {
+					return err
+				}
+				allocations, err := json.Marshal(info.Allocations)
+				if err != nil {
+					return err
+				}
+				tables, err := json.Marshal(info.Tables)
+				if err != nil {
+					return err
+				}
+				rows = append(rows, DatabaseInfoRow{
+					StateKey:    s.stateKey,
+					DatabaseId:  databaseId,
+					Owner:       info.Owner,
+					Operators:   string(operators),
+					Allocations: string(allocations),
+					Tables:      string(tables),
 				})
 			}
 			if len(rows) > 0 {

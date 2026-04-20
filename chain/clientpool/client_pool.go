@@ -49,13 +49,18 @@ func (es entryStatus[CLIENT]) Snapshot() any {
 }
 
 type poolStatus struct {
+	Ready         bool
 	LatestBlock   Block
 	LatestQueue   queue.Queue[Block]
 	BlockInterval time.Duration
 }
 
 func (ps poolStatus) Snapshot() any {
+	if !ps.Ready {
+		return map[string]any{"ready": ps.Ready}
+	}
 	return map[string]any{
+		"ready":         ps.Ready,
 		"latestBlock":   ps.LatestBlock.String(),
 		"blockInterval": ps.BlockInterval.String(),
 	}
@@ -174,6 +179,7 @@ func (p *ClientPool[CONFIG, CLIENT]) poolStatusBuilder(
 	if len(valid) == 0 {
 		return pre // no valid entries, just return pre status
 	}
+	ps.Ready = true
 	// calculate ps.LatestBlock
 	latest := valid[0].Status.LatestBlock
 	for i := 1; i < len(valid); i++ {
@@ -683,7 +689,37 @@ func (p *ClientPool[CONFIG, CLIENT]) Start(ctx context.Context, ch <-chan PoolCo
 	}
 }
 
-func (p *ClientPool[CONFIG, CLIENT]) GetLatest() (Block, time.Duration) {
-	ps, _ := p.pool.Status()
-	return ps.LatestBlock, ps.BlockInterval
+func (p *ClientPool[CONFIG, CLIENT]) GetState() (latest Block, blockInterval time.Duration, ready bool, psi uint64) {
+	ps, psi := p.pool.Status()
+	return ps.LatestBlock, ps.BlockInterval, ps.Ready, psi
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) WaitState(ctx context.Context, psiGT uint64) error {
+	return p.pool.Wait(ctx, psiGT)
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) WaitBlock(ctx context.Context, numberGE uint64) (Block, error) {
+	var psi uint64
+	var ready bool
+	var latest Block
+	for !ready || latest.Number < numberGE {
+		if err := p.WaitState(ctx, psi); err != nil {
+			return latest, err
+		}
+		latest, _, ready, psi = p.GetState()
+	}
+	return latest, nil
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) WaitBlockInterval(ctx context.Context) (time.Duration, error) {
+	var psi uint64
+	var ready bool
+	var interval time.Duration
+	for !ready || interval == 0 {
+		if err := p.WaitState(ctx, psi); err != nil {
+			return interval, err
+		}
+		_, interval, ready, psi = p.GetState()
+	}
+	return interval, nil
 }

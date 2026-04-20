@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "range",
+    srcs = [
+        "range.go",
+        "set.go",
+        "utils.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/range",
+    visibility = ["//visibility:public"],
+    deps = ["//common/utils"],
+)
+
+go_test(
+    name = "range_test",
+    srcs = [
+        "range_test.go",
+        "set_test.go",
+        "utils_test.go",
+    ],
+    embed = [":range"],
+    deps = [
+        "//common/utils",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

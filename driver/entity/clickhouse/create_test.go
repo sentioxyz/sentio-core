@@ -10,6 +10,7 @@ import (
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/schema"
+	"sentioxyz/sentio-core/service/processor/models"
 )
 
 const testSchemaCnt = `
@@ -309,12 +310,13 @@ func Test_createTableSQL(t *testing.T) {
 
 	ctrl := chx.NewController(nil, "")
 	s := Store{
-		ctrl:        ctrl,
-		database:    "db",
-		processorID: "processor0",
-		sch:         sch,
-		schHash:     "xxx",
-		tableOpt:    DefaultCreateTableOption,
+		ctrl:                  ctrl,
+		database:              "db",
+		processorID:           "processor0",
+		processorTablePattern: models.TablePatternPlatformV1,
+		sch:                   sch,
+		schHash:               "xxx",
+		tableOpt:              DefaultCreateTableOption,
 	}
 
 	sqlMap := make(map[string][]string)
@@ -1918,11 +1920,12 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 
 	ctrl := chx.NewController(nil, "")
 	s := Store{
-		ctrl:        ctrl,
-		database:    "db",
-		processorID: "processor0",
-		sch:         sch,
-		schHash:     "xxx",
+		ctrl:                  ctrl,
+		database:              "db",
+		processorID:           "processor0",
+		processorTablePattern: models.TablePatternPlatformV1,
+		sch:                   sch,
+		schHash:               "xxx",
 		feaOpt: Features{
 			VersionedCollapsing:    true,
 			TimestampUseDateTime64: true,
@@ -4208,12 +4211,13 @@ type EntityB @entity(immutable: false) {
 
 	ctrl := chx.NewController(nil, "")
 	s := Store{
-		ctrl:        ctrl,
-		database:    "db",
-		processorID: "processor0",
-		sch:         sch,
-		schHash:     "xxx",
-		tableOpt:    DefaultCreateTableOption,
+		ctrl:                  ctrl,
+		database:              "db",
+		processorID:           "processor0",
+		processorTablePattern: models.TablePatternPlatformV1,
+		sch:                   sch,
+		schHash:               "xxx",
+		tableOpt:              DefaultCreateTableOption,
 	}
 
 	sqlMap := make(map[string][]string)

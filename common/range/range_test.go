@@ -6,7 +6,7 @@ import (
 )
 
 func newRange(a, b uint64) Range {
-	return Range{StartBlock: a, EndBlock: &b}
+	return Range{Start: a, End: &b}
 }
 
 func Test_remove(t *testing.T) {
@@ -32,8 +32,8 @@ func Test_equal(t *testing.T) {
 	assert.Equal(t, true, EmptyRange.Equal(newRange(1, 0)))
 	assert.Equal(t, true, newRange(1, 0).Equal(EmptyRange))
 
-	assert.Equal(t, true, Range{StartBlock: 1}.Equal(Range{StartBlock: 1}))
-	assert.Equal(t, false, Range{StartBlock: 1}.Equal(Range{StartBlock: 2}))
+	assert.Equal(t, true, Range{Start: 1}.Equal(Range{Start: 1}))
+	assert.Equal(t, false, Range{Start: 1}.Equal(Range{Start: 2}))
 
 	for si := uint64(0); si <= 10; si++ {
 		for ei := si; ei <= 10; ei++ {
@@ -53,17 +53,17 @@ func Test_include(t *testing.T) {
 	assert.Equal(t, true, EmptyRange.Include(newRange(1, 0)))
 	assert.Equal(t, true, newRange(1, 0).Include(EmptyRange))
 
-	assert.Equal(t, false, EmptyRange.Include(Range{StartBlock: 0}))
-	assert.Equal(t, true, Range{StartBlock: 0}.Include(EmptyRange))
+	assert.Equal(t, false, EmptyRange.Include(Range{Start: 0}))
+	assert.Equal(t, true, Range{Start: 0}.Include(EmptyRange))
 
-	assert.Equal(t, true, Range{StartBlock: 0}.Include(newRange(0, 0)))
-	assert.Equal(t, true, Range{StartBlock: 0}.Include(newRange(0, 1)))
-	assert.Equal(t, true, Range{StartBlock: 0}.Include(newRange(1, 1)))
-	assert.Equal(t, true, Range{StartBlock: 0}.Include(newRange(1, 2)))
-	assert.Equal(t, false, newRange(0, 0).Include(Range{StartBlock: 0}))
-	assert.Equal(t, false, newRange(0, 1).Include(Range{StartBlock: 0}))
-	assert.Equal(t, false, newRange(1, 1).Include(Range{StartBlock: 0}))
-	assert.Equal(t, false, newRange(1, 2).Include(Range{StartBlock: 0}))
+	assert.Equal(t, true, Range{Start: 0}.Include(newRange(0, 0)))
+	assert.Equal(t, true, Range{Start: 0}.Include(newRange(0, 1)))
+	assert.Equal(t, true, Range{Start: 0}.Include(newRange(1, 1)))
+	assert.Equal(t, true, Range{Start: 0}.Include(newRange(1, 2)))
+	assert.Equal(t, false, newRange(0, 0).Include(Range{Start: 0}))
+	assert.Equal(t, false, newRange(0, 1).Include(Range{Start: 0}))
+	assert.Equal(t, false, newRange(1, 1).Include(Range{Start: 0}))
+	assert.Equal(t, false, newRange(1, 2).Include(Range{Start: 0}))
 
 	assert.Equal(t, true, newRange(1, 3).Include(newRange(1, 2)))
 	assert.Equal(t, true, newRange(1, 3).Include(newRange(1, 3)))

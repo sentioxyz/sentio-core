@@ -334,9 +334,9 @@ type Processor struct {
 	EventlogVersion     int32 `gorm:"default:1"`
 	EntitySchemaVersion int32
 
-	DriverVersion int32  `gorm:"default:0"`
-	NumWorkers    int32  `gorm:"default:1"`
-	TablePattern  string `gorm:"default:'platform_v1'"`
+	DriverVersion int32        `gorm:"default:0"`
+	NumWorkers    int32        `gorm:"default:1"`
+	TablePattern  TablePattern `gorm:"default:'platform_v1'"`
 
 	Pause       bool
 	PauseAt     time.Time

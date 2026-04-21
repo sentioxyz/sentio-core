@@ -25,7 +25,8 @@ type DatabaseAllocation struct {
 }
 
 type TableInfo struct {
-	TableId string `json:"tableId" yaml:"table_id"`
+	TableId   string `json:"tableId" yaml:"table_id"`
+	TableType string `json:"tableType" yaml:"table_type"`
 }
 
 type DatabaseInfo struct {

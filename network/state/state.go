@@ -34,6 +34,11 @@ type State interface {
 	DeleteDatabaseAllocation(ctx context.Context, databaseId string, indexerId uint64) error
 	UpsertDatabaseTable(ctx context.Context, databaseId string, table TableInfo) error
 	DeleteDatabaseTable(ctx context.Context, tableId string) error
+
+	GetDatabasePermissions() map[string]map[string]string
+	GetAccountDatabasePermissions(account string) map[string]string
+	SetDatabasePermission(ctx context.Context, account string, databaseId string, permission string) error
+	DeleteDatabasePermission(ctx context.Context, account string, databaseId string) error
 }
 
 type PlainState struct {
@@ -43,6 +48,7 @@ type PlainState struct {
 	IndexerInfos         map[uint64]IndexerInfo                    `yaml:"indexer_infos"`
 	HostedProcessors     map[string]bool                           `yaml:"hosted_processors"`
 	Databases            map[string]DatabaseInfo                   `yaml:"databases"`
+	DatabasePermissions  map[string]map[string]string              `yaml:"database_permissions"`
 }
 
 func (s *PlainState) GetLastBlock() uint64 {
@@ -261,6 +267,36 @@ func (s *PlainState) DeleteDatabaseTable(_ context.Context, tableId string) erro
 			s.Databases[databaseId] = info
 			return nil
 		}
+	}
+	return nil
+}
+
+func (s *PlainState) GetDatabasePermissions() map[string]map[string]string {
+	return s.DatabasePermissions
+}
+
+func (s *PlainState) GetAccountDatabasePermissions(account string) map[string]string {
+	return s.DatabasePermissions[account]
+}
+
+func (s *PlainState) SetDatabasePermission(_ context.Context, account string, databaseId string, permission string) error {
+	perms, ok := s.DatabasePermissions[account]
+	if !ok {
+		perms = map[string]string{}
+		s.DatabasePermissions[account] = perms
+	}
+	perms[databaseId] = permission
+	return nil
+}
+
+func (s *PlainState) DeleteDatabasePermission(_ context.Context, account string, databaseId string) error {
+	perms, ok := s.DatabasePermissions[account]
+	if !ok {
+		return nil
+	}
+	delete(perms, databaseId)
+	if len(perms) == 0 {
+		delete(s.DatabasePermissions, account)
 	}
 	return nil
 }

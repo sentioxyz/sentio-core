@@ -7,4 +7,5 @@ const (
 	MappingProcessorInfos       OnChainKey = "ProcessorInfos"
 	MappingIndexerInfos         OnChainKey = "IndexerInfos"
 	MappingDatabases            OnChainKey = "Databases"
+	MappingDatabasePermissions  OnChainKey = "DatabasePermissions"
 )

@@ -22,6 +22,7 @@ func (s *FileStore) Load(ctx context.Context) (*PlainState, error) {
 		IndexerInfos:         map[uint64]IndexerInfo{},
 		HostedProcessors:     map[string]bool{},
 		Databases:            map[string]DatabaseInfo{},
+		DatabasePermissions:  map[string]map[string]string{},
 	}
 	data, err := os.ReadFile(s.filename)
 	if err != nil {
@@ -46,6 +47,9 @@ func (s *FileStore) Load(ctx context.Context) (*PlainState, error) {
 	if state.Databases == nil {
 		state.Databases = map[string]DatabaseInfo{}
 	}
+	if state.DatabasePermissions == nil {
+		state.DatabasePermissions = map[string]map[string]string{}
+	}
 	return &state, nil
 }
 
@@ -57,6 +61,7 @@ func (s *FileStore) Save(ctx context.Context, state State) error {
 		IndexerInfos:         state.GetIndexerInfos(),
 		HostedProcessors:     state.GetHostedProcessors(),
 		Databases:            state.GetDatabases(),
+		DatabasePermissions:  state.GetDatabasePermissions(),
 	}
 	data, err := yaml.Marshal(plainState)
 	if err != nil {

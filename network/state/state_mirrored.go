@@ -14,6 +14,7 @@ type StateMirrored struct {
 	processorAllocationCodec statemirror.JSONCodec[string, []ProcessorAllocation]
 	processorInfoCodec       statemirror.JSONCodec[string, ProcessorInfo]
 	databaseCodec            statemirror.JSONCodec[string, DatabaseInfo]
+	databasePermissionsCodec statemirror.JSONCodec[string, map[string]string]
 }
 
 func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror.Mirror) (*StateMirrored, error) {
@@ -24,6 +25,7 @@ func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror
 		processorAllocationCodec: newCodec[[]ProcessorAllocation](),
 		processorInfoCodec:       newCodec[ProcessorInfo](),
 		databaseCodec:            newCodec[DatabaseInfo](),
+		databasePermissionsCodec:         newCodec[map[string]string](),
 	}
 	if err := st.SyncMirror(ctx); err != nil {
 		return nil, err
@@ -232,6 +234,43 @@ func (s *StateMirrored) DeleteDatabaseTable(ctx context.Context, tableId string)
 	return nil
 }
 
+func (s *StateMirrored) GetDatabasePermissions() map[string]map[string]string {
+	return s.inner.GetDatabasePermissions()
+}
+
+func (s *StateMirrored) GetAccountDatabasePermissions(account string) map[string]string {
+	return s.inner.GetAccountDatabasePermissions(account)
+}
+
+func (s *StateMirrored) SetDatabasePermission(ctx context.Context, account string, databaseId string, permission string) error {
+	if err := s.inner.SetDatabasePermission(ctx, account, databaseId, permission); err != nil {
+		return err
+	}
+	return s.syncAccountDatabasePermissions(ctx, account)
+}
+
+func (s *StateMirrored) DeleteDatabasePermission(ctx context.Context, account string, databaseId string) error {
+	if err := s.inner.DeleteDatabasePermission(ctx, account, databaseId); err != nil {
+		return err
+	}
+	return s.syncAccountDatabasePermissions(ctx, account)
+}
+
+func (s *StateMirrored) syncAccountDatabasePermissions(ctx context.Context, account string) error {
+	perms, ok := s.inner.DatabasePermissions[account]
+	var diff statemirror.TypedDiff[string, map[string]string]
+	if ok && len(perms) > 0 {
+		diff = statemirror.TypedDiff[string, map[string]string]{
+			Added: map[string]map[string]string{account: perms},
+		}
+	} else {
+		diff = statemirror.TypedDiff[string, map[string]string]{
+			Deleted: []string{account},
+		}
+	}
+	return applyDiff(ctx, s.mirror, statemirror.MappingDatabasePermissions, s.databasePermissionsCodec, &diff)
+}
+
 func (s *StateMirrored) syncDatabase(ctx context.Context, databaseId string) error {
 	info, ok := s.inner.Databases[databaseId]
 	var diff statemirror.TypedDiff[string, DatabaseInfo]
@@ -289,6 +328,16 @@ func (s *StateMirrored) SyncMirror(ctx context.Context) error {
 		databaseDiff.Added[databaseId] = info
 	}
 	if err := applyDiff(ctx, s.mirror, statemirror.MappingDatabases, s.databaseCodec, databaseDiff); err != nil {
+		return err
+	}
+
+	databasePermissionsDiff := &statemirror.TypedDiff[string, map[string]string]{
+		Added: make(map[string]map[string]string),
+	}
+	for account, perms := range s.inner.GetDatabasePermissions() {
+		databasePermissionsDiff.Added[account] = perms
+	}
+	if err := applyDiff(ctx, s.mirror, statemirror.MappingDatabasePermissions, s.databasePermissionsCodec, databasePermissionsDiff); err != nil {
 		return err
 	}
 	return nil

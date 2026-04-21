@@ -72,6 +72,16 @@ type DatabaseInfoRow struct {
 
 func (DatabaseInfoRow) TableName() string { return "sentio_node_databases" }
 
+type DatabasePermissionRow struct {
+	gorm.Model
+	StateKey   string `gorm:"uniqueIndex:database_permission_state_key_account_database_id_unique;column:state_key"`
+	Account    string `gorm:"uniqueIndex:database_permission_state_key_account_database_id_unique;column:account"`
+	DatabaseId string `gorm:"uniqueIndex:database_permission_state_key_account_database_id_unique;column:database_id"`
+	Permission string `gorm:"not null;column:permission"`
+}
+
+func (DatabasePermissionRow) TableName() string { return "sentio_node_database_permissions" }
+
 func NewPostgresStore(dsn string, stateKey string) (*PostgresStore, error) {
 	if dsn == "" {
 		return nil, errors.New("postgres dsn is required")
@@ -85,7 +95,7 @@ func NewPostgresStore(dsn string, stateKey string) (*PostgresStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&StateRow{}, &IndexerInfoRow{}, &ProcessorAllocationRow{}, &ProcessorInfoRow{}, &HostedProcessorRow{}, &DatabaseInfoRow{}); err != nil {
+	if err := db.AutoMigrate(&StateRow{}, &IndexerInfoRow{}, &ProcessorAllocationRow{}, &ProcessorInfoRow{}, &HostedProcessorRow{}, &DatabaseInfoRow{}, &DatabasePermissionRow{}); err != nil {
 		return nil, err
 	}
 	return &PostgresStore{db: db, stateKey: stateKey}, nil
@@ -106,6 +116,7 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 		IndexerInfos:         map[uint64]IndexerInfo{},
 		HostedProcessors:     map[string]bool{},
 		Databases:            map[string]DatabaseInfo{},
+		DatabasePermissions:  map[string]map[string]string{},
 	}
 
 	var stateRow StateRow
@@ -202,6 +213,21 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 		}
 		st.Databases[r.DatabaseId] = info
 	}
+
+	var permissions []DatabasePermissionRow
+	if err := s.db.WithContext(ctx).
+		Where("state_key = ?", s.stateKey).
+		Find(&permissions).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range permissions {
+		perms, ok := st.DatabasePermissions[r.Account]
+		if !ok {
+			perms = map[string]string{}
+			st.DatabasePermissions[r.Account] = perms
+		}
+		perms[r.DatabaseId] = r.Permission
+	}
 	return st, nil
 }
 
@@ -223,6 +249,9 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 			return err
 		}
 		if err := tx.Where("state_key = ?", s.stateKey).Delete(&DatabaseInfoRow{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("state_key = ?", s.stateKey).Delete(&DatabasePermissionRow{}).Error; err != nil {
 			return err
 		}
 
@@ -325,6 +354,25 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 					Allocations: string(allocations),
 					Tables:      string(tables),
 				})
+			}
+			if len(rows) > 0 {
+				if err := tx.Create(&rows).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		{
+			var rows []DatabasePermissionRow
+			for account, perms := range state.GetDatabasePermissions() {
+				for databaseId, permission := range perms {
+					rows = append(rows, DatabasePermissionRow{
+						StateKey:   s.stateKey,
+						Account:    account,
+						DatabaseId: databaseId,
+						Permission: permission,
+					})
+				}
 			}
 			if len(rows) > 0 {
 				if err := tx.Create(&rows).Error; err != nil {

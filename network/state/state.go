@@ -33,7 +33,7 @@ type State interface {
 	UpsertDatabaseAllocation(ctx context.Context, databaseId string, allocation DatabaseAllocation) error
 	DeleteDatabaseAllocation(ctx context.Context, databaseId string, indexerId uint64) error
 	UpsertDatabaseTable(ctx context.Context, databaseId string, table TableInfo) error
-	DeleteDatabaseTable(ctx context.Context, tableId string) error
+	DeleteDatabaseTable(ctx context.Context, databaseId string, tableId string) error
 
 	GetDatabasePermissions() map[string]map[string]string
 	GetAccountDatabasePermissions(account string) map[string]string
@@ -251,23 +251,20 @@ func (s *PlainState) UpsertDatabaseTable(_ context.Context, databaseId string, t
 	return nil
 }
 
-func (s *PlainState) DeleteDatabaseTable(_ context.Context, tableId string) error {
-	for databaseId, info := range s.Databases {
-		filtered := info.Tables[:0]
-		removed := false
-		for _, t := range info.Tables {
-			if t.TableId == tableId {
-				removed = true
-				continue
-			}
-			filtered = append(filtered, t)
-		}
-		if removed {
-			info.Tables = filtered
-			s.Databases[databaseId] = info
-			return nil
-		}
+func (s *PlainState) DeleteDatabaseTable(_ context.Context, databaseId string, tableId string) error {
+	info, ok := s.Databases[databaseId]
+	if !ok {
+		return nil
 	}
+	filtered := info.Tables[:0]
+	for _, t := range info.Tables {
+		if t.TableId == tableId {
+			continue
+		}
+		filtered = append(filtered, t)
+	}
+	info.Tables = filtered
+	s.Databases[databaseId] = info
 	return nil
 }
 

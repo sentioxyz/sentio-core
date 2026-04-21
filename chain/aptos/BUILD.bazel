@@ -2,11 +2,21 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "aptos",
-    srcs = ["types.go"],
+    srcs = [
+        "client.go",
+        "extserver.go",
+        "slot.go",
+        "types.go",
+    ],
     importpath = "sentioxyz/sentio-core/chain/aptos",
     visibility = ["//visibility:public"],
     deps = [
+        "//chain/chain",
+        "//chain/clientpool",
+        "//chain/clientpool/ex",
         "//chain/move",
+        "//common/https",
+        "//common/range",
         "//common/set",
         "//common/utils",
         "@com_github_aptos_labs_aptos_go_sdk//:aptos-go-sdk",

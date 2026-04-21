@@ -443,6 +443,9 @@ func (rs RangeSet) FindContains(r Range) (Range, bool) {
 }
 
 func (rs RangeSet) GetRanges() []Range {
+	if rs.IsEmpty() {
+		return nil
+	}
 	result := make([]Range, 0, len(rs.Holes)+1)
 	start := rs.Start
 	for _, hole := range rs.Holes {

@@ -4,13 +4,17 @@ go_library(
     name = "range",
     srcs = [
         "cutter.go",
+        "parser.go",
         "range.go",
         "set.go",
         "utils.go",
     ],
     importpath = "sentioxyz/sentio-core/common/range",
     visibility = ["//visibility:public"],
-    deps = ["//common/utils"],
+    deps = [
+        "//common/utils",
+        "@com_github_pkg_errors//:errors",
+    ],
 )
 
 go_test(

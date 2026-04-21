@@ -8,6 +8,7 @@ go_library(
         "external.go",
         "snapshot.go",
         "statistic.go",
+        "utils.go",
     ],
     importpath = "sentioxyz/sentio-core/chain/clientpool",
     visibility = ["//visibility:public"],

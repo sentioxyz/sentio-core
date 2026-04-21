@@ -196,29 +196,13 @@ func (p *ClientPool[CONFIG, CLIENT]) poolStatusBuilder(
 			ps.LatestBlock = ent.Status.LatestBlock
 		}
 	}
-	// push ps.LatestBlock to ps.LatestQueue and trim ps.LatestQueue
-	ps.LatestQueue = pre.LatestQueue
-	if ps.LatestQueue == nil {
-		ps.LatestQueue = queue.NewQueue[Block]()
-	}
-	if bc, has := ps.LatestQueue.Back(); !has || bc.Number < ps.LatestBlock.Number {
-		ps.LatestQueue.PushBack(ps.LatestBlock)
-	}
-	for {
-		fr, _ := ps.LatestQueue.Front()
-		if ps.LatestBlock.Timestamp.Sub(fr.Timestamp) <= config.CheckSpeedInterval {
-			break
-		}
-		ps.LatestQueue.PopFront()
-	}
-	// calculate ps.BlockInterval
-	logger := log.With("pool", p.pool.Name(), "latestQueueLen", ps.LatestQueue.Len(), "psi", psi+1)
-	ps.BlockInterval = pre.BlockInterval
-	fr, _ := ps.LatestQueue.Front()
-	if fr.Number < ps.LatestBlock.Number && fr.Timestamp.Before(ps.LatestBlock.Timestamp) {
-		ps.BlockInterval = ps.LatestBlock.Timestamp.Sub(fr.Timestamp) / time.Duration(ps.LatestBlock.Number-fr.Number)
+	// push ps.LatestBlock to ps.LatestQueue and trim ps.LatestQueue and calculate ps.BlockInterval
+	ps.LatestQueue, ps.BlockInterval = pushLatestQueue(pre.LatestQueue, ps.LatestBlock, config.CheckSpeedInterval)
+	if ps.BlockInterval == 0 {
+		ps.BlockInterval = pre.BlockInterval
 	}
 	// report
+	logger := log.With("pool", p.pool.Name(), "latestQueueLen", ps.LatestQueue.Len(), "psi", psi+1)
 	logger.Debugf("pool latest %s => %s [%s]", pre.LatestBlock, ps.LatestBlock, ps.BlockInterval)
 	return ps
 }

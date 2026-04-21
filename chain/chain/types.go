@@ -6,11 +6,15 @@ import (
 	rg "sentioxyz/sentio-core/common/range"
 )
 
-type Slot interface {
-	GetNumber() uint64
-	GetHash() string
-	GetParentHash() string
-	Linked() bool
+type LatestSlotCache[SLOT Slot] interface {
+	GetRange(ctx context.Context) (rg.Range, error)
+	Traverse(
+		ctx context.Context,
+		interval rg.Range,
+		fn func(ctx context.Context, st SLOT) error,
+	) (cached rg.Range, err error)
+	Wait(ctx context.Context, latestGt uint64) (latest uint64, err error)
+	GetByNumber(ctx context.Context, sn uint64) (SLOT, error) // will return ErrSlotNotFound if not found in cache
 }
 
 type SlotLoader[SLOT Slot] interface {
@@ -24,13 +28,13 @@ type RangeStore interface {
 
 type SlotGetter[SLOT Slot] interface {
 	GetSlots(ctx context.Context, number rg.Range) ([]SLOT, error)
-	GetSlotHeader(ctx context.Context, number uint64) (slot.Header, error)
+	GetSlotHeader(ctx context.Context, number uint64) (Slot, error)
 }
 
 type Dimension[SLOT Slot] interface {
 	Init(ctx context.Context) error
 	Load(ctx context.Context, interval rg.Range, slotChan chan<- SLOT) error
-	LoadHeader(ctx context.Context, sn uint64) (slot.Header, error) // will return ErrSlotNotFound if not found
+	LoadHeader(ctx context.Context, sn uint64) (Slot, error) // will return ErrSlotNotFound if not found
 	GetRange(ctx context.Context) (rg.Range, error)
 	Wait(ctx context.Context, sn uint64) error
 	CheckMissing(ctx context.Context, interval rg.Range, missing chan<- rg.Range) error
@@ -39,7 +43,7 @@ type Dimension[SLOT Slot] interface {
 }
 
 type SimpleSlotStore[SLOT Slot] interface {
-	LoadHeader(ctx context.Context, sn uint64) (slot.Header, error)
+	LoadHeader(ctx context.Context, sn uint64) (Slot, error)
 	CheckMissing(ctx context.Context, interval rg.Range, missing chan<- rg.Range) error
 	Save(ctx context.Context, interval rg.Range, slotChan <-chan SLOT, doneChan chan<- rg.Range) error
 	Load(ctx context.Context, interval rg.Range, slotChan chan<- SLOT) error

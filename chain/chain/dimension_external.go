@@ -46,29 +46,29 @@ func (d *ExtServerDimension[SLOT]) Init(ctx context.Context) error {
 	return nil
 }
 
-func (d *ExtServerDimension[SLOT]) LoadHeader(ctx context.Context, sn number.Number) (slot.Header, error) {
+func (d *ExtServerDimension[SLOT]) LoadHeader(ctx context.Context, sn uint64) (Slot, error) {
 	return d.slotGetter.GetSlotHeader(ctx, sn)
 }
 
-func (d *ExtServerDimension[SLOT]) tryLoadSector(ctx context.Context, sector number.Range) ([]SLOT, error) {
+func (d *ExtServerDimension[SLOT]) tryLoadSector(ctx context.Context, sector rg.Range) ([]SLOT, error) {
 	// fetch slots
 	slots, err := d.slotGetter.GetSlots(ctx, sector)
 	if err != nil {
 		return nil, err
 	}
 	// check the data
-	if uint64(len(slots)) != sector.Size() {
+	if uint64(len(slots)) != *sector.Size() {
 		return nil, errors.Errorf("incomplete data, sector is %s but only got %d slots", sector, len(slots))
 	}
 	for i, st := range slots {
-		if exp := sector.L() + number.Number(i); exp != st.GetNumber() {
+		if exp := sector.Start + uint64(i); exp != st.GetNumber() {
 			return nil, errors.Errorf("invalid data, the #%d slot in sector %s is %d not %d", i, sector, st.GetNumber(), exp)
 		}
 	}
 	return slots, nil
 }
 
-func (d *ExtServerDimension[SLOT]) loadSector(ctx context.Context, sector number.Range, out chan<- SLOT) error {
+func (d *ExtServerDimension[SLOT]) loadSector(ctx context.Context, sector rg.Range, out chan<- SLOT) error {
 	_, logger := log.FromContext(ctx, "sector", sector)
 	const interval = time.Second
 	for tried := 0; ; tried++ {
@@ -100,16 +100,16 @@ func (d *ExtServerDimension[SLOT]) loadSector(ctx context.Context, sector number
 	}
 }
 
-func (d *ExtServerDimension[SLOT]) Load(ctx context.Context, interval number.Range, slotChan chan<- SLOT) error {
+func (d *ExtServerDimension[SLOT]) Load(ctx context.Context, interval rg.Range, slotChan chan<- SLOT) error {
 	ctx, logger := log.FromContext(ctx, "interval", interval)
 	logger.Debug("load begin")
 
 	g, ctx := errgroup.WithContext(ctx)
 	concurrency.MapO2MWithProducer(
 		g, ctx, d.loadConcurrency,
-		number.RangeCutter{Size: uint64(d.loadBatchSize)}.BuildProducer(interval),
+		rg.RangeCutter{Size: uint64(d.loadBatchSize)}.BuildProducer(interval),
 		slotChan,
-		func(ctx context.Context, index int, sector number.Range, taskOut chan<- SLOT) error {
+		func(ctx context.Context, index int, sector rg.Range, taskOut chan<- SLOT) error {
 			return d.loadSector(ctx, sector, taskOut)
 		})
 
@@ -121,52 +121,53 @@ func (d *ExtServerDimension[SLOT]) Load(ctx context.Context, interval number.Ran
 	return nil
 }
 
-func (d *ExtServerDimension[SLOT]) GetRange(ctx context.Context) (number.Range, error) {
-	latest, err := d.client.Latest(ctx)
+func (d *ExtServerDimension[SLOT]) GetRange(ctx context.Context) (rg.Range, error) {
+	latest, err := d.client.WaitBlock(ctx, 0)
 	if err != nil {
-		return number.Range{}, err
+		return rg.Range{}, err
 	}
-	latestNum := number.Number(latest.Number)
+	latestNum := latest.Number
 	if d.fallBehind > 0 {
 		var blockInterval time.Duration
-		if blockInterval, err = node.WaitValidBlockInterval(ctx, d.client); err != nil {
-			return number.Range{}, err
+		blockInterval, err = d.client.WaitBlockInterval(ctx)
+		if err != nil {
+			return rg.Range{}, err
 		}
-		latestNum -= number.Number(d.fallBehind / blockInterval)
+		latestNum -= uint64(d.fallBehind / blockInterval)
 	}
-	return d.validRange.GetIntersection(number.NewRange(0, latestNum)), nil
+	return d.validRange.Intersection(rg.NewRange(0, latestNum)), nil
 }
 
-func (d *ExtServerDimension[SLOT]) Wait(ctx context.Context, blockNumber number.Number) error {
-	if !d.validRange.ContainsNumber(blockNumber) {
+func (d *ExtServerDimension[SLOT]) Wait(ctx context.Context, blockNumber uint64) error {
+	if !d.validRange.Contains(blockNumber) {
 		_, logger := log.FromContext(ctx)
 		logger.Warnf("wait number %d out of valid range %s, will wait forever", blockNumber, d.validRange)
 		<-ctx.Done()
 		return ctx.Err()
 	}
 	if d.fallBehind > 0 {
-		blockInterval, err := node.WaitValidBlockInterval(ctx, d.client)
+		blockInterval, err := d.client.WaitBlockInterval(ctx)
 		if err != nil {
 			return err
 		}
-		blockNumber += number.Number(d.fallBehind / blockInterval)
+		blockNumber += uint64(d.fallBehind / blockInterval)
 	}
-	_, err := d.client.WaitBlock(ctx, uint64(blockNumber))
+	_, err := d.client.WaitBlock(ctx, blockNumber)
 	return err
 }
 
 func (d *ExtServerDimension[SLOT]) CheckMissing(
 	ctx context.Context,
-	interval number.Range,
-	missing chan<- number.Range,
+	interval rg.Range,
+	missing chan<- rg.Range,
 ) error {
 	return nil
 }
 
-func (d *ExtServerDimension[SLOT]) Save(ctx context.Context, interval number.Range, slotChan <-chan SLOT) error {
+func (d *ExtServerDimension[SLOT]) Save(ctx context.Context, interval rg.Range, slotChan <-chan SLOT) error {
 	panic("impossible")
 }
 
-func (d *ExtServerDimension[SLOT]) Delete(ctx context.Context, interval number.Range) error {
+func (d *ExtServerDimension[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
 	panic("impossible")
 }

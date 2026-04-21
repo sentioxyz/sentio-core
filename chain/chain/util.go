@@ -6,12 +6,11 @@ import (
 	"time"
 
 	"sentioxyz/sentio-core/common/log"
+	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio/chain/slot"
-	"sentioxyz/sentio/common/number"
 )
 
-func Load[SLOT slot.Slot](loader SlotLoader[SLOT], ctx context.Context, interval number.Range) ([]SLOT, error) {
+func Load[SLOT Slot](loader SlotLoader[SLOT], ctx context.Context, interval rg.Range) ([]SLOT, error) {
 	done := make(chan struct{})
 	ch := make(chan SLOT, 1024)
 	var result []SLOT
@@ -31,11 +30,11 @@ func Load[SLOT slot.Slot](loader SlotLoader[SLOT], ctx context.Context, interval
 }
 
 // traceForkPoint return the slot number on the leftmost with different hash
-func traceForkPoint[SLOT slot.Slot](
+func traceForkPoint[SLOT Slot](
 	ctx context.Context,
 	src, dst Dimension[SLOT],
-	position number.Number,
-) (number.Number, error) {
+	position uint64,
+) (uint64, error) {
 	ctx, logger := log.FromContext(ctx, "position", position)
 	logger.Debug("trace fork point begin")
 	for p := position; ; p-- {
@@ -50,7 +49,7 @@ func traceForkPoint[SLOT slot.Slot](
 		if sb == nil || db == nil {
 			return p, nil
 		}
-		logger.Debugf("tracing fork point, source is %s and destination is %s", slot.Summary(sb), slot.Summary(db))
+		logger.Debugf("tracing fork point, source is %s and destination is %s", SlotSummary(sb), SlotSummary(db))
 		if sb.GetHash() == db.GetHash() {
 			return p + 1, nil
 		}
@@ -60,14 +59,14 @@ func traceForkPoint[SLOT slot.Slot](
 	}
 }
 
-func GetSlotByChecker[SLOT slot.Slot](
+func GetSlotByChecker[SLOT Slot](
 	ctx context.Context,
 	slotCache LatestSlotCache[SLOT],
 	checker func(ctx context.Context, st SLOT) (bool, error),
 ) (SLOT, bool, error) {
 	var errFound = errors.New("found")
 	var result SLOT
-	_, err := slotCache.Traverse(ctx, number.NewFullRange(), func(ctx context.Context, st SLOT) error {
+	_, err := slotCache.Traverse(ctx, rg.Range{}, func(ctx context.Context, st SLOT) error {
 		if ok, err := checker(ctx, st); err != nil {
 			return err
 		} else if ok {
@@ -85,18 +84,18 @@ func GetSlotByChecker[SLOT slot.Slot](
 	return result, false, nil
 }
 
-func GetSlotByHash[SLOT slot.Slot](ctx context.Context, slotCache LatestSlotCache[SLOT], hash string) (SLOT, bool, error) {
+func GetSlotByHash[SLOT Slot](ctx context.Context, slotCache LatestSlotCache[SLOT], hash string) (SLOT, bool, error) {
 	return GetSlotByChecker(ctx, slotCache, func(ctx context.Context, st SLOT) (bool, error) {
 		return st.GetHash() == hash, nil
 	})
 }
 
-func QueryRangeWithCacheV2[SLOT slot.Slot, ELEM interface{}](
+func QueryRangeWithCacheV2[SLOT Slot, ELEM interface{}](
 	ctx context.Context,
-	interval number.Range,
+	interval rg.Range,
 	slotCache LatestSlotCache[SLOT],
 	cachedBlockProcessor func(slot SLOT) ([]ELEM, error),
-	queryResultLoader func(ctx context.Context, queryRange number.Range) (results []ELEM, err error),
+	queryResultLoader func(ctx context.Context, queryRange rg.Range) (results []ELEM, err error),
 ) ([]ELEM, error) {
 	var cached []ELEM
 	_, logger := log.FromContext(ctx)
@@ -114,13 +113,13 @@ func QueryRangeWithCacheV2[SLOT slot.Slot, ELEM interface{}](
 		return nil, err
 	}
 
-	queryRange := interval.Sub(cachedRange).GetFirstRange()
+	queryRange := interval.Remove(cachedRange).First()
 	// If the L of first range already exceeds current head, no need to query.
 	// Examples:
 	//    Cached: [100..105], Query: [106], FirstRange: [106]
 	//    Cached: [100..105], Query: [103..110], FirstRange: [106..110]
 	//    Cached: [100..105], Query: [99..110], FirstRange: [99..99].  [106..110] is also ignored.
-	if queryRange.IsEmpty() || (!cachedRange.IsEmpty() && queryRange.L() > cachedRange.R()) {
+	if queryRange.IsEmpty() || (!cachedRange.IsEmpty() && queryRange.Start > *cachedRange.End) {
 		return cached, nil
 	}
 
@@ -133,13 +132,13 @@ func QueryRangeWithCacheV2[SLOT slot.Slot, ELEM interface{}](
 	return utils.MergeArr(queried, cached), nil
 }
 
-func WaitSlot(ctx context.Context, rangeGetter func(context.Context) (number.Range, error), sn number.Number) error {
+func WaitSlot(ctx context.Context, rangeGetter func(context.Context) (rg.Range, error), sn uint64) error {
 	for {
 		r, err := rangeGetter(ctx)
 		if err != nil {
 			return err
 		}
-		if r.ContainsNumber(sn) {
+		if r.Contains(sn) {
 			return nil
 		}
 		select {

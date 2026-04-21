@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "range",
     srcs = [
+        "cutter.go",
         "range.go",
         "set.go",
         "utils.go",
@@ -15,6 +16,7 @@ go_library(
 go_test(
     name = "range_test",
     srcs = [
+        "cutter_test.go",
         "range_test.go",
         "set_test.go",
         "utils_test.go",

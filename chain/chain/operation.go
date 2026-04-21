@@ -3,17 +3,16 @@ package chain
 import (
 	"context"
 	"errors"
-	"sentioxyz/sentio-core/common/utils"
 	"time"
 
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio/chain/slot"
-	"sentioxyz/sentio/common/number"
+	rg "sentioxyz/sentio-core/common/range"
+	"sentioxyz/sentio-core/common/utils"
 )
 
 // Repair if data is missing for a saved slot in dst chain, it will get data from src chain to fix it
-func Repair[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], interval number.Range) error {
+func Repair[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], interval rg.Range) error {
 	ctx, logger := log.FromContext(ctx, "repairRange", interval)
 	logger.Info("repair begin")
 
@@ -23,12 +22,12 @@ func Repair[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], inter
 		return err
 	}
 
-	missing := make(chan number.Range)
+	missing := make(chan rg.Range)
 	var total uint64
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		defer close(missing)
-		return dst.CheckMissing(ctx, curRange.GetIntersection(interval), missing)
+		return dst.CheckMissing(ctx, curRange.Intersection(interval), missing)
 	})
 	g.Go(func() error {
 		for repairRange := range missing {
@@ -37,7 +36,7 @@ func Repair[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], inter
 				logger.Warnfe(err, "repair %s failed", repairRange)
 				return err
 			}
-			total += repairRange.Size()
+			total += *repairRange.Size()
 		}
 		return nil
 	})
@@ -52,14 +51,14 @@ func Repair[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], inter
 // Copy the specified range of slots from src to dst chain.
 // If the slot number is not consecutive after copying, it will return ErrDiscontinuous.
 // If the link is not continuous after copying, it will return ErrLink.
-func Copy[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], interval number.Range, overwrite bool) error {
+func Copy[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], interval rg.Range, overwrite bool) error {
 	ctx, logger := log.FromContext(ctx, "copyRange", interval, "overwrite", overwrite)
 	srcRange, err := src.GetRange(ctx)
 	if err != nil {
 		logger.Warne(err, "copy canceled, get range of src chain failed")
 		return err
 	}
-	if srcRange.GetIntersection(interval).Size() == 0 {
+	if srcRange.Intersection(interval).IsEmpty() {
 		logger.Warnf("copy canceled, range of source %s and interval %s do not intersect, nothing can be copied",
 			srcRange, interval)
 		return nil
@@ -71,15 +70,15 @@ func Copy[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], interva
 		return err
 	}
 
-	if srcRange.GetIntersection(interval).GetDistance(curRange) > 0 {
+	if srcRange.Intersection(interval).GetDistance(curRange) > 0 {
 		logger.Warnfe(ErrDiscontinuous, "copy canceled, intersection of source range %s and interval %s is %s, "+
-			"is far away from range of destination %s", srcRange, interval, srcRange.GetIntersection(interval), curRange)
+			"is far away from range of destination %s", srcRange, interval, srcRange.Intersection(interval), curRange)
 		return ErrDiscontinuous
 	}
 
-	targetRanges := number.NewSet(srcRange.GetIntersection(interval))
+	targetRanges := rg.NewRangeSet(srcRange.Intersection(interval))
 	if !overwrite {
-		targetRanges = srcRange.GetIntersection(interval).Sub(curRange)
+		targetRanges = srcRange.Intersection(interval).Remove(curRange)
 	}
 	logger.Infof("copy begin, target is %s, source is %s, destination is %s", targetRanges, srcRange, curRange)
 	if err = doCopy(ctx, src, dst, targetRanges); err != nil {
@@ -90,9 +89,9 @@ func Copy[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], interva
 	return err
 }
 
-func doCopy[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], targetRanges number.Set) error {
+func doCopy[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], targetRanges rg.RangeSet) error {
 	g, ctx := errgroup.WithContext(ctx)
-	for _, x := range targetRanges {
+	for _, x := range targetRanges.GetRanges() {
 		targetRange := x
 		slotChan := make(chan SLOT)
 		g.Go(func() error {
@@ -113,12 +112,12 @@ type SyncConfig struct {
 	// DstTargetLen = 0 means do not delete history,
 	// if DstTargetLen > 0, DstLeftAlign > 0 must be true
 	DstTargetLen uint64
-	DstLeftAlign number.Number
+	DstLeftAlign uint64
 }
 
 // Sync continuously synchronize the latest slot from src to dst chain
 // If the src chain is rolled back, the saved slots of dst chain will also be rolled back
-func Sync[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncConfig) error {
+func Sync[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncConfig) error {
 	ctx, logger := log.FromContext(ctx)
 	logger.Infof("sync begin, config: %v", utils.MustJSONMarshal(config))
 
@@ -151,36 +150,36 @@ func Sync[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], config 
 			continue
 		}
 
-		var syncRange number.Range
+		var syncRange rg.Range
 		if curRange.IsEmpty() {
 			syncRange = srcRange
 		} else if curRange.GetDistance(srcRange) > 0 {
 			roundLogger.Warnfe(ErrDiscontinuous, "source range %s is far away from the destination range %s",
 				srcRange, curRange)
 			continue
-		} else if srcRange.R() <= curRange.R() {
+		} else if *srcRange.End <= *curRange.End {
 			roundLogger.Warnf("no slots need to sync, source is %s and destination is %s", srcRange, curRange)
 			continue
 		} else {
-			syncRange = srcRange.Sub(curRange).GetLastRange()
+			syncRange = srcRange.Remove(curRange).Last()
 		}
 
 		roundLogger.Infof("got sync range %s, source is %s and destination is %s", syncRange, srcRange, curRange)
 		roundLogger = roundLogger.With("syncRange", syncRange)
 
 		// Copy slots from position
-		err = doCopy(roundCtx, src, dst, number.NewSet(syncRange))
+		err = doCopy(roundCtx, src, dst, rg.NewRangeSet(syncRange))
 
 		if err == nil {
 			// Copy succeed
 			roundLogger.Info("sync succeed")
-			curRange = number.NewRange(curRange.L(), syncRange.R())
-			if config.DstTargetLen > 0 && curRange.Size() > config.DstTargetLen {
+			curRange = rg.Range{Start: curRange.Start, End: syncRange.End}
+			if config.DstTargetLen > 0 && *curRange.Size() > config.DstTargetLen {
 				// need to cut head
-				targetRangeLeft := curRange.R() + 1 - number.Number(config.DstTargetLen)
+				targetRangeLeft := *curRange.End + 1 - config.DstTargetLen
 				targetRangeLeft = targetRangeLeft / config.DstLeftAlign * config.DstLeftAlign
-				targetRange := number.NewRange(targetRangeLeft, curRange.R())
-				cutRange := curRange.Sub(targetRange).GetFirstRange()
+				targetRange := rg.Range{Start: targetRangeLeft, End: curRange.End}
+				cutRange := curRange.Remove(targetRange).First()
 				if !cutRange.IsEmpty() {
 					roundLogger.Infof("destination now is %s, will delete %s and keep %s", curRange, cutRange, targetRange)
 					if err = dst.Delete(roundCtx, cutRange); err != nil {
@@ -197,14 +196,14 @@ func Sync[SLOT slot.Slot](ctx context.Context, src, dst Dimension[SLOT], config 
 		}
 
 		// Failed because link error, try to trace the fork point and clean data in dst
-		var forkStart number.Number
-		forkStart, err = traceForkPoint(roundCtx, src, dst, syncRange.L()-1)
+		var forkStart uint64
+		forkStart, err = traceForkPoint(roundCtx, src, dst, syncRange.Start-1)
 		if err != nil {
 			roundLogger.Warne(err, "trace fork point failed")
 			continue
 		}
 		roundLogger.Warnf("detected fork from %d", forkStart)
-		if err = dst.Delete(roundCtx, number.NewRightUnlimitedRange(forkStart)); err != nil {
+		if err = dst.Delete(roundCtx, rg.Range{Start: forkStart}); err != nil {
 			roundLogger.Warnfe(err, "delete slots from %d failed", forkStart)
 		}
 	}

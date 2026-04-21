@@ -48,7 +48,7 @@ func Test_setInclude(t *testing.T) {
 }
 
 func Test_setLast(t *testing.T) {
-	assert.Equal(t, EmptyRange, EmptyBlockRangeSet.Last())
+	assert.Equal(t, EmptyRange, EmptyRangeSet.Last())
 
 	set := RangeSet{
 		Range: newRange(1, 10),
@@ -63,15 +63,15 @@ func Test_setLast(t *testing.T) {
 }
 
 func Test_setIntersection(t *testing.T) {
-	assert.Equal(t, EmptyBlockRangeSet, EmptyBlockRangeSet.Intersection(EmptyRange))
-	assert.Equal(t, EmptyBlockRangeSet, EmptyBlockRangeSet.Intersection(Range{Start: 1}))
+	assert.Equal(t, EmptyRangeSet, EmptyRangeSet.Intersection(EmptyRange))
+	assert.Equal(t, EmptyRangeSet, EmptyRangeSet.Intersection(Range{Start: 1}))
 
 	// [1][4-6][10]
 	set := RangeSet{
 		Range: newRange(1, 10),
 		Holes: [][2]uint64{{2, 3}, {7, 9}},
 	}
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(EmptyRange))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(EmptyRange))
 	assert.Equal(t, set, set.Intersection(Range{Start: 0}))
 
 	assert.Equal(t, RangeSet{Range: newRange(1, 1)}, set.Intersection(newRange(1, 1)))
@@ -89,8 +89,8 @@ func Test_setIntersection(t *testing.T) {
 	assert.Equal(t, set, set.Intersection(newRange(0, 10)))
 	assert.Equal(t, set, set.Intersection(newRange(0, 11)))
 
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(2, 2)))
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(2, 3)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(2, 2)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(2, 3)))
 	assert.Equal(t, RangeSet{Range: newRange(4, 4)}, set.Intersection(newRange(2, 4)))
 	assert.Equal(t, RangeSet{Range: newRange(4, 5)}, set.Intersection(newRange(2, 5)))
 	assert.Equal(t, RangeSet{Range: newRange(4, 6)}, set.Intersection(newRange(2, 6)))
@@ -100,7 +100,7 @@ func Test_setIntersection(t *testing.T) {
 	assert.Equal(t, RangeSet{Range: newRange(4, 10), Holes: [][2]uint64{{7, 9}}}, set.Intersection(newRange(2, 10)))
 	assert.Equal(t, RangeSet{Range: newRange(4, 10), Holes: [][2]uint64{{7, 9}}}, set.Intersection(newRange(2, 11)))
 
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(3, 3)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(3, 3)))
 	assert.Equal(t, RangeSet{Range: newRange(4, 4)}, set.Intersection(newRange(3, 4)))
 	assert.Equal(t, RangeSet{Range: newRange(4, 5)}, set.Intersection(newRange(3, 5)))
 	assert.Equal(t, RangeSet{Range: newRange(4, 6)}, set.Intersection(newRange(3, 6)))
@@ -134,31 +134,31 @@ func Test_setIntersection(t *testing.T) {
 	assert.Equal(t, RangeSet{Range: newRange(6, 10), Holes: [][2]uint64{{7, 9}}}, set.Intersection(newRange(6, 10)))
 	assert.Equal(t, RangeSet{Range: newRange(6, 10), Holes: [][2]uint64{{7, 9}}}, set.Intersection(newRange(6, 11)))
 
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(7, 7)))
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(7, 8)))
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(7, 9)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(7, 7)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(7, 8)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(7, 9)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Intersection(newRange(7, 10)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Intersection(newRange(7, 11)))
 
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(8, 8)))
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(8, 9)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(8, 8)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(8, 9)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Intersection(newRange(8, 10)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Intersection(newRange(8, 11)))
 
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(9, 9)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(9, 9)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Intersection(newRange(9, 10)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Intersection(newRange(9, 11)))
 
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Intersection(newRange(10, 10)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Intersection(newRange(10, 11)))
 
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(11, 11)))
-	assert.Equal(t, EmptyBlockRangeSet, set.Intersection(newRange(0, 0)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(11, 11)))
+	assert.Equal(t, EmptyRangeSet, set.Intersection(newRange(0, 0)))
 }
 
 func Test_setRemove(t *testing.T) {
-	assert.Equal(t, EmptyBlockRangeSet, EmptyBlockRangeSet.Remove(EmptyRange))
-	assert.Equal(t, EmptyBlockRangeSet, EmptyBlockRangeSet.Remove(Range{Start: 1}))
+	assert.Equal(t, EmptyRangeSet, EmptyRangeSet.Remove(EmptyRange))
+	assert.Equal(t, EmptyRangeSet, EmptyRangeSet.Remove(Range{Start: 1}))
 
 	set := RangeSet{ // [1][4-6][10]
 		Range: newRange(1, 10),
@@ -168,7 +168,7 @@ func Test_setRemove(t *testing.T) {
 		},
 	}
 	assert.Equal(t, set, set.Remove(EmptyRange))
-	assert.Equal(t, EmptyBlockRangeSet, set.Remove(Range{Start: 0}))
+	assert.Equal(t, EmptyRangeSet, set.Remove(Range{Start: 0}))
 
 	assert.Equal(t, RangeSet{Range: newRange(1, 10), Holes: [][2]uint64{{2, 3}, {7, 9}}}, set.Remove(newRange(0, 0)))
 	assert.Equal(t, RangeSet{Range: newRange(4, 10), Holes: [][2]uint64{{7, 9}}}, set.Remove(newRange(0, 1)))
@@ -180,8 +180,8 @@ func Test_setRemove(t *testing.T) {
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Remove(newRange(0, 7)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Remove(newRange(0, 8)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Remove(newRange(0, 9)))
-	assert.Equal(t, EmptyBlockRangeSet, set.Remove(newRange(0, 10)))
-	assert.Equal(t, EmptyBlockRangeSet, set.Remove(newRange(0, 11)))
+	assert.Equal(t, EmptyRangeSet, set.Remove(newRange(0, 10)))
+	assert.Equal(t, EmptyRangeSet, set.Remove(newRange(0, 11)))
 
 	assert.Equal(t, RangeSet{Range: newRange(4, 10), Holes: [][2]uint64{{7, 9}}}, set.Remove(newRange(1, 1)))
 	assert.Equal(t, RangeSet{Range: newRange(4, 10), Holes: [][2]uint64{{7, 9}}}, set.Remove(newRange(1, 2)))
@@ -192,8 +192,8 @@ func Test_setRemove(t *testing.T) {
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Remove(newRange(1, 7)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Remove(newRange(1, 8)))
 	assert.Equal(t, RangeSet{Range: newRange(10, 10)}, set.Remove(newRange(1, 9)))
-	assert.Equal(t, EmptyBlockRangeSet, set.Remove(newRange(1, 10)))
-	assert.Equal(t, EmptyBlockRangeSet, set.Remove(newRange(1, 11)))
+	assert.Equal(t, EmptyRangeSet, set.Remove(newRange(1, 10)))
+	assert.Equal(t, EmptyRangeSet, set.Remove(newRange(1, 11)))
 
 	assert.Equal(t, RangeSet{Range: newRange(1, 10), Holes: [][2]uint64{{2, 3}, {7, 9}}}, set.Remove(newRange(2, 2)))
 	assert.Equal(t, RangeSet{Range: newRange(1, 10), Holes: [][2]uint64{{2, 3}, {7, 9}}}, set.Remove(newRange(2, 3)))
@@ -262,9 +262,9 @@ func Test_setRemove(t *testing.T) {
 }
 
 func Test_setUnion(t *testing.T) {
-	assert.Equal(t, EmptyBlockRangeSet, EmptyBlockRangeSet.Union(EmptyRange))
+	assert.Equal(t, EmptyRangeSet, EmptyRangeSet.Union(EmptyRange))
 	assert.Equal(t, RangeSet{Range: Range{Start: 1}}, RangeSet{Range: Range{Start: 1}}.Union(EmptyRange))
-	assert.Equal(t, RangeSet{Range: Range{Start: 1}}, EmptyBlockRangeSet.Union(Range{Start: 1}))
+	assert.Equal(t, RangeSet{Range: Range{Start: 1}}, EmptyRangeSet.Union(Range{Start: 1}))
 
 	set := RangeSet{ // [2][5-7][11]
 		Range: newRange(2, 11),

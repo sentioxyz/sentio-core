@@ -59,3 +59,11 @@ func LessEqualNilAsInf(a, b *uint64) bool {
 	}
 	return *a <= *b
 }
+
+func GreaterNilAsInf(a, b *uint64) bool {
+	return !LessEqualNilAsInf(a, b)
+}
+
+func GreaterEqualNilAsInf(a, b *uint64) bool {
+	return !LessNilAsInf(a, b)
+}

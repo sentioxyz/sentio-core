@@ -11,31 +11,30 @@ import (
 
 	"sentioxyz/sentio-core/common/concurrency"
 	"sentioxyz/sentio-core/common/log"
+	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio/chain/slot"
-	"sentioxyz/sentio/common/number"
 )
 
 func newTestDimension() (Dimension[*testSlot], *testRangeStore, *testSimpleSlotStore[*testSlot]) {
 	store := &testSimpleSlotStore[*testSlot]{
-		slots: utils.NewSafeMap[number.Number, *testSlot](),
+		slots: utils.NewSafeMap[uint64, *testSlot](),
 	}
 	rangeStore := &testRangeStore{}
 	dim := NewSimpleDimension(rangeStore, store)
 	return dim, rangeStore, store
 }
 
-func newTestSlots(interval number.Range, hashPrefix string, parentHash ...string) []*testSlot {
+func newTestSlots(interval rg.Range, hashPrefix string, parentHash ...string) []*testSlot {
 	if interval.IsEmpty() {
 		return nil
 	}
 	var slots []*testSlot
 
-	buildHash := func(number number.Number) string {
+	buildHash := func(number uint64) string {
 		return fmt.Sprintf("%s%d", hashPrefix, number)
 	}
 
-	for n := interval.L(); n <= interval.R(); n++ {
+	for n := interval.Start; n <= *interval.End; n++ {
 		newSlot := &testSlot{
 			Number:     n,
 			Hash:       buildHash(n),
@@ -52,10 +51,10 @@ func newTestSlots(interval number.Range, hashPrefix string, parentHash ...string
 
 func TestRepair(t *testing.T) {
 	dim1, rs1, store1 := newTestDimension()
-	baseRange := number.NewRange(100, 200)
+	baseRange := rg.NewRange(100, 200)
 	baseSlots := newTestSlots(baseRange, "")
 	store1.initFillSlots(baseSlots)
-	_, _ = rs1.Update(context.Background(), number.RangeSetter(baseRange))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(baseRange))
 
 	var brokenSlots []*testSlot
 	var p = 0
@@ -68,7 +67,7 @@ func TestRepair(t *testing.T) {
 
 	dim2, rs2, store2 := newTestDimension()
 	store2.initFillSlots(brokenSlots)
-	_, _ = rs2.Update(context.Background(), number.RangeSetter(baseRange))
+	_, _ = rs2.Update(context.Background(), rg.RangeSetter(baseRange))
 
 	// repair missing
 	assert.Equal(t, nil, Repair[*testSlot](context.Background(), dim1, dim2, baseRange))
@@ -80,15 +79,15 @@ func TestRepair(t *testing.T) {
 	slots, _ := concurrency.ReadAll(context.Background(), slotChan)
 
 	assert.Equal(t, baseRange.Size(), uint64(len(slots)))
-	assert.Equal(t, baseRange, slot.GetRange(slots))
+	assert.Equal(t, baseRange, GetSlotRange(slots))
 }
 
 func TestCopy1(t *testing.T) {
 	dim1, rs1, store1 := newTestDimension()
-	baseRange := number.NewRange(100, 200)
+	baseRange := rg.NewRange(100, 200)
 	baseSlots := newTestSlots(baseRange, "")
 	store1.initFillSlots(baseSlots)
-	_, _ = rs1.Update(context.Background(), number.RangeSetter(baseRange))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(baseRange))
 
 	dim2, _, _ := newTestDimension()
 
@@ -98,11 +97,11 @@ func TestCopy1(t *testing.T) {
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRange(140, 160),
+			rg.NewRange(140, 160),
 			false,
 		))
 		r2, _ := dim2.GetRange(context.Background())
-		assert.Equal(t, r2, number.NewRange(140, 160))
+		assert.Equal(t, r2, rg.NewRange(140, 160))
 	}
 
 	{
@@ -111,11 +110,11 @@ func TestCopy1(t *testing.T) {
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRange(130, 170),
+			rg.NewRange(130, 170),
 			true,
 		))
 		r2, _ := dim2.GetRange(context.Background())
-		assert.Equal(t, r2, number.NewRange(130, 170))
+		assert.Equal(t, r2, rg.NewRange(130, 170))
 	}
 
 	{
@@ -124,11 +123,11 @@ func TestCopy1(t *testing.T) {
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRange(120, 180),
+			rg.NewRange(120, 180),
 			false,
 		))
 		r2, _ := dim2.GetRange(context.Background())
-		assert.Equal(t, r2, number.NewRange(120, 180))
+		assert.Equal(t, r2, rg.NewRange(120, 180))
 	}
 
 	{
@@ -137,11 +136,11 @@ func TestCopy1(t *testing.T) {
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRange(0, 150),
+			rg.NewRange(0, 150),
 			false,
 		))
 		r2, _ := dim2.GetRange(context.Background())
-		assert.Equal(t, r2, number.NewRange(100, 180))
+		assert.Equal(t, r2, rg.NewRange(100, 180))
 	}
 
 	{
@@ -150,26 +149,26 @@ func TestCopy1(t *testing.T) {
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRightUnlimitedRange(150),
+			rg.Range{Start: 150},
 			false,
 		))
 		r2, _ := dim2.GetRange(context.Background())
-		assert.Equal(t, r2, number.NewRange(100, 200))
+		assert.Equal(t, r2, rg.NewRange(100, 200))
 	}
 }
 
 func TestCopy2(t *testing.T) {
-	baseRange := number.NewRange(100, 200)
+	baseRange := rg.NewRange(100, 200)
 	baseSlots1 := newTestSlots(baseRange, "ca")
 	baseSlots2 := newTestSlots(baseRange, "cb")
 
 	dim1, rs1, store1 := newTestDimension()
 	store1.initFillSlots(baseSlots1)
-	_, _ = rs1.Update(context.Background(), number.RangeSetter(baseRange))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(baseRange))
 
 	dim2, rs2, store2 := newTestDimension()
-	store2.initFillSlots(slot.Filter(baseSlots2, number.NewRange(140, 160)))
-	_, _ = rs2.Update(context.Background(), number.RangeSetter(number.NewRange(140, 160)))
+	store2.initFillSlots(FilterSlots(baseSlots2, rg.NewRange(140, 160)))
+	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(140, 160)))
 
 	{
 		// Copy but number not continuous
@@ -177,14 +176,14 @@ func TestCopy2(t *testing.T) {
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRightUnlimitedRange(162),
+			rg.Range{Start: 162},
 			false,
 		))
 		assert.Equal(t, ErrDiscontinuous, Copy[*testSlot](
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRange(0, 138),
+			rg.NewRange(0, 138),
 			false,
 		))
 	}
@@ -195,40 +194,40 @@ func TestCopy2(t *testing.T) {
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRightUnlimitedRange(161),
+			rg.Range{Start: 161},
 			false,
 		))
 		assert.Equal(t, ErrLink, Copy[*testSlot](
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRightUnlimitedRange(150),
+			rg.Range{Start: 150},
 			true,
 		))
 		assert.Equal(t, nil, Copy[*testSlot](
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRange(0, 139),
+			rg.NewRange(0, 139),
 			false,
 		))
 		assert.Equal(t, nil, Copy[*testSlot](
 			context.Background(),
 			dim1,
 			dim2,
-			number.NewRange(0, 150),
+			rg.NewRange(0, 150),
 			true,
 		))
 	}
 }
 
 func TestSync_fromScratch(t *testing.T) {
-	baseRange := number.NewRange(0, 300)
+	baseRange := rg.NewRange(0, 300)
 	baseSlots := newTestSlots(baseRange, "")
 
 	dim1, rs1, store1 := newTestDimension()
-	store1.initFillSlots(slot.Filter(baseSlots, number.NewRange(100, 199)))
-	_, _ = rs1.Update(context.Background(), number.RangeSetter(number.NewRange(100, 199)))
+	store1.initFillSlots(FilterSlots(baseSlots, rg.NewRange(100, 199)))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
 
 	dim2, _, _ := newTestDimension()
 
@@ -238,9 +237,9 @@ func TestSync_fromScratch(t *testing.T) {
 		defer cancel()
 		for i := 0; i < 10; i++ {
 			time.Sleep(time.Second)
-			newRange := number.NewRange(number.Number(200+i*10), number.Number(200+(i+1)*10-1))
-			store1.initFillSlots(slot.Filter(baseSlots, newRange))
-			_, _ = rs1.Update(context.Background(), newRange.GetUnion)
+			newRange := rg.NewRange(uint64(200+i*10), uint64(200+(i+1)*10-1))
+			store1.initFillSlots(FilterSlots(baseSlots, newRange))
+			_, _ = rs1.Update(context.Background(), newRange.Cover)
 		}
 		time.Sleep(time.Second * 5)
 	}()
@@ -264,16 +263,16 @@ func TestSync_continue(t *testing.T) {
 	log.ManuallySetLevel(zapcore.DebugLevel)
 	log.BindFlag()
 
-	baseRange := number.NewRange(0, 300)
+	baseRange := rg.NewRange(0, 300)
 	baseSlots := newTestSlots(baseRange, "")
 
 	dim1, rs1, store1 := newTestDimension()
-	store1.initFillSlots(slot.Filter(baseSlots, number.NewRange(100, 199)))
-	_, _ = rs1.Update(context.Background(), number.RangeSetter(number.NewRange(100, 199)))
+	store1.initFillSlots(FilterSlots(baseSlots, rg.NewRange(100, 199)))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
 
 	dim2, rs2, store2 := newTestDimension()
-	store2.initFillSlots(slot.Filter(baseSlots, number.NewRange(100, 149)))
-	_, _ = rs2.Update(context.Background(), number.RangeSetter(number.NewRange(100, 149)))
+	store2.initFillSlots(FilterSlots(baseSlots, rg.NewRange(100, 149)))
+	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 149)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -281,9 +280,9 @@ func TestSync_continue(t *testing.T) {
 		defer cancel()
 		for i := 0; i < 10; i++ {
 			time.Sleep(time.Second)
-			newRange := number.NewRange(number.Number(200+i*10), number.Number(200+(i+1)*10-1))
-			store1.initFillSlots(slot.Filter(baseSlots, newRange))
-			_, _ = rs1.Update(context.Background(), newRange.GetUnion)
+			newRange := rg.NewRange(uint64(200+i*10), uint64(200+(i+1)*10-1))
+			store1.initFillSlots(FilterSlots(baseSlots, newRange))
+			_, _ = rs1.Update(context.Background(), newRange.Cover)
 		}
 		time.Sleep(time.Second * 5)
 	}()
@@ -307,19 +306,19 @@ func TestSync_reorgSome(t *testing.T) {
 	log.ManuallySetLevel(zapcore.DebugLevel)
 	log.BindFlag()
 
-	baseRange1 := number.NewRange(0, 300)
-	baseRange2 := number.NewRange(150, 300)
+	baseRange1 := rg.NewRange(0, 300)
+	baseRange2 := rg.NewRange(150, 300)
 	baseSlots1 := newTestSlots(baseRange1, "ca")
 	baseSlots2 := newTestSlots(baseRange2, "cb", "ca149")
 
 	dim1, rs1, store1 := newTestDimension()
-	store1.initFillSlots(slot.Filter(baseSlots1, number.NewRange(100, 199)))
-	_, _ = rs1.Update(context.Background(), number.RangeSetter(number.NewRange(100, 199)))
+	store1.initFillSlots(FilterSlots(baseSlots1, rg.NewRange(100, 199)))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
 
 	dim2, rs2, store2 := newTestDimension()
-	store2.initFillSlots(slot.Filter(baseSlots1, number.NewRange(100, 149)))
-	store2.initFillSlots(slot.Filter(baseSlots2, number.NewRange(150, 169)))
-	_, _ = rs2.Update(context.Background(), number.RangeSetter(number.NewRange(100, 169)))
+	store2.initFillSlots(FilterSlots(baseSlots1, rg.NewRange(100, 149)))
+	store2.initFillSlots(FilterSlots(baseSlots2, rg.NewRange(150, 169)))
+	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 169)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -339,7 +338,7 @@ func TestSync_reorgSome(t *testing.T) {
 	r1, _ := dim1.GetRange(context.Background())
 	r2, _ := dim2.GetRange(context.Background())
 	assert.Equal(t, r1, r2)
-	for n := r2.L(); n <= r2.R(); n++ {
+	for n := r2.Start; n <= *r2.End; n++ {
 		assert.Equal(t, fmt.Sprintf("ca%d", n), store2.slots.GetWithDefault(n, nil).GetHash())
 	}
 }
@@ -348,17 +347,17 @@ func TestSync_reorgAll(t *testing.T) {
 	log.ManuallySetLevel(zapcore.DebugLevel)
 	log.BindFlag()
 
-	baseRange1 := number.NewRange(0, 300)
+	baseRange1 := rg.NewRange(0, 300)
 	baseSlots1 := newTestSlots(baseRange1, "ca")
 	baseSlots2 := newTestSlots(baseRange1, "cb")
 
 	dim1, rs1, store1 := newTestDimension()
-	store1.initFillSlots(slot.Filter(baseSlots1, number.NewRange(100, 199)))
-	_, _ = rs1.Update(context.Background(), number.RangeSetter(number.NewRange(100, 199)))
+	store1.initFillSlots(FilterSlots(baseSlots1, rg.NewRange(100, 199)))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
 
 	dim2, rs2, store2 := newTestDimension()
-	store2.initFillSlots(slot.Filter(baseSlots2, number.NewRange(140, 159)))
-	_, _ = rs2.Update(context.Background(), number.RangeSetter(number.NewRange(140, 159)))
+	store2.initFillSlots(FilterSlots(baseSlots2, rg.NewRange(140, 159)))
+	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(140, 159)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -378,7 +377,7 @@ func TestSync_reorgAll(t *testing.T) {
 	r1, _ := dim1.GetRange(context.Background())
 	r2, _ := dim2.GetRange(context.Background())
 	assert.Equal(t, r1, r2)
-	for n := r2.L(); n <= r2.R(); n++ {
+	for n := r2.Start; n <= *r2.End; n++ {
 		assert.Equal(t, fmt.Sprintf("ca%d", n), store2.slots.GetWithDefault(n, nil).GetHash())
 	}
 }

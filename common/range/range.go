@@ -1,6 +1,7 @@
 package rg
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sentioxyz/sentio-core/common/utils"
@@ -9,6 +10,14 @@ import (
 type Range struct {
 	Start uint64
 	End   *uint64
+}
+
+func NewSingleRange(n uint64) Range {
+	return Range{Start: n, End: &n}
+}
+
+func NewRange(s, e uint64) Range {
+	return Range{Start: s, End: &e}
 }
 
 func NewRangeBySize(start uint64, size *uint64) Range {
@@ -76,6 +85,19 @@ func (r Range) Include(a Range) bool {
 	return r.Start <= a.Start && LessEqualNilAsInf(a.End, r.End)
 }
 
+func (r Range) GetDistance(a Range) uint64 {
+	if r.IsEmpty() || a.IsEmpty() {
+		return 0
+	}
+	if r.End != nil && *r.End+1 < a.Start {
+		return a.Start - *r.End - 1
+	}
+	if a.End != nil && *a.End+1 < r.Start {
+		return r.Start - *a.End - 1
+	}
+	return 0
+}
+
 func (r Range) IsEmpty() bool {
 	return r.End != nil && *r.End < r.Start
 }
@@ -109,7 +131,7 @@ func (r Range) Intersection(a Range) Range {
 
 func (r Range) Remove(a Range) RangeSet {
 	if r.IsEmpty() {
-		return EmptyBlockRangeSet
+		return EmptyRangeSet
 	}
 	if a.IsEmpty() {
 		return RangeSet{Range: r}
@@ -124,7 +146,7 @@ func (r Range) Remove(a Range) RangeSet {
 				End:   r.End,
 			}}
 		}
-		return EmptyBlockRangeSet // all removed
+		return EmptyRangeSet // all removed
 	}
 	if LessNilAsInf(r.End, &a.Start) {
 		return RangeSet{Range: r} // no intersection, a is to the right of r
@@ -155,3 +177,32 @@ func (r Range) Cover(a Range) Range {
 		End:   MaxNilAsInf(r.End, a.End),
 	}
 }
+
+func (r Range) CutByFixedSize(base uint64, size uint64, num int) []Range {
+	if r.End == nil {
+		panic(fmt.Errorf("cut infinity range"))
+	}
+	if r.IsEmpty() {
+		return nil
+	}
+	if size == 0 {
+		return []Range{r}
+	}
+	var result []Range
+	if base < r.Start {
+		base += ((r.Start - base) / size) * size
+	}
+	for p := base; p <= *r.End && (num == 0 || len(result) < num); p += size {
+		result = append(result, NewRangeBySize(p, &size).Intersection(r))
+	}
+	return result
+}
+
+func RangeSetter(r Range) RangeOperator {
+	return func(cur Range) Range {
+		return r
+	}
+}
+
+type RangeOperator func(Range) Range
+type RangeProducer func(ctx context.Context, ch chan<- Range) error

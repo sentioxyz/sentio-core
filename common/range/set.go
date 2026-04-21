@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"sentioxyz/sentio-core/common/utils"
+	"sort"
 )
 
 type RangeSet struct {
@@ -15,7 +16,42 @@ type RangeSet struct {
 	Holes [][2]uint64
 }
 
-var EmptyBlockRangeSet = RangeSet{
+func NewRangeSet(rs ...Range) RangeSet {
+	switch len(rs) {
+	case 0:
+		return EmptyRangeSet
+	case 1:
+		return RangeSet{Range: rs[0]}
+	}
+	sort.Slice(rs, func(i, j int) bool {
+		if rs[i].Start != rs[j].Start {
+			return rs[i].Start < rs[j].Start
+		}
+		return GreaterNilAsInf(rs[i].End, rs[j].End)
+	})
+	n := 0
+	for i := 1; i < len(rs); i++ {
+		if rs[n].Include(rs[i]) {
+			continue
+		}
+		if rs[n].GetDistance(rs[i]) == 0 {
+			rs[n].End = rs[i].End
+			continue
+		}
+		n++
+		rs[n] = rs[i]
+	}
+	result := RangeSet{
+		Range: Range{rs[0].Start, rs[n].End},
+		Holes: make([][2]uint64, n),
+	}
+	for i := 0; i < n; i++ {
+		result.Holes[i] = [2]uint64{*rs[i].End + 1, rs[i+1].Start - 1}
+	}
+	return result
+}
+
+var EmptyRangeSet = RangeSet{
 	Range: EmptyRange,
 }
 
@@ -114,7 +150,7 @@ func (rs RangeSet) Intersection(a Range) RangeSet {
 		Holes: rs.Holes,
 	}
 	if r.IsEmpty() {
-		return EmptyBlockRangeSet
+		return EmptyRangeSet
 	}
 	// remove invalid holes to the left
 	//      pl:            *   x
@@ -152,7 +188,7 @@ func (rs RangeSet) Intersection(a Range) RangeSet {
 	}
 
 	if r.IsEmpty() {
-		return EmptyBlockRangeSet
+		return EmptyRangeSet
 	}
 	if len(r.Holes) == 0 {
 		r.Holes = nil
@@ -180,7 +216,7 @@ func (rs RangeSet) Remove(a Range) (result RangeSet) {
 	//  a:     [   ]
 	//       ^       ^
 	//     left    right
-	left := EmptyBlockRangeSet
+	left := EmptyRangeSet
 	if rs.Start < a.Start {
 		// rs: [       ]
 		//  a:     [ ...
@@ -226,7 +262,7 @@ func (rs RangeSet) Remove(a Range) (result RangeSet) {
 			}
 		}
 	}
-	right := EmptyBlockRangeSet
+	right := EmptyRangeSet
 	if LessNilAsInf(a.End, rs.End) {
 		// rs: [       ]
 		//  a: ... ]
@@ -287,7 +323,7 @@ func (rs RangeSet) Remove(a Range) (result RangeSet) {
 		result = left
 	}
 	if result.IsEmpty() {
-		return EmptyBlockRangeSet
+		return EmptyRangeSet
 	}
 	if len(result.Holes) == 0 {
 		result.Holes = nil
@@ -381,6 +417,53 @@ func (rs RangeSet) Union(a Range) RangeSet {
 			remain.Start,
 			*remain.End,
 		})
+	}
+	return result
+}
+
+func (rs RangeSet) FindContains(r Range) (Range, bool) {
+	if r.End == nil && rs.End != nil {
+		return Range{}, false
+	}
+	if r.End == nil {
+		if last := rs.Last(); last.Include(r) {
+			return last, true
+		}
+		return Range{}, false
+	}
+	for _, item := range rs.GetRanges() {
+		if item.Include(r) {
+			return item, true
+		}
+		if *r.End < item.Start {
+			break
+		}
+	}
+	return Range{}, false
+}
+
+func (rs RangeSet) GetRanges() []Range {
+	result := make([]Range, 0, len(rs.Holes)+1)
+	start := rs.Start
+	for _, hole := range rs.Holes {
+		result = append(result, Range{Start: start, End: utils.WrapPointer(hole[0] - 1)})
+		start = hole[1] + 1
+	}
+	result = append(result, Range{Start: start, End: rs.End})
+	return result
+}
+
+func (rs RangeSet) CutByFixedSize(size uint64, alignZero bool) []Range {
+	if rs.End == nil {
+		panic(fmt.Errorf("cut infinity range"))
+	}
+	var result []Range
+	for _, r := range rs.GetRanges() {
+		var base uint64
+		if !alignZero {
+			base = r.Start
+		}
+		result = append(result, r.CutByFixedSize(base, size, 0)...)
 	}
 	return result
 }

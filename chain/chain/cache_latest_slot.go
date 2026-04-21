@@ -97,8 +97,8 @@ func (c *StdLatestSlotCache[SLOT]) GetRange(ctx context.Context) (rg.Range, erro
 func (c *StdLatestSlotCache[SLOT]) Wait(ctx context.Context, latestGt uint64) (latest uint64, err error) {
 	var got bool
 	c.lock.RLock()
-	if c.ready && c.curRange.EndOrZero() > latestGt {
-		got, latest = true, c.curRange.EndOrZero()
+	if c.ready && *c.curRange.End > latestGt {
+		got, latest = true, *c.curRange.End
 	}
 	c.lock.RUnlock()
 	if got {
@@ -120,7 +120,7 @@ func (c *StdLatestSlotCache[SLOT]) Traverse(
 		return rg.Range{}, ErrNotReady
 	}
 	interval = interval.Intersection(c.curRange)
-	for sn := interval.Start; sn <= interval.EndOrZero(); sn++ {
+	for sn := interval.Start; sn <= *interval.End; sn++ {
 		if err := fn(ctx, c.memCache[sn]); err != nil {
 			return c.curRange, err
 		}
@@ -154,7 +154,7 @@ func (c *StdLatestSlotCache[SLOT]) tryLoadL2Cache(
 	}
 
 	startAt := time.Now()
-	expRange := rg.NewRangeByEndAndSize(extRange.EndOrZero(), memCacheSize)
+	expRange := rg.NewRangeByEndAndSize(*extRange.End, memCacheSize)
 	_, logger := log.FromContext(ctx, "extRange", extRange.String(), "expRange", expRange.String())
 
 	// load range
@@ -191,24 +191,20 @@ func (c *StdLatestSlotCache[SLOT]) loadFromPersistent(
 ) (newRange rg.Range, loaded []SLOT, reorg bool, err error) {
 	_, logger := log.FromContext(ctx)
 	newRange = curRange
-	if !curRange.IsEmpty() && curRange.EndOrZero() == extRange.EndOrZero() {
-		logger.Debugf("will not growth because latest still %d", curRange.EndOrZero())
+	if !curRange.IsEmpty() && *curRange.End == *extRange.End {
+		logger.Debugf("will not growth because latest still %d", *curRange.End)
 		return
 	}
-	if !curRange.IsEmpty() && curRange.EndOrZero() > extRange.EndOrZero() {
-		logger.Warnf("ignored reverse growth %d => %d", curRange.EndOrZero(), extRange.EndOrZero())
+	if !curRange.IsEmpty() && *curRange.End > *extRange.End {
+		logger.Warnf("ignored reverse growth %d => %d", *curRange.End, *extRange.End)
 		return
 	}
 
 	// will growth, first calculate the new range
-	newRangeStart := extRange.Start
-	if rg.LessNilAsInf(&memCacheSize, extRange.Size()) {
-		newRangeStart = extRange.EndOrZero() - memCacheSize + 1
-	}
+	newRange = rg.NewRangeByEndAndSize(*extRange.End, memCacheSize).Intersection(extRange)
 	if !curRange.IsEmpty() {
-		newRangeStart = max(newRangeStart, curRange.Start)
+		newRange.Start = max(newRange.Start, curRange.Start)
 	}
-	newRange = rg.Range{Start: newRangeStart, End: extRange.End}
 	logger = logger.With("extRange", extRange.String(), "curRange", curRange.String(), "newRange", newRange.String())
 	logger.Debug("will load data for growth")
 
@@ -301,7 +297,7 @@ func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context) error {
 	}
 	// delete useless slots
 	toDelRange := curRange.Remove(newRange).First()
-	for sn := toDelRange.Start; sn <= toDelRange.EndOrZero(); sn++ {
+	for sn := toDelRange.Start; sn <= *toDelRange.End; sn++ {
 		delete(c.memCache, sn)
 	}
 	// update range
@@ -310,6 +306,7 @@ func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context) error {
 	used := start.End()
 	// growth succeed, now is ready
 	c.ready = true
+	moved := *newRange.End - *curRange.End
 
 	options := metric.WithAttributeSet(attribute.NewSet(
 		attribute.String("name", c.name),
@@ -320,11 +317,11 @@ func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context) error {
 		c.growthUsed.Record(ctx, used.Milliseconds(), options)
 	}
 	if c.growthMargin != nil {
-		c.growthUsed.Record(ctx, int64(newRange.EndOrZero()-curRange.EndOrZero()), options)
+		c.growthMargin.Record(ctx, int64(moved), options)
 	}
 
 	// notice the waiters
-	c.blockWaiter.NewStatus(newRange.EndOrZero())
+	c.blockWaiter.NewStatus(*newRange.End)
 
 	logger.With(
 		"used", t.ReportDistribution("A", "LS,LR,LC,LE,W"),
@@ -332,7 +329,7 @@ func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context) error {
 		"curRange", curRange.String(),
 		"newRange", newRange.String(),
 		"memCacheSize", memCacheSize).
-		Infof("growth succeed and moved %d", newRange.EndOrZero()-curRange.EndOrZero())
+		Infof("growth succeed and moved %d", moved)
 	return nil
 }
 
@@ -397,7 +394,7 @@ func (c *StdLatestSlotCache[SLOT]) KeepGrowth(ctx context.Context) error {
 		if err := c.growth(roundCtx); err != nil {
 			logger.Errorfe(err, "growth failed")
 		}
-		if _, err := c.nodeClient.WaitBlock(ctx, max(c.curRange.EndOrZero(), latest.Number)+1); err != nil {
+		if _, err := c.nodeClient.WaitBlock(ctx, latest.Number+1); err != nil {
 			return err // only because ctx canceled
 		}
 	}

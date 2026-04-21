@@ -9,19 +9,18 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"sentioxyz/sentio-core/common/concurrency"
+	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio/chain/slot"
-	"sentioxyz/sentio/common/number"
 )
 
 type testSlot struct {
-	Number     number.Number
+	Number     uint64
 	Hash       string
 	ParentHash string
 	Filler     []byte
 }
 
-func (b *testSlot) GetNumber() number.Number {
+func (b *testSlot) GetNumber() uint64 {
 	return b.Number
 }
 
@@ -37,8 +36,8 @@ func (b *testSlot) Linked() bool {
 	return true
 }
 
-type testSimpleSlotStore[SLOT slot.Slot] struct {
-	slots *utils.SafeMap[number.Number, SLOT]
+type testSimpleSlotStore[SLOT Slot] struct {
+	slots *utils.SafeMap[uint64, SLOT]
 }
 
 func (s *testSimpleSlotStore[SLOT]) initFillSlots(slots []SLOT) {
@@ -47,7 +46,7 @@ func (s *testSimpleSlotStore[SLOT]) initFillSlots(slots []SLOT) {
 	}
 }
 
-func (s *testSimpleSlotStore[SLOT]) LoadHeader(ctx context.Context, sn number.Number) (slot.Header, error) {
+func (s *testSimpleSlotStore[SLOT]) LoadHeader(ctx context.Context, sn uint64) (Slot, error) {
 	st, has := s.slots.Get(sn)
 	if has {
 		return st, nil
@@ -55,11 +54,11 @@ func (s *testSimpleSlotStore[SLOT]) LoadHeader(ctx context.Context, sn number.Nu
 	return nil, ErrSlotNotFound
 }
 
-func (s *testSimpleSlotStore[SLOT]) CheckMissing(ctx context.Context, interval number.Range, missing chan<- number.Range) error {
-	for sn := interval.L(); sn <= interval.R(); sn++ {
+func (s *testSimpleSlotStore[SLOT]) CheckMissing(ctx context.Context, interval rg.Range, missing chan<- rg.Range) error {
+	for sn := interval.Start; sn <= *interval.End; sn++ {
 		if _, has := s.slots.Get(sn); !has {
 			select {
-			case missing <- number.NewSingleRange(sn):
+			case missing <- rg.NewSingleRange(sn):
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -68,11 +67,11 @@ func (s *testSimpleSlotStore[SLOT]) CheckMissing(ctx context.Context, interval n
 	return nil
 }
 
-func (s *testSimpleSlotStore[SLOT]) Save(ctx context.Context, interval number.Range, slotChan <-chan SLOT, doneChan chan<- number.Range) error {
+func (s *testSimpleSlotStore[SLOT]) Save(ctx context.Context, interval rg.Range, slotChan <-chan SLOT, doneChan chan<- rg.Range) error {
 	return concurrency.ForEach(ctx, slotChan, func(ctx context.Context, index int, st SLOT) error {
 		s.slots.Put(st.GetNumber(), st)
 		select {
-		case doneChan <- number.NewSingleRange(st.GetNumber()):
+		case doneChan <- rg.NewSingleRange(st.GetNumber()):
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -80,8 +79,8 @@ func (s *testSimpleSlotStore[SLOT]) Save(ctx context.Context, interval number.Ra
 	})
 }
 
-func (s *testSimpleSlotStore[SLOT]) Load(ctx context.Context, interval number.Range, slotChan chan<- SLOT) error {
-	for sn := interval.L(); sn <= interval.R(); sn++ {
+func (s *testSimpleSlotStore[SLOT]) Load(ctx context.Context, interval rg.Range, slotChan chan<- SLOT) error {
+	for sn := interval.Start; sn <= *interval.End; sn++ {
 		st, has := s.slots.Get(sn)
 		if !has {
 			continue
@@ -95,10 +94,10 @@ func (s *testSimpleSlotStore[SLOT]) Load(ctx context.Context, interval number.Ra
 	return nil
 }
 
-func (s *testSimpleSlotStore[SLOT]) Delete(ctx context.Context, interval number.Range) error {
-	var sns []number.Number
-	s.slots.Traverse(func(st number.Number, val SLOT) {
-		if interval.ContainsNumber(st) {
+func (s *testSimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
+	var sns []uint64
+	s.slots.Traverse(func(st uint64, val SLOT) {
+		if interval.Contains(st) {
 			sns = append(sns, st)
 		}
 	})
@@ -109,20 +108,20 @@ func (s *testSimpleSlotStore[SLOT]) Delete(ctx context.Context, interval number.
 }
 
 type testRangeStore struct {
-	cur number.Range
+	cur rg.Range
 }
 
-func (s *testRangeStore) Get(ctx context.Context) (number.Range, error) {
+func (s *testRangeStore) Get(ctx context.Context) (rg.Range, error) {
 	return s.cur, nil
 }
 
-func (s *testRangeStore) Update(ctx context.Context, operator number.RangeOperator) (number.Range, error) {
+func (s *testRangeStore) Update(ctx context.Context, operator rg.RangeOperator) (rg.Range, error) {
 	s.cur = operator(s.cur)
 	return s.cur, nil
 }
 
-func (s *testRangeStore) Wait(ctx context.Context, sn number.Number) error {
-	if s.cur.ContainsNumber(sn) {
+func (s *testRangeStore) Wait(ctx context.Context, sn uint64) error {
+	if s.cur.Contains(sn) {
 		return nil
 	}
 	return fmt.Errorf("%d out of range %s", sn, s.cur.String())
@@ -130,7 +129,7 @@ func (s *testRangeStore) Wait(ctx context.Context, sn number.Number) error {
 
 func TestSimpleDimension_Save1(t *testing.T) {
 	// test save succeed
-	newTestSlot := func(number number.Number) *testSlot {
+	newTestSlot := func(number uint64) *testSlot {
 		return &testSlot{
 			Number:     number,
 			Hash:       fmt.Sprintf("hash-%d", number),
@@ -138,25 +137,25 @@ func TestSimpleDimension_Save1(t *testing.T) {
 		}
 	}
 	rangeStore := &testRangeStore{
-		cur: number.NewRange(10, 10),
+		cur: rg.NewRange(10, 10),
 	}
 	slotStore := &testSimpleSlotStore[*testSlot]{
-		slots: utils.NewSafeMap[number.Number, *testSlot](),
+		slots: utils.NewSafeMap[uint64, *testSlot](),
 	}
 	slotStore.slots.Put(10, newTestSlot(10))
 	dim := NewSimpleDimension[*testSlot](rangeStore, slotStore)
 
 	slotChan := make(chan *testSlot, 100)
 	for i := 11; i <= 20; i++ {
-		slotChan <- newTestSlot(number.Number(i))
+		slotChan <- newTestSlot(uint64(i))
 	}
 	close(slotChan)
-	assert.NoError(t, dim.Save(context.Background(), number.NewRange(11, 20), slotChan))
+	assert.NoError(t, dim.Save(context.Background(), rg.NewRange(11, 20), slotChan))
 }
 
 func TestSimpleDimension_Save2(t *testing.T) {
 	// miss the last slot, and the range will be correct
-	newTestSlot := func(number number.Number) *testSlot {
+	newTestSlot := func(number uint64) *testSlot {
 		return &testSlot{
 			Number:     number,
 			Hash:       fmt.Sprintf("hash-%d", number),
@@ -164,27 +163,27 @@ func TestSimpleDimension_Save2(t *testing.T) {
 		}
 	}
 	rangeStore := &testRangeStore{
-		cur: number.NewRange(10, 10),
+		cur: rg.NewRange(10, 10),
 	}
 	slotStore := &testSimpleSlotStore[*testSlot]{
-		slots: utils.NewSafeMap[number.Number, *testSlot](),
+		slots: utils.NewSafeMap[uint64, *testSlot](),
 	}
 	slotStore.slots.Put(10, newTestSlot(10))
 	dim := NewSimpleDimension[*testSlot](rangeStore, slotStore)
 
 	slotChan := make(chan *testSlot, 100)
 	for i := 11; i <= 19; i++ {
-		slotChan <- newTestSlot(number.Number(i))
+		slotChan <- newTestSlot(uint64(i))
 	}
 	close(slotChan)
-	err := dim.Save(context.Background(), number.NewRange(11, 20), slotChan)
+	err := dim.Save(context.Background(), rg.NewRange(11, 20), slotChan)
 	assert.NoError(t, err)
-	assert.Equal(t, number.NewRange(10, 19), rangeStore.cur)
+	assert.Equal(t, rg.NewRange(10, 19), rangeStore.cur)
 }
 
 func TestSimpleDimension_SaveErrDiscontinuous1(t *testing.T) {
 	// test ErrDiscontinuous because miss first slot
-	newTestSlot := func(number number.Number) *testSlot {
+	newTestSlot := func(number uint64) *testSlot {
 		return &testSlot{
 			Number:     number,
 			Hash:       fmt.Sprintf("hash-%d", number),
@@ -192,26 +191,26 @@ func TestSimpleDimension_SaveErrDiscontinuous1(t *testing.T) {
 		}
 	}
 	rangeStore := &testRangeStore{
-		cur: number.NewRange(10, 10),
+		cur: rg.NewRange(10, 10),
 	}
 	slotStore := &testSimpleSlotStore[*testSlot]{
-		slots: utils.NewSafeMap[number.Number, *testSlot](),
+		slots: utils.NewSafeMap[uint64, *testSlot](),
 	}
 	slotStore.slots.Put(10, newTestSlot(10))
 	dim := NewSimpleDimension[*testSlot](rangeStore, slotStore)
 
 	slotChan := make(chan *testSlot, 100)
 	for i := 12; i <= 20; i++ {
-		slotChan <- newTestSlot(number.Number(i))
+		slotChan <- newTestSlot(uint64(i))
 	}
 	close(slotChan)
-	err := dim.Save(context.Background(), number.NewRange(11, 20), slotChan)
+	err := dim.Save(context.Background(), rg.NewRange(11, 20), slotChan)
 	assert.True(t, errors.Is(err, ErrDiscontinuous), "expected ErrDiscontinuous, got %v", err)
 }
 
 func TestSimpleDimension_SaveErrDiscontinuous2(t *testing.T) {
 	// test ErrDiscontinuous because miss middle slot
-	newTestSlot := func(number number.Number) *testSlot {
+	newTestSlot := func(number uint64) *testSlot {
 		return &testSlot{
 			Number:     number,
 			Hash:       fmt.Sprintf("hash-%d", number),
@@ -219,10 +218,10 @@ func TestSimpleDimension_SaveErrDiscontinuous2(t *testing.T) {
 		}
 	}
 	rangeStore := &testRangeStore{
-		cur: number.NewRange(10, 10),
+		cur: rg.NewRange(10, 10),
 	}
 	slotStore := &testSimpleSlotStore[*testSlot]{
-		slots: utils.NewSafeMap[number.Number, *testSlot](),
+		slots: utils.NewSafeMap[uint64, *testSlot](),
 	}
 	slotStore.slots.Put(10, newTestSlot(10))
 	dim := NewSimpleDimension[*testSlot](rangeStore, slotStore)
@@ -232,16 +231,16 @@ func TestSimpleDimension_SaveErrDiscontinuous2(t *testing.T) {
 		if i == 15 {
 			continue
 		}
-		slotChan <- newTestSlot(number.Number(i))
+		slotChan <- newTestSlot(uint64(i))
 	}
 	close(slotChan)
-	err := dim.Save(context.Background(), number.NewRange(11, 20), slotChan)
+	err := dim.Save(context.Background(), rg.NewRange(11, 20), slotChan)
 	assert.True(t, errors.Is(err, ErrDiscontinuous), "expected ErrDiscontinuous, got %v", err)
 }
 
 func TestSimpleDimension_SaveErrDiscontinuous3(t *testing.T) {
 	// test ErrDiscontinuous because order
-	newTestSlot := func(number number.Number) *testSlot {
+	newTestSlot := func(number uint64) *testSlot {
 		return &testSlot{
 			Number:     number,
 			Hash:       fmt.Sprintf("hash-%d", number),
@@ -249,26 +248,26 @@ func TestSimpleDimension_SaveErrDiscontinuous3(t *testing.T) {
 		}
 	}
 	rangeStore := &testRangeStore{
-		cur: number.NewRange(10, 10),
+		cur: rg.NewRange(10, 10),
 	}
 	slotStore := &testSimpleSlotStore[*testSlot]{
-		slots: utils.NewSafeMap[number.Number, *testSlot](),
+		slots: utils.NewSafeMap[uint64, *testSlot](),
 	}
 	slotStore.slots.Put(10, newTestSlot(10))
 	dim := NewSimpleDimension[*testSlot](rangeStore, slotStore)
 
 	slotChan := make(chan *testSlot, 100)
 	for i := 20; i >= 11; i-- {
-		slotChan <- newTestSlot(number.Number(i))
+		slotChan <- newTestSlot(uint64(i))
 	}
 	close(slotChan)
-	err := dim.Save(context.Background(), number.NewRange(11, 20), slotChan)
+	err := dim.Save(context.Background(), rg.NewRange(11, 20), slotChan)
 	assert.True(t, errors.Is(err, ErrDiscontinuous), "expected ErrDiscontinuous, got %v", err)
 }
 
 func TestSimpleDimension_SaveErrLink1(t *testing.T) {
 	// test ErrLink at the head
-	newTestSlot := func(number number.Number, hashPrefix string) *testSlot {
+	newTestSlot := func(number uint64, hashPrefix string) *testSlot {
 		return &testSlot{
 			Number:     number,
 			Hash:       fmt.Sprintf("%s-%d", hashPrefix, number),
@@ -276,26 +275,26 @@ func TestSimpleDimension_SaveErrLink1(t *testing.T) {
 		}
 	}
 	rangeStore := &testRangeStore{
-		cur: number.NewRange(10, 10),
+		cur: rg.NewRange(10, 10),
 	}
 	slotStore := &testSimpleSlotStore[*testSlot]{
-		slots: utils.NewSafeMap[number.Number, *testSlot](),
+		slots: utils.NewSafeMap[uint64, *testSlot](),
 	}
 	slotStore.slots.Put(10, newTestSlot(10, "bad"))
 	dim := NewSimpleDimension[*testSlot](rangeStore, slotStore)
 
 	slotChan := make(chan *testSlot, 100)
 	for i := 11; i <= 20; i++ {
-		slotChan <- newTestSlot(number.Number(i), "good")
+		slotChan <- newTestSlot(uint64(i), "good")
 	}
 	close(slotChan)
-	err := dim.Save(context.Background(), number.NewRange(11, 20), slotChan)
+	err := dim.Save(context.Background(), rg.NewRange(11, 20), slotChan)
 	assert.True(t, errors.Is(err, ErrLink), "expected ErrLink, got %v", err)
 }
 
 func TestSimpleDimension_SaveErrLink2(t *testing.T) {
 	// test ErrLink at the tail
-	newTestSlot := func(number number.Number, hashPrefix string) *testSlot {
+	newTestSlot := func(number uint64, hashPrefix string) *testSlot {
 		return &testSlot{
 			Number:     number,
 			Hash:       fmt.Sprintf("%s-%d", hashPrefix, number),
@@ -303,20 +302,20 @@ func TestSimpleDimension_SaveErrLink2(t *testing.T) {
 		}
 	}
 	rangeStore := &testRangeStore{
-		cur: number.NewRange(10, 10),
+		cur: rg.NewRange(10, 10),
 	}
 	slotStore := &testSimpleSlotStore[*testSlot]{
-		slots: utils.NewSafeMap[number.Number, *testSlot](),
+		slots: utils.NewSafeMap[uint64, *testSlot](),
 	}
 	slotStore.slots.Put(10, newTestSlot(10, "good"))
 	dim := NewSimpleDimension[*testSlot](rangeStore, slotStore)
 
 	slotChan := make(chan *testSlot, 100)
 	for i := 11; i <= 19; i++ {
-		slotChan <- newTestSlot(number.Number(i), "good")
+		slotChan <- newTestSlot(uint64(i), "good")
 	}
 	slotChan <- newTestSlot(20, "bad")
 	close(slotChan)
-	err := dim.Save(context.Background(), number.NewRange(11, 20), slotChan)
+	err := dim.Save(context.Background(), rg.NewRange(11, 20), slotChan)
 	assert.True(t, errors.Is(err, ErrLink), "expected ErrLink, got %v", err)
 }

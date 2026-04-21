@@ -213,25 +213,11 @@ func (s *StateMirrored) UpsertDatabaseTable(ctx context.Context, databaseId stri
 	return s.syncDatabase(ctx, databaseId)
 }
 
-func (s *StateMirrored) DeleteDatabaseTable(ctx context.Context, tableId string) error {
-	databaseIdsBefore := make(map[string]struct{}, len(s.inner.Databases))
-	for databaseId, info := range s.inner.Databases {
-		for _, t := range info.Tables {
-			if t.TableId == tableId {
-				databaseIdsBefore[databaseId] = struct{}{}
-				break
-			}
-		}
-	}
-	if err := s.inner.DeleteDatabaseTable(ctx, tableId); err != nil {
+func (s *StateMirrored) DeleteDatabaseTable(ctx context.Context, databaseId string, tableId string) error {
+	if err := s.inner.DeleteDatabaseTable(ctx, databaseId, tableId); err != nil {
 		return err
 	}
-	for databaseId := range databaseIdsBefore {
-		if err := s.syncDatabase(ctx, databaseId); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.syncDatabase(ctx, databaseId)
 }
 
 func (s *StateMirrored) GetDatabasePermissions() map[string]map[string]string {

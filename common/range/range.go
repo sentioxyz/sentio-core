@@ -179,7 +179,7 @@ func (r Range) Cover(a Range) Range {
 }
 
 func (r Range) CutByFixedSize(base uint64, size uint64, num int) []Range {
-	if r.End == nil {
+	if r.End == nil && num == 0 {
 		panic(fmt.Errorf("cut infinity range"))
 	}
 	if r.IsEmpty() {
@@ -192,7 +192,7 @@ func (r Range) CutByFixedSize(base uint64, size uint64, num int) []Range {
 	if base < r.Start {
 		base += ((r.Start - base) / size) * size
 	}
-	for p := base; p <= *r.End && (num == 0 || len(result) < num); p += size {
+	for p := base; (r.End == nil || p <= *r.End) && (num == 0 || len(result) < num); p += size {
 		result = append(result, NewRangeBySize(p, &size).Intersection(r))
 	}
 	return result

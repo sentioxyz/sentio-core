@@ -110,7 +110,7 @@ func (d *SimpleDimension[SLOT]) Save(ctx context.Context, interval rg.Range, slo
 	})
 	doneGroup.Go(func() error {
 		defer logger.Debugf("range updater ended")
-		var completed rg.RangeSet
+		completed := rg.EmptyRangeSet
 		seed := curRange
 		if curRange.IsEmpty() {
 			seed = rg.NewSingleRange(interval.Start)

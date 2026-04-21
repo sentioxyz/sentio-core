@@ -19,7 +19,9 @@ func newTestDimension() (Dimension[*testSlot], *testRangeStore, *testSimpleSlotS
 	store := &testSimpleSlotStore[*testSlot]{
 		slots: utils.NewSafeMap[uint64, *testSlot](),
 	}
-	rangeStore := &testRangeStore{}
+	rangeStore := &testRangeStore{
+		cur: rg.EmptyRange,
+	}
 	dim := NewSimpleDimension(rangeStore, store)
 	return dim, rangeStore, store
 }
@@ -78,7 +80,7 @@ func TestRepair(t *testing.T) {
 	close(slotChan)
 	slots, _ := concurrency.ReadAll(context.Background(), slotChan)
 
-	assert.Equal(t, baseRange.Size(), uint64(len(slots)))
+	assert.Equal(t, *baseRange.Size(), uint64(len(slots)))
 	assert.Equal(t, baseRange, GetSlotRange(slots))
 }
 

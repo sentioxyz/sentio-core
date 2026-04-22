@@ -10,6 +10,7 @@ import (
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/schema"
+	"sentioxyz/sentio-core/driver/registrar"
 	"sentioxyz/sentio-core/service/processor/models"
 	"strings"
 
@@ -111,6 +112,10 @@ type Store struct {
 	sch                   *schema.Schema
 	schHash               string
 	tableOpt              TableOption
+	// registrar mirrors table creations to the on-chain Databases contract.
+	// Only consulted when processorTablePattern == TablePatternNetworkV1.
+	// Nil disables on-chain registration.
+	registrar registrar.OnChain
 }
 
 func enableVersionedCollapsingInsertSettings() map[string]any {
@@ -143,6 +148,7 @@ func NewStore(
 	feaOpt Features,
 	sch *schema.Schema,
 	tableOpt TableOption,
+	reg registrar.OnChain,
 ) *Store {
 	// build schema hash
 	h := sha1.New()
@@ -162,7 +168,21 @@ func NewStore(
 		sch:                   sch,
 		schHash:               fmt.Sprintf("%x", h.Sum(nil)),
 		tableOpt:              tableOpt,
+		registrar:             reg,
 	}
+}
+
+// onChainDatabaseID returns the on-chain database identifier for this
+// processor replica. Only meaningful when processorTablePattern is
+// TablePatternNetworkV1.
+func (s *Store) onChainDatabaseID() string {
+	return fmt.Sprintf("%s_%d", s.processorID, s.processorReplica)
+}
+
+// onChainRegistrationEnabled reports whether the store should mirror table
+// creations to the on-chain Databases contract.
+func (s *Store) onChainRegistrationEnabled() bool {
+	return s.processorTablePattern == models.TablePatternNetworkV1 && s.registrar != nil
 }
 
 func (s *Store) GetEntityType(entity string) *schema.Entity {

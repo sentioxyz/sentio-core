@@ -83,6 +83,8 @@ func NewCacheableMetaWithTTL(
 		ttl:              ttl,
 		refreshInterval:  refreshInterval,
 	}
+	// Query-only cache: no table creation happens here, so the on-chain
+	// registrar is not needed.
 	tsm.store = clickhouse.NewStore(
 		conn,
 		conn.GetCluster(),
@@ -91,6 +93,7 @@ func NewCacheableMetaWithTTL(
 		processorReplica,
 		processorTablePattern,
 		clickhouse.Option{},
+		nil,
 	)
 	tsm.reload = func(ctx context.Context) (timeseries.Store, error) {
 		if err := tsm.store.ReloadMeta(ctx, false); err != nil {

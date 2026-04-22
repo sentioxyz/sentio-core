@@ -75,6 +75,7 @@ func TestDecimal512_E2E_UserWorkflow(t *testing.T) {
 		BuildFeatures(8), // EntitySchemaVersion = 8 enables Decimal512
 		sch,
 		TableOption{},
+		nil,
 	)
 
 	require.NotNil(t, store, "Store creation should succeed")

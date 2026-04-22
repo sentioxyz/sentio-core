@@ -120,6 +120,7 @@ func (es *EntitySuite) init(ctx context.Context) {
 			HugeIDSetSize:        3,
 			TableSettings:        DefaultCreateTableOption.TableSettings,
 		},
+		nil,
 	)
 
 	assert.NoError(es.t, es.ctrl.DropAll(context.Background(), testClickhouseDB, processorID+"\\_%"))

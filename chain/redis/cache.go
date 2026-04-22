@@ -125,9 +125,9 @@ func (d *FixSizeSlotCache[SLOT]) GetRange(ctx context.Context) (rg.Range, error)
 	raw, err := d.client.Get(ctx, d.keyPrefix+rangeKey).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return rg.Range{}, nil
+			return rg.EmptyRange, nil
 		}
-		return rg.Range{}, err
+		return rg.EmptyRange, err
 	}
 	return rg.RangeParser{}.Unmarshal(bytes.NewReader([]byte(raw)))
 }

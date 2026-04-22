@@ -421,6 +421,48 @@ func (rs RangeSet) Union(a Range) RangeSet {
 	return result
 }
 
+func (rs RangeSet) IntersectionSet(a RangeSet) RangeSet {
+	if rs.IsEmpty() || a.IsEmpty() {
+		return EmptyRangeSet
+	}
+	rsRanges := rs.GetRanges()
+	aRanges := a.GetRanges()
+	var result []Range
+	i, j := 0, 0
+	for i < len(rsRanges) && j < len(aRanges) {
+		if inter := rsRanges[i].Intersection(aRanges[j]); !inter.IsEmpty() {
+			result = append(result, inter)
+		}
+		// advance the pointer whose current segment ends first;
+		// the other segment may still intersect a later segment of the first
+		if LessNilAsInf(rsRanges[i].End, aRanges[j].End) {
+			i++
+		} else if LessNilAsInf(aRanges[j].End, rsRanges[i].End) {
+			j++
+		} else {
+			i++
+			j++
+		}
+	}
+	return NewRangeSet(result...)
+}
+
+func (rs RangeSet) UnionSet(a RangeSet) RangeSet {
+	result := rs
+	for _, r := range a.GetRanges() {
+		result = result.Union(r)
+	}
+	return result
+}
+
+func (rs RangeSet) RemoveSet(a RangeSet) RangeSet {
+	result := rs
+	for _, r := range a.GetRanges() {
+		result = result.Remove(r)
+	}
+	return result
+}
+
 func (rs RangeSet) FindContains(r Range) (Range, bool) {
 	if r.End == nil && rs.End != nil {
 		return Range{}, false
@@ -467,6 +509,17 @@ func (rs RangeSet) CutByFixedSize(size uint64, alignZero bool) []Range {
 			base = r.Start
 		}
 		result = append(result, r.CutByFixedSize(base, size, 0)...)
+	}
+	return result
+}
+
+func GetSetsIntersection(sets ...RangeSet) RangeSet {
+	if len(sets) == 0 {
+		return EmptyRangeSet
+	}
+	result := sets[0]
+	for i := 1; i < len(sets); i++ {
+		result = result.IntersectionSet(sets[i])
 	}
 	return result
 }

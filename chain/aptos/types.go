@@ -332,19 +332,10 @@ func (r ResourceChangeArgs) ChangeFilter() func(wc *WriteSetChange) bool {
 		addrSet.Truncate()
 	}
 	changeType, _ := move.BuildType(r.ResourceChangesMoveTypePrefix)
-	return func(wc *WriteSetChange) bool {
-		if !addrSet.Empty() {
-			if addr := wc.Address(); addr == nil || !addrSet.Contains(addr.String()) {
-				return false
-			}
-		}
-		if !changeType.IsAny() {
-			if !changeType.IncludeTypeString(wc.ResourceType()) {
-				return false
-			}
-		}
-		return true
-	}
+	return ChangeFilter{
+		Address:       addrSet,
+		ResourceTypes: move.TypeSet{changeType},
+	}.Check
 }
 
 type GetFunctionsArgs struct {
@@ -399,6 +390,13 @@ func (r GetFunctionsArgs) TxnFilter() func(resp *Transaction) bool {
 	}
 }
 
+func (r GetFunctionsArgs) ChangeFilter() func(c *WriteSetChange) bool {
+	return ChangeFilter{
+		Address:       set.New[string](),
+		ResourceTypes: move.TypeSet{move.MustBuildType(r.ResourceChangesMoveTypePrefix)},
+	}.Check
+}
+
 type GetEventsArgs struct {
 	Network                       string `json:"network,omitempty"`
 	FromVersion                   uint64 `json:"fromVersion"`
@@ -412,10 +410,10 @@ type GetEventsArgs struct {
 	AccountAddress                string `json:"accountAddress,omitempty"`
 }
 
-func (r GetEventsArgs) EventFilter() func(extend *api.Event) bool {
+func (r GetEventsArgs) EventFilter() func(extend *Event) bool {
 	pattern, _ := move.BuildType(fmt.Sprintf("%s::%s", r.Address, r.Type))
 	accountAddress := move.ToShortAddress(r.AccountAddress)
-	return func(evt *api.Event) bool {
+	return func(evt *Event) bool {
 		// check account address
 		if accountAddress != "" {
 			if evt.Guid == nil || evt.Guid.AccountAddress == nil {
@@ -431,6 +429,13 @@ func (r GetEventsArgs) EventFilter() func(extend *api.Event) bool {
 		}
 		return true
 	}
+}
+
+func (r GetEventsArgs) ChangeFilter() func(c *WriteSetChange) bool {
+	return ChangeFilter{
+		Address:       set.New[string](),
+		ResourceTypes: move.TypeSet{move.MustBuildType(r.ResourceChangesMoveTypePrefix)},
+	}.Check
 }
 
 // ChangeFilter has 2 parts, there are linked by AND

@@ -40,7 +40,7 @@ const (
 	MinimalistTxnCacheSize         = 1000000
 	AddressStartTxVersionCacheSize = 1000000
 
-	APIVersion = 1 // api version, if api version increased, all driver client will restart
+	APIVersion = 2 // api version, if api version increased, all driver client will restart
 )
 
 type RPCServiceV2 struct {

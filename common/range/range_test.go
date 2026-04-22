@@ -1,8 +1,10 @@
 package rg
 
 import (
-	"github.com/stretchr/testify/assert"
+	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_NewSingleRange(t *testing.T) {
@@ -52,6 +54,21 @@ func Test_NewRangeByEndAndSize(t *testing.T) {
 func Test_EndOrZero(t *testing.T) {
 	assert.Equal(t, uint64(0), Range{Start: 5}.EndOrZero())
 	assert.Equal(t, uint64(10), NewRange(5, 10).EndOrZero())
+}
+
+func Test_EndOr(t *testing.T) {
+	// nil End → returns the supplied default
+	assert.Equal(t, uint64(42), Range{Start: 5}.EndOr(42))
+	assert.Equal(t, uint64(0), Range{Start: 5}.EndOr(0))
+
+	// non-nil End → returns *End regardless of default
+	assert.Equal(t, uint64(10), NewRange(5, 10).EndOr(42))
+	assert.Equal(t, uint64(10), NewRange(5, 10).EndOr(0))
+}
+
+func Test_EndOrMaxUInt64(t *testing.T) {
+	assert.Equal(t, uint64(math.MaxUint64), Range{Start: 5}.EndOrMaxUInt64())
+	assert.Equal(t, uint64(10), NewRange(5, 10).EndOrMaxUInt64())
 }
 
 func Test_rangeSize(t *testing.T) {

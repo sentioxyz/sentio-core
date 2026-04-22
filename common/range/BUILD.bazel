@@ -21,6 +21,8 @@ go_test(
     name = "range_test",
     srcs = [
         "cutter_test.go",
+        "parser_test.go",
+        "random_test.go",
         "range_test.go",
         "set_test.go",
         "utils_test.go",

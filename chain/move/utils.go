@@ -19,3 +19,13 @@ func TrimTypeString(t string) string {
 	}
 	return x.String()
 }
+
+func RemoveTypeArgs(t string) string {
+	if strings.HasSuffix(t, ">") {
+		b := strings.Index(t, "<")
+		if b > 0 {
+			t = t[:b]
+		}
+	}
+	return t
+}

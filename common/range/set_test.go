@@ -448,10 +448,8 @@ func Test_setFirst(t *testing.T) {
 }
 
 func Test_GetRanges(t *testing.T) {
-	// empty set returns one empty range
-	ranges := EmptyRangeSet.GetRanges()
-	assert.Len(t, ranges, 1)
-	assert.True(t, ranges[0].IsEmpty())
+	// empty set returns nil
+	assert.Nil(t, EmptyRangeSet.GetRanges())
 
 	// no holes
 	assert.Equal(t, []Range{NewRange(1, 5)}, RangeSet{Range: NewRange(1, 5)}.GetRanges())
@@ -512,6 +510,63 @@ func Test_FindContains(t *testing.T) {
 	assert.Nil(t, r.End)
 }
 
+func Test_setIntersectionSet(t *testing.T) {
+	// empty operands
+	assert.Equal(t, EmptyRangeSet, EmptyRangeSet.IntersectionSet(EmptyRangeSet))
+	assert.Equal(t, EmptyRangeSet, EmptyRangeSet.IntersectionSet(RangeSet{Range: NewRange(1, 10)}))
+	assert.Equal(t, EmptyRangeSet, RangeSet{Range: NewRange(1, 10)}.IntersectionSet(EmptyRangeSet))
+
+	// no overlap
+	rs := RangeSet{Range: NewRange(1, 5)}
+	a := RangeSet{Range: NewRange(7, 10)}
+	assert.Equal(t, EmptyRangeSet, rs.IntersectionSet(a))
+
+	// identical sets
+	set := RangeSet{Range: NewRange(1, 10), Holes: [][2]uint64{{4, 6}}}
+	assert.Equal(t, set, set.IntersectionSet(set))
+
+	// one contains the other (no holes)
+	outer := RangeSet{Range: NewRange(1, 20)}
+	inner := RangeSet{Range: NewRange(5, 15)}
+	result := outer.IntersectionSet(inner)
+	assert.Equal(t, inner, result)
+
+	// partial overlap between two contiguous sets
+	// rs: [1,6], a: [4,10] → [4,6]
+	result = RangeSet{Range: NewRange(1, 6)}.IntersectionSet(RangeSet{Range: NewRange(4, 10)})
+	assert.Equal(t, RangeSet{Range: NewRange(4, 6)}, result)
+
+	// rs: [1,1][4,6][10,10], a: [1,3][5,8][10,12]
+	// expected intersections: [1,1], [5,6], [10,10]
+	rs = RangeSet{Range: NewRange(1, 10), Holes: [][2]uint64{{2, 3}, {7, 9}}}
+	a = RangeSet{Range: NewRange(1, 12), Holes: [][2]uint64{{4, 4}, {9, 9}}}
+	result = rs.IntersectionSet(a)
+	assert.True(t, result.Contains(1))
+	assert.False(t, result.Contains(2))
+	assert.False(t, result.Contains(4))
+	assert.True(t, result.Contains(5))
+	assert.True(t, result.Contains(6))
+	assert.False(t, result.Contains(7))
+	assert.False(t, result.Contains(9))
+	assert.True(t, result.Contains(10))
+	assert.False(t, result.Contains(11))
+
+	// with infinite end: rs=[5,INF], a=[1,8] → [5,8]
+	infRS := RangeSet{Range: Range{Start: 5}}
+	finA := RangeSet{Range: NewRange(1, 8)}
+	result = infRS.IntersectionSet(finA)
+	assert.Equal(t, RangeSet{Range: NewRange(5, 8)}, result)
+
+	// rs=[1,8], a=[5,INF] → [5,8]
+	result = finA.IntersectionSet(infRS)
+	assert.Equal(t, RangeSet{Range: NewRange(5, 8)}, result)
+
+	// both infinite: rs=[3,INF], a=[5,INF] → [5,INF]
+	result = RangeSet{Range: Range{Start: 3}}.IntersectionSet(RangeSet{Range: Range{Start: 5}})
+	assert.Equal(t, uint64(5), result.Start)
+	assert.Nil(t, result.End)
+}
+
 func Test_setCutByFixedSize(t *testing.T) {
 	assert.Panics(t, func() {
 		RangeSet{Range: Range{Start: 0}}.CutByFixedSize(10, true)
@@ -535,6 +590,47 @@ func Test_setCutByFixedSize(t *testing.T) {
 	// [10,10] base=0: [10,14]∩[10,10]=[10,10]
 	result = set.CutByFixedSize(5, true)
 	assert.Equal(t, []Range{NewRange(1, 1), NewRange(4, 4), NewRange(5, 6), NewRange(10, 10)}, result)
+}
+
+func Test_setStringFormat(t *testing.T) {
+	// no holes, finite: [1,5/5]
+	assert.Equal(t, "[1,5/5]", RangeSet{Range: NewRange(1, 5)}.String())
+
+	// no holes, infinite: [3,INF]
+	assert.Equal(t, "[3,INF]", RangeSet{Range: Range{Start: 3}}.String())
+
+	// holes, finite: [1][4-6][10] → "[1,1/1]+[4,6/3]+[10,10/1]/5"
+	assert.Equal(t, "[1,1/1]+[4,6/3]+[10,10/1]/5", RangeSet{
+		Range: NewRange(1, 10),
+		Holes: [][2]uint64{{2, 3}, {7, 9}},
+	}.String())
+
+	// holes, infinite: [1][4,INF] → "[1,1/1]+[4,INF]"
+	assert.Equal(t, "[1,1/1]+[4,INF]", RangeSet{
+		Range: Range{Start: 1},
+		Holes: [][2]uint64{{2, 3}},
+	}.String())
+}
+
+func Test_GetSetsIntersection(t *testing.T) {
+	// 0 args → empty
+	assert.Equal(t, EmptyRangeSet, GetSetsIntersection())
+
+	// 1 arg → identity
+	set := RangeSet{Range: NewRange(1, 10)}
+	assert.Equal(t, set, GetSetsIntersection(set))
+
+	// 2 args with partial overlap
+	a := RangeSet{Range: NewRange(1, 8)}
+	b := RangeSet{Range: NewRange(4, 12)}
+	assert.Equal(t, RangeSet{Range: NewRange(4, 8)}, GetSetsIntersection(a, b))
+
+	// 3 args — each additional set narrows the result
+	c := RangeSet{Range: NewRange(5, 10)}
+	assert.Equal(t, RangeSet{Range: NewRange(5, 8)}, GetSetsIntersection(a, b, c))
+
+	// one operand empty → result empty
+	assert.Equal(t, EmptyRangeSet, GetSetsIntersection(a, EmptyRangeSet, b))
 }
 
 func Test_CutRangeSet(t *testing.T) {

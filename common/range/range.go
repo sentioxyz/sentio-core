@@ -47,8 +47,16 @@ var EmptyRange = Range{
 }
 
 func (r Range) EndOrZero() uint64 {
+	return r.EndOr(0)
+}
+
+func (r Range) EndOrMaxUInt64() uint64 {
+	return r.EndOr(math.MaxUint64)
+}
+
+func (r Range) EndOr(nullValue uint64) uint64 {
 	if r.End == nil {
-		return 0
+		return nullValue
 	}
 	return *r.End
 }

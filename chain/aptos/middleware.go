@@ -6,10 +6,8 @@ import (
 	"github.com/aptos-labs/aptos-go-sdk/api"
 	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/chain"
-	"sentioxyz/sentio-core/chain/move"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	rg "sentioxyz/sentio-core/common/range"
-	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 )
 
@@ -73,10 +71,7 @@ func (s *RPCService) LatestHeight(ctx context.Context) (uint64, error) {
 
 func (s *RPCService) FullEvents(ctx context.Context, req *GetEventsArgs) ([]*Transaction, error) {
 	eventsFilter := req.EventFilter()
-	changesFilter := ChangeFilter{
-		Address:       set.New[string](),
-		ResourceTypes: move.TypeSet{move.MustBuildType(req.ResourceChangesMoveTypePrefix)},
-	}
+	changesFilter := req.ChangeFilter()
 	return splitRange(
 		ctx,
 		s.slotCache,
@@ -86,9 +81,7 @@ func (s *RPCService) FullEvents(ctx context.Context, req *GetEventsArgs) ([]*Tra
 				return nil, nil
 			}
 			tx := NewTransaction(t)
-			events := utils.FilterArr(tx.Events, func(ev *Event) bool {
-				return eventsFilter(ev.Event)
-			})
+			events := utils.FilterArr(tx.Events, eventsFilter)
 			if len(events) == 0 {
 				return nil, nil
 			}
@@ -97,7 +90,7 @@ func (s *RPCService) FullEvents(ctx context.Context, req *GetEventsArgs) ([]*Tra
 			}
 			changes := make([]*WriteSetChange, 0)
 			if req.IncludeChanges {
-				changes = utils.FilterArr(tx.Changes, changesFilter.Check)
+				changes = utils.FilterArr(tx.Changes, changesFilter)
 			}
 			tx.Events, tx.Changes = events, changes
 			return []*Transaction{&tx}, nil
@@ -112,10 +105,7 @@ func (s *RPCService) FullEvents(ctx context.Context, req *GetEventsArgs) ([]*Tra
 
 func (s *RPCService) Functions(ctx context.Context, req *GetFunctionsArgs) ([]*Transaction, error) {
 	txFilter := req.TxnFilter()
-	changesFilter := ChangeFilter{
-		Address:       set.New[string](),
-		ResourceTypes: move.TypeSet{move.MustBuildType(req.ResourceChangesMoveTypePrefix)},
-	}
+	changesFilter := req.ChangeFilter()
 	return splitRange(
 		ctx,
 		s.slotCache,
@@ -133,7 +123,7 @@ func (s *RPCService) Functions(ctx context.Context, req *GetFunctionsArgs) ([]*T
 			}
 			changes := make([]*WriteSetChange, 0)
 			if req.IncludeChanges {
-				changes = utils.FilterArr(tx.Changes, changesFilter.Check)
+				changes = utils.FilterArr(tx.Changes, changesFilter)
 			}
 			tx.Changes = changes
 			return []*Transaction{&tx}, nil

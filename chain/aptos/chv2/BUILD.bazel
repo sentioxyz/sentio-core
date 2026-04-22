@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "chv2",
+    srcs = [
+        "data.go",
+        "schema_mgr.go",
+        "stat.go",
+        "storage.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/aptos/chv2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/aptos",
+        "//chain/chain",
+        "//chain/clickhouse",
+        "//chain/move",
+        "//common/chx",
+        "//common/histogram",
+        "//common/jsonrpc",
+        "//common/objectx",
+        "//common/range",
+        "//common/timehist",
+        "//common/utils",
+        "@com_github_aptos_labs_aptos_go_sdk//:aptos-go-sdk",
+        "@com_github_aptos_labs_aptos_go_sdk//api",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

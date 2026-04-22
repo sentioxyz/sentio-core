@@ -10,6 +10,14 @@ import (
 	"time"
 )
 
+func BuildSlice[T any](item T, num int) []T {
+	arr := make([]T, num)
+	for i := range arr {
+		arr[i] = item
+	}
+	return arr
+}
+
 func MapSlice[T any, M any](a []T, f func(T) (M, error)) ([]M, error) {
 	n := make([]M, len(a))
 	var err error

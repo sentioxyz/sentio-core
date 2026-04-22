@@ -23,6 +23,7 @@ shared:
     driver_image: 'docker.sentioxyz.co/sentio/driver:dev'
     processor_service: http://host.docker.internal:9999
     billing_server: ''
+    db_registry_service: ''
     cache_dir: '/tmp/cache'
     chains_config: './chains-config.json'
     driver:

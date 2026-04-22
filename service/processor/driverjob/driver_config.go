@@ -32,6 +32,12 @@ type DriverConfig struct {
 	DriverImage      string `yaml:"driver_image"`
 	ProcessorService string `yaml:"processor_service"`
 	BillingServer    string `yaml:"billing_server"`
+	// DBRegistryService is the gRPC address of the database_registry service
+	// used by network_v1 processors to mirror ClickHouse tables on-chain.
+	// It is a separate flag from BillingServer so deployments can route the
+	// two concerns independently even though both happen to be served by
+	// sentio-node on the same UsageGRPCPort today.
+	DBRegistryService string `yaml:"db_registry_service"`
 	CacheDir         string `yaml:"cache_dir"`
 	ChainsConfig     string `yaml:"chains_config"`
 

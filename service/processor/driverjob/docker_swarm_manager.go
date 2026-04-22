@@ -117,6 +117,11 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 		fmt.Sprintf("-processor-service=%s", d.config.ProcessorService),
 		fmt.Sprintf("-webhook-service=%s", ""),
 		fmt.Sprintf("-billing-server=%s", d.config.BillingServer),
+		// db-registry-service is a logically separate service from
+		// billing even though sentio-node currently serves both on the
+		// same port. Declared explicitly so deployments that split the
+		// two don't have to overload -billing-server.
+		fmt.Sprintf("-db-registry-service=%s", d.config.DBRegistryService),
 		fmt.Sprintf("-rpcnode-service=%s", ""),
 		fmt.Sprintf("-pubsub-topic=%s", ""),
 		fmt.Sprintf("-timescale-db-config=%s", ""),

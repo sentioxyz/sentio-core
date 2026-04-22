@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//common/chains",
         "//common/gonanoid",
+        "//common/log",
         "//common/utils",
         "//service/common/errors",
         "//service/common/models",

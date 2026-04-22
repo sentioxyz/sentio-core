@@ -5,6 +5,9 @@ proto_library(
     name = "protos_proto",
     srcs = ["database_registry.proto"],
     visibility = ["//visibility:public"],
+    deps = [
+        "@protobuf//:empty_proto",
+    ],
 )
 
 # gazelle:ignore

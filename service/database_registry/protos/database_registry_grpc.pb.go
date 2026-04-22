@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -27,8 +28,8 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DatabaseRegistryServiceClient interface {
-	EnsureDatabase(ctx context.Context, in *EnsureDatabaseRequest, opts ...grpc.CallOption) (*EnsureDatabaseResponse, error)
-	EnsureTable(ctx context.Context, in *EnsureTableRequest, opts ...grpc.CallOption) (*EnsureTableResponse, error)
+	EnsureDatabase(ctx context.Context, in *EnsureDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	EnsureTable(ctx context.Context, in *EnsureTableRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type databaseRegistryServiceClient struct {
@@ -39,9 +40,9 @@ func NewDatabaseRegistryServiceClient(cc grpc.ClientConnInterface) DatabaseRegis
 	return &databaseRegistryServiceClient{cc}
 }
 
-func (c *databaseRegistryServiceClient) EnsureDatabase(ctx context.Context, in *EnsureDatabaseRequest, opts ...grpc.CallOption) (*EnsureDatabaseResponse, error) {
+func (c *databaseRegistryServiceClient) EnsureDatabase(ctx context.Context, in *EnsureDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EnsureDatabaseResponse)
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, DatabaseRegistryService_EnsureDatabase_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -49,9 +50,9 @@ func (c *databaseRegistryServiceClient) EnsureDatabase(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *databaseRegistryServiceClient) EnsureTable(ctx context.Context, in *EnsureTableRequest, opts ...grpc.CallOption) (*EnsureTableResponse, error) {
+func (c *databaseRegistryServiceClient) EnsureTable(ctx context.Context, in *EnsureTableRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EnsureTableResponse)
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, DatabaseRegistryService_EnsureTable_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -63,8 +64,8 @@ func (c *databaseRegistryServiceClient) EnsureTable(ctx context.Context, in *Ens
 // All implementations must embed UnimplementedDatabaseRegistryServiceServer
 // for forward compatibility.
 type DatabaseRegistryServiceServer interface {
-	EnsureDatabase(context.Context, *EnsureDatabaseRequest) (*EnsureDatabaseResponse, error)
-	EnsureTable(context.Context, *EnsureTableRequest) (*EnsureTableResponse, error)
+	EnsureDatabase(context.Context, *EnsureDatabaseRequest) (*emptypb.Empty, error)
+	EnsureTable(context.Context, *EnsureTableRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedDatabaseRegistryServiceServer()
 }
 
@@ -75,10 +76,10 @@ type DatabaseRegistryServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDatabaseRegistryServiceServer struct{}
 
-func (UnimplementedDatabaseRegistryServiceServer) EnsureDatabase(context.Context, *EnsureDatabaseRequest) (*EnsureDatabaseResponse, error) {
+func (UnimplementedDatabaseRegistryServiceServer) EnsureDatabase(context.Context, *EnsureDatabaseRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnsureDatabase not implemented")
 }
-func (UnimplementedDatabaseRegistryServiceServer) EnsureTable(context.Context, *EnsureTableRequest) (*EnsureTableResponse, error) {
+func (UnimplementedDatabaseRegistryServiceServer) EnsureTable(context.Context, *EnsureTableRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnsureTable not implemented")
 }
 func (UnimplementedDatabaseRegistryServiceServer) mustEmbedUnimplementedDatabaseRegistryServiceServer() {

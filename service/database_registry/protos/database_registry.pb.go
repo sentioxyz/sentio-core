@@ -9,6 +9,7 @@ package protos
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -65,42 +66,6 @@ func (x *EnsureDatabaseRequest) GetDatabaseId() string {
 	return ""
 }
 
-type EnsureDatabaseResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *EnsureDatabaseResponse) Reset() {
-	*x = EnsureDatabaseResponse{}
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EnsureDatabaseResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EnsureDatabaseResponse) ProtoMessage() {}
-
-func (x *EnsureDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EnsureDatabaseResponse.ProtoReflect.Descriptor instead.
-func (*EnsureDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{1}
-}
-
 type EnsureTableRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DatabaseId    string                 `protobuf:"bytes,1,opt,name=database_id,json=databaseId,proto3" json:"database_id,omitempty"`
@@ -112,7 +77,7 @@ type EnsureTableRequest struct {
 
 func (x *EnsureTableRequest) Reset() {
 	*x = EnsureTableRequest{}
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[2]
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -124,7 +89,7 @@ func (x *EnsureTableRequest) String() string {
 func (*EnsureTableRequest) ProtoMessage() {}
 
 func (x *EnsureTableRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[2]
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -137,7 +102,7 @@ func (x *EnsureTableRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnsureTableRequest.ProtoReflect.Descriptor instead.
 func (*EnsureTableRequest) Descriptor() ([]byte, []int) {
-	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{2}
+	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *EnsureTableRequest) GetDatabaseId() string {
@@ -161,61 +126,23 @@ func (x *EnsureTableRequest) GetTableType() string {
 	return ""
 }
 
-type EnsureTableResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *EnsureTableResponse) Reset() {
-	*x = EnsureTableResponse{}
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EnsureTableResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EnsureTableResponse) ProtoMessage() {}
-
-func (x *EnsureTableResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EnsureTableResponse.ProtoReflect.Descriptor instead.
-func (*EnsureTableResponse) Descriptor() ([]byte, []int) {
-	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{3}
-}
-
 var File_service_database_registry_protos_database_registry_proto protoreflect.FileDescriptor
 
 const file_service_database_registry_protos_database_registry_proto_rawDesc = "" +
 	"\n" +
-	"8service/database_registry/protos/database_registry.proto\x12\x19database_registry_service\"8\n" +
+	"8service/database_registry/protos/database_registry.proto\x12\x19database_registry_service\x1a\x1bgoogle/protobuf/empty.proto\"8\n" +
 	"\x15EnsureDatabaseRequest\x12\x1f\n" +
 	"\vdatabase_id\x18\x01 \x01(\tR\n" +
-	"databaseId\"\x18\n" +
-	"\x16EnsureDatabaseResponse\"o\n" +
+	"databaseId\"o\n" +
 	"\x12EnsureTableRequest\x12\x1f\n" +
 	"\vdatabase_id\x18\x01 \x01(\tR\n" +
 	"databaseId\x12\x19\n" +
 	"\btable_id\x18\x02 \x01(\tR\atableId\x12\x1d\n" +
 	"\n" +
-	"table_type\x18\x03 \x01(\tR\ttableType\"\x15\n" +
-	"\x13EnsureTableResponse2\xfe\x01\n" +
-	"\x17DatabaseRegistryService\x12u\n" +
-	"\x0eEnsureDatabase\x120.database_registry_service.EnsureDatabaseRequest\x1a1.database_registry_service.EnsureDatabaseResponse\x12l\n" +
-	"\vEnsureTable\x12-.database_registry_service.EnsureTableRequest\x1a..database_registry_service.EnsureTableResponseB8Z6sentioxyz/sentio-core/service/database_registry/protosb\x06proto3"
+	"table_type\x18\x03 \x01(\tR\ttableType2\xcb\x01\n" +
+	"\x17DatabaseRegistryService\x12Z\n" +
+	"\x0eEnsureDatabase\x120.database_registry_service.EnsureDatabaseRequest\x1a\x16.google.protobuf.Empty\x12T\n" +
+	"\vEnsureTable\x12-.database_registry_service.EnsureTableRequest\x1a\x16.google.protobuf.EmptyB8Z6sentioxyz/sentio-core/service/database_registry/protosb\x06proto3"
 
 var (
 	file_service_database_registry_protos_database_registry_proto_rawDescOnce sync.Once
@@ -229,18 +156,17 @@ func file_service_database_registry_protos_database_registry_proto_rawDescGZIP()
 	return file_service_database_registry_protos_database_registry_proto_rawDescData
 }
 
-var file_service_database_registry_protos_database_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_service_database_registry_protos_database_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_service_database_registry_protos_database_registry_proto_goTypes = []any{
-	(*EnsureDatabaseRequest)(nil),  // 0: database_registry_service.EnsureDatabaseRequest
-	(*EnsureDatabaseResponse)(nil), // 1: database_registry_service.EnsureDatabaseResponse
-	(*EnsureTableRequest)(nil),     // 2: database_registry_service.EnsureTableRequest
-	(*EnsureTableResponse)(nil),    // 3: database_registry_service.EnsureTableResponse
+	(*EnsureDatabaseRequest)(nil), // 0: database_registry_service.EnsureDatabaseRequest
+	(*EnsureTableRequest)(nil),    // 1: database_registry_service.EnsureTableRequest
+	(*emptypb.Empty)(nil),         // 2: google.protobuf.Empty
 }
 var file_service_database_registry_protos_database_registry_proto_depIdxs = []int32{
 	0, // 0: database_registry_service.DatabaseRegistryService.EnsureDatabase:input_type -> database_registry_service.EnsureDatabaseRequest
-	2, // 1: database_registry_service.DatabaseRegistryService.EnsureTable:input_type -> database_registry_service.EnsureTableRequest
-	1, // 2: database_registry_service.DatabaseRegistryService.EnsureDatabase:output_type -> database_registry_service.EnsureDatabaseResponse
-	3, // 3: database_registry_service.DatabaseRegistryService.EnsureTable:output_type -> database_registry_service.EnsureTableResponse
+	1, // 1: database_registry_service.DatabaseRegistryService.EnsureTable:input_type -> database_registry_service.EnsureTableRequest
+	2, // 2: database_registry_service.DatabaseRegistryService.EnsureDatabase:output_type -> google.protobuf.Empty
+	2, // 3: database_registry_service.DatabaseRegistryService.EnsureTable:output_type -> google.protobuf.Empty
 	2, // [2:4] is the sub-list for method output_type
 	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -259,7 +185,7 @@ func file_service_database_registry_protos_database_registry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_database_registry_protos_database_registry_proto_rawDesc), len(file_service_database_registry_protos_database_registry_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

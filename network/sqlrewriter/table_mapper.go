@@ -82,6 +82,9 @@ func NewTableMapper(
 		if err != nil {
 			return nil, err
 		}
+		// table_mapper runs inside the query path (sqlrewriter). It only
+		// creates VIEWs via entity.CreateViews; it never creates physical
+		// tables and must not hit the on-chain registrar.
 		entity = entitychs.NewStore(
 			chx.NewController(timeseriesConn),
 			processorId,
@@ -90,6 +93,7 @@ func NewTableMapper(
 			entitychs.BuildFeatures(processorInfo.EntitySchemaVersion),
 			entitySchema,
 			entitychs.DefaultCreateTableOption,
+			nil,
 		)
 	}
 	return &sentioNetworkTableMapper{
@@ -98,6 +102,7 @@ func NewTableMapper(
 		indexerInfo:   indexerInfo,
 		processorInfo: processorInfo,
 		conn:          timeseriesConn,
+		// Query-only path: no table creation, so pass nil registrar.
 		timeseries: timeserieschs.NewStore(
 			timeseriesConn,
 			timeseriesConn.GetCluster(),
@@ -106,6 +111,7 @@ func NewTableMapper(
 			processorReplica,
 			processorTablePattern,
 			timeserieschs.Option{},
+			nil,
 		),
 		entity:       entity,
 		entitySchema: entitySchema,

@@ -636,6 +636,17 @@ func (s *Store) syncMeta(ctx context.Context, data timeseries.Dataset) error {
 	preMeta, has := utils.GetFromK2Map(s.meta.Metas, meta.Type, meta.Name)
 	if !has {
 		logger.Debug("will create table")
+		// Mirror the new physical table to the on-chain Databases contract
+		// before issuing CREATE TABLE, so onchain state cannot fall behind
+		// clickhouse. Only active for the decentralized network path.
+		if s.onChainRegistrationEnabled() {
+			if err := s.ensureOnChainDatabase(ctx); err != nil {
+				return fmt.Errorf("ensure on-chain database for %s: %w", meta.GetFullName(), err)
+			}
+			if err := s.registrar.EnsureTable(ctx, s.onChainDatabaseID(), meta.GetTableSuffix(), string(meta.Type)); err != nil {
+				return fmt.Errorf("ensure on-chain table for %s: %w", meta.GetFullName(), err)
+			}
+		}
 		err := s.CreateTable(ctx, meta)
 		logger = logger.With("used", time.Since(startTime).String())
 		if err != nil {

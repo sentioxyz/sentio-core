@@ -132,6 +132,14 @@ func (s *Store) syncTablesAndViews(ctx context.Context, viewOnly bool) (err erro
 
 	// sync
 	expects := s.buildTablesAndViews(viewOnly)
+	// Mirror physical tables to the on-chain Databases contract before any
+	// CREATE TABLE statements run. Only active for decentralized network
+	// processors; the cloud path leaves registrar nil and skips entirely.
+	if !viewOnly && s.onChainRegistrationEnabled() {
+		if err = s.ensureOnChainTables(ctx, expects); err != nil {
+			return err
+		}
+	}
 	for _, item := range s.sch.ListEntitiesAndInterfacesAndAggregations(false) {
 		for _, tv := range expects[item.GetName()] {
 			pre, has := utils.GetFromK2Map(exists, item.GetName(), tv.GetFullName().Name)
@@ -163,6 +171,33 @@ func (s *Store) InitEntitySchema(ctx context.Context) error {
 
 func (s *Store) CreateViews(ctx context.Context) error {
 	return s.syncTablesAndViews(ctx, true)
+}
+
+// ensureOnChainTables ensures this processor replica's on-chain database
+// exists and every physical base table in the expected set is registered
+// on-chain with tableType="entity". Views and materialized views are not
+// registered because they have no independent storage.
+func (s *Store) ensureOnChainTables(
+	ctx context.Context,
+	expects map[string][]chx.TableOrView,
+) error {
+	dbID := s.onChainDatabaseID()
+	if err := s.registrar.EnsureDatabase(ctx, dbID); err != nil {
+		return fmt.Errorf("ensure on-chain database %q: %w", dbID, err)
+	}
+	prefix := s.tableNamePrefix()
+	for _, tvs := range expects {
+		for _, tv := range tvs {
+			if _, is := tv.(chx.Table); !is {
+				continue
+			}
+			tableID := strings.TrimPrefix(tv.GetFullName().Name, prefix)
+			if err := s.registrar.EnsureTable(ctx, dbID, tableID, "entity"); err != nil {
+				return fmt.Errorf("ensure on-chain table %q in %q: %w", tableID, dbID, err)
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Store) getViewFields(item schema.EntityOrInterface, latestView bool) []ViewField {

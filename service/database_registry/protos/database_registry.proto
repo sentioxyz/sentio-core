@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package database_registry_service;
+
+option go_package = "sentioxyz/sentio-core/service/database_registry/protos";
+
+// DatabaseRegistryService lets drivers ask sentio-node to mirror physical
+// ClickHouse tables as on-chain (database, table) records before issuing DDL.
+// The node signs the on-chain transactions with its indexer key.
+service DatabaseRegistryService {
+  // EnsureDatabase creates the on-chain database if missing. Idempotent.
+  rpc EnsureDatabase(EnsureDatabaseRequest) returns (EnsureDatabaseResponse);
+
+  // EnsureTable registers (database_id, table_id, table_type) on-chain if
+  // missing. Idempotent.
+  rpc EnsureTable(EnsureTableRequest) returns (EnsureTableResponse);
+}
+
+message EnsureDatabaseRequest {
+  string database_id = 1;
+}
+
+message EnsureDatabaseResponse {
+}
+
+message EnsureTableRequest {
+  string database_id = 1;
+  string table_id = 2;
+  // One of: "event", "gauge", "counter", "entity".
+  string table_type = 3;
+}
+
+message EnsureTableResponse {
+}

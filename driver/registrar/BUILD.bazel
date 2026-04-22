@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "registrar",
+    srcs = ["registrar.go"],
+    importpath = "sentioxyz/sentio-core/driver/registrar",
+    visibility = ["//visibility:public"],
+)

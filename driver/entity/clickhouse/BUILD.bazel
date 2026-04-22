@@ -24,6 +24,7 @@ go_library(
         "//driver/entity/schema",
         "//driver/entity/schema/exp",
         "//driver/entity/schema/interval",
+        "//driver/registrar",
         "//service/processor/models",
         "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
         "@com_github_clickhouse_clickhouse_go_v2//lib/chcol",

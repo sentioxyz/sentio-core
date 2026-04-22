@@ -19,6 +19,7 @@ go_library(
         "//common/log",
         "//common/timer",
         "//common/utils",
+        "//driver/registrar",
         "//driver/timeseries",
         "//service/processor/models",
         "@com_github_bytedance_sonic//:sonic",

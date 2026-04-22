@@ -25,7 +25,7 @@ func Test_common(t *testing.T) {
 
 	ctx := context.Background()
 
-	store := NewStore(conn, "", conn.GetDatabase(), "processor0", 0, models.TablePatternPlatformV1, Option{})
+	store := NewStore(conn, "", conn.GetDatabase(), "processor0", 0, models.TablePatternPlatformV1, Option{}, nil)
 
 	assert.NoError(t, store.Init(ctx, true))
 

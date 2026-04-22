@@ -127,6 +127,12 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 		fmt.Sprintf("-cache-dir=%s", CacheDirMountPath),
 		fmt.Sprintf("-chains-config=%s", ChainConfigMountPath),
 		fmt.Sprintf("-clickhouse-config-path=%s", ClickhouseConfigMountPath),
+		// Replica index identifies this driver instance within a processor
+		// deployment. sentio-network uses it to derive the on-chain
+		// database id as "${processorID}_${replicaIndex}". Current testnet
+		// runs a single replica; this leaves room for future scale-out
+		// where each replica would be launched with a distinct index.
+		fmt.Sprintf("-processor-replica=%d", 0),
 	}
 
 	if d.config.Driver.LogFormat != "" {

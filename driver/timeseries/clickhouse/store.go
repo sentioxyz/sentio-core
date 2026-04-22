@@ -2,10 +2,13 @@ package clickhouse
 
 import (
 	"context"
+	"fmt"
+	"sync"
 
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/utils"
+	"sentioxyz/sentio-core/driver/registrar"
 	"sentioxyz/sentio-core/driver/timeseries"
 	"sentioxyz/sentio-core/service/processor/models"
 )
@@ -28,6 +31,17 @@ type Store struct {
 	meta *storeMeta
 
 	cachedCounterSeriesLatest *utils.SafeMap[string, *counterSeriesLatestCache]
+
+	// registrar mirrors table creations to the on-chain Databases contract.
+	// Only consulted when processorTablePattern == TablePatternNetworkV1.
+	// Nil disables on-chain registration.
+	registrar registrar.OnChain
+
+	// onChainDatabaseEnsured guards a single EnsureDatabase call per Store
+	// lifetime — timeseries tables are created lazily in syncMeta, so
+	// there is no startup phase to hook.
+	onChainDatabaseEnsured sync.Once
+	onChainDatabaseErr     error
 }
 
 type counterSeriesLatestCache struct {
@@ -49,6 +63,7 @@ func NewStore(
 	processorReplica int,
 	processorTablePattern models.TablePattern,
 	option Option,
+	reg registrar.OnChain,
 ) *Store {
 	if option.BatchInsertSizeLimit == 0 {
 		option.BatchInsertSizeLimit = int(defaultBatchInsertSizeLimit)
@@ -65,11 +80,34 @@ func NewStore(
 			Metas: make(map[timeseries.MetaType]map[string]timeseries.Meta),
 		},
 		cachedCounterSeriesLatest: utils.NewSafeMap[string, *counterSeriesLatestCache](),
+		registrar:                 reg,
 	}
 }
 
 func (s *Store) Init(ctx context.Context, overWriteMeta bool) error {
 	return s.fetchMetas(ctx, overWriteMeta)
+}
+
+// onChainDatabaseID returns the on-chain database identifier for this
+// processor replica. Only meaningful when processorTablePattern is
+// TablePatternNetworkV1.
+func (s *Store) onChainDatabaseID() string {
+	return fmt.Sprintf("%s_%d", s.processorID, s.processorReplica)
+}
+
+// onChainRegistrationEnabled reports whether the store should mirror table
+// creations to the on-chain Databases contract.
+func (s *Store) onChainRegistrationEnabled() bool {
+	return s.processorTablePattern == models.TablePatternNetworkV1 && s.registrar != nil
+}
+
+// ensureOnChainDatabase ensures the on-chain database record for this
+// replica exists, caching the result for subsequent table creations.
+func (s *Store) ensureOnChainDatabase(ctx context.Context) error {
+	s.onChainDatabaseEnsured.Do(func() {
+		s.onChainDatabaseErr = s.registrar.EnsureDatabase(ctx, s.onChainDatabaseID())
+	})
+	return s.onChainDatabaseErr
 }
 
 func (s *Store) Client() timeseries.QueryClient {

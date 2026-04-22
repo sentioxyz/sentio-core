@@ -19,7 +19,7 @@ type mockStoreMeta struct {
 }
 
 type MockStore struct {
-	chstimeseries.Store
+	*chstimeseries.Store
 	storeMeta   timeseries.StoreMeta
 	client      ckhmanager.Conn
 	processorID string
@@ -173,9 +173,9 @@ func newMockStoreMeta() timeseries.StoreMeta {
 }
 
 func NewMockStore(processor *processormodel.Processor, conn ckhmanager.Conn) *MockStore {
-	s := chstimeseries.NewStore(conn, "", conn.GetDatabase(), processor.ID, 0, processormodel.TablePatternPlatformV1, chstimeseries.Option{})
+	s := chstimeseries.NewStore(conn, "", conn.GetDatabase(), processor.ID, 0, processormodel.TablePatternPlatformV1, chstimeseries.Option{}, nil)
 	return &MockStore{
-		Store:       *s,
+		Store:       s,
 		storeMeta:   newMockStoreMeta(),
 		processorID: processor.ID,
 		client:      conn,

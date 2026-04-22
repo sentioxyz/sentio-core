@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"sentioxyz/sentio-core/common/chains"
+	"sentioxyz/sentio-core/common/log"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/datatypes"
@@ -297,6 +298,7 @@ type TablePattern string
 const (
 	TablePatternPlatformV1 TablePattern = "platform_v1"
 	TablePatternNetworkV1  TablePattern = "network_v1"
+	TablePatternCompatible TablePattern = ""
 )
 
 func (p TablePattern) TableNamePrefix(processorID string, processorReplica int) string {
@@ -305,8 +307,12 @@ func (p TablePattern) TableNamePrefix(processorID string, processorReplica int) 
 		return fmt.Sprintf("%s_", processorID)
 	case TablePatternNetworkV1:
 		return fmt.Sprintf("%s_%d.", processorID, processorReplica)
+	case TablePatternCompatible:
+		// use platform as default
+		return fmt.Sprintf("%s_", processorID)
 	default:
-		panic(fmt.Errorf("unsupported table pattern %s", p))
+		log.Errorf("unknown table pattern: %s, fallback to compatible pattern", p)
+		return fmt.Sprintf("%s_", processorID)
 	}
 }
 

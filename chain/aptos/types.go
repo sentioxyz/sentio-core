@@ -17,7 +17,7 @@ import (
 
 type Transaction struct {
 	// events and changes in CommittedTransaction are useless
-	api.CommittedTransaction
+	*api.CommittedTransaction
 
 	// the actually events and changes will be stored in the fields below
 	// so the events will include the event index
@@ -25,7 +25,7 @@ type Transaction struct {
 	Changes []*WriteSetChange `json:"changes"`
 }
 
-func GetTransactionChanges(t api.CommittedTransaction) []*api.WriteSetChange {
+func GetTransactionChanges(t *api.CommittedTransaction) []*api.WriteSetChange {
 	switch t.Type {
 	case api.TransactionVariantUser:
 		tx, _ := t.UserTransaction()
@@ -49,7 +49,7 @@ func GetTransactionChanges(t api.CommittedTransaction) []*api.WriteSetChange {
 	return nil
 }
 
-func GetTransactionEvents(t api.CommittedTransaction) []*api.Event {
+func GetTransactionEvents(t *api.CommittedTransaction) []*api.Event {
 	switch t.Type {
 	case api.TransactionVariantUser:
 		tx, _ := t.UserTransaction()
@@ -70,7 +70,7 @@ func GetTransactionEvents(t api.CommittedTransaction) []*api.Event {
 	return nil
 }
 
-func NewTransaction(raw api.CommittedTransaction) Transaction {
+func NewTransaction(raw *api.CommittedTransaction) Transaction {
 	t := Transaction{
 		CommittedTransaction: raw,
 	}
@@ -78,11 +78,11 @@ func NewTransaction(raw api.CommittedTransaction) Transaction {
 	rawChanges := GetTransactionChanges(raw)
 	t.Events = make([]*Event, len(rawEvents))
 	for index, ev := range rawEvents {
-		t.Events[index] = &Event{Event: *ev, Index: int32(index)}
+		t.Events[index] = &Event{Event: ev, Index: int32(index)}
 	}
 	t.Changes = make([]*WriteSetChange, len(rawChanges))
 	for index, change := range rawChanges {
-		t.Changes[index] = &WriteSetChange{WriteSetChange: *change}
+		t.Changes[index] = &WriteSetChange{WriteSetChange: change}
 	}
 	return t
 }
@@ -222,7 +222,7 @@ func (t Transaction) EntryFunctionTypeArguments() []string {
 }
 
 type Event struct {
-	api.Event
+	*api.Event
 
 	Index int32 `json:"event_index"`
 }
@@ -250,7 +250,7 @@ func (w Event) MarshalJSON() ([]byte, error) {
 }
 
 type WriteSetChange struct {
-	api.WriteSetChange
+	*api.WriteSetChange
 }
 
 func (w *WriteSetChange) UnmarshalJSON(b []byte) error {
@@ -261,7 +261,7 @@ func (w WriteSetChange) MarshalJSON() ([]byte, error) {
 	return w.WriteSetChange.MarshalJSON()
 }
 
-func GetChangeAddress(w api.WriteSetChange) *aptos.AccountAddress {
+func GetChangeAddress(w *api.WriteSetChange) *aptos.AccountAddress {
 	switch w.Type {
 	case api.WriteSetChangeVariantWriteResource:
 		inner := w.Inner.(*api.WriteSetChangeWriteResource)
@@ -280,7 +280,7 @@ func GetChangeAddress(w api.WriteSetChange) *aptos.AccountAddress {
 	}
 }
 
-func GetChangeResource(w api.WriteSetChange) *api.MoveResource {
+func GetChangeResource(w *api.WriteSetChange) *api.MoveResource {
 	switch w.Type {
 	case api.WriteSetChangeVariantWriteResource:
 		inner := w.Inner.(*api.WriteSetChangeWriteResource)
@@ -290,7 +290,7 @@ func GetChangeResource(w api.WriteSetChange) *api.MoveResource {
 	}
 }
 
-func GetChangeResourceType(w api.WriteSetChange) *string {
+func GetChangeResourceType(w *api.WriteSetChange) *string {
 	if res := GetChangeResource(w); res != nil {
 		// address part of resource type should use short address
 		resType := move.TrimTypeString(res.Type)
@@ -412,10 +412,10 @@ type GetEventsArgs struct {
 	AccountAddress                string `json:"accountAddress,omitempty"`
 }
 
-func (r GetEventsArgs) EventFilter() func(extend api.Event) bool {
+func (r GetEventsArgs) EventFilter() func(extend *api.Event) bool {
 	pattern, _ := move.BuildType(fmt.Sprintf("%s::%s", r.Address, r.Type))
 	accountAddress := move.ToShortAddress(r.AccountAddress)
-	return func(evt api.Event) bool {
+	return func(evt *api.Event) bool {
 		// check account address
 		if accountAddress != "" {
 			if evt.Guid == nil || evt.Guid.AccountAddress == nil {
@@ -471,7 +471,7 @@ func (f ChangeFilter) String() string {
 		f.ResourceTypes.String())
 }
 
-func (f ChangeFilter) Check(c WriteSetChange) bool {
+func (f ChangeFilter) Check(c *WriteSetChange) bool {
 	if !f.Address.Empty() {
 		if addr := c.Address(); addr == nil || !f.Address.Contains(addr.String()) {
 			return false
@@ -700,20 +700,16 @@ func (f TransactionFetchConfig) Merge(a TransactionFetchConfig) (r TransactionFe
 }
 
 func (f TransactionFetchConfig) PruneTransaction(txn Transaction, eventFilters []EventFilter) Transaction {
-	r := txn
+	r := Transaction{CommittedTransaction: txn.CommittedTransaction}
 	if !f.NeedAllEvents {
 		r.Events = utils.FilterArr(txn.Events, BuildEventFilter(eventFilters))
+	} else {
+		// r.Events and r.Changes should be a empty string at least, can not be nil
+		r.Events = make([]*Event, 0)
 	}
 	r.Changes = utils.FilterArr(txn.Changes, func(c *WriteSetChange) bool {
 		return f.ChangeResourceTypes.IncludeTypeString(c.ResourceType())
 	})
-	// r.Events and r.Changes should be a empty string at least, can not be nil
-	if r.Events == nil {
-		r.Events = make([]*Event, 0)
-	}
-	if r.Changes == nil {
-		r.Changes = make([]*WriteSetChange, 0)
-	}
 	return r
 }
 
@@ -737,7 +733,7 @@ type MinimalistTransaction struct {
 	TimestampMS int64  `json:"timestamp"`
 }
 
-func NewMinimalistTransaction(tx api.CommittedTransaction) MinimalistTransaction {
+func NewMinimalistTransaction(tx *api.CommittedTransaction) MinimalistTransaction {
 	// TransactionVariantGenesis txn is the first txn of the chain without timestamp
 	txn := Transaction{CommittedTransaction: tx}
 	var ts uint64
@@ -750,8 +746,6 @@ func NewMinimalistTransaction(tx api.CommittedTransaction) MinimalistTransaction
 		TimestampMS: int64(ts),
 	}
 }
-
-const APIVersion = 1
 
 type GetLatestMinimalistTransactionResponse struct {
 	Transaction MinimalistTransaction `json:"transaction"`

@@ -14,16 +14,16 @@ func Test_BuildType(t *testing.T) {
 
 	p, err = BuildType("")
 	assert.NoError(t, err)
-	assert.NotNil(t, Type{}, p)
+	assert.Equal(t, Type{}, p)
 
 	p, err = BuildType("a")
 	assert.NoError(t, err)
-	assert.NotNil(t, Type{
+	assert.Equal(t, Type{
 		Simple: utils.WrapPointer("a"),
 	}, p)
 	p, err = BuildType("a::b")
 	assert.NoError(t, err)
-	assert.NotNil(t, Type{
+	assert.Equal(t, Type{
 		FQN: &FullyName{
 			Address: "a",
 			Module:  "b",
@@ -33,7 +33,7 @@ func Test_BuildType(t *testing.T) {
 
 	p, err = BuildType("a::b::c")
 	assert.NoError(t, err)
-	assert.NotNil(t, Type{
+	assert.Equal(t, Type{
 		FQN: &FullyName{
 			Address: "a",
 			Module:  "b",
@@ -43,7 +43,7 @@ func Test_BuildType(t *testing.T) {
 
 	p, err = BuildType("a::b::c::d")
 	assert.NoError(t, err)
-	assert.NotNil(t, Type{
+	assert.Equal(t, Type{
 		FQN: &FullyName{
 			Address: "a",
 			Module:  "b",
@@ -53,7 +53,7 @@ func Test_BuildType(t *testing.T) {
 
 	p, err = BuildType("a::b::c<a>")
 	assert.NoError(t, err)
-	assert.NotNil(t, Type{
+	assert.Equal(t, Type{
 		FQN: &FullyName{
 			Address: "a",
 			Module:  "b",
@@ -66,7 +66,7 @@ func Test_BuildType(t *testing.T) {
 
 	p, err = BuildType("a::b::c<a,b>")
 	assert.NoError(t, err)
-	assert.NotNil(t, Type{
+	assert.Equal(t, Type{
 		FQN: &FullyName{
 			Address: "a",
 			Module:  "b",
@@ -80,7 +80,7 @@ func Test_BuildType(t *testing.T) {
 
 	p, err = BuildType("a::b::c<a, 0x1::foo::bar<b>, any>")
 	assert.NoError(t, err)
-	assert.NotNil(t, Type{
+	assert.Equal(t, Type{
 		FQN: &FullyName{
 			Address: "a",
 			Module:  "b",

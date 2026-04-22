@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/aptos-labs/aptos-go-sdk/api"
 	"github.com/stretchr/testify/assert"
+	"sentioxyz/sentio-core/chain/move"
 	"sentioxyz/sentio-core/common/utils"
 	"testing"
 )
@@ -25,6 +26,43 @@ func Test_ResourceChange(t *testing.T) {
 
 	filtered := utils.FilterArr(tt.Changes, filter)
 	assert.Len(t, filtered, 2)
+}
+
+func Test_PruneTransaction(t *testing.T) {
+	tx := Transaction{
+		Changes: []*WriteSetChange{{
+			WriteSetChange: &api.WriteSetChange{
+				Type: api.WriteSetChangeVariantWriteResource,
+				Inner: &api.WriteSetChangeWriteResource{
+					Data: &api.MoveResource{
+						Type: "0x1::aa::bb",
+					},
+				},
+			},
+		}, {
+			WriteSetChange: &api.WriteSetChange{
+				Type: api.WriteSetChangeVariantWriteResource,
+				Inner: &api.WriteSetChangeWriteResource{
+					Data: &api.MoveResource{
+						Type: "0x1::aa::cc",
+					},
+				},
+			},
+		}},
+	}
+	c := TransactionFetchConfig{
+		NeedAllEvents: false,
+		ChangeResourceTypes: move.TypeSet{
+			move.MustBuildType("0x1::aa::bb"),
+		},
+	}
+
+	ntx := c.PruneTransaction(tx, nil)
+	assert.Equal(t, 1, len(ntx.Changes))
+	assert.Equal(t, utils.WrapPointer("0x1::aa::bb"), GetChangeResourceType(ntx.Changes[0].WriteSetChange))
+
+	// tx not changed
+	assert.Equal(t, 2, len(tx.Changes))
 }
 
 func Test_ResourceChangeWithGeneric(t *testing.T) {
@@ -74,9 +112,9 @@ func Test_marshalTxn(t *testing.T) {
 	var inner api.CommittedTransaction
 	assert.NoError(t, json.Unmarshal([]byte(raw), &inner))
 	tx := Transaction{
-		CommittedTransaction: inner,
+		CommittedTransaction: &inner,
 		Events: []*Event{{
-			Event: api.Event{
+			Event: &api.Event{
 				Type:           "aaa",
 				SequenceNumber: 1,
 			},
@@ -379,7 +417,7 @@ func Test_marshalTxn2(t *testing.T) {
 
 func Test_marshalEventExtend(t *testing.T) {
 	ev := Event{
-		Event: api.Event{
+		Event: &api.Event{
 			Type:           "aaa",
 			SequenceNumber: 1,
 			RawData:        json.RawMessage("null"),

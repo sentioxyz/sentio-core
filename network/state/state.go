@@ -30,8 +30,6 @@ type State interface {
 	SetDatabaseOwner(ctx context.Context, databaseId string, owner string) error
 	AddDatabaseOperator(ctx context.Context, databaseId string, operator string) error
 	RemoveDatabaseOperator(ctx context.Context, databaseId string, operator string) error
-	UpsertDatabaseAllocation(ctx context.Context, databaseId string, allocation DatabaseAllocation) error
-	DeleteDatabaseAllocation(ctx context.Context, databaseId string, indexerId uint64) error
 	UpsertDatabaseTable(ctx context.Context, databaseId string, table TableInfo) error
 	DeleteDatabaseTable(ctx context.Context, databaseId string, tableId string) error
 
@@ -191,42 +189,6 @@ func (s *PlainState) RemoveDatabaseOperator(_ context.Context, databaseId string
 		}
 	}
 	info.Operators = filtered
-	s.Databases[databaseId] = info
-	return nil
-}
-
-func (s *PlainState) UpsertDatabaseAllocation(_ context.Context, databaseId string, allocation DatabaseAllocation) error {
-	info, ok := s.Databases[databaseId]
-	if !ok {
-		return fmt.Errorf("database not found: %s", databaseId)
-	}
-	replaced := false
-	for i, a := range info.Allocations {
-		if a.IndexerId == allocation.IndexerId {
-			info.Allocations[i] = allocation
-			replaced = true
-			break
-		}
-	}
-	if !replaced {
-		info.Allocations = append(info.Allocations, allocation)
-	}
-	s.Databases[databaseId] = info
-	return nil
-}
-
-func (s *PlainState) DeleteDatabaseAllocation(_ context.Context, databaseId string, indexerId uint64) error {
-	info, ok := s.Databases[databaseId]
-	if !ok {
-		return fmt.Errorf("database not found: %s", databaseId)
-	}
-	filtered := info.Allocations[:0]
-	for _, a := range info.Allocations {
-		if a.IndexerId != indexerId {
-			filtered = append(filtered, a)
-		}
-	}
-	info.Allocations = filtered
 	s.Databases[databaseId] = info
 	return nil
 }

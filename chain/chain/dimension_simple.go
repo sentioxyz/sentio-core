@@ -44,10 +44,6 @@ func (d *SimpleDimension[SLOT]) GetRange(ctx context.Context) (rg.Range, error) 
 	return d.RangeStore.Get(ctx)
 }
 
-func (d *SimpleDimension[SLOT]) Wait(ctx context.Context, sn uint64) error {
-	return WaitSlot(ctx, d.RangeStore.Get, sn)
-}
-
 func (d *SimpleDimension[SLOT]) Save(ctx context.Context, interval rg.Range, slotChan <-chan SLOT) error {
 	_, logger := log.FromContext(ctx, "saveRange", interval.String())
 	curRange, err := d.RangeStore.Get(ctx)

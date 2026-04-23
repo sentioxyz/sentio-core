@@ -59,38 +59,7 @@ func traceForkPoint[SLOT Slot](
 	}
 }
 
-func GetSlotByChecker[SLOT Slot](
-	ctx context.Context,
-	slotCache LatestSlotCache[SLOT],
-	checker func(ctx context.Context, st SLOT) (bool, error),
-) (SLOT, bool, error) {
-	var errFound = errors.New("found")
-	var result SLOT
-	_, err := slotCache.Traverse(ctx, rg.Range{}, func(ctx context.Context, st SLOT) error {
-		if ok, err := checker(ctx, st); err != nil {
-			return err
-		} else if ok {
-			result = st
-			return errFound
-		}
-		return nil
-	})
-	if err != nil {
-		if errors.Is(err, errFound) {
-			return result, true, nil
-		}
-		return result, false, err
-	}
-	return result, false, nil
-}
-
-func GetSlotByHash[SLOT Slot](ctx context.Context, slotCache LatestSlotCache[SLOT], hash string) (SLOT, bool, error) {
-	return GetSlotByChecker(ctx, slotCache, func(ctx context.Context, st SLOT) (bool, error) {
-		return st.GetHash() == hash, nil
-	})
-}
-
-func QueryRangeWithCacheV2[SLOT Slot, ELEM interface{}](
+func QueryRangeWithCache[SLOT Slot, ELEM any](
 	ctx context.Context,
 	interval rg.Range,
 	slotCache LatestSlotCache[SLOT],
@@ -130,21 +99,4 @@ func QueryRangeWithCacheV2[SLOT Slot, ELEM interface{}](
 		return nil, err
 	}
 	return utils.MergeArr(queried, cached), nil
-}
-
-func WaitSlot(ctx context.Context, rangeGetter func(context.Context) (rg.Range, error), sn uint64) error {
-	for {
-		r, err := rangeGetter(ctx)
-		if err != nil {
-			return err
-		}
-		if r.Contains(sn) {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Second * 3):
-		}
-	}
 }

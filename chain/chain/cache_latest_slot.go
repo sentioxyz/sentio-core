@@ -141,6 +141,31 @@ func (c *StdLatestSlotCache[SLOT]) GetByNumber(ctx context.Context, sn uint64) (
 	return c.memCache[sn], nil
 }
 
+func (c *StdLatestSlotCache[SLOT]) GetByChecker(ctx context.Context, checker func(SLOT) bool) (SLOT, error) {
+	var errFound = errors.New("found")
+	var result SLOT
+	_, err := c.Traverse(ctx, rg.Range{}, func(ctx context.Context, st SLOT) error {
+		if checker(st) {
+			result = st
+			return errFound
+		}
+		return nil
+	})
+	if err == nil {
+		return result, ErrSlotNotFound
+	}
+	if errors.Is(err, errFound) {
+		return result, nil
+	}
+	return result, err
+}
+
+func (c *StdLatestSlotCache[SLOT]) GetByHash(ctx context.Context, hash string) (SLOT, error) {
+	return c.GetByChecker(ctx, func(st SLOT) bool {
+		return st.GetHash() == hash
+	})
+}
+
 func (c *StdLatestSlotCache[SLOT]) tryLoadL2Cache(
 	ctx context.Context,
 	extRange rg.Range,

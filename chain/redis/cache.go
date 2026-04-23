@@ -139,10 +139,6 @@ func (d *FixSizeSlotCache[SLOT]) setRange(ctx context.Context, r rg.Range) error
 	return err
 }
 
-func (d *FixSizeSlotCache[SLOT]) Wait(ctx context.Context, sn uint64) error {
-	return chain.WaitSlot(ctx, d.GetRange, sn)
-}
-
 func (d *FixSizeSlotCache[SLOT]) CheckMissing(ctx context.Context, interval rg.Range, missing chan<- rg.Range) error {
 	return nil
 }

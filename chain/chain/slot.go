@@ -2,7 +2,6 @@ package chain
 
 import (
 	"fmt"
-	rg "sentioxyz/sentio-core/common/range"
 )
 
 type Slot interface {
@@ -30,21 +29,4 @@ func CheckLinksMismatch[SLOT Slot](slots []SLOT) error {
 		}
 	}
 	return nil
-}
-
-func GetSlotRange[SLOT Slot](slots []SLOT) rg.Range {
-	if len(slots) == 0 {
-		return rg.EmptyRange
-	}
-	return rg.NewRange(slots[0].GetNumber(), slots[len(slots)-1].GetNumber())
-}
-
-func FilterSlots[SLOT Slot](slots []SLOT, numberRange rg.Range) []SLOT {
-	var result []SLOT
-	for _, slot := range slots {
-		if numberRange.Contains(slot.GetNumber()) {
-			result = append(result, slot)
-		}
-	}
-	return result
 }

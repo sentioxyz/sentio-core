@@ -14,7 +14,9 @@ type LatestSlotCache[SLOT Slot] interface {
 		fn func(ctx context.Context, st SLOT) error,
 	) (cached rg.Range, err error)
 	Wait(ctx context.Context, latestGt uint64) (latest uint64, err error)
-	GetByNumber(ctx context.Context, sn uint64) (SLOT, error) // will return ErrSlotNotFound if not found in cache
+	GetByChecker(ctx context.Context, checker func(SLOT) bool) (SLOT, error) // may return ErrSlotNotFound
+	GetByNumber(ctx context.Context, sn uint64) (SLOT, error)                // may return ErrSlotNotFound
+	GetByHash(ctx context.Context, hash string) (SLOT, error)                // may return ErrSlotNotFound
 }
 
 type SlotLoader[SLOT Slot] interface {
@@ -36,7 +38,6 @@ type Dimension[SLOT Slot] interface {
 	Load(ctx context.Context, interval rg.Range, slotChan chan<- SLOT) error
 	LoadHeader(ctx context.Context, sn uint64) (Slot, error) // will return ErrSlotNotFound if not found
 	GetRange(ctx context.Context) (rg.Range, error)
-	Wait(ctx context.Context, sn uint64) error
 	CheckMissing(ctx context.Context, interval rg.Range, missing chan<- rg.Range) error
 	Save(ctx context.Context, interval rg.Range, slotChan <-chan SLOT) error
 	Delete(ctx context.Context, interval rg.Range) error

@@ -128,6 +128,12 @@ func (d *ExtServerDimension[SLOT]) GetRange(ctx context.Context) (rg.Range, erro
 	}
 	latestNum := latest.Number
 	if d.fallBehind > 0 {
+		// Note: fluctuations in the block interval may cause the returned range to reorg.
+		// For example, the first time GetRange is called, latestNum is 100, blockInterval is 1s, and fallBehind is 10s,
+		// so the returned value will be [0, 90].
+		// When GetRange is called a second time, latestNum has become 101, but blockInterval has become 0.5s,
+		// so the returned value will be [0, 81].
+		// latest has fallen back from 90 to 81.
 		var blockInterval time.Duration
 		blockInterval, err = d.client.WaitBlockInterval(ctx)
 		if err != nil {
@@ -136,24 +142,6 @@ func (d *ExtServerDimension[SLOT]) GetRange(ctx context.Context) (rg.Range, erro
 		latestNum -= uint64(d.fallBehind / blockInterval)
 	}
 	return d.validRange.Intersection(rg.NewRange(0, latestNum)), nil
-}
-
-func (d *ExtServerDimension[SLOT]) Wait(ctx context.Context, blockNumber uint64) error {
-	if !d.validRange.Contains(blockNumber) {
-		_, logger := log.FromContext(ctx)
-		logger.Warnf("wait number %d out of valid range %s, will wait forever", blockNumber, d.validRange)
-		<-ctx.Done()
-		return ctx.Err()
-	}
-	if d.fallBehind > 0 {
-		blockInterval, err := d.client.WaitBlockInterval(ctx)
-		if err != nil {
-			return err
-		}
-		blockNumber += uint64(d.fallBehind / blockInterval)
-	}
-	_, err := d.client.WaitBlock(ctx, blockNumber)
-	return err
 }
 
 func (d *ExtServerDimension[SLOT]) CheckMissing(

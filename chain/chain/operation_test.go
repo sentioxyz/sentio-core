@@ -51,6 +51,19 @@ func newTestSlots(interval rg.Range, hashPrefix string, parentHash ...string) []
 	return slots
 }
 
+func getSlotRange(slots []*testSlot) rg.Range {
+	if len(slots) == 0 {
+		return rg.EmptyRange
+	}
+	return rg.NewRange(slots[0].GetNumber(), slots[len(slots)-1].GetNumber())
+}
+
+func filterSlots(slots []*testSlot, numberRange rg.Range) []*testSlot {
+	return utils.FilterArr(slots, func(st *testSlot) bool {
+		return numberRange.Contains(st.GetNumber())
+	})
+}
+
 func TestRepair(t *testing.T) {
 	dim1, rs1, store1 := newTestDimension()
 	baseRange := rg.NewRange(100, 200)
@@ -81,7 +94,7 @@ func TestRepair(t *testing.T) {
 	slots, _ := concurrency.ReadAll(context.Background(), slotChan)
 
 	assert.Equal(t, *baseRange.Size(), uint64(len(slots)))
-	assert.Equal(t, baseRange, GetSlotRange(slots))
+	assert.Equal(t, baseRange, getSlotRange(slots))
 }
 
 func TestCopy1(t *testing.T) {
@@ -169,7 +182,7 @@ func TestCopy2(t *testing.T) {
 	_, _ = rs1.Update(context.Background(), rg.RangeSetter(baseRange))
 
 	dim2, rs2, store2 := newTestDimension()
-	store2.initFillSlots(FilterSlots(baseSlots2, rg.NewRange(140, 160)))
+	store2.initFillSlots(filterSlots(baseSlots2, rg.NewRange(140, 160)))
 	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(140, 160)))
 
 	{
@@ -228,7 +241,7 @@ func TestSync_fromScratch(t *testing.T) {
 	baseSlots := newTestSlots(baseRange, "")
 
 	dim1, rs1, store1 := newTestDimension()
-	store1.initFillSlots(FilterSlots(baseSlots, rg.NewRange(100, 199)))
+	store1.initFillSlots(filterSlots(baseSlots, rg.NewRange(100, 199)))
 	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
 
 	dim2, _, _ := newTestDimension()
@@ -240,7 +253,7 @@ func TestSync_fromScratch(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			time.Sleep(time.Second)
 			newRange := rg.NewRange(uint64(200+i*10), uint64(200+(i+1)*10-1))
-			store1.initFillSlots(FilterSlots(baseSlots, newRange))
+			store1.initFillSlots(filterSlots(baseSlots, newRange))
 			_, _ = rs1.Update(context.Background(), newRange.Cover)
 		}
 		time.Sleep(time.Second * 5)
@@ -269,11 +282,11 @@ func TestSync_continue(t *testing.T) {
 	baseSlots := newTestSlots(baseRange, "")
 
 	dim1, rs1, store1 := newTestDimension()
-	store1.initFillSlots(FilterSlots(baseSlots, rg.NewRange(100, 199)))
+	store1.initFillSlots(filterSlots(baseSlots, rg.NewRange(100, 199)))
 	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
 
 	dim2, rs2, store2 := newTestDimension()
-	store2.initFillSlots(FilterSlots(baseSlots, rg.NewRange(100, 149)))
+	store2.initFillSlots(filterSlots(baseSlots, rg.NewRange(100, 149)))
 	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 149)))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -283,7 +296,7 @@ func TestSync_continue(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			time.Sleep(time.Second)
 			newRange := rg.NewRange(uint64(200+i*10), uint64(200+(i+1)*10-1))
-			store1.initFillSlots(FilterSlots(baseSlots, newRange))
+			store1.initFillSlots(filterSlots(baseSlots, newRange))
 			_, _ = rs1.Update(context.Background(), newRange.Cover)
 		}
 		time.Sleep(time.Second * 5)
@@ -314,12 +327,12 @@ func TestSync_reorgSome(t *testing.T) {
 	baseSlots2 := newTestSlots(baseRange2, "cb", "ca149")
 
 	dim1, rs1, store1 := newTestDimension()
-	store1.initFillSlots(FilterSlots(baseSlots1, rg.NewRange(100, 199)))
+	store1.initFillSlots(filterSlots(baseSlots1, rg.NewRange(100, 199)))
 	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
 
 	dim2, rs2, store2 := newTestDimension()
-	store2.initFillSlots(FilterSlots(baseSlots1, rg.NewRange(100, 149)))
-	store2.initFillSlots(FilterSlots(baseSlots2, rg.NewRange(150, 169)))
+	store2.initFillSlots(filterSlots(baseSlots1, rg.NewRange(100, 149)))
+	store2.initFillSlots(filterSlots(baseSlots2, rg.NewRange(150, 169)))
 	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 169)))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -354,11 +367,11 @@ func TestSync_reorgAll(t *testing.T) {
 	baseSlots2 := newTestSlots(baseRange1, "cb")
 
 	dim1, rs1, store1 := newTestDimension()
-	store1.initFillSlots(FilterSlots(baseSlots1, rg.NewRange(100, 199)))
+	store1.initFillSlots(filterSlots(baseSlots1, rg.NewRange(100, 199)))
 	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
 
 	dim2, rs2, store2 := newTestDimension()
-	store2.initFillSlots(FilterSlots(baseSlots2, rg.NewRange(140, 159)))
+	store2.initFillSlots(filterSlots(baseSlots2, rg.NewRange(140, 159)))
 	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(140, 159)))
 
 	ctx, cancel := context.WithCancel(context.Background())

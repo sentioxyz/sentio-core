@@ -120,13 +120,6 @@ func (s *testRangeStore) Update(ctx context.Context, operator rg.RangeOperator) 
 	return s.cur, nil
 }
 
-func (s *testRangeStore) Wait(ctx context.Context, sn uint64) error {
-	if s.cur.Contains(sn) {
-		return nil
-	}
-	return fmt.Errorf("%d out of range %s", sn, s.cur.String())
-}
-
 func TestSimpleDimension_Save1(t *testing.T) {
 	// test save succeed
 	newTestSlot := func(number uint64) *testSlot {

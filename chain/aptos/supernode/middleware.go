@@ -1,10 +1,11 @@
-package aptos
+package supernode
 
 import (
 	"context"
 	"encoding/json"
 	"github.com/aptos-labs/aptos-go-sdk/api"
 	"github.com/pkg/errors"
+	"sentioxyz/sentio-core/chain/aptos"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	rg "sentioxyz/sentio-core/common/range"
@@ -12,11 +13,11 @@ import (
 )
 
 type RPCService struct {
-	slotCache chain.LatestSlotCache[*Slot]
+	slotCache chain.LatestSlotCache[*aptos.Slot]
 	store     Storage
 }
 
-func NewRPCServiceV1(slotCache chain.LatestSlotCache[*Slot], store Storage) *RPCService {
+func NewRPCServiceV1(slotCache chain.LatestSlotCache[*aptos.Slot], store Storage) *RPCService {
 	return &RPCService{
 		slotCache: slotCache,
 		store:     store,
@@ -47,7 +48,7 @@ func NewMiddleware(s *RPCService) jsonrpc.Middleware {
 	}
 }
 
-func (s *RPCService) LatestNew(ctx context.Context, network string) (*api.CommittedTransaction, error) {
+func (s *RPCService) LatestNew(ctx context.Context, _ string) (*api.CommittedTransaction, error) {
 	cachedRange, err := s.slotCache.GetRange(ctx)
 	if err != nil {
 		return nil, err
@@ -69,18 +70,18 @@ func (s *RPCService) LatestHeight(ctx context.Context) (uint64, error) {
 	return *cachedRange.End, nil
 }
 
-func (s *RPCService) FullEvents(ctx context.Context, req *GetEventsArgs) ([]*Transaction, error) {
+func (s *RPCService) FullEvents(ctx context.Context, req *aptos.GetEventsArgs) ([]*aptos.Transaction, error) {
 	eventsFilter := req.EventFilter()
 	changesFilter := req.ChangeFilter()
 	return splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewRange(req.FromVersion, req.ToVersion),
-		func(slot *Slot, t *api.CommittedTransaction) ([]*Transaction, error) {
+		func(slot *aptos.Slot, t *api.CommittedTransaction) ([]*aptos.Transaction, error) {
 			if !t.Success() && !req.IncludeFailedTransaction {
 				return nil, nil
 			}
-			tx := NewTransaction(t)
+			tx := aptos.NewTransaction(t)
 			events := utils.FilterArr(tx.Events, eventsFilter)
 			if len(events) == 0 {
 				return nil, nil
@@ -88,14 +89,14 @@ func (s *RPCService) FullEvents(ctx context.Context, req *GetEventsArgs) ([]*Tra
 			if req.IncludeAllEvents {
 				events = tx.Events
 			}
-			changes := make([]*WriteSetChange, 0)
+			changes := make([]*aptos.WriteSetChange, 0)
 			if req.IncludeChanges {
 				changes = utils.FilterArr(tx.Changes, changesFilter)
 			}
 			tx.Events, tx.Changes = events, changes
-			return []*Transaction{&tx}, nil
+			return []*aptos.Transaction{&tx}, nil
 		},
-		func(ctx context.Context, queryRange rg.Range) (results []*Transaction, err error) {
+		func(ctx context.Context, queryRange rg.Range) (results []*aptos.Transaction, err error) {
 			subReq := *req
 			subReq.FromVersion = queryRange.Start
 			subReq.ToVersion = *queryRange.End
@@ -103,32 +104,32 @@ func (s *RPCService) FullEvents(ctx context.Context, req *GetEventsArgs) ([]*Tra
 		})
 }
 
-func (s *RPCService) Functions(ctx context.Context, req *GetFunctionsArgs) ([]*Transaction, error) {
+func (s *RPCService) Functions(ctx context.Context, req *aptos.GetFunctionsArgs) ([]*aptos.Transaction, error) {
 	txFilter := req.TxnFilter()
 	changesFilter := req.ChangeFilter()
 	return splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewRange(req.FromVersion, req.ToVersion),
-		func(slot *Slot, t *api.CommittedTransaction) ([]*Transaction, error) {
+		func(slot *aptos.Slot, t *api.CommittedTransaction) ([]*aptos.Transaction, error) {
 			if !t.Success() && !req.IncludeFailedTransaction {
 				return nil, nil
 			}
-			tx := NewTransaction(t)
+			tx := aptos.NewTransaction(t)
 			if !txFilter(&tx) {
 				return nil, nil
 			}
 			if !req.IncludeAllEvents {
 				tx.Events = nil
 			}
-			changes := make([]*WriteSetChange, 0)
+			changes := make([]*aptos.WriteSetChange, 0)
 			if req.IncludeChanges {
 				changes = utils.FilterArr(tx.Changes, changesFilter)
 			}
 			tx.Changes = changes
-			return []*Transaction{&tx}, nil
+			return []*aptos.Transaction{&tx}, nil
 		},
-		func(ctx context.Context, queryRange rg.Range) (results []*Transaction, err error) {
+		func(ctx context.Context, queryRange rg.Range) (results []*aptos.Transaction, err error) {
 			subReq := *req
 			subReq.FromVersion = queryRange.Start
 			subReq.ToVersion = *queryRange.End
@@ -136,22 +137,22 @@ func (s *RPCService) Functions(ctx context.Context, req *GetFunctionsArgs) ([]*T
 		})
 }
 
-func (s *RPCService) ResourceChanges(ctx context.Context, req *ResourceChangeArgs) ([]*Transaction, error) {
+func (s *RPCService) ResourceChanges(ctx context.Context, req *aptos.ResourceChangeArgs) ([]*aptos.Transaction, error) {
 	changesFilter := req.ChangeFilter()
 	return splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewRange(req.FromVersion, req.ToVersion),
-		func(slot *Slot, t *api.CommittedTransaction) ([]*Transaction, error) {
-			tx := NewTransaction(t)
+		func(slot *aptos.Slot, t *api.CommittedTransaction) ([]*aptos.Transaction, error) {
+			tx := aptos.NewTransaction(t)
 			changes := utils.FilterArr(tx.Changes, changesFilter)
 			if len(changes) == 0 {
 				return nil, nil
 			}
 			tx.Events, tx.Changes = nil, changes
-			return []*Transaction{&tx}, nil
+			return []*aptos.Transaction{&tx}, nil
 		},
-		func(ctx context.Context, queryRange rg.Range) (results []*Transaction, err error) {
+		func(ctx context.Context, queryRange rg.Range) (results []*aptos.Transaction, err error) {
 			subReq := *req
 			subReq.FromVersion = queryRange.Start
 			subReq.ToVersion = *queryRange.End
@@ -159,24 +160,24 @@ func (s *RPCService) ResourceChanges(ctx context.Context, req *ResourceChangeArg
 		})
 }
 
-func (s *RPCService) GetTransactionByVersion(ctx context.Context, network string, version uint64) (*Transaction, error) {
+func (s *RPCService) GetTransactionByVersion(ctx context.Context, _ string, version uint64) (*aptos.Transaction, error) {
 	txs, err := splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewSingleRange(version),
-		func(slot *Slot, t *api.CommittedTransaction) ([]*Transaction, error) {
-			tx := NewTransaction(t)
-			return []*Transaction{&tx}, nil
+		func(slot *aptos.Slot, t *api.CommittedTransaction) ([]*aptos.Transaction, error) {
+			tx := aptos.NewTransaction(t)
+			return []*aptos.Transaction{&tx}, nil
 		},
-		func(ctx context.Context, queryRange rg.Range) ([]*Transaction, error) {
-			tx, err := s.store.GetTransactionByVersion(ctx, version) // will return nil if not found
+		func(ctx context.Context, queryRange rg.Range) ([]*aptos.Transaction, error) {
+			tx, err := s.store.GetTransactionByVersion(ctx, version)
 			if err != nil {
 				return nil, err
 			}
 			if tx == nil {
 				return nil, nil
 			}
-			return []*Transaction{tx}, nil
+			return []*aptos.Transaction{tx}, nil
 		})
 	if err != nil {
 		return nil, err
@@ -187,6 +188,6 @@ func (s *RPCService) GetTransactionByVersion(ctx context.Context, network string
 	return txs[0], nil
 }
 
-func (s *RPCService) GetChangeStat(ctx context.Context, address string) (ChangeStat, error) {
+func (s *RPCService) GetChangeStat(ctx context.Context, address string) (aptos.ChangeStat, error) {
 	return s.store.GetChangeStat(ctx, 0, address)
 }

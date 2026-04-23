@@ -1,4 +1,4 @@
-package aptos
+package supernode
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/aptos-labs/aptos-go-sdk/api"
 	"github.com/sentioxyz/golang-lru"
 	"math"
+	"sentioxyz/sentio-core/chain/aptos"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
@@ -39,20 +40,18 @@ func NewMiddlewareV2(svr *RPCServiceV2) jsonrpc.Middleware {
 const (
 	MinimalistTxnCacheSize         = 1000000
 	AddressStartTxVersionCacheSize = 1000000
-
-	APIVersion = 2 // api version, if api version increased, all driver client will restart
 )
 
 type RPCServiceV2 struct {
-	slotCache chain.LatestSlotCache[*Slot]
+	slotCache chain.LatestSlotCache[*aptos.Slot]
 	store     Storage
 
-	cachedMinimalistTxn         *lru.Cache[uint64, MinimalistTransaction]
+	cachedMinimalistTxn         *lru.Cache[uint64, aptos.MinimalistTransaction]
 	cachedAddressStartTxVersion *lru.Cache[string, uint64]
 }
 
-func NewRPCServiceV2(slotCache chain.LatestSlotCache[*Slot], store Storage) *RPCServiceV2 {
-	cachedMinimalistTxn, _ := lru.New[uint64, MinimalistTransaction](MinimalistTxnCacheSize)
+func NewRPCServiceV2(slotCache chain.LatestSlotCache[*aptos.Slot], store Storage) *RPCServiceV2 {
+	cachedMinimalistTxn, _ := lru.New[uint64, aptos.MinimalistTransaction](MinimalistTxnCacheSize)
 	cachedAddressStartTxVersion, _ := lru.New[string, uint64](AddressStartTxVersionCacheSize)
 	return &RPCServiceV2{
 		slotCache:                   slotCache,
@@ -65,16 +64,16 @@ func NewRPCServiceV2(slotCache chain.LatestSlotCache[*Slot], store Storage) *RPC
 func (s *RPCServiceV2) GetLatestMinimalistTransaction(
 	ctx context.Context,
 	latestTxVersionOver uint64,
-) (resp GetLatestMinimalistTransactionResponse, err error) {
+) (resp aptos.GetLatestMinimalistTransactionResponse, err error) {
 	jsonrpc.GetCtxData(ctx).NotSlowRequest = true
-	resp.APIVersion = APIVersion
+	resp.APIVersion = aptos.APIVersion
 	var curRange rg.Range
 	curRange, err = s.slotCache.GetRange(ctx)
 	if err != nil {
 		return resp, err
 	}
 	latestSlotNumber := *curRange.End
-	var slot *Slot
+	var slot *aptos.Slot
 	for {
 		if slot, err = s.slotCache.GetByNumber(ctx, latestSlotNumber); err != nil {
 			return resp, fmt.Errorf("get latest block %d failed: %w", latestSlotNumber, err)
@@ -83,7 +82,7 @@ func (s *RPCServiceV2) GetLatestMinimalistTransaction(
 			// unreachable, each block always have at least one transaction
 			return resp, fmt.Errorf("latest block %d has no transactions", latestSlotNumber)
 		}
-		resp.Transaction = NewMinimalistTransaction(slot.Transactions[len(slot.Transactions)-1])
+		resp.Transaction = aptos.NewMinimalistTransaction(slot.Transactions[len(slot.Transactions)-1])
 		if resp.Transaction.Version > latestTxVersionOver {
 			return resp, nil
 		}
@@ -93,7 +92,7 @@ func (s *RPCServiceV2) GetLatestMinimalistTransaction(
 	}
 }
 
-func (s *RPCServiceV2) GetMinimalistTransaction(ctx context.Context, txnVersion uint64) (*MinimalistTransaction, error) {
+func (s *RPCServiceV2) GetMinimalistTransaction(ctx context.Context, txnVersion uint64) (*aptos.MinimalistTransaction, error) {
 	if txn, has := s.cachedMinimalistTxn.Get(txnVersion); has {
 		return &txn, nil
 	}
@@ -101,21 +100,21 @@ func (s *RPCServiceV2) GetMinimalistTransaction(ctx context.Context, txnVersion 
 		ctx,
 		s.slotCache,
 		rg.NewSingleRange(txnVersion),
-		func(slot *Slot, tx *api.CommittedTransaction) ([]MinimalistTransaction, error) {
+		func(slot *aptos.Slot, tx *api.CommittedTransaction) ([]aptos.MinimalistTransaction, error) {
 			if tx.Version() != txnVersion {
 				return nil, nil
 			}
-			return []MinimalistTransaction{NewMinimalistTransaction(tx)}, nil
+			return []aptos.MinimalistTransaction{aptos.NewMinimalistTransaction(tx)}, nil
 		},
-		func(ctx context.Context, queryRange rg.Range) ([]MinimalistTransaction, error) {
-			tx, err := s.store.QueryMinimalistTransaction(ctx, txnVersion) // will return nil if not found
+		func(ctx context.Context, queryRange rg.Range) ([]aptos.MinimalistTransaction, error) {
+			tx, err := s.store.QueryMinimalistTransaction(ctx, txnVersion)
 			if err != nil {
 				return nil, err
 			}
 			if tx == nil {
 				return nil, nil
 			}
-			return []MinimalistTransaction{*tx}, nil
+			return []aptos.MinimalistTransaction{*tx}, nil
 		})
 	if err != nil {
 		return nil, err
@@ -129,28 +128,28 @@ func (s *RPCServiceV2) GetMinimalistTransaction(ctx context.Context, txnVersion 
 
 func (s *RPCServiceV2) GetResourceChanges(
 	ctx context.Context,
-	req GetResourceChangesRequest,
-) ([]MinimalistTransactionWithChanges, error) {
+	req aptos.GetResourceChangesRequest,
+) ([]aptos.MinimalistTransactionWithChanges, error) {
 	return splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewRange(req.FromVersion, req.ToVersion),
-		func(_ *Slot, tx *api.CommittedTransaction) ([]MinimalistTransactionWithChanges, error) {
-			var mtx MinimalistTransactionWithChanges
-			for _, c := range GetTransactionChanges(tx) {
-				cc := WriteSetChange{WriteSetChange: c}
+		func(_ *aptos.Slot, tx *api.CommittedTransaction) ([]aptos.MinimalistTransactionWithChanges, error) {
+			var mtx aptos.MinimalistTransactionWithChanges
+			for _, c := range aptos.GetTransactionChanges(tx) {
+				cc := aptos.WriteSetChange{WriteSetChange: c}
 				if req.Filter.Check(&cc) {
 					mtx.Changes = append(mtx.Changes, cc)
 				}
 			}
 			if len(mtx.Changes) > 0 {
-				mtx.MinimalistTransaction = NewMinimalistTransaction(tx)
-				return []MinimalistTransactionWithChanges{mtx}, nil
+				mtx.MinimalistTransaction = aptos.NewMinimalistTransaction(tx)
+				return []aptos.MinimalistTransactionWithChanges{mtx}, nil
 			}
 			return nil, nil
 		},
-		func(ctx context.Context, queryRange rg.Range) ([]MinimalistTransactionWithChanges, error) {
-			return s.store.QueryResourceChanges(ctx, GetResourceChangesRequest{
+		func(ctx context.Context, queryRange rg.Range) ([]aptos.MinimalistTransactionWithChanges, error) {
+			return s.store.QueryResourceChanges(ctx, aptos.GetResourceChangesRequest{
 				FromVersion: queryRange.Start,
 				ToVersion:   *queryRange.End,
 				Filter:      req.Filter,
@@ -159,20 +158,20 @@ func (s *RPCServiceV2) GetResourceChanges(
 	)
 }
 
-func (s *RPCServiceV2) GetTransactions(ctx context.Context, req GetTransactionsRequest) ([]Transaction, error) {
+func (s *RPCServiceV2) GetTransactions(ctx context.Context, req aptos.GetTransactionsRequest) ([]aptos.Transaction, error) {
 	txs, err := splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewRange(req.FromVersion, req.ToVersion),
-		func(_ *Slot, tx *api.CommittedTransaction) ([]Transaction, error) {
-			txn := NewTransaction(tx)
+		func(_ *aptos.Slot, tx *api.CommittedTransaction) ([]aptos.Transaction, error) {
+			txn := aptos.NewTransaction(tx)
 			if !req.Filter.Check(txn) {
 				return nil, nil
 			}
-			return []Transaction{req.FetchConfig.PruneTransaction(txn, req.Filter.EventFilters)}, nil
+			return []aptos.Transaction{req.FetchConfig.PruneTransaction(txn, req.Filter.EventFilters)}, nil
 		},
-		func(ctx context.Context, queryRange rg.Range) (results []Transaction, err error) {
-			return s.store.QueryTransactions(ctx, GetTransactionsRequest{
+		func(ctx context.Context, queryRange rg.Range) (results []aptos.Transaction, err error) {
+			return s.store.QueryTransactions(ctx, aptos.GetTransactionsRequest{
 				FromVersion: queryRange.Start,
 				ToVersion:   *queryRange.End,
 				Filter:      req.Filter,
@@ -198,9 +197,9 @@ func (s *RPCServiceV2) GetAddressStartTxVersion(
 		ctx,
 		s.slotCache,
 		rg.NewRange(0, maxTxVersion),
-		func(_ *Slot, tx *api.CommittedTransaction) ([]uint64, error) {
-			for _, cs := range GetTransactionChanges(tx) {
-				if addr := GetChangeAddress(cs); addr != nil && strings.EqualFold(addr.String(), address) {
+		func(_ *aptos.Slot, tx *api.CommittedTransaction) ([]uint64, error) {
+			for _, cs := range aptos.GetTransactionChanges(tx) {
+				if addr := aptos.GetChangeAddress(cs); addr != nil && strings.EqualFold(addr.String(), address) {
 					return []uint64{tx.Version()}, nil
 				}
 			}
@@ -226,9 +225,9 @@ func (s *RPCServiceV2) GetAddressStartTxVersion(
 
 func splitRange[ELEM any](
 	ctx context.Context,
-	slotCache chain.LatestSlotCache[*Slot],
+	slotCache chain.LatestSlotCache[*aptos.Slot],
 	interval rg.Range,
-	cachedProcessor func(slot *Slot, tx *api.CommittedTransaction) ([]ELEM, error),
+	cachedProcessor func(slot *aptos.Slot, tx *api.CommittedTransaction) ([]ELEM, error),
 	uncachedLoader func(ctx context.Context, queryRange rg.Range) (results []ELEM, err error),
 ) ([]ELEM, error) {
 	if interval.IsEmpty() {
@@ -238,7 +237,7 @@ func splitRange[ELEM any](
 	_, logger := log.FromContext(ctx)
 	start := time.Now()
 	var cachedVersionLeft, cachedVersionRight uint64 = math.MaxUint64, 0
-	_, err := slotCache.Traverse(ctx, rg.Range{}, func(ctx context.Context, st *Slot) error {
+	_, err := slotCache.Traverse(ctx, rg.Range{}, func(ctx context.Context, st *aptos.Slot) error {
 		cachedVersionLeft = min(cachedVersionLeft, st.FirstVersion)
 		cachedVersionRight = max(cachedVersionRight, st.LastVersion)
 		if interval.Intersection(rg.NewRange(st.FirstVersion, st.LastVersion)).IsEmpty() {
@@ -263,11 +262,6 @@ func splitRange[ELEM any](
 	cachedRange := rg.NewRange(cachedVersionLeft, cachedVersionRight)
 
 	queryRange := interval.Remove(cachedRange).First()
-	// If the L of first range already exceeds current head, no need to query.
-	// Examples:
-	//    Cached: [100..105], Query: [106], FirstRange: [106]
-	//    Cached: [100..105], Query: [103..110], FirstRange: [106..110]
-	//    Cached: [100..105], Query: [99..110], FirstRange: [99..99].  [106..110] is also ignored.
 	if queryRange.IsEmpty() || (!cachedRange.IsEmpty() && queryRange.Start > *cachedRange.End) {
 		return cached, nil
 	}

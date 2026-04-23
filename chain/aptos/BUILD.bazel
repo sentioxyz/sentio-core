@@ -5,11 +5,7 @@ go_library(
     srcs = [
         "client.go",
         "extserver.go",
-        "middleware.go",
-        "middleware_v2.go",
-        "rpc.go",
         "slot.go",
-        "storage.go",
         "types.go",
     ],
     importpath = "sentioxyz/sentio-core/chain/aptos",
@@ -20,40 +16,26 @@ go_library(
         "//chain/clientpool/ex",
         "//chain/move",
         "//common/https",
-        "//common/jsonrpc",
-        "//common/log",
         "//common/range",
         "//common/set",
         "//common/utils",
         "@com_github_aptos_labs_aptos_go_sdk//:aptos-go-sdk",
         "@com_github_aptos_labs_aptos_go_sdk//api",
         "@com_github_pkg_errors//:errors",
-        "@com_github_sentioxyz_golang_lru//:golang-lru",
         "@com_github_tidwall_sjson//:sjson",
     ],
 )
 
 go_test(
     name = "aptos_test",
-    srcs = [
-        "rpc_test.go",
-        "types_test.go",
-    ],
+    srcs = ["types_test.go"],
     data = glob(["testdata/**"]),
     embed = [":aptos"],
     embedsrcs = ["testdata/tx.json"],
     deps = [
-        "//chain/chain",
-        "//chain/clientpool",
         "//chain/move",
-        "//common/errgroup",
-        "//common/jsonrpc",
-        "//common/log",
-        "//common/range",
         "//common/utils",
         "@com_github_aptos_labs_aptos_go_sdk//api",
         "@com_github_stretchr_testify//assert",
-        "@org_uber_go_zap//zapcore",
     ],
-
 )

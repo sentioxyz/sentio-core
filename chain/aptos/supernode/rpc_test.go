@@ -1,4 +1,4 @@
-package aptos
+package supernode
 
 import (
 	"bytes"
@@ -10,44 +10,46 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"
 
+	"sentioxyz/sentio-core/chain/aptos"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
 	rg "sentioxyz/sentio-core/common/range"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type mockStorage struct{}
 
-func (m *mockStorage) Functions(_ context.Context, _ GetFunctionsArgs) ([]*Transaction, error) {
+func (m *mockStorage) Functions(_ context.Context, _ aptos.GetFunctionsArgs) ([]*aptos.Transaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) FullEvents(_ context.Context, _ GetEventsArgs) ([]*Transaction, error) {
+func (m *mockStorage) FullEvents(_ context.Context, _ aptos.GetEventsArgs) ([]*aptos.Transaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) ResourceChanges(_ context.Context, _ ResourceChangeArgs) ([]*Transaction, error) {
+func (m *mockStorage) ResourceChanges(_ context.Context, _ aptos.ResourceChangeArgs) ([]*aptos.Transaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) GetTransactionByVersion(_ context.Context, _ uint64) (*Transaction, error) {
+func (m *mockStorage) GetTransactionByVersion(_ context.Context, _ uint64) (*aptos.Transaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) GetChangeStat(_ context.Context, _ uint64, _ string) (ChangeStat, error) {
-	return ChangeStat{}, nil
+func (m *mockStorage) GetChangeStat(_ context.Context, _ uint64, _ string) (aptos.ChangeStat, error) {
+	return aptos.ChangeStat{}, nil
 }
 func (m *mockStorage) GetFirstChange(_ context.Context, _ string, _ uint64) (version, blockHeight uint64, has bool, err error) {
 	return 0, 0, false, nil
 }
-func (m *mockStorage) QueryMinimalistTransaction(_ context.Context, _ uint64) (*MinimalistTransaction, error) {
+func (m *mockStorage) QueryMinimalistTransaction(_ context.Context, _ uint64) (*aptos.MinimalistTransaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryTransactions(_ context.Context, _ GetTransactionsRequest) ([]Transaction, error) {
+func (m *mockStorage) QueryTransactions(_ context.Context, _ aptos.GetTransactionsRequest) ([]aptos.Transaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryResourceChanges(_ context.Context, _ GetResourceChangesRequest) ([]MinimalistTransactionWithChanges, error) {
+func (m *mockStorage) QueryResourceChanges(_ context.Context, _ aptos.GetResourceChangesRequest) ([]aptos.MinimalistTransactionWithChanges, error) {
 	return nil, nil
 }
 
@@ -99,13 +101,13 @@ func Test_rpc(t *testing.T) {
 	g, gctx := errgroup.WithContext(ctx)
 
 	// prepare client pool
-	cli := NewClientPool("client")
+	cli := aptos.NewClientPool("client")
 	g.Go(func() error {
-		ch := make(chan clientpool.PoolConfig[ClientConfig], 1)
-		ch <- clientpool.PoolConfig[ClientConfig]{
-			ClientConfigs: []clientpool.ClientConfig[ClientConfig]{
+		ch := make(chan clientpool.PoolConfig[aptos.ClientConfig], 1)
+		ch <- clientpool.PoolConfig[aptos.ClientConfig]{
+			ClientConfigs: []clientpool.ClientConfig[aptos.ClientConfig]{
 				{
-					Config: ClientConfig{
+					Config: aptos.ClientConfig{
 						Endpoint: "https://api.mainnet.aptoslabs.com",
 					},
 				},
@@ -115,12 +117,12 @@ func Test_rpc(t *testing.T) {
 		return nil
 	})
 
-	sc := chain.NewStdLatestSlotCache[*Slot](
+	sc := chain.NewStdLatestSlotCache[*aptos.Slot](
 		"ext",
 		"aptos_mainnet",
 		time.Second,
 		cli,
-		NewExtServerDimension(cli, 10, 3, rg.Range{}, 0),
+		aptos.NewExtServerDimension(cli, 10, 3, rg.Range{}, 0),
 		nil,
 		0,
 		nil,
@@ -141,7 +143,7 @@ func Test_rpc(t *testing.T) {
 	})
 
 	// wait for the server to start and the slot cache to populate at least one block
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	t.Run("latestHeight", func(t *testing.T) {
 		height, err := callRPC[uint64](addr, "aptos_latestHeight", nil)
@@ -150,15 +152,15 @@ func Test_rpc(t *testing.T) {
 	})
 
 	t.Run("latestNew", func(t *testing.T) {
-		tx, err := callRPC[*Transaction](addr, "aptos_latestNew", []any{"aptos_mainnet"})
+		tx, err := callRPC[*aptos.Transaction](addr, "aptos_latestNew", []any{uint64(0)})
 		assert.NoError(t, err)
 		assert.NotNil(t, tx)
 	})
 
 	t.Run("aptosV2_getLatestMinimalistTransaction", func(t *testing.T) {
-		resp, err := callRPC[GetLatestMinimalistTransactionResponse](addr, "aptosV2_getLatestMinimalistTransaction", []any{uint64(0)})
+		resp, err := callRPC[aptos.GetLatestMinimalistTransactionResponse](addr, "aptosV2_getLatestMinimalistTransaction", []any{uint64(0)})
 		assert.NoError(t, err)
-		assert.Equal(t, APIVersion, resp.APIVersion)
+		assert.Equal(t, aptos.APIVersion, resp.APIVersion)
 		assert.Greater(t, resp.Transaction.Version, uint64(0))
 	})
 

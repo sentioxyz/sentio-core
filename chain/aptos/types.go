@@ -732,6 +732,8 @@ type GetTransactionsRequest struct {
 	FetchConfig TransactionFetchConfig `json:"fetchConfig"`
 }
 
+const APIVersion = 2 // api version, if api version increased, all driver client will restart
+
 type MinimalistTransaction struct {
 	Version     uint64 `json:"version"`
 	Hash        string `json:"hash"`

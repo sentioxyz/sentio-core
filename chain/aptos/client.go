@@ -137,6 +137,10 @@ func (c *Client) Use(
 	return r
 }
 
+func (c *Client) GetConfig() ClientConfig {
+	return c.config
+}
+
 func (c *Client) Snapshot() any {
 	return map[string]any{
 		"statistic": c.stat.Snapshot(),

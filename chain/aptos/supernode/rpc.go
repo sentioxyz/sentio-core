@@ -1,17 +1,22 @@
-package aptos
+package supernode
 
 import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sentioxyz/sentio-core/chain/aptos"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/clientpool"
+	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/jsonrpc"
+	"time"
 )
 
+var httpClient = https.NewClient(https.WithTimeout(time.Minute))
+
 func NewRPCService(
-	slotCache chain.LatestSlotCache[*Slot],
-	clientPool *ClientPool,
+	slotCache chain.LatestSlotCache[*aptos.Slot],
+	clientPool *aptos.ClientPool,
 	store Storage,
 ) []jsonrpc.Middleware {
 	return []jsonrpc.Middleware{
@@ -22,23 +27,24 @@ func NewRPCService(
 				if method != jsonrpc.HTTPRequestMethod {
 					return next(ctx, method, params)
 				}
-				jsonrpc.ProxyHTTP[ClientConfig, *Client](
+				jsonrpc.ProxyHTTP[aptos.ClientConfig, *aptos.Client](
 					ctx,
 					method,
 					clientPool.ClientPool,
-					func(ctx context.Context, cli *Client) (
+					func(ctx context.Context, cli *aptos.Client) (
 						resp *http.Response,
 						respBody []byte,
 						upstream string,
 						r clientpool.Result,
 					) {
 						ctxData := jsonrpc.GetCtxData(ctx)
-						upstream = cli.config.GetName()
+						cfg := cli.GetConfig()
+						upstream = cfg.GetName()
 						r = cli.Use(ctx, "proxy."+method, func(ctx context.Context) (r clientpool.Result) {
 							req, err := clientpool.BuildHTTPRequest(
 								ctx,
 								ctxData.RawReq.Method,
-								cli.config.Endpoint,
+								cfg.Endpoint,
 								ctxData.RawReq.URL.Path,
 								ctxData.RawReq.URL.Query(),
 								ctxData.RawReqBody,

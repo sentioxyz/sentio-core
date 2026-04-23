@@ -24,4 +24,15 @@ go_test(
     name = "supernode_test",
     srcs = ["rpc_test.go"],
     embed = [":supernode"],
+    deps = [
+        "//chain/chain",
+        "//chain/clientpool",
+        "//chain/fuel",
+        "//common/errgroup",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/range",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_zap//zapcore",
+    ],
 )

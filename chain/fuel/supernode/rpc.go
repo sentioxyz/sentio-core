@@ -41,48 +41,42 @@ func NewSuperNode(
 					return jsonrpc.CallMethod(rpcSvr.GetTransactions, ctx, params)
 				case "fuel_getContractCreateTransaction":
 					return jsonrpc.CallMethod(rpcSvr.GetContractCreateTransaction, ctx, params)
+				case jsonrpc.HTTPRequestMethod:
+					jsonrpc.ProxyHTTP[fuel.ClientConfig, *fuel.Client](
+						ctx,
+						method,
+						client.ClientPool,
+						func(ctx context.Context, cli *fuel.Client) (
+							resp *http.Response,
+							respBody []byte,
+							upstream string,
+							r clientpool.Result,
+						) {
+							ctxData := jsonrpc.GetCtxData(ctx)
+							cfg := cli.GetConfig()
+							upstream = cfg.GetName()
+							r = cli.Use(ctx, "proxy."+method, func(ctx context.Context) (r clientpool.Result) {
+								req, err := clientpool.BuildHTTPRequest(
+									ctx,
+									ctxData.RawReq.Method,
+									cfg.Endpoint,
+									ctxData.RawReq.URL.Path,
+									ctxData.RawReq.URL.Query(),
+									ctxData.RawReqBody,
+								)
+								if err != nil {
+									return clientpool.Result{Err: err, BrokenForTask: true}
+								}
+								resp, respBody, r = clientpool.SendHTTP(cli.GetHTTPClient(), req, nil)
+								return r
+							})
+							return
+						},
+					)
+					return nil, nil
 				default:
 					return next(ctx, method, params)
 				}
-			}
-		},
-		func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
-			return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
-				if method != jsonrpc.HTTPRequestMethod {
-					return next(ctx, method, params)
-				}
-				jsonrpc.ProxyHTTP[fuel.ClientConfig, *fuel.Client](
-					ctx,
-					method,
-					client.ClientPool,
-					func(ctx context.Context, cli *fuel.Client) (
-						resp *http.Response,
-						respBody []byte,
-						upstream string,
-						r clientpool.Result,
-					) {
-						ctxData := jsonrpc.GetCtxData(ctx)
-						cfg := cli.GetConfig()
-						upstream = cfg.GetName()
-						r = cli.Use(ctx, "proxy."+method, func(ctx context.Context) (r clientpool.Result) {
-							req, err := clientpool.BuildHTTPRequest(
-								ctx,
-								ctxData.RawReq.Method,
-								cfg.Endpoint,
-								ctxData.RawReq.URL.Path,
-								ctxData.RawReq.URL.Query(),
-								ctxData.RawReqBody,
-							)
-							if err != nil {
-								return clientpool.Result{Err: err, BrokenForTask: true}
-							}
-							resp, respBody, r = clientpool.SendHTTP(cli.GetHTTPClient(), req, nil)
-							return r
-						})
-						return
-					},
-				)
-				return nil, nil
 			}
 		},
 	}

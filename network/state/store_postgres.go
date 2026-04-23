@@ -64,9 +64,12 @@ type DatabaseInfoRow struct {
 	gorm.Model
 	StateKey    string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:state_key"`
 	DatabaseId  string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:database_id"`
+	DbType      uint8  `gorm:"not null;default:0;column:db_type"`
+	Creator     string `gorm:"not null;default:'';column:creator"`
 	Owner       string `gorm:"not null;column:owner"`
+	IndexerId   uint64 `gorm:"not null;default:0;column:indexer_id"`
+	ProcessorId string `gorm:"not null;default:'';column:processor_id"`
 	Operators   string `gorm:"type:jsonb;not null;default:'[]';column:operators"`
-	Allocations string `gorm:"type:jsonb;not null;default:'[]';column:allocations"`
 	Tables      string `gorm:"type:jsonb;not null;default:'[]';column:tables"`
 }
 
@@ -193,16 +196,15 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 	}
 	for _, r := range databases {
 		info := DatabaseInfo{
-			DatabaseId: r.DatabaseId,
-			Owner:      r.Owner,
+			DatabaseId:  r.DatabaseId,
+			DbType:      DatabaseType(r.DbType),
+			Creator:     r.Creator,
+			Owner:       r.Owner,
+			IndexerId:   r.IndexerId,
+			ProcessorId: r.ProcessorId,
 		}
 		if r.Operators != "" {
 			if err := json.Unmarshal([]byte(r.Operators), &info.Operators); err != nil {
-				return nil, err
-			}
-		}
-		if r.Allocations != "" {
-			if err := json.Unmarshal([]byte(r.Allocations), &info.Allocations); err != nil {
 				return nil, err
 			}
 		}
@@ -338,10 +340,6 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 				if err != nil {
 					return err
 				}
-				allocations, err := json.Marshal(info.Allocations)
-				if err != nil {
-					return err
-				}
 				tables, err := json.Marshal(info.Tables)
 				if err != nil {
 					return err
@@ -349,9 +347,12 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 				rows = append(rows, DatabaseInfoRow{
 					StateKey:    s.stateKey,
 					DatabaseId:  databaseId,
+					DbType:      uint8(info.DbType),
+					Creator:     info.Creator,
 					Owner:       info.Owner,
+					IndexerId:   info.IndexerId,
+					ProcessorId: info.ProcessorId,
 					Operators:   string(operators),
-					Allocations: string(allocations),
 					Tables:      string(tables),
 				})
 			}

@@ -1,19 +1,19 @@
-package aptos
+package fuel
 
 import (
 	"context"
-	"fmt"
-	"github.com/aptos-labs/aptos-go-sdk"
-	"github.com/aptos-labs/aptos-go-sdk/api"
-	"github.com/pkg/errors"
 	"net/http"
-	"net/url"
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/chain/clientpool/ex"
+	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/https"
+	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
-	"strconv"
 	"time"
+
+	"github.com/pkg/errors"
+	fuelGo "github.com/sentioxyz/fuel-go"
+	"github.com/sentioxyz/fuel-go/types"
 )
 
 type ClientConfig struct {
@@ -40,18 +40,27 @@ func (c ClientConfig) Equal(a ClientConfig) bool {
 	return c == a
 }
 
-var httpClient = https.NewClient(https.WithTimeout(time.Minute))
+var debugFuelClient = envconf.LoadBool("SENTIO_DEBUG_FUEL_CLIENT", false)
 
 type Client struct {
 	config     ClientConfig
 	httpClient *http.Client
+	client     *fuelGo.Client
 	stat       *ex.StatWinManager
 }
 
+var httpClient = https.NewClient(https.WithTimeout(time.Minute))
+
 func NewClient(config ClientConfig) *Client {
+	opts := []fuelGo.Options{fuelGo.WithHTTPClient(httpClient)}
+	if debugFuelClient {
+		_, logger := log.FromContext(context.Background(), "endpoint", config.Endpoint)
+		opts = append(opts, fuelGo.WithLogger(logger))
+	}
 	return &Client{
 		config:     config,
 		httpClient: httpClient,
+		client:     fuelGo.NewClient(config.Endpoint, opts...),
 		stat:       ex.NewStatWinManager(time.Minute),
 	}
 }
@@ -83,53 +92,87 @@ func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- cl
 	)
 }
 
+func (c *Client) IsQueryErrors(err error) bool {
+	var queryErrors fuelGo.QueryErrors
+	return errors.As(err, &queryErrors)
+}
+
 func (c *Client) _getLatest(ctx context.Context) (clientpool.Block, clientpool.Result) {
 	callCtx, cancel := context.WithTimeout(ctx, c.config.GetLatestTimeout)
 	defer cancel()
-	req, err := clientpool.BuildHTTPRequest(callCtx, "GET", c.config.Endpoint, "/v1", nil, nil)
+	latest, err := c.client.GetLatestBlockHeader(callCtx)
 	if err != nil {
-		return clientpool.Block{}, clientpool.Result{Err: err, Broken: true}
-	}
-	var result aptos.NodeInfo
-	_, _, r := clientpool.SendHTTP(c.httpClient, req, &result)
-	if r.Err != nil {
-		return clientpool.Block{}, r
+		return clientpool.Block{}, clientpool.Result{Err: err, Broken: c.IsQueryErrors(err)}
 	}
 	return clientpool.Block{
-		Number:    result.BlockHeight(),
-		Timestamp: time.UnixMicro(int64(result.LedgerTimestamp())),
-	}, r
+		Number:    uint64(latest.Height),
+		Hash:      latest.Id.String(),
+		Timestamp: latest.Time.Time,
+	}, clientpool.Result{}
 }
 
-func (c *Client) _getBlock(ctx context.Context, bn uint64, withTxs bool) (api.Block, clientpool.Result) {
+func (c *Client) _checkBlock(bn uint64, block *types.Block) error {
+	if block == nil {
+		return errors.Errorf("block %d not found", bn)
+	}
+	for j, txn := range block.Transactions {
+		if txn.Status == nil {
+			return errors.Errorf("txn %d/%s in block %d miss status", j, txn.Id.String(), block.Height)
+		}
+	}
+	return nil
+}
+
+func (c *Client) _getBlock(ctx context.Context, bn uint64, opt fuelGo.GetBlockOption) (*types.Block, clientpool.Result) {
 	callCtx, cancel := context.WithTimeout(ctx, c.config.GetBlockTimeout)
 	defer cancel()
-	params := make(url.Values)
-	params.Set("with_transactions", strconv.FormatBool(withTxs))
-	path := fmt.Sprintf("/v1/blocks/by_height/%d", bn)
-	req, err := clientpool.BuildHTTPRequest(callCtx, "GET", c.config.Endpoint, path, params, nil)
+	height := types.U32(bn)
+	req := types.QueryBlockParams{Height: &height}
+	blk, err := c.client.GetBlock(callCtx, req, opt)
 	if err != nil {
-		return api.Block{}, clientpool.Result{Err: err, Broken: true}
+		return nil, clientpool.Result{Err: err, Broken: c.IsQueryErrors(err)}
 	}
-	var result *api.Block
-	_, _, r := clientpool.SendHTTP(c.httpClient, req, &result)
-	if result == nil && r.Err == nil {
-		r.Err = errors.Errorf("block %d not found", bn)
+	if err = c._checkBlock(bn, blk); err != nil {
+		return nil, clientpool.Result{Err: err}
 	}
-	if r.Err != nil {
-		return api.Block{}, r
-	}
-	return *result, r
+	return blk, clientpool.Result{}
 }
 
-func (c *Client) GetBlock(ctx context.Context, src string, bn uint64, withTxs bool) (api.Block, clientpool.Result) {
-	var block api.Block
-	method := src + utils.Select(withTxs, ".getBlockWithTxs", ".getBlock")
-	r := c.Use(ctx, method, func(ctx context.Context) (r clientpool.Result) {
-		block, r = c._getBlock(ctx, bn, withTxs)
+func (c *Client) _getBlocks(ctx context.Context, bns []uint64, opt fuelGo.GetBlockOption) ([]*types.Block, clientpool.Result) {
+	callCtx, cancel := context.WithTimeout(ctx, c.config.GetBlockTimeout)
+	defer cancel()
+	req := utils.MapSliceNoError(bns, func(bn uint64) types.QueryBlockParams {
+		height := types.U32(bn)
+		return types.QueryBlockParams{Height: &height}
+	})
+	blocks, err := c.client.GetBlocks(callCtx, req, opt)
+	if err != nil {
+		return nil, clientpool.Result{Err: err, Broken: c.IsQueryErrors(err)}
+	}
+	for i, block := range blocks {
+		if err = c._checkBlock(bns[i], block); err != nil {
+			return nil, clientpool.Result{Err: err}
+		}
+	}
+	return blocks, clientpool.Result{}
+}
+
+func (c *Client) GetBlock(ctx context.Context, src string, bn uint64, opt fuelGo.GetBlockOption) (*types.Block, clientpool.Result) {
+	var block *types.Block
+	r := c.Use(ctx, src+".getBlock", func(ctx context.Context) (r clientpool.Result) {
+		block, r = c._getBlock(ctx, bn, opt)
 		return r
 	})
 	return block, r
+}
+
+func (c *Client) GetBlocks(ctx context.Context, src string, bns []uint64, opt fuelGo.GetBlockOption) ([]*types.Block, clientpool.Result) {
+	var blocks []*types.Block
+	r := c.Use(ctx, src+".getBlocks", func(ctx context.Context) (r clientpool.Result) {
+		blocks, r = c._getBlocks(ctx, bns, opt)
+		return r
+	})
+	return blocks, r
 }
 
 func (c *Client) Use(

@@ -36,6 +36,7 @@ require (
 	github.com/redis/go-redis/extra/redisotel/v9 v9.15.1
 	github.com/redis/go-redis/v9 v9.15.1
 	github.com/samber/lo v1.52.0
+	github.com/sentioxyz/fuel-go v0.0.0-20250319130329-e48479a24cd9
 	github.com/sentioxyz/golang-lru v0.0.0-20221206101024-a094e96c5283
 	github.com/sentioxyz/qs v0.0.0-20250901053804-ecf034c91d44
 	github.com/sentioxyz/sui-apis v0.0.0-20260130063639-b30aa79134d1
@@ -87,6 +88,7 @@ require (
 	github.com/blevesearch/zap/v13 v13.0.6 // indirect
 	github.com/blevesearch/zap/v14 v14.0.5 // indirect
 	github.com/blevesearch/zap/v15 v15.0.3 // indirect
+	github.com/cactus/tai64 v1.0.2 // indirect
 	github.com/couchbase/vellum v1.0.2 // indirect
 	github.com/crate-crypto/go-eth-kzg v1.5.0 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.6 // indirect

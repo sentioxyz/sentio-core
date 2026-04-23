@@ -7,12 +7,8 @@ import (
 	"sentioxyz/sentio-core/chain/aptos"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/clientpool"
-	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/jsonrpc"
-	"time"
 )
-
-var httpClient = https.NewClient(https.WithTimeout(time.Minute))
 
 func NewRPCService(
 	slotCache chain.LatestSlotCache[*aptos.Slot],
@@ -52,7 +48,7 @@ func NewRPCService(
 							if err != nil {
 								return clientpool.Result{Err: err, BrokenForTask: true}
 							}
-							resp, respBody, r = clientpool.SendHTTP(httpClient, req, nil)
+							resp, respBody, r = clientpool.SendHTTP(cli.GetHTTPClient(), req, nil)
 							return r
 						})
 						return

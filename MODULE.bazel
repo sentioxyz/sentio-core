@@ -137,6 +137,7 @@ use_repo(
     "com_github_redis_go_redis_extra_redisotel_v9",
     "com_github_redis_go_redis_v9",
     "com_github_samber_lo",
+    "com_github_sentioxyz_fuel_go",
     "com_github_sentioxyz_golang_lru",
     "com_github_sentioxyz_qs",
     "com_github_sentioxyz_sui_apis",

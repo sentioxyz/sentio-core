@@ -45,6 +45,7 @@ Functional options:
 
 - `LoadSingleSharding(ShardingIndex)` - Load only a specific shard
 - `LoadAllowPanic()` - Enable panic on configuration errors
+- `LoadAllowEmptySharding()` - Allow loading manager without any sharding instances (useful for networks with dynamic sharding where shards are created on the fly, such as indexer)
 - `LoadSettings(map[string]any)` - Override/add ClickHouse settings at runtime
 
 ### `Sharding`
@@ -232,6 +233,18 @@ m := ckhmanager.LoadManager("/path/to/config.yaml",
     ckhmanager.LoadAllowPanic(),
 )
 ```
+
+#### Allow Empty Sharding Mode
+
+Allow loading manager without any sharding instances (useful for networks with dynamic sharding where shards are created on the fly, such as indexer):
+
+```go
+m := ckhmanager.LoadManager("/path/to/config.yaml",
+    ckhmanager.LoadAllowEmptySharding(), // Skip verification when no shards exist initially
+)
+```
+
+When enabled, the manager will log an error instead of panicking if no sharding instances are configured. This is typically used with `NewShardByStateIndexer()` to dynamically create shards based on indexer info.
 
 #### Combining Options
 

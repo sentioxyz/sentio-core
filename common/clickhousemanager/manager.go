@@ -347,11 +347,19 @@ func loadShardingConfig(config Config, options *managerLoaderOptions) (
 		defaultIndex = *options.singleSharding
 		return
 	}
-
 	ok = verify(&strategies, lo.IfF(options != nil, func() bool {
 		return options.allowPanic
 	}).Else(false))
-	defaultIndex = strategies.TiersMapping[protoscommon.Tier_FREE][0]
+	if ok {
+		defaultIndex = strategies.TiersMapping[protoscommon.Tier_FREE][0]
+	} else {
+		allowEmptySharding := lo.IfF(options != nil, func() bool {
+			return options.allowEmptySharding
+		}).Else(false)
+		if !allowEmptySharding {
+			log.Errorf("default index is out of sharding config, please check your config, and make sure there is at least one sharding instance for free tier")
+		}
+	}
 	return
 }
 
@@ -394,9 +402,10 @@ func loadConfig(configPath string) Config {
 }
 
 type managerLoaderOptions struct {
-	singleSharding *ShardingIndex
-	allowPanic     bool
-	settings       map[string]any
+	singleSharding     *ShardingIndex
+	allowPanic         bool
+	allowEmptySharding bool // usually for network with dynamic sharding, such as indexer, which will create sharding on the fly according to the indexer info, so we can not guarantee there is at least one sharding instance at the beginning, in this case we can set allowEmptySharding to true to skip the verify when loading config
+	settings           map[string]any
 }
 
 func LoadSingleSharding(singleSharding ShardingIndex) func(o *managerLoaderOptions) {
@@ -417,14 +426,21 @@ func LoadSettings(settings map[string]any) func(o *managerLoaderOptions) {
 	}
 }
 
+func LoadAllowEmptySharding() func(o *managerLoaderOptions) {
+	return func(options *managerLoaderOptions) {
+		options.allowEmptySharding = true
+	}
+}
+
 func LoadManager(configPath string, funcs ...func(o *managerLoaderOptions)) Manager {
 	if configPath == "" {
 		return nil
 	}
 	var options = &managerLoaderOptions{
-		allowPanic:     false,
-		singleSharding: nil,
-		settings:       make(map[string]any),
+		allowPanic:         false,
+		allowEmptySharding: false,
+		singleSharding:     nil,
+		settings:           make(map[string]any),
 	}
 	for _, f := range funcs {
 		f(options)

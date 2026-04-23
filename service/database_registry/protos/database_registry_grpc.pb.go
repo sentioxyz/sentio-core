@@ -20,8 +20,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DatabaseRegistryService_EnsureDatabase_FullMethodName = "/database_registry_service.DatabaseRegistryService/EnsureDatabase"
-	DatabaseRegistryService_EnsureTable_FullMethodName    = "/database_registry_service.DatabaseRegistryService/EnsureTable"
+	DatabaseRegistryService_EnsureDatabase_FullMethodName     = "/database_registry_service.DatabaseRegistryService/EnsureDatabase"
+	DatabaseRegistryService_EnsureTable_FullMethodName        = "/database_registry_service.DatabaseRegistryService/EnsureTable"
+	DatabaseRegistryService_CreateUserDatabase_FullMethodName = "/database_registry_service.DatabaseRegistryService/CreateUserDatabase"
 )
 
 // DatabaseRegistryServiceClient is the client API for DatabaseRegistryService service.
@@ -30,6 +31,7 @@ const (
 type DatabaseRegistryServiceClient interface {
 	EnsureDatabase(ctx context.Context, in *EnsureDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	EnsureTable(ctx context.Context, in *EnsureTableRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CreateUserDatabase(ctx context.Context, in *CreateUserDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type databaseRegistryServiceClient struct {
@@ -60,12 +62,23 @@ func (c *databaseRegistryServiceClient) EnsureTable(ctx context.Context, in *Ens
 	return out, nil
 }
 
+func (c *databaseRegistryServiceClient) CreateUserDatabase(ctx context.Context, in *CreateUserDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, DatabaseRegistryService_CreateUserDatabase_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DatabaseRegistryServiceServer is the server API for DatabaseRegistryService service.
 // All implementations must embed UnimplementedDatabaseRegistryServiceServer
 // for forward compatibility.
 type DatabaseRegistryServiceServer interface {
 	EnsureDatabase(context.Context, *EnsureDatabaseRequest) (*emptypb.Empty, error)
 	EnsureTable(context.Context, *EnsureTableRequest) (*emptypb.Empty, error)
+	CreateUserDatabase(context.Context, *CreateUserDatabaseRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedDatabaseRegistryServiceServer()
 }
 
@@ -81,6 +94,9 @@ func (UnimplementedDatabaseRegistryServiceServer) EnsureDatabase(context.Context
 }
 func (UnimplementedDatabaseRegistryServiceServer) EnsureTable(context.Context, *EnsureTableRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnsureTable not implemented")
+}
+func (UnimplementedDatabaseRegistryServiceServer) CreateUserDatabase(context.Context, *CreateUserDatabaseRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateUserDatabase not implemented")
 }
 func (UnimplementedDatabaseRegistryServiceServer) mustEmbedUnimplementedDatabaseRegistryServiceServer() {
 }
@@ -140,6 +156,24 @@ func _DatabaseRegistryService_EnsureTable_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DatabaseRegistryService_CreateUserDatabase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateUserDatabaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatabaseRegistryServiceServer).CreateUserDatabase(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatabaseRegistryService_CreateUserDatabase_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatabaseRegistryServiceServer).CreateUserDatabase(ctx, req.(*CreateUserDatabaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DatabaseRegistryService_ServiceDesc is the grpc.ServiceDesc for DatabaseRegistryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -154,6 +188,10 @@ var DatabaseRegistryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "EnsureTable",
 			Handler:    _DatabaseRegistryService_EnsureTable_Handler,
+		},
+		{
+			MethodName: "CreateUserDatabase",
+			Handler:    _DatabaseRegistryService_CreateUserDatabase_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

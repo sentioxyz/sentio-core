@@ -142,6 +142,58 @@ func (x *EnsureTableRequest) GetTableType() string {
 	return ""
 }
 
+type CreateUserDatabaseRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DatabaseId    string                 `protobuf:"bytes,1,opt,name=database_id,json=databaseId,proto3" json:"database_id,omitempty"`
+	UserAddress   string                 `protobuf:"bytes,2,opt,name=user_address,json=userAddress,proto3" json:"user_address,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateUserDatabaseRequest) Reset() {
+	*x = CreateUserDatabaseRequest{}
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateUserDatabaseRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateUserDatabaseRequest) ProtoMessage() {}
+
+func (x *CreateUserDatabaseRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateUserDatabaseRequest.ProtoReflect.Descriptor instead.
+func (*CreateUserDatabaseRequest) Descriptor() ([]byte, []int) {
+	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CreateUserDatabaseRequest) GetDatabaseId() string {
+	if x != nil {
+		return x.DatabaseId
+	}
+	return ""
+}
+
+func (x *CreateUserDatabaseRequest) GetUserAddress() string {
+	if x != nil {
+		return x.UserAddress
+	}
+	return ""
+}
+
 var File_service_database_registry_protos_database_registry_proto protoreflect.FileDescriptor
 
 const file_service_database_registry_protos_database_registry_proto_rawDesc = "" +
@@ -155,10 +207,15 @@ const file_service_database_registry_protos_database_registry_proto_rawDesc = ""
 	"\rreplica_index\x18\x02 \x01(\rR\freplicaIndex\x12\x19\n" +
 	"\btable_id\x18\x03 \x01(\tR\atableId\x12\x1d\n" +
 	"\n" +
-	"table_type\x18\x04 \x01(\tR\ttableType2\xcb\x01\n" +
+	"table_type\x18\x04 \x01(\tR\ttableType\"_\n" +
+	"\x19CreateUserDatabaseRequest\x12\x1f\n" +
+	"\vdatabase_id\x18\x01 \x01(\tR\n" +
+	"databaseId\x12!\n" +
+	"\fuser_address\x18\x02 \x01(\tR\vuserAddress2\xaf\x02\n" +
 	"\x17DatabaseRegistryService\x12Z\n" +
 	"\x0eEnsureDatabase\x120.database_registry_service.EnsureDatabaseRequest\x1a\x16.google.protobuf.Empty\x12T\n" +
-	"\vEnsureTable\x12-.database_registry_service.EnsureTableRequest\x1a\x16.google.protobuf.EmptyB8Z6sentioxyz/sentio-core/service/database_registry/protosb\x06proto3"
+	"\vEnsureTable\x12-.database_registry_service.EnsureTableRequest\x1a\x16.google.protobuf.Empty\x12b\n" +
+	"\x12CreateUserDatabase\x124.database_registry_service.CreateUserDatabaseRequest\x1a\x16.google.protobuf.EmptyB8Z6sentioxyz/sentio-core/service/database_registry/protosb\x06proto3"
 
 var (
 	file_service_database_registry_protos_database_registry_proto_rawDescOnce sync.Once
@@ -172,19 +229,22 @@ func file_service_database_registry_protos_database_registry_proto_rawDescGZIP()
 	return file_service_database_registry_protos_database_registry_proto_rawDescData
 }
 
-var file_service_database_registry_protos_database_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_service_database_registry_protos_database_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_service_database_registry_protos_database_registry_proto_goTypes = []any{
-	(*EnsureDatabaseRequest)(nil), // 0: database_registry_service.EnsureDatabaseRequest
-	(*EnsureTableRequest)(nil),    // 1: database_registry_service.EnsureTableRequest
-	(*emptypb.Empty)(nil),         // 2: google.protobuf.Empty
+	(*EnsureDatabaseRequest)(nil),     // 0: database_registry_service.EnsureDatabaseRequest
+	(*EnsureTableRequest)(nil),        // 1: database_registry_service.EnsureTableRequest
+	(*CreateUserDatabaseRequest)(nil), // 2: database_registry_service.CreateUserDatabaseRequest
+	(*emptypb.Empty)(nil),             // 3: google.protobuf.Empty
 }
 var file_service_database_registry_protos_database_registry_proto_depIdxs = []int32{
 	0, // 0: database_registry_service.DatabaseRegistryService.EnsureDatabase:input_type -> database_registry_service.EnsureDatabaseRequest
 	1, // 1: database_registry_service.DatabaseRegistryService.EnsureTable:input_type -> database_registry_service.EnsureTableRequest
-	2, // 2: database_registry_service.DatabaseRegistryService.EnsureDatabase:output_type -> google.protobuf.Empty
-	2, // 3: database_registry_service.DatabaseRegistryService.EnsureTable:output_type -> google.protobuf.Empty
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
+	2, // 2: database_registry_service.DatabaseRegistryService.CreateUserDatabase:input_type -> database_registry_service.CreateUserDatabaseRequest
+	3, // 3: database_registry_service.DatabaseRegistryService.EnsureDatabase:output_type -> google.protobuf.Empty
+	3, // 4: database_registry_service.DatabaseRegistryService.EnsureTable:output_type -> google.protobuf.Empty
+	3, // 5: database_registry_service.DatabaseRegistryService.CreateUserDatabase:output_type -> google.protobuf.Empty
+	3, // [3:6] is the sub-list for method output_type
+	0, // [0:3] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -201,7 +261,7 @@ func file_service_database_registry_protos_database_registry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_database_registry_protos_database_registry_proto_rawDesc), len(file_service_database_registry_protos_database_registry_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

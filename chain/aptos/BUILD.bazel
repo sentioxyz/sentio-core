@@ -35,14 +35,25 @@ go_library(
 
 go_test(
     name = "aptos_test",
-    srcs = ["types_test.go"],
+    srcs = [
+        "rpc_test.go",
+        "types_test.go",
+    ],
     data = glob(["testdata/**"]),
     embed = [":aptos"],
     embedsrcs = ["testdata/tx.json"],
     deps = [
+        "//chain/chain",
+        "//chain/clientpool",
         "//chain/move",
+        "//common/errgroup",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/range",
         "//common/utils",
         "@com_github_aptos_labs_aptos_go_sdk//api",
         "@com_github_stretchr_testify//assert",
+        "@org_uber_go_zap//zapcore",
     ],
+
 )

@@ -6,23 +6,23 @@ import (
 
 type Slot api.Block
 
-func (s Slot) GetNumber() uint64 {
+func (s *Slot) GetNumber() uint64 {
 	return s.BlockHeight
 }
 
-func (s Slot) GetHash() string {
+func (s *Slot) GetHash() string {
 	return s.BlockHash
 }
 
-func (s Slot) GetParentHash() string {
+func (s *Slot) GetParentHash() string {
 	return ""
 }
 
-func (s Slot) Linked() bool {
+func (s *Slot) Linked() bool {
 	return false
 }
 
-func (s Slot) GetTransactionByVersion(version uint64) *Transaction {
+func (s *Slot) GetTransactionByVersion(version uint64) *Transaction {
 	for _, tx := range s.Transactions {
 		if tx.Version() == version {
 			ntx := NewTransaction(tx)

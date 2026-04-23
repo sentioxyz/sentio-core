@@ -759,6 +759,7 @@ func (s *Service) RunProcessor(ctx context.Context, req *protos.RunProcessorRequ
 			DriverVersion:       1,
 			NumWorkers:          req.NumWorkers,
 			VersionState:        int32(protos.ProcessorVersionState_ACTIVE),
+			TablePattern:        models.TablePattern(req.TablePattern),
 			SentioProcessorProperties: models.SentioProcessorProperties{
 				CliVersion: req.CliVersion,
 				SdkVersion: req.SdkVersion,

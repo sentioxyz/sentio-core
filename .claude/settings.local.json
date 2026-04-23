@@ -25,7 +25,9 @@
       "Bash(bazel test:*)",
       "Bash(grep:*)",
       "Bash(gh pr:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ],
     "deny": [],
     "ask": []

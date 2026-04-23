@@ -152,7 +152,7 @@ func Test_rpc(t *testing.T) {
 	})
 
 	t.Run("latestNew", func(t *testing.T) {
-		tx, err := callRPC[*aptos.Transaction](addr, "aptos_latestNew", []any{uint64(0)})
+		tx, err := callRPC[*aptos.Transaction](addr, "aptos_latestNew", []any{"aptos_mainnet"})
 		assert.NoError(t, err)
 		assert.NotNil(t, tx)
 	})

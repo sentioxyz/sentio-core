@@ -181,9 +181,9 @@ func (s *Store) ensureOnChainTables(
 	ctx context.Context,
 	expects map[string][]chx.TableOrView,
 ) error {
-	dbID := s.onChainDatabaseID()
-	if err := s.registrar.EnsureDatabase(ctx, dbID); err != nil {
-		return fmt.Errorf("ensure on-chain database %q: %w", dbID, err)
+	replica := uint32(s.processorReplica)
+	if err := s.registrar.EnsureDatabase(ctx, s.processorID, replica); err != nil {
+		return fmt.Errorf("ensure on-chain database for %s_%d: %w", s.processorID, s.processorReplica, err)
 	}
 	prefix := s.tableNamePrefix()
 	for _, tvs := range expects {
@@ -192,8 +192,8 @@ func (s *Store) ensureOnChainTables(
 				continue
 			}
 			tableID := strings.TrimPrefix(tv.GetFullName().Name, prefix)
-			if err := s.registrar.EnsureTable(ctx, dbID, tableID, "entity"); err != nil {
-				return fmt.Errorf("ensure on-chain table %q in %q: %w", tableID, dbID, err)
+			if err := s.registrar.EnsureTable(ctx, s.processorID, replica, tableID, "entity"); err != nil {
+				return fmt.Errorf("ensure on-chain table %q in %s_%d: %w", tableID, s.processorID, s.processorReplica, err)
 			}
 		}
 	}

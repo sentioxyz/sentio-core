@@ -2,7 +2,6 @@ package clickhouse
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"sentioxyz/sentio-core/common/chx"
@@ -88,13 +87,6 @@ func (s *Store) Init(ctx context.Context, overWriteMeta bool) error {
 	return s.fetchMetas(ctx, overWriteMeta)
 }
 
-// onChainDatabaseID returns the on-chain database identifier for this
-// processor replica. Only meaningful when processorTablePattern is
-// TablePatternNetworkV1.
-func (s *Store) onChainDatabaseID() string {
-	return fmt.Sprintf("%s_%d", s.processorID, s.processorReplica)
-}
-
 // onChainRegistrationEnabled reports whether the store should mirror table
 // creations to the on-chain Databases contract.
 func (s *Store) onChainRegistrationEnabled() bool {
@@ -105,7 +97,7 @@ func (s *Store) onChainRegistrationEnabled() bool {
 // replica exists, caching the result for subsequent table creations.
 func (s *Store) ensureOnChainDatabase(ctx context.Context) error {
 	s.onChainDatabaseEnsured.Do(func() {
-		s.onChainDatabaseErr = s.registrar.EnsureDatabase(ctx, s.onChainDatabaseID())
+		s.onChainDatabaseErr = s.registrar.EnsureDatabase(ctx, s.processorID, uint32(s.processorReplica))
 	})
 	return s.onChainDatabaseErr
 }

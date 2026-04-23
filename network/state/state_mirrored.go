@@ -192,20 +192,6 @@ func (s *StateMirrored) RemoveDatabaseOperator(ctx context.Context, databaseId s
 	return s.syncDatabase(ctx, databaseId)
 }
 
-func (s *StateMirrored) UpsertDatabaseAllocation(ctx context.Context, databaseId string, allocation DatabaseAllocation) error {
-	if err := s.inner.UpsertDatabaseAllocation(ctx, databaseId, allocation); err != nil {
-		return err
-	}
-	return s.syncDatabase(ctx, databaseId)
-}
-
-func (s *StateMirrored) DeleteDatabaseAllocation(ctx context.Context, databaseId string, indexerId uint64) error {
-	if err := s.inner.DeleteDatabaseAllocation(ctx, databaseId, indexerId); err != nil {
-		return err
-	}
-	return s.syncDatabase(ctx, databaseId)
-}
-
 func (s *StateMirrored) UpsertDatabaseTable(ctx context.Context, databaseId string, table TableInfo) error {
 	if err := s.inner.UpsertDatabaseTable(ctx, databaseId, table); err != nil {
 		return err

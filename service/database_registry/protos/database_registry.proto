@@ -8,14 +8,25 @@ option go_package = "sentioxyz/sentio-core/service/database_registry/protos";
 
 // DatabaseRegistryService lets drivers ask sentio-node to mirror physical
 // ClickHouse tables as on-chain (database, table) records before issuing DDL.
-// The node signs the on-chain transactions with its indexer key.
+// It also lets clickhouse-proxy create user-owned databases on behalf of an
+// authenticated end-user signer. The node signs on-chain transactions with
+// its indexer key.
 service DatabaseRegistryService {
-  // EnsureDatabase creates the on-chain database if missing. Idempotent.
+  // EnsureDatabase creates the on-chain processor database if missing.
+  // Idempotent.
   rpc EnsureDatabase(EnsureDatabaseRequest) returns (google.protobuf.Empty);
 
   // EnsureTable registers (database_id, table_id, table_type) on-chain if
   // missing. Idempotent.
   rpc EnsureTable(EnsureTableRequest) returns (google.protobuf.Empty);
+
+  // CreateUserDatabase creates a user-owned on-chain database. The caller
+  // (clickhouse-proxy) has already validated the user's signature; it passes
+  // the recovered address so the contract records creator=owner=user. The
+  // server supplies its own indexer_id, binding the new database to this
+  // indexer 1:1. Idempotent: if a USER database with the same id and owner
+  // already exists it returns success without issuing a tx.
+  rpc CreateUserDatabase(CreateUserDatabaseRequest) returns (google.protobuf.Empty);
 }
 
 // EnsureDatabase maps to the on-chain createProcessorDatabase(processor_id,
@@ -34,4 +45,14 @@ message EnsureTableRequest {
   string table_id = 3;
   // One of: "event", "gauge", "counter", "entity".
   string table_type = 4;
+}
+
+// CreateUserDatabase maps to the on-chain
+// createUserDatabase(database_id, user, self_indexer_id).
+message CreateUserDatabaseRequest {
+  // User-supplied identifier, e.g. the name in `CREATE DATABASE foo`.
+  string database_id = 1;
+  // 0x-prefixed hex Ethereum address recovered from the client JWS by the
+  // proxy. Becomes both creator and owner on-chain.
+  string user_address = 2;
 }

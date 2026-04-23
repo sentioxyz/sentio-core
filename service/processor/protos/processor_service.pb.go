@@ -2998,6 +2998,7 @@ type RunProcessorRequest struct {
 	NumWorkers    int32                  `protobuf:"varint,7,opt,name=num_workers,json=numWorkers,proto3" json:"num_workers,omitempty"`
 	IsBinary      bool                   `protobuf:"varint,8,opt,name=is_binary,json=isBinary,proto3" json:"is_binary,omitempty"`
 	ProjectId     string                 `protobuf:"bytes,9,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	TablePattern  string                 `protobuf:"bytes,10,opt,name=table_pattern,json=tablePattern,proto3" json:"table_pattern,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3091,6 +3092,13 @@ func (x *RunProcessorRequest) GetIsBinary() bool {
 func (x *RunProcessorRequest) GetProjectId() string {
 	if x != nil {
 		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *RunProcessorRequest) GetTablePattern() string {
+	if x != nil {
+		return x.TablePattern
 	}
 	return ""
 }
@@ -4372,7 +4380,7 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\x06schema\x18\x02 \x01(\tR\x06schema\"R\n" +
 	"\x15PauseProcessorRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xc3\x02\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xe8\x02\n" +
 	"\x13RunProcessorRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x19\n" +
 	"\bcode_url\x18\x02 \x01(\tR\acodeUrl\x12\x1f\n" +
@@ -4387,7 +4395,9 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"numWorkers\x12\x1b\n" +
 	"\tis_binary\x18\b \x01(\bR\bisBinary\x12\x1d\n" +
 	"\n" +
-	"project_id\x18\t \x01(\tR\tprojectId\"9\n" +
+	"project_id\x18\t \x01(\tR\tprojectId\x12#\n" +
+	"\rtable_pattern\x18\n" +
+	" \x01(\tR\ftablePattern\"9\n" +
 	"\x14StopProcessorRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\"\xac\x01\n" +
 	"\x0eGetLogsRequest\x12!\n" +

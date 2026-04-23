@@ -18,13 +18,20 @@ service DatabaseRegistryService {
   rpc EnsureTable(EnsureTableRequest) returns (google.protobuf.Empty);
 }
 
+// EnsureDatabase maps to the on-chain createProcessorDatabase(processor_id,
+// replica_index, self_indexer_id). The server (sentio-node) supplies its own
+// indexer_id; the driver only knows its (processor_id, replica_index).
 message EnsureDatabaseRequest {
-  string database_id = 1;
+  string processor_id = 1;
+  uint32 replica_index = 2;
 }
 
+// EnsureTable maps to createTable(database_id, table_id, table_type). The
+// server composes the database_id from (processor_id, replica_index).
 message EnsureTableRequest {
-  string database_id = 1;
-  string table_id = 2;
+  string processor_id = 1;
+  uint32 replica_index = 2;
+  string table_id = 3;
   // One of: "event", "gauge", "counter", "entity".
-  string table_type = 3;
+  string table_type = 4;
 }

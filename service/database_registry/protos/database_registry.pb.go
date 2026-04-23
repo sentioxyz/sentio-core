@@ -24,7 +24,8 @@ const (
 
 type EnsureDatabaseRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	DatabaseId    string                 `protobuf:"bytes,1,opt,name=database_id,json=databaseId,proto3" json:"database_id,omitempty"`
+	ProcessorId   string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
+	ReplicaIndex  uint32                 `protobuf:"varint,2,opt,name=replica_index,json=replicaIndex,proto3" json:"replica_index,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -59,18 +60,26 @@ func (*EnsureDatabaseRequest) Descriptor() ([]byte, []int) {
 	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *EnsureDatabaseRequest) GetDatabaseId() string {
+func (x *EnsureDatabaseRequest) GetProcessorId() string {
 	if x != nil {
-		return x.DatabaseId
+		return x.ProcessorId
 	}
 	return ""
 }
 
+func (x *EnsureDatabaseRequest) GetReplicaIndex() uint32 {
+	if x != nil {
+		return x.ReplicaIndex
+	}
+	return 0
+}
+
 type EnsureTableRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	DatabaseId    string                 `protobuf:"bytes,1,opt,name=database_id,json=databaseId,proto3" json:"database_id,omitempty"`
-	TableId       string                 `protobuf:"bytes,2,opt,name=table_id,json=tableId,proto3" json:"table_id,omitempty"`
-	TableType     string                 `protobuf:"bytes,3,opt,name=table_type,json=tableType,proto3" json:"table_type,omitempty"`
+	ProcessorId   string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
+	ReplicaIndex  uint32                 `protobuf:"varint,2,opt,name=replica_index,json=replicaIndex,proto3" json:"replica_index,omitempty"`
+	TableId       string                 `protobuf:"bytes,3,opt,name=table_id,json=tableId,proto3" json:"table_id,omitempty"`
+	TableType     string                 `protobuf:"bytes,4,opt,name=table_type,json=tableType,proto3" json:"table_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -105,11 +114,18 @@ func (*EnsureTableRequest) Descriptor() ([]byte, []int) {
 	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *EnsureTableRequest) GetDatabaseId() string {
+func (x *EnsureTableRequest) GetProcessorId() string {
 	if x != nil {
-		return x.DatabaseId
+		return x.ProcessorId
 	}
 	return ""
+}
+
+func (x *EnsureTableRequest) GetReplicaIndex() uint32 {
+	if x != nil {
+		return x.ReplicaIndex
+	}
+	return 0
 }
 
 func (x *EnsureTableRequest) GetTableId() string {
@@ -130,16 +146,16 @@ var File_service_database_registry_protos_database_registry_proto protoreflect.F
 
 const file_service_database_registry_protos_database_registry_proto_rawDesc = "" +
 	"\n" +
-	"8service/database_registry/protos/database_registry.proto\x12\x19database_registry_service\x1a\x1bgoogle/protobuf/empty.proto\"8\n" +
-	"\x15EnsureDatabaseRequest\x12\x1f\n" +
-	"\vdatabase_id\x18\x01 \x01(\tR\n" +
-	"databaseId\"o\n" +
-	"\x12EnsureTableRequest\x12\x1f\n" +
-	"\vdatabase_id\x18\x01 \x01(\tR\n" +
-	"databaseId\x12\x19\n" +
-	"\btable_id\x18\x02 \x01(\tR\atableId\x12\x1d\n" +
+	"8service/database_registry/protos/database_registry.proto\x12\x19database_registry_service\x1a\x1bgoogle/protobuf/empty.proto\"_\n" +
+	"\x15EnsureDatabaseRequest\x12!\n" +
+	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12#\n" +
+	"\rreplica_index\x18\x02 \x01(\rR\freplicaIndex\"\x96\x01\n" +
+	"\x12EnsureTableRequest\x12!\n" +
+	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12#\n" +
+	"\rreplica_index\x18\x02 \x01(\rR\freplicaIndex\x12\x19\n" +
+	"\btable_id\x18\x03 \x01(\tR\atableId\x12\x1d\n" +
 	"\n" +
-	"table_type\x18\x03 \x01(\tR\ttableType2\xcb\x01\n" +
+	"table_type\x18\x04 \x01(\tR\ttableType2\xcb\x01\n" +
 	"\x17DatabaseRegistryService\x12Z\n" +
 	"\x0eEnsureDatabase\x120.database_registry_service.EnsureDatabaseRequest\x1a\x16.google.protobuf.Empty\x12T\n" +
 	"\vEnsureTable\x12-.database_registry_service.EnsureTableRequest\x1a\x16.google.protobuf.EmptyB8Z6sentioxyz/sentio-core/service/database_registry/protosb\x06proto3"

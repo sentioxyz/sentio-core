@@ -643,7 +643,7 @@ func (s *Store) syncMeta(ctx context.Context, data timeseries.Dataset) error {
 			if err := s.ensureOnChainDatabase(ctx); err != nil {
 				return fmt.Errorf("ensure on-chain database for %s: %w", meta.GetFullName(), err)
 			}
-			if err := s.registrar.EnsureTable(ctx, s.onChainDatabaseID(), meta.GetTableSuffix(), string(meta.Type)); err != nil {
+			if err := s.registrar.EnsureTable(ctx, s.processorID, uint32(s.processorReplica), meta.GetTableSuffix(), string(meta.Type)); err != nil {
 				return fmt.Errorf("ensure on-chain table for %s: %w", meta.GetFullName(), err)
 			}
 		}

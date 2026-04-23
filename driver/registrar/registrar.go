@@ -11,7 +11,11 @@ import "context"
 // OnChain mirrors (database, table) creations to the on-chain Databases
 // contract. Implementations must be idempotent: repeated calls for an
 // already-registered identifier must return nil without error.
+//
+// Drivers address databases by (processorID, replicaIndex); the on-chain
+// database_id is composed server-side. Drivers do not know their indexerId —
+// the server fills that from its own identity.
 type OnChain interface {
-	EnsureDatabase(ctx context.Context, databaseID string) error
-	EnsureTable(ctx context.Context, databaseID, tableID, tableType string) error
+	EnsureDatabase(ctx context.Context, processorID string, replicaIndex uint32) error
+	EnsureTable(ctx context.Context, processorID string, replicaIndex uint32, tableID, tableType string) error
 }

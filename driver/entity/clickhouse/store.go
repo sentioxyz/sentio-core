@@ -172,13 +172,6 @@ func NewStore(
 	}
 }
 
-// onChainDatabaseID returns the on-chain database identifier for this
-// processor replica. Only meaningful when processorTablePattern is
-// TablePatternNetworkV1.
-func (s *Store) onChainDatabaseID() string {
-	return fmt.Sprintf("%s_%d", s.processorID, s.processorReplica)
-}
-
 // onChainRegistrationEnabled reports whether the store should mirror table
 // creations to the on-chain Databases contract.
 func (s *Store) onChainRegistrationEnabled() bool {

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"
 
 	"sentioxyz/sentio-core/chain/chain"
@@ -18,8 +19,6 @@ import (
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
 	rg "sentioxyz/sentio-core/common/range"
-
-	"github.com/stretchr/testify/assert"
 )
 
 type mockStorage struct{}
@@ -151,7 +150,7 @@ func Test_rpc(t *testing.T) {
 	})
 
 	t.Run("latestNew", func(t *testing.T) {
-		tx, err := callRPC[*Transaction](addr, "aptos_latestNew", []any{string("aptos_mainnet")})
+		tx, err := callRPC[*Transaction](addr, "aptos_latestNew", []any{"aptos_mainnet"})
 		assert.NoError(t, err)
 		assert.NotNil(t, tx)
 	})

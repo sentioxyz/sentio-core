@@ -14,6 +14,7 @@ import (
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
 	"testing"
+	"time"
 )
 
 func Test_rpc(t *testing.T) {
@@ -48,11 +49,14 @@ func Test_rpc(t *testing.T) {
 		return jsonrpc.ListenAndServe(gctx, ":18890", h)
 	})
 
+	_, _ = cli.WaitBlock(ctx, 0)
+	time.Sleep(time.Second * 3)
+
 	t.Run("proxy.getTransaction", func(t *testing.T) {
 		body := `{
 		    "method": "getTransaction",
 		    "params": [
-		        "5mNLAzyBCtrFmDoXvUpaQ7TpiCje2VbGFUr1dYQ2tBPt72FSXUa1mrqdNxFEqaZbNQtQUG8dWLbvLBpZwgyFNscd",
+		        "4kAc2ytFEn5m45c9tzNzpP6uY4NEoAmExoEs5FzUV4yygVL2LofQog8AdSjFJ3wNHb4Gg2oQJNxjPhy9Zkbwo6kB",
 		        {
 		            "encoding": "jsonParsed",
 		            "maxSupportedTransactionVersion": 0

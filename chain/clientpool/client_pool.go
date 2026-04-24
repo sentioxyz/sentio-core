@@ -459,14 +459,14 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		}
 		if result.Broken {
 			p.clientBan(curCtx, entName, result.Err)
-			continue
 		}
 		if result.BrokenForTask {
 			blackList.Add(entName)
-			continue
 		}
-		p.clientActive(curCtx, entName, theme)
-		return result.Err
+		if !result.Broken && !result.BrokenForTask {
+			p.clientActive(curCtx, entName, theme)
+			return result.Err
+		}
 	}
 }
 

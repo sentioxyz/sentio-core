@@ -157,6 +157,30 @@ func Test_rpc(t *testing.T) {
 		assert.NotNil(t, txns)
 	})
 
+	t.Run("proxy.getChain", func(t *testing.T) {
+		resp, err := http.Post("http://"+addr, "application/json", bytes.NewReader([]byte(`{"query":"{chain {name latestBlock {id height header {time}}}}"}`)))
+		assert.NoError(t, err)
+		for k, vs := range resp.Header {
+			log.Infof("getChain got header: %s = %s", k, vs)
+		}
+		defer resp.Body.Close()
+		raw, err := io.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.NoError(t, err)
+		var buf bytes.Buffer
+		assert.NoError(t, json.Indent(&buf, raw, "", "\t"))
+		log.Infof("getChain got body: %s", buf.String())
+	})
+
+	t.Run("proxy.getChain", func(t *testing.T) {
+		resp, err := http.Post("http://"+addr, "application/xml", bytes.NewReader([]byte(`{"query":"{chain {name latestBlock {id height header {time}}}}"}`)))
+		assert.NoError(t, err)
+		for k, vs := range resp.Header {
+			log.Infof("getChain got header: %s = %s", k, vs)
+		}
+		assert.Equal(t, http.StatusUnsupportedMediaType, resp.StatusCode)
+	})
+
 	b, _ := json.MarshalIndent(cli.Snapshot(), "", "\t")
 	log.Infof("client: %s", string(b))
 

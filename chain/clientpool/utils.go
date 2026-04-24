@@ -3,6 +3,8 @@ package clientpool
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"github.com/pkg/errors"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"net/url"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/queue"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"time"
 )
@@ -34,6 +37,12 @@ func pushLatestQueue(q queue.Queue[Block], latest Block, dur time.Duration) (que
 		return q, latest.Timestamp.Sub(fr.Timestamp) / time.Duration(latest.Number-fr.Number)
 	}
 	return q, 0
+}
+
+func BuildPublicName(name string) string {
+	h := sha1.New()
+	_, _ = h.Write([]byte(name))
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func SubscribeUsingGetLatest(
@@ -77,6 +86,7 @@ func BuildHTTPRequest(
 	baseURL string,
 	path string,
 	params url.Values,
+	headers http.Header,
 	body []byte,
 ) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, method, baseURL, bytes.NewBuffer(body))
@@ -90,8 +100,32 @@ func BuildHTTPRequest(
 	if params != nil && len(params) > 0 {
 		req.URL.RawQuery = url.Values(utils.MergeMap(req.URL.Query(), params)).Encode()
 	}
+	for k, vs := range headers {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
+	}
 	return req, nil
 }
+
+var invalidRequestStatusCode = set.New[int](
+	http.StatusBadRequest,
+	http.StatusNotFound,
+	http.StatusMethodNotAllowed,
+	http.StatusNotAcceptable,
+	http.StatusConflict,
+	http.StatusGone,
+	http.StatusLengthRequired,
+	http.StatusPreconditionFailed,
+	http.StatusRequestEntityTooLarge,
+	http.StatusRequestURITooLong,
+	http.StatusUnsupportedMediaType,
+	http.StatusUnprocessableEntity,
+	http.StatusUpgradeRequired,
+	http.StatusPreconditionRequired,
+	http.StatusRequestHeaderFieldsTooLarge,
+	http.StatusUnavailableForLegalReasons,
+)
 
 func SendHTTP(
 	client *http.Client,
@@ -112,12 +146,8 @@ func SendHTTP(
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		// status code not in [200,300)
-		switch resp.StatusCode {
-		case http.StatusNotFound, http.StatusBadRequest:
-		default:
-			r.Broken = true
-		}
 		r.Err = errors.Errorf("[StatusCode:%d] %s", resp.StatusCode, string(body))
+		r.Broken = !invalidRequestStatusCode.Contains(resp.StatusCode)
 		return resp, body, r
 	}
 	if result != nil {

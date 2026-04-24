@@ -164,6 +164,30 @@ func Test_rpc(t *testing.T) {
 		assert.Greater(t, resp.Transaction.Version, uint64(0))
 	})
 
+	t.Run("proxy.getTransactionByVersion", func(t *testing.T) {
+		resp, err := http.Get("http://" + addr + "/v1/transactions/by_version/1")
+		assert.NoError(t, err)
+		for k, vs := range resp.Header {
+			log.Infof("getTransactionByVersion got header: %s = %s", k, vs)
+		}
+		defer resp.Body.Close()
+		raw, err := io.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.NoError(t, err)
+		var buf bytes.Buffer
+		assert.NoError(t, json.Indent(&buf, raw, "", "\t"))
+		log.Infof("getTransactionByVersion got body: %s", buf.String())
+	})
+
+	t.Run("proxy.getTransactionByVersion", func(t *testing.T) {
+		resp, err := http.Get("http://" + addr + "/v1/transactions/by_versions/1")
+		assert.NoError(t, err)
+		for k, vs := range resp.Header {
+			log.Infof("getTransactionByVersion got header: %s = %s", k, vs)
+		}
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
 	b, _ := json.MarshalIndent(cli.Snapshot(), "", "\t")
 	log.Infof("client: %s", string(b))
 

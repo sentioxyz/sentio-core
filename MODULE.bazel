@@ -117,6 +117,7 @@ use_repo(
     "com_github_ethereum_go_ethereum",
     "com_github_felixge_httpsnoop",
     "com_github_fergusstrange_embedded_postgres",
+    "com_github_gagliardetto_solana_go",
     "com_github_go_faster_errors",
     "com_github_goccy_go_json",
     "com_github_gorilla_handlers",

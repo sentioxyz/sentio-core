@@ -13,7 +13,6 @@ go_library(
     deps = [
         "//chain/aptos",
         "//chain/chain",
-        "//chain/clientpool",
         "//common/jsonrpc",
         "//common/log",
         "//common/range",

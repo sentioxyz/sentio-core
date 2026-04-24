@@ -1,18 +1,17 @@
-package aptos
+package sol
 
 import (
 	"context"
 	"fmt"
-	"github.com/aptos-labs/aptos-go-sdk"
-	"github.com/aptos-labs/aptos-go-sdk/api"
+	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/jsonrpc"
 	"github.com/pkg/errors"
 	"net/http"
-	"net/url"
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/chain/clientpool/ex"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/utils"
-	"strconv"
+	"strings"
 	"time"
 )
 
@@ -40,20 +39,28 @@ func (c ClientConfig) Equal(a ClientConfig) bool {
 	return c == a
 }
 
-var httpClient = https.NewClient(https.WithTimeout(time.Minute))
-
 type Client struct {
 	name       string
 	config     ClientConfig
 	httpClient *http.Client
+	client     *rpc.Client
 	stat       *ex.StatWinManager
 }
 
+var httpClient = https.NewClient(https.WithTimeout(time.Minute))
+
 func NewClient(config ClientConfig) *Client {
+	client := rpc.NewWithCustomRPCClient(
+		jsonrpc.NewClientWithOpts(
+			config.Endpoint,
+			&jsonrpc.RPCClientOpts{HTTPClient: httpClient},
+		),
+	)
 	return &Client{
 		name:       clientpool.BuildPublicName(config.Endpoint),
 		config:     config,
 		httpClient: httpClient,
+		client:     client,
 		stat:       ex.NewStatWinManager(time.Minute),
 	}
 }
@@ -88,50 +95,61 @@ func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- cl
 func (c *Client) _getLatest(ctx context.Context) (clientpool.Block, clientpool.Result) {
 	callCtx, cancel := context.WithTimeout(ctx, c.config.GetLatestTimeout)
 	defer cancel()
-	req, err := clientpool.BuildHTTPRequest(callCtx, "GET", c.config.Endpoint, "/v1", nil, nil, nil)
+	latestNumber, err := c.client.GetSlot(callCtx, rpc.CommitmentFinalized)
 	if err != nil {
 		return clientpool.Block{}, clientpool.Result{Err: err, Broken: true}
 	}
-	var result aptos.NodeInfo
-	_, _, r := clientpool.SendHTTP(c.httpClient, req, &result)
-	if r.Err != nil {
-		return clientpool.Block{}, r
+	latestTime, err := c.client.GetBlockTime(callCtx, latestNumber)
+	if err != nil {
+		return clientpool.Block{}, clientpool.Result{Err: err, Broken: true}
+	}
+	if latestTime == nil {
+		return clientpool.Block{}, clientpool.Result{
+			Err:    fmt.Errorf("getBlockTime for the latest block %d got nil", latestNumber),
+			Broken: true,
+		}
 	}
 	return clientpool.Block{
-		Number:    result.BlockHeight(),
-		Timestamp: time.UnixMicro(int64(result.LedgerTimestamp())),
-	}, r
+		Number:    latestNumber,
+		Timestamp: latestTime.Time(),
+	}, clientpool.Result{}
 }
 
-func (c *Client) _getBlock(ctx context.Context, bn uint64, withTxs bool) (api.Block, clientpool.Result) {
-	callCtx, cancel := context.WithTimeout(ctx, c.config.GetBlockTimeout)
-	defer cancel()
-	params := make(url.Values)
-	params.Set("with_transactions", strconv.FormatBool(withTxs))
-	path := fmt.Sprintf("/v1/blocks/by_height/%d", bn)
-	req, err := clientpool.BuildHTTPRequest(callCtx, "GET", c.config.Endpoint, path, params, nil, nil)
-	if err != nil {
-		return api.Block{}, clientpool.Result{Err: err, Broken: true}
+func IsBrokenError(err error) bool {
+	var httpErr *jsonrpc.HTTPError
+	if errors.As(err, &httpErr) {
+		return httpErr.Code != http.StatusBadRequest && httpErr.Code != http.StatusNotFound
 	}
-	var result *api.Block
-	_, _, r := clientpool.SendHTTP(c.httpClient, req, &result)
-	if result == nil && r.Err == nil {
-		r.Err = errors.Errorf("block %d not found", bn)
+	var rpcErr *jsonrpc.RPCError
+	if errors.As(err, &rpcErr) {
+		return false
 	}
-	if r.Err != nil {
-		return api.Block{}, r
-	}
-	return *result, r
+	return true
 }
 
-func (c *Client) GetBlock(ctx context.Context, src string, bn uint64, withTxs bool) (api.Block, clientpool.Result) {
-	var block api.Block
-	method := src + utils.Select(withTxs, ".getBlockWithTxs", ".getBlock")
-	r := c.Use(ctx, method, func(ctx context.Context) (r clientpool.Result) {
-		block, r = c._getBlock(ctx, bn, withTxs)
+func IsInvalidMethodError(err error) bool {
+	if strings.Contains(strings.ToLower(err.Error()), "method not found") {
+		return true
+	}
+	return false
+}
+
+func (c *Client) CallContext(
+	ctx context.Context,
+	result any,
+	src string,
+	method string,
+	args ...any,
+) clientpool.Result {
+	return c.Use(ctx, src+"."+method, func(ctx context.Context) (r clientpool.Result) {
+		r.Err = c.client.RPCCallForInto(ctx, &result, method, args)
+		if r.Err == nil || errors.Is(r.Err, context.Canceled) || errors.Is(r.Err, context.DeadlineExceeded) {
+			return r
+		}
+		r.Broken = IsBrokenError(r.Err)
+		r.BrokenForTask = IsInvalidMethodError(r.Err)
 		return r
 	})
-	return block, r
 }
 
 func (c *Client) Use(
@@ -145,14 +163,12 @@ func (c *Client) Use(
 	return r
 }
 
-func (c *Client) UseAsHTTPClient(
-	ctx context.Context,
-	method string,
-	fn func(ctx context.Context, endpoint string, cli *http.Client) clientpool.Result,
-) clientpool.Result {
-	return c.Use(ctx, method, func(ctx context.Context) (r clientpool.Result) {
-		return fn(ctx, c.config.Endpoint, c.httpClient)
-	})
+func (c *Client) GetConfig() ClientConfig {
+	return c.config
+}
+
+func (c *Client) GetHTTPClient() *http.Client {
+	return c.httpClient
 }
 
 func (c *Client) GetName() string {

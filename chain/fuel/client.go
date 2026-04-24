@@ -43,6 +43,7 @@ func (c ClientConfig) Equal(a ClientConfig) bool {
 var debugFuelClient = envconf.LoadBool("SENTIO_DEBUG_FUEL_CLIENT", false)
 
 type Client struct {
+	name       string
 	config     ClientConfig
 	httpClient *http.Client
 	client     *fuelGo.Client
@@ -58,6 +59,7 @@ func NewClient(config ClientConfig) *Client {
 		opts = append(opts, fuelGo.WithLogger(logger))
 	}
 	return &Client{
+		name:       clientpool.BuildPublicName(config.Endpoint),
 		config:     config,
 		httpClient: httpClient,
 		client:     fuelGo.NewClient(config.Endpoint, opts...),
@@ -204,12 +206,18 @@ func (c *Client) Use(
 	return r
 }
 
-func (c *Client) GetConfig() ClientConfig {
-	return c.config
+func (c *Client) UseAsHTTPClient(
+	ctx context.Context,
+	method string,
+	fn func(ctx context.Context, endpoint string, cli *http.Client) clientpool.Result,
+) clientpool.Result {
+	return c.Use(ctx, method, func(ctx context.Context) (r clientpool.Result) {
+		return fn(ctx, c.config.Endpoint, c.httpClient)
+	})
 }
 
-func (c *Client) GetHTTPClient() *http.Client {
-	return c.httpClient
+func (c *Client) GetName() string {
+	return c.name
 }
 
 func (c *Client) Snapshot() any {

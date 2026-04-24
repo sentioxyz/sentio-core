@@ -21,13 +21,3 @@ func (s *Slot) GetParentHash() string {
 func (s *Slot) Linked() bool {
 	return false
 }
-
-func (s *Slot) GetTransactionByVersion(version uint64) *Transaction {
-	for _, tx := range s.Transactions {
-		if tx.Version() == version {
-			ntx := NewTransaction(tx)
-			return &ntx
-		}
-	}
-	return nil
-}

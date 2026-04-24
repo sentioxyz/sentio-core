@@ -28,10 +28,15 @@ go_library(
 
 go_test(
     name = "fuel_test",
-    srcs = ["types_test.go"],
+    srcs = [
+        "client_test.go",
+        "types_test.go",
+    ],
     embed = [":fuel"],
     deps = [
         "@com_github_ethereum_go_ethereum//common",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_fuel_go//:fuel-go",
         "@com_github_sentioxyz_fuel_go//types",
         "@com_github_stretchr_testify//assert",
     ],

@@ -138,7 +138,10 @@ func (s *RPCService) GetBlockHeader(ctx context.Context, height uint64) (types.H
 	return headers[0], err
 }
 
-func (s *RPCService) GetTransactions(ctx context.Context, param fuel.GetTransactionsParam) ([]fuel.WrappedTransaction, error) {
+func (s *RPCService) GetTransactions(
+	ctx context.Context,
+	param fuel.GetTransactionsParam,
+) ([]fuel.WrappedTransaction, error) {
 	_, logger := log.FromContext(ctx)
 	if param.EndHeight < param.StartHeight {
 		return nil, fmt.Errorf("end_height cannot less than start_height")
@@ -155,19 +158,13 @@ func (s *RPCService) GetTransactions(ctx context.Context, param fuel.GetTransact
 		rg.NewRange(param.StartHeight, param.EndHeight),
 		s.slotCache,
 		func(st *fuel.Slot) ([]fuel.WrappedTransaction, error) {
-			rawTxns := st.GetTransactions()
-			for _, tx := range rawTxns {
-				if tx.Status == nil {
-					return nil, fmt.Errorf("txn %d/%s in block %d miss status", tx.TransactionIndex, tx.Id.String(), st.Height)
-				}
-			}
-			txns := utils.FilterArr(rawTxns, func(tx fuel.WrappedTransaction) bool {
+			txs := utils.FilterArr(st.GetTransactions(), func(tx fuel.WrappedTransaction) bool {
 				return fuel.CheckTransaction(tx, param.Filters)
 			})
-			for i := range txns {
-				txns[i].Status = fuel.BuildTransactionStatus(txns[i].Status, st.Block.Header)
+			for i := range txs {
+				txs[i].Status = fuel.BuildTransactionStatus(txs[i].Status, st.Block.Header)
 			}
-			return txns, nil
+			return txs, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) ([]fuel.WrappedTransaction, error) {
 			return s.store.QueryTransactions(ctx, queryRange.Start, *queryRange.End, param.Filters)
@@ -176,6 +173,9 @@ func (s *RPCService) GetTransactions(ctx context.Context, param fuel.GetTransact
 }
 
 // GetContractCreateTransaction will return (nil, nil) if contract not created
-func (s *RPCService) GetContractCreateTransaction(ctx context.Context, contractID string) (*fuel.WrappedTransaction, error) {
+func (s *RPCService) GetContractCreateTransaction(
+	ctx context.Context,
+	contractID string,
+) (*fuel.WrappedTransaction, error) {
 	return s.store.QueryContractCreateTransaction(ctx, contractID)
 }

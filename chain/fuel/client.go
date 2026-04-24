@@ -92,7 +92,7 @@ func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- cl
 	)
 }
 
-func (c *Client) IsQueryErrors(err error) bool {
+func IsQueryErrors(err error) bool {
 	var queryErrors fuelGo.QueryErrors
 	return errors.As(err, &queryErrors)
 }
@@ -102,7 +102,7 @@ func (c *Client) _getLatest(ctx context.Context) (clientpool.Block, clientpool.R
 	defer cancel()
 	latest, err := c.client.GetLatestBlockHeader(callCtx)
 	if err != nil {
-		return clientpool.Block{}, clientpool.Result{Err: err, Broken: c.IsQueryErrors(err)}
+		return clientpool.Block{}, clientpool.Result{Err: err, Broken: !IsQueryErrors(err)}
 	}
 	return clientpool.Block{
 		Number:    uint64(latest.Height),
@@ -117,28 +117,36 @@ func (c *Client) _checkBlock(bn uint64, block *types.Block) error {
 	}
 	for j, txn := range block.Transactions {
 		if txn.Status == nil {
-			return errors.Errorf("txn %d/%s in block %d miss status", j, txn.Id.String(), block.Height)
+			return errors.Errorf("transaction %d/%s in block %d miss status", j, txn.Id.String(), block.Height)
 		}
 	}
 	return nil
 }
 
-func (c *Client) _getBlock(ctx context.Context, bn uint64, opt fuelGo.GetBlockOption) (*types.Block, clientpool.Result) {
+func (c *Client) _getBlock(
+	ctx context.Context,
+	bn uint64,
+	opt fuelGo.GetBlockOption,
+) (*types.Block, clientpool.Result) {
 	callCtx, cancel := context.WithTimeout(ctx, c.config.GetBlockTimeout)
 	defer cancel()
 	height := types.U32(bn)
 	req := types.QueryBlockParams{Height: &height}
 	blk, err := c.client.GetBlock(callCtx, req, opt)
 	if err != nil {
-		return nil, clientpool.Result{Err: err, Broken: c.IsQueryErrors(err)}
+		return nil, clientpool.Result{Err: err, Broken: !IsQueryErrors(err)}
 	}
 	if err = c._checkBlock(bn, blk); err != nil {
-		return nil, clientpool.Result{Err: err}
+		return nil, clientpool.Result{Err: err, BrokenForTask: true}
 	}
 	return blk, clientpool.Result{}
 }
 
-func (c *Client) _getBlocks(ctx context.Context, bns []uint64, opt fuelGo.GetBlockOption) ([]*types.Block, clientpool.Result) {
+func (c *Client) _getBlocks(
+	ctx context.Context,
+	bns []uint64,
+	opt fuelGo.GetBlockOption,
+) ([]*types.Block, clientpool.Result) {
 	callCtx, cancel := context.WithTimeout(ctx, c.config.GetBlockTimeout)
 	defer cancel()
 	req := utils.MapSliceNoError(bns, func(bn uint64) types.QueryBlockParams {
@@ -147,17 +155,22 @@ func (c *Client) _getBlocks(ctx context.Context, bns []uint64, opt fuelGo.GetBlo
 	})
 	blocks, err := c.client.GetBlocks(callCtx, req, opt)
 	if err != nil {
-		return nil, clientpool.Result{Err: err, Broken: c.IsQueryErrors(err)}
+		return nil, clientpool.Result{Err: err, Broken: !IsQueryErrors(err)}
 	}
 	for i, block := range blocks {
 		if err = c._checkBlock(bns[i], block); err != nil {
-			return nil, clientpool.Result{Err: err}
+			return nil, clientpool.Result{Err: err, BrokenForTask: true}
 		}
 	}
 	return blocks, clientpool.Result{}
 }
 
-func (c *Client) GetBlock(ctx context.Context, src string, bn uint64, opt fuelGo.GetBlockOption) (*types.Block, clientpool.Result) {
+func (c *Client) GetBlock(
+	ctx context.Context,
+	src string,
+	bn uint64,
+	opt fuelGo.GetBlockOption,
+) (*types.Block, clientpool.Result) {
 	var block *types.Block
 	r := c.Use(ctx, src+".getBlock", func(ctx context.Context) (r clientpool.Result) {
 		block, r = c._getBlock(ctx, bn, opt)
@@ -166,7 +179,12 @@ func (c *Client) GetBlock(ctx context.Context, src string, bn uint64, opt fuelGo
 	return block, r
 }
 
-func (c *Client) GetBlocks(ctx context.Context, src string, bns []uint64, opt fuelGo.GetBlockOption) ([]*types.Block, clientpool.Result) {
+func (c *Client) GetBlocks(
+	ctx context.Context,
+	src string,
+	bns []uint64,
+	opt fuelGo.GetBlockOption,
+) ([]*types.Block, clientpool.Result) {
 	var blocks []*types.Block
 	r := c.Use(ctx, src+".getBlocks", func(ctx context.Context) (r clientpool.Result) {
 		blocks, r = c._getBlocks(ctx, bns, opt)

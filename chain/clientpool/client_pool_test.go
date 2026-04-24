@@ -94,6 +94,10 @@ func (c *testClient) Do(what string) {
 	c.stat[what]++
 }
 
+func (c *testClient) GetName() string {
+	return c.config.Name
+}
+
 func (c *testClient) Snapshot() any {
 	c.mu.Lock()
 	defer c.mu.Unlock()

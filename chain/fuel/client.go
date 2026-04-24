@@ -206,7 +206,7 @@ func (c *Client) Use(
 	return r
 }
 
-func (c *Client) UseAsHTTPClient(
+func (c *Client) UseHTTPClient(
 	ctx context.Context,
 	method string,
 	fn func(ctx context.Context, endpoint string, cli *http.Client) clientpool.Result,

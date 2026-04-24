@@ -138,15 +138,19 @@ func (c *Client) subscribe(ctx context.Context, start uint64, ch chan<- clientpo
 	}
 }
 
-func (c *Client) UseRawConnection(
+func (c *Client) UseGRPCConnection(
 	ctx context.Context,
 	method string,
 	fn func(ctx context.Context, conn *grpc.ClientConn) error,
 ) error {
 	startAt := time.Now()
 	err := fn(ctx, c.conn)
-	c.stat.Record("user.UseRawConnection#"+method, time.Since(startAt), err != nil)
+	c.stat.Record("user.UseGRPCConnection."+method, time.Since(startAt), err != nil)
 	return err
+}
+
+func (c *Client) GetName() string {
+	return clientpool.BuildPublicName(c.config.Endpoint)
 }
 
 func (c *Client) Snapshot() any {
@@ -172,7 +176,7 @@ func (p *ClientPool) UseRawConnection(
 ) (bool, error) {
 	err := p.UseClient(ctx, method, func(ctx context.Context, cli *Client) clientpool.Result {
 		return clientpool.Result{
-			Err: cli.UseRawConnection(ctx, method, fn),
+			Err: cli.UseGRPCConnection(ctx, method, fn),
 		}
 	})
 	if errors.Is(err, clientpool.ErrNoValidClient) {

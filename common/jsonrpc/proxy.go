@@ -44,7 +44,7 @@ func ProxyHTTP[CONFIG clientpool.EntryConfig[CONFIG], CLIENT clientpool.Client](
 }
 
 type httpClient interface {
-	UseAsHTTPClient(
+	UseHTTPClient(
 		ctx context.Context,
 		method string,
 		fn func(ctx context.Context, endpoint string, cli *http.Client) clientpool.Result,
@@ -73,7 +73,7 @@ func NewProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT httpClient
 					r clientpool.Result,
 				) {
 					ctxData := GetCtxData(ctx)
-					r = cli.UseAsHTTPClient(
+					r = cli.UseHTTPClient(
 						ctx,
 						src+"."+method,
 						func(ctx context.Context, endpoint string, cli *http.Client) (r clientpool.Result) {

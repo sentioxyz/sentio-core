@@ -40,12 +40,12 @@ func Test_rpc(t *testing.T) {
 		return nil
 	})
 
-	addr := "127.0.0.1:18889"
+	addr := "127.0.0.1:18890"
 	h := jsonrpc.NewHandler("test", true, false, nil, nil, "")
 	h.RegisterMiddleware(NewSimpleProxyService("", cli)...)
 
 	g.Go(func() error {
-		return jsonrpc.ListenAndServe(gctx, ":18889", h)
+		return jsonrpc.ListenAndServe(gctx, ":18890", h)
 	})
 
 	t.Run("proxy.getTransaction", func(t *testing.T) {

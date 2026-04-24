@@ -143,7 +143,7 @@ func Test_rpc(t *testing.T) {
 	})
 
 	// wait for the server to start and the slot cache to populate at least one block
-	time.Sleep(3 * time.Second)
+	_, _ = sc.Wait(gctx, 0)
 
 	t.Run("latestHeight", func(t *testing.T) {
 		height, err := callRPC[uint64](addr, "aptos_latestHeight", nil)
@@ -163,6 +163,9 @@ func Test_rpc(t *testing.T) {
 		assert.Equal(t, aptos.APIVersion, resp.APIVersion)
 		assert.Greater(t, resp.Transaction.Version, uint64(0))
 	})
+
+	b, _ := json.MarshalIndent(cli.Snapshot(), "", "\t")
+	log.Infof("client: %s", string(b))
 
 	cancel()
 	_ = g.Wait()

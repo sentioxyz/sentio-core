@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/statemirror"
@@ -107,7 +108,8 @@ func (r *dbRegistry) RetrievePermissionsByAccount(ctx context.Context, address A
 	if r.databaseMirror == nil || r.permissionMirror == nil {
 		return nil, errors.New("mirror is not initialized")
 	}
-	_, logger := log.FromContext(ctx)
+	address = Address(strings.ToLower(string(address)))
+	_, logger := log.FromContext(ctx, "address", address)
 
 	result := make(map[Database]DbAuth)
 
@@ -148,7 +150,9 @@ func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, 
 	if r.databaseMirror == nil || r.permissionMirror == nil {
 		return false, errors.New("mirror is not initialized")
 	}
-	_, logger := log.FromContext(ctx)
+	address = Address(strings.ToLower(string(address)))
+	_, logger := log.FromContext(ctx, "address", address)
+
 	info, ok, err := r.databaseMirror.Get(ctx, string(database))
 	if err != nil {
 		logger.Errorf("failed to get database info for %s: %s", database, err.Error())

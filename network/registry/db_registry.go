@@ -20,6 +20,7 @@ const (
 	DbAuthRead DbAuth = 1 << iota
 	DbAuthWrite
 	DbAuthAdmin
+	DbAuthOwner
 )
 
 type Action int64
@@ -33,9 +34,10 @@ type DbRegistry interface {
 	RetrieveDatabaseInfo(ctx context.Context, database Database) (state.DatabaseInfo, error)
 	RetrievePermissionsByAccount(ctx context.Context, address Address) (map[Database]DbAuth, error)
 	AccountHasPermission(ctx context.Context, address Address, database Database, action Action) (bool, error)
+	RetrieveAllDatabaseInfos(ctx context.Context) (map[Database]state.DatabaseInfo, error)
 }
 
-type userDbRegistry struct {
+type dbRegistry struct {
 	mirror           statemirror.Mirror
 	databaseMirror   statemirror.MirrorReadOnlyState[string, state.DatabaseInfo]
 	permissionMirror statemirror.MirrorReadOnlyState[string, map[string]string]
@@ -60,14 +62,14 @@ var permissionCodec = statemirror.JSONCodec[string, map[string]string]{
 }
 
 func NewUserDbRegistry(m statemirror.Mirror) DbRegistry {
-	return &userDbRegistry{
+	return &dbRegistry{
 		mirror:           m,
 		databaseMirror:   statemirror.NewTypedMirror(m, statemirror.MappingDatabases, databaseCodec),
 		permissionMirror: statemirror.NewTypedMirror(m, statemirror.MappingDatabasePermissions, permissionCodec),
 	}
 }
 
-func (r *userDbRegistry) RetrieveDatabaseInfo(ctx context.Context, database Database) (state.DatabaseInfo, error) {
+func (r *dbRegistry) RetrieveDatabaseInfo(ctx context.Context, database Database) (state.DatabaseInfo, error) {
 	if r.databaseMirror == nil {
 		return state.DatabaseInfo{}, errors.New("database mirror is not initialized")
 	}
@@ -84,33 +86,65 @@ func (r *userDbRegistry) RetrieveDatabaseInfo(ctx context.Context, database Data
 	return info, nil
 }
 
-func (r *userDbRegistry) RetrievePermissionsByAccount(ctx context.Context, address Address) (map[Database]DbAuth, error) {
-	if r.permissionMirror == nil {
-		return nil, errors.New("permission mirror is not initialized")
+func (r *dbRegistry) RetrieveAllDatabaseInfos(ctx context.Context) (map[Database]state.DatabaseInfo, error) {
+	if r.databaseMirror == nil {
+		return nil, errors.New("database mirror is not initialized")
 	}
 	_, logger := log.FromContext(ctx)
+	databaseInfos, err := r.databaseMirror.GetAll(ctx)
+	if err != nil {
+		logger.Errorf("failed to get all database infos: %s", err.Error())
+		return nil, errors.Wrap(err, "failed to get all database infos")
+	}
+	result := make(map[Database]state.DatabaseInfo, len(databaseInfos))
+	for db, info := range databaseInfos {
+		result[Database(db)] = info
+	}
+	return result, nil
+}
+
+func (r *dbRegistry) RetrievePermissionsByAccount(ctx context.Context, address Address) (map[Database]DbAuth, error) {
+	if r.databaseMirror == nil || r.permissionMirror == nil {
+		return nil, errors.New("mirror is not initialized")
+	}
+	_, logger := log.FromContext(ctx)
+
+	result := make(map[Database]DbAuth)
+
+	databaseInfos, err := r.databaseMirror.GetAll(ctx)
+	if err != nil {
+		logger.Errorf("failed to get all database infos: %s", err.Error())
+		return nil, errors.Wrap(err, "failed to get all database infos")
+	}
+	for db, info := range databaseInfos {
+		if info.Owner == string(address) {
+			result[Database(db)] |= DbAuthOwner
+		}
+	}
+
 	authMap, ok, err := r.permissionMirror.Get(ctx, string(address))
 	if err != nil {
 		logger.Errorf("failed to get permissions for address %s: %s", address, err.Error())
 		return nil, errors.Wrap(err, "failed to get permissions")
 	}
-	if !ok {
-		return make(map[Database]DbAuth), nil
+	if ok {
+		for db, authStr := range authMap {
+			auth, err := parseAuth(authStr)
+			if err != nil {
+				logger.Errorf("failed to parse auth for database %s: %s", db, err.Error())
+				return nil, errors.Wrap(err, "failed to parse auth")
+			}
+			result[Database(db)] |= auth
+		}
 	}
 
-	result := make(map[Database]DbAuth, len(authMap))
-	for db, authStr := range authMap {
-		auth, err := parseAuth(authStr)
-		if err != nil {
-			logger.Errorf("failed to parse auth for database %s: %s", db, err.Error())
-			return nil, errors.Wrap(err, "failed to parse auth")
-		}
-		result[Database(db)] = auth
+	for db, auth := range result {
+		result[db] = expandAuth(auth)
 	}
 	return result, nil
 }
 
-func (r *userDbRegistry) AccountHasPermission(ctx context.Context, address Address, database Database, action Action) (bool, error) {
+func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, database Database, action Action) (bool, error) {
 	if r.databaseMirror == nil || r.permissionMirror == nil {
 		return false, errors.New("mirror is not initialized")
 	}
@@ -127,7 +161,7 @@ func (r *userDbRegistry) AccountHasPermission(ctx context.Context, address Addre
 
 	ownerAuth := DbAuth(0)
 	if info.Owner == string(address) {
-		ownerAuth = DbAuthAdmin
+		ownerAuth = DbAuthOwner
 	}
 
 	auth := DbAuth(0)
@@ -145,10 +179,24 @@ func (r *userDbRegistry) AccountHasPermission(ctx context.Context, address Addre
 		}
 	}
 
-	effectiveAuth := auth | ownerAuth
+	effectiveAuth := expandAuth(auth | ownerAuth)
 	hasPermission := effectiveAuth&DbAuth(action) != 0
 	logger.Debugf("permission check for %s on %s: effective=%d, action=%d, has=%v", address, database, effectiveAuth, action, hasPermission)
 	return hasPermission, nil
+}
+
+// expandAuth applies the permission hierarchy: Owner ⇒ Admin ⇒ Write ⇒ Read.
+func expandAuth(auth DbAuth) DbAuth {
+	if auth&DbAuthOwner != 0 {
+		auth |= DbAuthAdmin
+	}
+	if auth&DbAuthAdmin != 0 {
+		auth |= DbAuthWrite
+	}
+	if auth&DbAuthWrite != 0 {
+		auth |= DbAuthRead
+	}
+	return auth
 }
 
 func parseAuth(s string) (DbAuth, error) {

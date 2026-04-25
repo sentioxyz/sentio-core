@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "registry",
-    srcs = ["processor_registry.go"],
+    srcs = [
+        "db_registry.go",
+        "processor_registry.go",
+    ],
     importpath = "sentioxyz/sentio-core/network/registry",
     visibility = ["//visibility:public"],
     deps = [

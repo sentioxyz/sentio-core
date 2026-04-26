@@ -27,6 +27,10 @@ func (c MiddlewareChain) CallMethod(ctx context.Context, method string, params j
 			buf = buf[:runtime.Stack(buf, false)]
 			logger.Warn("RPC method " + method + " crashed: " + fmt.Sprintf("%v\n%s", panicErr, buf))
 			err = fmt.Errorf("method handler crashed: %v", panicErr)
+		} else if err != nil && utils.IsTypedNil(err) {
+			// detect typed nil error (e.g. a nil *T where T implements error) — such a value
+			// satisfies err != nil but panics on err.Error()
+			err = errors.Errorf("got a typed nil error (%T)", err)
 		}
 	}()
 

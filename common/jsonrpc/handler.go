@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -369,14 +368,6 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ReqUserID:  msg.ID,
 			}
 			res, err = s.callMethod(callCtx, ctxData, encoder)
-			// detect typed nil error (e.g. a nil *T where T implements error) — such a value
-			// satisfies err != nil but panics on err.Error()
-			if err != nil {
-				rv := reflect.ValueOf(err)
-				if rv.Kind() == reflect.Ptr && rv.IsNil() {
-					err = errors.Errorf("got a typed nil error %T", err)
-				}
-			}
 			// print log
 			used := time.Since(startTime)
 			if err != nil {

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"math/big"
@@ -66,4 +67,28 @@ func Test_WrapPointerForArray(t *testing.T) {
 func Test_ZeroOrUInt64(t *testing.T) {
 	assert.Equal(t, uint64(0), ZeroOrUInt64(nil))
 	assert.Equal(t, uint64(1), ZeroOrUInt64(big.NewInt(1)))
+}
+
+// fakeRPCError mimics an unexported concrete error type returned by a third-party library
+// (e.g. go-ethereum's *rpc.jsonError) to simulate the typed-nil scenario.
+type fakeRPCError struct{ Code int }
+
+func (e *fakeRPCError) Error() string { return fmt.Sprintf("rpc error %d", e.Code) }
+
+func Test_IsTypedNil(t *testing.T) {
+	// typed nil: *fakeRPCError stored in error interface — err != nil but data pointer is nil
+	var typedNilErr error = (*fakeRPCError)(nil)
+	assert.True(t, IsTypedNil(typedNilErr), "typed nil pointer in interface should be detected")
+
+	// regular error: non-nil pointer
+	assert.False(t, IsTypedNil(errors.New("oops")), "regular error should not be detected as typed nil")
+
+	// untyped nil interface: reflect.ValueOf returns zero Value with Kind==Invalid
+	assert.False(t, IsTypedNil[error](nil), "untyped nil should not be detected as typed nil")
+
+	// plain pointer types (not via interface)
+	assert.True(t, IsTypedNil((*fakeRPCError)(nil)), "nil pointer should be detected")
+	assert.False(t, IsTypedNil(&fakeRPCError{Code: 1}), "non-nil pointer should not be detected")
+	assert.True(t, IsTypedNil[error]((*fakeRPCError)(nil)), "nil pointer should be detected")
+	assert.False(t, IsTypedNil[error](&fakeRPCError{Code: 1}), "non-nil pointer should not be detected")
 }

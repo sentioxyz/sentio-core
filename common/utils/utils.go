@@ -5,6 +5,7 @@ import (
 	lru "github.com/sentioxyz/golang-lru"
 	"golang.org/x/exp/constraints"
 	"math/big"
+	reflect "reflect"
 	"regexp"
 	"time"
 )
@@ -290,4 +291,9 @@ func CacheSnapshot[K comparable, V any](cache *lru.Cache[K, V], maxCount int, va
 		"size":    cache.Len(),
 		"preview": preview,
 	}
+}
+
+func IsTypedNil[T any](v T) bool {
+	rv := reflect.ValueOf(v)
+	return rv.Kind() == reflect.Ptr && rv.IsNil()
 }

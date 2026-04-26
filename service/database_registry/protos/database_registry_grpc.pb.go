@@ -23,6 +23,7 @@ const (
 	DatabaseRegistryService_EnsureDatabase_FullMethodName     = "/database_registry_service.DatabaseRegistryService/EnsureDatabase"
 	DatabaseRegistryService_EnsureTable_FullMethodName        = "/database_registry_service.DatabaseRegistryService/EnsureTable"
 	DatabaseRegistryService_CreateUserDatabase_FullMethodName = "/database_registry_service.DatabaseRegistryService/CreateUserDatabase"
+	DatabaseRegistryService_DeleteUserDatabase_FullMethodName = "/database_registry_service.DatabaseRegistryService/DeleteUserDatabase"
 )
 
 // DatabaseRegistryServiceClient is the client API for DatabaseRegistryService service.
@@ -32,6 +33,7 @@ type DatabaseRegistryServiceClient interface {
 	EnsureDatabase(ctx context.Context, in *EnsureDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	EnsureTable(ctx context.Context, in *EnsureTableRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	CreateUserDatabase(ctx context.Context, in *CreateUserDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteUserDatabase(ctx context.Context, in *DeleteUserDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type databaseRegistryServiceClient struct {
@@ -72,6 +74,16 @@ func (c *databaseRegistryServiceClient) CreateUserDatabase(ctx context.Context, 
 	return out, nil
 }
 
+func (c *databaseRegistryServiceClient) DeleteUserDatabase(ctx context.Context, in *DeleteUserDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, DatabaseRegistryService_DeleteUserDatabase_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DatabaseRegistryServiceServer is the server API for DatabaseRegistryService service.
 // All implementations must embed UnimplementedDatabaseRegistryServiceServer
 // for forward compatibility.
@@ -79,6 +91,7 @@ type DatabaseRegistryServiceServer interface {
 	EnsureDatabase(context.Context, *EnsureDatabaseRequest) (*emptypb.Empty, error)
 	EnsureTable(context.Context, *EnsureTableRequest) (*emptypb.Empty, error)
 	CreateUserDatabase(context.Context, *CreateUserDatabaseRequest) (*emptypb.Empty, error)
+	DeleteUserDatabase(context.Context, *DeleteUserDatabaseRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedDatabaseRegistryServiceServer()
 }
 
@@ -97,6 +110,9 @@ func (UnimplementedDatabaseRegistryServiceServer) EnsureTable(context.Context, *
 }
 func (UnimplementedDatabaseRegistryServiceServer) CreateUserDatabase(context.Context, *CreateUserDatabaseRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateUserDatabase not implemented")
+}
+func (UnimplementedDatabaseRegistryServiceServer) DeleteUserDatabase(context.Context, *DeleteUserDatabaseRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserDatabase not implemented")
 }
 func (UnimplementedDatabaseRegistryServiceServer) mustEmbedUnimplementedDatabaseRegistryServiceServer() {
 }
@@ -174,6 +190,24 @@ func _DatabaseRegistryService_CreateUserDatabase_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DatabaseRegistryService_DeleteUserDatabase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserDatabaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DatabaseRegistryServiceServer).DeleteUserDatabase(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DatabaseRegistryService_DeleteUserDatabase_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DatabaseRegistryServiceServer).DeleteUserDatabase(ctx, req.(*DeleteUserDatabaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DatabaseRegistryService_ServiceDesc is the grpc.ServiceDesc for DatabaseRegistryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -192,6 +226,10 @@ var DatabaseRegistryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateUserDatabase",
 			Handler:    _DatabaseRegistryService_CreateUserDatabase_Handler,
+		},
+		{
+			MethodName: "DeleteUserDatabase",
+			Handler:    _DatabaseRegistryService_DeleteUserDatabase_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

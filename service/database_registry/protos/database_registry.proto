@@ -27,6 +27,17 @@ service DatabaseRegistryService {
   // indexer 1:1. Idempotent: if a USER database with the same id and owner
   // already exists it returns success without issuing a tx.
   rpc CreateUserDatabase(CreateUserDatabaseRequest) returns (google.protobuf.Empty);
+
+  // DeleteUserDatabase deletes a user-owned on-chain database. The caller
+  // (clickhouse-proxy) has already validated the user's JWS and checked
+  // that user_address is authorized to write to the database (Owner or
+  // has "write" permission). The server trusts that check — proxy and
+  // sentio-node are co-located in the same indexer's trust domain, so a
+  // second authorization check here would only catch local-proxy bugs,
+  // not malicious peers. Only USER databases can be deleted via this
+  // RPC; PROCESSOR databases are managed by their processor lifecycle.
+  // Idempotent: if the database is already gone it returns success.
+  rpc DeleteUserDatabase(DeleteUserDatabaseRequest) returns (google.protobuf.Empty);
 }
 
 // EnsureDatabase maps to the on-chain createProcessorDatabase(processor_id,
@@ -54,5 +65,15 @@ message CreateUserDatabaseRequest {
   string database_id = 1;
   // 0x-prefixed hex Ethereum address recovered from the client JWS by the
   // proxy. Becomes both creator and owner on-chain.
+  string user_address = 2;
+}
+
+// DeleteUserDatabase maps to the on-chain deleteDatabase(database_id).
+message DeleteUserDatabaseRequest {
+  // User-supplied identifier, e.g. the name in `DROP DATABASE foo`.
+  string database_id = 1;
+  // 0x-prefixed hex Ethereum address recovered from the client JWS by the
+  // proxy. Used only for server-side logging / audit; the server does
+  // not re-validate authorization (proxy already did).
   string user_address = 2;
 }

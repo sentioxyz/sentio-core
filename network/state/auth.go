@@ -9,6 +9,15 @@ import "strings"
 // user database."
 const WritePermission = "write"
 
+// DatabaseAuthSource is the narrow interface IsDatabaseWriter consumes.
+// State satisfies it, but downstream callers (e.g. clickhouse-proxy
+// which exposes only a subset of State via NetworkState) can implement
+// just these two methods without taking on the full State surface.
+type DatabaseAuthSource interface {
+	GetDatabase(databaseId string) (DatabaseInfo, bool)
+	GetDatabasePermissions() map[string]map[string]string
+}
+
 // IsDatabaseWriter reports whether addr is authorized to perform write
 // operations (DROP DATABASE, INSERT/UPDATE/DELETE, ALTER, CREATE TABLE
 // inside the DB) on the given user database.
@@ -28,7 +37,7 @@ const WritePermission = "write"
 // Address comparison is case-insensitive throughout — Owner is stored in
 // EIP-55 checksum form (decoded.Owner.Hex()) but callers may pass either
 // case.
-func IsDatabaseWriter(s State, addr, databaseId string) bool {
+func IsDatabaseWriter(s DatabaseAuthSource, addr, databaseId string) bool {
 	if addr == "" || databaseId == "" {
 		return false
 	}

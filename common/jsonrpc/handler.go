@@ -376,6 +376,13 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				msgLogger.Debugw("calling jsonrpc method succeed", "used", used.String(), "result", res)
 			}
 
+			defer func() {
+				if panicErr := recover(); panicErr != nil {
+					msgLogger.Errorf("caught panic: %v", panicErr)
+					responses[i] = JSONErrorResponse(messages[i], res, errors.Errorf("caught panic: %v", panicErr))
+				}
+			}()
+
 			// record response
 			respHeaders[i] = ctxData.RespHeaders
 			if err != nil {

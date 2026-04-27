@@ -30,6 +30,7 @@ type IndexerInfoRow struct {
 	ComputeNodeRpcPort  uint16 `gorm:"not null;column:compute_node_rpc_port"`
 	StorageNodeRpcPort  uint16 `gorm:"not null;column:storage_node_rpc_port"`
 	ClickhouseProxyPort uint16 `gorm:"not null;column:clickhouse_proxy_port"`
+	Signer              string `gorm:"not null;default:'';column:signer"`
 }
 
 func (IndexerInfoRow) TableName() string { return "sentio_node_indexer_infos" }
@@ -62,15 +63,16 @@ func (HostedProcessorRow) TableName() string { return "sentio_node_hosted_proces
 
 type DatabaseInfoRow struct {
 	gorm.Model
-	StateKey    string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:state_key"`
-	DatabaseId  string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:database_id"`
-	DbType      uint8  `gorm:"not null;default:0;column:db_type"`
-	Creator     string `gorm:"not null;default:'';column:creator"`
-	Owner       string `gorm:"not null;column:owner"`
-	IndexerId   uint64 `gorm:"not null;default:0;column:indexer_id"`
-	ProcessorId string `gorm:"not null;default:'';column:processor_id"`
-	Operators   string `gorm:"type:jsonb;not null;default:'[]';column:operators"`
-	Tables      string `gorm:"type:jsonb;not null;default:'[]';column:tables"`
+	StateKey      string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:state_key"`
+	DatabaseId    string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:database_id"`
+	DbType        uint8  `gorm:"not null;default:0;column:db_type"`
+	Creator       string `gorm:"not null;default:'';column:creator"`
+	Owner         string `gorm:"not null;column:owner"`
+	IndexerId     uint64 `gorm:"not null;default:0;column:indexer_id"`
+	ProcessorId   string `gorm:"not null;default:'';column:processor_id"`
+	PendingDelete bool   `gorm:"not null;default:false;column:pending_delete"`
+	Operators     string `gorm:"type:jsonb;not null;default:'[]';column:operators"`
+	Tables        string `gorm:"type:jsonb;not null;default:'[]';column:tables"`
 }
 
 func (DatabaseInfoRow) TableName() string { return "sentio_node_databases" }
@@ -144,6 +146,7 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 			ComputeNodeRpcPort:  r.ComputeNodeRpcPort,
 			StorageNodeRpcPort:  r.StorageNodeRpcPort,
 			ClickhouseProxyPort: r.ClickhouseProxyPort,
+			Signer:              r.Signer,
 		}
 	}
 
@@ -196,12 +199,13 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 	}
 	for _, r := range databases {
 		info := DatabaseInfo{
-			DatabaseId:  r.DatabaseId,
-			DbType:      DatabaseType(r.DbType),
-			Creator:     r.Creator,
-			Owner:       r.Owner,
-			IndexerId:   r.IndexerId,
-			ProcessorId: r.ProcessorId,
+			DatabaseId:    r.DatabaseId,
+			DbType:        DatabaseType(r.DbType),
+			Creator:       r.Creator,
+			Owner:         r.Owner,
+			IndexerId:     r.IndexerId,
+			ProcessorId:   r.ProcessorId,
+			PendingDelete: r.PendingDelete,
 		}
 		if r.Operators != "" {
 			if err := json.Unmarshal([]byte(r.Operators), &info.Operators); err != nil {
@@ -275,6 +279,7 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 					ComputeNodeRpcPort:  info.ComputeNodeRpcPort,
 					StorageNodeRpcPort:  info.StorageNodeRpcPort,
 					ClickhouseProxyPort: info.ClickhouseProxyPort,
+					Signer:              info.Signer,
 				})
 			}
 			if len(rows) > 0 {
@@ -345,15 +350,16 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 					return err
 				}
 				rows = append(rows, DatabaseInfoRow{
-					StateKey:    s.stateKey,
-					DatabaseId:  databaseId,
-					DbType:      uint8(info.DbType),
-					Creator:     info.Creator,
-					Owner:       info.Owner,
-					IndexerId:   info.IndexerId,
-					ProcessorId: info.ProcessorId,
-					Operators:   string(operators),
-					Tables:      string(tables),
+					StateKey:      s.stateKey,
+					DatabaseId:    databaseId,
+					DbType:        uint8(info.DbType),
+					Creator:       info.Creator,
+					Owner:         info.Owner,
+					IndexerId:     info.IndexerId,
+					ProcessorId:   info.ProcessorId,
+					PendingDelete: info.PendingDelete,
+					Operators:     string(operators),
+					Tables:        string(tables),
 				})
 			}
 			if len(rows) > 0 {

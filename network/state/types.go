@@ -6,6 +6,7 @@ type IndexerInfo struct {
 	ComputeNodeRpcPort  uint16 `json:"computeNodeRpcPort" yaml:"compute_node_rpc_port"`
 	StorageNodeRpcPort  uint16 `json:"storageNodeRpcPort" yaml:"storage_node_rpc_port"`
 	ClickhouseProxyPort uint16 `json:"clickhouseProxyPort" yaml:"clickhouse_proxy_port"`
+	Signer              string `json:"signer" yaml:"signer"`
 }
 
 type ProcessorAllocation struct {
@@ -37,12 +38,13 @@ type TableInfo struct {
 // exactly one indexer (IndexerId). For PROCESSOR databases, ProcessorId
 // identifies the owning processor and Owner is the zero address.
 type DatabaseInfo struct {
-	DatabaseId  string       `json:"databaseId" yaml:"database_id"`
-	DbType      DatabaseType `json:"dbType" yaml:"db_type"`
-	Creator     string       `json:"creator" yaml:"creator"`
-	Owner       string       `json:"owner" yaml:"owner"`
-	IndexerId   uint64       `json:"indexerId" yaml:"indexer_id"`
-	ProcessorId string       `json:"processorId,omitempty" yaml:"processor_id,omitempty"`
-	Operators   []string     `json:"operators" yaml:"operators"`
-	Tables      []TableInfo  `json:"tables" yaml:"tables"`
+	DatabaseId    string       `json:"databaseId" yaml:"database_id"`
+	DbType        DatabaseType `json:"dbType" yaml:"db_type"`
+	Creator       string       `json:"creator" yaml:"creator"`
+	Owner         string       `json:"owner" yaml:"owner"`
+	IndexerId     uint64       `json:"indexerId" yaml:"indexer_id"`
+	ProcessorId   string       `json:"processorId,omitempty" yaml:"processor_id,omitempty"`
+	PendingDelete bool         `json:"pendingDelete" yaml:"pending_delete"`
+	Operators     []string     `json:"operators" yaml:"operators"`
+	Tables        []TableInfo  `json:"tables" yaml:"tables"`
 }

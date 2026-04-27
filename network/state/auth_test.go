@@ -9,8 +9,9 @@ import (
 // touches: GetDatabase + GetDatabasePermissions. Other methods panic so a
 // regression that tries to call them surfaces immediately.
 type fakeAuthState struct {
-	databases   map[string]DatabaseInfo
-	permissions map[string]map[string]string
+	databases    map[string]DatabaseInfo
+	permissions  map[string]map[string]string
+	indexerInfos map[uint64]IndexerInfo
 }
 
 func (f fakeAuthState) GetDatabase(id string) (DatabaseInfo, bool) {
@@ -20,6 +21,11 @@ func (f fakeAuthState) GetDatabase(id string) (DatabaseInfo, bool) {
 
 func (f fakeAuthState) GetDatabasePermissions() map[string]map[string]string {
 	return f.permissions
+}
+
+func (f fakeAuthState) GetIndexerInfo(indexerId uint64) (IndexerInfo, bool) {
+	info, ok := f.indexerInfos[indexerId]
+	return info, ok
 }
 
 func (f fakeAuthState) GetLastBlock() uint64 { panic("not used") }
@@ -94,17 +100,18 @@ func TestIsDatabaseWriter(t *testing.T) {
 	const owner = "0xAAaA000000000000000000000000000000000001"
 	const operator = "0xBBbB000000000000000000000000000000000002"
 	const stranger = "0xCCcC000000000000000000000000000000000003"
+	const indexerSigner = "0xDDdD000000000000000000000000000000000004"
 
 	state := fakeAuthState{
 		databases: map[string]DatabaseInfo{
-			dbID: {DatabaseId: dbID, Owner: owner},
+			dbID: {DatabaseId: dbID, Owner: owner, IndexerId: 1},
 		},
 		permissions: map[string]map[string]string{
-			// Operator was projected by syncDatabaseWriters in checksum case.
 			operator: {dbID: WritePermission},
-			// Owner is also projected once syncDatabaseWriters runs; the helper
-			// must not double-count, but presence here is realistic.
-			owner: {dbID: WritePermission},
+			owner:    {dbID: WritePermission},
+		},
+		indexerInfos: map[uint64]IndexerInfo{
+			1: {IndexerId: 1, Signer: indexerSigner},
 		},
 	}
 
@@ -119,6 +126,8 @@ func TestIsDatabaseWriter(t *testing.T) {
 		{"owner upper case", "0xAAAA000000000000000000000000000000000001", dbID, true},
 		{"operator exact case", operator, dbID, true},
 		{"operator lower case", "0xbbbb000000000000000000000000000000000002", dbID, true},
+		{"indexer signer exact case", indexerSigner, dbID, true},
+		{"indexer signer lower case", "0xdddd000000000000000000000000000000000004", dbID, true},
 		{"stranger rejected", stranger, dbID, false},
 		{"empty addr rejected", "", dbID, false},
 		{"empty dbID rejected", owner, "", false},
@@ -134,20 +143,36 @@ func TestIsDatabaseWriter(t *testing.T) {
 	}
 
 	t.Run("operator without permission entry is rejected", func(t *testing.T) {
-		// If the event handler hasn't run yet and the operator isn't in the
-		// permission map, IsDatabaseWriter must return false — the helper does
-		// not consult DatabaseInfo.Operators directly.
 		bareState := fakeAuthState{
 			databases: map[string]DatabaseInfo{
-				dbID: {DatabaseId: dbID, Owner: owner, Operators: []string{operator}},
+				dbID: {DatabaseId: dbID, Owner: owner, Operators: []string{operator}, IndexerId: 1},
 			},
-			permissions: map[string]map[string]string{},
+			permissions:  map[string]map[string]string{},
+			indexerInfos: map[uint64]IndexerInfo{1: {IndexerId: 1, Signer: indexerSigner}},
 		}
 		if IsDatabaseWriter(bareState, operator, dbID) {
 			t.Error("operator from DatabaseInfo.Operators should not authorize without a permission map entry")
 		}
 		if !IsDatabaseWriter(bareState, owner, dbID) {
 			t.Error("owner should authorize even without a permission map entry")
+		}
+		if !IsDatabaseWriter(bareState, indexerSigner, dbID) {
+			t.Error("indexer signer should authorize via GetIndexerInfo")
+		}
+	})
+
+	t.Run("indexer signer with empty Signer field is rejected", func(t *testing.T) {
+		noSignerState := fakeAuthState{
+			databases: map[string]DatabaseInfo{
+				dbID: {DatabaseId: dbID, Owner: owner, IndexerId: 2},
+			},
+			permissions: map[string]map[string]string{},
+			indexerInfos: map[uint64]IndexerInfo{
+				2: {IndexerId: 2, Signer: ""},
+			},
+		}
+		if IsDatabaseWriter(noSignerState, "0xwhat", dbID) {
+			t.Error("empty Signer should not authorize")
 		}
 	})
 }

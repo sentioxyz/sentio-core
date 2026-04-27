@@ -41,6 +41,10 @@ func (s *StateMirrored) GetIndexerInfos() map[uint64]IndexerInfo {
 	return s.inner.GetIndexerInfos()
 }
 
+func (s *StateMirrored) GetIndexerInfo(indexerId uint64) (IndexerInfo, bool) {
+	return s.inner.GetIndexerInfo(indexerId)
+}
+
 func (s *StateMirrored) GetProcessorAllocations() map[string]map[uint64]ProcessorAllocation {
 	return s.inner.GetProcessorAllocations()
 }
@@ -166,6 +170,13 @@ func (s *StateMirrored) UpsertDatabase(ctx context.Context, info DatabaseInfo) e
 
 func (s *StateMirrored) DeleteDatabase(ctx context.Context, databaseId string) error {
 	if err := s.inner.DeleteDatabase(ctx, databaseId); err != nil {
+		return err
+	}
+	return s.syncDatabase(ctx, databaseId)
+}
+
+func (s *StateMirrored) MarkDatabasePendingDelete(ctx context.Context, databaseId string) error {
+	if err := s.inner.MarkDatabasePendingDelete(ctx, databaseId); err != nil {
 		return err
 	}
 	return s.syncDatabase(ctx, databaseId)

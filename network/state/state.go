@@ -8,6 +8,7 @@ import (
 type State interface {
 	GetLastBlock() uint64
 	GetIndexerInfos() map[uint64]IndexerInfo
+	GetIndexerInfo(indexerId uint64) (IndexerInfo, bool)
 	GetProcessorAllocations() map[string]map[uint64]ProcessorAllocation
 	GetProcessorInfos() map[string]ProcessorInfo
 	GetHostedProcessors() map[string]bool
@@ -27,6 +28,7 @@ type State interface {
 
 	UpsertDatabase(ctx context.Context, info DatabaseInfo) error
 	DeleteDatabase(ctx context.Context, databaseId string) error
+	MarkDatabasePendingDelete(ctx context.Context, databaseId string) error
 	SetDatabaseOwner(ctx context.Context, databaseId string, owner string) error
 	AddDatabaseOperator(ctx context.Context, databaseId string, operator string) error
 	RemoveDatabaseOperator(ctx context.Context, databaseId string, operator string) error
@@ -55,6 +57,11 @@ func (s *PlainState) GetLastBlock() uint64 {
 
 func (s *PlainState) GetIndexerInfos() map[uint64]IndexerInfo {
 	return s.IndexerInfos
+}
+
+func (s *PlainState) GetIndexerInfo(indexerId uint64) (IndexerInfo, bool) {
+	info, ok := s.IndexerInfos[indexerId]
+	return info, ok
 }
 
 func (s *PlainState) GetProcessorAllocations() map[string]map[uint64]ProcessorAllocation {
@@ -149,6 +156,16 @@ func (s *PlainState) UpsertDatabase(_ context.Context, info DatabaseInfo) error 
 
 func (s *PlainState) DeleteDatabase(_ context.Context, databaseId string) error {
 	delete(s.Databases, databaseId)
+	return nil
+}
+
+func (s *PlainState) MarkDatabasePendingDelete(_ context.Context, databaseId string) error {
+	info, ok := s.Databases[databaseId]
+	if !ok {
+		return fmt.Errorf("database not found: %s", databaseId)
+	}
+	info.PendingDelete = true
+	s.Databases[databaseId] = info
 	return nil
 }
 

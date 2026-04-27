@@ -368,13 +368,6 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				ReqUserID:  msg.ID,
 			}
 			res, err = s.callMethod(callCtx, ctxData, encoder)
-			// print log
-			used := time.Since(startTime)
-			if err != nil {
-				msgLogger.With("used", used.String(), "result", res).Warne(err, "calling jsonrpc method failed")
-			} else {
-				msgLogger.Debugw("calling jsonrpc method succeed", "used", used.String(), "result", res)
-			}
 
 			defer func() {
 				if panicErr := recover(); panicErr != nil {
@@ -382,6 +375,14 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					responses[i] = JSONErrorResponse(messages[i], res, errors.Errorf("caught panic: %v", panicErr))
 				}
 			}()
+
+			// print log
+			used := time.Since(startTime)
+			if err != nil {
+				msgLogger.With("used", used.String(), "result", res).Warne(err, "calling jsonrpc method failed")
+			} else {
+				msgLogger.Debugw("calling jsonrpc method succeed", "used", used.String(), "result", res)
+			}
 
 			// record response
 			respHeaders[i] = ctxData.RespHeaders

@@ -9,6 +9,7 @@ import (
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -25,7 +26,7 @@ type ClientConfig struct {
 
 func (c ClientConfig) Trim() ClientConfig {
 	return ClientConfig{
-		Endpoint:         c.Endpoint,
+		Endpoint:         strings.TrimSpace(c.Endpoint),
 		KeepWatch:        utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
 		GetLatestTimeout: utils.Select(c.GetLatestTimeout == 0, time.Second*3, c.GetLatestTimeout),
 		GetBlockTimeout:  utils.Select(c.GetBlockTimeout == 0, time.Second*3, c.GetBlockTimeout),

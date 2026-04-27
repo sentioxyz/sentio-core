@@ -44,6 +44,7 @@ require (
 	github.com/shopspring/decimal v1.4.0
 	github.com/soheilhy/cmux v0.1.5
 	github.com/stretchr/testify v1.11.1
+	github.com/tidwall/gjson v1.14.2
 	github.com/tidwall/sjson v1.2.5
 	github.com/uptrace/opentelemetry-go-extra/otelgorm v0.3.2
 	github.com/vmihailenco/msgpack/v5 v5.3.5
@@ -112,7 +113,6 @@ require (
 	github.com/steveyen/gtreap v0.1.0 // indirect
 	github.com/streamingfast/logging v0.0.0-20250404134358-92b15d2fbd2e // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/tidwall/gjson v1.14.2 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tinylib/msgp v1.1.0 // indirect

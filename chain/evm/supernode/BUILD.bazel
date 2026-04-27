@@ -1,0 +1,97 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "middlewares",
+    srcs = [
+        "custom_function_proxy.go",
+        "error_logger.go",
+        "eth_ch.go",
+        "eth_slot_cache.go",
+        "extra.go",
+        "helpers.go",
+        "proxy.go",
+        "proxy_with_slot_cache.go",
+        "range_checker.go",
+        "subscribe.go",
+        "trace_ch.go",
+        "trace_slot_cache.go",
+        "version.go",
+    ],
+    importpath = "sentioxyz/sentio/chain/evm/middlewares",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/chain",
+        "//chain/evm",
+        "//chain/node",
+        "//chain/proxyv3",
+        "//common/number",
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_ethereum_go_ethereum//:go-ethereum",
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_ethereum_go_ethereum//core/types",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_tidwall_gjson//:gjson",
+        "@sentio-core//common/errgroup",
+        "@sentio-core//common/jsonrpc",
+        "@sentio-core//common/log",
+        "@sentio-core//common/utils",
+    ],
+)
+
+go_test(
+    name = "middlewares_test",
+    srcs = ["range_checker_test.go"],
+    embed = [":middlewares"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_tidwall_gjson//:gjson",
+    ],
+)
+
+go_library(
+    name = "supernode",
+    srcs = [
+        "custom_function_proxy.go",
+        "error_logger.go",
+        "eth_ch.go",
+        "eth_slot_cache.go",
+        "extra.go",
+        "helpers.go",
+        "proxy.go",
+        "proxy_with_slot_cache.go",
+        "range_checker.go",
+        "subscribe.go",
+        "trace_ch.go",
+        "trace_slot_cache.go",
+        "version.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/evm/supernode",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/evm",
+        "//common/errgroup",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/utils",
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_ethereum_go_ethereum//:go-ethereum",
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_ethereum_go_ethereum//core/types",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_tidwall_gjson//:gjson",
+    ],
+)
+
+go_test(
+    name = "supernode_test",
+    srcs = ["range_checker_test.go"],
+    embed = [":supernode"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_tidwall_gjson//:gjson",
+    ],
+)

@@ -327,9 +327,17 @@ type ResourceChangeArgs struct {
 }
 
 func (r ResourceChangeArgs) ChangeFilter() func(wc *WriteSetChange) bool {
-	addrSet := set.New[string](r.Addresses...)
-	if addrSet.Contains("*") {
-		addrSet.Truncate()
+	addrSet := set.New[aptos.AccountAddress]()
+	for _, addr := range r.Addresses {
+		addr = strings.TrimSpace(addr)
+		if addr == "*" {
+			addrSet.Truncate()
+			break
+		}
+		var aa aptos.AccountAddress
+		if aa.ParseStringRelaxed(addr) == nil {
+			addrSet.Add(aa)
+		}
 	}
 	changeType, _ := move.BuildType(r.ResourceChangesMoveTypePrefix)
 	return ChangeFilter{
@@ -361,7 +369,7 @@ func (r GetFunctionsArgs) TxnFilter() func(resp *Transaction) bool {
 			fnPattern, _ = move.BuildType(r.Function)
 		}
 	}
-	sender := move.ToShortAddress(r.Sender)
+	sender := NormalizeAccountAddress(r.Sender)
 	return func(tx *Transaction) bool {
 		if !r.IncludeMultiSigFunc {
 			if tx.PayloadType() == api.TransactionPayloadVariantMultisig {
@@ -372,7 +380,7 @@ func (r GetFunctionsArgs) TxnFilter() func(resp *Transaction) bool {
 			if userTx, err := tx.UserTransaction(); err != nil {
 				// not user transaction, but only user transaction has sender.
 				return false
-			} else if userTx.Sender == nil || move.ToShortAddress(userTx.Sender.StringLong()) != sender {
+			} else if userTx.Sender == nil || userTx.Sender.String() != sender {
 				return false
 			}
 		}
@@ -392,7 +400,7 @@ func (r GetFunctionsArgs) TxnFilter() func(resp *Transaction) bool {
 
 func (r GetFunctionsArgs) ChangeFilter() func(c *WriteSetChange) bool {
 	return ChangeFilter{
-		Address:       set.New[string](),
+		Address:       set.New[aptos.AccountAddress](),
 		ResourceTypes: move.TypeSet{move.MustBuildType(r.ResourceChangesMoveTypePrefix)},
 	}.Check
 }
@@ -412,14 +420,14 @@ type GetEventsArgs struct {
 
 func (r GetEventsArgs) EventFilter() func(extend *Event) bool {
 	pattern, _ := move.BuildType(fmt.Sprintf("%s::%s", r.Address, r.Type))
-	accountAddress := move.ToShortAddress(r.AccountAddress)
+	accountAddress := NormalizeAccountAddress(r.AccountAddress)
 	return func(evt *Event) bool {
 		// check account address
 		if accountAddress != "" {
 			if evt.Guid == nil || evt.Guid.AccountAddress == nil {
 				return false
 			}
-			if move.ToShortAddress(evt.Guid.AccountAddress.String()) != accountAddress {
+			if evt.Guid.AccountAddress.String() != accountAddress {
 				return false
 			}
 		}
@@ -433,7 +441,7 @@ func (r GetEventsArgs) EventFilter() func(extend *Event) bool {
 
 func (r GetEventsArgs) ChangeFilter() func(c *WriteSetChange) bool {
 	return ChangeFilter{
-		Address:       set.New[string](),
+		Address:       set.New[aptos.AccountAddress](),
 		ResourceTypes: move.TypeSet{move.MustBuildType(r.ResourceChangesMoveTypePrefix)},
 	}.Check
 }
@@ -441,7 +449,7 @@ func (r GetEventsArgs) ChangeFilter() func(c *WriteSetChange) bool {
 // ChangeFilter has 2 parts, there are linked by AND
 type ChangeFilter struct {
 	// empty means any address is ok
-	Address set.Set[string]
+	Address set.Set[aptos.AccountAddress]
 
 	// empty means any resource type is not ok, means no change can pass this filter.
 	// if any resource type is ok, ResourceTypes should be ["*"]
@@ -449,8 +457,8 @@ type ChangeFilter struct {
 }
 
 type changeFilterPayload struct {
-	Address       []string     `json:"address"`
-	ResourceTypes move.TypeSet `json:"resourceTypes"`
+	Address       []aptos.AccountAddress `json:"address"`
+	ResourceTypes move.TypeSet           `json:"resourceTypes"`
 }
 
 func (f ChangeFilter) MarshalJSON() ([]byte, error) {
@@ -472,13 +480,15 @@ func (f *ChangeFilter) UnmarshalJSON(b []byte) error {
 
 func (f ChangeFilter) String() string {
 	return fmt.Sprintf("Address:%s,ResourceTypes:[%s]",
-		utils.ArrSummary(f.Address.DumpValues(), 10),
+		utils.ArrSummaryWithToString(f.Address.DumpValues(), func(addr aptos.AccountAddress) string {
+			return addr.String()
+		}, 10),
 		f.ResourceTypes.String())
 }
 
 func (f ChangeFilter) Check(c *WriteSetChange) bool {
 	if !f.Address.Empty() {
-		if addr := c.Address(); addr == nil || !f.Address.Contains(addr.String()) {
+		if addr := c.Address(); addr == nil || !f.Address.Contains(*addr) {
 			return false
 		}
 	}
@@ -489,10 +499,10 @@ func MergeChangeFilters(filters ...ChangeFilter) (r ChangeFilter) {
 	if len(filters) == 0 {
 		panic("fs is empty")
 	}
-	r.Address = set.New[string]()
+	r.Address = set.New[aptos.AccountAddress]()
 	for _, filter := range filters {
 		if filter.Address.Empty() {
-			r.Address = set.New[string]()
+			r.Address.Truncate()
 			break
 		}
 		r.Address.Add(filter.Address.DumpValues()...)
@@ -506,14 +516,14 @@ func MergeChangeFilters(filters ...ChangeFilter) (r ChangeFilter) {
 
 // EventFilter has 2 parts, there are linked by AND
 type EventFilter struct {
-	Type              move.Type `json:"type"`                // empty means not limit the event type
-	GuiAccountAddress *string   `json:"gui_account_address"` // empty means not limit the gui account address
+	Type              move.Type             `json:"type"`                // empty means not limit the event type
+	GuiAccountAddress *aptos.AccountAddress `json:"gui_account_address"` // empty means not limit the gui account address
 }
 
 func (f *EventFilter) UnmarshalJSON(data []byte) error {
 	payload := struct {
-		Type              string  `json:"type"`
-		GuiAccountAddress *string `json:"gui_account_address"`
+		Type              string                `json:"type"`
+		GuiAccountAddress *aptos.AccountAddress `json:"gui_account_address"`
 	}{}
 	err := json.Unmarshal(data, &payload)
 	if err != nil {
@@ -523,9 +533,7 @@ func (f *EventFilter) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return errors.Wrapf(err, "invalid type %q", payload.Type)
 	}
-	if payload.GuiAccountAddress != nil {
-		f.GuiAccountAddress = utils.WrapPointer(move.ToShortAddress(*payload.GuiAccountAddress))
-	}
+	f.GuiAccountAddress = payload.GuiAccountAddress
 	return nil
 }
 
@@ -535,7 +543,7 @@ func (f EventFilter) String() string {
 	b.WriteString(f.Type.String())
 	if f.GuiAccountAddress != nil {
 		b.WriteString(",GuiAccountAddress:")
-		b.WriteString(*f.GuiAccountAddress)
+		b.WriteString(f.GuiAccountAddress.String())
 	}
 	return b.String()
 }
@@ -556,7 +564,7 @@ func (f EventFilter) CheckEvent(ev *Event) bool {
 		if ev.Guid == nil || ev.Guid.AccountAddress == nil {
 			return false
 		}
-		if move.ToShortAddress(ev.Guid.AccountAddress.String()) != *f.GuiAccountAddress {
+		if *ev.Guid.AccountAddress != *f.GuiAccountAddress {
 			return false
 		}
 	}
@@ -585,7 +593,7 @@ type FunctionFilter struct {
 	TypedArguments     []string `json:"typed_arguments"`
 
 	// sender condition
-	Sender *string `json:"sender"`
+	Sender *aptos.AccountAddress `json:"sender"`
 }
 
 func (f FunctionFilter) String() string {
@@ -595,7 +603,7 @@ func (f FunctionFilter) String() string {
 		parts = append(parts, fmt.Sprintf("Args:[%s]", strings.Join(f.TypedArguments, ",")))
 	}
 	if f.Sender != nil {
-		parts = append(parts, fmt.Sprintf("Sender:%s", *f.Sender))
+		parts = append(parts, fmt.Sprintf("Sender:%s", f.Sender.String()))
 	}
 	return strings.Join(parts, ",")
 }
@@ -628,7 +636,7 @@ func (f FunctionFilter) Check(tx Transaction) bool {
 		return false
 	}
 	if f.Sender != nil {
-		if userTx, err := tx.UserTransaction(); err != nil || userTx.Sender.String() != *f.Sender {
+		if userTx, err := tx.UserTransaction(); err != nil || *userTx.Sender != *f.Sender {
 			return false
 		}
 	}
@@ -770,4 +778,13 @@ type MinimalistTransactionWithChanges struct {
 	MinimalistTransaction `json:",inline"`
 
 	Changes []WriteSetChange `json:"changes"`
+}
+
+func NormalizeAccountAddress(addr string) string {
+	addr = strings.ToLower(strings.TrimSpace(addr))
+	var aa aptos.AccountAddress
+	if err := aa.ParseStringRelaxed(addr); err != nil {
+		return addr
+	}
+	return aa.String()
 }

@@ -34,8 +34,12 @@ go_test(
     embedsrcs = ["testdata/tx.json"],
     deps = [
         "//chain/move",
+        "//common/log",
+        "//common/set",
         "//common/utils",
+        "@com_github_aptos_labs_aptos_go_sdk//:aptos-go-sdk",
         "@com_github_aptos_labs_aptos_go_sdk//api",
+        "@com_github_ethereum_go_ethereum//common",
         "@com_github_stretchr_testify//assert",
     ],
 )

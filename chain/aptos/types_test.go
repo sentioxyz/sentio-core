@@ -3,9 +3,14 @@ package aptos
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
+	"github.com/aptos-labs/aptos-go-sdk"
 	"github.com/aptos-labs/aptos-go-sdk/api"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"sentioxyz/sentio-core/chain/move"
+	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"testing"
 )
@@ -483,4 +488,45 @@ func Test_marshalMinTxWithChanges(t *testing.T) {
 	var tx2 MinimalistTransactionWithChanges
 	assert.NoError(t, json.Unmarshal(b, &tx2))
 	assert.Equal(t, tx, tx2)
+}
+
+func Test_ChangeFilterMarshal(t *testing.T) {
+	cf := ChangeFilter{
+		Address: set.New[aptos.AccountAddress](
+			aptos.AccountAddress(common.HexToHash("0x1")),
+			aptos.AccountAddress(common.HexToHash("0x1234")),
+			aptos.AccountAddress(common.HexToHash("0x12345667890")),
+		),
+	}
+	b, err := json.Marshal(cf)
+	assert.NoError(t, err)
+	fmt.Printf("%s\n", string(b))
+	fmt.Printf("%s\n", cf.String())
+}
+
+func Test_EventFilterMarshal(t *testing.T) {
+	t.Run("no address", func(t *testing.T) {
+		ef := EventFilter{
+			Type: move.MustBuildType("0x1::coin::COIN"),
+		}
+		b, err := json.Marshal(ef)
+		assert.NoError(t, err)
+		log.Infof("%s", string(b))
+		var ef2 EventFilter
+		assert.NoError(t, json.Unmarshal(b, &ef2))
+		assert.Equal(t, ef, ef2)
+	})
+	t.Run("with address", func(t *testing.T) {
+		addr := (aptos.AccountAddress)(common.HexToHash("0x1234"))
+		ef := EventFilter{
+			Type:              move.MustBuildType("0x1::coin::COIN"),
+			GuiAccountAddress: &addr,
+		}
+		b, err := json.Marshal(ef)
+		assert.NoError(t, err)
+		log.Infof("%s", string(b))
+		var ef2 EventFilter
+		assert.NoError(t, json.Unmarshal(b, &ef2))
+		assert.Equal(t, ef, ef2)
+	})
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	aptosSdk "github.com/aptos-labs/aptos-go-sdk"
 	"github.com/aptos-labs/aptos-go-sdk/api"
 	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/aptos"
@@ -167,7 +168,7 @@ func (s *Store) Functions(ctx context.Context, req aptos.GetFunctionsArgs) ([]*a
 	}
 	if req.Sender != "" {
 		wheres = append(wheres, "sender = ?")
-		whereArgs = append(whereArgs, strings.ToLower(req.Sender))
+		whereArgs = append(whereArgs, aptos.NormalizeAccountAddress(req.Sender))
 	}
 	if !req.IncludeMultiSigFunc {
 		wheres = append(wheres, "payload_type != ?")
@@ -253,7 +254,7 @@ func (s *Store) ResourceChanges(ctx context.Context, req aptos.ResourceChangeArg
 			}
 		} else {
 			wheres = append(wheres, "hasAny(change_addresses, ?)")
-			whereArgs = append(whereArgs, utils.MapSliceNoError(req.Addresses, strings.ToLower))
+			whereArgs = append(whereArgs, utils.MapSliceNoError(req.Addresses, aptos.NormalizeAccountAddress))
 		}
 		if len(req.ResourceChangesMoveTypePrefix) > 0 {
 			if strings.Contains(req.ResourceChangesMoveTypePrefix, "<") {
@@ -406,7 +407,7 @@ func (s *Store) QueryTransactions(
 		}
 		if ff.Sender != nil {
 			parts = append(parts, "sender = ?")
-			whereArgs = append(whereArgs, *ff.Sender)
+			whereArgs = append(whereArgs, ff.Sender.String())
 		}
 		filters = append(filters, strings.Join(parts, " AND "))
 	}
@@ -426,7 +427,7 @@ func (s *Store) QueryTransactions(
 		}
 		if ef.GuiAccountAddress != nil {
 			parts = append(parts, "arrayExists(x -> JSONExtractString(x, 'guid', 'account_address') = ?, events)")
-			whereArgs = append(whereArgs, *ef.GuiAccountAddress)
+			whereArgs = append(whereArgs, ef.GuiAccountAddress.String())
 		}
 		filters = append(filters, strings.Join(parts, " AND "))
 	}
@@ -466,7 +467,10 @@ func (s *Store) QueryResourceChanges(
 	args := []any{req.FromVersion, req.ToVersion}
 	if !req.Filter.Address.Empty() {
 		where += " AND hasAny(change_addresses, ?)"
-		args = append(args, utils.MapSliceNoError(req.Filter.Address.DumpValues(), strings.ToLower))
+		addresses := utils.MapSliceNoError(req.Filter.Address.DumpValues(), func(addr aptosSdk.AccountAddress) string {
+			return addr.String()
+		})
+		args = append(args, addresses)
 	}
 	if len(req.Filter.ResourceTypes) > 0 {
 		where += " AND hasAny(resource_raw_type, ?)"

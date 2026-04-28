@@ -160,6 +160,13 @@ func (s *Handler) callMethod(ctx context.Context, ctxData *CtxData, encoder Enco
 	if encodeErr != nil && err == nil {
 		err = encodeErr
 	}
+	// Belt-and-suspenders: catch any typed nil error that escaped the middleware chain.
+	// A typed nil (e.g. nil *rpc.jsonError stored in an error interface) satisfies
+	// err != nil but panics on err.Error(), so normalise it here before it reaches
+	// failedQueries.Push or the caller.
+	if utils.IsTypedNil(err) {
+		err = fmt.Errorf("callMethod: got a typed nil error (%T)", err)
+	}
 
 	attributes := []attribute.KeyValue{
 		attribute.String("name", s.name),

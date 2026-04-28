@@ -65,7 +65,7 @@ var logTyp = reflect.TypeOf(types.Log{})
 func (h *ExtendedReceipt) SetLogs(logs []*types.Log) {
 	if len(logs) > 0 {
 		h.Logs = logs
-		h.Bloom = types.CreateBloom(types.Receipts{&types.Receipt{Logs: logs}})
+		h.Bloom = types.CreateBloom(&types.Receipt{Logs: logs})
 	}
 }
 

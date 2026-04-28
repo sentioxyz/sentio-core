@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "ch",
@@ -34,4 +34,11 @@ go_library(
         "@com_github_ethereum_go_ethereum//rpc",
         "@com_github_pkg_errors//:errors",
     ],
+)
+
+go_test(
+    name = "ch_test",
+    srcs = ["utils_test.go"],
+    embed = [":ch"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

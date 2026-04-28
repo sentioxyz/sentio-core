@@ -69,7 +69,7 @@ func (b *Block) FromSlot(st *evm.Slot) {
 	b.GasUsed = st.Header.GasUsed
 	b.ExtraData = hexutil.Encode(st.Header.Extra)
 	b.MixHash = st.Header.MixDigest.String()
-	b.Nonce = hexutil.Encode(st.Header.Nonce[:])
+	b.Nonce = NonceToString(st.Header.Nonce)
 	b.Uncles = utils.MapSliceNoError(st.Block.Uncles, common.Hash.String)
 	b.TransactionCount = uint64(len(st.Block.Transactions))
 	if st.Header.BaseFee != nil {
@@ -94,10 +94,14 @@ func (b *Block) ToExtendedHeader() evm.ExtendedHeader {
 		Time:            uint64(b.BlockTimestamp.Unix()),
 		Extra:           hexutil.MustDecode(b.ExtraData),
 		MixDigest:       common.Hash{},
-		Nonce:           types.BlockNonce{},
+		Nonce:           StringToNonce(b.Nonce),
 		WithdrawalsHash: utils.NullOrFromString(b.WithdrawalsRoot, common.HexToHash),
-		BlobGasUsed:     nil,
-		ExcessBlobGas:   nil,
+		// fields not in clickhouse
+		BlobGasUsed:      nil,
+		ExcessBlobGas:    nil,
+		ParentBeaconRoot: nil,
+		RequestsHash:     nil,
+		SlotNumber:       nil,
 	}
 	if b.BaseFeePerGas != nil {
 		header.BaseFee = new(big.Int).SetUint64(*b.BaseFeePerGas)

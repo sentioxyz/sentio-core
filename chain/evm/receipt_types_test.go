@@ -81,6 +81,7 @@ func TestEthereumReceipt(t *testing.T) {
 				"transactionHash": "0x662cc0851966b1554e43716d55dc1365ccdcbc95155e6dcddc8d22ad5b7dd51b",
 				"transactionIndex": "0x77",
 				"blockHash": "0xb878d78d7b7b8759dc82581494c3235c842b1bb3b573e9ddd145c8e8544b448e",
+				"blockTimestamp": "0x55c8fcf3",
 				"logIndex": "0x77",
 				"removed": false
 			}

@@ -420,15 +420,16 @@ type LogWithCustomSerDe types.Log
 
 func (l LogWithCustomSerDe) MarshalJSON() ([]byte, error) {
 	type log struct {
-		Address     common.Address `json:"address"`
-		Topics      []common.Hash  `json:"topics"`
-		Data        hexutil.Bytes  `json:"data"`
-		BlockNumber hexutil.Uint64 `json:"blockNumber"`
-		TxHash      common.Hash    `json:"transactionHash"`
-		TxIndex     hexutil.Uint   `json:"transactionIndex"`
-		BlockHash   common.Hash    `json:"blockHash"`
-		Index       hexutil.Uint   `json:"logIndex"`
-		Removed     bool           `json:"removed"`
+		Address        common.Address `json:"address"`
+		Topics         []common.Hash  `json:"topics"`
+		Data           hexutil.Bytes  `json:"data"`
+		BlockNumber    hexutil.Uint64 `json:"blockNumber"`
+		TxHash         common.Hash    `json:"transactionHash"`
+		TxIndex        hexutil.Uint   `json:"transactionIndex"`
+		BlockHash      common.Hash    `json:"blockHash"`
+		BlockTimestamp hexutil.Uint64 `json:"blockTimestamp"`
+		Index          hexutil.Uint   `json:"logIndex"`
+		Removed        bool           `json:"removed"`
 	}
 	var enc log
 	enc.Address = l.Address
@@ -438,6 +439,7 @@ func (l LogWithCustomSerDe) MarshalJSON() ([]byte, error) {
 	enc.TxHash = l.TxHash
 	enc.TxIndex = hexutil.Uint(l.TxIndex)
 	enc.BlockHash = l.BlockHash
+	enc.BlockTimestamp = hexutil.Uint64(l.BlockTimestamp)
 	enc.Index = hexutil.Uint(l.Index)
 	enc.Removed = l.Removed
 	return json.Marshal(&enc)
@@ -445,15 +447,16 @@ func (l LogWithCustomSerDe) MarshalJSON() ([]byte, error) {
 
 func (l *LogWithCustomSerDe) UnmarshalJSON(input []byte) error {
 	type log struct {
-		Address     *common.Address `json:"address"`
-		Topics      []common.Hash   `json:"topics"`
-		Data        *hexutil.Bytes  `json:"data"`
-		BlockNumber *hexutil.Uint64 `json:"blockNumber"`
-		TxHash      *common.Hash    `json:"transactionHash"`
-		TxIndex     *hexutil.Uint   `json:"transactionIndex"`
-		BlockHash   *common.Hash    `json:"blockHash"`
-		Index       *hexutil.Uint   `json:"logIndex"`
-		Removed     *bool           `json:"removed"`
+		Address        *common.Address `json:"address"`
+		Topics         []common.Hash   `json:"topics"`
+		Data           *hexutil.Bytes  `json:"data"`
+		BlockNumber    *hexutil.Uint64 `json:"blockNumber"`
+		TxHash         *common.Hash    `json:"transactionHash"`
+		TxIndex        *hexutil.Uint   `json:"transactionIndex"`
+		BlockHash      *common.Hash    `json:"blockHash"`
+		BlockTimestamp *hexutil.Uint64 `json:"blockTimestamp"`
+		Index          *hexutil.Uint   `json:"logIndex"`
+		Removed        *bool           `json:"removed"`
 	}
 	var dec log
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -483,6 +486,9 @@ func (l *LogWithCustomSerDe) UnmarshalJSON(input []byte) error {
 	}
 	if dec.BlockHash != nil {
 		l.BlockHash = *dec.BlockHash
+	}
+	if dec.BlockTimestamp != nil {
+		l.BlockTimestamp = uint64(*dec.BlockTimestamp)
 	}
 	if dec.Index != nil {
 		l.Index = uint(*dec.Index)

@@ -40,9 +40,6 @@ type ExtendedHeader struct {
 	L1BatchNumber    *hexutil.Big `msgpack:"l1BatchNumber,omitempty"`
 	L1BatchTimestamp *hexutil.Big `msgpack:"l1BatchTimestamp,omitempty"`
 	SealFields       []string     `msgpack:"sealFields,omitempty"`
-
-	// For base
-	RequestsHash *common.Hash `msgpack:"requestsHash"`
 }
 
 func NewExtendedHeader(h types.Header, hash common.Hash) *ExtendedHeader {
@@ -73,7 +70,8 @@ type ExtendedHeaderJSON struct {
 	BlobGasUsed           *hexutil.Uint64  `json:"blobGasUsed"`
 	ExcessBlobGas         *hexutil.Uint64  `json:"excessBlobGas"`
 	ParentBeaconBlockRoot *common.Hash     `json:"parentBeaconBlockRoot"`
-	RequestsRoot          *common.Hash     `json:"requestsRoot"`
+	RequestsHash          *common.Hash     `json:"requestsHash"`
+	SlotNumber            *hexutil.Uint64  `json:"slotNumber"`
 
 	Hash            common.Hash     `json:"hash"`
 	Author          string          `json:"author,omitempty"`
@@ -87,8 +85,6 @@ type ExtendedHeaderJSON struct {
 	L1BatchNumber    *hexutil.Big `json:"l1BatchNumber,omitempty"`
 	L1BatchTimestamp *hexutil.Big `json:"l1BatchTimestamp,omitempty"`
 	SealFields       []string     `json:"sealFields,omitempty"`
-
-	RequestsHash *common.Hash `json:"requestsHash,omitempty"`
 }
 
 func (h *ExtendedHeader) MakeJSON() *ExtendedHeaderJSON {
@@ -113,7 +109,8 @@ func (h *ExtendedHeader) MakeJSON() *ExtendedHeaderJSON {
 	enc.BlobGasUsed = (*hexutil.Uint64)(h.BlobGasUsed)
 	enc.ExcessBlobGas = (*hexutil.Uint64)(h.ExcessBlobGas)
 	enc.ParentBeaconBlockRoot = h.Header.ParentBeaconRoot
-	enc.RequestsRoot = h.Header.RequestsHash
+	enc.RequestsHash = h.Header.RequestsHash
+	enc.SlotNumber = (*hexutil.Uint64)(h.SlotNumber)
 	enc.Hash = h.Hash
 	enc.Author = h.Author
 	enc.Size = h.Size
@@ -124,7 +121,6 @@ func (h *ExtendedHeader) MakeJSON() *ExtendedHeaderJSON {
 	enc.L1BatchNumber = h.L1BatchNumber
 	enc.L1BatchTimestamp = h.L1BatchTimestamp
 	enc.SealFields = h.SealFields
-	enc.RequestsHash = h.RequestsHash
 	return &enc
 }
 
@@ -157,7 +153,8 @@ func (h *ExtendedHeader) UnmarshalJSON(input []byte) error {
 	h.BlobGasUsed = (*uint64)(dec.BlobGasUsed)
 	h.ExcessBlobGas = (*uint64)(dec.ExcessBlobGas)
 	h.ParentBeaconRoot = dec.ParentBeaconBlockRoot
-	h.Header.RequestsHash = dec.RequestsRoot
+	h.RequestsHash = dec.RequestsHash
+	h.SlotNumber = (*uint64)(dec.SlotNumber)
 	h.Author = dec.Author
 	h.Size = dec.Size
 	h.TotalDifficulty = dec.TotalDifficulty
@@ -168,7 +165,6 @@ func (h *ExtendedHeader) UnmarshalJSON(input []byte) error {
 	h.L1BatchNumber = dec.L1BatchNumber
 	h.L1BatchTimestamp = dec.L1BatchTimestamp
 	h.SealFields = dec.SealFields
-	h.RequestsHash = dec.RequestsHash
 	return nil
 }
 
@@ -208,8 +204,11 @@ func (h ExtendedHeader) MarshalStructpb() *structpb.Value {
 	if h.ParentBeaconRoot != nil {
 		fields["parentBeaconBlockRoot"] = structpb.NewStringValue(h.ParentBeaconRoot.String())
 	}
-	if h.Header.RequestsHash != nil {
-		fields["requestsRoot"] = structpb.NewStringValue(h.Header.RequestsHash.String())
+	if h.RequestsHash != nil {
+		fields["requestsHash"] = structpb.NewStringValue(h.RequestsHash.String())
+	}
+	if h.SlotNumber != nil {
+		fields["slotNumber"] = structpb.NewStringValue((*hexutil.Uint64)(h.SlotNumber).String())
 	}
 	if h.Author != "" {
 		fields["author"] = structpb.NewStringValue(h.Author)
@@ -238,9 +237,6 @@ func (h ExtendedHeader) MarshalStructpb() *structpb.Value {
 	if h.SealFields != nil {
 		sealFields, _ := structpb.NewList(utils.ToAnyArray(h.SealFields))
 		fields["sealFields"] = structpb.NewListValue(sealFields)
-	}
-	if h.RequestsHash != nil {
-		fields["requestsHash"] = structpb.NewStringValue(h.RequestsHash.String())
 	}
 	return structpb.NewStructValue(&structpb.Struct{Fields: fields})
 }

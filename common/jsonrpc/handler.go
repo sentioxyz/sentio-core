@@ -367,7 +367,6 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Params:     msg.Params,
 				ReqUserID:  msg.ID,
 			}
-			res, err = s.callMethod(callCtx, ctxData, encoder)
 
 			defer func() {
 				if panicErr := recover(); panicErr != nil {
@@ -375,6 +374,10 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					responses[i] = JSONErrorResponse(messages[i], res, errors.Errorf("caught panic: %v", panicErr))
 				}
 			}()
+
+			// use := to declare err as a goroutine-local variable, avoiding races
+			// when multiple goroutines in a batch request share the outer err variable
+			res, err := s.callMethod(callCtx, ctxData, encoder)
 
 			// print log
 			used := time.Since(startTime)

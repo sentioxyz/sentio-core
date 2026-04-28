@@ -355,7 +355,6 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			span.SetName(msg.Method)
 
 			// call method
-			var res any
 			startTime := time.Now()
 			ctxData := &CtxData{
 				ReqID:      rid,
@@ -371,26 +370,24 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if panicErr := recover(); panicErr != nil {
 					msgLogger.Errorf("caught panic: %v", panicErr)
-					responses[i] = JSONErrorResponse(messages[i], res, errors.Errorf("caught panic: %v", panicErr))
+					responses[i] = JSONErrorResponse(messages[i], nil, errors.Errorf("caught panic: %v", panicErr))
 				}
 			}()
 
-			// use := to declare err as a goroutine-local variable, avoiding races
-			// when multiple goroutines in a batch request share the outer err variable
-			res, err := s.callMethod(callCtx, ctxData, encoder)
+			res, callErr := s.callMethod(callCtx, ctxData, encoder)
 
 			// print log
 			used := time.Since(startTime)
-			if err != nil {
-				msgLogger.With("used", used.String(), "result", res).Warne(err, "calling jsonrpc method failed")
+			if callErr != nil {
+				msgLogger.With("used", used.String(), "result", res).Warne(callErr, "calling jsonrpc method failed")
 			} else {
 				msgLogger.Debugw("calling jsonrpc method succeed", "used", used.String(), "result", res)
 			}
 
 			// record response
 			respHeaders[i] = ctxData.RespHeaders
-			if err != nil {
-				responses[i] = JSONErrorResponse(messages[i], res, err)
+			if callErr != nil {
+				responses[i] = JSONErrorResponse(messages[i], res, callErr)
 			} else {
 				responses[i] = JSONResponse(messages[i], res)
 			}

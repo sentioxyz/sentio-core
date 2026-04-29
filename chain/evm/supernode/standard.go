@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/jsonrpc"
@@ -35,35 +36,39 @@ func NewStandardMiddleware(
 		store:      store,
 	}
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
-		return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
+		return func(ctx context.Context, method string, params json.RawMessage) (result any, err error) {
 			switch method {
 			case "eth_chainId":
-				return fmt.Sprintf("0x%x", chainID), nil
+				result, err = fmt.Sprintf("0x%x", chainID), nil
 			case "eth_getLatestBlockNumber":
-				return jsonrpc.CallMethod(s.GetLatestBlockNumber, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetLatestBlockNumber, ctx, params)
 			case "eth_blockNumber":
-				return jsonrpc.CallMethod(s.BlockNumber, ctx, params)
+				result, err = jsonrpc.CallMethod(s.BlockNumber, ctx, params)
 			case "eth_getBlockHeaderByNumber":
-				return jsonrpc.CallMethod(s.GetBlockHeaderByNumber, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetBlockHeaderByNumber, ctx, params)
 			case "eth_getBlockByNumber":
-				return jsonrpc.CallMethod(s.GetBlockByNumber, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetBlockByNumber, ctx, params)
 			case "eth_getBlockByHash":
-				return jsonrpc.CallMethod(s.GetBlockByHash, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetBlockByHash, ctx, params)
 			case "eth_getBlockReceipts":
-				return jsonrpc.CallMethod(s.GetBlockReceipts, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetBlockReceipts, ctx, params)
 			case "eth_getBlocksPacked":
-				return jsonrpc.CallMethod(s.GetBlocksPacked, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetBlocksPacked, ctx, params)
 			case "eth_getLogs":
-				return jsonrpc.CallMethod(s.GetLogs, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetLogs, ctx, params)
 			case "eth_getLogsPacked":
-				return jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
 			case "trace_filter":
-				return jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
 			case "trace_filterPacked":
-				return jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
+				result, err = jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
 			default:
 				return next(ctx, method, params)
 			}
+			if err == nil || !errors.Is(err, jsonrpc.CallNextMiddleware) {
+				return result, err
+			}
+			return next(ctx, method, params)
 		}
 	}
 }

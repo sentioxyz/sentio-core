@@ -652,20 +652,26 @@ func (p *ClientPool[CONFIG, CLIENT]) Start(ctx context.Context, ch <-chan PoolCo
 	defer func() {
 		logger.Infof("pool stopped")
 	}()
+	neverCloseNext := make(chan time.Time)        // never closed chan
+	neverCloseCh := make(chan PoolConfig[CONFIG]) // never closed chan
 	for {
 		var next <-chan time.Time
 		p.mu.Lock()
 		if p.config.AdjustPriorityInterval > 0 {
 			next = time.After(p.config.AdjustPriorityInterval)
 		} else {
-			next = make(chan time.Time) // never closed chan
+			next = neverCloseNext
 		}
 		p.mu.Unlock()
 
 		select {
 		case <-ctx.Done():
 			return
-		case cfg := <-ch:
+		case cfg, has := <-ch:
+			if !has { // ch closed
+				ch = neverCloseCh
+				continue
+			}
 			p.updateConfig(cfg.Trim())
 		case <-next:
 			p.adjustPriority()

@@ -116,6 +116,9 @@ func (c *Client) _getLatest(ctx context.Context) (clientpool.Block, clientpool.R
 }
 
 func IsBrokenError(err error) bool {
+	if err == nil {
+		return false
+	}
 	var httpErr *jsonrpc.HTTPError
 	if errors.As(err, &httpErr) {
 		return httpErr.Code != http.StatusBadRequest && httpErr.Code != http.StatusNotFound
@@ -128,8 +131,12 @@ func IsBrokenError(err error) bool {
 }
 
 func IsInvalidMethodError(err error) bool {
-	if strings.Contains(strings.ToLower(err.Error()), "method not found") {
-		return true
+	if err == nil {
+		return false
+	}
+	var rpcErr *jsonrpc.RPCError
+	if errors.As(err, &rpcErr) {
+		return rpcErr.Code == -32601
 	}
 	return false
 }

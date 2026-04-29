@@ -22,7 +22,7 @@ func ProxyHTTP[CONFIG clientpool.EntryConfig[CONFIG], CLIENT clientpool.Client](
 	var resp *http.Response
 	var respBody []byte
 	var clientName string
-	src := utils.Select(svr == "", "proxy", svr+".proxy")
+	src := utils.Select(svr == "", "proxy", svr+"#proxy")
 	err := clientPool.UseClient(ctx, src+"."+method, func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
 		clientName = cli.GetName()
 		resp, respBody, r = fn(ctx, src, cli)
@@ -45,6 +45,7 @@ func ProxyHTTP[CONFIG clientpool.EntryConfig[CONFIG], CLIENT clientpool.Client](
 type httpClient interface {
 	UseHTTPClient(
 		ctx context.Context,
+		svr string,
 		method string,
 		fn func(ctx context.Context, endpoint string, cli *http.Client) clientpool.Result,
 	) clientpool.Result
@@ -52,7 +53,7 @@ type httpClient interface {
 	clientpool.Client
 }
 
-func NewProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT httpClient](
+func NewHTTPProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT httpClient](
 	svr string,
 	clientPool *clientpool.ClientPool[CONFIG, CLIENT],
 ) Middleware {
@@ -74,6 +75,7 @@ func NewProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT httpClient
 					ctxData := GetCtxData(ctx)
 					r = cli.UseHTTPClient(
 						ctx,
+						svr,
 						src+"."+method,
 						func(ctx context.Context, endpoint string, cli *http.Client) (r clientpool.Result) {
 							req, err := clientpool.BuildHTTPRequest(

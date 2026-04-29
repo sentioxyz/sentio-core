@@ -3,6 +3,7 @@ package fuel
 import (
 	"context"
 	"net/http"
+	"reflect"
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/chain/clientpool/ex"
 	"sentioxyz/sentio-core/common/envconf"
@@ -18,18 +19,20 @@ import (
 )
 
 type ClientConfig struct {
-	Endpoint         string        `json:"endpoint" yaml:"endpoint"`
-	KeepWatch        time.Duration `json:"keep_watch" yaml:"keep_watch"`
-	GetLatestTimeout time.Duration `json:"get_latest_timeout" yaml:"get_latest_timeout"`
-	GetBlockTimeout  time.Duration `json:"get_block_timeout" yaml:"get_block_timeout"`
+	Endpoint            string            `json:"endpoint" yaml:"endpoint"`
+	AdditionalEndpoints map[string]string `json:"additional_endpoints" yaml:"additional_endpoints"`
+	KeepWatch           time.Duration     `json:"keep_watch" yaml:"keep_watch"`
+	GetLatestTimeout    time.Duration     `json:"get_latest_timeout" yaml:"get_latest_timeout"`
+	GetBlockTimeout     time.Duration     `json:"get_block_timeout" yaml:"get_block_timeout"`
 }
 
 func (c ClientConfig) Trim() ClientConfig {
 	return ClientConfig{
-		Endpoint:         strings.TrimSpace(c.Endpoint),
-		KeepWatch:        utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
-		GetLatestTimeout: utils.Select(c.GetLatestTimeout == 0, time.Second*3, c.GetLatestTimeout),
-		GetBlockTimeout:  utils.Select(c.GetBlockTimeout == 0, time.Second*3, c.GetBlockTimeout),
+		Endpoint:            strings.TrimSpace(c.Endpoint),
+		AdditionalEndpoints: utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
+		KeepWatch:           utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
+		GetLatestTimeout:    utils.Select(c.GetLatestTimeout == 0, time.Second*3, c.GetLatestTimeout),
+		GetBlockTimeout:     utils.Select(c.GetBlockTimeout == 0, time.Second*3, c.GetBlockTimeout),
 	}
 }
 
@@ -38,7 +41,7 @@ func (c ClientConfig) GetName() string {
 }
 
 func (c ClientConfig) Equal(a ClientConfig) bool {
-	return c == a
+	return reflect.DeepEqual(c, a)
 }
 
 var debugFuelClient = envconf.LoadBool("SENTIO_DEBUG_FUEL_CLIENT", false)
@@ -209,11 +212,22 @@ func (c *Client) Use(
 
 func (c *Client) UseHTTPClient(
 	ctx context.Context,
+	svr string,
 	method string,
 	fn func(ctx context.Context, endpoint string, cli *http.Client) clientpool.Result,
 ) clientpool.Result {
 	return c.Use(ctx, method, func(ctx context.Context) (r clientpool.Result) {
-		return fn(ctx, c.config.Endpoint, c.httpClient)
+		endpoint := c.config.Endpoint
+		if svr != "" {
+			var has bool
+			if endpoint, has = c.config.AdditionalEndpoints[svr]; !has {
+				return clientpool.Result{
+					BrokenForTask: true,
+					Err:           errors.Errorf("svr %q not supported", svr),
+				}
+			}
+		}
+		return fn(ctx, endpoint, c.httpClient)
 	})
 }
 

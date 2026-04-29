@@ -80,7 +80,7 @@ func (r RPCGetBlockResponse) MarshalJSON() ([]byte, error) {
 }
 
 func (r *RPCGetBlockResponse) UnmarshalJSON(data []byte) (err error) {
-	if err = r.ExtendedHeader.UnmarshalJSON(data); err != nil {
+	if err = json.Unmarshal(data, &r.ExtendedHeader); err != nil {
 		return err
 	}
 	payloadSimple := struct {

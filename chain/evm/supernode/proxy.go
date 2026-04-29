@@ -34,7 +34,7 @@ func NewProxyMiddleware(client *evm.ClientPool) jsonrpc.Middleware {
 					func() (err error) {
 						callCtx, cancel := context.WithTimeout(ctx, timeout)
 						defer cancel()
-						result, err = jsonrpc.ProxyJSONRPCRequest(callCtx, "proxy", method, args, client.ClientPool)
+						result, err = jsonrpc.ProxyJSONRPCRequest(callCtx, "", method, args, client.ClientPool)
 						timeout = time.Duration(float64(timeout) * timeoutMultiplier)
 						var rpcErr rpc.Error
 						if errors.As(err, &rpcErr) {
@@ -49,7 +49,7 @@ func NewProxyMiddleware(client *evm.ClientPool) jsonrpc.Middleware {
 				return result, err
 			}
 			// proxy the request
-			return jsonrpc.ProxyJSONRPCRequest(ctx, "proxy", method, args, client.ClientPool)
+			return jsonrpc.ProxyJSONRPCRequest(ctx, "", method, args, client.ClientPool)
 		}
 	}
 }
@@ -63,7 +63,7 @@ func NewForcedProxyMiddleware(client *evm.ClientPool, methods []string) jsonrpc.
 				if err != nil {
 					return nil, err
 				}
-				return jsonrpc.ProxyJSONRPCRequest(ctx, "proxy", method, args, client.ClientPool)
+				return jsonrpc.ProxyJSONRPCRequest(ctx, "", method, args, client.ClientPool)
 			}
 			return next(ctx, method, params)
 		}

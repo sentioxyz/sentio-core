@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "supernode",
@@ -30,5 +30,23 @@ go_library(
         "@com_github_ethereum_go_ethereum//core/types",
         "@com_github_ethereum_go_ethereum//rpc",
         "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "supernode_test",
+    srcs = ["rpc_test.go"],
+    embed = [":supernode"],
+    deps = [
+        "//chain/chain",
+        "//chain/clientpool",
+        "//chain/evm",
+        "//common/errgroup",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/range",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_zap//zapcore",
     ],
 )

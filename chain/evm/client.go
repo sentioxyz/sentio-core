@@ -56,6 +56,7 @@ func (c ClientConfig) Trim() ClientConfig {
 		Endpoint:                 strings.TrimSpace(c.Endpoint),
 		WSSEndpoint:              strings.TrimSpace(c.WSSEndpoint),
 		AdditionalEndpoints:      utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
+		ChainID:                  c.ChainID,
 		KeepWatch:                utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
 		GetLatestTimeout:         utils.Select(c.GetLatestTimeout == 0, time.Second*3, c.GetLatestTimeout),
 		GetBlockTimeout:          utils.Select(c.GetBlockTimeout == 0, time.Second*3, c.GetBlockTimeout),
@@ -204,6 +205,11 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 }
 
 func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- clientpool.Block) {
+	var cancel context.CancelFunc
+	if c.config.MaxBlockNumber > 0 {
+		ctx, cancel = context.WithCancel(ctx)
+	}
+	defer cancel()
 	clientpool.SubscribeUsingGetLatest(
 		ctx,
 		start,
@@ -216,6 +222,11 @@ func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- cl
 				latest, r = c._getLatest(ctx)
 				return r
 			})
+			if c.config.MaxBlockNumber > 0 && latest.Number > c.config.MaxBlockNumber {
+				cancel()
+				return latest, errors.Errorf("latest block number %d is greater than max block number %d",
+					latest.Number, c.config.MaxBlockNumber)
+			}
 			return latest, r.Err
 		},
 	)
@@ -228,6 +239,20 @@ func (c *Client) _callContext(
 	method string,
 	args ...any,
 ) clientpool.Result {
+	if len(c.config.MethodBlackList) > 0 && utils.IndexOf(c.config.MethodBlackList, method) >= 0 {
+		return clientpool.Result{
+			Err:           errors.New("method in blacklist"),
+			BrokenForTask: true,
+			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
+		}
+	}
+	if len(c.config.MethodWhiteList) > 0 && utils.IndexOf(c.config.MethodWhiteList, method) < 0 {
+		return clientpool.Result{
+			Err:           errors.New("method not in whitelist"),
+			BrokenForTask: true,
+			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
+		}
+	}
 	timeout, has := c.config.MethodTimeout[method]
 	if !has {
 		timeout = defaultTimeout
@@ -237,7 +262,11 @@ func (c *Client) _callContext(
 
 func (c *Client) _getLatest(ctx context.Context) (clientpool.Block, clientpool.Result) {
 	var block *RPCGetBlockResponse
-	r := c._callContext(ctx, &block, c.config.GetLatestTimeout, "eth_getBlockByNumber", rpc.LatestBlockNumber, false)
+	blockTag := rpc.LatestBlockNumber
+	if c.config.UseFinalizedAsLatest {
+		blockTag = rpc.FinalizedBlockNumber
+	}
+	r := c._callContext(ctx, &block, c.config.GetLatestTimeout, "eth_getBlockByNumber", blockTag, false)
 	if r.Err != nil {
 		return clientpool.Block{}, r
 	}
@@ -254,7 +283,7 @@ func (c *Client) _getLatest(ctx context.Context) (clientpool.Block, clientpool.R
 
 func (c *Client) _getBlock(ctx context.Context, bn uint64, withTxs bool) (RPCGetBlockResponse, clientpool.Result) {
 	var block *RPCGetBlockResponse
-	r := c._callContext(ctx, &block, c.config.GetBlockTimeout, "eth_getBlockByNumber", rpc.LatestBlockNumber, hexutil.Uint64(bn), withTxs)
+	r := c._callContext(ctx, &block, c.config.GetBlockTimeout, "eth_getBlockByNumber", hexutil.Uint64(bn), withTxs)
 	if r.Err != nil {
 		return RPCGetBlockResponse{}, r
 	}

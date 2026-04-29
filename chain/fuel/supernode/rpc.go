@@ -44,7 +44,7 @@ func NewSuperNode(
 				}
 			}
 		},
-		jsonrpc.NewProxyMiddleware("", client.ClientPool),
+		jsonrpc.NewHTTPProxyMiddleware("", client.ClientPool),
 	}
 }
 

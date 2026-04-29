@@ -22,6 +22,7 @@ const (
 	EthVariationZkSync       EthVariation = 3
 	EthVariationPolygonZkEVM EthVariation = 4
 	EthVariationSubstrate    EthVariation = 5
+	EthVariationTron         EthVariation = 6
 )
 
 type EthChainInfo struct {

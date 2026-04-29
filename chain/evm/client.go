@@ -275,6 +275,18 @@ func (c *Client) GetBlock(ctx context.Context, src string, bn uint64, withTxs bo
 	return block, r
 }
 
+func (c *Client) CallContext(
+	ctx context.Context,
+	result any,
+	src string,
+	method string,
+	args ...any,
+) clientpool.Result {
+	return c.Use(ctx, src+"."+method, func(ctx context.Context) clientpool.Result {
+		return c._callContext(ctx, result, 0, method, args...)
+	})
+}
+
 func (c *Client) Use(
 	ctx context.Context,
 	method string,

@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sentioxyz/sentio-core/chain/chain"
+	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
+	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio/chain/chain"
-	"sentioxyz/sentio/chain/evm"
-	"sentioxyz/sentio/chain/node"
-	"sentioxyz/sentio/chain/proxyv3"
-	"sentioxyz/sentio/common/number"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -23,12 +21,12 @@ import (
 func NewExtraMiddleware(
 	slotCache chain.LatestSlotCache[*evm.Slot],
 	rangeStore chain.RangeStore,
-	base baseClickhouseService,
+	store Storage,
 ) jsonrpc.Middleware {
 	s := ExtraService{
 		slotCache:  slotCache,
 		rangeStore: rangeStore,
-		base:       base,
+		store:      store,
 	}
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
@@ -45,7 +43,7 @@ func NewExtraMiddleware(
 type ExtraService struct {
 	slotCache  chain.LatestSlotCache[*evm.Slot]
 	rangeStore chain.RangeStore
-	base       baseClickhouseService
+	store      Storage
 }
 
 // EstimateBlockNumberAtDate Find the smallest block with timestamp >= targetTimestampMs (GE mode) or
@@ -58,23 +56,24 @@ func (s *ExtraService) EstimateBlockNumberAtDate(
 	endBlock rpc.BlockNumber,
 	mode string,
 ) (*rpc.BlockNumber, error) {
+	sn, en := uint64(startBlock), uint64(endBlock)
 	if endBlock < 0 {
 		if endBlock != rpc.LatestBlockNumber {
 			return nil, fmt.Errorf("end block number cannot be %s", endBlock.String())
 		}
-		endBlock = math.MaxInt64
+		en = math.MaxUint64
 	}
 	if startBlock < 0 {
 		if startBlock != rpc.EarliestBlockNumber {
 			return nil, fmt.Errorf("start block number cannot be %s", startBlock.String())
 		}
-		// will use the left point of the range in rangeStore as the start block
+		sn = 0
 	}
-	var result *rpc.BlockNumber
-	var updateResult func(bn rpc.BlockNumber, timestampMs uint64)
+	var result *uint64
+	var updateResult func(bn uint64, timestampMs uint64)
 	switch mode {
 	case "LE":
-		updateResult = func(bn rpc.BlockNumber, timestampMs uint64) {
+		updateResult = func(bn uint64, timestampMs uint64) {
 			if timestampMs <= uint64(targetTimestampMs) {
 				if result == nil {
 					result = &bn
@@ -84,7 +83,7 @@ func (s *ExtraService) EstimateBlockNumberAtDate(
 			}
 		}
 	case "GE":
-		updateResult = func(bn rpc.BlockNumber, timestampMs uint64) {
+		updateResult = func(bn uint64, timestampMs uint64) {
 			if timestampMs >= uint64(targetTimestampMs) {
 				if result == nil {
 					result = &bn
@@ -96,17 +95,15 @@ func (s *ExtraService) EstimateBlockNumberAtDate(
 	default:
 		return nil, fmt.Errorf("invalid mode %q, should be \"LE\" or \"GE\"", mode)
 	}
-	_, err := chain.QueryRangeWithCacheV2(
+	_, err := chain.QueryRangeWithCache(
 		ctx,
-		number.NewRange(utils.Select(startBlock < 0, 0, number.Number(startBlock)), number.Number(endBlock)),
+		rg.NewRange(sn, en),
 		s.slotCache,
 		func(slot *evm.Slot) ([]uint64, error) {
-			slotBlockNumber := rpc.BlockNumber(slot.GetNumber())
-			slotTimestampMs := utils.Select(slot.Header.Time >= math.MaxInt32, slot.Header.Time, slot.Header.Time*1000)
-			updateResult(slotBlockNumber, slotTimestampMs)
+			updateResult(slot.GetNumber(), uint64(slot.Header.GetBlockTime().UnixMilli()))
 			return nil, nil
 		},
-		func(ctx context.Context, queryRange number.Range) ([]uint64, error) {
+		func(ctx context.Context, queryRange rg.Range) ([]uint64, error) {
 			// may be do not need to query in clickhouse
 			if mode == "LE" && result != nil {
 				// has result in latest slot cache, do not need to query in clickhouse
@@ -117,7 +114,7 @@ func (s *ExtraService) EstimateBlockNumberAtDate(
 					// that means the timestamp of the latest block is less the target,
 					// do not need to query in clickhouse
 					return nil, nil
-				} else if queryRange.R()+1 < number.Number(*result) {
+				} else if *queryRange.End+1 < *result {
 					// that means the timestamp of block queryRange.R() + 1 is less than the target timestamp,
 					// do not need to query in clickhouse
 					return nil, nil
@@ -130,24 +127,24 @@ func (s *ExtraService) EstimateBlockNumberAtDate(
 				return nil, err
 			}
 			// if startBlock is earliest, need to adjust the left point of the query range
-			if queryRange.L() == 0 && startBlock == rpc.EarliestBlockNumber {
-				queryRange = number.NewRange(curRange.L(), queryRange.R())
+			if queryRange.Start == 0 && startBlock == rpc.EarliestBlockNumber {
+				queryRange = rg.NewRange(curRange.Start, *queryRange.End)
 			}
 			// if query range is empty, do not need to execute sql in clickhouse
 			if queryRange.IsEmpty() {
 				return nil, nil
 			}
 			// query range is not is the current range of clickhouse data, return error
-			if !curRange.Contains(queryRange) {
+			if !curRange.Include(queryRange) {
 				return nil, fmt.Errorf("request range %s not in scope of range store %s", queryRange, curRange)
 			}
 			// execute the query
 			targetTime := time.UnixMilli(int64(targetTimestampMs)).UTC()
-			result, err = s.base.store.QueryEstimateBlockNumberAtDate(
+			result, err = s.store.QueryEstimateBlockNumberAtDate(
 				ctx,
 				targetTime,
-				uint64(queryRange.L()),
-				uint64(queryRange.R()),
+				queryRange.Start,
+				*queryRange.End,
 				mode == "LE",
 			)
 			return nil, err
@@ -156,16 +153,8 @@ func (s *ExtraService) EstimateBlockNumberAtDate(
 	return result, err
 }
 
-func NewProxyExtraMiddleware(
-	client node.NodeClient,
-	cacheDelay time.Duration,
-	proxySvr *proxyv3.JSONRPCServiceV2,
-) jsonrpc.Middleware {
-	s := ProxyExtraService{
-		client:     client,
-		cacheDelay: cacheDelay,
-		proxySvr:   proxySvr,
-	}
+func NewProxyExtraMiddleware(client *evm.ClientPool) jsonrpc.Middleware {
+	s := ProxyExtraService{client: client}
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
 			if method == "sentio_estimateBlockNumberAtDate" {
@@ -177,25 +166,17 @@ func NewProxyExtraMiddleware(
 }
 
 type ProxyExtraService struct {
-	client     node.NodeClient
-	cacheDelay time.Duration
-	proxySvr   *proxyv3.JSONRPCServiceV2
+	client *evm.ClientPool
 }
 
 func (m *ProxyExtraService) getBlockHeader(ctx context.Context, blockNumber rpc.BlockNumber) (*types.Header, error) {
-	var disableCache bool
-	if blockNumber < 0 || m.cacheDelay < 0 {
-		disableCache = true
-	} else {
-		latest, err := m.client.Latest(ctx)
-		if err != nil {
-			return nil, err
-		}
-		blockInterval := m.client.BlockInterval()
-		disableCache = blockInterval == 0 || latest.Number < uint64(blockNumber)+uint64(m.cacheDelay/blockInterval)
-	}
-
-	raw, err := m.proxySvr.ProxyCall(ctx, "eth_getBlockByNumber", []any{blockNumber, false}, disableCache, nil)
+	raw, err := jsonrpc.ProxyJSONRPCRequest(
+		ctx,
+		"proxy",
+		"eth_getBlockByNumber",
+		[]any{blockNumber, false},
+		m.client.ClientPool,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +208,7 @@ func (m *ProxyExtraService) EstimateBlockNumberAtDate(
 	}
 	// compare function between block timestamp and targetTimestampMs
 	cmpTime := func(h *types.Header) int {
-		ts := hexutil.Uint64(utils.Select(h.Time >= math.MaxUint32, h.Time, h.Time*1000))
+		ts := hexutil.Uint64(evm.ExtendedHeader{Header: *h}.GetBlockTime().UnixMilli())
 		if ts == targetTimestampMs {
 			return 0
 		} else if ts < targetTimestampMs {

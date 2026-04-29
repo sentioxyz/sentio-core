@@ -1,7 +1,6 @@
 package jsonrpc
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"github.com/pkg/errors"
@@ -111,28 +110,12 @@ func ProxyJSONRPCRequest[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCCl
 	ctx context.Context,
 	svr string,
 	method string,
-	params json.RawMessage,
+	args []any,
 	clientPool *clientpool.ClientPool[CONFIG, CLIENT],
-) (any, error) {
+) (json.RawMessage, error) {
 	ctxData := GetCtxData(ctx)
 	var data json.RawMessage
 	var clientName string
-	var args []any
-	if string(params) != "null" {
-		if token, tokenErr := json.NewDecoder(bytes.NewReader(params)).Token(); tokenErr == nil {
-			if token == json.Delim('[') {
-				// has many
-				var paramList []json.RawMessage
-				if err := json.Unmarshal(params, &paramList); err != nil {
-					return nil, err
-				}
-				args = utils.ToAnyArray(paramList)
-			} else {
-				// only one
-				args = []any{params}
-			}
-		}
-	}
 	src := utils.Select(svr == "", "proxy", svr+".proxy")
 	err := clientPool.UseClient(ctx, src+"."+method, func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
 		clientName = cli.GetName()
@@ -152,7 +135,11 @@ func NewJSONRPCProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jso
 ) Middleware {
 	return func(next MethodHandler) MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
-			return ProxyJSONRPCRequest(ctx, svr, method, params, clientPool)
+			args, err := ParseParams(params)
+			if err != nil {
+				return nil, err
+			}
+			return ProxyJSONRPCRequest(ctx, svr, method, args, clientPool)
 		}
 	}
 }

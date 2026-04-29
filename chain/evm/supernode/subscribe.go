@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
+	"sentioxyz/sentio-core/chain/chain"
+	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio/chain/chain"
-	"sentioxyz/sentio/chain/evm"
-	"sentioxyz/sentio/common/number"
 	"time"
 )
 
@@ -41,9 +40,9 @@ type subscribeService struct {
 }
 
 type subscribeState struct {
-	FirstBlockNumber *number.Number
+	FirstBlockNumber *uint64
 	Sent             uint64
-	DoneBlockNumber  *number.Number
+	DoneBlockNumber  *uint64
 }
 
 func (s *subscribeState) Snapshot() any {
@@ -56,7 +55,7 @@ func (s *subscribeState) Snapshot() any {
 
 func (s *subscribeService) subscribeProcessBlock(
 	ctx context.Context,
-	bn number.Number,
+	bn uint64,
 	resultBuilder func(*evm.Slot) []any,
 	state *subscribeState,
 ) error {
@@ -133,7 +132,7 @@ func (s *subscribeService) Subscribe(ctx context.Context, subType string, filter
 		return nil, session.Abort(err)
 	}
 	for {
-		var latest number.Number
+		var latest uint64
 		latest, waitErr = s.slotCache.Wait(ctx, from)
 		if waitErr != nil {
 			return nil, session.Abort(errors.Wrapf(waitErr, "wait new block greater than %d failed", from))

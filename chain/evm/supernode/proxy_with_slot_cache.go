@@ -7,22 +7,20 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
-	"math"
+	"sentioxyz/sentio-core/chain/chain"
+	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/jsonrpc"
+	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio/chain/chain"
-	"sentioxyz/sentio/chain/evm"
-	"sentioxyz/sentio/chain/proxyv3"
-	"sentioxyz/sentio/common/number"
 )
 
 func NewProxyWithLatestSlotCacheMiddleware(
 	slotCache chain.LatestSlotCache[*evm.Slot],
-	proxySvr *proxyv3.JSONRPCServiceV2,
+	client *evm.ClientPool,
 ) jsonrpc.Middleware {
 	svr := proxyWithLatestSlotCacheService{
 		slotCache: slotCache,
-		proxySvr:  proxySvr,
+		client:    client,
 	}
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (result any, err error) {
@@ -64,7 +62,7 @@ func NewProxyWithLatestSlotCacheMiddleware(
 
 type proxyWithLatestSlotCacheService struct {
 	slotCache chain.LatestSlotCache[*evm.Slot]
-	proxySvr  *proxyv3.JSONRPCServiceV2
+	client    *evm.ClientPool
 }
 
 func (s *proxyWithLatestSlotCacheService) EthBlockNumber(ctx context.Context) (hexutil.Uint64, error) {
@@ -72,7 +70,7 @@ func (s *proxyWithLatestSlotCacheService) EthBlockNumber(ctx context.Context) (h
 	if err != nil {
 		return 0, err
 	}
-	return hexutil.Uint64(r.R()), nil
+	return hexutil.Uint64(*r.End), nil
 }
 
 func (s *proxyWithLatestSlotCacheService) EthGetLatestBlockNumber(
@@ -81,11 +79,11 @@ func (s *proxyWithLatestSlotCacheService) EthGetLatestBlockNumber(
 ) (evm.GetLatestBlockNumberResponse, error) {
 	jsonrpc.GetCtxData(ctx).NotSlowRequest = true
 	resp := evm.GetLatestBlockNumberResponse{APIVersion: evm.APIVersion}
-	latest, err := s.slotCache.Wait(ctx, number.Number(latestBlockNumberOver))
+	latest, err := s.slotCache.Wait(ctx, latestBlockNumberOver)
 	if err != nil {
 		return resp, err
 	}
-	resp.LatestBlockNumber = uint64(latest)
+	resp.LatestBlockNumber = latest
 	return resp, nil
 }
 
@@ -116,16 +114,25 @@ func (s *proxyWithLatestSlotCacheService) findSlotByNumber(
 	return slot, nil
 }
 
+func (s *proxyWithLatestSlotCacheService) findSlotByHash(
+	ctx context.Context,
+	hash common.Hash,
+) (*evm.Slot, error) {
+	return s.findSlotByChecker(ctx, func(st *evm.Slot) bool {
+		return st.Header.Hash == hash
+	})
+}
+
 func (s *proxyWithLatestSlotCacheService) findSlotByChecker(
 	ctx context.Context,
-	checker func(ctx context.Context, st *evm.Slot) (bool, error),
+	checker func(st *evm.Slot) bool,
 ) (*evm.Slot, error) {
-	result, found, err := chain.GetSlotByChecker(ctx, s.slotCache, checker)
+	result, err := s.slotCache.GetByChecker(ctx, checker)
 	if err != nil {
+		if errors.Is(err, chain.ErrSlotNotFound) {
+			return nil, jsonrpc.CallNextMiddleware
+		}
 		return nil, err
-	}
-	if !found {
-		return nil, jsonrpc.CallNextMiddleware
 	}
 	return result, nil
 }
@@ -147,10 +154,11 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockByHash(
 	hash common.Hash,
 	withFullTransactions bool,
 ) (any, error) {
-	st, err := s.findSlotByChecker(ctx, func(ctx context.Context, st *evm.Slot) (bool, error) {
-		return st.Header.Hash == hash, nil
-	})
-	return buildBlockResponse(st, withFullTransactions), err
+	st, err := s.findSlotByHash(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+	return buildBlockResponse(st, withFullTransactions), nil
 }
 
 func (s *proxyWithLatestSlotCacheService) EthGetTransactionByHash(
@@ -158,14 +166,14 @@ func (s *proxyWithLatestSlotCacheService) EthGetTransactionByHash(
 	hash common.Hash,
 ) (any, error) {
 	var result any
-	_, err := s.findSlotByChecker(ctx, func(ctx context.Context, st *evm.Slot) (bool, error) {
+	_, err := s.findSlotByChecker(ctx, func(st *evm.Slot) bool {
 		for _, tx := range st.Block.Transactions {
 			if tx.Hash == hash {
 				result = tx
-				return true, nil
+				return true
 			}
 		}
-		return false, nil
+		return false
 	})
 	return result, err
 }
@@ -175,14 +183,14 @@ func (s *proxyWithLatestSlotCacheService) EthGetTransactionReceipt(
 	hash common.Hash,
 ) (any, error) {
 	var result any
-	_, err := s.findSlotByChecker(ctx, func(ctx context.Context, st *evm.Slot) (bool, error) {
+	_, err := s.findSlotByChecker(ctx, func(st *evm.Slot) bool {
 		for _, re := range st.Receipts {
 			if re.TxHash == hash {
 				result = re
-				return true, nil
+				return true
 			}
 		}
-		return false, nil
+		return false
 	})
 	return result, err
 }
@@ -194,9 +202,7 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockReceipts(
 	var st *evm.Slot
 	var err error
 	if numOrHash.BlockHash != nil {
-		st, err = s.findSlotByChecker(ctx, func(ctx context.Context, st *evm.Slot) (bool, error) {
-			return st.Header.Hash == *numOrHash.BlockHash, nil
-		})
+		st, err = s.findSlotByHash(ctx, *numOrHash.BlockHash)
 	} else {
 		st, err = s.findSlotByNumber(ctx, *numOrHash.BlockNumber)
 	}
@@ -212,13 +218,11 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 ) (any, error) {
 	if args.BlockHash != nil {
 		// query logs in the specified block by args.BlockHash
-		st, err := s.findSlotByChecker(ctx, func(ctx context.Context, st *evm.Slot) (bool, error) {
-			return st.Header.Hash == *args.BlockHash, nil
-		})
+		st, err := s.findSlotByHash(ctx, *args.BlockHash)
 		if err != nil {
 			return nil, err
 		}
-		var logs []evm.LogWithCustomSerDe
+		logs := make([]evm.LogWithCustomSerDe, 0)
 		for _, log := range st.Logs {
 			if logFilter(&log, args) {
 				logs = append(logs, evm.LogWithCustomSerDe(log))
@@ -228,95 +232,101 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 	}
 
 	// determine the query range
-	var fromBlock, toBlock number.Number = 0, math.MaxUint64
+	curRange, err := s.slotCache.GetRange(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var fromBlock, toBlock uint64 = *curRange.End, *curRange.End
 	if args.FromBlock != nil {
-		fromBlock = number.Number(*args.FromBlock)
+		fromBlock = (uint64)(*args.FromBlock)
 	}
 	if args.ToBlock != nil {
-		toBlock = number.Number(*args.ToBlock)
+		toBlock = (uint64)(*args.ToBlock)
 	}
-	queryRange := number.NewRange(fromBlock, toBlock)
 
-	// try to query in latest slot cache
-	var logs []evm.LogWithCustomSerDe
-	curRange, err := s.slotCache.Traverse(ctx, queryRange, func(ctx context.Context, st *evm.Slot) error {
-		for _, log := range st.Logs {
-			if logFilter(&log, args) {
-				logs = append(logs, evm.LogWithCustomSerDe(log))
+	return chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(fromBlock, toBlock),
+		s.slotCache,
+		func(st *evm.Slot) ([]evm.LogWithCustomSerDe, error) {
+			var logs []evm.LogWithCustomSerDe
+			for _, log := range st.Logs {
+				if logFilter(&log, args) {
+					logs = append(logs, evm.LogWithCustomSerDe(log))
+				}
 			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if curRange.Contains(queryRange) {
-		// latest slot cache include the whole query range, so logs is the result
-		return logs, nil
-	}
-	if curRange.R() < queryRange.R() {
-		return nil, errors.Errorf("block range greater than %d", curRange.R())
-	}
-	// proxy to the external endpoints
-	proxyRange := queryRange.Sub(curRange).GetFirstRange()
-	proxyArgs := *args
-	proxyArgs.FromBlock = utils.WrapPointer(hexutil.Uint64(proxyRange.L()))
-	proxyArgs.ToBlock = utils.WrapPointer(hexutil.Uint64(proxyRange.R()))
-	var proxyLogs []evm.LogWithCustomSerDe
-	err = s.proxySvr.ProxyCallAndConvert(ctx, "eth_getLogs", &proxyArgs, true, &proxyLogs)
-	if err != nil {
-		return nil, err
-	}
-	return append(proxyLogs, logs...), nil
+			return logs, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) ([]evm.LogWithCustomSerDe, error) {
+			proxyArgs := *args
+			proxyArgs.FromBlock = utils.WrapPointer(hexutil.Uint64(queryRange.Start))
+			proxyArgs.ToBlock = utils.WrapPointer(hexutil.Uint64(*queryRange.End))
+			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
+				ctx,
+				"proxy",
+				"eth_getLogs",
+				[]any{proxyArgs},
+				s.client.ClientPool,
+			)
+			if proxyErr != nil {
+				return nil, proxyErr
+			}
+			var result []evm.LogWithCustomSerDe
+			if proxyErr = json.Unmarshal(proxyResult, &result); proxyErr != nil {
+				return nil, proxyErr
+			}
+			return result, nil
+		})
 }
 
 func (s *proxyWithLatestSlotCacheService) TraceFilter(
 	ctx context.Context,
 	args *evm.TraceFilterArgs,
-) (any, error) {
-	if args.After != nil || args.Count != nil {
-		return nil, jsonrpc.CallNextMiddleware
-	}
-
+) ([]evm.ParityTrace, error) {
 	// determine the query range
-	var fromBlock, toBlock number.Number = 0, math.MaxUint64
+	curRange, err := s.slotCache.GetRange(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var fromBlock, toBlock uint64 = *curRange.End, *curRange.End
 	if args.FromBlock != nil {
-		fromBlock = number.Number(*args.FromBlock)
+		fromBlock = (uint64)(*args.FromBlock)
 	}
 	if args.ToBlock != nil {
-		toBlock = number.Number(*args.ToBlock)
+		toBlock = (uint64)(*args.ToBlock)
 	}
-	queryRange := number.NewRange(fromBlock, toBlock)
 
-	// try to query in latest slot cache
-	var traces []evm.ParityTrace
-	curRange, err := s.slotCache.Traverse(ctx, queryRange, func(ctx context.Context, st *evm.Slot) error {
-		for _, trace := range st.Traces {
-			if traceFilter(&trace, args) {
-				traces = append(traces, trace)
+	return chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(fromBlock, toBlock),
+		s.slotCache,
+		func(st *evm.Slot) ([]evm.ParityTrace, error) {
+			var traces []evm.ParityTrace
+			for _, trace := range st.Traces {
+				if traceFilter(&trace, args) {
+					traces = append(traces, trace)
+				}
 			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if curRange.Contains(queryRange) {
-		// latest slot cache include the whole query range, so logs is the result
-		return traces, nil
-	}
-	if curRange.R() < queryRange.R() {
-		return nil, errors.Errorf("block range greater than %d", curRange.R())
-	}
-	// proxy to the external endpoints
-	proxyRange := queryRange.Sub(curRange).GetFirstRange()
-	proxyArgs := *args
-	proxyArgs.FromBlock = utils.WrapPointer(hexutil.Uint64(proxyRange.L()))
-	proxyArgs.ToBlock = utils.WrapPointer(hexutil.Uint64(proxyRange.R()))
-	var proxyTraces []evm.ParityTrace
-	err = s.proxySvr.ProxyCallAndConvert(ctx, "trace_filter", &proxyArgs, true, &proxyTraces)
-	if err != nil {
-		return nil, err
-	}
-	return append(proxyTraces, traces...), nil
+			return traces, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) ([]evm.ParityTrace, error) {
+			proxyArgs := *args
+			proxyArgs.FromBlock = utils.WrapPointer(hexutil.Uint64(queryRange.Start))
+			proxyArgs.ToBlock = utils.WrapPointer(hexutil.Uint64(*queryRange.End))
+			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
+				ctx,
+				"proxy",
+				"trace_filter",
+				[]any{proxyArgs},
+				s.client.ClientPool,
+			)
+			if proxyErr != nil {
+				return nil, proxyErr
+			}
+			var result []evm.ParityTrace
+			if proxyErr = json.Unmarshal(proxyResult, &result); proxyErr != nil {
+				return nil, proxyErr
+			}
+			return result, nil
+		})
 }

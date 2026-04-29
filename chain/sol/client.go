@@ -142,7 +142,7 @@ func (c *Client) CallContext(
 	args ...any,
 ) clientpool.Result {
 	return c.Use(ctx, src+"."+method, func(ctx context.Context) (r clientpool.Result) {
-		r.Err = c.client.RPCCallForInto(ctx, &result, method, args)
+		r.Err = c.client.RPCCallForInto(ctx, result, method, args)
 		if r.Err == nil || errors.Is(r.Err, context.Canceled) || errors.Is(r.Err, context.DeadlineExceeded) {
 			return r
 		}

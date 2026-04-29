@@ -31,44 +31,28 @@ func (m *TraceSlotCache) Filter(ctx context.Context, args *evm.TraceFilterArgs) 
 		return nil, errors.New("trace is not enabled")
 	}
 
-	fromBlock := number.Number(*args.FromBlock)
-	toBlock := number.Number(*args.ToBlock)
-	interval := number.NewRange(fromBlock, toBlock)
-
-	slots, uncachedRange, err := getSlotsByRangeFromCache(ctx, m.SlotCache, interval)
+	slots, uncachedRange, err := getSlotsFromCache(ctx, m.SlotCache, nil, args.FromBlock, args.ToBlock)
 	if err != nil {
 		return nil, err
 	}
 
-	slotToTraces := func(slot *evm.Slot) ([]evm.ParityTrace, error) {
-		var traces []evm.ParityTrace
-		for _, trace := range slot.Traces {
-			if traceFilter(&trace, args) {
-				traces = append(traces, trace)
-			}
-		}
-		return traces, nil
-	}
-
 	var results []evm.ParityTrace
 	for _, slot := range slots {
-		slotTraces, err := slotToTraces(slot)
-		if err != nil {
-			return nil, err
+		for _, trace := range slot.Traces {
+			if traceFilter(&trace, args) {
+				results = append(results, trace)
+			}
 		}
-		results = append(results, slotTraces...)
 	}
 
 	if !uncachedRange.IsEmpty() {
-		from := hexutil.Uint64(uncachedRange.L())
-		to := hexutil.Uint64(uncachedRange.R())
+		from := hexutil.Uint64(uncachedRange.Start)
+		to := hexutil.Uint64(*uncachedRange.End)
 		nextResults, err := ResultsFromNext[evm.ParityTrace](ctx, "trace_filter", &evm.TraceFilterArgs{
 			FromBlock:   &from,
 			ToBlock:     &to,
 			FromAddress: args.FromAddress,
 			ToAddress:   args.ToAddress,
-			After:       args.After,
-			Count:       args.Count,
 		})
 		if err != nil {
 			return nil, err
@@ -79,49 +63,42 @@ func (m *TraceSlotCache) Filter(ctx context.Context, args *evm.TraceFilterArgs) 
 	return results, nil
 }
 
-func (m *TraceSlotCache) FilterPacked(ctx context.Context, args *evm.TraceFilterArgs,
-	needTransaction, needReceipt, needReceiptLogs bool) ([]*evm.PackedBlock, error) {
+func (m *TraceSlotCache) FilterPacked(
+	ctx context.Context,
+	args *evm.TraceFilterArgs,
+	needTransaction, needReceipt, needReceiptLogs bool,
+) ([]*evm.PackedBlock, error) {
 	if m.networkOptions.DisableTrace {
 		return nil, errors.New("trace is not enabled")
 	}
 
-	fromBlock := number.Number(*args.FromBlock)
-	toBlock := number.Number(*args.ToBlock)
-	interval := number.NewRange(fromBlock, toBlock)
-
-	slots, uncachedRange, err := getSlotsByRangeFromCache(ctx, m.SlotCache, interval)
+	slots, uncachedRange, err := getSlotsFromCache(ctx, m.SlotCache, nil, args.FromBlock, args.ToBlock)
 	if err != nil {
 		return nil, err
 	}
-	slotToTracesPacked := func(slot *evm.Slot) ([]*evm.PackedBlock, error) {
+
+	var results []*evm.PackedBlock
+	for _, slot := range slots {
 		var traces []evm.ParityTrace
 		for _, trace := range slot.Traces {
 			if traceFilter(&trace, args) {
 				traces = append(traces, trace)
 			}
 		}
-		return []*evm.PackedBlock{evm.MakePackedBlock(slot, nil, traces, needTransaction, needReceipt, needReceiptLogs)}, nil
-	}
-
-	var results []*evm.PackedBlock
-	for _, slot := range slots {
-		slotTraces, err := slotToTracesPacked(slot)
-		if err != nil {
-			return nil, err
+		if len(traces) == 0 {
+			continue
 		}
-		results = append(results, slotTraces...)
+		results = append(results, evm.MakePackedBlock(slot, nil, traces, needTransaction, needReceipt, needReceiptLogs))
 	}
 
 	if !uncachedRange.IsEmpty() {
-		from := hexutil.Uint64(uncachedRange.L())
-		to := hexutil.Uint64(uncachedRange.R())
+		from := hexutil.Uint64(uncachedRange.Start)
+		to := hexutil.Uint64(*uncachedRange.End)
 		nextResults, err := ResultsFromNext[*evm.PackedBlock](ctx, "trace_filterPacked", &evm.TraceFilterArgs{
 			FromBlock:   &from,
 			ToBlock:     &to,
 			FromAddress: args.FromAddress,
 			ToAddress:   args.ToAddress,
-			After:       args.After,
-			Count:       args.Count,
 		}, needTransaction, needReceipt, needReceiptLogs)
 		if err != nil {
 			return nil, err

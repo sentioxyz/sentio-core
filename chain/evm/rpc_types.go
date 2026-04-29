@@ -13,13 +13,32 @@ import (
 )
 
 type RPCGetBlockResponse struct {
-	ExtendedHeader
+	*ExtendedHeader
 
 	TxHashes     []common.Hash
 	Transactions []RPCTransaction
 
 	Uncles      []common.Hash
 	Withdrawals []types.Withdrawal
+}
+
+func NewRPCGetBlockResponse(st *Slot, withFullTransactions bool) RPCGetBlockResponse {
+	if !withFullTransactions {
+		return RPCGetBlockResponse{
+			ExtendedHeader: st.Header,
+			TxHashes: utils.MapSliceNoError(st.Block.Transactions, func(tx RPCTransaction) common.Hash {
+				return tx.Hash
+			}),
+		}
+	}
+	txs := st.Block.Transactions
+	if txs == nil {
+		txs = make([]RPCTransaction, 0)
+	}
+	return RPCGetBlockResponse{
+		ExtendedHeader: st.Header,
+		Transactions:   txs,
+	}
 }
 
 func (r RPCGetBlockResponse) MarshalJSON() ([]byte, error) {
@@ -254,8 +273,6 @@ type TraceFilterArgs struct {
 	ToBlock     *hexutil.Uint64
 	FromAddress []common.Address
 	ToAddress   []string
-	After       *uint64
-	Count       *uint64
 }
 
 func (args *TraceFilterArgs) MarshalJSON() ([]byte, error) {
@@ -264,8 +281,6 @@ func (args *TraceFilterArgs) MarshalJSON() ([]byte, error) {
 		ToBlock     *hexutil.Uint64 `json:"toBlock,omitempty"`
 		FromAddress []string        `json:"fromAddress,omitempty"`
 		ToAddress   []string        `json:"toAddress,omitempty"`
-		After       *uint64         `json:"after,omitempty"`
-		Count       *uint64         `json:"count,omitempty"`
 	}
 	var enc input
 	enc.FromBlock = args.FromBlock
@@ -274,8 +289,6 @@ func (args *TraceFilterArgs) MarshalJSON() ([]byte, error) {
 		return addr.Hex()
 	})
 	enc.ToAddress = args.ToAddress
-	enc.After = args.After
-	enc.Count = args.Count
 	return json.Marshal(&enc)
 }
 
@@ -285,8 +298,6 @@ func (args *TraceFilterArgs) UnmarshalJSON(data []byte) error {
 		ToBlock     *hexutil.Uint64 `json:"toBlock"`
 		FromAddress interface{}     `json:"fromAddress"`
 		ToAddress   interface{}     `json:"toAddress"`
-		After       *uint64         `json:"after"`
-		Count       *uint64         `json:"count"`
 	}
 	var aux input
 	if err := json.Unmarshal(data, &aux); err != nil {
@@ -316,8 +327,6 @@ func (args *TraceFilterArgs) UnmarshalJSON(data []byte) error {
 	}
 	args.FromBlock = aux.FromBlock
 	args.ToBlock = aux.ToBlock
-	args.After = aux.After
-	args.Count = aux.Count
 	return nil
 }
 

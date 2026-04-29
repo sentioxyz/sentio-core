@@ -4,76 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"time"
-
+	"github.com/ethereum/go-ethereum/rpc"
+	"sentioxyz/sentio-core/chain/chain"
+	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio/chain/chain"
-	"sentioxyz/sentio/chain/evm"
-	"sentioxyz/sentio/chain/node"
-	"sentioxyz/sentio/chain/proxyv3"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
-
-func NewSimpleProxyService(
-	network string,
-	client node.NodeClient,
-	cacheDelay time.Duration,
-	slotCache chain.LatestSlotCache[*evm.Slot],
-	proxySvr *proxyv3.JSONRPCServiceV2,
-	forcedProxyMethods []string,
-) []jsonrpc.Middleware {
-	return []jsonrpc.Middleware{
-		NewCustomFunctionProxyMiddleware(proxySvr),
-		NewProxyExtraMiddleware(client, cacheDelay, proxySvr),
-		NewSubscribeMiddleware(slotCache),
-		NewForcedProxyMiddleware(proxySvr, forcedProxyMethods),
-		NewProxyWithLatestSlotCacheMiddleware(slotCache, proxySvr),
-		NewProxyMiddleware(client, cacheDelay, proxySvr),
-	}
-}
-
-func NewRPCServiceV2(
-	network string,
-	chainID string,
-	networkOptions *evm.NetworkOptions,
-	slotCache chain.LatestSlotCache[*evm.Slot],
-	store evm.Storage,
-	rangeStore chain.RangeStore,
-	client node.NodeClient,
-	cacheDelay time.Duration,
-	proxySvr *proxyv3.JSONRPCServiceV2,
-	forcedProxyMethods []string,
-) []jsonrpc.Middleware {
-
-	base := baseClickhouseService{
-		store: store,
-	}
-
-	chainIDNum, err := strconv.ParseUint(chainID, 0, 64)
-	if err != nil {
-		panic(fmt.Errorf("chainID %q is not a number", chainID))
-	}
-
-	return []jsonrpc.Middleware{
-		NewErrLogMiddleware(),
-		NewVersionMiddleware(chainIDNum),
-		NewCustomFunctionProxyMiddleware(proxySvr),
-		NewForcedProxyMiddleware(proxySvr, forcedProxyMethods),
-		NewExtraMiddleware(slotCache, rangeStore, base),
-		NewSubscribeMiddleware(slotCache),
-		NewEthSlotCacheMiddleware(slotCache),
-		NewTraceSlotCacheMiddleware(slotCache, networkOptions),
-		NewRangeCheckMiddleware(rangeStore),
-		NewEthClickHouseMiddleware(base),
-		NewTraceClickHouseMiddleware(base),
-		NewProxyMiddleware(client, cacheDelay, proxySvr),
-	}
-}
 
 func logFilter(log *types.Log, args *evm.EthGetLogsArgs) bool {
 	if len(args.Addresses) > 0 {
@@ -133,7 +74,7 @@ func ResultsFromNext[T any](ctx context.Context, methodName string, args ...any)
 }
 
 type baseClickhouseService struct {
-	store evm.Storage
+	store Storage
 }
 
 func buildPackedBlocks(

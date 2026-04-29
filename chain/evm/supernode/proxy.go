@@ -6,43 +6,20 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
+	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio/chain/node"
-	"sentioxyz/sentio/chain/proxyv3"
+	"sentioxyz/sentio-core/common/set"
 	"strings"
 	"time"
 )
 
-func NewProxyMiddleware(
-	client node.NodeClient,
-	cacheDelay time.Duration,
-	proxySvr *proxyv3.JSONRPCServiceV2,
-) jsonrpc.Middleware {
+func NewProxyMiddleware(client *evm.ClientPool) jsonrpc.Middleware {
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (interface{}, error) {
-			// detect block number of this request
-			var requestBlockNumber rpc.BlockNumber
-			switch strings.ToLower(method) {
-			case "eth_call", "eth_getbalance", "eth_getcode":
-				bn, err := getBlockNumberFromParams(params, "1")
-				if err != nil {
-					return nil, err
-				}
-				requestBlockNumber = *bn[0]
-			}
-			// check if the block number of this request is new enough
-			var disableCache bool
-			if requestBlockNumber < 0 || cacheDelay < 0 {
-				disableCache = true
-			} else {
-				latest, err := client.Latest(ctx)
-				if err != nil {
-					return nil, err
-				}
-				blockInterval := client.BlockInterval()
-				disableCache = blockInterval == 0 || latest.Number < uint64(requestBlockNumber)+uint64(cacheDelay/blockInterval)
+			args, err := jsonrpc.ParseParams(params)
+			if err != nil {
+				return nil, err
 			}
 			if strings.ToLower(method) == "eth_call" {
 				// auto retry for eth_call
@@ -51,15 +28,13 @@ func NewProxyMiddleware(
 				const timeoutInitial = time.Second * 5
 				const timeoutMultiplier = 1.5
 				_, logger := log.FromContext(ctx)
-				first := true
 				timeout := timeoutInitial
 				var result any
-				err := backoff.RetryNotify(
+				err = backoff.RetryNotify(
 					func() (err error) {
 						callCtx, cancel := context.WithTimeout(ctx, timeout)
 						defer cancel()
-						result, err = proxySvr.ProxyCall(callCtx, method, params, !first || disableCache, nil)
-						first = false
+						result, err = jsonrpc.ProxyJSONRPCRequest(callCtx, "proxy", method, args, client.ClientPool)
 						timeout = time.Duration(float64(timeout) * timeoutMultiplier)
 						var rpcErr rpc.Error
 						if errors.As(err, &rpcErr) {
@@ -74,16 +49,21 @@ func NewProxyMiddleware(
 				return result, err
 			}
 			// proxy the request
-			return proxySvr.ProxyCall(ctx, method, params, disableCache, nil)
+			return jsonrpc.ProxyJSONRPCRequest(ctx, "proxy", method, args, client.ClientPool)
 		}
 	}
 }
 
-func NewForcedProxyMiddleware(proxySvr *proxyv3.JSONRPCServiceV2, methods []string) jsonrpc.Middleware {
+func NewForcedProxyMiddleware(client *evm.ClientPool, methods []string) jsonrpc.Middleware {
+	methodSet := set.New[string](methods...)
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (interface{}, error) {
-			if utils.IndexOf(methods, method) >= 0 {
-				return proxySvr.ProxyCall(ctx, method, params, true, nil)
+			if methodSet.Contains(method) {
+				args, err := jsonrpc.ParseParams(params)
+				if err != nil {
+					return nil, err
+				}
+				return jsonrpc.ProxyJSONRPCRequest(ctx, "proxy", method, args, client.ClientPool)
 			}
 			return next(ctx, method, params)
 		}

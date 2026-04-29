@@ -8,7 +8,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/goccy/go-json"
+	"math/big"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -112,25 +116,85 @@ type ExtendedTransaction struct {
 	*ExtendedReceipt
 }
 
+// LenientHexUint64 is like hexutil.Uint64 but accepts hex strings with leading zeros,
+// which some chains (e.g. Tron) produce for nonce fields.
+type LenientHexUint64 uint64
+
+func (u *LenientHexUint64) UnmarshalJSON(input []byte) error {
+	var s string
+	if err := json.Unmarshal(input, &s); err != nil {
+		return err
+	}
+	s = strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X")
+	if s == "" {
+		return errors.New("hex string is empty")
+	}
+	v, err := strconv.ParseUint(s, 16, 64)
+	if err != nil {
+		return err
+	}
+	*u = LenientHexUint64(v)
+	return nil
+}
+
+func (u LenientHexUint64) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + hexutil.EncodeUint64(uint64(u)) + `"`), nil
+}
+
+func (u LenientHexUint64) String() string {
+	return hexutil.EncodeUint64(uint64(u))
+}
+
+// LenientHexBig is like hexutil.Big but accepts hex strings with leading zeros,
+// which some chains (e.g. Tron) produce for V, R, S signature fields.
+type LenientHexBig big.Int
+
+func (b *LenientHexBig) ToInt() *big.Int {
+	return (*big.Int)(b)
+}
+
+func (b *LenientHexBig) UnmarshalJSON(input []byte) error {
+	var s string
+	if err := json.Unmarshal(input, &s); err != nil {
+		return err
+	}
+	s = strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X")
+	if s == "" {
+		(*big.Int)(b).SetInt64(0)
+		return nil
+	}
+	if _, ok := (*big.Int)(b).SetString(s, 16); !ok {
+		return errors.New("invalid hex big integer")
+	}
+	return nil
+}
+
+func (b *LenientHexBig) MarshalJSON() ([]byte, error) {
+	if b == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(hexutil.EncodeBig((*big.Int)(b)))
+}
+
 type RPCTransaction struct {
-	Type                 hexutil.Uint64  `json:"type"`
-	Nonce                hexutil.Uint64  `json:"nonce"`
-	GasPrice             *hexutil.Big    `json:"gasPrice"`
-	MaxPriorityFeePerGas *hexutil.Big    `json:"maxPriorityFeePerGas"`
-	MaxFeePerGas         *hexutil.Big    `json:"maxFeePerGas"`
-	Gas                  hexutil.Uint64  `json:"gas"`
-	Value                *hexutil.Big    `json:"value"`
-	Input                hexutil.Bytes   `json:"input"`
-	V                    *hexutil.Big    `json:"v"`
-	R                    *hexutil.Big    `json:"r"`
-	S                    *hexutil.Big    `json:"s"`
-	To                   *common.Address `json:"to"`
-	ChainID              *hexutil.Big    `json:"chainId,omitempty"`
-	Hash                 common.Hash     `json:"hash"`
-	BlockNumber          string          `json:"blockNumber,omitempty"`
-	BlockHash            common.Hash     `json:"blockHash,omitempty"`
-	From                 common.Address  `json:"from,omitempty"`
-	TransactionIndex     hexutil.Uint64  `json:"transactionIndex"`
+	Type                 hexutil.Uint64   `json:"type"`
+	Nonce                LenientHexUint64 `json:"nonce"`
+	GasPrice             *hexutil.Big     `json:"gasPrice"`
+	MaxPriorityFeePerGas *hexutil.Big     `json:"maxPriorityFeePerGas"`
+	MaxFeePerGas         *hexutil.Big     `json:"maxFeePerGas"`
+	Gas                  hexutil.Uint64   `json:"gas"`
+	Value                *hexutil.Big     `json:"value"`
+	Input                hexutil.Bytes    `json:"input"`
+	V                    *LenientHexBig   `json:"v"`
+	R                    *LenientHexBig   `json:"r"`
+	S                    *LenientHexBig   `json:"s"`
+	To                   *common.Address  `json:"to"`
+	ChainID              *hexutil.Big     `json:"chainId,omitempty"`
+	Hash                 common.Hash      `json:"hash"`
+	BlockNumber          string           `json:"blockNumber,omitempty"`
+	BlockHash            common.Hash      `json:"blockHash,omitempty"`
+	From                 common.Address   `json:"from,omitempty"`
+	TransactionIndex     hexutil.Uint64   `json:"transactionIndex"`
 }
 
 type RPCBlock struct {
@@ -266,6 +330,25 @@ func (args *EthGetLogsArgs) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+func (args *EthGetLogsArgs) Checker() func(log types.Log) bool {
+	addrSet := set.New[common.Address](args.Addresses...)
+	var topicsSet []set.Set[common.Hash]
+	for _, items := range args.Topics {
+		topicsSet = append(topicsSet, set.New[common.Hash](items...))
+	}
+	return func(log types.Log) bool {
+		if !addrSet.Empty() && !addrSet.Contains(log.Address) {
+			return false
+		}
+		for i, s := range topicsSet {
+			if !s.Empty() && (len(log.Topics) < i || !s.Contains(log.Topics[i])) {
+				return false
+			}
+		}
+		return true
+	}
 }
 
 type TraceFilterArgs struct {

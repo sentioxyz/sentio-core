@@ -515,3 +515,54 @@ func TestRPCGetBlockResponse_UnmarshalJSON2(t *testing.T) {
 	assert.Equal(t, "0xda94dd6960b13498c7afc2ece8bcdcdf0afac1267cd08b57cd40a05be4a3a4a3", r.Transactions[1].Hash.String())
 	assert.Equal(t, "0x9692af282f298af1e0e9317417ec914fea194a487872c47e89eb37a73ae4e913", r.Transactions[2].Hash.String())
 }
+
+func TestUnmarshalTxNonce(t *testing.T) {
+	t.Run("case1", func(t *testing.T) {
+		raw := `{"nonce": "0x0000000000000000","s":"0x0ed24aac7c4dd48d3e4f13e5eafcaa7d662aa6702e28d6f2eac83fc27bcfd486"}`
+		var x RPCTransaction
+		assert.NoError(t, json.Unmarshal([]byte(raw), &x))
+		assert.Equal(t, uint64(0), uint64(x.Nonce))
+		b, err := json.Marshal(x.Nonce)
+		assert.NoError(t, err)
+		assert.Equal(t, `"0x0"`, string(b))
+		b, err = json.Marshal(x.S)
+		assert.NoError(t, err)
+		assert.Equal(t, `"0xed24aac7c4dd48d3e4f13e5eafcaa7d662aa6702e28d6f2eac83fc27bcfd486"`, string(b))
+	})
+	t.Run("case2", func(t *testing.T) {
+		raw := `{"nonce": "0x4a8d85","s":"0xed24aac7c4dd48d3e4f13e5eafcaa7d662aa6702e28d6f2eac83fc27bcfd486"}`
+		var x RPCTransaction
+		assert.NoError(t, json.Unmarshal([]byte(raw), &x))
+		assert.Equal(t, uint64(4885893), uint64(x.Nonce))
+		b, err := json.Marshal(x.Nonce)
+		assert.NoError(t, err)
+		assert.Equal(t, `"0x4a8d85"`, string(b))
+		b, err = json.Marshal(x.S)
+		assert.NoError(t, err)
+		assert.Equal(t, `"0xed24aac7c4dd48d3e4f13e5eafcaa7d662aa6702e28d6f2eac83fc27bcfd486"`, string(b))
+	})
+	t.Run("case3", func(t *testing.T) {
+		raw := `{"nonce": "0x0","s":"0x0"}`
+		var x RPCTransaction
+		assert.NoError(t, json.Unmarshal([]byte(raw), &x))
+		assert.Equal(t, uint64(0), uint64(x.Nonce))
+		b, err := json.Marshal(x.Nonce)
+		assert.NoError(t, err)
+		assert.Equal(t, `"0x0"`, string(b))
+		b, err = json.Marshal(x.S)
+		assert.NoError(t, err)
+		assert.Equal(t, `"0x0"`, string(b))
+	})
+	t.Run("case4", func(t *testing.T) {
+		raw := `{"nonce": "0x123","s":"0x123"}`
+		var x RPCTransaction
+		assert.NoError(t, json.Unmarshal([]byte(raw), &x))
+		assert.Equal(t, uint64(291), uint64(x.Nonce))
+		b, err := json.Marshal(x.Nonce)
+		assert.NoError(t, err)
+		assert.Equal(t, `"0x123"`, string(b))
+		b, err = json.Marshal(x.S)
+		assert.NoError(t, err)
+		assert.Equal(t, `"0x123"`, string(b))
+	})
+}

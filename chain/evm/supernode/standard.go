@@ -211,20 +211,12 @@ func (s *standardService) GetBlockReceipts(
 	)
 }
 
-func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs) ([]evm.LogWithCustomSerDe, error) {
-	filterAndConvert := func(raw []types.Log) (result []evm.LogWithCustomSerDe) {
-		for _, log := range raw {
-			if logFilter(&log, args) {
-				result = append(result, evm.LogWithCustomSerDe(log))
-			}
-		}
-		return result
-	}
+func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs) ([]types.Log, error) {
 	return QueryRangeWithCache(ctx, s, args.BlockHash, nil, args.FromBlock, args.ToBlock,
-		func(st *evm.Slot) ([]evm.LogWithCustomSerDe, error) {
-			return filterAndConvert(st.Logs), nil
+		func(st *evm.Slot) ([]types.Log, error) {
+			return utils.FilterArr(st.Logs, args.Checker()), nil
 		},
-		func(ctx context.Context, r rg.Range) ([]evm.LogWithCustomSerDe, error) {
+		func(ctx context.Context, r rg.Range) ([]types.Log, error) {
 			where := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
 			if len(args.Addresses) > 0 {
 				origin := utils.MapSliceNoError(args.Addresses, common.Address.Hex)
@@ -248,7 +240,7 @@ func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs)
 				return nil, err
 			}
 			// topics filtering condition is not strict enough, need post-filtering
-			return filterAndConvert(logs), nil
+			return utils.FilterArr(logs, args.Checker()), nil
 		},
 	)
 }

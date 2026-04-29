@@ -69,16 +69,16 @@ func (t *Transaction) GetReceiptStatus() bool {
 func (t *Transaction) ToRPCTransaction() (txn evm.RPCTransaction, r *evm.ExtendedReceipt) {
 	txn = evm.RPCTransaction{
 		Type:                 hexutil.Uint64(t.TransactionType),
-		Nonce:                hexutil.Uint64(t.Nonce),
+		Nonce:                evm.LenientHexUint64(t.Nonce),
 		GasPrice:             (*hexutil.Big)(t.GasPrice),
 		MaxPriorityFeePerGas: (*hexutil.Big)(t.MaxPriorityFeePerGas),
 		MaxFeePerGas:         (*hexutil.Big)(t.MaxFeePerGas),
 		Gas:                  hexutil.Uint64(utils.ZeroOrUInt64(t.Gas)),
 		Value:                (*hexutil.Big)(hexutil.MustDecodeBig(t.Value)),
 		Input:                hexutil.MustDecode(t.Input),
-		V:                    (*hexutil.Big)(new(big.Int).SetBytes(hexutil.MustDecode(t.V))),
-		R:                    (*hexutil.Big)(new(big.Int).SetBytes(hexutil.MustDecode(t.R))),
-		S:                    (*hexutil.Big)(new(big.Int).SetBytes(hexutil.MustDecode(t.S))),
+		V:                    (*evm.LenientHexBig)(new(big.Int).SetBytes(hexutil.MustDecode(t.V))),
+		R:                    (*evm.LenientHexBig)(new(big.Int).SetBytes(hexutil.MustDecode(t.R))),
+		S:                    (*evm.LenientHexBig)(new(big.Int).SetBytes(hexutil.MustDecode(t.S))),
 		To:                   utils.NullOrFromString(t.ToAddress, common.HexToAddress),
 		From:                 common.HexToAddress(t.FromAddress),
 		Hash:                 common.HexToHash(t.TransactionHash),
@@ -126,7 +126,7 @@ func (t *Transaction) FromRPCTransaction(blockIndex BlockIndex, tx evm.RPCTransa
 	t.Gas = big.NewInt(int64(tx.Gas))
 	t.Value = tx.Value.String()
 	t.Input = tx.Input.String()
-	bigToStr := func(n *hexutil.Big) string {
+	bigToStr := func(n *evm.LenientHexBig) string {
 		if n == nil {
 			return hexutil.Encode([]byte{})
 		}

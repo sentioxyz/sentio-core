@@ -2,12 +2,14 @@ package evm
 
 import (
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/goccy/go-json"
+	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"sentioxyz/sentio-core/common/utils"
@@ -53,7 +55,7 @@ type ExtendedHeaderJSON struct {
 	ParentHash            common.Hash      `json:"parentHash"`
 	UncleHash             common.Hash      `json:"sha3Uncles"`
 	Coinbase              common.Address   `json:"miner"`
-	Root                  common.Hash      `json:"stateRoot"`
+	Root                  string           `json:"stateRoot"`
 	TxHash                common.Hash      `json:"transactionsRoot"`
 	ReceiptHash           common.Hash      `json:"receiptsRoot"`
 	Bloom                 types.Bloom      `json:"logsBloom"`
@@ -92,7 +94,7 @@ func (h *ExtendedHeader) MakeJSON() *ExtendedHeaderJSON {
 	enc.ParentHash = h.ParentHash
 	enc.UncleHash = h.UncleHash
 	enc.Coinbase = h.Coinbase
-	enc.Root = h.Root
+	enc.Root = h.Root.String()
 	enc.TxHash = h.TxHash
 	enc.ReceiptHash = h.ReceiptHash
 	enc.Bloom = h.Bloom
@@ -136,7 +138,11 @@ func (h *ExtendedHeader) UnmarshalJSON(input []byte) error {
 	h.ParentHash = dec.ParentHash
 	h.UncleHash = dec.UncleHash
 	h.Coinbase = dec.Coinbase
-	h.Root = dec.Root
+	if !strings.HasPrefix(dec.Root, "0x") {
+		return errors.Errorf("invalid stateRoot %q", dec.Root)
+	} else {
+		h.Root = common.HexToHash(dec.Root)
+	}
 	h.TxHash = dec.TxHash
 	h.ReceiptHash = dec.ReceiptHash
 	h.Bloom = dec.Bloom

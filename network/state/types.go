@@ -46,5 +46,5 @@ type DatabaseInfo struct {
 	ProcessorId   string       `json:"processorId,omitempty" yaml:"processor_id,omitempty"`
 	PendingDelete bool         `json:"pendingDelete" yaml:"pending_delete"`
 	Operators     []string     `json:"operators" yaml:"operators"`
-	Tables        []TableInfo  `json:"tables" yaml:"tables"`
+	Tables        []TableInfo  `json:"tables,omitempty" yaml:"tables,omitempty"`
 }

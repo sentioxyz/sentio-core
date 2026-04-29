@@ -794,22 +794,7 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApi: 'https://scan.bevm.io',
     lightIcon: 'https://assets.sentio.xyz/chains/bevm.svg'
   },
-  [EthChainId.MERLIN_MAINNET]: {
-    name: 'Merlin Mainnet',
-    slug: 'merlin',
-    chainId: EthChainId.MERLIN_MAINNET,
-    nativeChainId: 4200,
-    variation: EthVariation.POLYGON_ZKEVM,
-    priceTokenAddress: '0xF6D226f9Dc15d9bB51182815b320D3fBE324e1bA', // WBTC
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0xF6D226f9Dc15d9bB51182815b320D3fBE324e1bA',
-    tokenSymbol: 'BTC',
-    tokenDecimals: 18,
-    explorerUrl: 'https://scan.merlinchain.io',
-    explorerApiType: ExplorerApiType.L2_SCAN,
-    explorerApi: 'https://scan.merlinchain.io/api',
-    lightIcon: 'https://assets.sentio.xyz/chains/merlin.png'
-  },
+
   [EthChainId.CHILIZ]: {
     name: 'Chiliz',
     slug: 'chiliz',

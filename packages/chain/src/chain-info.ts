@@ -37,7 +37,8 @@ export enum EthVariation {
   OPTIMISM = 2,
   ZKSYNC = 3,
   POLYGON_ZKEVM = 4,
-  SUBSTRATE
+  SUBSTRATE = 5,
+  TRON = 6
 }
 
 export type EthChainInfo = ChainInfo & {
@@ -1319,6 +1320,24 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     blockscoutUrl: 'https://testnet-explorer.sentio.xyz',
     lightIcon: 'https://assets.sentio.xyz/chains/sentio.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/sentio-dark.svg'
+  },
+  [EthChainId.TRON]: {
+    name: 'Tron Mainnet',
+    slug: 'tron',
+    additionalSlugs: ['tron-mainnet'],
+    chainId: EthChainId.TRON,
+    nativeChainId: 728126428,
+    variation: EthVariation.TRON,
+    priceTokenAddress: '0x0000000000000000000000000000000000000000',
+    tokenAddress: '0x0000000000000000000000000000000000000000',
+    wrappedTokenAddress: '0x891cdb91d149f23B1a45D9c5Ca78a88d0cB44C18', // WTRX
+    tokenSymbol: 'TRX',
+    tokenDecimals: 6,
+    explorerUrl: 'https://tronscan.org',
+    explorerApiType: ExplorerApiType.UNKNOWN,
+    explorerApi: 'https://apilist.tronscanapi.com/api',
+    lightIcon: 'https://assets.sentio.xyz/chains/tron.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/tron-dark.svg'
   },
   [EthChainId.CUSTOM]: {
     name: 'Custom',

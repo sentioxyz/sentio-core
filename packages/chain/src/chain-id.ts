@@ -90,6 +90,7 @@ export enum EthChainId {
   GOAT_MAINNET = '2345',
   ARC_TESTNET = '5042002',
   SENTIO_TESTNET = '7892101',
+  TRON = '728126428',
 
   CUSTOM = 'customized'
 }

@@ -3,7 +3,6 @@ package supernode
 import (
 	"context"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 	"sentioxyz/sentio-core/chain/evm"
 	"time"
 )
@@ -31,5 +30,5 @@ type Storage interface {
 		startBlock uint64,
 		endBlock uint64,
 		lessEqual bool,
-	) (*rpc.BlockNumber, error)
+	) (*uint64, error)
 }

@@ -3,12 +3,11 @@ package supernode
 import (
 	"context"
 	"encoding/json"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/jsonrpc"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type CustomFunctionProxy struct {

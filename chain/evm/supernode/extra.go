@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
 	"math"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/evm"
@@ -12,10 +15,6 @@ import (
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
 	"time"
-
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func NewExtraMiddleware(
@@ -55,7 +54,7 @@ func (s *ExtraService) EstimateBlockNumberAtDate(
 	startBlock rpc.BlockNumber,
 	endBlock rpc.BlockNumber,
 	mode string,
-) (*rpc.BlockNumber, error) {
+) (*hexutil.Uint64, error) {
 	sn, en := uint64(startBlock), uint64(endBlock)
 	if endBlock < 0 {
 		if endBlock != rpc.LatestBlockNumber {
@@ -150,7 +149,7 @@ func (s *ExtraService) EstimateBlockNumberAtDate(
 			return nil, err
 		},
 	)
-	return result, err
+	return (*hexutil.Uint64)(result), err
 }
 
 func NewProxyExtraMiddleware(client *evm.ClientPool) jsonrpc.Middleware {

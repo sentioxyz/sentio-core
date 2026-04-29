@@ -72,18 +72,6 @@ func initLogsGOB(size int) []byte {
 	return buf.Bytes()
 }
 
-func initCustomLogs(size int) []LogWithCustomSerDe {
-	var log LogWithCustomSerDe
-	if err := log.UnmarshalJSON([]byte(rawLogJSON)); err != nil {
-		panic(err)
-	}
-	var logs []LogWithCustomSerDe
-	for i := 0; i < size; i++ {
-		logs = append(logs, log)
-	}
-	return logs
-}
-
 func BenchmarkLogEncodeJSON(b *testing.B) {
 	logs := initLogs(logCount)
 	b.ResetTimer()
@@ -123,52 +111,6 @@ func BenchmarkLogDecodeJSONGoccy(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var decodedLogs []types.Log
-		err := json2.Unmarshal(j, &decodedLogs)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func BenchmarkCustomLogEncodeJSON(b *testing.B) {
-	logs := initCustomLogs(logCount)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := json.Marshal(logs)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func BenchmarkCustomLogDecodeJSON(b *testing.B) {
-	j := initLogsJSON(logCount)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var decodedLogs []LogWithCustomSerDe
-		err := json.Unmarshal(j, &decodedLogs)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func BenchmarkCustomLogEncodeJSONGoccy(b *testing.B) {
-	logs := initCustomLogs(logCount)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := json2.Marshal(logs)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func BenchmarkCustomLogDecodeJSONGoccy(b *testing.B) {
-	j := initLogsJSON(logCount)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		var decodedLogs []LogWithCustomSerDe
 		err := json2.Unmarshal(j, &decodedLogs)
 		if err != nil {
 			panic(err)
@@ -233,7 +175,6 @@ func TestTraceFilterArgsMarshalUnmarshalShouldEqual(t *testing.T) {
 		ToBlock:     &toBlock,
 		FromAddress: []common.Address{address1, address2},
 		ToAddress:   []string{address1.Hex()},
-		After:       nil,
 	}
 	j, err := json.Marshal(traceArgs)
 	assert.NoError(t, err)

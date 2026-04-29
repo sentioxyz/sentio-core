@@ -4,6 +4,7 @@ go_library(
     name = "evm",
     srcs = [
         "client.go",
+        "custom_types.go",
         "header_types.go",
         "node_utils.go",
         "receipt_types.go",
@@ -19,6 +20,7 @@ go_library(
         "//chain/clientpool/ex",
         "//common/https",
         "//common/log",
+        "//common/set",
         "//common/utils",
         "@com_github_cenkalti_backoff_v4//:backoff",
         "@com_github_ethereum_go_ethereum//common",

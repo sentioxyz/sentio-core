@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/jsonrpc"
@@ -52,11 +51,15 @@ func NewStandardMiddleware(
 				return jsonrpc.CallMethod(s.GetBlockByHash, ctx, params)
 			case "eth_getBlockReceipts":
 				return jsonrpc.CallMethod(s.GetBlockReceipts, ctx, params)
-			case "eth_getLogs":
-				return jsonrpc.CallMethod(s.GetLogs, ctx, params)
 			case "eth_getBlocksPacked":
 				return jsonrpc.CallMethod(s.GetBlocksPacked, ctx, params)
+			case "eth_getLogs":
+				return jsonrpc.CallMethod(s.GetLogs, ctx, params)
 			case "eth_getLogsPacked":
+				return jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
+			case "trace_filter":
+				return jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
+			case "trace_filterPacked":
 				return jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
 			default:
 				return next(ctx, method, params)
@@ -91,13 +94,14 @@ func (s *standardService) GetBlockHeaderByNumber(
 	ctx context.Context,
 	blockNumber rpc.BlockNumber,
 ) (*evm.ExtendedHeader, error) {
-	headers, err := QueryRangeWithCache(ctx, s, nil, &blockNumber, nil, nil,
+	headers, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil,
 		func(st *evm.Slot) ([]evm.ExtendedHeader, error) {
 			return []evm.ExtendedHeader{*st.Header}, nil
 		},
-		func(ctx context.Context, r rg.Range) ([]evm.ExtendedHeader, error) {
+		checkRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]evm.ExtendedHeader, error) {
 			return s.store.QueryBlocks(ctx, fmt.Sprintf("block_number = %d", r.Start))
-		},
+		}),
+		jsonrpc.CallNextMiddleware,
 	)
 	if err != nil {
 		return nil, err
@@ -113,11 +117,11 @@ func (s *standardService) GetBlockByNumber(
 	blockNumber rpc.BlockNumber,
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
-	responses, err := QueryRangeWithCache(ctx, s, nil, &blockNumber, nil, nil,
+	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
-		func(ctx context.Context, r rg.Range) ([]evm.RPCGetBlockResponse, error) {
+		checkRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]evm.RPCGetBlockResponse, error) {
 			headers, err := s.store.QueryBlocks(ctx, fmt.Sprintf("block_number = %d", r.Start))
 			if err != nil {
 				return nil, err
@@ -146,7 +150,8 @@ func (s *standardService) GetBlockByNumber(
 					}),
 				}}, nil
 			}
-		},
+		}),
+		jsonrpc.CallNextMiddleware,
 	)
 	if err != nil {
 		return nil, err
@@ -162,11 +167,12 @@ func (s *standardService) GetBlockByHash(
 	hash common.Hash,
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
-	responses, err := QueryRangeWithCache(ctx, s, &hash, nil, nil, nil,
+	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
 		nil,
+		jsonrpc.CallNextMiddleware,
 	)
 	if err != nil {
 		return nil, err
@@ -181,11 +187,11 @@ func (s *standardService) GetBlockReceipts(
 	ctx context.Context,
 	numOrHash rpc.BlockNumberOrHash,
 ) ([]evm.ExtendedReceipt, error) {
-	return QueryRangeWithCache(ctx, s, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil,
+	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil,
 		func(st *evm.Slot) ([]evm.ExtendedReceipt, error) {
 			return st.Receipts, nil
 		},
-		func(ctx context.Context, r rg.Range) ([]evm.ExtendedReceipt, error) {
+		checkRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]evm.ExtendedReceipt, error) {
 			where := fmt.Sprintf("block_number = %d", r.Start)
 			logs, queryLogErr := s.store.QueryLogs(ctx, where)
 			if queryLogErr != nil {
@@ -207,42 +213,43 @@ func (s *standardService) GetBlockReceipts(
 				}
 			}
 			return receipts, nil
-		},
+		}),
+		jsonrpc.CallNextMiddleware,
 	)
 }
 
-func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs) ([]types.Log, error) {
-	return QueryRangeWithCache(ctx, s, args.BlockHash, nil, args.FromBlock, args.ToBlock,
-		func(st *evm.Slot) ([]types.Log, error) {
-			return utils.FilterArr(st.Logs, args.Checker()), nil
-		},
-		func(ctx context.Context, r rg.Range) ([]types.Log, error) {
-			where := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
-			if len(args.Addresses) > 0 {
-				origin := utils.MapSliceNoError(args.Addresses, common.Address.Hex)
-				lower := utils.MapSliceNoError(origin, strings.ToLower)
-				addresses := set.SmartNew[string](origin, lower).DumpValues()
-				where += fmt.Sprintf(" AND address IN ('%s')", strings.Join(addresses, "','"))
-			}
-			for i, set := range args.Topics {
-				if len(set) == 0 {
-					continue
-				}
-				arg := make([]string, len(set))
-				for j, v := range set {
-					arg[j] = strings.ToLower(v.Hex())
-				}
-				// type of topics is Array(String), and Array indices are 1-based in clickhouse, so need to use i+1 here
-				where += fmt.Sprintf(" AND topics[%d] IN ('%s')", i+1, strings.Join(arg, "','"))
-			}
-			logs, err := s.store.QueryLogs(ctx, where)
-			if err != nil {
-				return nil, err
-			}
-			// topics filtering condition is not strict enough, need post-filtering
-			return utils.FilterArr(logs, args.Checker()), nil
-		},
-	)
+func (s *standardService) queryPackedBlockAppendPart(
+	ctx context.Context,
+	blockWhere string,
+	needTransaction bool,
+	needReceipt bool,
+	needReceiptLogs bool,
+) (headers []evm.ExtendedHeader, txs []evm.ExtendedTransaction, fullLogs []types.Log, err error) {
+	headers, err = s.store.QueryBlocks(ctx, blockWhere)
+	if err != nil {
+		return
+	}
+	if len(headers) == 0 {
+		return
+	}
+	if !needTransaction {
+		return
+	}
+	txs, err = s.store.QueryTxs(ctx, blockWhere)
+	if err != nil {
+		return
+	}
+	if !needReceipt {
+		for i := range txs {
+			txs[i].ExtendedReceipt = nil
+		}
+		return
+	}
+	if !needReceiptLogs {
+		return
+	}
+	fullLogs, err = s.store.QueryLogs(ctx, blockWhere)
+	return
 }
 
 func (s *standardService) GetBlocksPacked(
@@ -254,50 +261,84 @@ func (s *standardService) GetBlocksPacked(
 	needReceiptLogs bool,
 	needTraces bool,
 ) ([]*evm.PackedBlock, error) {
-	// TODO
-
-	slots, uncachedRange, err := getSlotsFromCache(ctx, s.slotCache, nil, &fromBlock, &toBlock)
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]*evm.PackedBlock, 0)
-	for _, st := range slots {
-		block := evm.PackedBlock{BlockHeader: st.Header}
-		if needTransaction {
-			block.RelevantTransactions = st.Block.Transactions
-		}
-		if needReceipt {
-			block.RelevantTransactionReceipts = st.Receipts
-		}
-		if needReceiptLogs {
-			for _, receipt := range block.RelevantTransactionReceipts {
-				for _, rl := range receipt.Logs {
-					block.Logs = append(block.Logs, *rl)
+	return queryWithCache(ctx, s.slotCache, nil, nil, &fromBlock, &toBlock,
+		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
+			block := evm.PackedBlock{BlockHeader: st.Header}
+			if needTransaction {
+				block.RelevantTransactions = st.Block.Transactions
+			}
+			if needReceipt {
+				block.RelevantTransactionReceipts = st.Receipts
+			}
+			if needReceiptLogs {
+				for _, receipt := range block.RelevantTransactionReceipts {
+					for _, rl := range receipt.Logs {
+						block.Logs = append(block.Logs, *rl)
+					}
 				}
 			}
-		}
-		if needTraces {
-			block.Traces = st.Traces
-		}
-		results = append(results, &block)
-	}
+			if needTraces {
+				block.Traces = st.Traces
+			}
+			return []*evm.PackedBlock{&block}, nil
+		},
+		checkRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]*evm.PackedBlock, error) {
+			where := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
+			headers, txs, fullLogs, err := s.queryPackedBlockAppendPart(
+				ctx, where, needTransaction, needReceipt, needReceiptLogs)
+			var traces []evm.ParityTrace
+			if needTraces {
+				traces, err = s.store.QueryTraces(ctx, where)
+				if err != nil {
+					return nil, err
+				}
+			}
+			return buildPackedBlocks(headers, txs, fullLogs, fullLogs, traces)
+		}),
+		ErrCacheMissing,
+	)
+}
 
-	if !uncachedRange.IsEmpty() {
-		nextResults, err := ResultsFromNext[*evm.PackedBlock](ctx, "eth_getBlocksPacked",
-			fromBlock,
-			toBlock,
-			needTransaction,
-			needReceipt,
-			needReceiptLogs,
-			needTraces,
-		)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, nextResults...)
+func (s *standardService) filterLogSQL(args *evm.EthGetLogsArgs) []string {
+	var wheres []string
+	if len(args.Addresses) > 0 {
+		origin := utils.MapSliceNoError(args.Addresses, common.Address.Hex)
+		lower := utils.MapSliceNoError(origin, strings.ToLower)
+		addresses := set.SmartNew[string](origin, lower).DumpValues()
+		wheres = append(wheres, fmt.Sprintf("address IN ('%s')", strings.Join(addresses, "','")))
 	}
-	return results, nil
+	for i, items := range args.Topics {
+		if len(items) == 0 {
+			continue
+		}
+		arg := make([]string, len(items))
+		for j, v := range items {
+			arg[j] = strings.ToLower(v.Hex())
+		}
+		// type of topics is Array(String), and Array indices are 1-based in clickhouse, so need to use i+1 here
+		wheres = append(wheres, fmt.Sprintf("topics[%d] IN ('%s')", i+1, strings.Join(arg, "','")))
+	}
+	return wheres
+}
+
+func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs) ([]types.Log, error) {
+	checker := args.Checker()
+	return queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
+		func(st *evm.Slot) ([]types.Log, error) {
+			return utils.FilterArr(st.Logs, checker), nil
+		},
+		checkRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]types.Log, error) {
+			blockWheres := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
+			where := strings.Join(append(s.filterLogSQL(args), blockWheres), " AND ")
+			logs, err := s.store.QueryLogs(ctx, where)
+			if err != nil {
+				return nil, err
+			}
+			// topics filtering condition is not strict enough, need post-filtering
+			return utils.FilterArr(logs, checker), nil
+		}),
+		jsonrpc.CallNextMiddleware,
+	)
 }
 
 func (s *standardService) GetLogsPacked(
@@ -307,163 +348,136 @@ func (s *standardService) GetLogsPacked(
 	needReceipt bool,
 	needReceiptLogs bool,
 ) ([]*evm.PackedBlock, error) {
-	slots, uncachedRange, err := getSlotsFromCache(ctx, s.slotCache, args.BlockHash, args.FromBlock, args.ToBlock)
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]*evm.PackedBlock, 0)
-	for _, st := range slots {
-		var logs []types.Log
-		for _, log := range st.Logs {
-			if logFilter(&log, args) {
-				logs = append(logs, log)
+	checker := args.Checker()
+	return queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
+		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
+			logs := utils.FilterArr(st.Logs, checker)
+			if len(logs) == 0 {
+				return nil, nil
 			}
-		}
-		if len(logs) == 0 {
-			continue
-		}
-		results = append(results, evm.MakePackedBlock(st, logs, nil, needTransaction, needReceipt, needReceiptLogs))
-	}
-
-	if !uncachedRange.IsEmpty() {
-		from := hexutil.Uint64(uncachedRange.Start)
-		to := hexutil.Uint64(*uncachedRange.End)
-		nextResults, err := ResultsFromNext[*evm.PackedBlock](ctx, "eth_getLogsPacked", &evm.EthGetLogsArgs{
-			Addresses: args.Addresses,
-			Topics:    args.Topics,
-			BlockHash: args.BlockHash,
-			FromBlock: &from,
-			ToBlock:   &to,
-		}, needTransaction, needReceipt, needReceiptLogs)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, nextResults...)
-	}
-	return results, nil
-}
-
-func (s *standardService) convertBlockNumber(
-	ctx context.Context,
-	sn rpc.BlockNumber,
-) (uint64, error) {
-	if sn >= 0 {
-		return uint64(sn), nil
-	}
-	switch sn {
-	case rpc.LatestBlockNumber:
-		r, err := s.slotCache.GetRange(ctx)
-		if err != nil {
-			return 0, err
-		}
-		return *r.End, nil
-	case rpc.EarliestBlockNumber:
-		return 0, nil
-	default:
-		return 0, errors.Errorf("unsupported block tag: %s", sn)
-	}
-}
-
-func QueryRangeWithCache[ELEM any](
-	ctx context.Context,
-	s *standardService,
-	hash *common.Hash,
-	blockNumber *rpc.BlockNumber,
-	fromBlock *hexutil.Uint64,
-	toBlock *hexutil.Uint64,
-	collectFromSlot func(st *evm.Slot) ([]ELEM, error),
-	collectFromStore func(ctx context.Context, r rg.Range) ([]ELEM, errror),
-) ([]ELEM, error) {
-	if hash != nil {
-		st, err := s.slotCache.GetByHash(ctx, hash.String())
-		if err != nil {
-			if errors.Is(err, chain.ErrSlotNotFound) {
-				return nil, jsonrpc.CallNextMiddleware
-			}
-			return nil, err
-		}
-		return collectFromSlot(st), nil
-	}
-
-	var sn, en uint64
-	if blockNumber != nil {
-		if blockNumber != rpc.LatestBlockNumber {
-			return nil, jsonrpc.CallNextMiddleware
-		}
-		r, err := s.slotCache.GetRange(ctx)
-		if err != nil {
-			return nil, err
-		}
-		sn, en = *r.End, *r.End
-	} else if fromBlock == nil || toBlock == nil {
-		r, err := s.slotCache.GetRange(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if fromBlock == nil {
-			sn = *r.End
-		} else {
-			sn = (uint64)(*fromBlock)
-		}
-		if toBlock == nil {
-			en = *r.End
-		} else {
-			en = (uint64)(*toBlock)
-		}
-	} else {
-		sn, en = (uint64)(*fromBlock), (uint64)(*toBlock)
-	}
-
-	return chain.QueryRangeWithCache[*evm.Slot, ELEM](
-		ctx,
-		rg.NewRange(sn, en),
-		s.slotCache,
-		collectFromSlot,
-		func(ctx context.Context, queryRange rg.Range) (results []ELEM, err error) {
-			r, getErr := s.rangeStore.Get(ctx)
-			if getErr != nil {
-				return nil, getErr
-			}
-			if !r.Include(queryRange) {
-				return nil, errors.Errorf("request range %s not in scope of range store %s", queryRange, r)
-			}
-			return collectFromStore(ctx, queryRange)
+			blk := evm.MakePackedBlock(st, logs, nil, needTransaction, needReceipt, needReceiptLogs)
+			return []*evm.PackedBlock{blk}, nil
 		},
+		checkRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]*evm.PackedBlock, error) {
+			blockWheres := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
+			where := strings.Join(append(s.filterLogSQL(args), blockWheres), " AND ")
+			logs, err := s.store.QueryLogs(ctx, where)
+			if err != nil {
+				return nil, err
+			}
+			logs = utils.FilterArr(logs, checker) // topics filtering condition is not strict enough, need post-filtering
+			if len(logs) == 0 {
+				return nil, nil
+			}
+
+			blockNumbers := set.New[uint64]()
+			for _, log := range logs {
+				blockNumbers.Add(log.BlockNumber)
+			}
+			if blockNumbers.Size() > 1000 {
+				blockWheres = fmt.Sprintf("%s AND block_number IN (%s)", blockWheres, s.store.QueryLogsBlockSQL(where))
+			} else {
+				blockWheres = fmt.Sprintf("%s AND block_number IN (%s)",
+					blockWheres, strings.Join(utils.MapSliceNoError(blockNumbers.DumpValues(), utils.UIntFormatter(10)), ","))
+			}
+
+			headers, txs, fullLogs, err := s.queryPackedBlockAppendPart(
+				ctx, where, needTransaction, needReceipt, needReceiptLogs)
+			// because topics filtering condition is not strict enough, so headers got maybe more than needed, need post-filtering
+			headers = utils.FilterArr(headers, func(header evm.ExtendedHeader) bool {
+				return blockNumbers.Contains(header.Number.Uint64())
+			})
+			return buildPackedBlocks(headers, txs, logs, fullLogs, nil)
+		}),
+		ErrCacheMissing,
 	)
 }
 
-func (s *standardService) getSlotFromCache(
+func (s *standardService) filterTraceSQL(args *evm.TraceFilterArgs) []string {
+	var wheres []string
+	if len(args.FromAddress) > 0 {
+		addresses := utils.MapSliceNoError(args.FromAddress, func(addr common.Address) string {
+			return strings.ToLower(addr.Hex())
+		})
+		wheres = append(wheres, fmt.Sprintf("lower(from_address) in ('%s')", strings.Join(addresses, "','")))
+	}
+	if len(args.ToAddress) > 0 {
+		addresses := utils.MapSliceNoError(args.ToAddress, func(addr string) string {
+			return strings.ToLower(addr)
+		})
+		wheres = append(wheres, fmt.Sprintf("lower(to_address) in ('%s')", strings.Join(addresses, "','")))
+	}
+	return wheres
+}
+
+func (s *standardService) TraceFilter(ctx context.Context, args *evm.TraceFilterArgs) ([]evm.ParityTrace, error) {
+	checker := args.Checker()
+	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
+		func(st *evm.Slot) ([]evm.ParityTrace, error) {
+			return utils.FilterArr(st.Traces, checker), nil
+		},
+		checkRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]evm.ParityTrace, error) {
+			blockWheres := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
+			where := strings.Join(append(s.filterTraceSQL(args), blockWheres), " AND ")
+			traces, err := s.store.QueryTraces(ctx, where)
+			if err != nil {
+				return nil, err
+			}
+			return utils.FilterArr(traces, checker), nil
+		}),
+		jsonrpc.CallNextMiddleware,
+	)
+}
+
+func (s *standardService) TraceFilterPacked(
 	ctx context.Context,
-	slotCache chain.LatestSlotCache[*evm.Slot],
-	sn evmrpc.BlockNumber,
-) (*evm.Slot, error) {
-	cacheRange, err := slotCache.GetRange(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var bn uint64
-	if sn < 0 {
-		if sn != evmrpc.LatestBlockNumber {
-			return nil, fmt.Errorf("%w: unsupported block number tag %s", jsonrpc.CallNextMiddleware, sn.String())
-		}
-		bn = *cacheRange.End
-	} else {
-		bn = uint64(sn)
-	}
-	if bn > *cacheRange.End {
-		return nil, ErrBlockNumberTooBig
-	}
-	if !cacheRange.Contains(bn) {
-		return nil, ErrCacheMissing
-	}
-	var st *evm.Slot
-	st, err = slotCache.GetByNumber(ctx, bn)
-	if errors.Is(err, chain.ErrSlotNotFound) {
-		return nil, ErrCacheMissing
-	}
-	if err != nil {
-		return nil, err
-	}
-	return st, nil
+	args *evm.TraceFilterArgs,
+	needTransaction bool,
+	needReceipt bool,
+	needReceiptLogs bool,
+) ([]*evm.PackedBlock, error) {
+	checker := args.Checker()
+	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
+		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
+			traces := utils.FilterArr(st.Traces, checker)
+			if len(traces) == 0 {
+				return nil, nil
+			}
+			blk := evm.MakePackedBlock(st, nil, traces, needTransaction, needReceipt, needReceiptLogs)
+			return []*evm.PackedBlock{blk}, nil
+		},
+		checkRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]*evm.PackedBlock, error) {
+			blockWheres := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
+
+			where := strings.Join(append(s.filterTraceSQL(args), blockWheres), " AND ")
+			traces, err := s.store.QueryTraces(ctx, where)
+			if err != nil {
+				return nil, err
+			}
+			traces = utils.FilterArr(traces, checker)
+			if len(traces) == 0 {
+				return nil, nil
+			}
+
+			blockNumbers := set.New[uint64]()
+			for _, trace := range traces {
+				blockNumbers.Add(trace.BlockNumber)
+			}
+			if blockNumbers.Size() > 1000 {
+				blockWheres = fmt.Sprintf("%s AND block_number IN (%s)", blockWheres, s.store.QueryLogsBlockSQL(where))
+			} else {
+				blockWheres = fmt.Sprintf("%s AND block_number IN (%s)",
+					blockWheres, strings.Join(utils.MapSliceNoError(blockNumbers.DumpValues(), utils.UIntFormatter(10)), ","))
+			}
+
+			headers, txs, fullLogs, err := s.queryPackedBlockAppendPart(
+				ctx, where, needTransaction, needReceipt, needReceiptLogs)
+			// because topics filtering condition is not strict enough, so headers got maybe more than needed, need post-filtering
+			headers = utils.FilterArr(headers, func(header evm.ExtendedHeader) bool {
+				return blockNumbers.Contains(header.Number.Uint64())
+			})
+			return buildPackedBlocks(headers, txs, nil, fullLogs, traces)
+		}),
+		ErrCacheMissing,
+	)
 }

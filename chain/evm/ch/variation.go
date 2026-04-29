@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 	"math"
 	"reflect"
@@ -47,7 +46,7 @@ type EthVariationCtrl interface {
 		startBlock uint64,
 		endBlock uint64,
 		lessEqual bool,
-	) (*rpc.BlockNumber, error)
+	) (*uint64, error)
 
 	Snapshot() any
 }
@@ -491,7 +490,7 @@ func (c *EthVariationController[BLOCK, TXN]) QueryEstimateBlockNumberAtDate(
 	startBlock uint64,
 	endBlock uint64,
 	lessEqual bool,
-) (*rpc.BlockNumber, error) {
+) (*uint64, error) {
 	var sql string
 	if lessEqual {
 		sql = fmt.Sprintf("SELECT block_number FROM %s "+
@@ -515,5 +514,5 @@ func (c *EthVariationController[BLOCK, TXN]) QueryEstimateBlockNumberAtDate(
 	if blockNumber == math.MaxUint64 {
 		return nil, nil
 	}
-	return utils.WrapPointer(rpc.BlockNumber(blockNumber)), nil
+	return &blockNumber, nil
 }

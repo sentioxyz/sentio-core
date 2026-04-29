@@ -101,9 +101,10 @@ func (s *subscribeService) Subscribe(ctx context.Context, subType string, filter
 			return []any{slot.Header}
 		}
 	case "logs":
+		logChecker := filter.Checker()
 		resultBuilder = func(slot *evm.Slot) (result []any) {
 			for _, slotLog := range slot.Logs {
-				if logFilter(&slotLog, &filter) {
+				if logChecker(slotLog) {
 					result = append(result, slotLog)
 				}
 			}

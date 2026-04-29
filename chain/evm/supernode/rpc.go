@@ -9,10 +9,7 @@ import (
 	"strconv"
 )
 
-var (
-	ErrCacheMissing      = errors.New("cache missing")
-	ErrBlockNumberTooBig = errors.New("block number too big")
-)
+var ErrCacheMissing = errors.New("cache missing")
 
 func NewSimpleProxyService(
 	client *evm.ClientPool,
@@ -30,11 +27,9 @@ func NewSimpleProxyService(
 }
 
 func NewRPCServiceV2(
-	network string,
 	chainID string,
-	networkOptions *evm.NetworkOptions,
 	slotCache chain.LatestSlotCache[*evm.Slot],
-	store evm.Storage,
+	store Storage,
 	rangeStore chain.RangeStore,
 	client *evm.ClientPool,
 	forcedProxyMethods []string,
@@ -50,11 +45,7 @@ func NewRPCServiceV2(
 		NewCustomFunctionProxyMiddleware(client),
 		NewExtraMiddleware(slotCache, rangeStore, store),
 		NewSubscribeMiddleware(slotCache),
-		NewEthSlotCacheMiddleware(chainIDNum, slotCache, rangeStore, client),
-		//NewTraceSlotCacheMiddleware(slotCache, networkOptions),
-		//NewRangeCheckMiddleware(rangeStore),
-		//NewEthClickHouseMiddleware(base),
-		//NewTraceClickHouseMiddleware(base),
+		NewStandardMiddleware(chainIDNum, slotCache, rangeStore, store),
 		NewProxyMiddleware(client),
 	}
 }

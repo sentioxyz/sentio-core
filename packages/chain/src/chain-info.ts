@@ -100,25 +100,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     lightIcon: 'https://assets.sentio.xyz/chains/eth.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/eth-dark.svg'
   },
-  [EthChainId.HOLESKY]: {
-    name: 'Holesky',
-    slug: 'holesky',
-    chainId: EthChainId.HOLESKY,
-    nativeChainId: 17000,
-    mainnetChainId: EthChainId.ETHEREUM,
-    variation: EthVariation.DEFAULT,
-    priceTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x94373a4919B3240D86eA41593D5eBa789FEF3848',
-    tokenSymbol: 'ETH',
-    tokenDecimals: 18,
-    explorerApiType: ExplorerApiType.ETHERSCAN_V2,
-    explorerUrl: 'https://holesky.etherscan.io',
-    explorerApi: 'https://api.etherscan.io/v2',
-    blockscoutUrl: 'https://eth-holesky.blockscout.com',
-    lightIcon: 'https://assets.sentio.xyz/chains/eth.svg',
-    darkIcon: 'https://assets.sentio.xyz/chains/eth-dark.svg'
-  },
   [EthChainId.HOODI]: {
     name: 'Hoodi',
     slug: 'hoodi',

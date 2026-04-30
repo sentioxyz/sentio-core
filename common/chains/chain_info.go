@@ -3,7 +3,7 @@ package chains
 
 import "github.com/ethereum/go-ethereum/common"
 
-var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &CronosZkevmInfo, &ZksyncEraInfo, &CronosTestnetInfo, &AstarInfo, &DeriveInfo, &StableTestnetInfo, &StableMainnetInfo, &HyperEvmInfo, &PolygonZkevmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &MoonbeamInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &SwellTestnetInfo, &SwellMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MegaethInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &MevCommitInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &MonadMainnetInfo, &HoleskyInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitGarfieldTestnetInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &BlastInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &ZklinkNovaInfo, &SepoliaInfo, &EtherlinkInfo, &CornMaizenetInfo, &AuroraInfo, &BlastSepoliaInfo, &AbstractInfo, &GoatMainnetInfo, &ArcTestnetInfo, &SentioTestnetInfo, &TronInfo, &CustomInfo}
+var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &CronosZkevmInfo, &ZksyncEraInfo, &CronosTestnetInfo, &AstarInfo, &DeriveInfo, &StableTestnetInfo, &StableMainnetInfo, &HyperEvmInfo, &PolygonZkevmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &MoonbeamInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &SwellTestnetInfo, &SwellMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MegaethInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &MevCommitInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &MonadMainnetInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitGarfieldTestnetInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &BlastInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &ZklinkNovaInfo, &SepoliaInfo, &EtherlinkInfo, &CornMaizenetInfo, &AuroraInfo, &BlastSepoliaInfo, &AbstractInfo, &GoatMainnetInfo, &ArcTestnetInfo, &SentioTestnetInfo, &TronInfo, &CustomInfo}
 
 var Chains = []*ChainInfo{}
 
@@ -898,25 +898,6 @@ var MonadMainnetInfo = EthChainInfo{
   WrappedTokenAddress: common.HexToAddress("0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701"),
   ExplorerAPI: "",
   ExplorerAPIType: ExplorerAPITypeUnknown,
-}
-
-var HoleskyInfo = EthChainInfo{
-  ChainInfo: ChainInfo{
-    Name: "Holesky",
-    Slug: "holesky",
-    AdditionalSlugs: []string{},
-    MainnetChainID: ChainID(EthereumID),
-    ChainID: ChainID(HoleskyID),
-    ExplorerURL: "https://holesky.etherscan.io",
-  },
-  Variation: EthVariationDefault,
-  TokenSymbol: "ETH",
-  TokenDecimals: 18,
-  TokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
-  PriceTokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
-  WrappedTokenAddress: common.HexToAddress("0x94373a4919B3240D86eA41593D5eBa789FEF3848"),
-  ExplorerAPI: "https://api.etherscan.io/v2",
-  ExplorerAPIType: ExplorerAPITypeEtherscanV2,
 }
 
 var HoodiInfo = EthChainInfo{

@@ -16,6 +16,10 @@ func SubscribeUsingGetLatest(
 	getLatest func(ctx2 context.Context) (Block, error),
 ) {
 	_, logger := log.FromContext(ctx)
+	logger.Infof("subscribe using get latest started")
+	defer func() {
+		logger.Infof("subscribe using get latest finished")
+	}()
 	wait := interval
 	var q queue.Queue[Block]
 	var blockInterval time.Duration

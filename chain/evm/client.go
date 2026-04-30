@@ -2,14 +2,18 @@ package evm
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"math"
 	"net/http"
 	"reflect"
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/chain/clientpool/ex"
+	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
@@ -204,7 +208,100 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 	return latest, nil
 }
 
+func (c *Client) _subscribe(ctx context.Context, ch chan<- clientpool.Block) error {
+	_, logger := log.FromContext(ctx, "wssEndpoint", c.config.WSSEndpoint)
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+
+	conn, _, err := dialer.DialContext(ctx, c.config.WSSEndpoint, http.Header{})
+	if err != nil {
+		logger.Errore(err, "dial websocket for subscribe failed")
+		return errors.Wrapf(err, "dial websocket for subscribe failed")
+	}
+	logger.Info("connected websocket for subscribe")
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		<-gctx.Done()
+		_ = conn.Close()
+		return gctx.Err()
+	})
+	g.Go(func() error {
+		const subscribeRequest = `{"jsonrpc":"2.0","id":1,"method":"eth_subscribe","params":["newHeads"]}`
+		err = conn.WriteMessage(websocket.TextMessage, []byte(subscribeRequest))
+		if err != nil {
+			logger.Errore(err, "send subscribe request failed")
+			return errors.Wrapf(err, "send subscribe request failed")
+		}
+
+		type subscribeResponse struct {
+			Version string `json:"jsonrpc"`
+			Method  string `json:"method"`
+			Params  struct {
+				Subscription string          `json:"subscription"`
+				Result       *ExtendedHeader `json:"result"`
+			} `json:"params"`
+		}
+
+		for {
+			_, raw, readErr := conn.ReadMessage()
+			if readErr != nil {
+				logger.Warnfe(readErr, "recv subscribe failed")
+				return errors.Wrapf(readErr, "recv subscribe failed")
+			}
+			roundLogger := logger.With("raw", string(raw))
+
+			var resp subscribeResponse
+			if unmarshalErr := json.Unmarshal(raw, &resp); unmarshalErr != nil {
+				roundLogger.Warnfe(unmarshalErr, "unmarshal subscribe response failed")
+				return errors.Wrapf(unmarshalErr, "unmarshal subscribe response (%s) failed", string(raw))
+			}
+
+			if resp.Method != "eth_subscription" || resp.Params.Result == nil || resp.Params.Result.Number == nil {
+				roundLogger.Warnw("invalid subscribe result")
+				continue
+			}
+
+			if r := c._strictDataIntegrityCheck(gctx); r.Err != nil {
+				roundLogger.Warnfe(r.Err, "strict data integrity check failed")
+				continue
+			}
+
+			block := clientpool.Block{
+				Number:    resp.Params.Result.Number.Uint64(),
+				Hash:      resp.Params.Result.Hash.String(),
+				Timestamp: resp.Params.Result.GetBlockTime(),
+			}
+			roundLogger.Debugf("subscribe got block %s", block)
+			select {
+			case <-gctx.Done():
+				return gctx.Err()
+			case ch <- block:
+			}
+		}
+	})
+	err = g.Wait()
+	logger.Infofe(err, "subscribe using websocket finished")
+	return err
+}
+
 func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- clientpool.Block) {
+	// use websocket if wss endpoint exists
+	if c.config.WSSEndpoint != "" {
+		for {
+			_ = c._subscribe(ctx, ch)
+			select {
+			case <-time.After(time.Second * 10): // retry after 10s
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+
+	// use eth_getBlockByNumber(latest, false)
 	var cancel context.CancelFunc
 	if c.config.MaxBlockNumber > 0 {
 		ctx, cancel = context.WithCancel(ctx)
@@ -230,6 +327,22 @@ func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- cl
 			return latest, r.Err
 		},
 	)
+}
+
+func (c *Client) _strictDataIntegrityCheck(ctx context.Context) clientpool.Result {
+	if !c.config.StrictDataIntegrityCheck {
+		return clientpool.Result{}
+	}
+	var raw json.RawMessage
+	r := c._callContext(ctx, &raw, 0, "eth_syncing")
+	if r.Err != nil {
+		r.Err = errors.Wrapf(r.Err, "calling eth_syncing failed")
+		return r
+	}
+	if string(raw) != "false" {
+		return clientpool.Result{Err: errors.Errorf("node is syncing: %s", string(raw))}
+	}
+	return clientpool.Result{}
 }
 
 func (c *Client) _callContext(
@@ -274,6 +387,9 @@ func (c *Client) _getLatest(ctx context.Context) (clientpool.Block, clientpool.R
 		r.Err = errors.Errorf("got nil when get latest block")
 		return clientpool.Block{}, r
 	}
+	if r = c._strictDataIntegrityCheck(ctx); r.Err != nil {
+		return clientpool.Block{}, r
+	}
 	return clientpool.Block{
 		Number:    block.Number.Uint64(),
 		Hash:      block.Hash.String(),
@@ -294,7 +410,12 @@ func (c *Client) _getBlock(ctx context.Context, bn uint64, withTxs bool) (RPCGet
 	return *block, r
 }
 
-func (c *Client) GetBlock(ctx context.Context, src string, bn uint64, withTxs bool) (RPCGetBlockResponse, clientpool.Result) {
+func (c *Client) GetBlock(
+	ctx context.Context,
+	src string,
+	bn uint64,
+	withTxs bool,
+) (RPCGetBlockResponse, clientpool.Result) {
 	var block RPCGetBlockResponse
 	method := src + ".eth_getBlockByNumber/" + utils.Select(withTxs, "withTxs", "withoutTxs")
 	r := c.Use(ctx, method, func(ctx context.Context) (r clientpool.Result) {

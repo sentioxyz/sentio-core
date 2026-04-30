@@ -21,15 +21,13 @@ func ProxyHTTP[CONFIG clientpool.EntryConfig[CONFIG], CLIENT clientpool.Client](
 	ctxData := GetCtxData(ctx)
 	var resp *http.Response
 	var respBody []byte
-	var clientName string
 	src := utils.Select(svr == "", "proxy", svr+"#proxy")
-	err := clientPool.UseClient(ctx, src+"."+method, func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
-		clientName = cli.GetName()
+	r := clientPool.UseClient(ctx, src+"."+method, func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
 		resp, respBody, r = fn(ctx, src, cli)
 		return r
 	})
-	if errors.Is(err, clientpool.ErrNoValidClient) {
-		http.Error(ctxData.RespWriter, err.Error(), http.StatusInternalServerError)
+	if errors.Is(r.Err, clientpool.ErrNoValidClient) {
+		http.Error(ctxData.RespWriter, r.Err.Error(), http.StatusInternalServerError)
 		return
 	}
 	for k, vs := range resp.Header {
@@ -37,7 +35,7 @@ func ProxyHTTP[CONFIG clientpool.EntryConfig[CONFIG], CLIENT clientpool.Client](
 			ctxData.RespWriter.Header().Add(k, v)
 		}
 	}
-	ctxData.RespWriter.Header().Add(UpstreamHeaderKey, clientName)
+	ctxData.RespWriter.Header().Add(UpstreamHeaderKey, r.ClientName)
 	ctxData.RespWriter.WriteHeader(resp.StatusCode)
 	_, _ = ctxData.RespWriter.Write(respBody)
 }
@@ -117,18 +115,16 @@ func ProxyJSONRPCRequest[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCCl
 ) (json.RawMessage, error) {
 	ctxData := GetCtxData(ctx)
 	var data json.RawMessage
-	var clientName string
 	src := utils.Select(svr == "", "proxy", svr+".proxy")
-	err := clientPool.UseClient(ctx, src+"."+method, func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
-		clientName = cli.GetName()
+	r := clientPool.UseClient(ctx, src+"."+method, func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
 		return cli.CallContext(ctx, &data, src, method, args...)
 	})
-	if errors.Is(err, clientpool.ErrNoValidClient) {
+	if errors.Is(r.Err, clientpool.ErrNoValidClient) {
 		return nil, errors.Errorf("the method %s does not exist/is not available", method)
 	}
 	ctxData.RespHeaders = http.Header{}
-	ctxData.RespHeaders.Set(UpstreamHeaderKey, clientName)
-	return data, err
+	ctxData.RespHeaders.Set(UpstreamHeaderKey, r.ClientName)
+	return data, r.Err
 }
 
 func NewJSONRPCProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCClient](

@@ -3,6 +3,7 @@ package fuel
 import (
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	fuelGo "github.com/sentioxyz/fuel-go"
 	"github.com/sentioxyz/fuel-go/types"
 	"sentioxyz/sentio-core/chain/chain"
@@ -42,16 +43,17 @@ func NewExtServerDimension(
 
 func (d *ExtServerDimension) GetSlotHeader(ctx context.Context, sn uint64) (chain.Slot, error) {
 	var block *types.Block
-	err := d.client.UseClient(
+	r := d.client.UseClient(
 		ctx,
 		fmt.Sprintf("ext.GetSlotHeader/%d", sn),
 		func(ctx context.Context, cli *Client) (r clientpool.Result) {
 			block, r = cli.GetBlock(ctx, "ext", sn, fuelGo.GetBlockOption{})
+			r.BrokenForTask = r.Err != nil // always retry using other client
 			return r
 		},
 	)
-	if err != nil {
-		return nil, err
+	if r.Err != nil {
+		return nil, errors.Wrapf(r.Err, "get header for block %d (%s) failed", sn, r.ConfigName)
 	}
 	return NewSlot(block), nil
 }
@@ -68,16 +70,17 @@ func (d *ExtServerDimension) GetSlots(ctx context.Context, sr rg.Range) ([]*Slot
 		blockNumbers = append(blockNumbers, sn)
 	}
 	var blocks []*types.Block
-	err := d.client.UseClient(
+	r := d.client.UseClient(
 		ctx,
 		fmt.Sprintf("ext.GetSlots/%s", sr),
 		func(ctx context.Context, cli *Client) (r clientpool.Result) {
 			blocks, r = cli.GetBlocks(ctx, "ext", blockNumbers, opt)
+			r.BrokenForTask = r.Err != nil // always retry using other client
 			return r
 		},
 	)
-	if err != nil {
-		return nil, err
+	if r.Err != nil {
+		return nil, errors.Wrapf(r.Err, "get blocks %s (%s) failed", sr, r.ConfigName)
 	}
 	return utils.MapSliceNoError(blocks, NewSlot), nil
 }

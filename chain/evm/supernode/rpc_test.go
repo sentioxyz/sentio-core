@@ -23,51 +23,6 @@ import (
 	rg "sentioxyz/sentio-core/common/range"
 )
 
-// evmSlotGetter implements chain.SlotGetter[*evm.Slot] via the evm client pool.
-type evmSlotGetter struct {
-	cli *evm.ClientPool
-}
-
-func (g *evmSlotGetter) GetSlotHeader(ctx context.Context, sn uint64) (chain.Slot, error) {
-	var block evm.RPCGetBlockResponse
-	err := g.cli.UseClient(ctx, "test.getSlotHeader", func(ctx context.Context, c *evm.Client) (r clientpool.Result) {
-		block, r = c.GetBlock(ctx, "test", sn, false)
-		return r
-	})
-	if err != nil {
-		return nil, err
-	}
-	if block.ExtendedHeader == nil {
-		return nil, fmt.Errorf("block %d not found", sn)
-	}
-	return &evm.Slot{Header: block.ExtendedHeader}, nil
-}
-
-func (g *evmSlotGetter) GetSlots(ctx context.Context, sr rg.Range) ([]*evm.Slot, error) {
-	slots := make([]*evm.Slot, 0, *sr.Size())
-	for sn := sr.Start; sn <= *sr.End; sn++ {
-		var block evm.RPCGetBlockResponse
-		err := g.cli.UseClient(ctx, "test.getSlots", func(ctx context.Context, c *evm.Client) (r clientpool.Result) {
-			block, r = c.GetBlock(ctx, "test", sn, true)
-			return r
-		})
-		if err != nil {
-			return nil, err
-		}
-		if block.ExtendedHeader == nil {
-			return nil, fmt.Errorf("block %d not found", sn)
-		}
-		slots = append(slots, &evm.Slot{
-			Header: block.ExtendedHeader,
-			Block: &evm.RPCBlock{
-				Hash:         block.ExtendedHeader.Hash,
-				Transactions: block.Transactions,
-			},
-		})
-	}
-	return slots, nil
-}
-
 type rpcRequest struct {
 	JSONRPC string `json:"jsonrpc"`
 	Method  string `json:"method"`
@@ -134,22 +89,12 @@ func Test_rpc(t *testing.T) {
 		return nil
 	})
 
-	ext := chain.NewExtServerDimension[*evm.Slot](
-		cli,
-		1, // loadConcurrency
-		1, // loadBatchSize
-		3, // loadRetry
-		rg.Range{},
-		0,
-		&evmSlotGetter{cli: cli},
-	)
-
 	sc := chain.NewStdLatestSlotCache[*evm.Slot](
 		"ext",
 		"eth_mainnet",
 		time.Second*12, // ~12s ETH block time
 		cli,
-		ext,
+		evm.NewExtServerDimension(cli, 1, 3, rg.Range{}, "1", evm.NetworkOptions{DisableTrace: true}, 0),
 		nil,
 		0,
 		nil,
@@ -183,17 +128,24 @@ func Test_rpc(t *testing.T) {
 		assert.Greater(t, resp.LatestBlockNumber, uint64(0))
 	})
 
-	t.Run("eth_chainId", func(t *testing.T) {
+	t.Run("proxy.eth_chainId", func(t *testing.T) {
 		chainID, err := callRPC[string](addr, "eth_chainId", nil)
 		assert.NoError(t, err)
 		assert.Equal(t, "0x1", chainID)
 	})
 
-	t.Run("proxy.eth_getBlockByNumber", func(t *testing.T) {
+	t.Run("eth_getBlockByNumber", func(t *testing.T) {
 		result, err := callRPC[map[string]any](addr, "eth_getBlockByNumber", []any{"latest", false})
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.NotEmpty(t, result["number"])
+	})
+
+	t.Run("proxy.eth_getBlockByNumber", func(t *testing.T) {
+		result, err := callRPC[map[string]any](addr, "eth_getBlockByNumber", []any{"0x1", false})
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, "0x1", result["number"])
 	})
 
 	b, _ := json.MarshalIndent(cli.Snapshot(), "", "\t")

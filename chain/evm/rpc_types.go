@@ -198,7 +198,6 @@ type RPCTransaction struct {
 }
 
 type RPCBlock struct {
-	Hash         common.Hash        `json:"hash"`
 	Transactions []RPCTransaction   `json:"transactions"`
 	Uncles       []common.Hash      `json:"uncles"`
 	Withdrawals  []types.Withdrawal `json:"withdrawals"`

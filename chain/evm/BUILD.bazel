@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "client.go",
         "custom_types.go",
+        "extserver.go",
         "header_types.go",
         "node_utils.go",
         "receipt_types.go",
@@ -18,8 +19,10 @@ go_library(
         "//chain/chain",
         "//chain/clientpool",
         "//chain/clientpool/ex",
+        "//common/chains",
         "//common/https",
         "//common/log",
+        "//common/range",
         "//common/set",
         "//common/utils",
         "@com_github_cenkalti_backoff_v4//:backoff",

@@ -360,6 +360,12 @@ type Result struct {
 	AddTags       []string
 }
 
+type Report struct {
+	Err        error
+	ConfigName string
+	ClientName string
+}
+
 func (p *ClientPool[CONFIG, CLIENT]) consumerCome(theme string) uint64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -390,7 +396,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	theme string,
 	fn func(ctx context.Context, cli CLIENT) Result,
 	opts ...Option[CONFIG],
-) error {
+) Report {
 	cid := p.consumerCome(theme)
 	curCtx, logger := log.FromContext(ctx, "pool", p.pool.Name(), "pcid", cid, "theme", theme)
 	defer func() {
@@ -442,11 +448,11 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		)
 		if len(entries) == 0 {
 			if backup == 0 {
-				return ErrNoValidClient
+				return Report{Err: ErrNoValidClient}
 			}
 			p.consumerDoing(cid, "waiting")
 			if err := p.pool.Wait(ctx, psIndex); err != nil {
-				return err
+				return Report{Err: err} // only because ctx canceled
 			}
 			continue
 		}
@@ -465,7 +471,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		}
 		if !result.Broken && !result.BrokenForTask {
 			p.clientActive(curCtx, entName, theme)
-			return result.Err
+			return Report{Err: result.Err, ConfigName: entName, ClientName: ent.Status.Client.GetName()}
 		}
 	}
 }

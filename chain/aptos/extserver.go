@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/aptos-labs/aptos-go-sdk/api"
+	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/clientpool"
 	rg "sentioxyz/sentio-core/common/range"
@@ -40,28 +41,36 @@ func NewExtServerDimension(
 
 func (d *ExtServerDimension) GetSlotHeader(ctx context.Context, sn uint64) (chain.Slot, error) {
 	var block api.Block
-	err := d.client.UseClient(
+	r := d.client.UseClient(
 		ctx,
 		fmt.Sprintf("ext.GetSlotHeader/%d", sn),
 		func(ctx context.Context, cli *Client) (r clientpool.Result) {
 			block, r = cli.GetBlock(ctx, "ext", sn, false)
+			r.BrokenForTask = r.Err != nil // always retry using other client
 			return r
 		},
 	)
-	return (*Slot)(&block), err
+	if r.Err != nil {
+		return nil, errors.Wrapf(r.Err, "get header for slot %d (%s) failed", sn, r.ConfigName)
+	}
+	return (*Slot)(&block), nil
 }
 
 func (d *ExtServerDimension) GetSlot(ctx context.Context, sn uint64) (*Slot, error) {
 	var block api.Block
-	err := d.client.UseClient(
+	r := d.client.UseClient(
 		ctx,
 		fmt.Sprintf("ext.GetSlot/%d", sn),
 		func(ctx context.Context, cli *Client) (r clientpool.Result) {
 			block, r = cli.GetBlock(ctx, "ext", sn, true)
+			r.BrokenForTask = r.Err != nil // always retry using other client
 			return r
 		},
 	)
-	return (*Slot)(&block), err
+	if r.Err != nil {
+		return nil, errors.Wrapf(r.Err, "get slot %d (%s) failed", sn, r.ConfigName)
+	}
+	return (*Slot)(&block), nil
 }
 
 func (d *ExtServerDimension) GetSlots(ctx context.Context, sr rg.Range) ([]*Slot, error) {

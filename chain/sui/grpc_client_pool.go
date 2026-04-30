@@ -174,13 +174,13 @@ func (p *ClientPool) UseRawConnection(
 	method string,
 	fn func(ctx context.Context, conn *grpc.ClientConn) error,
 ) (bool, error) {
-	err := p.UseClient(ctx, method, func(ctx context.Context, cli *Client) clientpool.Result {
+	r := p.UseClient(ctx, method, func(ctx context.Context, cli *Client) clientpool.Result {
 		return clientpool.Result{
 			Err: cli.UseGRPCConnection(ctx, method, fn),
 		}
 	})
-	if errors.Is(err, clientpool.ErrNoValidClient) {
-		return false, err
+	if errors.Is(r.Err, clientpool.ErrNoValidClient) {
+		return false, r.Err
 	}
-	return true, err
+	return true, r.Err
 }

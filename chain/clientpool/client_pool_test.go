@@ -170,11 +170,11 @@ func Test_clientPool(t *testing.T) {
 		},
 	}
 	for i := 0; i < 10; i++ {
-		err := p.UseClient(ctx, "what1", func(ctx context.Context, cli *testClient) Result {
+		r := p.UseClient(ctx, "what1", func(ctx context.Context, cli *testClient) Result {
 			cli.Do("what1")
 			return Result{}
 		})
-		log.Infof("#1-%d return %v", i, err)
+		log.Infof("#1-%d return %v", i, r)
 		time.Sleep(time.Millisecond * 100)
 	}
 	s := p.Snapshot()
@@ -183,13 +183,13 @@ func Test_clientPool(t *testing.T) {
 
 	// all clients which priority = 1 is not valid for this theme, will wait for downgrade to priority 1
 	for i := 0; i < 10; i++ {
-		err := p.UseClient(ctx, "what2", func(ctx context.Context, cli *testClient) Result {
+		r := p.UseClient(ctx, "what2", func(ctx context.Context, cli *testClient) Result {
 			cli.Do("what2")
 			return Result{}
 		}, WithConfigFilter[testClientConfig](func(c testClientConfig) bool {
 			return c.Version >= 3
 		}))
-		log.Infof("#2-%d return %v", i, err)
+		log.Infof("#2-%d return %v", i, r)
 		time.Sleep(time.Millisecond * 100)
 	}
 	s = p.Snapshot()
@@ -364,13 +364,15 @@ func Test_UseClient_success(t *testing.T) {
 	defer cancel()
 
 	called := false
-	err := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
+	r := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
 		called = true
 		assert.Equal(t, "c1", cli.config.Name)
 		return Result{}
 	})
-	require.NoError(t, err)
+	require.NoError(t, r.Err)
 	assert.True(t, called)
+	assert.Equal(t, "c1", r.ConfigName)
+	assert.Equal(t, "c1", r.ClientName)
 }
 
 func Test_UseClient_noClients_returnsErrNoValidClient(t *testing.T) {
@@ -379,10 +381,10 @@ func Test_UseClient_noClients_returnsErrNoValidClient(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	err := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
+	r := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
 		return Result{}
 	})
-	assert.ErrorIs(t, err, ErrNoValidClient)
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
 }
 
 func Test_UseClient_broken_retriesOtherClient(t *testing.T) {
@@ -392,14 +394,14 @@ func Test_UseClient_broken_retriesOtherClient(t *testing.T) {
 	defer cancel()
 
 	callCount := 0
-	err := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
+	r := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
 		callCount++
 		if callCount == 1 {
 			return Result{Broken: true, Err: fmt.Errorf("broken")}
 		}
 		return Result{}
 	})
-	require.NoError(t, err)
+	require.NoError(t, r.Err)
 	assert.Equal(t, 2, callCount)
 }
 
@@ -410,14 +412,14 @@ func Test_UseClient_brokenForTask_blacklistsForCall(t *testing.T) {
 	defer cancel()
 
 	callCount := 0
-	err := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
+	r := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
 		callCount++
 		if callCount == 1 {
 			return Result{BrokenForTask: true}
 		}
 		return Result{}
 	})
-	require.NoError(t, err)
+	require.NoError(t, r.Err)
 	assert.Equal(t, 2, callCount)
 }
 
@@ -431,13 +433,13 @@ func Test_UseClient_withConfigFilter(t *testing.T) {
 	defer cancel()
 
 	var usedName string
-	err := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
+	r := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
 		usedName = cli.config.Name
 		return Result{}
 	}, WithConfigFilter[testClientConfig](func(c testClientConfig) bool {
 		return c.Value == "v2"
 	}))
-	require.NoError(t, err)
+	require.NoError(t, r.Err)
 	assert.Equal(t, "c2", usedName)
 }
 
@@ -448,21 +450,21 @@ func Test_UseClient_withTags_selectsTaggedClient(t *testing.T) {
 	defer cancel()
 
 	// Tag c1 via AddTags result
-	err := p.UseClient(ctx, "tag-setup", func(_ context.Context, cli *testClient) Result {
+	r := p.UseClient(ctx, "tag-setup", func(_ context.Context, cli *testClient) Result {
 		return Result{AddTags: []string{"special"}}
 	}, WithConfigFilter[testClientConfig](func(c testClientConfig) bool {
 		return c.Name == "c1"
 	}))
-	require.NoError(t, err)
+	require.NoError(t, r.Err)
 
 	// WithTags("special") must always pick c1
 	for i := 0; i < 3; i++ {
 		var usedName string
-		err = p.UseClient(ctx, "filtered", func(_ context.Context, cli *testClient) Result {
+		r = p.UseClient(ctx, "filtered", func(_ context.Context, cli *testClient) Result {
 			usedName = cli.config.Name
 			return Result{}
 		}, WithTags[testClientConfig]("special"))
-		require.NoError(t, err)
+		require.NoError(t, r.Err)
 		assert.Equal(t, "c1", usedName)
 	}
 }
@@ -474,21 +476,21 @@ func Test_UseClient_withoutTags_excludesTaggedClient(t *testing.T) {
 	defer cancel()
 
 	// Tag c1 with "excluded"
-	err := p.UseClient(ctx, "tag-setup", func(_ context.Context, cli *testClient) Result {
+	r := p.UseClient(ctx, "tag-setup", func(_ context.Context, cli *testClient) Result {
 		return Result{AddTags: []string{"excluded"}}
 	}, WithConfigFilter[testClientConfig](func(c testClientConfig) bool {
 		return c.Name == "c1"
 	}))
-	require.NoError(t, err)
+	require.NoError(t, r.Err)
 
 	// WithoutTags("excluded") must always pick c2
 	for i := 0; i < 3; i++ {
 		var usedName string
-		err = p.UseClient(ctx, "filtered", func(_ context.Context, cli *testClient) Result {
+		r = p.UseClient(ctx, "filtered", func(_ context.Context, cli *testClient) Result {
 			usedName = cli.config.Name
 			return Result{}
 		}, WithoutTags[testClientConfig]("excluded"))
-		require.NoError(t, err)
+		require.NoError(t, r.Err)
 		assert.Equal(t, "c2", usedName)
 	}
 }
@@ -506,7 +508,7 @@ func Test_UseClient_contextCancelled_whileWaiting(t *testing.T) {
 	p := startPoolWith(t, neverInit)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
+	done := make(chan Report, 1)
 	go func() {
 		done <- p.UseClient(ctx, "waiting", func(_ context.Context, _ *testClient) Result {
 			return Result{}
@@ -517,8 +519,8 @@ func Test_UseClient_contextCancelled_whileWaiting(t *testing.T) {
 	cancel()
 
 	select {
-	case err := <-done:
-		assert.Error(t, err)
+	case r := <-done:
+		assert.Error(t, r.Err)
 	case <-time.After(2 * time.Second):
 		t.Fatal("UseClient did not return after context cancellation")
 	}
@@ -537,22 +539,22 @@ func Test_updateConfig_addAndRemoveClients(t *testing.T) {
 
 	ctx1, cancel1 := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel1()
-	err := p.UseClient(ctx1, "test", func(_ context.Context, cli *testClient) Result {
+	r := p.UseClient(ctx1, "test", func(_ context.Context, cli *testClient) Result {
 		assert.Equal(t, "c1", cli.config.Name)
 		return Result{}
 	})
-	require.NoError(t, err)
+	require.NoError(t, r.Err)
 
 	// Replace c1 with c2 — direct call guarantees the update is complete
 	p.updateConfig(defaultPoolConfig([]ClientConfig[testClientConfig]{quickClientCfg("c2", 1)}))
 
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel2()
-	err = p.UseClient(ctx2, "test", func(_ context.Context, cli *testClient) Result {
+	r = p.UseClient(ctx2, "test", func(_ context.Context, cli *testClient) Result {
 		assert.Equal(t, "c2", cli.config.Name)
 		return Result{}
 	})
-	require.NoError(t, err)
+	require.NoError(t, r.Err)
 }
 
 func Test_updateConfig_priorityOrderingSetCorrectly(t *testing.T) {

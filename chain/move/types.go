@@ -303,6 +303,18 @@ func (s TypeSet) Include(t Type) bool {
 	return utils.HasAny(s, t.IncludeBy)
 }
 
+func (s TypeSet) Equal(a TypeSet) bool {
+	if len(s) != len(a) {
+		return false
+	}
+	for i := range s {
+		if !s[i].Equal(&a[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 func (s TypeSet) IncludeTypeString(t *string) bool {
 	return utils.HasAny(s, func(x Type) bool {
 		return x.IncludeTypeString(t)

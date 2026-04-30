@@ -13,6 +13,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/ethereum/go-ethereum v1.17.2
+	github.com/fardream/go-bcs v0.7.0
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/fergusstrange/embedded-postgres v1.32.0
 	github.com/gagliardetto/solana-go v1.18.0
@@ -26,6 +27,7 @@ require (
 	github.com/huandu/go-sqlbuilder v1.38.1
 	github.com/ipfs/go-ipfs-api v0.7.0
 	github.com/jinzhu/copier v0.4.0
+	github.com/kinbiko/jsonassert v1.1.1
 	github.com/knadh/koanf/parsers/json v1.0.0
 	github.com/knadh/koanf/parsers/yaml v1.1.0
 	github.com/knadh/koanf/v2 v2.3.0
@@ -183,7 +185,7 @@ require (
 	github.com/moby/term v0.5.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/mr-tron/base58 v1.2.0 // indirect
+	github.com/mr-tron/base58 v1.2.0
 	github.com/multiformats/go-base32 v0.1.0 // indirect
 	github.com/multiformats/go-base36 v0.2.0 // indirect
 	github.com/multiformats/go-multiaddr v0.8.0 // indirect

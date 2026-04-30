@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "serde",
+    srcs = [
+        "bcs_common.go",
+        "bcs_decode.go",
+        "bcs_encode.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/sui/types/serde",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "@com_github_fardream_go_bcs//bcs",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

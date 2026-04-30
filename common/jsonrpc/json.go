@@ -167,3 +167,23 @@ func JSONErrorResponse(msg *JsonrpcMessage, result any, err error) *JsonrpcMessa
 func JSONResponse(msg *JsonrpcMessage, result interface{}) *JsonrpcMessage {
 	return &JsonrpcMessage{Version: vsn, ID: msg.ID, Result: result}
 }
+
+func ParseParams(params json.RawMessage) ([]any, error) {
+	var args []any
+	if string(params) != "null" {
+		if token, tokenErr := json.NewDecoder(bytes.NewReader(params)).Token(); tokenErr == nil {
+			if token == json.Delim('[') {
+				// has many
+				var paramList []json.RawMessage
+				if err := json.Unmarshal(params, &paramList); err != nil {
+					return nil, err
+				}
+				args = utils.ToAnyArray(paramList)
+			} else {
+				// only one
+				args = []any{params}
+			}
+		}
+	}
+	return args, nil
+}

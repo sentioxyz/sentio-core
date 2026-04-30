@@ -136,7 +136,7 @@ func ArrEqual[T comparable](a1, a2 []T) bool {
 	return true
 }
 
-func ArrSummary[T any](arr []T, headerAndTail ...int) string {
+func ArrSummaryWithToString[T any](arr []T, toString func(T) string, headerAndTail ...int) string {
 	var headerCount, tailCount int
 	switch len(headerAndTail) {
 	case 0:
@@ -149,20 +149,34 @@ func ArrSummary[T any](arr []T, headerAndTail ...int) string {
 		panic("too many arguments")
 	}
 	count := len(arr)
-	if count <= headerCount+tailCount {
-		return fmt.Sprintf("%v", arr)
-	}
 	var b strings.Builder
-	b.WriteString("[")
-	for i := 0; i < headerCount; i++ {
-		b.WriteString(fmt.Sprintf("%v,", arr[i]))
+	b.WriteRune('[')
+	if count <= headerCount+tailCount {
+		for i := 0; i < count; i++ {
+			if i > 0 {
+				b.WriteRune(',')
+			}
+			b.WriteString(toString(arr[i]))
+		}
+	} else {
+		for i := 0; i < headerCount; i++ {
+			b.WriteString(toString(arr[i]))
+			b.WriteRune(',')
+		}
+		b.WriteString(fmt.Sprintf("...(ignored %d items)...", count-headerCount-tailCount))
+		for i := tailCount; i > 0; i-- {
+			b.WriteRune(',')
+			b.WriteString(toString(arr[count-i]))
+		}
 	}
-	b.WriteString(fmt.Sprintf("...(ignored %d items)...", count-headerCount-tailCount))
-	for i := tailCount; i > 0; i-- {
-		b.WriteString(fmt.Sprintf(",%v", arr[count-i]))
-	}
-	b.WriteString("]")
+	b.WriteRune(']')
 	return b.String()
+}
+
+func ArrSummary[T any](arr []T, headerAndTail ...int) string {
+	return ArrSummaryWithToString(arr, func(obj T) string {
+		return fmt.Sprintf("%v", obj)
+	}, headerAndTail...)
 }
 
 func ToAnyArray[T any](arr []T) []any {

@@ -328,7 +328,7 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.debug {
 		logger.Debugw("[ACCESS] jsonrpc request", "body", utils.MustJSONMarshal(rawMsg))
 		for hk, hv := range r.Header {
-			logger.Debugf("Header[%s]: %v", hk, hv)
+			logger.Debugf("ReqHeader[%s]: %v", hk, hv)
 		}
 	}
 	logger.Debugf("Received %d requests", len(messages))
@@ -417,6 +417,11 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.debug {
+		for i, headers := range respHeaders {
+			for hk, hv := range headers {
+				logger.Debugf("RespHeader[%d][%s]: %v", i, hk, hv)
+			}
+		}
 		logger.Debugw("[ACCESS] jsonrpc response", "body", utils.MustJSONMarshal(responses))
 	}
 }

@@ -1,15 +1,59 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "evm",
-    srcs = ["node_utils.go"],
+    srcs = [
+        "client.go",
+        "custom_types.go",
+        "extserver.go",
+        "header_types.go",
+        "node_utils.go",
+        "receipt_types.go",
+        "rpc_types.go",
+        "slot.go",
+        "trace_types.go",
+    ],
     importpath = "sentioxyz/sentio-core/chain/evm",
     visibility = ["//visibility:public"],
     deps = [
+        "//chain/chain",
+        "//chain/clientpool",
+        "//chain/clientpool/ex",
+        "//common/chains",
+        "//common/https",
         "//common/log",
+        "//common/range",
+        "//common/set",
+        "//common/utils",
         "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_ethereum_go_ethereum//common",
         "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_ethereum_go_ethereum//core/types",
         "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_goccy_go_json//:go-json",
         "@com_github_pkg_errors//:errors",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "evm_test",
+    srcs = [
+        "header_types_test.go",
+        "receipt_types_test.go",
+        "rpc_types_test.go",
+        "trace_types_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":evm"],
+    embedsrcs = ["testdata/trace-types.json"],
+    deps = [
+        "//common/utils",
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_ethereum_go_ethereum//core/types",
+        "@com_github_goccy_go_json//:go-json",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_vmihailenco_msgpack_v5//:msgpack",
     ],
 )

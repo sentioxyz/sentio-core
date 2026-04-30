@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clickhouse",
+    srcs = [
+        "object.go",
+        "partition.go",
+        "range_store.go",
+        "simple_slot_store.go",
+        "store.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/clickhouse",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/chain",
+        "//common/chx",
+        "//common/concurrency",
+        "//common/errgroup",
+        "//common/format",
+        "//common/log",
+        "//common/objectx",
+        "//common/range",
+        "//common/timer",
+        "//common/utils",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_shopspring_decimal//:decimal",
+    ],
+)
+
+go_test(
+    name = "clickhouse_test",
+    srcs = ["object_test.go"],
+    embed = [":clickhouse"],
+    deps = [
+        "//common/chx",
+        "@com_github_shopspring_decimal//:decimal",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

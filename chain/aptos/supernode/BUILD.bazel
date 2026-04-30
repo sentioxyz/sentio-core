@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "supernode",
+    srcs = [
+        "middleware.go",
+        "middleware_v2.go",
+        "rpc.go",
+        "storage.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/aptos/supernode",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/aptos",
+        "//chain/chain",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/range",
+        "//common/utils",
+        "@com_github_aptos_labs_aptos_go_sdk//api",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_golang_lru//:golang-lru",
+    ],
+)
+
+go_test(
+    name = "supernode_test",
+    srcs = ["rpc_test.go"],
+    embed = [":supernode"],
+    deps = [
+        "//chain/aptos",
+        "//chain/chain",
+        "//chain/clientpool",
+        "//common/errgroup",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/range",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_zap//zapcore",
+    ],
+)

@@ -54,17 +54,23 @@ func (p *ClientPool[CONFIG, CLIENT]) Snapshot() any {
 			return true
 		})
 	type client struct {
-		ent   pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]]
-		name  string
-		state state
+		ent        pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]]
+		name       string
+		publicName string
+		state      state
 	}
 	clients := make([]client, 0, len(entries))
 	now := time.Now()
 	for entName, ent := range entries {
+		var publicName string
+		if ent.Status.Initialized {
+			publicName = ent.Status.Client.GetName()
+		}
 		clients = append(clients, client{
-			ent:   ent,
-			name:  entName,
-			state: p._clientState(entName, ent, now),
+			ent:        ent,
+			name:       entName,
+			publicName: publicName,
+			state:      p._clientState(entName, ent, now),
 		})
 	}
 	sort.Slice(clients, func(i, j int) bool {
@@ -106,6 +112,7 @@ func (p *ClientPool[CONFIG, CLIENT]) Snapshot() any {
 			}
 			return map[string]any{
 				"name":        cli.name,
+				"publicName":  cli.publicName,
 				"config":      cli.ent.Config,
 				"status":      cli.ent.Status.Snapshot(),
 				"state":       cli.state,

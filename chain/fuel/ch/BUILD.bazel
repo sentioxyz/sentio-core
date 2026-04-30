@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ch",
+    srcs = [
+        "data.go",
+        "schema_mgr.go",
+        "stat.go",
+        "storage.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/fuel/ch",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/clickhouse",
+        "//chain/fuel",
+        "//common/chx",
+        "//common/histogram",
+        "//common/jsonrpc",
+        "//common/objectx",
+        "//common/range",
+        "//common/timehist",
+        "//common/utils",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_fuel_go//types",
+    ],
+)
+
+go_test(
+    name = "ch_test",
+    srcs = ["storage_test.go"],
+    embed = [":ch"],
+    deps = [
+        "//chain/fuel",
+        "//common/chx",
+        "//common/clickhousemanager",
+        "//common/utils",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

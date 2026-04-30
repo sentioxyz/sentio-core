@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sol",
+    srcs = ["client.go"],
+    importpath = "sentioxyz/sentio-core/chain/sol",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/clientpool",
+        "//chain/clientpool/ex",
+        "//common/https",
+        "//common/utils",
+        "@com_github_gagliardetto_solana_go//rpc",
+        "@com_github_gagliardetto_solana_go//rpc/jsonrpc",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

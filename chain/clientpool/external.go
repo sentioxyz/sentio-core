@@ -29,6 +29,9 @@ var (
 )
 
 type Client interface {
+	// GetName return the name of this client
+	GetName() string
+
 	// Init may return ErrInvalidConfig
 	Init(ctx context.Context) (Block, error)
 
@@ -40,7 +43,7 @@ type Client interface {
 }
 
 type EntryConfig[CONFIG any] interface {
-	GetName() string
+	GetName() string // as the unique identity of the entry
 	Trim() CONFIG
 	Equal(a CONFIG) bool
 }

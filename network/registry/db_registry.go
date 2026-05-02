@@ -81,7 +81,7 @@ func (r *dbRegistry) RetrieveDatabaseInfo(ctx context.Context, database Database
 		return state.DatabaseInfo{}, errors.Wrap(err, "failed to get database info")
 	}
 	if !ok {
-		logger.Errorf("database not found: %s", database)
+		logger.Debugf("database not found: %s", database)
 		return state.DatabaseInfo{}, errors.Errorf("database not found: %s", database)
 	}
 	return info, nil
@@ -159,7 +159,7 @@ func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, 
 		return false, errors.Wrap(err, "failed to get database info")
 	}
 	if !ok {
-		logger.Errorf("database not found: %s", database)
+		logger.Debugf("database not found: %s", database)
 		return false, errors.Errorf("database not found: %s", database)
 	}
 

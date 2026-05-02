@@ -113,17 +113,11 @@ func (r *dbRegistry) RetrievePermissionsByAccount(ctx context.Context, address A
 
 	result := make(map[Database]DbAuth)
 
-	databaseInfos, err := r.databaseMirror.GetAll(ctx)
+	_, err := r.databaseMirror.GetAll(ctx)
 	if err != nil {
 		logger.Errorf("failed to get all database infos: %s", err.Error())
 		return nil, errors.Wrap(err, "failed to get all database infos")
 	}
-	for db, info := range databaseInfos {
-		if info.Owner == string(address) {
-			result[Database(db)] |= DbAuthOwner
-		}
-	}
-
 	authMap, ok, err := r.permissionMirror.Get(ctx, string(address))
 	if err != nil {
 		logger.Errorf("failed to get permissions for address %s: %s", address, err.Error())
@@ -153,7 +147,7 @@ func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, 
 	address = Address(strings.ToLower(string(address)))
 	_, logger := log.FromContext(ctx, "address", address)
 
-	info, ok, err := r.databaseMirror.Get(ctx, string(database))
+	_, ok, err := r.databaseMirror.Get(ctx, string(database))
 	if err != nil {
 		logger.Errorf("failed to get database info for %s: %s", database, err.Error())
 		return false, errors.Wrap(err, "failed to get database info")
@@ -163,15 +157,10 @@ func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, 
 		return false, errors.Errorf("database not found: %s", database)
 	}
 
-	ownerAuth := DbAuth(0)
-	if info.Owner == string(address) {
-		ownerAuth = DbAuthOwner
-	}
-
 	auth := DbAuth(0)
 	authMap, ok, err := r.permissionMirror.Get(ctx, string(address))
 	if err != nil {
-		logger.Warnf("failed to get permissions for %s, using owner-only: %s", address, err.Error())
+		logger.Warnf("failed to get permissions for %s: %s", address, err.Error())
 	} else if ok {
 		authStr, hasDb := authMap[string(database)]
 		if hasDb {
@@ -183,19 +172,17 @@ func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, 
 		}
 	}
 
-	effectiveAuth := expandAuth(auth | ownerAuth)
+	effectiveAuth := expandAuth(auth)
 	hasPermission := effectiveAuth&DbAuth(action) != 0
 	logger.Debugf("permission check for %s on %s: effective=%d, action=%d, has=%v", address, database, effectiveAuth, action, hasPermission)
 	return hasPermission, nil
 }
 
-// expandAuth applies the permission hierarchy: Owner ⇒ Admin ⇒ Write ⇒ Read.
+// expandAuth applies the permission hierarchy: Owner ⇒ Admin|Write|Read, Write ⇒ Read.
+// Admin alone does NOT imply Write or Read.
 func expandAuth(auth DbAuth) DbAuth {
 	if auth&DbAuthOwner != 0 {
-		auth |= DbAuthAdmin
-	}
-	if auth&DbAuthAdmin != 0 {
-		auth |= DbAuthWrite
+		auth |= DbAuthAdmin | DbAuthWrite | DbAuthRead
 	}
 	if auth&DbAuthWrite != 0 {
 		auth |= DbAuthRead

@@ -40,7 +40,6 @@ type TableInfo struct {
 type DatabaseInfo struct {
 	DatabaseId    string       `json:"databaseId" yaml:"database_id"`
 	DbType        DatabaseType `json:"dbType" yaml:"db_type"`
-	Creator       string       `json:"creator" yaml:"creator"`
 	Owner         string       `json:"owner" yaml:"owner"`
 	IndexerId     uint64       `json:"indexerId" yaml:"indexer_id"`
 	ProcessorId   string       `json:"processorId,omitempty" yaml:"processor_id,omitempty"`

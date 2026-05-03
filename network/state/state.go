@@ -27,6 +27,7 @@ type State interface {
 
 	UpsertDatabase(ctx context.Context, info DatabaseInfo) error
 	DeleteDatabase(ctx context.Context, databaseId string) error
+	MarkDatabasePendingDelete(ctx context.Context, databaseId string) error
 	SetDatabaseOwner(ctx context.Context, databaseId string, owner string) error
 	AddDatabaseOperator(ctx context.Context, databaseId string, operator string) error
 	RemoveDatabaseOperator(ctx context.Context, databaseId string, operator string) error
@@ -149,6 +150,16 @@ func (s *PlainState) UpsertDatabase(_ context.Context, info DatabaseInfo) error 
 
 func (s *PlainState) DeleteDatabase(_ context.Context, databaseId string) error {
 	delete(s.Databases, databaseId)
+	return nil
+}
+
+func (s *PlainState) MarkDatabasePendingDelete(_ context.Context, databaseId string) error {
+	info, ok := s.Databases[databaseId]
+	if !ok {
+		return fmt.Errorf("database not found: %s", databaseId)
+	}
+	info.PendingDelete = true
+	s.Databases[databaseId] = info
 	return nil
 }
 

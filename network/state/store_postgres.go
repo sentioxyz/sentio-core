@@ -66,7 +66,6 @@ type DatabaseInfoRow struct {
 	StateKey      string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:state_key"`
 	DatabaseId    string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:database_id"`
 	DbType        uint8  `gorm:"not null;default:0;column:db_type"`
-	Creator       string `gorm:"not null;default:'';column:creator"`
 	Owner         string `gorm:"not null;column:owner"`
 	IndexerId     uint64 `gorm:"not null;default:0;column:indexer_id"`
 	ProcessorId   string `gorm:"not null;default:'';column:processor_id"`
@@ -201,7 +200,6 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 		info := DatabaseInfo{
 			DatabaseId:    r.DatabaseId,
 			DbType:        DatabaseType(r.DbType),
-			Creator:       r.Creator,
 			Owner:         r.Owner,
 			IndexerId:     r.IndexerId,
 			ProcessorId:   r.ProcessorId,
@@ -353,7 +351,6 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 					StateKey:      s.stateKey,
 					DatabaseId:    databaseId,
 					DbType:        uint8(info.DbType),
-					Creator:       info.Creator,
 					Owner:         info.Owner,
 					IndexerId:     info.IndexerId,
 					ProcessorId:   info.ProcessorId,

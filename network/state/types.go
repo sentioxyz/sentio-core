@@ -36,14 +36,12 @@ type TableInfo struct {
 
 // DatabaseInfo mirrors on-chain Database struct. A database is bound to
 // exactly one indexer (IndexerId). For PROCESSOR databases, ProcessorId
-// identifies the owning processor and Owner is the zero address.
+// identifies the owning processor.
 type DatabaseInfo struct {
 	DatabaseId    string       `json:"databaseId" yaml:"database_id"`
 	DbType        DatabaseType `json:"dbType" yaml:"db_type"`
-	Owner         string       `json:"owner" yaml:"owner"`
 	IndexerId     uint64       `json:"indexerId" yaml:"indexer_id"`
 	ProcessorId   string       `json:"processorId,omitempty" yaml:"processor_id,omitempty"`
 	PendingDelete bool         `json:"pendingDelete" yaml:"pending_delete"`
-	Operators     []string     `json:"operators" yaml:"operators"`
 	Tables        []TableInfo  `json:"tables,omitempty" yaml:"tables,omitempty"`
 }

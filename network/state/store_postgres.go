@@ -66,11 +66,9 @@ type DatabaseInfoRow struct {
 	StateKey      string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:state_key"`
 	DatabaseId    string `gorm:"uniqueIndex:database_info_state_key_database_id_unique;column:database_id"`
 	DbType        uint8  `gorm:"not null;default:0;column:db_type"`
-	Owner         string `gorm:"not null;column:owner"`
 	IndexerId     uint64 `gorm:"not null;default:0;column:indexer_id"`
 	ProcessorId   string `gorm:"not null;default:'';column:processor_id"`
 	PendingDelete bool   `gorm:"not null;default:false;column:pending_delete"`
-	Operators     string `gorm:"type:jsonb;not null;default:'[]';column:operators"`
 	Tables        string `gorm:"type:jsonb;not null;default:'[]';column:tables"`
 }
 
@@ -200,15 +198,9 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 		info := DatabaseInfo{
 			DatabaseId:    r.DatabaseId,
 			DbType:        DatabaseType(r.DbType),
-			Owner:         r.Owner,
 			IndexerId:     r.IndexerId,
 			ProcessorId:   r.ProcessorId,
 			PendingDelete: r.PendingDelete,
-		}
-		if r.Operators != "" {
-			if err := json.Unmarshal([]byte(r.Operators), &info.Operators); err != nil {
-				return nil, err
-			}
 		}
 		if r.Tables != "" {
 			if err := json.Unmarshal([]byte(r.Tables), &info.Tables); err != nil {
@@ -339,10 +331,6 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 		{
 			var rows []DatabaseInfoRow
 			for databaseId, info := range state.GetDatabases() {
-				operators, err := json.Marshal(info.Operators)
-				if err != nil {
-					return err
-				}
 				tables, err := json.Marshal(info.Tables)
 				if err != nil {
 					return err
@@ -351,11 +339,9 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 					StateKey:      s.stateKey,
 					DatabaseId:    databaseId,
 					DbType:        uint8(info.DbType),
-					Owner:         info.Owner,
 					IndexerId:     info.IndexerId,
 					ProcessorId:   info.ProcessorId,
 					PendingDelete: info.PendingDelete,
-					Operators:     string(operators),
 					Tables:        string(tables),
 				})
 			}

@@ -182,27 +182,6 @@ func (s *StateMirrored) MarkDatabasePendingDelete(ctx context.Context, databaseI
 	return s.syncDatabase(ctx, databaseId)
 }
 
-func (s *StateMirrored) SetDatabaseOwner(ctx context.Context, databaseId string, owner string) error {
-	if err := s.inner.SetDatabaseOwner(ctx, databaseId, owner); err != nil {
-		return err
-	}
-	return s.syncDatabase(ctx, databaseId)
-}
-
-func (s *StateMirrored) AddDatabaseOperator(ctx context.Context, databaseId string, operator string) error {
-	if err := s.inner.AddDatabaseOperator(ctx, databaseId, operator); err != nil {
-		return err
-	}
-	return s.syncDatabase(ctx, databaseId)
-}
-
-func (s *StateMirrored) RemoveDatabaseOperator(ctx context.Context, databaseId string, operator string) error {
-	if err := s.inner.RemoveDatabaseOperator(ctx, databaseId, operator); err != nil {
-		return err
-	}
-	return s.syncDatabase(ctx, databaseId)
-}
-
 func (s *StateMirrored) UpsertDatabaseTable(ctx context.Context, databaseId string, table TableInfo) error {
 	if err := s.inner.UpsertDatabaseTable(ctx, databaseId, table); err != nil {
 		return err

@@ -29,9 +29,6 @@ type State interface {
 	UpsertDatabase(ctx context.Context, info DatabaseInfo) error
 	DeleteDatabase(ctx context.Context, databaseId string) error
 	MarkDatabasePendingDelete(ctx context.Context, databaseId string) error
-	SetDatabaseOwner(ctx context.Context, databaseId string, owner string) error
-	AddDatabaseOperator(ctx context.Context, databaseId string, operator string) error
-	RemoveDatabaseOperator(ctx context.Context, databaseId string, operator string) error
 	UpsertDatabaseTable(ctx context.Context, databaseId string, table TableInfo) error
 	DeleteDatabaseTable(ctx context.Context, databaseId string, tableId string) error
 
@@ -165,47 +162,6 @@ func (s *PlainState) MarkDatabasePendingDelete(_ context.Context, databaseId str
 		return fmt.Errorf("database not found: %s", databaseId)
 	}
 	info.PendingDelete = true
-	s.Databases[databaseId] = info
-	return nil
-}
-
-func (s *PlainState) SetDatabaseOwner(_ context.Context, databaseId string, owner string) error {
-	info, ok := s.Databases[databaseId]
-	if !ok {
-		return fmt.Errorf("database not found: %s", databaseId)
-	}
-	info.Owner = owner
-	s.Databases[databaseId] = info
-	return nil
-}
-
-func (s *PlainState) AddDatabaseOperator(_ context.Context, databaseId string, operator string) error {
-	info, ok := s.Databases[databaseId]
-	if !ok {
-		return fmt.Errorf("database not found: %s", databaseId)
-	}
-	for _, op := range info.Operators {
-		if op == operator {
-			return nil
-		}
-	}
-	info.Operators = append(info.Operators, operator)
-	s.Databases[databaseId] = info
-	return nil
-}
-
-func (s *PlainState) RemoveDatabaseOperator(_ context.Context, databaseId string, operator string) error {
-	info, ok := s.Databases[databaseId]
-	if !ok {
-		return fmt.Errorf("database not found: %s", databaseId)
-	}
-	filtered := info.Operators[:0]
-	for _, op := range info.Operators {
-		if op != operator {
-			filtered = append(filtered, op)
-		}
-	}
-	info.Operators = filtered
 	s.Databases[databaseId] = info
 	return nil
 }

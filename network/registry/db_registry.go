@@ -15,6 +15,13 @@ import (
 type Database string
 type Address string
 
+// WildcardAddress is the all-zeros account whose permissions are unioned
+// into every caller's effective bitmap. A grant to this address means
+// "everyone has this permission" and is the encoding the smart-contract
+// layer uses for public reads. Both RetrievePermissionsByAccount and
+// AccountHasPermission merge this row into the caller's result.
+const WildcardAddress Address = "0x0000000000000000000000000000000000000000"
+
 type DbAuth int64
 
 const (
@@ -104,38 +111,26 @@ func (r *dbRegistry) RetrieveAllDatabaseInfos(ctx context.Context) (map[Database
 	return result, nil
 }
 
+// mirrorPermissionSource implements PermissionSource against a
+// statemirror-backed hash of account → {dbId → authStr} entries.
+type mirrorPermissionSource struct {
+	mirror statemirror.MirrorReadOnlyState[string, map[string]string]
+}
+
+func (m *mirrorPermissionSource) GetAccountPermissions(ctx context.Context, account string) (map[string]string, bool, error) {
+	return m.mirror.Get(ctx, account)
+}
+
 func (r *dbRegistry) RetrievePermissionsByAccount(ctx context.Context, address Address) (map[Database]DbAuth, error) {
-	if r.databaseMirror == nil || r.permissionMirror == nil {
+	if r.permissionMirror == nil {
 		return nil, errors.New("mirror is not initialized")
 	}
 	address = Address(strings.ToLower(string(address)))
 	_, logger := log.FromContext(ctx, "address", address)
-
-	result := make(map[Database]DbAuth)
-
-	_, err := r.databaseMirror.GetAll(ctx)
+	result, err := MergeAccountPermissions(ctx, &mirrorPermissionSource{r.permissionMirror}, string(address))
 	if err != nil {
-		logger.Errorf("failed to get all database infos: %s", err.Error())
-		return nil, errors.Wrap(err, "failed to get all database infos")
-	}
-	authMap, ok, err := r.permissionMirror.Get(ctx, string(address))
-	if err != nil {
-		logger.Errorf("failed to get permissions for address %s: %s", address, err.Error())
-		return nil, errors.Wrap(err, "failed to get permissions")
-	}
-	if ok {
-		for db, authStr := range authMap {
-			auth, err := parseAuth(authStr)
-			if err != nil {
-				logger.Errorf("failed to parse auth for database %s: %s", db, err.Error())
-				return nil, errors.Wrap(err, "failed to parse auth")
-			}
-			result[Database(db)] |= auth
-		}
-	}
-
-	for db, auth := range result {
-		result[db] = expandAuth(auth)
+		logger.Errorf("failed to merge permissions for address %s: %s", address, err.Error())
+		return nil, err
 	}
 	return result, nil
 }
@@ -157,22 +152,11 @@ func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, 
 		return false, errors.Errorf("database not found: %s", database)
 	}
 
-	auth := DbAuth(0)
-	authMap, ok, err := r.permissionMirror.Get(ctx, string(address))
+	perms, err := MergeAccountPermissions(ctx, &mirrorPermissionSource{r.permissionMirror}, string(address))
 	if err != nil {
-		logger.Warnf("failed to get permissions for %s: %s", address, err.Error())
-	} else if ok {
-		authStr, hasDb := authMap[string(database)]
-		if hasDb {
-			auth, err = parseAuth(authStr)
-			if err != nil {
-				logger.Warnf("failed to parse auth for %s on %s: %s", address, database, err.Error())
-				auth = DbAuth(0)
-			}
-		}
+		return false, err
 	}
-
-	effectiveAuth := expandAuth(auth)
+	effectiveAuth := perms[database]
 	hasPermission := effectiveAuth&DbAuth(action) != 0
 	logger.Debugf("permission check for %s on %s: effective=%d, action=%d, has=%v", address, database, effectiveAuth, action, hasPermission)
 	return hasPermission, nil

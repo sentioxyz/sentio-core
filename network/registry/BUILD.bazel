@@ -4,6 +4,7 @@ go_library(
     name = "registry",
     srcs = [
         "db_registry.go",
+        "permissions.go",
         "processor_registry.go",
     ],
     importpath = "sentioxyz/sentio-core/network/registry",

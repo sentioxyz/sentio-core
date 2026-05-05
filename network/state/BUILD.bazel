@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "state",
@@ -17,4 +17,10 @@ go_library(
         "@io_gorm_driver_postgres//:postgres",
         "@io_gorm_gorm//:gorm",
     ],
+)
+
+go_test(
+    name = "state_test",
+    srcs = ["state_test.go"],
+    embed = [":state"],
 )

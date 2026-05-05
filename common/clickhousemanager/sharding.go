@@ -94,12 +94,9 @@ func (s *sharding) getCredential(parameter *ShardingParameter) (Credential, stri
 		s.logger.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 		return Credential{}, "", fmt.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 	}
-	if parameter.DecentralizedNetwork != NoneNetwork {
-		// Clear hello.Database so housegate's forward.OnHello short-circuits;
-		// otherwise the credential's physical name (e.g. "test_subgraph") is sent
-		// and housegate rejects it as "Database … doesn't exist". The rewriter
-		// handles logical→physical translation per query.
-		cred.Database = ""
+	if parameter.DecentralizedNetwork != NoneNetwork && decentralizedNetworkDatabase[parameter.DecentralizedNetwork] != "" {
+		cred.Database = decentralizedNetworkDatabase[parameter.DecentralizedNetwork]
+		s.logger.Debugf("using decentralized network %s with database %s", parameter.DecentralizedNetwork, cred.Database)
 	}
 
 	var addr string

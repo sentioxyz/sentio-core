@@ -32,3 +32,7 @@ const (
 	NoneNetwork DecentralizedNetwork = ""
 )
 
+var decentralizedNetworkDatabase = map[DecentralizedNetwork]string{
+	SentioNetworkMainnet: "mainnet",
+	SentioNetworkTestnet: "testnet",
+}

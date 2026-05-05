@@ -32,7 +32,13 @@ const (
 	NoneNetwork DecentralizedNetwork = ""
 )
 
+// decentralizedNetworkDatabase intentionally maps to empty strings so the
+// connection's hello.Database stays empty. The decentralized housegate
+// rejects hello.Database values that are not registered logical databases
+// (forward.Plugin.OnHello) — the physical name (e.g. "testnet") is not in
+// that registry. Leaving hello.Database empty makes forward short-circuit
+// and the rewriter handles logical→physical translation per query.
 var decentralizedNetworkDatabase = map[DecentralizedNetwork]string{
-	SentioNetworkMainnet: "mainnet",
-	SentioNetworkTestnet: "testnet",
+	SentioNetworkMainnet: "",
+	SentioNetworkTestnet: "",
 }

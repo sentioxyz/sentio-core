@@ -169,10 +169,27 @@ func (s *StateMirrored) UpsertDatabase(ctx context.Context, info DatabaseInfo) e
 }
 
 func (s *StateMirrored) DeleteDatabase(ctx context.Context, databaseId string) error {
+	// Snapshot accounts whose perm map contains this dbId before the
+	// inner call strips it — used after the cascade to re-sync each
+	// affected account's redis hash entry.
+	var affected []string
+	for account, perms := range s.inner.DatabasePermissions {
+		if _, has := perms[databaseId]; has {
+			affected = append(affected, account)
+		}
+	}
 	if err := s.inner.DeleteDatabase(ctx, databaseId); err != nil {
 		return err
 	}
-	return s.syncDatabase(ctx, databaseId)
+	if err := s.syncDatabase(ctx, databaseId); err != nil {
+		return err
+	}
+	for _, account := range affected {
+		if err := s.syncAccountDatabasePermissions(ctx, account); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *StateMirrored) MarkDatabasePendingDelete(ctx context.Context, databaseId string) error {

@@ -153,6 +153,20 @@ func (s *PlainState) UpsertDatabase(_ context.Context, info DatabaseInfo) error 
 
 func (s *PlainState) DeleteDatabase(_ context.Context, databaseId string) error {
 	delete(s.Databases, databaseId)
+	// The contract's _cascadeDelete doesn't iterate _dbPermissions[dbId][*]
+	// (no on-chain account index per db) and emits only a single
+	// DatabaseDeleted event, so this loop is the only place where orphan
+	// permission entries get cleared. Without it housegate's
+	// buildDatabaseMap keeps surfacing the deleted db via SHOW DATABASES.
+	for account, perms := range s.DatabasePermissions {
+		if _, has := perms[databaseId]; !has {
+			continue
+		}
+		delete(perms, databaseId)
+		if len(perms) == 0 {
+			delete(s.DatabasePermissions, account)
+		}
+	}
 	return nil
 }
 

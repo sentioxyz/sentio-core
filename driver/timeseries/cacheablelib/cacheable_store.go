@@ -10,6 +10,8 @@ import (
 	"sentioxyz/sentio-core/driver/timeseries"
 	"sentioxyz/sentio-core/driver/timeseries/clickhouse"
 	"sentioxyz/sentio-core/service/processor/models"
+
+	"github.com/samber/lo"
 )
 
 type CacheableMeta struct {
@@ -50,6 +52,7 @@ func NewCacheableMeta(
 	processorTablePattern models.TablePattern,
 	projectId string,
 	conn ckhmanager.Conn,
+	ctxInject func(ctx context.Context) context.Context,
 ) (cache.Cacheable[timeseries.Store], error) {
 	return NewCacheableMetaWithTTL(
 		processorId,
@@ -60,6 +63,7 @@ func NewCacheableMeta(
 		conn,
 		time.Hour,
 		time.Minute*5,
+		ctxInject,
 	)
 }
 
@@ -71,6 +75,7 @@ func NewCacheableMetaWithTTL(
 	projectId string,
 	conn ckhmanager.Conn,
 	ttl, refreshInterval time.Duration,
+	ctxInject func(ctx context.Context) context.Context,
 ) (cache.Cacheable[timeseries.Store], error) {
 	if conn == nil {
 		return nil, fmt.Errorf("processor %s clickhouse conn is nil", processorId)
@@ -96,7 +101,9 @@ func NewCacheableMetaWithTTL(
 		nil,
 	)
 	tsm.reload = func(ctx context.Context) (timeseries.Store, error) {
-		if err := tsm.store.ReloadMeta(ctx, false); err != nil {
+		if err := tsm.store.ReloadMeta(lo.IfF(ctxInject != nil, func() context.Context {
+			return ctxInject(ctx)
+		}).Else(ctx), false); err != nil {
 			return nil, err
 		}
 		return tsm.store, nil

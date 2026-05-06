@@ -41,7 +41,8 @@ type shardingConnectionKey string
 func (s *ShardingParameter) shardingConnectionKey() shardingConnectionKey {
 	return shardingConnectionKey("[category:" + string(s.Category) +
 		",role:" + string(s.Role) +
-		",decentralized:" + string(s.DecentralizedNetwork) +
+		",decentralized-network:" + string(s.DecentralizedNetwork) +
+		",decentralized-database:" + s.DecentralizedDatabase +
 		",proxy:" + anyutil.ToString(s.UnderlyingProxy) +
 		",signature:" + anyutil.ToString(s.PrivateKeyHex) +
 		",payer:" + anyutil.ToString(s.Payer) + "]")

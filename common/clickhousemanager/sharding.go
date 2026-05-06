@@ -94,9 +94,20 @@ func (s *sharding) getCredential(parameter *ShardingParameter) (Credential, stri
 		s.logger.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 		return Credential{}, "", fmt.Errorf("credential not found for role %s", parameter.shardingCredentialsKey())
 	}
-	if parameter.DecentralizedNetwork != NoneNetwork && decentralizedNetworkDatabase[parameter.DecentralizedNetwork] != "" {
-		cred.Database = decentralizedNetworkDatabase[parameter.DecentralizedNetwork]
-		s.logger.Debugf("using decentralized network %s with database %s", parameter.DecentralizedNetwork, cred.Database)
+	if parameter.DecentralizedNetwork != NoneNetwork {
+		switch {
+		case parameter.DecentralizedDatabase != "":
+			// use decentralized database if specified
+			s.logger.Debugf("using decentralized network %s with specified database %s", parameter.DecentralizedNetwork, parameter.DecentralizedDatabase)
+			cred.Database = parameter.DecentralizedDatabase
+		case decentralizedNetworkDatabase[parameter.DecentralizedNetwork] != "":
+			// use default decentralized database if specified in config
+			s.logger.Debugf("using decentralized network %s with default database %s", parameter.DecentralizedNetwork, decentralizedNetworkDatabase[parameter.DecentralizedNetwork])
+			cred.Database = decentralizedNetworkDatabase[parameter.DecentralizedNetwork]
+		default:
+			s.logger.Errorf("decentralized network %s does not have a default database configured", parameter.DecentralizedNetwork)
+			return Credential{}, "", fmt.Errorf("decentralized network %s does not have a default database configured", parameter.DecentralizedNetwork)
+		}
 	}
 
 	var addr string

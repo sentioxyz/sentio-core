@@ -146,26 +146,32 @@ Supported networks (defined in `roles.go`):
 - `SentioNetworkTestnet` ("testnet") → routes to database "testnet"
 - `NoneNetwork` ("") → uses the default database from credentials
 
+When a `DecentralizedNetwork` is specified (other than `NoneNetwork`), the database name in the connection credentials is overridden based on the following priority:
+
+1. **Explicit database** - If `DecentralizedDatabase` parameter is provided, it takes precedence
+2. **Default network database** - Falls back to pre-configured default database for that network
+3. **Error** - Returns error if neither is available
+
 **Example:**
 
 ```go
-// Connect to mainnet database
+// Connect to mainnet with explicit database
 ck, err := shard.GetConn(
-    ckhmanager.WithDecentralizedNetwork(ckhmanager.SentioNetworkMainnet),
+    ckhmanager.WithDecentralizedNetwork(ckhmanager.SentioNetworkMainnet, "my_custom_db"),
     ckhmanager.WithCategory(ckhmanager.SentioCategory),
     ckhmanager.WithRole("admin"),
 )
 
-// Connect to testnet database
+// Connect to mainnet using default network database
 ck, err := shard.GetConn(
-    ckhmanager.WithDecentralizedNetwork(ckhmanager.SentioNetworkTestnet),
+    ckhmanager.WithDecentralizedNetwork(ckhmanager.SentioNetworkMainnet, ""), // empty = use default
     ckhmanager.WithCategory(ckhmanager.SentioCategory),
     ckhmanager.WithRole("admin"),
 )
 
 // Use default database (no network override)
 ck, err := shard.GetConn(
-    ckhmanager.WithDecentralizedNetwork(ckhmanager.NoneNetwork),
+    ckhmanager.WithDecentralizedNetwork(ckhmanager.NoneNetwork, ""),
     ckhmanager.WithCategory(ckhmanager.SentioCategory),
     ckhmanager.WithRole("admin"),
 )
@@ -284,9 +290,9 @@ _ = ck.Exec(ctx, "SELECT 1")
 With decentralized network routing:
 
 ```go
-// Connect to mainnet database
+// Connect to mainnet database (using default for that network)
 ck, err := shard.GetConn(
-    ckhmanager.WithDecentralizedNetwork(ckhmanager.SentioNetworkMainnet),
+    ckhmanager.WithDecentralizedNetwork(ckhmanager.SentioNetworkMainnet, ""),
     ckhmanager.WithCategory(ckhmanager.SentioCategory),
     ckhmanager.WithRole("admin"),
 )
@@ -305,6 +311,7 @@ The `ShardingParameter` struct controls connection behavior and routing:
 - **Category**: Which service category to connect as (`sentio` or `subgraph`)
 - **Role**: Which role/permission level to use (`admin`, `default_viewer`, `small_viewer`, etc.)
 - **DecentralizedNetwork**: Which network database to route to (`mainnet`, `testnet`, or `""` for default)
+- **DecentralizedDatabase**: Explicit database name for the decentralized network (overrides network default)
 - **UnderlyingProxy**: Whether to use proxy addresses instead of direct addresses
 - **InternalOnly**: Whether to use internal addresses (vs external)
 - **PrivateKeyHex**: Private key for query signing (optional)
@@ -313,7 +320,7 @@ The `ShardingParameter` struct controls connection behavior and routing:
 All parameters have functional option helpers:
 - `WithCategory(category Category)`
 - `WithRole(role Role)`
-- `WithDecentralizedNetwork(network DecentralizedNetwork)`
+- `WithDecentralizedNetwork(network DecentralizedNetwork, database string)`
 - `WithUnderlyingProxy(bool)`
 - `WithInternalOnly(bool)`
 - `WithPrivateKeyHex(string)`

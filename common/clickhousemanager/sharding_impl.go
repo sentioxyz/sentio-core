@@ -12,18 +12,20 @@ type Sharding interface {
 }
 
 type ShardingParameter struct {
-	Role                 Role                 `yaml:"role" json:"role"`
-	Category             Category             `yaml:"category" json:"category"`
-	DecentralizedNetwork DecentralizedNetwork `yaml:"decentralized-network" json:"decentralized_network"`
-	UnderlyingProxy      bool                 `yaml:"underlying-proxy" json:"underlying_proxy"`
-	InternalOnly         bool                 `yaml:"internal-only" json:"internal_only"`
-	PrivateKeyHex        string               `yaml:"private-key-hex" json:"private_key_hex"`
-	Payer                string               `yaml:"payer" json:"payer"`
+	Role                  Role                 `yaml:"role" json:"role"`
+	Category              Category             `yaml:"category" json:"category"`
+	DecentralizedNetwork  DecentralizedNetwork `yaml:"decentralized-network" json:"decentralized_network"`
+	DecentralizedDatabase string               `yaml:"decentralized-database" json:"decentralized_database"`
+	UnderlyingProxy       bool                 `yaml:"underlying-proxy" json:"underlying_proxy"`
+	InternalOnly          bool                 `yaml:"internal-only" json:"internal_only"`
+	PrivateKeyHex         string               `yaml:"private-key-hex" json:"private_key_hex"`
+	Payer                 string               `yaml:"payer" json:"payer"`
 }
 
-func WithDecentralizedNetwork(decentralizedNetwork DecentralizedNetwork) func(*ShardingParameter) {
+func WithDecentralizedNetwork(decentralizedNetwork DecentralizedNetwork, database string) func(*ShardingParameter) {
 	return func(param *ShardingParameter) {
 		param.DecentralizedNetwork = decentralizedNetwork
+		param.DecentralizedDatabase = database
 	}
 }
 

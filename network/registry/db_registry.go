@@ -87,7 +87,7 @@ func (r *dbRegistry) RetrieveDatabaseInfo(ctx context.Context, database Database
 		logger.Errorf("failed to get database info for %s: %s", database, err.Error())
 		return state.DatabaseInfo{}, errors.Wrap(err, "failed to get database info")
 	}
-	if !ok {
+	if !ok || info.PendingDelete {
 		logger.Debugf("database not found: %s", database)
 		return state.DatabaseInfo{}, errors.Errorf("database not found: %s", database)
 	}
@@ -106,6 +106,9 @@ func (r *dbRegistry) RetrieveAllDatabaseInfos(ctx context.Context) (map[Database
 	}
 	result := make(map[Database]state.DatabaseInfo, len(databaseInfos))
 	for db, info := range databaseInfos {
+		if info.PendingDelete {
+			continue
+		}
 		result[Database(db)] = info
 	}
 	return result, nil
@@ -122,7 +125,7 @@ func (m *mirrorPermissionSource) GetAccountPermissions(ctx context.Context, acco
 }
 
 func (r *dbRegistry) RetrievePermissionsByAccount(ctx context.Context, address Address) (map[Database]DbAuth, error) {
-	if r.permissionMirror == nil {
+	if r.databaseMirror == nil || r.permissionMirror == nil {
 		return nil, errors.New("mirror is not initialized")
 	}
 	address = Address(strings.ToLower(string(address)))
@@ -131,6 +134,16 @@ func (r *dbRegistry) RetrievePermissionsByAccount(ctx context.Context, address A
 	if err != nil {
 		logger.Errorf("failed to merge permissions for address %s: %s", address, err.Error())
 		return nil, err
+	}
+	for db := range result {
+		info, ok, err := r.databaseMirror.Get(ctx, string(db))
+		if err != nil {
+			logger.Errorf("failed to get database info for %s: %s", db, err.Error())
+			return nil, errors.Wrap(err, "failed to get database info")
+		}
+		if !ok || info.PendingDelete {
+			delete(result, db)
+		}
 	}
 	return result, nil
 }
@@ -142,12 +155,12 @@ func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, 
 	address = Address(strings.ToLower(string(address)))
 	_, logger := log.FromContext(ctx, "address", address)
 
-	_, ok, err := r.databaseMirror.Get(ctx, string(database))
+	info, ok, err := r.databaseMirror.Get(ctx, string(database))
 	if err != nil {
 		logger.Errorf("failed to get database info for %s: %s", database, err.Error())
 		return false, errors.Wrap(err, "failed to get database info")
 	}
-	if !ok {
+	if !ok || info.PendingDelete {
 		logger.Debugf("database not found: %s", database)
 		return false, errors.Errorf("database not found: %s", database)
 	}

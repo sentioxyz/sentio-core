@@ -204,6 +204,7 @@ type ckhHashStruct struct {
 	ConnMaxLifeTime time.Duration
 	MaxIdleConns    int
 	MaxOpenConns    int
+	Database        string
 }
 
 func connect(dsn string, connectOptions ...func(*Options)) Conn {
@@ -217,11 +218,13 @@ func connect(dsn string, connectOptions ...func(*Options)) Conn {
 		ConnMaxLifeTime: ckhOptions.ConnMaxLifetime,
 		MaxIdleConns:    ckhOptions.MaxIdleConns,
 		MaxOpenConns:    ckhOptions.MaxOpenConns,
+		Database:        ckhOptions.Auth.Database,
 	}, hashstructure.FormatV2, nil)
 	if err != nil {
 		log.Errorf("hash clickhouse options failed: %v", err)
 		panic(err)
 	}
+	log.Debugf("[RAW-CONN] ckhHash=%d, DB=%s, Addr=%v, Auth=%+v", ckhHash, ckhOptions.Auth.Database, ckhOptions.Addr, ckhOptions.Auth)
 
 	clickhouseConnectJSON, _ := json.Marshal(ckhHash)
 	ckhConn, ok := rawConnections.Get(ckhHash)

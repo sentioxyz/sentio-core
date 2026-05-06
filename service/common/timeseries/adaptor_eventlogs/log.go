@@ -146,7 +146,7 @@ func (l *logAdaptor) buildMetaQuery(meta timeseries.Meta) string {
 			"{preset}, " +
 			"'{event_name}' AS " + EventNameColumn + ", " +
 			"{attributes_field} AS " + AttributesColumn + " " +
-			"FROM `{table}` " +
+			"FROM {table} " +
 			"WHERE {time_range}"
 	)
 	var (
@@ -167,7 +167,7 @@ func (l *logAdaptor) buildMetaQuery(meta timeseries.Meta) string {
 		"preset":           strings.Join(preset, ", "),
 		"event_name":       meta.Name,
 		"attributes_field": "map(" + strings.Join(attributes, ", ") + ")::JSON",
-		"table":            l.store.MetaTable(meta),
+		"table":            l.store.MetaTableWithOptions(meta, timeseries.DefaultMetaTableOption),
 		"time_range":       l.timeRangeCondString(),
 	})
 }

@@ -3,8 +3,9 @@ package clickhouse
 
 import (
 	"context"
-	"sentioxyz/sentio-core/service/processor/models"
 	"testing"
+
+	"sentioxyz/sentio-core/service/processor/models"
 
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/period"
@@ -143,6 +144,103 @@ func TestCalculateMetasHash_AggregationAffectsHash(t *testing.T) {
 	// Re-run without further change
 	h3 := store.Meta().GetHash()
 	require.Equal(t, h2, h3)
+}
+
+func TestMetaTableWithOptions(t *testing.T) {
+	meta := newMeta("alpha", testMetaOption{})
+
+	tests := []struct {
+		name              string
+		pattern           models.TablePattern
+		replica           int
+		options           timeseries.MetaTableOption
+		wantMetaTable     string
+		wantMetaTableWith string
+	}{
+		{
+			name:              "platform default",
+			pattern:           models.TablePatternPlatformV1,
+			wantMetaTable:     "proc_gauge_alpha",
+			wantMetaTableWith: "proc_gauge_alpha",
+		},
+		{
+			name:              "platform escaped",
+			pattern:           models.TablePatternPlatformV1,
+			options:           timeseries.MetaTableOption{EnableEscape: true},
+			wantMetaTable:     "proc_gauge_alpha",
+			wantMetaTableWith: "`proc_gauge_alpha`",
+		},
+		{
+			name:              "platform logical database ignored without separator",
+			pattern:           models.TablePatternPlatformV1,
+			options:           timeseries.MetaTableOption{EnableAutoParsingDatabaseForStorageNetwork: true},
+			wantMetaTable:     "proc_gauge_alpha",
+			wantMetaTableWith: "proc_gauge_alpha",
+		},
+		{
+			name:              "platform escaped with logical database ignored without separator",
+			pattern:           models.TablePatternPlatformV1,
+			options:           timeseries.MetaTableOption{EnableEscape: true, EnableAutoParsingDatabaseForStorageNetwork: true},
+			wantMetaTable:     "proc_gauge_alpha",
+			wantMetaTableWith: "`proc_gauge_alpha`",
+		},
+		{
+			name:              "network default keeps full name when logical database disabled",
+			pattern:           models.TablePatternNetworkV1,
+			replica:           3,
+			wantMetaTable:     "proc_3.gauge_alpha",
+			wantMetaTableWith: "proc_3.gauge_alpha",
+		},
+		{
+			name:              "network escaped keeps full name when logical database disabled",
+			pattern:           models.TablePatternNetworkV1,
+			replica:           3,
+			options:           timeseries.MetaTableOption{EnableEscape: true},
+			wantMetaTable:     "proc_3.gauge_alpha",
+			wantMetaTableWith: "`proc_3.gauge_alpha`",
+		},
+		{
+			name:              "network logical database enabled splits database and table",
+			pattern:           models.TablePatternNetworkV1,
+			replica:           3,
+			options:           timeseries.MetaTableOption{EnableAutoParsingDatabaseForStorageNetwork: true},
+			wantMetaTable:     "proc_3.gauge_alpha",
+			wantMetaTableWith: "proc_3.gauge_alpha",
+		},
+		{
+			name:              "network escaped logical database enabled escapes database and table separately",
+			pattern:           models.TablePatternNetworkV1,
+			replica:           3,
+			options:           timeseries.MetaTableOption{EnableEscape: true, EnableAutoParsingDatabaseForStorageNetwork: true},
+			wantMetaTable:     "proc_3.gauge_alpha",
+			wantMetaTableWith: "`proc_3`.`gauge_alpha`",
+		},
+		{
+			name:              "network auto detect logical database enabled splits database and table",
+			pattern:           models.TablePatternNetworkV1,
+			replica:           3,
+			options:           timeseries.DefaultMetaTableOption,
+			wantMetaTable:     "proc_3.gauge_alpha",
+			wantMetaTableWith: "`proc_3`.`gauge_alpha`",
+		},
+		{
+			name:              "network auto detect with platform",
+			pattern:           models.TablePatternPlatformV1,
+			replica:           3,
+			options:           timeseries.DefaultMetaTableOption,
+			wantMetaTable:     "proc_gauge_alpha",
+			wantMetaTableWith: "`proc_gauge_alpha`",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := NewStore(nil, "", "", "proc", tt.replica, tt.pattern, Option{}, nil)
+
+			require.Equal(t, tt.wantMetaTable, store.MetaTable(meta))
+			require.Equal(t, tt.wantMetaTableWith, store.MetaTableWithOptions(meta, tt.options))
+		})
+	}
 }
 
 func TestMeta_BuildSQL(t *testing.T) {

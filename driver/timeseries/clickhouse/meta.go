@@ -340,6 +340,35 @@ func (s *Store) MetaTable(meta timeseries.Meta) string {
 	return s.BuildTableNameWithoutDatabase(meta)
 }
 
+func (s *Store) MetaTableWithOptions(meta timeseries.Meta, options timeseries.MetaTableOption) string {
+	var (
+		name         = s.MetaTable(meta)
+		logicalDb    string
+		logicalTable string
+	)
+	if options.EnableAutoParsingDatabaseForStorageNetwork || (options.EnableAutoPatternForStorageNetwork && s.processorTablePattern.IsNetworkPattern()) {
+		i := strings.Index(name, ".") // ensure the name is in format of database.table
+		if i > 0 && i < len(name)-1 {
+			logicalDb = name[:i]
+			logicalTable = name[i+1:]
+		} else {
+			logicalTable = name
+		}
+	} else {
+		logicalTable = name
+	}
+	if options.EnableEscape {
+		logicalTable = fmt.Sprintf("`%s`", logicalTable)
+		if logicalDb != "" {
+			logicalDb = fmt.Sprintf("`%s`", logicalDb)
+		}
+	}
+	if logicalDb != "" {
+		return logicalDb + "." + logicalTable
+	}
+	return logicalTable
+}
+
 func (s *Store) cutTableName(tableName string) (timeseries.MetaType, string) {
 	typ, name, _ := strings.Cut(strings.TrimPrefix(tableName, s.tableNamePrefix()), "_")
 	return timeseries.MetaType(typ), name

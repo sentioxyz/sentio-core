@@ -215,14 +215,14 @@ func (c *cohortAdaptor) filterQuery(groupIdx, filterIdx int, filter *protoscommo
 	}
 
 	const (
-		selectTpl = "SELECT groupArray({user_field}) as a FROM (SELECT {user_field}, {agg_field} FROM `{table}` WHERE {cond} GROUP BY {user_field} HAVING {having} ORDER BY agg DESC)"
-		totalTpl  = "SELECT groupArray({user_field}) as a FROM (SELECT DISTINCT {user_field} FROM `{table}` WHERE {cond})"
+		selectTpl = "SELECT groupArray({user_field}) as a FROM (SELECT {user_field}, {agg_field} FROM {table} WHERE {cond} GROUP BY {user_field} HAVING {having} ORDER BY agg DESC)"
+		totalTpl  = "SELECT groupArray({user_field}) as a FROM (SELECT DISTINCT {user_field} FROM {table} WHERE {cond})"
 		diffTpl   = "SELECT arrayFilter(x -> NOT has((SELECT a FROM {select_tpl}), x), (SELECT a FROM {total_tpl})) as a"
 	)
 	args := map[string]any{
 		"user_field": timeseries.SystemUserID,
 		"agg_field":  aggregateField,
-		"table":      c.store.MetaTable(meta),
+		"table":      c.store.MetaTableWithOptions(meta, timeseries.DefaultMetaTableOption),
 		"cond":       strings.Join([]string{timeCond, selectorCond}, " AND "),
 		"having":     having,
 	}
@@ -352,7 +352,7 @@ func (c *cohortAdaptor) Build() string {
 					"SELECT "+timeseries.SystemUserID+","+
 						timeseries.SystemTimestamp+","+
 						timeseries.SystemFieldPrefix+"chain FROM "+
-						c.store.MetaTable(m))
+						c.store.MetaTableWithOptions(m, timeseries.DefaultMetaTableOption))
 			}
 		default:
 			c.cte = append(c.cte, cte.CTE{
@@ -367,7 +367,8 @@ func (c *cohortAdaptor) Build() string {
 					"SELECT "+timeseries.SystemUserID+","+
 						timeseries.SystemTimestamp+","+
 						timeseries.SystemFieldPrefix+"chain FROM "+
-						c.store.MetaTable(m)+" WHERE has((select a from "+dataTable+"),"+timeseries.SystemUserID+")")
+						c.store.MetaTableWithOptions(m, timeseries.DefaultMetaTableOption)+
+						" WHERE has((select a from "+dataTable+"),"+timeseries.SystemUserID+")")
 			}
 			userPropertyCond = "WHERE has((select a from " + dataTable + "), user)"
 		}

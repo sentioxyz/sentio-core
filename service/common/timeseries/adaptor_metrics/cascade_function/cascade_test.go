@@ -67,7 +67,7 @@ func (s *CascadeFunctionSuite) Test_SingleFunction_MathAbs() {
 
 func (s *CascadeFunctionSuite) Test_ChainedFunctions_AliasPropagation_And_TableAlias() {
 	meta := timeseries.Meta{Name: "Transfer", Type: timeseries.MetaTypeGauge}
-	table := s.Store.MetaTable(meta)
+	table := s.Store.MetaTableWithOptions(meta, timeseries.DefaultMetaTableOption)
 
 	c := NewCascadeFunctions()
 	// First function emits alias f1

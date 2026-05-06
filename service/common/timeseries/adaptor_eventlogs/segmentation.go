@@ -386,7 +386,7 @@ func (s *segmentationAdaptor) resourceTable(resource string, nullAsDefault, earl
 			resourceCond,
 		}
 		condsStr = strings.Join(conds, " AND ")
-		table    = s.store.MetaTable(s.meta[resource])
+		table    = s.store.MetaTableWithOptions(s.meta[resource], timeseries.DefaultMetaTableOption)
 	)
 	for _, column := range utils.GetOrderedMapKeys(s.columns) {
 		if property, ok := s.resourceColumns[resource][column]; !ok {
@@ -413,7 +413,7 @@ func (s *segmentationAdaptor) resourceTable(resource string, nullAsDefault, earl
 			}
 		}
 	}
-	resourceTable := "SELECT " + strings.Join(fields, ",") + " FROM `" + table + "` WHERE " + condsStr
+	resourceTable := "SELECT " + strings.Join(fields, ",") + " FROM " + table + " WHERE " + condsStr
 	s.logger.Debugf("resource[%s] table: %s", resource, resourceTable)
 	return resourceTable
 }

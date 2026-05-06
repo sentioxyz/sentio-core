@@ -64,6 +64,9 @@ func (m *MockStore) ReloadMeta(_ context.Context, _ bool) error { return nil }
 func (m *MockStore) MetaTable(meta timeseries.Meta) string {
 	return fmt.Sprintf("%s_%s", m.processorID, meta.GetTableSuffix())
 }
+func (m *MockStore) MetaTableWithOptions(meta timeseries.Meta, _ timeseries.MetaTableOption) string {
+	return fmt.Sprintf("`%s_%s`", m.processorID, meta.GetTableSuffix())
+}
 
 func (m *MockStore) AppendData(context.Context, []timeseries.Dataset, string, time.Time) error {
 	return nil

@@ -28,6 +28,19 @@ type StoreMeta interface {
 	MustMeta(t MetaType, name string) Meta
 }
 
+type MetaTableOption struct {
+	EnableEscape                               bool
+	EnableAutoParsingDatabaseForStorageNetwork bool
+	EnableAutoPatternForStorageNetwork         bool
+}
+
+var (
+	DefaultMetaTableOption = MetaTableOption{
+		EnableEscape:                       true,
+		EnableAutoPatternForStorageNetwork: true,
+	}
+)
+
 type Store interface {
 	Init(ctx context.Context, overWriteMeta bool) error
 	CleanAll(ctx context.Context) error
@@ -36,6 +49,7 @@ type Store interface {
 	Meta() StoreMeta
 	ReloadMeta(ctx context.Context, force bool) error
 	MetaTable(meta Meta) string
+	MetaTableWithOptions(meta Meta, option MetaTableOption) string
 
 	// AppendData Will first synchronize all table structures, then insert data rows, and finally calculate the new
 	// rows of aggregation tables.

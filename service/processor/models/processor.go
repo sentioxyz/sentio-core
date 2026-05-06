@@ -320,6 +320,10 @@ func (p TablePattern) TableNameLike(processorID string, processorReplica int) st
 	return strings.ReplaceAll(p.TableNamePrefix(processorID, processorReplica), "_", "\\_") + "%"
 }
 
+func (p TablePattern) IsNetworkPattern() bool {
+	return p == TablePatternNetworkV1
+}
+
 type Processor struct {
 	gorm.Model
 	ID         string `gorm:"primaryKey"`

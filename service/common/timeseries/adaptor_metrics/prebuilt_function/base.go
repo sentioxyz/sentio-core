@@ -211,7 +211,12 @@ func (f *BaseFunction) GetFuncName() string {
 }
 
 func (f *BaseFunction) GetTableName() string {
-	return lo.IfF(f.TableName == "", func() string { return f.Store.MetaTable(f.Meta) }).Else(f.TableName)
+	return lo.IfF(f.TableName == "", func() string {
+		return f.Store.MetaTableWithOptions(f.Meta, timeseries.MetaTableOption{
+			EnableEscape:                       true,
+			EnableAutoPatternForStorageNetwork: true,
+		})
+	}).Else(f.TableName)
 }
 
 func (f *BaseFunction) GetResultAlias() string {

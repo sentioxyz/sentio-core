@@ -11,5 +11,6 @@ go_library(
         "//driver/timeseries",
         "//driver/timeseries/clickhouse",
         "//service/processor/models",
+        "@com_github_samber_lo//:lo",
     ],
 )

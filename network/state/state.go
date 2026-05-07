@@ -3,6 +3,8 @@ package state
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 )
 
 type State interface {
@@ -46,6 +48,43 @@ type PlainState struct {
 	HostedProcessors     map[string]bool                           `yaml:"hosted_processors"`
 	Databases            map[string]DatabaseInfo                   `yaml:"databases"`
 	DatabasePermissions  map[string]map[string]string              `yaml:"database_permissions"`
+}
+
+// Clone returns a deep copy of s suitable for use as an isolated working
+// copy: mutations to the clone never alias back into the source. Slices and
+// nested maps are duplicated; struct values are copied by assignment.
+func (s *PlainState) Clone() *PlainState {
+	clone := &PlainState{
+		LastBlock:            s.LastBlock,
+		ProcessorAllocations: make(map[string]map[uint64]ProcessorAllocation, len(s.ProcessorAllocations)),
+		ProcessorInfos:       maps.Clone(s.ProcessorInfos),
+		IndexerInfos:         maps.Clone(s.IndexerInfos),
+		HostedProcessors:     maps.Clone(s.HostedProcessors),
+		Databases:            make(map[string]DatabaseInfo, len(s.Databases)),
+		DatabasePermissions:  make(map[string]map[string]string, len(s.DatabasePermissions)),
+	}
+	for procId, byIndexer := range s.ProcessorAllocations {
+		clone.ProcessorAllocations[procId] = maps.Clone(byIndexer)
+	}
+	for dbId, info := range s.Databases {
+		// DatabaseInfo.Tables is a slice — duplicate so handler appends to
+		// the working copy don't bleed into the source.
+		info.Tables = slices.Clone(info.Tables)
+		clone.Databases[dbId] = info
+	}
+	for account, perms := range s.DatabasePermissions {
+		clone.DatabasePermissions[account] = maps.Clone(perms)
+	}
+	if clone.ProcessorInfos == nil {
+		clone.ProcessorInfos = map[string]ProcessorInfo{}
+	}
+	if clone.IndexerInfos == nil {
+		clone.IndexerInfos = map[uint64]IndexerInfo{}
+	}
+	if clone.HostedProcessors == nil {
+		clone.HostedProcessors = map[string]bool{}
+	}
+	return clone
 }
 
 func (s *PlainState) GetLastBlock() uint64 {

@@ -667,11 +667,10 @@ func (s *Store) syncMeta(ctx context.Context, data timeseries.Dataset) error {
 		logger.Debug("will create table")
 		// Mirror the new physical table to the on-chain Databases contract
 		// before issuing CREATE TABLE, so onchain state cannot fall behind
-		// clickhouse. Only active for the decentralized network path.
+		// clickhouse. Only active for the decentralized network path. The
+		// processor database itself is created by Controller.startProcessor;
+		// drivers only register tables.
 		if s.onChainRegistrationEnabled() {
-			if err := s.ensureOnChainDatabase(ctx); err != nil {
-				return fmt.Errorf("ensure on-chain database for %s: %w", meta.GetFullName(), err)
-			}
 			if err := s.registrar.EnsureTable(ctx, s.processorID, uint32(s.processorReplica), meta.GetTableSuffix(), string(meta.Type)); err != nil {
 				return fmt.Errorf("ensure on-chain table for %s: %w", meta.GetFullName(), err)
 			}

@@ -20,7 +20,6 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DatabaseRegistryService_EnsureDatabase_FullMethodName     = "/database_registry_service.DatabaseRegistryService/EnsureDatabase"
 	DatabaseRegistryService_EnsureTable_FullMethodName        = "/database_registry_service.DatabaseRegistryService/EnsureTable"
 	DatabaseRegistryService_CreateUserDatabase_FullMethodName = "/database_registry_service.DatabaseRegistryService/CreateUserDatabase"
 	DatabaseRegistryService_DeleteUserDatabase_FullMethodName = "/database_registry_service.DatabaseRegistryService/DeleteUserDatabase"
@@ -30,7 +29,6 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DatabaseRegistryServiceClient interface {
-	EnsureDatabase(ctx context.Context, in *EnsureDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	EnsureTable(ctx context.Context, in *EnsureTableRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	CreateUserDatabase(ctx context.Context, in *CreateUserDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	DeleteUserDatabase(ctx context.Context, in *DeleteUserDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -42,16 +40,6 @@ type databaseRegistryServiceClient struct {
 
 func NewDatabaseRegistryServiceClient(cc grpc.ClientConnInterface) DatabaseRegistryServiceClient {
 	return &databaseRegistryServiceClient{cc}
-}
-
-func (c *databaseRegistryServiceClient) EnsureDatabase(ctx context.Context, in *EnsureDatabaseRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, DatabaseRegistryService_EnsureDatabase_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *databaseRegistryServiceClient) EnsureTable(ctx context.Context, in *EnsureTableRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
@@ -88,7 +76,6 @@ func (c *databaseRegistryServiceClient) DeleteUserDatabase(ctx context.Context, 
 // All implementations must embed UnimplementedDatabaseRegistryServiceServer
 // for forward compatibility.
 type DatabaseRegistryServiceServer interface {
-	EnsureDatabase(context.Context, *EnsureDatabaseRequest) (*emptypb.Empty, error)
 	EnsureTable(context.Context, *EnsureTableRequest) (*emptypb.Empty, error)
 	CreateUserDatabase(context.Context, *CreateUserDatabaseRequest) (*emptypb.Empty, error)
 	DeleteUserDatabase(context.Context, *DeleteUserDatabaseRequest) (*emptypb.Empty, error)
@@ -102,9 +89,6 @@ type DatabaseRegistryServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDatabaseRegistryServiceServer struct{}
 
-func (UnimplementedDatabaseRegistryServiceServer) EnsureDatabase(context.Context, *EnsureDatabaseRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method EnsureDatabase not implemented")
-}
 func (UnimplementedDatabaseRegistryServiceServer) EnsureTable(context.Context, *EnsureTableRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method EnsureTable not implemented")
 }
@@ -134,24 +118,6 @@ func RegisterDatabaseRegistryServiceServer(s grpc.ServiceRegistrar, srv Database
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&DatabaseRegistryService_ServiceDesc, srv)
-}
-
-func _DatabaseRegistryService_EnsureDatabase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EnsureDatabaseRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DatabaseRegistryServiceServer).EnsureDatabase(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: DatabaseRegistryService_EnsureDatabase_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DatabaseRegistryServiceServer).EnsureDatabase(ctx, req.(*EnsureDatabaseRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _DatabaseRegistryService_EnsureTable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -215,10 +181,6 @@ var DatabaseRegistryService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "database_registry_service.DatabaseRegistryService",
 	HandlerType: (*DatabaseRegistryServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "EnsureDatabase",
-			Handler:    _DatabaseRegistryService_EnsureDatabase_Handler,
-		},
 		{
 			MethodName: "EnsureTable",
 			Handler:    _DatabaseRegistryService_EnsureTable_Handler,

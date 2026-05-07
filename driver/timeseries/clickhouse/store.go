@@ -2,7 +2,6 @@ package clickhouse
 
 import (
 	"context"
-	"sync"
 
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/envconf"
@@ -33,14 +32,9 @@ type Store struct {
 
 	// registrar mirrors table creations to the on-chain Databases contract.
 	// Only consulted when processorTablePattern == TablePatternNetworkV1.
-	// Nil disables on-chain registration.
+	// Nil disables on-chain registration. The processor database itself is
+	// created by Controller.startProcessor — drivers only register tables.
 	registrar registrar.OnChain
-
-	// onChainDatabaseEnsured guards a single EnsureDatabase call per Store
-	// lifetime — timeseries tables are created lazily in syncMeta, so
-	// there is no startup phase to hook.
-	onChainDatabaseEnsured sync.Once
-	onChainDatabaseErr     error
 }
 
 type counterSeriesLatestCache struct {
@@ -91,15 +85,6 @@ func (s *Store) Init(ctx context.Context, overWriteMeta bool) error {
 // creations to the on-chain Databases contract.
 func (s *Store) onChainRegistrationEnabled() bool {
 	return s.processorTablePattern == models.TablePatternNetworkV1 && s.registrar != nil
-}
-
-// ensureOnChainDatabase ensures the on-chain database record for this
-// replica exists, caching the result for subsequent table creations.
-func (s *Store) ensureOnChainDatabase(ctx context.Context) error {
-	s.onChainDatabaseEnsured.Do(func() {
-		s.onChainDatabaseErr = s.registrar.EnsureDatabase(ctx, s.processorID, uint32(s.processorReplica))
-	})
-	return s.onChainDatabaseErr
 }
 
 func (s *Store) Client() timeseries.QueryClient {

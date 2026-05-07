@@ -33,6 +33,88 @@ func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror
 	return st, nil
 }
 
+// Inner returns the underlying PlainState. The caller must serialize access
+// externally — StateMirrored has no internal lock.
+func (s *StateMirrored) Inner() *PlainState {
+	return s.inner
+}
+
+// ReplaceInner atomically substitutes the underlying PlainState and pushes
+// the per-mapping delta (both Added and Deleted entries) to the Redis mirror
+// so the mirror converges to ps. Use this for transactional batch updates:
+// build a working copy via PlainState.Clone, mutate it, then commit here.
+//
+// The mirror diff is applied before the swap so mirror failures leave the
+// in-memory state untouched. The caller must hold an external lock for the
+// entire build-mutate-commit window.
+func (s *StateMirrored) ReplaceInner(ctx context.Context, ps *PlainState) error {
+	if err := diffApply(ctx, s.mirror, statemirror.MappingIndexerInfos, s.indexerInfoCodec,
+		stringKeyMap(s.inner.IndexerInfos), stringKeyMap(ps.IndexerInfos)); err != nil {
+		return err
+	}
+	if err := diffApply(ctx, s.mirror, statemirror.MappingProcessorAllocations, s.processorAllocationCodec,
+		flattenAllocations(s.inner.ProcessorAllocations), flattenAllocations(ps.ProcessorAllocations)); err != nil {
+		return err
+	}
+	if err := diffApply(ctx, s.mirror, statemirror.MappingProcessorInfos, s.processorInfoCodec,
+		s.inner.ProcessorInfos, ps.ProcessorInfos); err != nil {
+		return err
+	}
+	if err := diffApply(ctx, s.mirror, statemirror.MappingDatabases, s.databaseCodec,
+		s.inner.Databases, ps.Databases); err != nil {
+		return err
+	}
+	if err := diffApply(ctx, s.mirror, statemirror.MappingDatabasePermissions, s.databasePermissionsCodec,
+		s.inner.DatabasePermissions, ps.DatabasePermissions); err != nil {
+		return err
+	}
+	s.inner = ps
+	return nil
+}
+
+// stringKeyMap converts a map keyed by uint64 (used for indexer IDs in the
+// inner state) to the string-keyed form expected by the mirror codecs.
+func stringKeyMap(m map[uint64]IndexerInfo) map[string]IndexerInfo {
+	out := make(map[string]IndexerInfo, len(m))
+	for k, v := range m {
+		out[fmt.Sprintf("%d", k)] = v
+	}
+	return out
+}
+
+// flattenAllocations collapses the nested per-indexer allocation map into the
+// per-processor slice form the mirror stores.
+func flattenAllocations(m map[string]map[uint64]ProcessorAllocation) map[string][]ProcessorAllocation {
+	out := make(map[string][]ProcessorAllocation, len(m))
+	for procId, byIndexer := range m {
+		allocations := make([]ProcessorAllocation, 0, len(byIndexer))
+		for _, a := range byIndexer {
+			allocations = append(allocations, a)
+		}
+		out[procId] = allocations
+	}
+	return out
+}
+
+// diffApply pushes the delta between old and new (both keyed by K) to mirror
+// as a single TypedDiff. Keys present only in old are emitted as Deleted;
+// keys present in new are emitted as Added (the mirror codec treats Added as
+// upsert, so equal entries are a harmless no-op write).
+func diffApply[K comparable, V any](ctx context.Context, mirror statemirror.Mirror, key statemirror.OnChainKey, codec statemirror.StateCodec[K, V], old, new map[K]V) error {
+	diff := &statemirror.TypedDiff[K, V]{
+		Added: make(map[K]V, len(new)),
+	}
+	for k, v := range new {
+		diff.Added[k] = v
+	}
+	for k := range old {
+		if _, ok := new[k]; !ok {
+			diff.Deleted = append(diff.Deleted, k)
+		}
+	}
+	return applyDiff(ctx, mirror, key, codec, diff)
+}
+
 func (s *StateMirrored) GetLastBlock() uint64 {
 	return s.inner.GetLastBlock()
 }

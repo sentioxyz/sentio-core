@@ -22,58 +22,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type EnsureDatabaseRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProcessorId   string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
-	ReplicaIndex  uint32                 `protobuf:"varint,2,opt,name=replica_index,json=replicaIndex,proto3" json:"replica_index,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *EnsureDatabaseRequest) Reset() {
-	*x = EnsureDatabaseRequest{}
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EnsureDatabaseRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EnsureDatabaseRequest) ProtoMessage() {}
-
-func (x *EnsureDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EnsureDatabaseRequest.ProtoReflect.Descriptor instead.
-func (*EnsureDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *EnsureDatabaseRequest) GetProcessorId() string {
-	if x != nil {
-		return x.ProcessorId
-	}
-	return ""
-}
-
-func (x *EnsureDatabaseRequest) GetReplicaIndex() uint32 {
-	if x != nil {
-		return x.ReplicaIndex
-	}
-	return 0
-}
-
 type EnsureTableRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProcessorId   string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
@@ -86,7 +34,7 @@ type EnsureTableRequest struct {
 
 func (x *EnsureTableRequest) Reset() {
 	*x = EnsureTableRequest{}
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[1]
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -98,7 +46,7 @@ func (x *EnsureTableRequest) String() string {
 func (*EnsureTableRequest) ProtoMessage() {}
 
 func (x *EnsureTableRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[1]
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -111,7 +59,7 @@ func (x *EnsureTableRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnsureTableRequest.ProtoReflect.Descriptor instead.
 func (*EnsureTableRequest) Descriptor() ([]byte, []int) {
-	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{1}
+	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *EnsureTableRequest) GetProcessorId() string {
@@ -152,7 +100,7 @@ type CreateUserDatabaseRequest struct {
 
 func (x *CreateUserDatabaseRequest) Reset() {
 	*x = CreateUserDatabaseRequest{}
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[2]
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -164,7 +112,7 @@ func (x *CreateUserDatabaseRequest) String() string {
 func (*CreateUserDatabaseRequest) ProtoMessage() {}
 
 func (x *CreateUserDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[2]
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -177,7 +125,7 @@ func (x *CreateUserDatabaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateUserDatabaseRequest.ProtoReflect.Descriptor instead.
 func (*CreateUserDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{2}
+	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CreateUserDatabaseRequest) GetDatabaseId() string {
@@ -204,7 +152,7 @@ type DeleteUserDatabaseRequest struct {
 
 func (x *DeleteUserDatabaseRequest) Reset() {
 	*x = DeleteUserDatabaseRequest{}
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[3]
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -216,7 +164,7 @@ func (x *DeleteUserDatabaseRequest) String() string {
 func (*DeleteUserDatabaseRequest) ProtoMessage() {}
 
 func (x *DeleteUserDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[3]
+	mi := &file_service_database_registry_protos_database_registry_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -229,7 +177,7 @@ func (x *DeleteUserDatabaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteUserDatabaseRequest.ProtoReflect.Descriptor instead.
 func (*DeleteUserDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{3}
+	return file_service_database_registry_protos_database_registry_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DeleteUserDatabaseRequest) GetDatabaseId() string {
@@ -250,10 +198,7 @@ var File_service_database_registry_protos_database_registry_proto protoreflect.F
 
 const file_service_database_registry_protos_database_registry_proto_rawDesc = "" +
 	"\n" +
-	"8service/database_registry/protos/database_registry.proto\x12\x19database_registry_service\x1a\x1bgoogle/protobuf/empty.proto\"_\n" +
-	"\x15EnsureDatabaseRequest\x12!\n" +
-	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12#\n" +
-	"\rreplica_index\x18\x02 \x01(\rR\freplicaIndex\"\x96\x01\n" +
+	"8service/database_registry/protos/database_registry.proto\x12\x19database_registry_service\x1a\x1bgoogle/protobuf/empty.proto\"\x96\x01\n" +
 	"\x12EnsureTableRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12#\n" +
 	"\rreplica_index\x18\x02 \x01(\rR\freplicaIndex\x12\x19\n" +
@@ -267,9 +212,8 @@ const file_service_database_registry_protos_database_registry_proto_rawDesc = ""
 	"\x19DeleteUserDatabaseRequest\x12\x1f\n" +
 	"\vdatabase_id\x18\x01 \x01(\tR\n" +
 	"databaseId\x12!\n" +
-	"\fuser_address\x18\x02 \x01(\tR\vuserAddress2\x93\x03\n" +
-	"\x17DatabaseRegistryService\x12Z\n" +
-	"\x0eEnsureDatabase\x120.database_registry_service.EnsureDatabaseRequest\x1a\x16.google.protobuf.Empty\x12T\n" +
+	"\fuser_address\x18\x02 \x01(\tR\vuserAddress2\xb7\x02\n" +
+	"\x17DatabaseRegistryService\x12T\n" +
 	"\vEnsureTable\x12-.database_registry_service.EnsureTableRequest\x1a\x16.google.protobuf.Empty\x12b\n" +
 	"\x12CreateUserDatabase\x124.database_registry_service.CreateUserDatabaseRequest\x1a\x16.google.protobuf.Empty\x12b\n" +
 	"\x12DeleteUserDatabase\x124.database_registry_service.DeleteUserDatabaseRequest\x1a\x16.google.protobuf.EmptyB8Z6sentioxyz/sentio-core/service/database_registry/protosb\x06proto3"
@@ -286,25 +230,22 @@ func file_service_database_registry_protos_database_registry_proto_rawDescGZIP()
 	return file_service_database_registry_protos_database_registry_proto_rawDescData
 }
 
-var file_service_database_registry_protos_database_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_service_database_registry_protos_database_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_service_database_registry_protos_database_registry_proto_goTypes = []any{
-	(*EnsureDatabaseRequest)(nil),     // 0: database_registry_service.EnsureDatabaseRequest
-	(*EnsureTableRequest)(nil),        // 1: database_registry_service.EnsureTableRequest
-	(*CreateUserDatabaseRequest)(nil), // 2: database_registry_service.CreateUserDatabaseRequest
-	(*DeleteUserDatabaseRequest)(nil), // 3: database_registry_service.DeleteUserDatabaseRequest
-	(*emptypb.Empty)(nil),             // 4: google.protobuf.Empty
+	(*EnsureTableRequest)(nil),        // 0: database_registry_service.EnsureTableRequest
+	(*CreateUserDatabaseRequest)(nil), // 1: database_registry_service.CreateUserDatabaseRequest
+	(*DeleteUserDatabaseRequest)(nil), // 2: database_registry_service.DeleteUserDatabaseRequest
+	(*emptypb.Empty)(nil),             // 3: google.protobuf.Empty
 }
 var file_service_database_registry_protos_database_registry_proto_depIdxs = []int32{
-	0, // 0: database_registry_service.DatabaseRegistryService.EnsureDatabase:input_type -> database_registry_service.EnsureDatabaseRequest
-	1, // 1: database_registry_service.DatabaseRegistryService.EnsureTable:input_type -> database_registry_service.EnsureTableRequest
-	2, // 2: database_registry_service.DatabaseRegistryService.CreateUserDatabase:input_type -> database_registry_service.CreateUserDatabaseRequest
-	3, // 3: database_registry_service.DatabaseRegistryService.DeleteUserDatabase:input_type -> database_registry_service.DeleteUserDatabaseRequest
-	4, // 4: database_registry_service.DatabaseRegistryService.EnsureDatabase:output_type -> google.protobuf.Empty
-	4, // 5: database_registry_service.DatabaseRegistryService.EnsureTable:output_type -> google.protobuf.Empty
-	4, // 6: database_registry_service.DatabaseRegistryService.CreateUserDatabase:output_type -> google.protobuf.Empty
-	4, // 7: database_registry_service.DatabaseRegistryService.DeleteUserDatabase:output_type -> google.protobuf.Empty
-	4, // [4:8] is the sub-list for method output_type
-	0, // [0:4] is the sub-list for method input_type
+	0, // 0: database_registry_service.DatabaseRegistryService.EnsureTable:input_type -> database_registry_service.EnsureTableRequest
+	1, // 1: database_registry_service.DatabaseRegistryService.CreateUserDatabase:input_type -> database_registry_service.CreateUserDatabaseRequest
+	2, // 2: database_registry_service.DatabaseRegistryService.DeleteUserDatabase:input_type -> database_registry_service.DeleteUserDatabaseRequest
+	3, // 3: database_registry_service.DatabaseRegistryService.EnsureTable:output_type -> google.protobuf.Empty
+	3, // 4: database_registry_service.DatabaseRegistryService.CreateUserDatabase:output_type -> google.protobuf.Empty
+	3, // 5: database_registry_service.DatabaseRegistryService.DeleteUserDatabase:output_type -> google.protobuf.Empty
+	3, // [3:6] is the sub-list for method output_type
+	0, // [0:3] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -321,7 +262,7 @@ func file_service_database_registry_protos_database_registry_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_database_registry_protos_database_registry_proto_rawDesc), len(file_service_database_registry_protos_database_registry_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

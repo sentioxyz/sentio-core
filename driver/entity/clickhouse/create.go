@@ -173,18 +173,16 @@ func (s *Store) CreateViews(ctx context.Context) error {
 	return s.syncTablesAndViews(ctx, true)
 }
 
-// ensureOnChainTables ensures this processor replica's on-chain database
-// exists and every physical base table in the expected set is registered
-// on-chain with tableType="entity". Views and materialized views are not
-// registered because they have no independent storage.
+// ensureOnChainTables registers every physical base table in the expected
+// set on-chain with tableType="entity". Views and materialized views are not
+// registered because they have no independent storage. The processor
+// database itself is created by Controller.startProcessor; drivers only
+// register tables.
 func (s *Store) ensureOnChainTables(
 	ctx context.Context,
 	expects map[string][]chx.TableOrView,
 ) error {
 	replica := uint32(s.processorReplica)
-	if err := s.registrar.EnsureDatabase(ctx, s.processorID, replica); err != nil {
-		return fmt.Errorf("ensure on-chain database for %s_%d: %w", s.processorID, s.processorReplica, err)
-	}
 	prefix := s.tableNamePrefix()
 	for _, tvs := range expects {
 		for _, tv := range tvs {

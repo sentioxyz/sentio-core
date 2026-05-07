@@ -7,15 +7,13 @@ import "google/protobuf/empty.proto";
 option go_package = "sentioxyz/sentio-core/service/database_registry/protos";
 
 // DatabaseRegistryService lets drivers ask sentio-node to mirror physical
-// ClickHouse tables as on-chain (database, table) records before issuing DDL.
-// It also lets clickhouse-proxy create user-owned databases on behalf of an
+// ClickHouse tables as on-chain table records before issuing DDL. It also
+// lets clickhouse-proxy create user-owned databases on behalf of an
 // authenticated end-user signer. The node signs on-chain transactions with
-// its indexer key.
+// its indexer key. Processor databases themselves are created by
+// Controller.startProcessor at allocation time, so drivers only register
+// tables — the database row already exists when the driver runs.
 service DatabaseRegistryService {
-  // EnsureDatabase creates the on-chain processor database if missing.
-  // Idempotent.
-  rpc EnsureDatabase(EnsureDatabaseRequest) returns (google.protobuf.Empty);
-
   // EnsureTable registers (database_id, table_id, table_type) on-chain if
   // missing. Idempotent.
   rpc EnsureTable(EnsureTableRequest) returns (google.protobuf.Empty);
@@ -38,14 +36,6 @@ service DatabaseRegistryService {
   // RPC; PROCESSOR databases are managed by their processor lifecycle.
   // Idempotent: if the database is already gone it returns success.
   rpc DeleteUserDatabase(DeleteUserDatabaseRequest) returns (google.protobuf.Empty);
-}
-
-// EnsureDatabase maps to the on-chain createProcessorDatabase(processor_id,
-// replica_index, self_indexer_id). The server (sentio-node) supplies its own
-// indexer_id; the driver only knows its (processor_id, replica_index).
-message EnsureDatabaseRequest {
-  string processor_id = 1;
-  uint32 replica_index = 2;
 }
 
 // EnsureTable maps to createTable(database_id, table_id, table_type). The

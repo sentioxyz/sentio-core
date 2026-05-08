@@ -1302,6 +1302,23 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     lightIcon: 'https://assets.sentio.xyz/chains/sentio.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/sentio-dark.svg'
   },
+  [EthChainId.SENTIO_DEVNET]: {
+    name: 'Sentio devnet',
+    slug: 'sentio-devnet',
+    chainId: EthChainId.SENTIO_DEVNET,
+    nativeChainId: 7892201,
+    variation: EthVariation.DEFAULT,
+    priceTokenAddress: '0x0000000000000000000000000000000000000000',
+    tokenAddress: '0x0000000000000000000000000000000000000000',
+    wrappedTokenAddress: '0x0000000000000000000000000000000000000000',
+    tokenSymbol: 'ETH',
+    tokenDecimals: 18,
+    explorerApiType: ExplorerApiType.BLOCKSCOUT,
+    explorerUrl: 'https://devnet-explorer.sentio.xyz',
+    blockscoutUrl: 'https://devnet-explorer.sentio.xyz',
+    lightIcon: 'https://assets.sentio.xyz/chains/sentio.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/sentio-dark.svg'
+  },
   [EthChainId.TRON]: {
     name: 'Tron Mainnet',
     slug: 'tron',

@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"sentioxyz/sentio-core/common/statemirror"
 )
@@ -15,6 +16,7 @@ type StateMirrored struct {
 	processorInfoCodec       statemirror.JSONCodec[string, ProcessorInfo]
 	databaseCodec            statemirror.JSONCodec[string, DatabaseInfo]
 	databasePermissionsCodec statemirror.JSONCodec[string, map[string]string]
+	operatorsCodec           statemirror.JSONCodec[string, []string]
 }
 
 func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror.Mirror) (*StateMirrored, error) {
@@ -25,7 +27,8 @@ func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror
 		processorAllocationCodec: newCodec[[]ProcessorAllocation](),
 		processorInfoCodec:       newCodec[ProcessorInfo](),
 		databaseCodec:            newCodec[DatabaseInfo](),
-		databasePermissionsCodec:         newCodec[map[string]string](),
+		databasePermissionsCodec: newCodec[map[string]string](),
+		operatorsCodec:           newCodec[[]string](),
 	}
 	if err := st.SyncMirror(ctx); err != nil {
 		return nil, err
@@ -68,8 +71,31 @@ func (s *StateMirrored) ReplaceInner(ctx context.Context, ps *PlainState) error 
 		s.inner.DatabasePermissions, ps.DatabasePermissions); err != nil {
 		return err
 	}
+	if err := diffApply(ctx, s.mirror, statemirror.MappingOperators, s.operatorsCodec,
+		flattenOperators(s.inner.Operators), flattenOperators(ps.Operators)); err != nil {
+		return err
+	}
 	s.inner = ps
 	return nil
+}
+
+// flattenOperators collapses the nested account→signer-set map into the
+// account→sorted-signer-list form the mirror codec stores. Sorted so
+// equal logical sets serialise to identical bytes.
+func flattenOperators(m map[string]map[string]bool) map[string][]string {
+	out := make(map[string][]string, len(m))
+	for account, ops := range m {
+		if len(ops) == 0 {
+			continue
+		}
+		signers := make([]string, 0, len(ops))
+		for s := range ops {
+			signers = append(signers, s)
+		}
+		sort.Strings(signers)
+		out[account] = signers
+	}
+	return out
 }
 
 // stringKeyMap converts a map keyed by uint64 (used for indexer IDs in the
@@ -317,6 +343,48 @@ func (s *StateMirrored) DeleteDatabasePermission(ctx context.Context, account st
 	return s.syncAccountDatabasePermissions(ctx, account)
 }
 
+func (s *StateMirrored) IsOperator(account, signer string) bool {
+	return s.inner.IsOperator(account, signer)
+}
+
+func (s *StateMirrored) GetOperators() map[string]map[string]bool {
+	return s.inner.GetOperators()
+}
+
+func (s *StateMirrored) AddOperator(ctx context.Context, account, signer string) error {
+	if err := s.inner.AddOperator(ctx, account, signer); err != nil {
+		return err
+	}
+	return s.syncOperatorsForAccount(ctx, account)
+}
+
+func (s *StateMirrored) RemoveOperator(ctx context.Context, account, signer string) error {
+	if err := s.inner.RemoveOperator(ctx, account, signer); err != nil {
+		return err
+	}
+	return s.syncOperatorsForAccount(ctx, account)
+}
+
+func (s *StateMirrored) syncOperatorsForAccount(ctx context.Context, account string) error {
+	ops, ok := s.inner.Operators[account]
+	var diff statemirror.TypedDiff[string, []string]
+	if ok && len(ops) > 0 {
+		signers := make([]string, 0, len(ops))
+		for op := range ops {
+			signers = append(signers, op)
+		}
+		sort.Strings(signers)
+		diff = statemirror.TypedDiff[string, []string]{
+			Added: map[string][]string{account: signers},
+		}
+	} else {
+		diff = statemirror.TypedDiff[string, []string]{
+			Deleted: []string{account},
+		}
+	}
+	return applyDiff(ctx, s.mirror, statemirror.MappingOperators, s.operatorsCodec, &diff)
+}
+
 func (s *StateMirrored) syncAccountDatabasePermissions(ctx context.Context, account string) error {
 	perms, ok := s.inner.DatabasePermissions[account]
 	var diff statemirror.TypedDiff[string, map[string]string]
@@ -399,6 +467,13 @@ func (s *StateMirrored) SyncMirror(ctx context.Context) error {
 		databasePermissionsDiff.Added[account] = perms
 	}
 	if err := applyDiff(ctx, s.mirror, statemirror.MappingDatabasePermissions, s.databasePermissionsCodec, databasePermissionsDiff); err != nil {
+		return err
+	}
+
+	operatorsDiff := &statemirror.TypedDiff[string, []string]{
+		Added: flattenOperators(s.inner.Operators),
+	}
+	if err := applyDiff(ctx, s.mirror, statemirror.MappingOperators, s.operatorsCodec, operatorsDiff); err != nil {
 		return err
 	}
 	return nil

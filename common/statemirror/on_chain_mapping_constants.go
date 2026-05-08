@@ -8,4 +8,5 @@ const (
 	MappingIndexerInfos         OnChainKey = "IndexerInfos"
 	MappingDatabases            OnChainKey = "Databases"
 	MappingDatabasePermissions  OnChainKey = "DatabasePermissions"
+	MappingOperators            OnChainKey = "Operators"
 )

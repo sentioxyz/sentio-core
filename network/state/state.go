@@ -38,6 +38,11 @@ type State interface {
 	GetAccountDatabasePermissions(account string) map[string]string
 	SetDatabasePermission(ctx context.Context, account string, databaseId string, permission string) error
 	DeleteDatabasePermission(ctx context.Context, account string, databaseId string) error
+
+	IsOperator(account, signer string) bool
+	AddOperator(ctx context.Context, account, signer string) error
+	RemoveOperator(ctx context.Context, account, signer string) error
+	GetOperators() map[string]map[string]bool
 }
 
 type PlainState struct {
@@ -48,6 +53,7 @@ type PlainState struct {
 	HostedProcessors     map[string]bool                           `yaml:"hosted_processors"`
 	Databases            map[string]DatabaseInfo                   `yaml:"databases"`
 	DatabasePermissions  map[string]map[string]string              `yaml:"database_permissions"`
+	Operators            map[string]map[string]bool                `yaml:"operators"`
 }
 
 // Clone returns a deep copy of s suitable for use as an isolated working
@@ -62,6 +68,7 @@ func (s *PlainState) Clone() *PlainState {
 		HostedProcessors:     maps.Clone(s.HostedProcessors),
 		Databases:            make(map[string]DatabaseInfo, len(s.Databases)),
 		DatabasePermissions:  make(map[string]map[string]string, len(s.DatabasePermissions)),
+		Operators:            make(map[string]map[string]bool, len(s.Operators)),
 	}
 	for procId, byIndexer := range s.ProcessorAllocations {
 		clone.ProcessorAllocations[procId] = maps.Clone(byIndexer)
@@ -74,6 +81,9 @@ func (s *PlainState) Clone() *PlainState {
 	}
 	for account, perms := range s.DatabasePermissions {
 		clone.DatabasePermissions[account] = maps.Clone(perms)
+	}
+	for account, ops := range s.Operators {
+		clone.Operators[account] = maps.Clone(ops)
 	}
 	if clone.ProcessorInfos == nil {
 		clone.ProcessorInfos = map[string]ProcessorInfo{}
@@ -284,4 +294,47 @@ func (s *PlainState) DeleteDatabasePermission(_ context.Context, account string,
 		delete(s.DatabasePermissions, account)
 	}
 	return nil
+}
+
+func (s *PlainState) IsOperator(account, signer string) bool {
+	if account == "" || signer == "" {
+		return false
+	}
+	if account == signer {
+		return true
+	}
+	ops, ok := s.Operators[account]
+	if !ok {
+		return false
+	}
+	return ops[signer]
+}
+
+func (s *PlainState) AddOperator(_ context.Context, account, signer string) error {
+	if s.Operators == nil {
+		s.Operators = map[string]map[string]bool{}
+	}
+	ops, ok := s.Operators[account]
+	if !ok {
+		ops = map[string]bool{}
+		s.Operators[account] = ops
+	}
+	ops[signer] = true
+	return nil
+}
+
+func (s *PlainState) RemoveOperator(_ context.Context, account, signer string) error {
+	ops, ok := s.Operators[account]
+	if !ok {
+		return nil
+	}
+	delete(ops, signer)
+	if len(ops) == 0 {
+		delete(s.Operators, account)
+	}
+	return nil
+}
+
+func (s *PlainState) GetOperators() map[string]map[string]bool {
+	return s.Operators
 }

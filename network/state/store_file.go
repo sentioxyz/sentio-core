@@ -23,6 +23,7 @@ func (s *FileStore) Load(ctx context.Context) (*PlainState, error) {
 		HostedProcessors:     map[string]bool{},
 		Databases:            map[string]DatabaseInfo{},
 		DatabasePermissions:  map[string]map[string]string{},
+		Operators:            map[string]map[string]bool{},
 	}
 	data, err := os.ReadFile(s.filename)
 	if err != nil {
@@ -50,6 +51,9 @@ func (s *FileStore) Load(ctx context.Context) (*PlainState, error) {
 	if state.DatabasePermissions == nil {
 		state.DatabasePermissions = map[string]map[string]string{}
 	}
+	if state.Operators == nil {
+		state.Operators = map[string]map[string]bool{}
+	}
 	return &state, nil
 }
 
@@ -62,6 +66,7 @@ func (s *FileStore) Save(ctx context.Context, state State) error {
 		HostedProcessors:     state.GetHostedProcessors(),
 		Databases:            state.GetDatabases(),
 		DatabasePermissions:  state.GetDatabasePermissions(),
+		Operators:            state.GetOperators(),
 	}
 	data, err := yaml.Marshal(plainState)
 	if err != nil {

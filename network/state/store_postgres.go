@@ -84,6 +84,15 @@ type DatabasePermissionRow struct {
 
 func (DatabasePermissionRow) TableName() string { return "sentio_node_database_permissions" }
 
+type OperatorRow struct {
+	gorm.Model
+	StateKey string `gorm:"uniqueIndex:operator_state_key_account_signer_unique;column:state_key"`
+	Account  string `gorm:"uniqueIndex:operator_state_key_account_signer_unique;column:account"`
+	Signer   string `gorm:"uniqueIndex:operator_state_key_account_signer_unique;column:signer"`
+}
+
+func (OperatorRow) TableName() string { return "sentio_node_operators" }
+
 func NewPostgresStore(dsn string, stateKey string) (*PostgresStore, error) {
 	if dsn == "" {
 		return nil, errors.New("postgres dsn is required")
@@ -97,7 +106,7 @@ func NewPostgresStore(dsn string, stateKey string) (*PostgresStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&StateRow{}, &IndexerInfoRow{}, &ProcessorAllocationRow{}, &ProcessorInfoRow{}, &HostedProcessorRow{}, &DatabaseInfoRow{}, &DatabasePermissionRow{}); err != nil {
+	if err := db.AutoMigrate(&StateRow{}, &IndexerInfoRow{}, &ProcessorAllocationRow{}, &ProcessorInfoRow{}, &HostedProcessorRow{}, &DatabaseInfoRow{}, &DatabasePermissionRow{}, &OperatorRow{}); err != nil {
 		return nil, err
 	}
 	return &PostgresStore{db: db, stateKey: stateKey}, nil
@@ -119,6 +128,7 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 		HostedProcessors:     map[string]bool{},
 		Databases:            map[string]DatabaseInfo{},
 		DatabasePermissions:  map[string]map[string]string{},
+		Operators:            map[string]map[string]bool{},
 	}
 
 	var stateRow StateRow
@@ -224,6 +234,21 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 		}
 		perms[r.DatabaseId] = r.Permission
 	}
+
+	var operators []OperatorRow
+	if err := s.db.WithContext(ctx).
+		Where("state_key = ?", s.stateKey).
+		Find(&operators).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range operators {
+		ops, ok := st.Operators[r.Account]
+		if !ok {
+			ops = map[string]bool{}
+			st.Operators[r.Account] = ops
+		}
+		ops[r.Signer] = true
+	}
 	return st, nil
 }
 
@@ -248,6 +273,9 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 			return err
 		}
 		if err := tx.Where("state_key = ?", s.stateKey).Delete(&DatabasePermissionRow{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("state_key = ?", s.stateKey).Delete(&OperatorRow{}).Error; err != nil {
 			return err
 		}
 
@@ -361,6 +389,24 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 						Account:    account,
 						DatabaseId: databaseId,
 						Permission: permission,
+					})
+				}
+			}
+			if len(rows) > 0 {
+				if err := tx.Create(&rows).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		{
+			var rows []OperatorRow
+			for account, ops := range state.GetOperators() {
+				for signer := range ops {
+					rows = append(rows, OperatorRow{
+						StateKey: s.stateKey,
+						Account:  account,
+						Signer:   signer,
 					})
 				}
 			}

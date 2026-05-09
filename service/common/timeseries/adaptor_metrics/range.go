@@ -58,8 +58,8 @@ func (qra *queryRangeAdaptor) Parameter() *Parameters {
 	return qra.params
 }
 
-func (qra *queryRangeAdaptor) histogram(d time.Duration, f, tz string) string {
-	return util.HistogramFunction(d, f, tz)
+func (qra *queryRangeAdaptor) histogram(d time.Duration, f, tz string, origin *string) string {
+	return util.HistogramFunction(d, f, tz, origin)
 }
 
 func (qra *queryRangeAdaptor) buildAggregation() string {
@@ -94,14 +94,14 @@ func (qra *queryRangeAdaptor) whereClause() string {
 				util.HistogramFunction(qra.params.timeRange.Step,
 					fmt.Sprintf("toDateTime64('%s', 6, 'UTC')",
 						qra.params.timeRange.Start.UTC().Format("2006-01-02 15:04:05")),
-					qra.params.timeRange.Timezone.String()))
+					qra.params.timeRange.Timezone.String(), nil))
 	} else {
 		conditions = append(conditions,
 			timeseries.SystemTimestamp+">="+
 				util.HistogramFunction(qra.params.timeRange.Step,
 					fmt.Sprintf("toDateTime64('%s', 6, 'UTC')",
 						qra.params.timeRange.Start.UTC().Format("2006-01-02 15:04:05")),
-					qra.params.timeRange.Timezone.String()))
+					qra.params.timeRange.Timezone.String(), nil))
 	}
 	if qra.params.timeRange.RangeMode == timerange.RightOpenRange || qra.params.timeRange.RangeMode == timerange.BothOpenRange {
 		conditions = append(conditions,
@@ -149,7 +149,7 @@ func (qra *queryRangeAdaptor) Build() (string, error) {
 	)
 	return builder.FormatSQLTemplate(tpl, map[string]any{
 		"cte":          cte,
-		"histogram":    qra.histogram(qra.params.timeRange.Step, timeseries.SystemTimestamp, qra.params.timeRange.Timezone.String()),
+		"histogram":    qra.histogram(qra.params.timeRange.Step, timeseries.SystemTimestamp, qra.params.timeRange.Timezone.String(), nil),
 		"time_alias":   matrix.TimeFieldName,
 		"label":        labels,
 		"agg_field":    qra.buildAggregation(),

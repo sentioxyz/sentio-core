@@ -3,6 +3,7 @@ package adaptor_eventlogs
 import (
 	"context"
 	"testing"
+	"time"
 
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/log"
@@ -136,6 +137,24 @@ func (s *LogAdaptorSuite) Test_BuildWideQuery() {
 func (s *LogAdaptorSuite) Test_BuildCountQuery() {
 	wq, err := NewLogAdaptor(mockCtx, s.store, s.processor, mock.NewTimeRange(), "event_name:Transfer amount.data.usd:[0 TO 10]")
 	s.Nil(err)
-	sql := wq.BuildCountQuery()
+	sql := wq.BuildCountQuery(false)
+	s.check(getCurrentFunctionName(), sql)
+}
+
+func (s *LogAdaptorSuite) Test_BuildCountQueryWithAlignStart() {
+	wq, err := NewLogAdaptor(mockCtx, s.store, s.processor, mock.NewTimeRange(), "event_name:Transfer amount.data.usd:[0 TO 10]")
+	s.Nil(err)
+	sql := wq.BuildCountQuery(true)
+	s.check(getCurrentFunctionName(), sql)
+}
+
+func (s *LogAdaptorSuite) Test_BuildCountQueryWithCustomStepAndAlignStart() {
+	tr := mock.NewTimeRange()
+	tr.Start = time.Date(2024, 6, 1, 0, 5, 0, 0, time.UTC)
+	tr.End = time.Date(2024, 6, 1, 1, 0, 0, 0, time.UTC)
+	tr.Step = 5 * time.Minute
+	wq, err := NewLogAdaptor(mockCtx, s.store, s.processor, tr, "event_name:Transfer amount.data.usd:[0 TO 10]")
+	s.Nil(err)
+	sql := wq.BuildCountQuery(true)
 	s.check(getCurrentFunctionName(), sql)
 }

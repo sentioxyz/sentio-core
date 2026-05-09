@@ -6,10 +6,11 @@ import (
 )
 
 const (
-	normalDateTruncTpl   = "dateTrunc('%s', %s, '%s')"
-	wrappedTpl           = "toDateTime64(%s, 6, '%s')"
-	format               = "%F %T"
-	toStartOfIntervalTpl = "toDateTime64(formatDateTime(toStartOfInterval(%s, toIntervalSecond(%d)), '%s', 'UTC'), 6, '%s')"
+	normalDateTruncTpl           = "dateTrunc('%s', %s, '%s')"
+	wrappedTpl                   = "toDateTime64(%s, 6, '%s')"
+	format                       = "%F %T"
+	toStartOfIntervalTpl         = "toDateTime64(formatDateTime(toStartOfInterval(%s, toIntervalSecond(%d)), '%s', 'UTC'), 6, '%s')"
+	toStartOfIntervalInOriginTpl = "toDateTime64(formatDateTime(toStartOfInterval(%s, toIntervalSecond(%d), %s), '%s', 'UTC'), 6, '%s')"
 )
 
 var (
@@ -24,7 +25,7 @@ var (
 		time.Hour * 24 * 365:    "year",
 	}
 
-	HistogramFunction = func(d time.Duration, f, tz string) string {
+	HistogramFunction = func(d time.Duration, f, tz string, origin *string) string {
 		if unit, ok := HistogramTimeUnitMap[d]; ok {
 			field := fmt.Sprintf(normalDateTruncTpl, unit, f, tz)
 			if d > time.Hour*24 {
@@ -32,12 +33,15 @@ var (
 			}
 			return field
 		}
-		return fmt.Sprintf(toStartOfIntervalTpl, f, int(d.Seconds()), format, tz)
+		if origin == nil {
+			return fmt.Sprintf(toStartOfIntervalTpl, f, int(d.Seconds()), format, tz)
+		}
+		return fmt.Sprintf(toStartOfIntervalInOriginTpl, f, int(d.Seconds()), *origin, format, tz)
 	}
 
 	HistogramCeilFunction = func(d time.Duration, f, tz string) string {
-		original := HistogramFunction(d, f, tz)
+		original := HistogramFunction(d, f, tz, nil)
 		needCeil := fmt.Sprintf("(%s != %s)", original, f)
-		return HistogramFunction(d, f+"+if("+needCeil+",interval "+fmt.Sprintf("%d", int64(d.Seconds()))+" second,interval 0 second)", tz)
+		return HistogramFunction(d, f+"+if("+needCeil+",interval "+fmt.Sprintf("%d", int64(d.Seconds()))+" second,interval 0 second)", tz, nil)
 	}
 )

@@ -205,7 +205,7 @@ func (a *aggregator) uniqueUser() error {
 }
 
 func (a *aggregator) histogram(d time.Duration, f, tz string) string {
-	return util.HistogramFunction(d, f, tz)
+	return util.HistogramFunction(d, f, tz, nil)
 }
 
 func (a *aggregator) ClickhouseHistogramTime(timeField string) string {

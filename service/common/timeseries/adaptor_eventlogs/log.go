@@ -40,7 +40,7 @@ type LogAdaptor interface {
 	PresetColumns() map[string]struct{}
 	OriginalQuery() string
 	BuildWideQuery() (string, string)
-	BuildCountQuery(filters ...string) string
+	BuildCountQuery(alignToStart bool, filters ...string) string
 	GetValueBucket(queryClient timeseries.QueryClient, field string, fieldType timeseries.FieldType, limit int, filters ...string) (map[string]uint64, error)
 	GetValueMinMax(queryClient timeseries.QueryClient, field string, fieldType timeseries.FieldType, filters ...string) (any, any, error)
 	Scan(ctx context.Context, scan ScanFunc, sql string, args ...any) (matrix.Matrix, error)
@@ -408,11 +408,15 @@ func (l *logAdaptor) BuildWideQuery() (string, string) {
 	return sql, countSql
 }
 
-func (l *logAdaptor) ClickhouseHistogramTime(timeField string) string {
-	return util.HistogramFunction(l.timeRange.Step, timeField, l.timeRange.Timezone.String())
+func (l *logAdaptor) ClickhouseHistogramTime(alignToStart bool, timeField string) string {
+	var alignStartStr *string = nil
+	if alignToStart && l.timeRange != nil {
+		alignStartStr = lo.ToPtr(fmt.Sprintf("toDateTime64('%s', 6, 'UTC')", l.timeRange.Start.UTC().Format("2006-01-02 15:04:05")))
+	}
+	return util.HistogramFunction(l.timeRange.Step, timeField, l.timeRange.Timezone.String(), alignStartStr)
 }
 
-func (l *logAdaptor) BuildCountQuery(filters ...string) string {
+func (l *logAdaptor) BuildCountQuery(alignToStart bool, filters ...string) string {
 	l.buildQuery()
 	const (
 		countTpl = "{with} SELECT {time_field} AS " + matrix.TimeFieldName +
@@ -432,7 +436,7 @@ func (l *logAdaptor) BuildCountQuery(filters ...string) string {
 			"with":       withParameter,
 			"wide_table": wideTable,
 			"where":      where,
-			"time_field": l.ClickhouseHistogramTime(timeseries.SystemTimestamp),
+			"time_field": l.ClickhouseHistogramTime(alignToStart, timeseries.SystemTimestamp),
 		})
 	)
 	l.logger.DebugEveryN(10, "build log count query: %s", sql)

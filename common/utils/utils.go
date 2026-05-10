@@ -5,10 +5,20 @@ import (
 	lru "github.com/sentioxyz/golang-lru"
 	"golang.org/x/exp/constraints"
 	"math/big"
-	reflect "reflect"
+	"reflect"
 	"regexp"
 	"time"
 )
+
+// BuildSlice returns a slice of num elements, each set to item. For reference types (pointers, slices, maps),
+// all elements share the same underlying object.
+func BuildSlice[T any](item T, num int) []T {
+	arr := make([]T, num)
+	for i := range arr {
+		arr[i] = item
+	}
+	return arr
+}
 
 func MapSlice[T any, M any](a []T, f func(T) (M, error)) ([]M, error) {
 	n := make([]M, len(a))

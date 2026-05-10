@@ -354,10 +354,22 @@ func (m *timeSeriesMatrix) processTimeRange(matrix matrix.Matrix, withFill bool)
 		}
 		t.End = next.Time
 	} else {
-		if !previous.Pre().Before(t.reqStartTime) {
+		var detectPrevious, detectNext = true, true
+		switch m.timeRange.RangeMode {
+		case timerange.LeftOpenRange:
+			detectPrevious = false
+		case timerange.RightOpenRange:
+			detectNext = false
+		case timerange.ClosedRange:
+			// do nothing
+		case timerange.BothOpenRange:
+			detectNext = false
+			detectPrevious = false
+		}
+		if detectPrevious && !previous.Pre().Before(t.reqStartTime) {
 			t.Start = previous.Pre().Time
 		}
-		if !next.Next().After(t.reqEndTime) {
+		if detectNext && !next.Next().After(t.reqEndTime) {
 			t.End = next.Next().Time
 		}
 	}
@@ -367,6 +379,10 @@ func (m *timeSeriesMatrix) processTimeRange(matrix matrix.Matrix, withFill bool)
 
 func (m *timeSeriesMatrix) Apply(matrix matrix.Matrix, withFill bool) {
 	m.processTimeRange(matrix, withFill)
+	m.logger.Debugf("start to apply matrix")
+	defer func() {
+		m.logger.Debugf("apply matrix completed")
+	}()
 
 	for idx := 0; idx < matrix.Len(); idx++ {
 		timeSlot := matrix.TimeSeriesTimeValue(idx)

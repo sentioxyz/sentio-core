@@ -15,8 +15,8 @@ type Block struct {
 
 func (b Block) String() string {
 	var hash string
-	if len(b.Hash) > 8 {
-		hash = "/" + b.Hash[:8]
+	if len(b.Hash) > 12 {
+		hash = "/" + b.Hash[:6] + ".." + b.Hash[len(b.Hash)-6:]
 	} else if len(b.Hash) > 0 {
 		hash = "/" + b.Hash
 	}
@@ -29,6 +29,9 @@ var (
 )
 
 type Client interface {
+	// GetName return the name of this client
+	GetName() string
+
 	// Init may return ErrInvalidConfig
 	Init(ctx context.Context) (Block, error)
 
@@ -40,7 +43,6 @@ type Client interface {
 }
 
 type EntryConfig[CONFIG any] interface {
-	GetName() string
-	Trim() CONFIG
+	GetName() string // as the unique identity of the entry
 	Equal(a CONFIG) bool
 }

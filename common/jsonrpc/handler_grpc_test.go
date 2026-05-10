@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"net/http"
+	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/common/log"
 	"testing"
 	"time"
@@ -21,12 +22,13 @@ type singleConnPool struct {
 	conn *grpc.ClientConn
 }
 
-func (p *singleConnPool) UseRawConnection(
+func (p *singleConnPool) UseGRPCConnection(
 	ctx context.Context,
 	method string,
-	fn func(ctx context.Context, conn *grpc.ClientConn) error,
-) (bool, error) {
-	return true, fn(ctx, p.conn)
+	fn func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result,
+) clientpool.Report {
+	r := fn(ctx, p.conn)
+	return clientpool.Report{Err: r.Err, ClientName: "test", ConfigName: "test"}
 }
 
 func (p *singleConnPool) Snapshot() any {

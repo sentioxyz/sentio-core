@@ -8,6 +8,10 @@ go_library(
         "external.go",
         "snapshot.go",
         "statistic.go",
+        "utils.go",
+        "utils_http.go",
+        "utils_json_rpc.go",
+        "utils_subscribe.go",
     ],
     importpath = "sentioxyz/sentio-core/chain/clientpool",
     visibility = ["//visibility:public"],
@@ -19,6 +23,7 @@ go_library(
         "//common/timewin",
         "//common/utils",
         "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_ethereum_go_ethereum//rpc",
         "@com_github_pkg_errors//:errors",
     ],
 )

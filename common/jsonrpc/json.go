@@ -107,8 +107,8 @@ func ValidateRPCRequest(r *http.Request) (int, error) {
 	return http.StatusUnsupportedMediaType, err
 }
 
-// isBatch returns true when the first non-whitespace characters is '['
-func isBatch(raw json.RawMessage) bool {
+// isArray returns true when the first non-whitespace characters is '['
+func isArray(raw json.RawMessage) bool {
 	for _, c := range raw {
 		// skip insignificant whitespace (http://www.ietf.org/rfc/rfc4627.txt)
 		if c == 0x20 || c == 0x09 || c == 0x0a || c == 0x0d {
@@ -119,28 +119,23 @@ func isBatch(raw json.RawMessage) bool {
 	return false
 }
 
-func ParseRPCMessage(ctx context.Context, raw json.RawMessage) ([]*JsonrpcMessage, bool) {
+func ParseRPCMessage(ctx context.Context, raw json.RawMessage) ([]*JsonrpcMessage, bool, error) {
 	logger := log.WithContext(ctx)
 	var err error
-	if !isBatch(raw) {
+	if !isArray(raw) {
 		msgs := []*JsonrpcMessage{{}}
 		if err = json.Unmarshal(raw, &msgs[0]); err != nil {
 			logger.Errore(err)
+			return nil, false, err
 		}
-		return msgs, false
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	if _, err = dec.Token(); err != nil { // skip '['
-		logger.Errore(err)
+		return msgs, false, nil
 	}
 	var msgs []*JsonrpcMessage
-	for dec.More() {
-		msgs = append(msgs, new(JsonrpcMessage))
-		if err = dec.Decode(&msgs[len(msgs)-1]); err != nil {
-			logger.Errore(err)
-		}
+	if err = json.Unmarshal(raw, &msgs); err != nil {
+		logger.Errore(err)
+		return nil, false, err
 	}
-	return msgs, true
+	return msgs, true, nil
 }
 
 func JSONErrorResponse(msg *JsonrpcMessage, result any, err error) *JsonrpcMessage {
@@ -166,4 +161,24 @@ func JSONErrorResponse(msg *JsonrpcMessage, result any, err error) *JsonrpcMessa
 
 func JSONResponse(msg *JsonrpcMessage, result interface{}) *JsonrpcMessage {
 	return &JsonrpcMessage{Version: vsn, ID: msg.ID, Result: result}
+}
+
+func ParseParams(params json.RawMessage) ([]any, error) {
+	var args []any
+	if string(params) != "null" {
+		if token, tokenErr := json.NewDecoder(bytes.NewReader(params)).Token(); tokenErr == nil {
+			if token == json.Delim('[') {
+				// has many
+				var paramList []json.RawMessage
+				if err := json.Unmarshal(params, &paramList); err != nil {
+					return nil, err
+				}
+				args = utils.ToAnyArray(paramList)
+			} else {
+				// only one
+				args = []any{params}
+			}
+		}
+	}
+	return args, nil
 }

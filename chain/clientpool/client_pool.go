@@ -49,13 +49,18 @@ func (es entryStatus[CLIENT]) Snapshot() any {
 }
 
 type poolStatus struct {
+	Ready         bool
 	LatestBlock   Block
 	LatestQueue   queue.Queue[Block]
 	BlockInterval time.Duration
 }
 
 func (ps poolStatus) Snapshot() any {
+	if !ps.Ready {
+		return map[string]any{"ready": ps.Ready}
+	}
 	return map[string]any{
+		"ready":         ps.Ready,
 		"latestBlock":   ps.LatestBlock.String(),
 		"blockInterval": ps.BlockInterval.String(),
 	}
@@ -112,12 +117,15 @@ func (c consumer) Snapshot() any {
 	}
 }
 
+type ConfigModifier[CONFIG any] func(CONFIG) CONFIG
+
 // ClientPool
 // member methods that begin with '_' are called only within the critical section constructed by p.mu.
 type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 	pool *pool.Pool[ClientConfig[CONFIG], entryStatus[CLIENT], poolStatus]
 
 	clientBuilder func(CONFIG) CLIENT
+	confModifiers []ConfigModifier[CONFIG]
 
 	statDowngrade *timewin.TimeWindowsManager[*downgradeStatWindow]
 
@@ -140,9 +148,11 @@ type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 func NewClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client](
 	name string,
 	clientBuilder func(CONFIG) CLIENT,
+	confModifiers ...ConfigModifier[CONFIG],
 ) *ClientPool[CONFIG, CLIENT] {
 	p := &ClientPool[CONFIG, CLIENT]{
 		clientBuilder: clientBuilder,
+		confModifiers: confModifiers,
 		entryExtra:    make(map[string]*entryExtra),
 		consumer:      make(map[uint64]consumer),
 		statDowngrade: timewin.NewTimeWindowsManager[*downgradeStatWindow](time.Minute),
@@ -174,6 +184,7 @@ func (p *ClientPool[CONFIG, CLIENT]) poolStatusBuilder(
 	if len(valid) == 0 {
 		return pre // no valid entries, just return pre status
 	}
+	ps.Ready = true
 	// calculate ps.LatestBlock
 	latest := valid[0].Status.LatestBlock
 	for i := 1; i < len(valid); i++ {
@@ -190,29 +201,13 @@ func (p *ClientPool[CONFIG, CLIENT]) poolStatusBuilder(
 			ps.LatestBlock = ent.Status.LatestBlock
 		}
 	}
-	// push ps.LatestBlock to ps.LatestQueue and trim ps.LatestQueue
-	ps.LatestQueue = pre.LatestQueue
-	if ps.LatestQueue == nil {
-		ps.LatestQueue = queue.NewQueue[Block]()
-	}
-	if bc, has := ps.LatestQueue.Back(); !has || bc.Number < ps.LatestBlock.Number {
-		ps.LatestQueue.PushBack(ps.LatestBlock)
-	}
-	for {
-		fr, _ := ps.LatestQueue.Front()
-		if ps.LatestBlock.Timestamp.Sub(fr.Timestamp) <= config.CheckSpeedInterval {
-			break
-		}
-		ps.LatestQueue.PopFront()
-	}
-	// calculate ps.BlockInterval
-	logger := log.With("pool", p.pool.Name(), "latestQueueLen", ps.LatestQueue.Len(), "psi", psi+1)
-	ps.BlockInterval = pre.BlockInterval
-	fr, _ := ps.LatestQueue.Front()
-	if fr.Number < ps.LatestBlock.Number && fr.Timestamp.Before(ps.LatestBlock.Timestamp) {
-		ps.BlockInterval = ps.LatestBlock.Timestamp.Sub(fr.Timestamp) / time.Duration(ps.LatestBlock.Number-fr.Number)
+	// push ps.LatestBlock to ps.LatestQueue and trim ps.LatestQueue and calculate ps.BlockInterval
+	ps.LatestQueue, ps.BlockInterval = pushLatestQueue(pre.LatestQueue, ps.LatestBlock, config.CheckSpeedInterval)
+	if ps.BlockInterval == 0 {
+		ps.BlockInterval = pre.BlockInterval
 	}
 	// report
+	logger := log.With("pool", p.pool.Name(), "latestQueueLen", ps.LatestQueue.Len(), "psi", psi+1)
 	logger.Debugf("pool latest %s => %s [%s]", pre.LatestBlock, ps.LatestBlock, ps.BlockInterval)
 	return ps
 }
@@ -364,10 +359,19 @@ func WithConfigFilter[CONFIG any](f func(c CONFIG) bool) Option[CONFIG] {
 }
 
 type Result struct {
-	Err           error
-	Broken        bool
+	Err error
+	// Broken indicates the endpoint itself is unhealthy; other requests should avoid it too.
+	Broken bool
+	// BrokenForTask indicates the endpoint is not suitable for this particular request and should be retried with another endpoint.
+	// Broken and BrokenForTask are independent: both can be set at the same time.
 	BrokenForTask bool
 	AddTags       []string
+}
+
+type Report struct {
+	Err        error
+	ConfigName string
+	ClientName string
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) consumerCome(theme string) uint64 {
@@ -400,7 +404,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	theme string,
 	fn func(ctx context.Context, cli CLIENT) Result,
 	opts ...Option[CONFIG],
-) error {
+) Report {
 	cid := p.consumerCome(theme)
 	curCtx, logger := log.FromContext(ctx, "pool", p.pool.Name(), "pcid", cid, "theme", theme)
 	defer func() {
@@ -452,11 +456,11 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		)
 		if len(entries) == 0 {
 			if backup == 0 {
-				return ErrNoValidClient
+				return Report{Err: ErrNoValidClient}
 			}
 			p.consumerDoing(cid, "waiting")
 			if err := p.pool.Wait(ctx, psIndex); err != nil {
-				return err
+				return Report{Err: err} // only because ctx canceled
 			}
 			continue
 		}
@@ -469,14 +473,14 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		}
 		if result.Broken {
 			p.clientBan(curCtx, entName, result.Err)
-			continue
 		}
 		if result.BrokenForTask {
 			blackList.Add(entName)
-			continue
 		}
-		p.clientActive(curCtx, entName, theme)
-		return result.Err
+		if !result.Broken && !result.BrokenForTask {
+			p.clientActive(curCtx, entName, theme)
+			return Report{Err: result.Err, ConfigName: entName, ClientName: ent.Status.Client.GetName()}
+		}
 	}
 }
 
@@ -662,28 +666,87 @@ func (p *ClientPool[CONFIG, CLIENT]) Start(ctx context.Context, ch <-chan PoolCo
 	defer func() {
 		logger.Infof("pool stopped")
 	}()
+	neverCloseNext := make(chan time.Time)        // never closed chan
+	neverCloseCh := make(chan PoolConfig[CONFIG]) // never closed chan
 	for {
 		var next <-chan time.Time
 		p.mu.Lock()
 		if p.config.AdjustPriorityInterval > 0 {
 			next = time.After(p.config.AdjustPriorityInterval)
 		} else {
-			next = make(chan time.Time) // never closed chan
+			next = neverCloseNext
 		}
 		p.mu.Unlock()
 
 		select {
 		case <-ctx.Done():
 			return
-		case cfg := <-ch:
-			p.updateConfig(cfg.Trim())
+		case cfg, has := <-ch:
+			if !has {
+				// ch is closed, meaning no more config updates will arrive.
+				// Replace with a never-closing, never-sending channel to keep the select alive for ctx and next.
+				ch = neverCloseCh
+				continue
+			}
+			p.updateConfig(cfg.Trim(p.confModifiers))
 		case <-next:
 			p.adjustPriority()
 		}
 	}
 }
 
-func (p *ClientPool[CONFIG, CLIENT]) GetLatest() (Block, time.Duration) {
-	ps, _ := p.pool.Status()
-	return ps.LatestBlock, ps.BlockInterval
+type Shell interface {
+	GetState() (latest Block, blockInterval time.Duration, ready bool, psi uint64)
+	WaitState(ctx context.Context, psiGT uint64) error
+	WaitReady(ctx context.Context) error
+	WaitBlock(ctx context.Context, numberGE uint64) (Block, error)
+	WaitBlockInterval(ctx context.Context) (time.Duration, error)
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) GetState() (latest Block, blockInterval time.Duration, ready bool, psi uint64) {
+	ps, psi := p.pool.Status()
+	return ps.LatestBlock, ps.BlockInterval, ps.Ready, psi
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) WaitState(ctx context.Context, psiGT uint64) error {
+	return p.pool.Wait(ctx, psiGT)
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) wait(ctx context.Context, ok func(status poolStatus) bool) (poolStatus, error) {
+	for {
+		ps, psi := p.pool.Status()
+		if ok(ps) {
+			return ps, nil
+		}
+		if err := p.WaitState(ctx, psi); err != nil {
+			return ps, err
+		}
+	}
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) WaitReady(ctx context.Context) error {
+	_, err := p.wait(ctx, func(ps poolStatus) bool {
+		return ps.Ready
+	})
+	return err
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) WaitBlock(ctx context.Context, numberGE uint64) (Block, error) {
+	ps, err := p.wait(ctx, func(ps poolStatus) bool {
+		return ps.Ready && ps.LatestBlock.Number >= numberGE
+	})
+	if err != nil {
+		return Block{}, err
+	}
+	return ps.LatestBlock, nil
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) WaitBlockInterval(ctx context.Context) (time.Duration, error) {
+	ps, err := p.wait(ctx, func(ps poolStatus) bool {
+		return ps.Ready && ps.BlockInterval > 0
+	})
+	if err != nil {
+		return 0, err
+	}
+	return ps.BlockInterval, nil
 }

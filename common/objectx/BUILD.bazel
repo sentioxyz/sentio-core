@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "objectx",
+    srcs = ["objectx.go"],
+    importpath = "sentioxyz/sentio-core/common/objectx",
+    visibility = ["//visibility:public"],
+    deps = ["//common/set"],
+)
+
+go_test(
+    name = "objectx_test",
+    srcs = ["objectx_test.go"],
+    embed = [":objectx"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

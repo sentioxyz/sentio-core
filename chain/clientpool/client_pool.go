@@ -475,6 +475,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 			p.clientBan(curCtx, entName, result.Err)
 		}
 		if result.BrokenForTask {
+			logger.Debugw("client excluded for this task", "client", entName)
 			blackList.Add(entName)
 		}
 		if !result.Broken && !result.BrokenForTask {

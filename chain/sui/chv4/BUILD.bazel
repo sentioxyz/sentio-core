@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "chv4",
+    srcs = [
+        "balance.go",
+        "data.go",
+        "schema_mgr.go",
+        "storage.go",
+        "storage_stat.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/sui/chv4",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/chain",
+        "//chain/clickhouse",
+        "//chain/move",
+        "//chain/sui",
+        "//chain/sui/types",
+        "//common/chx",
+        "//common/histogram",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/objectx",
+        "//common/range",
+        "//common/set",
+        "//common/timehist",
+        "//common/utils",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_cockroachdb_pebble//:pebble",
+        "@com_github_golang_protobuf//jsonpb",
+        "@com_github_golang_protobuf//proto",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "chv4_test",
+    srcs = [
+        "balance_test.go",
+        "schema_mgr_test.go",
+    ],
+    embed = [":chv4"],
+    deps = [
+        "//chain/sui",
+        "//chain/sui/types",
+        "//common/chx",
+        "//common/objectx",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

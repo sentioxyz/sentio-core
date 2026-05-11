@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "chv3",
+    srcs = [
+        "controller.go",
+        "converter.go",
+        "data.go",
+        "schema_mgr.go",
+        "stat.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/sui/chv3",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/chain",
+        "//chain/clickhouse",
+        "//chain/clientpool",
+        "//chain/move",
+        "//chain/sui",
+        "//chain/sui/types",
+        "//common/chx",
+        "//common/concurrency",
+        "//common/histogram",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/objectx",
+        "//common/range",
+        "//common/timehist",
+        "//common/utils",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

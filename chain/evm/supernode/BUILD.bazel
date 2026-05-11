@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "supernode",
+    srcs = [
+        "custom_function_proxy.go",
+        "extra.go",
+        "proxy.go",
+        "proxy_with_slot_cache.go",
+        "rpc.go",
+        "standard.go",
+        "storage.go",
+        "subscribe.go",
+        "utils.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/evm/supernode",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/chain",
+        "//chain/evm",
+        "//common/errgroup",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/range",
+        "//common/set",
+        "//common/utils",
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_ethereum_go_ethereum//core/types",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "supernode_test",
+    srcs = ["rpc_test.go"],
+    embed = [":supernode"],
+    deps = [
+        "//chain/chain",
+        "//chain/clientpool",
+        "//chain/evm",
+        "//common/errgroup",
+        "//common/jsonrpc",
+        "//common/log",
+        "//common/range",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_zap//zapcore",
+    ],
+)

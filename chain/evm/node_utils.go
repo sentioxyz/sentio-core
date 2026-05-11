@@ -12,24 +12,21 @@ import (
 
 func checkMissState(
 	ctx context.Context,
-	cli *rpc.Client,
-	timeout time.Duration,
 	retryTimes uint64,
 	blockNumber hexutil.Uint64,
+	tryGetBalance func(ctx context.Context, addr string, bn hexutil.Uint64) error,
 ) (missErr, checkErr error) {
 	const checkingAddress = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 	var dataErr rpc.DataError
 	checkErr = backoff.Retry(func() error {
-		callCtx, callCancel := context.WithTimeout(ctx, timeout)
-		defer callCancel()
-		callErr := cli.CallContext(callCtx, nil, "eth_getBalance", checkingAddress, blockNumber)
+		callErr := tryGetBalance(ctx, checkingAddress, blockNumber)
 		if callErr == nil {
 			return nil
 		}
 		if errors.As(callErr, &dataErr) {
 			return nil
 		}
-		return callErr
+		return callErr // retry
 	}, backoff.WithMaxRetries(backoff.WithContext(backoff.NewConstantBackOff(time.Second), ctx), retryTimes))
 	if checkErr != nil {
 		return nil, errors.Wrapf(checkErr, "calling eth_getBalance at block %s failed", blockNumber)
@@ -42,10 +39,9 @@ func checkMissState(
 
 func getMissStateBlock(
 	ctx context.Context,
-	cli *rpc.Client,
-	timeout time.Duration,
 	retryTimes uint64,
 	latest hexutil.Uint64,
+	tryGetBalance func(ctx context.Context, addr string, bn hexutil.Uint64) error,
 ) (missBlock hexutil.Uint64, missErr, getErr error) {
 	_, logger := log.FromContext(ctx)
 	samples := []hexutil.Uint64{latest}
@@ -54,7 +50,7 @@ func getMissStateBlock(
 	}
 	samples = append(samples, 0)
 	for _, bn := range samples {
-		if missErr, getErr = checkMissState(ctx, cli, timeout, retryTimes, bn); getErr != nil {
+		if missErr, getErr = checkMissState(ctx, retryTimes, bn, tryGetBalance); getErr != nil {
 			return
 		} else if missErr != nil {
 			missBlock = bn
@@ -88,7 +84,12 @@ func CheckArchiveNode(ctx context.Context, endpoint string) error {
 		return errors.Wrapf(err, "calling eth_blockNumber failed")
 	}
 	logger.Debugf("latest block number is %s", latest)
-	if _, missErr, getErr := getMissStateBlock(ctx, cli, timeout, retryTimes, latest); getErr != nil {
+	tryGetBalance := func(ctx context.Context, addr string, bn hexutil.Uint64) error {
+		callCtx, callCancel := context.WithTimeout(ctx, timeout)
+		defer callCancel()
+		return cli.CallContext(callCtx, nil, "eth_getBalance", addr, bn)
+	}
+	if _, missErr, getErr := getMissStateBlock(ctx, retryTimes, latest, tryGetBalance); getErr != nil {
 		return getErr
 	} else if missErr != nil {
 		return missErr

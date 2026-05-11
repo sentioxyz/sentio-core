@@ -52,7 +52,7 @@ export const SuccessfulTransaction = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">Successful Transaction</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction()}
             block={createMockBlock()}
@@ -72,7 +72,7 @@ export const FailedTransaction = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">Failed Transaction</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction()}
             block={createMockBlock()}
@@ -96,7 +96,7 @@ export const PendingTransaction = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">Pending Transaction</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction()}
             block={{} as Block}
@@ -117,7 +117,7 @@ export const LegacyTransaction = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Legacy Transaction (EIP-2718)
         </h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction({
               type: '0x0',
@@ -141,7 +141,7 @@ export const EIP1559Transaction = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">EIP-1559 Transaction</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction({
               type: '0x2',
@@ -167,7 +167,7 @@ export const ContractCreation = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">Contract Creation</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction({ to: undefined })}
             block={createMockBlock()}
@@ -189,7 +189,7 @@ export const WithGasRefund = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Transaction with Gas Refund
         </h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction()}
             block={createMockBlock()}
@@ -212,7 +212,7 @@ export const PolygonTransaction = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Polygon (MATIC) Transaction
         </h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction({
               gasPrice: '0x3b9aca00' // 1 Gwei (cheaper on Polygon)
@@ -236,7 +236,7 @@ export const BSCTransaction = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">BSC (BNB) Transaction</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction({
               gasPrice: '0x12a05f200' // 5 Gwei
@@ -258,7 +258,7 @@ export const HighGasTransaction = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">High Gas Transaction</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction({
               gas: '0x7a120', // 500,000
@@ -287,7 +287,7 @@ export const WithSimulationInfo = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Transaction with Simulation Info
         </h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction()}
             block={createMockBlock()}
@@ -296,7 +296,7 @@ export const WithSimulationInfo = () => {
             chainId="1"
             simulationId="sim-123456"
             renderSimulationInfo={(simId) => (
-              <div className="mt-2 rounded bg-blue-50 p-2 text-sm dark:bg-blue-900/20">
+              <div className="mt-2 rounded-sm bg-blue-50 p-2 text-sm dark:bg-blue-900/20">
                 <span className="font-semibold">Simulation:</span> {simId}
                 <button className="ml-2 text-blue-600 underline hover:text-blue-700">
                   View Original Transaction
@@ -321,7 +321,7 @@ export const RecentTransaction = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Recent Transaction (30s ago)
         </h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction()}
             block={createMockBlock({ timestamp: recentTimestamp })}
@@ -341,7 +341,7 @@ export const OldTransaction = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">Old Transaction (2020)</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction()}
             block={createMockBlock({
@@ -369,7 +369,7 @@ export const TransactionComparison = () => {
           <h3 className="text-md mb-2 font-medium text-gray-700 dark:text-gray-300">
             Low Gas Price (Fast)
           </h3>
-          <div className="rounded border bg-white p-4 dark:bg-gray-900">
+          <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
             <TransactionBrief
               transaction={createMockTransaction({ gasPrice: '0x9502f900' })} // 2.5 Gwei
               block={createMockBlock()}
@@ -383,7 +383,7 @@ export const TransactionComparison = () => {
           <h3 className="text-md mb-2 font-medium text-gray-700 dark:text-gray-300">
             Medium Gas Price (Standard)
           </h3>
-          <div className="rounded border bg-white p-4 dark:bg-gray-900">
+          <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
             <TransactionBrief
               transaction={createMockTransaction({ gasPrice: '0x4a817c800' })} // 20 Gwei
               block={createMockBlock()}
@@ -397,7 +397,7 @@ export const TransactionComparison = () => {
           <h3 className="text-md mb-2 font-medium text-gray-700 dark:text-gray-300">
             High Gas Price (Priority)
           </h3>
-          <div className="rounded border bg-white p-4 dark:bg-gray-900">
+          <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
             <TransactionBrief
               transaction={createMockTransaction({ gasPrice: '0x37e11d600' })} // 150 Gwei
               block={createMockBlock()}
@@ -417,7 +417,7 @@ export const ComplexErrorCase = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">Complex Error Case</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction()}
             block={createMockBlock()}
@@ -448,7 +448,7 @@ export const MinimalData = () => {
     <StoryWrapper>
       <div className="p-4 text-sm">
         <h2 className="mb-4 text-lg font-semibold">Minimal Data (Edge Case)</h2>
-        <div className="rounded border bg-white p-4 dark:bg-gray-900">
+        <div className="rounded-sm border bg-white p-4 dark:bg-gray-900">
           <TransactionBrief
             transaction={createMockTransaction({
               gasPrice: '0x0',

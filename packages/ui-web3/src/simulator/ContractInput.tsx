@@ -60,7 +60,7 @@ export const ContractInput = ({
       />
       {openMenu && (
         <Menu.Items
-          className="dark:bg-sentio-gray-100 absolute z-[1] hidden max-h-40 w-full translate-y-1 overflow-auto rounded-md border bg-white font-normal shadow group-focus-within:block"
+          className="dark:bg-sentio-gray-100 absolute z-1 hidden max-h-40 w-full translate-y-1 overflow-auto rounded-md border bg-white font-normal shadow-sm group-focus-within:block"
           static
         >
           <div className="text-gray px-2 py-2 text-xs">

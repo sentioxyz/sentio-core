@@ -76,12 +76,12 @@ const ControledTree = ({
     <Tree
       contentClassName={classNames(
         selected ? 'bg-sentio-gray-100' : '',
-        item.key === SUFFIX_NODE_KEY ? '!px-0 !py-0' : '',
+        item.key === SUFFIX_NODE_KEY ? 'px-0! py-0!' : '',
         contentClassName
       )}
       className={
         item.key === SUFFIX_NODE_KEY
-          ? 'sticky left-0 inline-block !overflow-visible'
+          ? 'sticky left-0 inline-block overflow-visible!'
           : 'group/tree'
       }
       showToggle={!isLeaf}

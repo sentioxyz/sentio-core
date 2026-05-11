@@ -78,7 +78,7 @@ const hasSubFundFlow = (data: ExtendedCall, chainId?: string): boolean => {
 }
 
 const opLabelClass = cva(
-  'mr-2 flex items-center gap-2 rounded border px-2 py-0.5 font-normal',
+  'mr-2 flex items-center gap-2 rounded-sm border px-2 py-0.5 font-normal',
   {
     variants: {
       status: {
@@ -172,13 +172,13 @@ const LogEventNode = memo(function LogEventNode({
         <div className="inline-flex w-full items-center gap-4">
           <span
             ref={domRef}
-            className="bg-sentio-gray-50 border-border-color inline-block w-full cursor-pointer rounded border px-2 py-0.5"
+            className="bg-sentio-gray-50 border-border-color inline-block w-full cursor-pointer rounded-sm border px-2 py-0.5"
           >
             <ContractAddress address={address} />
             <span className="text-primary-800">.</span>
             <PopoverTooltip
               hideArrow
-              className="!inline-flex"
+              className="inline-flex!"
               strategy="fixed"
               maxWidth="max-w-[60vw]"
               text={
@@ -244,21 +244,21 @@ const LogEventNode = memo(function LogEventNode({
         <div
           className={cx(
             'absolute -left-11 -top-0.5 px-1 py-1.5',
-            isSelected ? '' : 'z-[1] hidden group-hover/tree:block'
+            isSelected ? '' : 'z-1 hidden group-hover/tree:block'
           )}
         >
           <PopoverTooltip
             className=""
             hideArrow
             text={
-              <span className="dark:bg-sentio-gray-100 z-[1] bg-white">
+              <span className="dark:bg-sentio-gray-100 z-1 bg-white">
                 Open In Debugger
               </span>
             }
             strategy="fixed"
             icon={
               <span
-                className="bg-primary hover:bg-primary-500 active:bg-primary-700 inline-block h-4 w-4 cursor-pointer rounded-sm"
+                className="bg-primary hover:bg-primary-500 active:bg-primary-700 inline-block h-4 w-4 cursor-pointer rounded-xs"
                 onClick={toDebug}
               >
                 <ContractDebugIcon className="h-4 w-4" />
@@ -298,7 +298,7 @@ const StorageNode = memo(function StorageNode({
           <span>{data.type}</span>
         </div>
         <div className="inline-flex w-full items-center gap-4">
-          <span className="bg-sentio-gray-50 border-border-color inline-block w-full cursor-pointer rounded border px-2 py-0.5">
+          <span className="bg-sentio-gray-50 border-border-color inline-block w-full cursor-pointer rounded-sm border px-2 py-0.5">
             <ContractAddress address={address} />
             {decodedVariable?.decoded ? (
               <>
@@ -428,7 +428,7 @@ export const CallTreeNode = memo(function CallTreeNode({
           <>
             <span
               ref={domRef}
-              className="bg-sentio-gray-50 border-border-color mr-2 inline-block w-fit cursor-pointer rounded border px-2 py-0.5"
+              className="bg-sentio-gray-50 border-border-color mr-2 inline-block w-fit cursor-pointer rounded-sm border px-2 py-0.5"
             >
               <span className="text-red-800">{upperFirst(error)}</span>
               {revertReason ? (
@@ -436,7 +436,7 @@ export const CallTreeNode = memo(function CallTreeNode({
               ) : null}
             </span>
             {decodedError ? (
-              <span className="border-border-color mr-2 inline-block w-fit cursor-pointer rounded border bg-red-100/50 px-2 py-0.5">
+              <span className="border-border-color mr-2 inline-block w-fit cursor-pointer rounded-sm border bg-red-100/50 px-2 py-0.5">
                 <span className="text-red-800">{decodedError?.name}</span>
                 <span className="text-gray mx-1">
                   <span>(</span>
@@ -478,21 +478,21 @@ export const CallTreeNode = memo(function CallTreeNode({
         <div className="inline-flex w-full items-center gap-2">
           {showGas && gasUsed && !isZeroValue(gasUsed) ? (
             <span
-              className="bg-sentio-gray-50 dark:text-text-foreground border-border-color inline-block rounded border px-2 py-0.5 text-gray-500"
+              className="bg-sentio-gray-50 dark:text-text-foreground border-border-color inline-block rounded-sm border px-2 py-0.5 text-gray-500"
               title="Gas used"
             >
               {displayBigInt(gasUsed)}
             </span>
           ) : null}
           {value && value !== '0x0' && value !== '0x' ? (
-            <span className="text-purple bg-sentio-gray-50 border-border-color inline-block rounded border px-2 py-0.5 dark:text-purple-700">
+            <span className="text-purple bg-sentio-gray-50 border-border-color inline-block rounded-sm border px-2 py-0.5 dark:text-purple-700">
               value: {getNumberWithDecimal(value, nativeToken.tokenDecimals)}{' '}
               {nativeToken.tokenSymbol}
             </span>
           ) : null}
           {showGas && refund && !isZeroValue(refund) ? (
             <span
-              className="bg-sentio-gray-50 dark:text-text-foreground border-border-color inline-block rounded border px-2 py-0.5 text-gray-500"
+              className="bg-sentio-gray-50 dark:text-text-foreground border-border-color inline-block rounded-sm border px-2 py-0.5 text-gray-500"
               title="Gas refund"
             >
               Refund: {displayBigInt(refund)}
@@ -500,7 +500,7 @@ export const CallTreeNode = memo(function CallTreeNode({
           ) : null}
           <span
             ref={domRef}
-            className="bg-sentio-gray-50 border-border-color inline-block w-full cursor-pointer rounded border px-2 py-0.5"
+            className="bg-sentio-gray-50 border-border-color inline-block w-full cursor-pointer rounded-sm border px-2 py-0.5"
           >
             <ContractAddress
               address={address}
@@ -510,7 +510,7 @@ export const CallTreeNode = memo(function CallTreeNode({
             <span className="text-primary-800">.</span>
             <PopoverTooltip
               hideArrow
-              className="!inline-flex"
+              className="inline-flex!"
               strategy="fixed"
               text={
                 <div
@@ -523,7 +523,7 @@ export const CallTreeNode = memo(function CallTreeNode({
                     {functionName}
                     <CopyButton
                       text={functionName}
-                      className="text-gray ml-2 !inline !h-4 !w-4"
+                      className="text-gray ml-2 inline! h-4! w-4!"
                     />
                   </div>
                   {methodSig && (
@@ -531,7 +531,7 @@ export const CallTreeNode = memo(function CallTreeNode({
                       {methodSig}
                       <CopyButton
                         text={methodSig}
-                        className="text-gray !h-4 !w-4"
+                        className="text-gray h-4! w-4!"
                       />
                     </div>
                   )}
@@ -543,7 +543,7 @@ export const CallTreeNode = memo(function CallTreeNode({
                           <div onClick={(evt) => evt.stopPropagation()}>
                             <CopyButton
                               text={calldataStr}
-                              className="text-gray !h-4 !w-4"
+                              className="text-gray h-4! w-4!"
                             />
                           </div>
                         </div>
@@ -636,8 +636,8 @@ export const CallTreeNode = memo(function CallTreeNode({
       <div
         className={cx(
           'absolute -top-0.5 px-1 py-1.5',
-          showSubFundFlowButton && dataDepth > 1 ? '-left-[68px]' : '-left-11',
-          isSelected ? '' : 'z-[1] hidden group-hover/tree:flex',
+          showSubFundFlowButton && dataDepth > 1 ? 'left-[-68px]' : '-left-11',
+          isSelected ? '' : 'z-1 hidden group-hover/tree:flex',
           'flex items-center gap-2'
         )}
       >
@@ -647,10 +647,10 @@ export const CallTreeNode = memo(function CallTreeNode({
             hideArrow
             placementOption="right-start"
             text={
-              <div className="text-icontent z-[1] flex flex-col gap-2">
+              <div className="text-icontent z-1 flex flex-col gap-2">
                 <button
                   onClick={openSubFundflow}
-                  className="rounded bg-purple-600 px-2 py-1 text-white hover:bg-purple-500 active:bg-purple-700"
+                  className="rounded-sm bg-purple-600 px-2 py-1 text-white hover:bg-purple-500 active:bg-purple-700"
                 >
                   <LuRoute className="mr-2 inline-block h-3.5 w-3.5 text-white" />
                   Open Sub Fundflow
@@ -658,7 +658,7 @@ export const CallTreeNode = memo(function CallTreeNode({
                 {supportToDebug && (
                   <button
                     onClick={toDebug}
-                    className="bg-primary hover:bg-primary-500 active:bg-primary-700 rounded px-2 py-1 text-white"
+                    className="bg-primary hover:bg-primary-500 active:bg-primary-700 rounded-sm px-2 py-1 text-white"
                   >
                     <ContractDebugIcon className="mr-2 inline-block h-4 w-4 text-white" />
                     Open In Debugger
@@ -669,7 +669,7 @@ export const CallTreeNode = memo(function CallTreeNode({
             strategy="fixed"
             icon={
               <span
-                className="grid h-4 w-4 cursor-pointer items-center justify-items-center rounded-sm bg-purple-600 hover:bg-purple-500 active:bg-purple-700"
+                className="grid h-4 w-4 cursor-pointer items-center justify-items-center rounded-xs bg-purple-600 hover:bg-purple-500 active:bg-purple-700"
                 onClick={openSubFundflow}
               >
                 <LuRoute className="h-3 w-3 text-white" />
@@ -683,14 +683,14 @@ export const CallTreeNode = memo(function CallTreeNode({
                 className=""
                 hideArrow
                 text={
-                  <span className="dark:bg-sentio-gray-100 z-[1] bg-white">
+                  <span className="dark:bg-sentio-gray-100 z-1 bg-white">
                     View Sub Fund Flow
                   </span>
                 }
                 strategy="fixed"
                 icon={
                   <span
-                    className="grid h-4 w-4 cursor-pointer items-center justify-items-center rounded-sm bg-purple-600 hover:bg-purple-500 active:bg-purple-700"
+                    className="grid h-4 w-4 cursor-pointer items-center justify-items-center rounded-xs bg-purple-600 hover:bg-purple-500 active:bg-purple-700"
                     onClick={openSubFundflow}
                   >
                     <LuRoute className="h-3 w-3 text-white" />
@@ -703,14 +703,14 @@ export const CallTreeNode = memo(function CallTreeNode({
                 className=""
                 hideArrow
                 text={
-                  <span className="dark:bg-sentio-gray-100 z-[1] bg-white">
+                  <span className="dark:bg-sentio-gray-100 z-1 bg-white">
                     Open In Debugger
                   </span>
                 }
                 strategy="fixed"
                 icon={
                   <span
-                    className="bg-primary hover:bg-primary-500 active:bg-primary-700 inline-block h-4 w-4 cursor-pointer rounded-sm"
+                    className="bg-primary hover:bg-primary-500 active:bg-primary-700 inline-block h-4 w-4 cursor-pointer rounded-xs"
                     onClick={toDebug}
                   >
                     <ContractDebugIcon className="h-4 w-4" />
@@ -730,10 +730,10 @@ const CallTreeRoot = (props: CallTreeNodeProps) => {
 
   return (
     <span className="space-x-2">
-      <span className="bg-lake-blue-50 border-lake-blue-300 inline-block rounded border px-2 py-0.5 text-orange-700">
+      <span className="bg-lake-blue-50 border-lake-blue-300 inline-block rounded-sm border px-2 py-0.5 text-orange-700">
         [Sender]
       </span>
-      <span className="bg-sentio-gray-50 border-sentio-gray-300 text-primary-800 inline-block rounded border px-2 py-0.5 font-mono">
+      <span className="bg-sentio-gray-50 border-sentio-gray-300 text-primary-800 inline-block rounded-sm border px-2 py-0.5 font-mono">
         <ContractAddress address={(trace as any).from} />
       </span>
     </span>

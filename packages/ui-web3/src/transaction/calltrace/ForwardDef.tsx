@@ -18,9 +18,9 @@ export const ForwardDef = memo(function ForwardDefMemo({
     return null
   }
   return (
-    <div className="!mt-6">
+    <div className="mt-6!">
       <button
-        className="text-gray hover:border-primary hover:text-primary cursor-pointer rounded border border-gray-300  px-2 py-1"
+        className="text-gray hover:border-primary hover:text-primary cursor-pointer rounded-sm border border-gray-300  px-2 py-1"
         onClick={() => {
           if (location) {
             onClick?.(location)

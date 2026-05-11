@@ -2,7 +2,6 @@ import '../styles.css'
 import '@sentio/ui-core/dist/style.css'
 import { BalanceChanges } from './BalanceChanges'
 import {
-  CallTracesContext,
   ChainIdContext,
   PriceFetcherContext
 } from './transaction-context'
@@ -1838,17 +1837,11 @@ export const Default = () => {
       <PriceFetcherContext.Provider value={priceFetcher}>
         <SvgFolderContext.Provider value="https://app.sentio.xyz">
           <ChainIdContext.Provider value={'1'}>
-            <CallTracesContext.Provider
-              value={{
-                data: callTraceData,
-                loading: false
-              }}
-            >
               <BalanceChanges
                 transaction={transaction as any}
                 block={block as any}
+                data={callTraceData as any}
               />
-            </CallTracesContext.Provider>
           </ChainIdContext.Provider>
         </SvgFolderContext.Provider>
       </PriceFetcherContext.Provider>

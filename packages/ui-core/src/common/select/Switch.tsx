@@ -5,7 +5,7 @@ import { isFunction } from 'lodash'
 
 const switchClass = cva(
   [
-    'relative inline-flex shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2  focus-visible:ring-white focus-visible:ring-opacity-75'
+    'relative inline-flex shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus-visible:ring-2  focus-visible:ring-white/75'
   ],
   {
     variants: {
@@ -31,7 +31,7 @@ const switchClass = cva(
       {
         enabled: false,
         disabled: true,
-        class: '!bg-gray-400/50'
+        class: 'bg-gray-400/50!'
       }
     ]
   }

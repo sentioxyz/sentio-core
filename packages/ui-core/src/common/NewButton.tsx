@@ -189,10 +189,10 @@ const iconClass = cva('', {
 const pIconClass = cva('', {
   variants: {
     size: {
-      default: '!w-4 !h-4',
-      md: '!w-[18px] !h-[18px]',
-      lg: '!w-5 !h-5',
-      sm: '!w-4 !h-4'
+      default: 'w-4! h-4!',
+      md: 'w-[18px]! h-[18px]!',
+      lg: 'w-5! h-5!',
+      sm: 'w-4! h-4!'
     }
   },
   defaultVariants: {

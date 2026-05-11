@@ -26,12 +26,12 @@ const AccessListItem = ({
     name: `${name}.storageKeys` as any
   })
   return (
-    <div className="dark:bg-sentio-gray-100 rounded border bg-white px-3 py-2">
+    <div className="dark:bg-sentio-gray-100 rounded-sm border bg-white px-3 py-2">
       <div className="flex items-center gap-1.5">
         <AddressAvatar name={address} />
         <input
           {...register(`${name}.address`)}
-          className="border-border-color flex-1 rounded border p-1 font-normal"
+          className="border-border-color flex-1 rounded-sm border p-1 font-normal"
           placeholder="Contract Address"
         />
         <section className="inline-block space-x-2">
@@ -63,7 +63,7 @@ const AccessListItem = ({
           >
             <CircleStackIcon className="text-gray h-4 w-4" />
             <input
-              className="border-border-color flex-1 rounded border p-1 font-normal"
+              className="border-border-color flex-1 rounded-sm border p-1 font-normal"
               placeholder="Storage key"
               {...register(`${name}.storageKeys.${index}`, {
                 required: true
@@ -106,7 +106,7 @@ export const OptionalAccessList = () => {
       </div>
       <div>
         <NewButton
-          className="!border-primary hover:bg-primary/10 !border"
+          className="border-primary! hover:bg-primary/10 border!"
           size="md"
           onClick={() => {
             append({

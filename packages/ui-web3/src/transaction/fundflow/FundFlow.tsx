@@ -18,7 +18,7 @@ export const FundFlow = memo(function Fundflow({
   if (nodes.length === 0) {
     return (
       <div className="h-full">
-        <div className="absolute bottom-0 left-0 right-0 top-0 z-[1] pt-32">
+        <div className="absolute bottom-0 left-0 right-0 top-0 z-1 pt-32">
           <Empty title="This transaction has no fund flow" />
         </div>
       </div>

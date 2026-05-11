@@ -10,7 +10,7 @@ export const DangerConfirm: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setOpen(true)}
-        className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+        className="rounded-sm bg-red-500 px-4 py-2 text-white hover:bg-red-600"
       >
         Delete Item
       </button>
@@ -42,7 +42,7 @@ export const QuestionConfirm: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setOpen(true)}
-        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
       >
         Proceed
       </button>
@@ -74,7 +74,7 @@ export const WithChildren: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setOpen(true)}
-        className="rounded bg-orange-500 px-4 py-2 text-white hover:bg-orange-600"
+        className="rounded-sm bg-orange-500 px-4 py-2 text-white hover:bg-orange-600"
       >
         Remove User
       </button>
@@ -125,7 +125,7 @@ export const DisabledConfirm: Story = () => {
           setOpen(true)
           setAgreed(false)
         }}
-        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
       >
         Accept Terms
       </button>
@@ -151,7 +151,7 @@ export const DisabledConfirm: Story = () => {
               type="checkbox"
               checked={agreed}
               onChange={(e) => setAgreed(e.target.checked)}
-              className="rounded"
+              className="rounded-sm"
             />
             <span className="text-sm text-gray-700">
               I have read and agree to the terms
@@ -175,7 +175,7 @@ export const CustomButtons: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setOpen(true)}
-        className="rounded bg-purple-500 px-4 py-2 text-white hover:bg-purple-600"
+        className="rounded-sm bg-purple-500 px-4 py-2 text-white hover:bg-purple-600"
       >
         Open Custom Dialog
       </button>
@@ -194,7 +194,7 @@ export const CustomButtons: Story = () => {
                 alert('Option A selected')
                 setOpen(false)
               }}
-              className="flex-1 rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+              className="flex-1 rounded-sm bg-green-500 px-4 py-2 text-white hover:bg-green-600"
             >
               Option A
             </button>
@@ -203,13 +203,13 @@ export const CustomButtons: Story = () => {
                 alert('Option B selected')
                 setOpen(false)
               }}
-              className="flex-1 rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+              className="flex-1 rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
             >
               Option B
             </button>
             <button
               onClick={() => setOpen(false)}
-              className="flex-1 rounded bg-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-400"
+              className="flex-1 rounded-sm bg-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-400"
             >
               Cancel
             </button>

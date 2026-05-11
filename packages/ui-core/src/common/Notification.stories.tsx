@@ -10,7 +10,7 @@ export const SuccessNotification: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setShow(true)}
-        className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+        className="rounded-sm bg-green-500 px-4 py-2 text-white hover:bg-green-600"
       >
         Show Success Notification
       </button>
@@ -36,7 +36,7 @@ export const ErrorNotification: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setShow(true)}
-        className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+        className="rounded-sm bg-red-500 px-4 py-2 text-white hover:bg-red-600"
       >
         Show Error Notification
       </button>
@@ -62,7 +62,7 @@ export const WarningNotification: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setShow(true)}
-        className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
+        className="rounded-sm bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
       >
         Show Warning Notification
       </button>
@@ -88,7 +88,7 @@ export const InfoNotification: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setShow(true)}
-        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
       >
         Show Info Notification
       </button>
@@ -114,7 +114,7 @@ export const WithButtons: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setShow(true)}
-        className="rounded bg-purple-500 px-4 py-2 text-white hover:bg-purple-600"
+        className="rounded-sm bg-purple-500 px-4 py-2 text-white hover:bg-purple-600"
       >
         Show Notification with Actions
       </button>
@@ -131,13 +131,13 @@ export const WithButtons: Story = () => {
                 alert('Viewing message...')
                 setShow(false)
               }}
-              className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
+              className="rounded-sm bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
             >
               View
             </button>
             <button
               onClick={() => setShow(false)}
-              className="rounded bg-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-400"
+              className="rounded-sm bg-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-400"
             >
               Dismiss
             </button>
@@ -166,7 +166,7 @@ export const AutoDismiss: Story = () => {
     <div className="p-8">
       <button
         onClick={showNotification}
-        className="rounded bg-indigo-500 px-4 py-2 text-white hover:bg-indigo-600"
+        className="rounded-sm bg-indigo-500 px-4 py-2 text-white hover:bg-indigo-600"
       >
         Show Auto-Dismiss Notification (3s)
       </button>
@@ -197,13 +197,13 @@ export const MultipleNotifications: Story = () => {
       <div className="space-x-2">
         <button
           onClick={() => setShowSuccess(true)}
-          className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+          className="rounded-sm bg-green-500 px-4 py-2 text-white hover:bg-green-600"
         >
           Success
         </button>
         <button
           onClick={() => setShowError(true)}
-          className="rounded bg-red-500 px-4 py-2 text-white hover:bg-red-600"
+          className="rounded-sm bg-red-500 px-4 py-2 text-white hover:bg-red-600"
         >
           Error
         </button>
@@ -240,7 +240,7 @@ export const LongMessage: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setShow(true)}
-        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
       >
         Show Long Message
       </button>

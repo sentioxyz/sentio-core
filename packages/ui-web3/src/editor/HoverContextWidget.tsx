@@ -311,7 +311,7 @@ export const HoverContextWidget = ({
   return (
     <div>
       <div
-        className="dark:bg-sentio-gray-100 text-text-foreground absolute z-10 hidden rounded border bg-white text-xs shadow-sm"
+        className="dark:bg-sentio-gray-100 text-text-foreground absolute z-10 hidden rounded-sm border bg-white text-xs shadow-xs"
         ref={nodeRef}
       >
         <SyntaxHighlighter
@@ -320,7 +320,7 @@ export const HoverContextWidget = ({
           useInlineStyles={false}
           codeTagProps={{
             className:
-              'p-2 font-mono max-w-[600px] break-words block font-medium'
+              'p-2 font-mono max-w-[600px] wrap-break-word block font-medium'
           }}
           wrapLongLines={true}
         >

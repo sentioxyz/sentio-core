@@ -24,9 +24,9 @@ export function DisclosurePanel({
   return (
     <Disclosure defaultOpen={defaultOpen}>
       {({ open }) => (
-        <div className={containerClassName || 'w-full rounded'}>
+        <div className={containerClassName || 'w-full rounded-sm'}>
           <Disclosure.Button
-            className={`sticky -top-2 z-[1] flex w-full items-center justify-between bg-gray-50 py-2 text-left text-sm font-medium text-gray-900 hover:bg-gray-100 ${titleClassName || ''}`}
+            className={`sticky -top-2 z-1 flex w-full items-center justify-between bg-gray-50 py-2 text-left text-sm font-medium text-gray-900 hover:bg-gray-100 ${titleClassName || ''}`}
           >
             {isFunction(title) ? title(open) : title}
             {open ? (

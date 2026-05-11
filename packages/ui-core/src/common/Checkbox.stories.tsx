@@ -130,7 +130,7 @@ export const MultipleCheckboxes: Story = () => {
           label="Push notifications"
         />
       </div>
-      <div className="mt-4 rounded bg-gray-100 p-3">
+      <div className="mt-4 rounded-sm bg-gray-100 p-3">
         <p className="text-sm font-medium">Selected:</p>
         <ul className="list-inside list-disc text-sm text-gray-600">
           {options.email && <li>Email</li>}
@@ -156,7 +156,7 @@ export const WithCustomStyling: Story = () => {
         checked={checked}
         onChange={setChecked}
         label="Premium feature"
-        className="rounded border border-gray-300 p-3 hover:bg-gray-50"
+        className="rounded-sm border border-gray-300 p-3 hover:bg-gray-50"
         labelClassName="text-lg font-bold text-purple-600"
       />
     </div>
@@ -207,19 +207,19 @@ export const ControlledCheckbox: Story = () => {
         <div className="space-x-2">
           <button
             onClick={() => setChecked(true)}
-            className="rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600"
+            className="rounded-sm bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600"
           >
             Check
           </button>
           <button
             onClick={() => setChecked(false)}
-            className="rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
+            className="rounded-sm bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
           >
             Uncheck
           </button>
           <button
             onClick={() => setChecked(!checked)}
-            className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
+            className="rounded-sm bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
           >
             Toggle
           </button>

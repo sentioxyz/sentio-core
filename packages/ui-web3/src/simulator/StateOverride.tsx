@@ -43,7 +43,7 @@ export const StateOverride = ({ control, relatedContracts }: Props) => {
       })}
       <div>
         <Button
-          className="!border-primary hover:bg-primary/10 !border"
+          className="border-primary! hover:bg-primary/10 border!"
           role="link"
           size="md"
           onClick={() => {

@@ -26,14 +26,14 @@ export const SpinLoading = React.forwardRef<HTMLDivElement, Props>(
         {showMask && loading && (
           <div
             className={classNames(
-              'absolute bottom-0 left-0 right-0 top-0 z-[1]',
+              'absolute bottom-0 left-0 right-0 top-0 z-1',
               maskOpacity
                 ? `bg-white dark:bg-sentio-gray-100/${maskOpacity}`
                 : 'dark:bg-sentio-gray-100 bg-white'
             )}
           ></div>
         )}
-        <div className="absolute left-[50%] top-[50%] z-[1] -translate-y-6">
+        <div className="absolute left-[50%] top-[50%] z-1 -translate-y-6">
           <ClipLoader
             loading={loading}
             color="#3B82F6"

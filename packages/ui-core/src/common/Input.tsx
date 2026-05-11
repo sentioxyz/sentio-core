@@ -37,7 +37,7 @@ const inputStyles = cva(
     'w-full',
     'placeholder:text-ilabel placeholder:font-normal',
     'border-none focus:ring-0',
-    'focus:outline-none'
+    'focus:outline-hidden'
   ],
   {
     variants: {

@@ -73,7 +73,7 @@ const StorageInput = ({
     >
       <div className="flex items-center justify-between gap-2">
         <input
-          className="border-border-color w-[145px] rounded border px-2 py-[5px] font-normal"
+          className="border-border-color w-[145px] rounded-sm border px-2 py-[5px] font-normal"
           value={key}
           onChange={(e) => {
             setKey(e.target.value)
@@ -81,7 +81,7 @@ const StorageInput = ({
           placeholder="Key"
         />
         <input
-          className="border-border-color flex-1 rounded border px-2 py-[5px] font-normal"
+          className="border-border-color flex-1 rounded-sm border px-2 py-[5px] font-normal"
           value={value}
           onChange={(e) => {
             setValue(e.target.value)
@@ -121,18 +121,18 @@ const StorageVariableItem = ({
 }) => {
   return (
     <div className="flex items-center gap-2">
-      <div className="w-[145px] rounded border px-2 py-1">
+      <div className="w-[145px] rounded-sm border px-2 py-1">
         <input
           disabled
           value={data.key}
-          className="dark:!bg-sentio-gray-100 w-full border-0 !bg-white"
+          className="dark:bg-sentio-gray-100! w-full border-0 bg-white!"
         />
       </div>
-      <div className="flex-1 rounded border px-2 py-1">
+      <div className="flex-1 rounded-sm border px-2 py-1">
         <input
           disabled
           value={data.value}
-          className="dark:!bg-sentio-gray-100 w-full border-0 !bg-white"
+          className="dark:bg-sentio-gray-100! w-full border-0 bg-white!"
         />
       </div>
       <div className="flex-0">
@@ -194,7 +194,7 @@ export const StateOverrideItem = ({
   return (
     <div className="flex w-full gap-2">
       <Disclosure defaultOpen>
-        <div className="dark:bg-sentio-gray-100 border-border-color relative flex-1 space-y-4 rounded border bg-white px-3 py-2.5">
+        <div className="dark:bg-sentio-gray-100 border-border-color relative flex-1 space-y-4 rounded-sm border bg-white px-3 py-2.5">
           <Disclosure.Button
             as="div"
             className="flex w-full items-center gap-2"
@@ -242,7 +242,7 @@ export const StateOverrideItem = ({
                     disabled: !useCustomBalance
                   })}
                   placeholder={useCustomBalance ? 'input balance' : '/'}
-                  className="border-border-color w-full rounded border p-2 pr-14 font-normal"
+                  className="border-border-color w-full rounded-sm border p-2 pr-14 font-normal"
                 />
                 {useCustomBalance ? (
                   <span className="text-gray absolute right-4 top-2.5 font-medium">

@@ -56,7 +56,7 @@ export const SimulatorInfo: React.FC<Props> = ({
   return (
     <Collapse
       title="Simulation Overrides"
-      className={classNames('hover:relative hover:z-[1]', className)}
+      className={classNames('hover:relative hover:z-1', className)}
     >
       <div className="overflow rounded-md border">
         {simulationData?.blockOverride &&

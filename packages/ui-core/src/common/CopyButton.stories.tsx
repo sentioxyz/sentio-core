@@ -10,7 +10,7 @@ export const Default = () => (
 export const WithCustomChildren = () => (
   <div className="p-4">
     <CopyButton text="Custom button text" size={24}>
-      <button className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
+      <button className="rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
         Copy Me
       </button>
     </CopyButton>

@@ -22,7 +22,7 @@ import { BaseZIndexContext } from '../dialog/BaseDialog'
 const buttonClass = cva(
   [
     'focus:ring-primary focus:border-primary',
-    'relative w-full rounded-md border bg-white dark:bg-sentio-gray-100 text-left focus:outline-none focus:ring-1 text-ilabel'
+    'relative w-full rounded-md border bg-white dark:bg-sentio-gray-100 text-left focus:outline-hidden focus:ring-1 text-ilabel'
   ],
   {
     variants: {
@@ -53,7 +53,7 @@ const buttonClass = cva(
       {
         open: true,
         error: true,
-        class: '!ring-red-300 border-red-300'
+        class: 'ring-red-300! border-red-300'
       }
     ]
   }
@@ -74,7 +74,7 @@ const optionClass = cva(['relative cursor-default select-none'], {
       false: ''
     },
     selected: {
-      true: '!bg-primary-100 dark:!bg-primary-400',
+      true: 'bg-primary-100! dark:bg-primary-400!',
       false: ''
     }
   },
@@ -228,7 +228,7 @@ export function Select<T>({
       }}
       unmount={unmountOptions}
       className={classNames(
-        'text-ilabel dark:bg-sentio-gray-100 scrollbar-thin max-h-60 w-full overflow-auto rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:ring-gray-100 sm:text-sm',
+        'text-ilabel dark:bg-sentio-gray-100 scrollbar-thin max-h-60 w-full overflow-auto rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5 focus:outline-hidden dark:ring-gray-100/5 sm:text-sm',
         asLayer ? '' : 'absolute z-10',
         optionsClassName
       )}
@@ -416,7 +416,7 @@ export function Select<T>({
                 type="button"
                 disabled={disabled}
                 className={classNames(
-                  'absolute inset-y-0 right-0 flex items-center rounded-r-md px-2 focus:outline-none'
+                  'absolute inset-y-0 right-0 flex items-center rounded-r-md px-2 focus:outline-hidden'
                 )}
               >
                 <ChevronDownIcon

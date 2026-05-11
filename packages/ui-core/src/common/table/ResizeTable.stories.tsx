@@ -131,7 +131,7 @@ const peopleColumns: ColumnDef<Person>[] = [
       }
       return (
         <span
-          className={`rounded px-2 py-1 text-xs font-medium ${colors[status]}`}
+          className={`rounded-sm px-2 py-1 text-xs font-medium ${colors[status]}`}
         >
           {status}
         </span>
@@ -271,7 +271,7 @@ export const WithRowClick = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-4">
+      <div className="mb-4 rounded-sm border border-blue-200 bg-blue-50 p-4">
         <p className="text-sm text-blue-800">
           Selected:{' '}
           {selectedRow
@@ -387,7 +387,7 @@ export const AllFeatures = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-4">
+      <div className="mb-4 rounded-sm border border-blue-200 bg-blue-50 p-4">
         <p className="text-sm font-semibold text-blue-900">Selected Product</p>
         <p className="text-sm text-blue-800">
           {selectedRow

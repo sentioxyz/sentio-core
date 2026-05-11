@@ -451,7 +451,7 @@ export const NewSimulation = ({
                 className={atomFormState.useRawInput ? '' : 'hidden'}
               />
               <div
-                className={`mt-2 space-y-3 rounded bg-gray-50 p-2 ${atomFormState.useRawInput ? 'hidden' : ''}`}
+                className={`mt-2 space-y-3 rounded-sm bg-gray-50 p-2 ${atomFormState.useRawInput ? 'hidden' : ''}`}
               >
                 <div className="text-ilabel text-text-foreground font-bold">
                   Function
@@ -546,7 +546,7 @@ export const NewSimulation = ({
                             )
                           }
                         }}
-                        buttonClassName="border-none !py-1.5"
+                        buttonClassName="border-none py-1.5!"
                         className="w-full"
                       />
                     </div>
@@ -580,7 +580,7 @@ export const NewSimulation = ({
                             )
                           }
                         }}
-                        buttonClassName="border-none !py-1.5"
+                        buttonClassName="border-none py-1.5!"
                         className="w-full"
                       />
                     </div>
@@ -741,7 +741,7 @@ export const NewSimulation = ({
           </div>
         </div>
 
-        <div className="sticky bottom-0 z-[1] flex w-full items-center justify-between bg-gray-50/50 px-2 py-2">
+        <div className="sticky bottom-0 z-1 flex w-full items-center justify-between bg-gray-50/50 px-2 py-2">
           {apiError ? (
             <span className="text-sm text-red-600">{apiError}</span>
           ) : (

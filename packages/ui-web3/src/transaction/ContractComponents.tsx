@@ -143,7 +143,7 @@ function isEqualAddress(a?: string, b?: string) {
 
 export const ContractAddressComponent = ({
   address: _address,
-  tooltipClassName = '!inline-flex',
+  tooltipClassName = 'inline-flex!',
   containerClassName,
   toLowerCase = true,
   showAvatar,
@@ -221,7 +221,7 @@ export const ContractAddressComponent = ({
               )}
               {isSenderAddress ? null : (
                 <div
-                  className="bg-primary-300 hover:bg-primary-400 cursor-pointer rounded px-1.5 py-0.5 font-[system-ui] text-white"
+                  className="bg-primary-300 hover:bg-primary-400 cursor-pointer rounded-sm px-1.5 py-0.5 font-[system-ui] text-white"
                   onClick={() => {
                     if (openContractAddress && chainId) {
                       return openContractAddress(address, chainId)
@@ -359,7 +359,7 @@ export const RawParam = memo(function RawParam({
       <PopoverTooltip
         strategy="fixed"
         hideArrow
-        maxWidth="!max-w-[500px]"
+        maxWidth="max-w-[500px]!"
         text={
           <div
             className="min-w-[200px] max-w-[500px]"
@@ -375,7 +375,7 @@ export const RawParam = memo(function RawParam({
           </div>
         }
       >
-        <span className="text-gray hover:bg-primary-50 cursor-pointer rounded border px-1 py-0.5 font-medium">
+        <span className="text-gray hover:bg-primary-50 cursor-pointer rounded-sm border px-1 py-0.5 font-medium">
           raw data
         </span>
       </PopoverTooltip>
@@ -386,7 +386,7 @@ export const RawParam = memo(function RawParam({
 export const CopyableParam = memo(function CopyableParam({
   rawValue,
   value,
-  tooltipClassName = '!inline-flex'
+  tooltipClassName = 'inline-flex!'
 }: {
   rawValue?: string
   value: string | React.ReactNode

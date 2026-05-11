@@ -25,7 +25,7 @@ interface TreeProps {
 
 const Line = () => {
   return (
-    <div className="-my-1.5 mr-[19px] h-full min-h-[24px] w-[px] translate-x-2 border-l border-dashed border-gray-400"></div>
+    <div className="-my-1.5 mr-4.75 h-full min-h-6 w-[px] translate-x-2 border-l border-dashed border-gray-400/80"></div>
   )
 }
 

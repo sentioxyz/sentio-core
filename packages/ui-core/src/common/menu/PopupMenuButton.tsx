@@ -91,7 +91,7 @@ export function PopupMenuButton({
         <div
           ref={refs.setFloating}
           style={floatingStyles}
-          className={small ? 'z-10' : 'z-[100]'}
+          className={small ? 'z-10' : 'z-100'}
         >
           <Transition
             as={Fragment}
@@ -103,7 +103,7 @@ export function PopupMenuButton({
             leaveTo="transform opacity-0 scale-95"
           >
             <Menu.Items
-              className="dark:bg-sentio-gray-200 dark:divide-sentio-gray-400/50 z-10 mt-1 w-[80vw] origin-top cursor-pointer divide-y divide-gray-200 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:ring-gray-100 sm:w-64"
+              className="dark:bg-sentio-gray-200 dark:divide-sentio-gray-400/50 z-10 mt-1 w-[80vw] origin-top cursor-pointer divide-y divide-gray-200 rounded-md bg-white shadow-lg ring-1 ring-black/5 focus:outline-hidden dark:ring-gray-100/5 sm:w-64"
               style={itemStyle}
             >
               {header}
@@ -111,7 +111,7 @@ export function PopupMenuButton({
                 {items.map((items, i) => (
                   <div key={i} className="py-1">
                     {groupLabels?.[i] ? (
-                      <div className="px-4 py-0.5 text-[10px] font-medium leading-[12px] text-gray-500">
+                      <div className="px-4 py-0.5 text-[10px] font-medium leading-3 text-gray-500">
                         {groupLabels[i]}
                       </div>
                     ) : null}

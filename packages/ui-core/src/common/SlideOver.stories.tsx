@@ -10,7 +10,7 @@ export const BasicSlideOver: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setOpen(true)}
-        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
       >
         Open SlideOver
       </button>
@@ -31,9 +31,9 @@ export const BasicSlideOver: Story = () => {
             triggerClose is 'all'), or pressing the Escape key.
           </p>
           <div className="space-y-2">
-            <div className="rounded border border-gray-200 p-3">Item 1</div>
-            <div className="rounded border border-gray-200 p-3">Item 2</div>
-            <div className="rounded border border-gray-200 p-3">Item 3</div>
+            <div className="rounded-sm border border-gray-200 p-3">Item 1</div>
+            <div className="rounded-sm border border-gray-200 p-3">Item 2</div>
+            <div className="rounded-sm border border-gray-200 p-3">Item 3</div>
           </div>
         </div>
       </SlideOver>
@@ -62,7 +62,7 @@ export const DifferentSizes: Story = () => {
                 setSize(s)
                 setOpen(true)
               }}
-              className="rounded bg-blue-500 px-3 py-2 text-sm text-white hover:bg-blue-600"
+              className="rounded-sm bg-blue-500 px-3 py-2 text-sm text-white hover:bg-blue-600"
             >
               Open {s}
             </button>
@@ -99,7 +99,7 @@ export const WithHeaderAddon: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setOpen(true)}
-        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
       >
         Open with Header Addon
       </button>
@@ -110,7 +110,7 @@ export const WithHeaderAddon: Story = () => {
         onClose={() => setOpen(false)}
         headAddon={
           <button
-            className="rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600"
+            className="rounded-sm bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600"
             onClick={() => alert('Action clicked!')}
           >
             Save
@@ -124,7 +124,7 @@ export const WithHeaderAddon: Story = () => {
               <label className="mb-1 block text-sm font-medium">Name</label>
               <input
                 type="text"
-                className="w-full rounded border border-gray-300 px-3 py-2"
+                className="w-full rounded-sm border border-gray-300 px-3 py-2"
                 placeholder="Enter name"
               />
             </div>
@@ -132,7 +132,7 @@ export const WithHeaderAddon: Story = () => {
               <label className="mb-1 block text-sm font-medium">Email</label>
               <input
                 type="email"
-                className="w-full rounded border border-gray-300 px-3 py-2"
+                className="w-full rounded-sm border border-gray-300 px-3 py-2"
                 placeholder="Enter email"
               />
             </div>
@@ -154,7 +154,7 @@ export const ButtonCloseOnly: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setOpen(true)}
-        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
       >
         Open (Button Close Only)
       </button>
@@ -193,7 +193,7 @@ export const NoAnimation: Story = () => {
     <div className="p-8">
       <button
         onClick={() => setOpen(true)}
-        className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+        className="rounded-sm bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
       >
         Open (No Animation)
       </button>

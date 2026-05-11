@@ -49,7 +49,7 @@ export function RadioSelect<T>({
                 />
                 <label
                   className={classNames(
-                    'text-ilabel group-hover/radio:text-primary-500 group-hover/radio:dark:text-primary-600  ml-2 font-medium ',
+                    'text-ilabel group-hover/radio:text-primary-500 dark:group-hover/radio:text-primary-600  ml-2 font-medium ',
                     checked
                       ? 'text-primary dark:text-primary-700'
                       : 'text-gray',

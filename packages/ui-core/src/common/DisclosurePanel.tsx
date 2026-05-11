@@ -32,13 +32,13 @@ export const DisclosurePanel: FC<Props> = ({
     <div
       className={
         containerClassName ||
-        'dark:bg-sentio-gray-200 w-full rounded bg-[#F6F8FA]'
+        'dark:bg-sentio-gray-200 w-full rounded-sm bg-[#F6F8FA]'
       }
     >
       <button
         className={classNames(
-          open ? 'rounded-t' : 'rounded',
-          'focus-visible:ring-primary-500 text-ilabel font-ilabel text-text-foreground hover:bg-sentio-gray-100 dark:hover:bg-sentio-gray-400 flex w-full px-2 py-1.5 text-left focus:outline-none focus-visible:ring focus-visible:ring-opacity-75',
+          open ? 'rounded-t' : 'rounded-sm',
+          'focus-visible:ring-primary-500/75 text-ilabel font-ilabel text-text-foreground hover:bg-sentio-gray-100 dark:hover:bg-sentio-gray-400 flex w-full px-2 py-1.5 text-left focus:outline-hidden focus-visible:ring-3',
           titleClassName
         )}
         onClick={toggle}

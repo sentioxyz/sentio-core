@@ -130,10 +130,10 @@ export const WithReactElements: Story = () => {
             label: 'Actions',
             value: (
               <div className="space-x-2">
-                <button className="rounded bg-blue-500 px-2 py-1 text-xs text-white hover:bg-blue-600">
+                <button className="rounded-sm bg-blue-500 px-2 py-1 text-xs text-white hover:bg-blue-600">
                   Edit
                 </button>
-                <button className="rounded bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600">
+                <button className="rounded-sm bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600">
                   Delete
                 </button>
               </div>
@@ -174,7 +174,7 @@ export const CustomStyling: Story = () => {
         labelClassName="text-blue-700 font-bold"
         valueClassName="text-gray-900"
         trClassName="border-b border-gray-200 last:border-0"
-        className="rounded border border-gray-300 p-4"
+        className="rounded-sm border border-gray-300 p-4"
       />
     </div>
   )

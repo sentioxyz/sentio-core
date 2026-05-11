@@ -476,7 +476,7 @@ export const Default = () => {
     <MockProviders>
       <div className="p-4">
         <h2 className="mb-4 text-lg font-semibold">Simple Token Transfer</h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree data={createSimpleCallTrace()} />
         </div>
       </div>
@@ -492,7 +492,7 @@ export const NestedCalls = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Uniswap Token Swap (Nested Calls)
         </h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree data={createNestedCallTrace()} />
         </div>
       </div>
@@ -508,7 +508,7 @@ export const WithError = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Failed Transaction with Revert
         </h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree data={createErrorCallTrace()} />
         </div>
       </div>
@@ -524,7 +524,7 @@ export const WithValue = () => {
         <h2 className="mb-4 text-lg font-semibold">
           WETH Deposit (With ETH Value)
         </h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree data={createCallTraceWithValue()} gasUsed />
         </div>
       </div>
@@ -540,7 +540,7 @@ export const WithStorage = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Transaction with Storage Changes
         </h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree data={createStorageCallTrace()} showStorage />
         </div>
       </div>
@@ -556,7 +556,7 @@ export const VirtualizedView = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Virtualized Call Trace (Fixed Height)
         </h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree
             data={createNestedCallTrace()}
             virtual
@@ -576,7 +576,7 @@ export const WithGasUsage = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Call Trace with Gas Information
         </h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree data={createNestedCallTrace()} gasUsed />
         </div>
       </div>
@@ -600,7 +600,7 @@ export const WithExpandDepth = () => {
             <select
               value={expander}
               onChange={(e) => setExpander(Number(e.target.value))}
-              className="rounded border px-2 py-1"
+              className="rounded-sm border px-2 py-1"
             >
               <option value={0}>0 - Collapsed</option>
               <option value={1}>1 - First Level</option>
@@ -609,7 +609,7 @@ export const WithExpandDepth = () => {
             </select>
           </div>
         </div>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree
             data={createNestedCallTrace()}
             expander={expander}
@@ -630,10 +630,10 @@ export const WithInstructionHandler = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Call Trace with Instruction Handler
         </h2>
-        <div className="mb-2 rounded bg-blue-50 p-2 text-sm">
+        <div className="mb-2 rounded-sm bg-blue-50 p-2 text-sm">
           <strong>Last Selected:</strong> {lastInstruction || 'None'}
         </div>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree
             data={createNestedCallTrace()}
             onInstruction={(key, location) => {
@@ -657,7 +657,7 @@ export const DifferentChain = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Call Trace on Polygon (Chain ID: 137)
         </h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree data={createCallTraceWithValue()} gasUsed />
         </div>
       </div>
@@ -679,7 +679,7 @@ export const AllFeatures = () => {
             <select
               value={expander}
               onChange={(e) => setExpander(Number(e.target.value))}
-              className="rounded border px-2 py-1"
+              className="rounded-sm border px-2 py-1"
             >
               <option value={0}>0</option>
               <option value={1}>1</option>
@@ -688,7 +688,7 @@ export const AllFeatures = () => {
             </select>
           </div>
         </div>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <FlatCallTraceTree
             data={createNestedCallTrace()}
             virtual

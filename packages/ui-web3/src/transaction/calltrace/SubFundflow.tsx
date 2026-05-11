@@ -157,7 +157,7 @@ export function SubFundflowProvider({
             <h3 className="text-base">{`Sub fund flow of ${dataRef.current?.functionName}`}</h3>
             <button
               onClick={close}
-              className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="rounded-sm p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               <XMarkIcon className="h-5 w-5" />
             </button>

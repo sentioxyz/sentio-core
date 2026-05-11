@@ -146,7 +146,7 @@ export const PopoverTooltip: FC<Props> = ({
           <div className="_sentio_">
             <div
               className={classNames(
-                'sentio-tooltip dark:bg-sentio-gray-200 z-10 rounded-md bg-white p-2 text-xs shadow-lg ring-1 ring-black ring-opacity-5 dark:ring-gray-100',
+                'sentio-tooltip dark:bg-sentio-gray-200 z-10 rounded-md bg-white p-2 text-xs shadow-lg ring-1 ring-black/5 dark:ring-gray-100/5',
                 enableFadeAnimation &&
                   `transition-opacity duration-[${animationDuration}ms] ease-in-out`,
                 enableFadeAnimation ? (open ? 'opacity-100' : 'opacity-0') : ''
@@ -159,17 +159,30 @@ export const PopoverTooltip: FC<Props> = ({
               }}
               {...getFloatingProps}
             >
-              {!hideArrow && placement === 'bottom' && (
-                <div
-                  className="arrow dark:bg-sentio-gray-100 before:border-border-color -translate-y-[7px] bg-white before:visible before:border before:border-b-0 before:border-r-0"
-                  ref={arrowRef}
-                  style={{
-                    left: arrowX ?? 0,
-                    top: arrowY ?? 0,
-                    position: 'absolute'
-                  }}
-                />
-              )}
+              {!hideArrow && (() => {
+                const side = placement.split('-')[0]
+                const borderClass = {
+                  bottom: 'border-l border-t',
+                  top: 'border-r border-b',
+                  right: 'border-l border-b',
+                  left: 'border-t border-r'
+                }[side]
+                const arrowStyle: React.CSSProperties = { position: 'absolute' }
+                if (side === 'bottom') { arrowStyle.top = -4; arrowStyle.left = arrowX ?? 0 }
+                else if (side === 'top') { arrowStyle.bottom = -4; arrowStyle.left = arrowX ?? 0 }
+                else if (side === 'right') { arrowStyle.left = -4; arrowStyle.top = arrowY ?? 0 }
+                else if (side === 'left') { arrowStyle.right = -4; arrowStyle.top = arrowY ?? 0 }
+                return (
+                  <div
+                    ref={arrowRef}
+                    className={classNames(
+                      'h-2 w-2 rotate-45 bg-white dark:bg-sentio-gray-200 border-black/5 dark:border-gray-100/5',
+                      borderClass
+                    )}
+                    style={arrowStyle}
+                  />
+                )
+              })()}
               {isString(text) ? (
                 <p
                   className={classNames('w-max whitespace-pre-wrap', maxWidth)}

@@ -186,19 +186,19 @@ export const NoBorderTabs: Story = () => {
         <List tabs={['First', 'Second', 'Third']} noBorder />
         <Panels>
           <Panel>
-            <div className="rounded bg-white p-4 shadow">
+            <div className="rounded-sm bg-white p-4 shadow-sm">
               <h3 className="mb-2 text-lg font-semibold">First Panel</h3>
               <p className="text-gray-600">No border on the tab list.</p>
             </div>
           </Panel>
           <Panel>
-            <div className="rounded bg-white p-4 shadow">
+            <div className="rounded-sm bg-white p-4 shadow-sm">
               <h3 className="mb-2 text-lg font-semibold">Second Panel</h3>
               <p className="text-gray-600">Content for second panel.</p>
             </div>
           </Panel>
           <Panel>
-            <div className="rounded bg-white p-4 shadow">
+            <div className="rounded-sm bg-white p-4 shadow-sm">
               <h3 className="mb-2 text-lg font-semibold">Third Panel</h3>
               <p className="text-gray-600">Content for third panel.</p>
             </div>
@@ -221,19 +221,19 @@ export const ControlledTabs: Story = () => {
       <div className="mb-4 space-x-2">
         <button
           onClick={() => setSelectedIndex(0)}
-          className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
+          className="rounded-sm bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
         >
           Go to Tab 1
         </button>
         <button
           onClick={() => setSelectedIndex(1)}
-          className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
+          className="rounded-sm bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
         >
           Go to Tab 2
         </button>
         <button
           onClick={() => setSelectedIndex(2)}
-          className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
+          className="rounded-sm bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
         >
           Go to Tab 3
         </button>

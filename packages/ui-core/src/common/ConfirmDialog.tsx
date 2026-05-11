@@ -80,7 +80,7 @@ export function ConfirmDialog({
                 <div className="dark:bg-sentio-gray-100 bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                   <div className="sm:flex sm:items-start">
                     {type == 'danger' && (
-                      <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-300 sm:mx-0 sm:h-10 sm:w-10">
+                      <div className="mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-300 sm:mx-0 sm:h-10 sm:w-10">
                         <ExclamationIcon
                           className="h-6 w-6 text-red-600 dark:text-red-800"
                           aria-hidden="true"
@@ -88,7 +88,7 @@ export function ConfirmDialog({
                       </div>
                     )}
                     {type == 'question' && (
-                      <div className="bg-primary-100 dark:bg-primary-500 mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full sm:mx-0 sm:h-10 sm:w-10">
+                      <div className="bg-primary-100 dark:bg-primary-500 mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full sm:mx-0 sm:h-10 sm:w-10">
                         <QuestionMarkCircleIcon
                           className="text-primary-600 dark:text-primary-800 h-6 w-6"
                           aria-hidden="true"

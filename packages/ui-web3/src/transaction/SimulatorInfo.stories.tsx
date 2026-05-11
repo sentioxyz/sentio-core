@@ -194,7 +194,7 @@ DefaultOpen.story = {
 
 export const DarkMode = () => {
   return (
-    <div className="dark min-h-screen bg-gray-900 p-4">
+    <div className="dark min-h-screen bg-gray-50 p-4">
       <SimulatorInfo simulationData={mockSimulationAllTypes} />
     </div>
   )

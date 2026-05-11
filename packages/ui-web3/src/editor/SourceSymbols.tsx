@@ -612,7 +612,7 @@ const SourceSymbols = ({ data, onClick }: Props) => {
     <div ref={ref}>
       <div className="w-fit min-w-full">
         <div
-          className="dark:bg-sentio-gray-100 sticky left-0 top-0 z-[1] space-y-2 bg-white py-2"
+          className="dark:bg-sentio-gray-100 sticky left-0 top-0 z-1 space-y-2 bg-white py-2"
           style={{ width }}
         >
           <div className="relative px-2">

@@ -182,7 +182,9 @@ body.dark :focus-visible {
 
 input[type='checkbox'],
 [type='radio'] {
-  @apply dark:bg-sentio-gray-100;
+  .dark & {
+    background-color: rgba(var(--sentio-gray-100));
+  }
 }
 
 body {

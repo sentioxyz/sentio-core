@@ -192,7 +192,7 @@ export const FunctionParameter = ({
                   <span className="inline-flex items-center">
                     <input
                       type="checkbox"
-                      className="mr-1 rounded border-gray-300"
+                      className="mr-1 rounded-sm border-gray-300"
                       checked={field.value[index]?.value}
                       onChange={(e) => onChange(index, e.target.checked)}
                     />
@@ -204,7 +204,7 @@ export const FunctionParameter = ({
                   <input
                     value={field.value[index]?.value}
                     onChange={(e) => onChange(index, e.target.value)}
-                    className="w-full rounded border border-gray-300 p-2 font-mono font-normal"
+                    className="w-full rounded-sm border border-gray-300 p-2 font-mono font-normal"
                     placeholder={param.internalType}
                   />
                 )}

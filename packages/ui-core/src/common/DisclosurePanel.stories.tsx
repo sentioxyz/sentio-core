@@ -26,7 +26,7 @@ export const DefaultOpen = () => {
           <p className="text-sm">This panel is open by default.</p>
           <p className="text-sm">
             Set{' '}
-            <code className="rounded bg-gray-200 px-1 py-0.5 text-xs">
+            <code className="rounded-sm bg-gray-200 px-1 py-0.5 text-xs">
               defaultOpen=true
             </code>{' '}
             to achieve this.
@@ -74,15 +74,15 @@ export const CustomStyling = () => {
           <p className="text-sm">Custom styled panel with blue theme.</p>
           <p className="text-sm">
             Use{' '}
-            <code className="rounded bg-white px-1 py-0.5 text-xs">
+            <code className="rounded-sm bg-white px-1 py-0.5 text-xs">
               containerClassName
             </code>
             ,{' '}
-            <code className="rounded bg-white px-1 py-0.5 text-xs">
+            <code className="rounded-sm bg-white px-1 py-0.5 text-xs">
               titleClassName
             </code>
             , and{' '}
-            <code className="rounded bg-white px-1 py-0.5 text-xs">
+            <code className="rounded-sm bg-white px-1 py-0.5 text-xs">
               className
             </code>{' '}
             for styling.
@@ -100,7 +100,7 @@ export const CustomStyling = () => {
           <p className="text-sm">Custom styled panel with green theme.</p>
           <p className="text-sm">
             The icon size is also customizable via{' '}
-            <code className="rounded bg-white px-1 py-0.5 text-xs">
+            <code className="rounded-sm bg-white px-1 py-0.5 text-xs">
               iconClassName
             </code>
             .

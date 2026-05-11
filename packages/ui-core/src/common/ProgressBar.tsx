@@ -38,7 +38,7 @@ export const ProgressBar = ({
           <div
             key={stop}
             className={classNames(
-              `absolute top-0 h-4 bg-gradient-to-r ${color}`,
+              `absolute top-0 h-4 bg-linear-to-r ${color}`,
               idx === 0 && 'rounded-l-full',
               idx === colors.length - 1 && 'rounded-r-full'
             )}
@@ -69,7 +69,7 @@ export const ProgressBar = ({
       return (
         <div
           key={pos}
-          className="absolute top-0 border-l border-gray-500 text-xs text-gray-500 hover:z-[1]"
+          className="absolute top-0 border-l border-gray-500 text-xs text-gray-500 hover:z-1"
           style={{ left: `${pos * 100}%` }}
         >
           <div
@@ -97,7 +97,7 @@ export const ProgressBar = ({
       return (
         <div
           key={pos}
-          className="relative bottom-0 text-xs hover:z-[1]"
+          className="relative bottom-0 text-xs hover:z-1"
           style={{ left: `${pos * 100}%` }}
         >
           <div className="absolute top-0 h-3 w-2 border-l border-gray-400 border-opacity-50"></div>

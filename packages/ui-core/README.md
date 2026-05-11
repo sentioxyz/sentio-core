@@ -48,6 +48,11 @@ function App() {
 }
 ```
 
+## Development
+```bash
+pnpm ladle serve
+```
+
 ## Included components
 
 ### Common Components

@@ -29,7 +29,7 @@ function defaultRenderItem(
   return (
     <div
       className={classNames(
-        'flex cursor-pointer items-center gap-1 rounded',
+        'flex cursor-pointer items-center gap-1 rounded-sm',
         isFile && 'mb-2 pr-2',
         selectedPath === item.path
           ? 'bg-[#DBE7F980] dark:bg-gray-100'
@@ -63,7 +63,7 @@ function SourceTreeItem({
     <div key={item.path}>
       <>
         <button
-          className="mb-2 flex w-full gap-1 rounded px-1 hover:bg-gray-50"
+          className="mb-2 flex w-full gap-1 rounded-sm px-1 hover:bg-gray-50"
           style={{ paddingLeft: `${depth}rem` }}
           onClick={() => setOpen(!open)}
         >

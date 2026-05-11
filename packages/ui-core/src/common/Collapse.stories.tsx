@@ -26,7 +26,7 @@ export const DefaultOpen = () => {
           <p className="text-sm">This panel is open by default.</p>
           <p className="mt-2 text-sm">
             Set{' '}
-            <code className="rounded bg-gray-200 px-1 py-0.5">
+            <code className="rounded-sm bg-gray-200 px-1 py-0.5">
               defaultOpen=true
             </code>{' '}
             to achieve this.
@@ -207,7 +207,7 @@ export const InteractiveContent = () => {
             <input
               type="text"
               placeholder="Your name"
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded-sm border px-3 py-2"
             />
           </div>
 
@@ -215,14 +215,14 @@ export const InteractiveContent = () => {
             <label className="mb-2 block text-sm font-medium">
               Choose an option:
             </label>
-            <select className="w-full rounded border px-3 py-2">
+            <select className="w-full rounded-sm border px-3 py-2">
               <option>Option 1</option>
               <option>Option 2</option>
               <option>Option 3</option>
             </select>
           </div>
 
-          <button className="bg-primary-600 hover:bg-primary-700 rounded px-4 py-2 text-white">
+          <button className="bg-primary-600 hover:bg-primary-700 rounded-sm px-4 py-2 text-white">
             Submit
           </button>
         </div>

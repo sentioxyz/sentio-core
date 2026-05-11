@@ -1,48 +1,55 @@
 import type { Story } from '@ladle/react'
 import { NewSimulation } from './NewSimulation'
+import { SimulatorProvider } from './SimulatorContext'
 import '../styles.css'
 import '@sentio/ui-core/dist/style.css'
 
 export const Default: Story = () => {
   return (
-    <div className="mx-auto max-w-4xl p-8 text-sm">
-      <h2 className="mb-4 text-2xl font-bold">Simulation Form</h2>
-      <NewSimulation />
-    </div>
+    <SimulatorProvider>
+      <div className="mx-auto max-w-4xl p-8 text-sm">
+        <h2 className="mb-4 text-2xl font-bold">Simulation Form</h2>
+        <NewSimulation />
+      </div>
+    </SimulatorProvider>
   )
 }
 
 export const WithDefaultValues: Story = () => {
   return (
-    <div className="mx-auto max-w-4xl p-8 text-sm">
-      <h2 className="mb-4 text-2xl font-bold">With Default Values</h2>
-      <NewSimulation
-        defaultValue={{
-          from: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
-          blockNumber: 12345678,
-          gas: 1000000,
-          gasPrice: 100,
-          value: 0
-        }}
-      />
-    </div>
+    <SimulatorProvider>
+      <div className="mx-auto max-w-4xl p-8 text-sm">
+        <h2 className="mb-4 text-2xl font-bold">With Default Values</h2>
+        <NewSimulation
+          defaultValue={{
+            from: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+            blockNumber: 12345678,
+            gas: 1000000,
+            gasPrice: 100,
+            value: 0
+          }}
+        />
+      </div>
+    </SimulatorProvider>
   )
 }
 
 export const WithCallback: Story = () => {
   return (
-    <div className="mx-auto max-w-4xl p-8 text-sm">
-      <h2 className="mb-4 text-2xl font-bold">With Callbacks</h2>
-      <NewSimulation
-        onSuccess={(data) => {
-          console.log('Simulation successful:', data)
-          alert('Simulation successful!')
-        }}
-        onChange={(data) => {
-          console.log('Form changed:', data)
-        }}
-      />
-    </div>
+    <SimulatorProvider>
+      <div className="mx-auto max-w-4xl p-8 text-sm">
+        <h2 className="mb-4 text-2xl font-bold">With Callbacks</h2>
+        <NewSimulation
+          onSuccess={(data) => {
+            console.log('Simulation successful:', data)
+            alert('Simulation successful!')
+          }}
+          onChange={(data) => {
+            console.log('Form changed:', data)
+          }}
+        />
+      </div>
+    </SimulatorProvider>
   )
 }
 
@@ -59,10 +66,12 @@ export const WithCustomAPI: Story = () => {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-8 text-sm">
-      <h2 className="mb-4 text-2xl font-bold">With Custom API</h2>
-      <NewSimulation onRequestAPI={mockAPI} />
-    </div>
+    <SimulatorProvider>
+      <div className="mx-auto max-w-4xl p-8 text-sm">
+        <h2 className="mb-4 text-2xl font-bold">With Custom API</h2>
+        <NewSimulation onRequestAPI={mockAPI} />
+      </div>
+    </SimulatorProvider>
   )
 }
 
@@ -79,8 +88,9 @@ export const AllFeatures: Story = () => {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-8 text-sm">
-      <h2 className="mb-4 text-2xl font-bold">All Features Demo</h2>
+    <SimulatorProvider>
+      <div className="mx-auto max-w-4xl p-8 text-sm">
+        <h2 className="mb-4 text-2xl font-bold">All Features Demo</h2>
       <NewSimulation
         defaultValue={{
           from: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
@@ -131,6 +141,7 @@ export const AllFeatures: Story = () => {
           }
         ]}
       />
-    </div>
+      </div>
+    </SimulatorProvider>
   )
 }

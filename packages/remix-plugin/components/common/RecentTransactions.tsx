@@ -37,12 +37,12 @@ function DisplayItem({
             <Tooltip>
               <TooltipTrigger className="text-info w-full truncate font-mono text-xs">{value}</TooltipTrigger>
               <TooltipContent>
-                <p className="max-w-[60vw] whitespace-pre-wrap break-words">{value}</p>
+                <p className="max-w-[60vw] whitespace-pre-wrap wrap-break-word">{value}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
-        {copyable && <CopyButton text={value} className="text-info invisible group-hover:!visible" />}
+        {copyable && <CopyButton text={value} className="text-info invisible group-hover:visible!" />}
         {children}
       </div>
     </div>
@@ -198,7 +198,7 @@ function TransactionCard({
             <div className="flex w-full items-center justify-between">
               <span className="text-primary group font-mono">
                 {trimTxnHash(data.hash)}
-                <CopyButton text={data.hash} ml={8} className="invisible group-hover:!visible" />
+                <CopyButton text={data.hash} ml={8} className="invisible group-hover:visible!" />
               </span>
               <span className="inline-flex gap-2">
                 <TooltipProvider>
@@ -207,7 +207,7 @@ function TransactionCard({
                       <Badge variant="outline">{data.chainId.toString()}</Badge>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p className="max-w-[60vw] whitespace-pre-wrap break-words">
+                      <p className="max-w-[60vw] whitespace-pre-wrap wrap-break-word">
                         Chain ID: {data.chainId.toString()}
                       </p>
                     </TooltipContent>
@@ -219,7 +219,7 @@ function TransactionCard({
                       <Badge variant="secondary">VM</Badge>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p className="max-w-[60vw] whitespace-pre-wrap break-words">
+                      <p className="max-w-[60vw] whitespace-pre-wrap wrap-break-word">
                         This is a transaction in Remix Virtual Machine, it is not on the real blockchain.
                       </p>
                     </TooltipContent>
@@ -265,7 +265,7 @@ function TransactionCard({
           <div className="flex w-full items-center justify-between">
             <span className="text-primary group font-mono">
               {trimTxnHash(data.hash)}
-              <CopyButton text={data.hash} ml={8} className="invisible group-hover:!visible" />
+              <CopyButton text={data.hash} ml={8} className="invisible group-hover:visible!" />
             </span>
             <span className="inline-flex flex-wrap justify-end gap-2">
               <TooltipProvider>
@@ -274,7 +274,7 @@ function TransactionCard({
                     <Badge variant="outline">{data.chainId.toString()}</Badge>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p className="max-w-[60vw] whitespace-pre-wrap break-words">Chain ID: {data.chainId.toString()}</p>
+                    <p className="max-w-[60vw] whitespace-pre-wrap wrap-break-word">Chain ID: {data.chainId.toString()}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

@@ -47,7 +47,7 @@ export const AddressFrom = ({ address }: { address: string }) => {
     <span className="text-gray inline-flex w-full items-center space-x-2">
       <ContractFromIcon className="h-3.5 w-3.5 shrink-0" />
       <span className="flex-1 pr-2">
-        <HexNumber data={address?.toLowerCase()} truncate={14} copyable noCopyHint className="!font-mono" />
+        <HexNumber data={address?.toLowerCase()} truncate={14} copyable noCopyHint className="font-mono!" />
       </span>
     </span>
   )
@@ -58,7 +58,7 @@ export const AddressTo = ({ address }: { address: string }) => {
     <span className="text-gray inline-flex w-full items-center space-x-2">
       <ContractToIcon className="h-3.5 w-3.5 shrink-0" />
       <span className="flex-1 pr-2">
-        <HexNumber data={address?.toLowerCase()} truncate={14} copyable noCopyHint className="!font-mono" />
+        <HexNumber data={address?.toLowerCase()} truncate={14} copyable noCopyHint className="font-mono!" />
       </span>
     </span>
   )
@@ -69,7 +69,7 @@ export const TransactionLabel = ({ row, getValue }: { row: any; getValue: () => 
   // internal transaction: trace = true
   return (
     <span className="text-primary-800 inline-flex w-full gap-2 pr-6">
-      <HexNumber data={getValue() as string} autoTruncate copyable noCopyHint className="flex-1 !font-mono" />
+      <HexNumber data={getValue() as string} autoTruncate copyable noCopyHint className="flex-1 font-mono!" />
       <span title="Internal Transaction" className="text-primary-500 hover:text-primary-600 flex-0 h-4 w-4 pr-2">
         {trace ? <InternalIcon className="inline-block h-4 w-4" /> : null}
       </span>
@@ -121,7 +121,7 @@ const TransactionColumns: any[] = [
           <div className="flex h-5 w-full truncate whitespace-nowrap leading-5">
             <span className="flex-1 truncate whitespace-nowrap">{methodSignatureText}</span>
             <span
-              className="bg-primary-50 hidden rounded p-0.5 text-xs text-gray-500 group-hover:block"
+              className="bg-primary-50 hidden rounded-sm p-0.5 text-xs text-gray-500 group-hover:block"
               onClick={(evt) => {
                 evt.stopPropagation()
                 evt.preventDefault()
@@ -132,7 +132,7 @@ const TransactionColumns: any[] = [
           </div>
         )
       }
-      return <HexNumber data={methodSignature} autoTruncate copyable noCopyHint className="flex-1 !font-mono" />
+      return <HexNumber data={methodSignature} autoTruncate copyable noCopyHint className="flex-1 font-mono!" />
     },
     size: 200,
     enableResizing: true

@@ -251,7 +251,7 @@ export const WithSuffixNode = () => {
       <FlatTree
         data={createSampleData()}
         suffixNode={
-          <div className="rounded border border-blue-200 bg-blue-50 p-4">
+          <div className="rounded-sm border border-blue-200 bg-blue-50 p-4">
             <p className="text-sm text-blue-800">
               This is a suffix node that appears after the selected item
             </p>
@@ -274,7 +274,7 @@ export const WithExpandDepth = () => {
         <select
           value={expandDepth}
           onChange={(e) => setExpandDepth(Number(e.target.value))}
-          className="rounded border px-2 py-1"
+          className="rounded-sm border px-2 py-1"
         >
           <option value={0}>0</option>
           <option value={1}>1</option>
@@ -313,7 +313,7 @@ export const ScrollToKey = () => {
           value={scrollToKey}
           onChange={(e) => setScrollToKey(e.target.value)}
           placeholder="e.g., node-2-2-1"
-          className="rounded border px-2 py-1"
+          className="rounded-sm border px-2 py-1"
         />
       </div>
       <FlatTree

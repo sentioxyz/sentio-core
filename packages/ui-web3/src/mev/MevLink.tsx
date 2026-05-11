@@ -101,7 +101,7 @@ export const MevLink = ({
             className={classNames(
               'hover:text-primary active:text-primary-700',
               trigger === 'static' ? '' : 'invisible group-hover:visible',
-              '!h-4 !w-4',
+              'h-4! w-4!',
               externalLogoClassName
             )}
             link={externalLink}

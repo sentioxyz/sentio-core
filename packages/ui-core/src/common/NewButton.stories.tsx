@@ -8,12 +8,13 @@ import { useState } from 'react'
 
 export const Default = () => (
   <div style={{ padding: 16 }} className="space-y-4">
-    <NewButton role="secondary" size="default">
+    <NewButton size="default">
       Button
     </NewButton>
-    <div className="flex gap-2">
-      <ProcessingIcon light={true} />
-      <span>Processing...</span>
+    <div className="mt-4">
+      <NewButton size="default" processing={true}>
+        Text Button
+      </NewButton>
     </div>
   </div>
 )
@@ -47,6 +48,22 @@ export const Primary = () => (
     </div>
   </div>
 )
+
+export const Tertiary = () => (
+  <div style={{ padding: 16 }}>
+    <div>
+      <NewButton role="tertiary" size="md">
+        Tertiary
+      </NewButton>
+    </div>
+    <div className="mt-4">
+      <NewButton role="tertiary" size="md" processing={true}>
+        Tertiary
+      </NewButton>
+    </div>
+  </div>
+)
+
 
 export const AllRoles = () => {
   return (

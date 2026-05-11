@@ -81,10 +81,10 @@ export function Notification({
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="dark:bg-sentio-gray-100 pointer-events-auto w-full max-w-sm rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5 dark:ring-gray-100">
+            <div className="dark:bg-sentio-gray-100 pointer-events-auto w-full max-w-sm rounded-lg bg-white shadow-lg ring-1 ring-black/5 dark:ring-gray-100/5">
               <div className="p-4">
                 <div className="flex items-start">
-                  <div className="flex-shrink-0">{icon}</div>
+                  <div className="shrink-0">{icon}</div>
                   <div className="ml-3 w-0 flex-1">
                     <p className="text-text-foreground text-sm font-medium">
                       {title}
@@ -92,10 +92,10 @@ export function Notification({
                     <p className="mt-1 text-sm text-gray-500">{message}</p>
                     {buttons && <div className="mt-4 flex">{buttons()}</div>}
                   </div>
-                  <div className="ml-4 flex flex-shrink-0">
+                  <div className="ml-4 flex shrink-0">
                     <button
                       type="button"
-                      className="focus:ring-primary-500 dark:bg-sentio-gray-100 inline-flex rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                      className="focus:ring-primary-500 dark:bg-sentio-gray-100 inline-flex rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-hidden focus:ring-2 focus:ring-offset-2"
                       onClick={() => {
                         setShow(false)
                       }}

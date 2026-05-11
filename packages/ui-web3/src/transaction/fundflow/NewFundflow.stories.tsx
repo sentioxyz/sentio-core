@@ -372,7 +372,7 @@ export const Default = () => {
   return (
     <div className="p-4">
       <h2 className="mb-4 text-lg font-semibold">Simple Token Transfer</h2>
-      <div className="rounded border">
+      <div className="rounded-sm border">
         <TransactionFundflow
           transaction={createMockTransaction()}
           data={createSimpleTransferTrace()}
@@ -390,7 +390,7 @@ export const MultiHopSwap = () => {
       <h2 className="mb-4 text-lg font-semibold">
         Multi-Hop Token Swap (UNI → WETH → USDC)
       </h2>
-      <div className="rounded border">
+      <div className="rounded-sm border">
         <TransactionFundflow
           transaction={createMockTransaction()}
           data={createMultiHopSwapTrace()}
@@ -406,7 +406,7 @@ export const ETHDeposit = () => {
   return (
     <div className="p-4">
       <h2 className="mb-4 text-lg font-semibold">ETH Deposit to WETH</h2>
-      <div className="rounded border">
+      <div className="rounded-sm border">
         <TransactionFundflow
           transaction={createMockTransaction()}
           data={createETHTransferTrace()}
@@ -425,7 +425,7 @@ export const EmptyFundFlow = () => {
         <h2 className="mb-4 text-lg font-semibold">
           Transaction with No Fund Flow
         </h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <TransactionFundflow
             transaction={createMockTransaction()}
             data={createEmptyTrace()}
@@ -442,7 +442,7 @@ export const CustomEmptyState = () => {
   return (
     <div className="p-4">
       <h2 className="mb-4 text-lg font-semibold">Custom Empty State</h2>
-      <div className="rounded border">
+      <div className="rounded-sm border">
         <TransactionFundflow
           transaction={createMockTransaction()}
           data={createEmptyTrace()}
@@ -471,7 +471,7 @@ export const LoadingState = () => {
     <SvgFolderContext.Provider value="https://app.sentio.xyz">
       <div className="p-4">
         <h2 className="mb-4 text-lg font-semibold">Loading State</h2>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <TransactionFundflow
             transaction={createMockTransaction()}
             data={createSimpleTransferTrace()}
@@ -492,10 +492,10 @@ export const WithEmptyCallback = () => {
     <SvgFolderContext.Provider value="https://app.sentio.xyz">
       <div className="p-4">
         <h2 className="mb-4 text-lg font-semibold">With Empty Callback</h2>
-        <div className="mb-2 rounded bg-blue-50 p-2 text-sm">
+        <div className="mb-2 rounded-sm bg-blue-50 p-2 text-sm">
           <strong>Is Empty:</strong> {isEmpty ? 'Yes' : 'No'}
         </div>
-        <div className="rounded border">
+        <div className="rounded-sm border">
           <TransactionFundflow
             transaction={createMockTransaction()}
             data={createEmptyTrace()}
@@ -518,7 +518,7 @@ export const PolygonChain = () => {
       <h2 className="mb-4 text-lg font-semibold">
         Fund Flow on Polygon (Chain ID: 137)
       </h2>
-      <div className="rounded border">
+      <div className="rounded-sm border">
         <TransactionFundflow
           transaction={{
             ...createMockTransaction(),
@@ -559,7 +559,7 @@ export const WithTagMap = () => {
       <h2 className="mb-4 text-lg font-semibold">
         Fund Flow with Address Tags
       </h2>
-      <div className="rounded border">
+      <div className="rounded-sm border">
         <TransactionFundflow
           transaction={createMockTransaction()}
           data={createSimpleTransferTrace()}
@@ -581,7 +581,7 @@ export const WithTagAddressList = () => {
       <h2 className="mb-4 text-lg font-semibold">
         Fund Flow with Tag Address List Callback
       </h2>
-      <div className="mb-2 rounded bg-blue-50 p-2 text-sm">
+      <div className="mb-2 rounded-sm bg-blue-50 p-2 text-sm">
         <strong>Tagged Addresses:</strong>
         <ul className="ml-4 mt-1 list-disc">
           {addresses.length > 0 ? (
@@ -591,7 +591,7 @@ export const WithTagAddressList = () => {
           )}
         </ul>
       </div>
-      <div className="rounded border">
+      <div className="rounded-sm border">
         <TransactionFundflow
           transaction={createMockTransaction()}
           data={createSimpleTransferTrace()}
@@ -616,7 +616,7 @@ export const ComplexScenario = () => {
       <p className="mb-4 text-sm text-gray-600">
         Uniswap swap with multiple hops showing the complete token flow path
       </p>
-      <div className="rounded border">
+      <div className="rounded-sm border">
         <TransactionFundflow
           transaction={createMockTransaction()}
           data={createMultiHopSwapTrace()}

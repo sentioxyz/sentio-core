@@ -97,7 +97,7 @@ export const WithBlurHandler: Story = () => {
 }
 
 WithBlurHandler.meta = {
-  description: 'Search input with blur event handler'
+  description: 'Search input with blur-sm event handler'
 }
 
 export const WithKeyboardHandler: Story = () => {

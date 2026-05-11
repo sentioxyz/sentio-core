@@ -167,11 +167,11 @@ export const SubMenuButton = (props: Props) => {
         {...getReferenceProps}
       >
         {props.icon}
-        <span className="flex-shrink flex-grow text-left">{label}</span>
+        <span className="shrink grow text-left">{label}</span>
         <ChevronRightIcon
           className={classNames(
             open ? 'text-gray-500' : 'text-gray-400',
-            'h-4.5 w-4.5 flex-shrink-0  group-hover:text-gray-500',
+            'h-4.5 w-4.5 shrink-0  group-hover:text-gray-500',
             placement?.startsWith('bottom') ? 'rotate-90' : ''
           )}
           aria-label="expand items"
@@ -182,7 +182,7 @@ export const SubMenuButton = (props: Props) => {
           static
           ref={refs.setFloating}
           style={floatingStyles}
-          className="dark:bg-sentio-gray-100 dark:divide-sentio-gray-400/50 w-48 origin-top cursor-pointer divide-y divide-gray-200 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:ring-gray-100"
+          className="dark:bg-sentio-gray-100 dark:divide-sentio-gray-400/50 w-48 origin-top cursor-pointer divide-y divide-gray-200 rounded-md bg-white shadow-lg ring-1 ring-black/5 focus:outline-hidden dark:ring-gray-100/5"
           {...getFloatingProps}
         >
           {items.map((items, i) =>

@@ -235,7 +235,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
           }
         }}
       >
-        <thead className="dark:bg-sentio-gray-100 sticky top-0 z-[1] bg-white">
+        <thead className="dark:bg-sentio-gray-100 sticky top-0 z-1 bg-white">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr
               key={headerGroup.id}
@@ -248,7 +248,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                   style={{
                     width: header.getSize()
                   }}
-                  className="text-ilabel group/th blinked dark:hover:!bg-sentio-gray-300 dark:bg-sentio-gray-100 text-text-foreground hover:!bg-primary-50 relative flex items-center whitespace-nowrap bg-white px-2 py-2 text-left font-semibold"
+                  className="text-ilabel group/th blinked dark:hover:bg-sentio-gray-300! dark:bg-sentio-gray-100 text-text-foreground hover:bg-primary-50! relative flex items-center whitespace-nowrap bg-white px-2 py-2 text-left font-semibold"
                   onClick={header.column.getToggleSortingHandler()}
                 >
                   <span className="flex w-full flex-1 overflow-hidden">
@@ -266,7 +266,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                           header.column.getIsSorted()
                             ? 'hover:text-text-foreground visible hover:bg-gray-200'
                             : 'invisible',
-                          'ml-2 flex-none rounded px-1 py-0.5 text-gray-600 group-hover:visible group-focus:visible',
+                          'ml-2 flex-none rounded-sm px-1 py-0.5 text-gray-600 group-hover:visible group-focus:visible',
                           'inline-block cursor-pointer',
                           'shrink-0'
                         )}
@@ -360,7 +360,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                       onMouseDown={header.getResizeHandler()}
                       onTouchStart={header.getResizeHandler()}
                       className={classNames(
-                        `text-md hover:bg-primary-200/50 absolute right-0 top-0 inline-block flex
+                        `text-md hover:bg-primary-200/50 absolute right-0 top-0 flex
                           h-full w-2 cursor-col-resize touch-none select-none items-center text-gray-400`
                       )}
                       style={{
@@ -395,7 +395,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                     key={row.id}
                     data-index={virtualRow.index}
                     className={classNames(
-                      'hover:!bg-primary-50 dark:hover:!bg-sentio-gray-300 group flex w-fit items-center border-b',
+                      'hover:bg-primary-50! dark:hover:bg-sentio-gray-300! group flex w-fit items-center border-b',
                       onClick ? 'cursor-pointer' : '',
                       rowClassNameFn ? rowClassNameFn(row) : ''
                     )}
@@ -424,7 +424,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                 <tr
                   key={row.id}
                   className={classNames(
-                    'hover:!bg-primary-50 dark:hover:!bg-sentio-gray-300 blinked group flex w-fit items-center border-b',
+                    'hover:bg-primary-50! dark:hover:bg-sentio-gray-300! blinked group flex w-fit items-center border-b',
                     onClick ? 'cursor-pointer' : '',
                     rowClassNameFn ? rowClassNameFn(row) : ''
                   )}

@@ -10,8 +10,8 @@ import { ExternalLogo } from './ExternalLogo'
 const iconClassName = cva('', {
   variants: {
     size: {
-      sm: '!w-4 !h-4',
-      lg: '!w-5 !h-5'
+      sm: 'w-4! h-4!',
+      lg: 'w-5! h-5!'
     }
   },
   defaultVariants: {

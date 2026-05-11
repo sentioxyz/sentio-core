@@ -65,7 +65,7 @@ export const RelatedTransactions = ({ open, chainId, methodSignature }: Props) =
   return (
     <div className={cn(open ? '' : 'hidden', 'mt-2 overflow-auto rounded-lg border p-1')}>
       <Table className="block h-fit max-h-[50vh] overflow-auto">
-        <TableHeader className="bg-light sticky top-0 shadow-sm">
+        <TableHeader className="bg-light sticky top-0 shadow-xs">
           <TableRow>
             <TableHead className="w-[160px] whitespace-nowrap">Txn Hash</TableHead>
             <TableHead>Status</TableHead>

@@ -69,7 +69,7 @@ func (c *testClient) Init(ctx context.Context) (Block, error) {
 }
 
 // SubscribeLatest should not stop until ctx canceled
-func (c *testClient) SubscribeLatest(ctx context.Context, start uint64, ch chan<- Block) {
+func (c *testClient) SubscribeLatest(ctx context.Context, ch chan<- Block) {
 	for {
 		select {
 		case <-time.After(c.config.Interval):

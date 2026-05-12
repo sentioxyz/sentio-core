@@ -262,12 +262,18 @@ func (c *Client) subscribeUsingWebsocket(ctx context.Context, ch chan<- clientpo
 				return errors.Wrapf(unmarshalErr, "unmarshal subscribe response (%s) failed", string(raw))
 			}
 
-			if resp.Method != "eth_subscription" || resp.Params.Result == nil || resp.Params.Result.Number == nil {
-				roundLogger.Warnw("invalid subscribe result")
+			if resp.Method == "" {
+				c.stat.Record("subscribe.eth_subscribe", used, false)
 				continue
 			}
 
-			c.stat.Record("subscribe.gotBlock", used, true)
+			if resp.Method != "eth_subscription" || resp.Params.Result == nil || resp.Params.Result.Number == nil {
+				roundLogger.Warnw("invalid subscribe result")
+				c.stat.Record("subscribe.eth_subscription", used, true)
+				continue
+			}
+
+			c.stat.Record("subscribe.eth_subscription", used, false)
 
 			if checkErr := c.strictDataIntegrityCheck(gctx, "subscribe"); checkErr != nil {
 				roundLogger.Warnfe(checkErr, "strict data integrity check failed")
@@ -292,40 +298,44 @@ func (c *Client) subscribeUsingWebsocket(ctx context.Context, ch chan<- clientpo
 	return err
 }
 
-func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- clientpool.Block) {
-	// use websocket if wss endpoint exists
+func (c *Client) SubscribeLatest(ctx context.Context, ch chan<- clientpool.Block) {
+	_, logger := log.FromContext(ctx)
+	latestChan := make(chan clientpool.Block)
 	if c.config.WSSEndpoint != "" {
-		for {
-			_ = c.subscribeUsingWebsocket(ctx, ch)
-			select {
-			case <-time.After(time.Second * 10): // retry after 10s
-			case <-ctx.Done():
-				return
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				_ = c.subscribeUsingWebsocket(ctx, latestChan)
+				select {
+				case <-time.After(time.Second * 10): // retry after 10s
+				case <-ctx.Done():
+					return
+				}
 			}
+		}()
+	}
+	var stop func(clientpool.Block) bool
+	if c.config.MaxBlockNumber > 0 {
+		stop = func(latest clientpool.Block) bool {
+			if latest.Number > c.config.MaxBlockNumber {
+				logger.Warnf("latest block %s is greater than max block number %d, will stop to subscribe",
+					latest, c.config.MaxBlockNumber)
+				return true
+			}
+			return false
 		}
 	}
-
-	// use eth_getBlockByNumber(latest, false)
-	cancel := func() {} // no-op by default
-	if c.config.MaxBlockNumber > 0 {
-		ctx, cancel = context.WithCancel(ctx)
-	}
-	defer cancel()
-	clientpool.SubscribeUsingGetLatest(
+	clientpool.Subscribe(
 		ctx,
-		start,
-		c.config.KeepWatch,
 		time.Minute*5,
-		ch,
+		latestChan,
+		c.config.KeepWatch,
 		func(ctx context.Context) (clientpool.Block, error) {
-			latest, err := c.getLatest(ctx, "subscribe")
-			if err == nil && c.config.MaxBlockNumber > 0 && latest.Number > c.config.MaxBlockNumber {
-				cancel()
-				return latest, errors.Errorf("latest block number %d is greater than max block number %d",
-					latest.Number, c.config.MaxBlockNumber)
-			}
-			return latest, err
+			return c.getLatest(ctx, "subscribe")
 		},
+		stop,
+		ch,
 	)
 }
 

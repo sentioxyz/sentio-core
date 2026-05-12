@@ -122,6 +122,7 @@ func Test_aptosRpc(t *testing.T) {
 		"ext",
 		"aptos_mainnet",
 		time.Second,
+		time.Second,
 		cli,
 		aptos.NewExtServerDimension(cli, 10, 3, rg.Range{}, 0),
 		nil,

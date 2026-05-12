@@ -398,6 +398,52 @@ func (p *ClientPool[CONFIG, CLIENT]) consumerLeave(id uint64) {
 	delete(p.consumer, id)
 }
 
+func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt option[CONFIG]) (
+	entries map[string]pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]],
+	backup int,
+	psi uint64,
+) {
+	now := time.Now()
+	entries, _, psi = p.pool.Fetch(
+		func(name string, entry pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]], poolStatus poolStatus) bool {
+			if blackList.Contains(name) {
+				return false
+			}
+			if opt.configFilter != nil && !opt.configFilter(entry.Config.Config) {
+				return false
+			}
+			p.mu.Lock()
+			extra, has := p.entryExtra[name]
+			p.mu.Unlock()
+			for _, tag := range opt.withTags {
+				if !has || !extra.tags.Contains(tag) {
+					return false
+				}
+			}
+			for _, tag := range opt.noTags {
+				if has && extra.tags.Contains(tag) {
+					return false
+				}
+			}
+			backup++ // at least this is a backup client
+			if has && extra.ban != nil && extra.ban.enable(now) {
+				return false // can wait for this client to recover
+			}
+			if !entry.Enable {
+				return false // can wait for a downgrade
+			}
+			if !entry.Status.Initialized {
+				return false // can wait for this client to initialize
+			}
+			if entry.Status.LatestBlock.Number < poolStatus.LatestBlock.Number {
+				return false // can wait for this client to catch up
+			}
+			return true
+		},
+	)
+	return entries, backup, psi
+}
+
 // UseClient will return ErrNoValidClient or error returned by fn
 func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	ctx context.Context,
@@ -416,50 +462,13 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	}
 	blackList := set.New[string]()
 	for {
-		now, backup := time.Now(), 0
-		entries, _, psIndex := p.pool.Fetch(
-			func(name string, entry pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]], poolStatus poolStatus) bool {
-				if blackList.Contains(name) {
-					return false
-				}
-				if c.configFilter != nil && !c.configFilter(entry.Config.Config) {
-					return false
-				}
-				p.mu.Lock()
-				extra, has := p.entryExtra[name]
-				p.mu.Unlock()
-				for _, tag := range c.withTags {
-					if !has || !extra.tags.Contains(tag) {
-						return false
-					}
-				}
-				for _, tag := range c.noTags {
-					if has && extra.tags.Contains(tag) {
-						return false
-					}
-				}
-				backup++ // at least this is a backup client
-				if has && extra.ban != nil && extra.ban.enable(now) {
-					return false // can wait for this client to recover
-				}
-				if !entry.Enable {
-					return false // can wait for a downgrade
-				}
-				if !entry.Status.Initialized {
-					return false // can wait for this client to initialize
-				}
-				if entry.Status.LatestBlock.Number < poolStatus.LatestBlock.Number {
-					return false // can wait for this client to catch up
-				}
-				return true
-			},
-		)
+		entries, backup, psi := p.findEntries(blackList, c)
 		if len(entries) == 0 {
 			if backup == 0 {
 				return Report{Err: ErrNoValidClient}
 			}
 			p.consumerDoing(cid, "waiting")
-			if err := p.pool.Wait(ctx, psIndex); err != nil {
+			if err := p.pool.Wait(ctx, psi); err != nil {
 				return Report{Err: err} // only because ctx canceled
 			}
 			continue
@@ -628,16 +637,36 @@ func (p *ClientPool[CONFIG, CLIENT]) updateConfig(c PoolConfig[CONFIG]) {
 	p.enablePriority()
 }
 
-func (p *ClientPool[CONFIG, CLIENT]) adjustPriority() {
-	p.mu.Lock()
+func (p *ClientPool[CONFIG, CLIENT]) shouldDowngrade() bool {
 	if p.pool.Waiting() > 0 {
-		// has waiting consumer, try to downgrade
+		// has waiting consumer
+		return true
+	}
+	ps, _ := p.pool.Status()
+	if !ps.Ready || time.Since(ps.LatestBlock.Timestamp) > p.config.BrokenFallBehind {
+		// overall fall behind
+		return true
+	}
+	entries, _, _ := p.findEntries(set.New[string](), option[CONFIG]{})
+	if len(entries) == 0 {
+		// no valid entry
+		return true
+	}
+	return false
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) adjustPriority() {
+	shouldDowngrade := p.shouldDowngrade()
+
+	p.mu.Lock()
+	if shouldDowngrade {
+		// should downgrade, try to downgrade
 		if p.priorityCursor+1 < len(p.configPriorities) {
 			p.priorityCursor++
 			log.With("pool", p.pool.Name()).Infof("pool downgrade to %d", p.configPriorities[p.priorityCursor])
 		}
 	} else if p.priorityCursor > 0 {
-		// no waiting consumer, may be can upgrade
+		// should not downgrade, may be can upgrade
 		priority := make(map[string]uint32)
 		for entName, cc := range p.configEntries {
 			priority[entName] = cc.Priority

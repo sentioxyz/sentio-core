@@ -62,14 +62,10 @@ func (p *ClientPool[CONFIG, CLIENT]) Snapshot() any {
 	clients := make([]client, 0, len(entries))
 	now := time.Now()
 	for entName, ent := range entries {
-		var publicName string
-		if ent.Status.Initialized {
-			publicName = ent.Status.Client.GetName()
-		}
 		clients = append(clients, client{
 			ent:        ent,
 			name:       entName,
-			publicName: publicName,
+			publicName: ent.Status.Client.GetName(),
 			state:      p._clientState(entName, ent, now),
 		})
 	}

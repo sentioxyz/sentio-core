@@ -58,7 +58,6 @@ type ConnectionPool interface {
 		method string,
 		fn func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result,
 	) clientpool.Report
-	Snapshot() any
 }
 
 // GRPCProbe is an optional callback interface that allows callers to observe
@@ -159,7 +158,6 @@ func (h *GRPCProxyHandler) Snapshot() any {
 		"name":           h.name,
 		"debug":          h.debug,
 		"requestCounter": h.requestCounter.Load(),
-		"pool":           h.pool.Snapshot(),
 		"statistics":     h.stat.Snapshot(),
 	}
 }

@@ -74,6 +74,7 @@ func (d *ExtServerGrpcDimension) getCheckpoint(ctx context.Context, sn uint64) (
 				},
 			)
 		},
+		clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
 	)
 	if r.Err != nil {
 		return nil, r.Err
@@ -125,6 +126,7 @@ func (d *ExtServerGrpcDimension) GetSlot(ctx context.Context, sn uint64) (*Slot,
 							},
 						)
 					},
+					clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
 				)
 				if r.Err != nil {
 					return nil, errors.Wrapf(r.Err, "load objects %s failed", utils.MustJSONMarshal(reqs))

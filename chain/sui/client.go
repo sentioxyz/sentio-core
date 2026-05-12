@@ -53,7 +53,7 @@ func (c ClientConfig) Trim() ClientConfig {
 		Endpoint:            strings.TrimSpace(c.Endpoint),
 		AdditionalEndpoints: utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
 		GrpcEndpoint:        strings.TrimSpace(c.GrpcEndpoint),
-		MaxCallRecvMsgSize:  max(c.MaxCallRecvMsgSize, 1024*1024*5), // at least 5MB
+		MaxCallRecvMsgSize:  utils.Select(c.MaxCallRecvMsgSize == 0, 1024*1024*100, c.MaxCallRecvMsgSize), // default 100M
 		SpecialMethodPrefix: strings.TrimSpace(c.SpecialMethodPrefix),
 		KeepWatch:           utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
 		MethodTimeout:       methodTimeout,

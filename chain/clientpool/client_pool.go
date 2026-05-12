@@ -14,6 +14,7 @@ import (
 	"sentioxyz/sentio-core/common/queue"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/timewin"
+	"sentioxyz/sentio-core/common/utils"
 	"sort"
 	"sync"
 	"time"
@@ -105,6 +106,7 @@ type entryExtra struct {
 
 type consumer struct {
 	theme     string
+	blackList map[string]error
 	enterAt   time.Time
 	doing     string
 	doingFrom time.Time
@@ -116,6 +118,9 @@ func (c consumer) Snapshot() any {
 		"enterAt":   c.enterAt.String(),
 		"doing":     c.doing,
 		"doingFrom": c.doingFrom.String(),
+		"blackList": utils.MapMapNoError(c.blackList, func(err error) string {
+			return fmt.Sprintf("%v", err)
+		}),
 	}
 }
 
@@ -443,6 +448,17 @@ func (p *ClientPool[CONFIG, CLIENT]) consumerLeave(id uint64) {
 	delete(p.consumer, id)
 }
 
+func (p *ClientPool[CONFIG, CLIENT]) consumerBlackListAdd(id uint64, entName string, err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	c := p.consumer[id]
+	if c.blackList == nil {
+		c.blackList = make(map[string]error)
+	}
+	c.blackList[entName] = err
+	p.consumer[id] = c
+}
+
 func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt option[CONFIG]) (
 	entries map[string]pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]],
 	backup int,
@@ -534,6 +550,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		}
 		if result.BrokenForTask {
 			blackList.Add(entName)
+			p.consumerBlackListAdd(cid, entName, result.Err)
 		}
 		if !result.Broken && !result.BrokenForTask {
 			p.clientActive(curCtx, entName, theme)

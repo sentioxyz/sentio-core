@@ -213,7 +213,7 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
 				ctx,
 				"eth_getLogs",
-				[]any{proxyArgs},
+				[]any{&proxyArgs},
 				s.client.ClientPool,
 			)
 			if proxyErr != nil {
@@ -249,7 +249,7 @@ func (s *proxyWithLatestSlotCacheService) TraceFilter(
 			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
 				ctx,
 				"trace_filter",
-				[]any{proxyArgs},
+				[]any{&proxyArgs},
 				s.client.ClientPool,
 			)
 			if proxyErr != nil {

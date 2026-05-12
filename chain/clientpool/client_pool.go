@@ -318,6 +318,7 @@ func (p *ClientPool[CONFIG, CLIENT]) chooseOne(
 type option[CONFIG any] struct {
 	noTags       []string
 	withTags     []string
+	maxPriority  *uint32
 	configFilter func(c CONFIG) bool
 }
 
@@ -357,6 +358,12 @@ func WithConfigFilter[CONFIG any](f func(c CONFIG) bool) Option[CONFIG] {
 				return pre(conf) && f(conf)
 			}
 		}
+	}
+}
+
+func WithMaxPriority[CONFIG any](priority uint32) Option[CONFIG] {
+	return func(c *option[CONFIG]) {
+		c.maxPriority = &priority
 	}
 }
 
@@ -412,6 +419,9 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 				return false
 			}
 			if opt.configFilter != nil && !opt.configFilter(entry.Config.Config) {
+				return false
+			}
+			if opt.maxPriority != nil && entry.Config.Priority > *opt.maxPriority {
 				return false
 			}
 			p.mu.Lock()
@@ -639,35 +649,49 @@ func (p *ClientPool[CONFIG, CLIENT]) updateConfig(c PoolConfig[CONFIG]) {
 	p.enablePriority()
 }
 
-func (p *ClientPool[CONFIG, CLIENT]) shouldDowngrade() bool {
+func (p *ClientPool[CONFIG, CLIENT]) shouldDowngrade() string {
 	if p.pool.Waiting() > 0 {
-		// has waiting consumer
-		return true
+		return "has waiting consumer"
 	}
 	ps, _ := p.pool.Status()
 	if !ps.Ready || time.Since(ps.LatestBlock.Timestamp) > p.config.BrokenFallBehind {
-		// overall fall behind
-		return true
+		return "overall fall behind"
 	}
 	entries, _, _ := p.findEntries(set.New[string](), option[CONFIG]{})
 	if len(entries) == 0 {
-		// no valid entry
-		return true
+		return "no valid entry"
 	}
-	return false
+	return ""
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) currentPriority() uint32 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.priorityCursor < len(p.configPriorities) {
+		return p.configPriorities[p.priorityCursor]
+	}
+	return 0
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) adjustPriority() {
 	shouldDowngrade := p.shouldDowngrade()
 
+	var hasValidEntryAfterUpgrade bool
+	if curPriority := p.currentPriority(); curPriority > 0 {
+		maxPriority := curPriority - 1
+		entries, _, _ := p.findEntries(set.New[string](), option[CONFIG]{maxPriority: &maxPriority})
+		hasValidEntryAfterUpgrade = len(entries) > 0
+	}
+
 	p.mu.Lock()
-	if shouldDowngrade {
+	if shouldDowngrade != "" {
 		// should downgrade, try to downgrade
 		if p.priorityCursor+1 < len(p.configPriorities) {
 			p.priorityCursor++
-			log.With("pool", p.pool.Name()).Infof("pool downgrade to %d", p.configPriorities[p.priorityCursor])
+			log.With("pool", p.pool.Name()).
+				Infof("pool downgrade to %d because %s", p.configPriorities[p.priorityCursor], shouldDowngrade)
 		}
-	} else if p.priorityCursor > 0 {
+	} else if p.priorityCursor > 0 && hasValidEntryAfterUpgrade {
 		// should not downgrade, may be can upgrade
 		priority := make(map[string]uint32)
 		for entName, cc := range p.configEntries {

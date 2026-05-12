@@ -489,6 +489,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		logger.Debugw("choose client", "client", entName, "count", len(entries))
 		p.consumerDoing(cid, "executing")
 		result := fn(ctx, ent.Status.Client)
+		logger.Debugw("got use result", "client", entName, "result", result)
 		for _, tag := range result.AddTags {
 			p.clientAddTag(curCtx, entName, tag)
 		}

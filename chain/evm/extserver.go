@@ -128,7 +128,6 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 			r := cli.CallContext(
 				ctx,
 				&receipts,
-				"",
 				"ext.GetSlot.ReceiptPart",
 				"eth_getBlockReceipts",
 				hexutil.Uint64(blockNumber),
@@ -175,7 +174,6 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 				r := cli.CallContext(
 					ctx,
 					&receipt,
-					"",
 					"ext.GetSlot.ReceiptPart",
 					"eth_getTransactionReceipt",
 					txHash,
@@ -293,7 +291,6 @@ func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) error {
 				r := cli.CallContext(
 					ctx,
 					&st.Traces,
-					"",
 					"ext.GetSlot.TracePart",
 					"arbtrace_block",
 					hexutil.Uint64(blockNumber),
@@ -325,7 +322,6 @@ func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) error {
 				r := cli.CallContext(
 					ctx,
 					&st.Traces,
-					"",
 					"ext.GetSlot.TracePart",
 					"trace_block",
 					hexutil.Uint64(blockNumber),
@@ -353,7 +349,6 @@ func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) error {
 			r := cli.CallContext(
 				ctx,
 				&gr,
-				"",
 				"ext.GetSlot.TracePart",
 				"debug_traceBlockByHash",
 				blockHash,

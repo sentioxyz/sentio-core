@@ -181,7 +181,6 @@ type ProxyExtraService struct {
 func (m *ProxyExtraService) getBlockHeader(ctx context.Context, blockNumber rpc.BlockNumber) (*types.Header, error) {
 	raw, err := jsonrpc.ProxyJSONRPCRequest(
 		ctx,
-		"",
 		"eth_getBlockByNumber",
 		[]any{blockNumber, false},
 		m.client.ClientPool,

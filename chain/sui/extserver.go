@@ -61,7 +61,6 @@ func (d *ExtServerDimension) loadCheckpoint(
 			result := cli.CallContext(
 				ctx,
 				&ckpt,
-				"",
 				"ext.GetSlot.CkptPart",
 				"sui_getCheckpoint",
 				strconv.FormatUint(checkpoint, 10),
@@ -88,7 +87,6 @@ func (d *ExtServerDimension) loadCheckpoint(
 					result := cli.CallContext(
 						ctx,
 						&rawTxs,
-						"",
 						"ext.GetSlot.TxsPart",
 						"sui_multiGetTransactionBlocks",
 						digests,

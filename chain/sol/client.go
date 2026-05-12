@@ -115,7 +115,7 @@ func (c *Client) getLatest(ctx context.Context, src string) (clientpool.Block, c
 
 	// first get latest block, without block time
 	var latest *rpc.GetLatestBlockhashResult
-	r := c.CallContext(ctx, &latest, "", src, "getLatestBlockhash", getLatestFinalizedSlotParam)
+	r := c.CallContext(ctx, &latest, src, "getLatestBlockhash", getLatestFinalizedSlotParam)
 	if r.Err != nil {
 		return clientpool.Block{}, r
 	}
@@ -127,7 +127,7 @@ func (c *Client) getLatest(ctx context.Context, src string) (clientpool.Block, c
 
 	// then get the block time
 	var blockTime *solana.UnixTimeSeconds
-	r = c.CallContext(ctx, &blockTime, "", src, "getBlockTime", latest.Context.Slot)
+	r = c.CallContext(ctx, &blockTime, src, "getBlockTime", latest.Context.Slot)
 	if r.Err != nil {
 		return clientpool.Block{}, r
 	}
@@ -196,17 +196,10 @@ func buildResult(method string, err error) clientpool.Result {
 func (c *Client) CallContext(
 	ctx context.Context,
 	result any,
-	svr string,
 	src string,
 	method string,
 	args ...any,
 ) clientpool.Result {
-	if svr != "" {
-		return clientpool.Result{
-			BrokenForTask: true,
-			Err:           errors.Errorf("svr %q not supported", svr),
-		}
-	}
 	if len(c.config.MethodBlackList) > 0 && utils.IndexOf(c.config.MethodBlackList, method) >= 0 {
 		return clientpool.Result{
 			Err:           errors.New("method in blacklist"),

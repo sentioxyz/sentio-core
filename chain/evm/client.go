@@ -96,12 +96,11 @@ func (c ClientConfig) Equal(a ClientConfig) bool {
 var httpClient = https.NewClient(https.WithTimeout(time.Minute))
 
 type Client struct {
-	name           string
-	config         ClientConfig
-	httpClient     *http.Client
-	rpcClient      *rpc.Client
-	addiRpcClients map[string]*rpc.Client
-	stat           *ex.StatWinManager
+	name       string
+	config     ClientConfig
+	httpClient *http.Client
+	rpcClient  *rpc.Client
+	stat       *ex.StatWinManager
 
 	hasStateDataFrom uint64
 }
@@ -127,23 +126,10 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 			"failed to dial endpoint %q: %v", c.config.Endpoint, err)
 	}
 
-	// c.addiRpcClients
-	c.addiRpcClients = make(map[string]*rpc.Client)
-	for svr, endpoint := range c.config.AdditionalEndpoints {
-		var cli *rpc.Client
-		cli, err = rpc.DialOptions(ctx, endpoint, rpc.WithHTTPClient(c.httpClient))
-		if err != nil {
-			// always because the endpoint is invalid
-			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
-				"failed to dial %s endpoint %q: %v", svr, endpoint, err)
-		}
-		c.addiRpcClients[svr] = cli
-	}
-
 	// check chain id
 	if c.config.ChainID > 0 {
 		var result hexutil.Uint64
-		r := c.CallContext(ctx, &result, "", "init", "eth_chainId")
+		r := c.CallContext(ctx, &result, "init", "eth_chainId")
 		if r.Err != nil {
 			return clientpool.Block{}, r.Err
 		}
@@ -172,7 +158,7 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 		noStateLimit = 10000
 	)
 	tryGetBalance := func(ctx context.Context, addr string, bn hexutil.Uint64) error {
-		return c.CallContext(ctx, nil, "", "init", "eth_getBalance", addr, bn).Err
+		return c.CallContext(ctx, nil, "init", "eth_getBalance", addr, bn).Err
 	}
 	missBlock, missErr, getErr := getMissStateBlock(ctx, retryTimes, hexutil.Uint64(latest.Number), tryGetBalance)
 	if getErr != nil {
@@ -348,7 +334,7 @@ func (c *Client) strictDataIntegrityCheck(ctx context.Context, src string) error
 		return nil
 	}
 	var raw json.RawMessage
-	r := c.CallContext(ctx, &raw, "", src, "eth_syncing")
+	r := c.CallContext(ctx, &raw, src, "eth_syncing")
 	if r.Err != nil {
 		return errors.Wrapf(r.Err, "calling eth_syncing failed")
 	}
@@ -364,7 +350,7 @@ func (c *Client) getLatest(ctx context.Context, src string) (clientpool.Block, e
 	if c.config.UseFinalizedAsLatest {
 		blockTag = rpc.FinalizedBlockNumber
 	}
-	r := c.CallContext(ctx, &block, "", src, "eth_getBlockByNumber", blockTag, false)
+	r := c.CallContext(ctx, &block, src, "eth_getBlockByNumber", blockTag, false)
 	if r.Err != nil {
 		return clientpool.Block{}, r.Err
 	}
@@ -399,7 +385,7 @@ func (c *Client) GetBlock(
 	withTxs bool,
 ) (RPCGetBlockResponse, clientpool.Result) {
 	var block *RPCGetBlockResponse
-	r := c.CallContext(ctx, &block, "", src, "eth_getBlockByNumber", hexutil.Uint64(bn), withTxs)
+	r := c.CallContext(ctx, &block, src, "eth_getBlockByNumber", hexutil.Uint64(bn), withTxs)
 	if r.Err != nil {
 		return RPCGetBlockResponse{}, r
 	}
@@ -428,22 +414,10 @@ var stateMethodBlockNumberArgIndex = map[string]int{
 func (c *Client) CallContext(
 	ctx context.Context,
 	result any,
-	svr string,
 	src string,
 	method string,
 	args ...any,
 ) clientpool.Result {
-	cli := c.rpcClient
-	if svr != "" {
-		var has bool
-		cli, has = c.addiRpcClients[svr]
-		if !has {
-			return clientpool.Result{
-				BrokenForTask: true,
-				Err:           errors.Errorf("svr %q not supported", svr),
-			}
-		}
-	}
 	if len(c.config.MethodBlackList) > 0 && utils.IndexOf(c.config.MethodBlackList, method) >= 0 {
 		return clientpool.Result{
 			Err:           errors.New("method in blacklist"),
@@ -496,7 +470,7 @@ func (c *Client) CallContext(
 		}
 	}
 	return c.use(ctx, src+"."+method, func(ctx context.Context) clientpool.Result {
-		return clientpool.CallContext(cli, ctx, result, method, args...)
+		return clientpool.CallContext(c.rpcClient, ctx, result, method, args...)
 	})
 }
 

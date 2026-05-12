@@ -43,7 +43,7 @@ func Test_solRpc(t *testing.T) {
 
 	addr := "127.0.0.1:18890"
 	h := jsonrpc.NewHandler("test", true, false, nil, nil, "")
-	h.RegisterMiddleware(NewSimpleProxyService("", cli)...)
+	h.RegisterMiddleware(NewSimpleProxyService(cli)...)
 
 	g.Go(func() error {
 		return jsonrpc.ListenAndServe(gctx, ":18890", h)

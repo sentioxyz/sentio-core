@@ -212,7 +212,6 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 			proxyArgs.ToBlock = (*hexutil.Uint64)(r.End)
 			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
 				ctx,
-				"",
 				"eth_getLogs",
 				[]any{proxyArgs},
 				s.client.ClientPool,
@@ -249,7 +248,6 @@ func (s *proxyWithLatestSlotCacheService) TraceFilter(
 			proxyArgs.ToBlock = (*hexutil.Uint64)(r.End)
 			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
 				ctx,
-				"",
 				"trace_filter",
 				[]any{proxyArgs},
 				s.client.ClientPool,

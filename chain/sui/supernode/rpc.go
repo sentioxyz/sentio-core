@@ -52,7 +52,7 @@ func NewSuperNode(
 				}
 			}
 		},
-		jsonrpc.NewJSONRPCProxyMiddleware("", client.ClientPool),
+		jsonrpc.NewJSONRPCProxyMiddleware(client.ClientPool),
 	}
 }
 

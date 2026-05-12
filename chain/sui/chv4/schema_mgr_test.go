@@ -170,7 +170,7 @@ func Test_convertReal(t *testing.T) {
 	assert.NoError(t, err)
 
 	var resp *rpcv2.GetCheckpointResponse
-	r := cli.CallContext(context.Background(), &resp, "", "", "grpc_getCheckpoint", uint64(154000214), true)
+	r := cli.CallContext(context.Background(), &resp, "test", "grpc_getCheckpoint", uint64(154000214), true)
 	assert.NoError(t, r.Err)
 
 	_, txs, _, _, _, err := sm.convert(context.Background(), resp.GetCheckpoint())

@@ -33,6 +33,7 @@ go_test(
     srcs = [
         "client_pool_test.go",
         "config_test.go",
+        "utils_subscribe_test.go",
         "utils_test.go",
     ],
     embed = [":clientpool"],

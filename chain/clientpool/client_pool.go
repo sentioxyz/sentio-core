@@ -295,7 +295,7 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 			}
 		}
 	}()
-	es.Client.SubscribeLatest(ctx, es.LatestBlock.Number, latestChan)
+	es.Client.SubscribeLatest(ctx, latestChan)
 }
 
 var rd = rand.New(rand.NewSource(time.Now().UnixNano()))

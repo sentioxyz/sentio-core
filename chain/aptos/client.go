@@ -72,13 +72,12 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 	return latest, r.Err
 }
 
-func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- clientpool.Block) {
-	clientpool.SubscribeUsingGetLatest(
+func (c *Client) SubscribeLatest(ctx context.Context, ch chan<- clientpool.Block) {
+	clientpool.Subscribe(
 		ctx,
-		start,
-		c.config.KeepWatch,
 		time.Minute*5,
-		ch,
+		make(chan clientpool.Block),
+		c.config.KeepWatch,
 		func(ctx context.Context) (clientpool.Block, error) {
 			var latest clientpool.Block
 			r := c.use(ctx, "subscribe.getLatest", func(ctx context.Context) (r clientpool.Result) {
@@ -87,6 +86,8 @@ func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- cl
 			})
 			return latest, r.Err
 		},
+		nil,
+		ch,
 	)
 }
 

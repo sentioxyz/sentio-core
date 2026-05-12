@@ -36,7 +36,7 @@ type Client interface {
 	Init(ctx context.Context) (Block, error)
 
 	// SubscribeLatest should not stop until ctx canceled
-	SubscribeLatest(ctx context.Context, start uint64, ch chan<- Block)
+	SubscribeLatest(ctx context.Context, ch chan<- Block)
 
 	// Snapshot return snapshot of the client, may be client is nil
 	Snapshot() any

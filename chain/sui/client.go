@@ -183,29 +183,32 @@ func (c *Client) subscribeUsingGRPC(ctx context.Context, ch chan<- clientpool.Bl
 	}
 }
 
-func (c *Client) SubscribeLatest(ctx context.Context, start uint64, ch chan<- clientpool.Block) {
-	// use websocket if wss endpoint exists
+func (c *Client) SubscribeLatest(ctx context.Context, ch chan<- clientpool.Block) {
+	latestChan := make(chan clientpool.Block)
 	if c.grpcConn != nil {
-		for {
-			_ = c.subscribeUsingGRPC(ctx, ch)
-			select {
-			case <-time.After(time.Second * 10): // retry after 10s
-			case <-ctx.Done():
-				return
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				_ = c.subscribeUsingGRPC(ctx, latestChan)
+				select {
+				case <-time.After(time.Second * 10): // retry after 10s
+				case <-ctx.Done():
+					return
+				}
 			}
-		}
+		}()
 	}
-
-	// use eth_getBlockByNumber(latest, false)
-	clientpool.SubscribeUsingGetLatest(
+	clientpool.Subscribe(
 		ctx,
-		start,
-		c.config.KeepWatch,
 		time.Minute*5,
-		ch,
+		latestChan,
+		c.config.KeepWatch,
 		func(ctx context.Context) (clientpool.Block, error) {
 			return c.getLatest(ctx, "subscribe")
 		},
+		nil,
+		ch,
 	)
 }
 

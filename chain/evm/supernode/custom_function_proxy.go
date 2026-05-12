@@ -68,7 +68,7 @@ func (m *CustomFunctionProxy) MultipleStorageAt(
 						return nil
 					}
 					params := []any{arg.Address, arg.Key, blockNumber}
-					data, err := jsonrpc.ProxyJSONRPCRequest(wgCtx, "", "eth_getStorageAt", params, m.client.ClientPool)
+					data, err := jsonrpc.ProxyJSONRPCRequest(wgCtx, "eth_getStorageAt", params, m.client.ClientPool)
 					if err != nil {
 						return err
 					}

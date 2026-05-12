@@ -112,26 +112,25 @@ func NewHTTPProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT httpCl
 }
 
 type jsonRPCClient interface {
-	CallContext(ctx context.Context, result any, svr, src, method string, args ...any) clientpool.Result
+	CallContext(ctx context.Context, result any, src, method string, args ...any) clientpool.Result
 
 	clientpool.Client
 }
 
 func ProxyJSONRPCRequest[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCClient](
 	ctx context.Context,
-	svr string,
 	method string,
 	args []any,
 	clientPool *clientpool.ClientPool[CONFIG, CLIENT],
 ) (json.RawMessage, error) {
 	ctxData := GetCtxData(ctx)
 	var data json.RawMessage
-	src := utils.Select(svr == "", "proxy", svr+".proxy")
+	const src = "proxy"
 	r := clientPool.UseClient(
 		ctx,
 		src+"."+method,
 		func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
-			return cli.CallContext(ctx, &data, svr, src, method, args...)
+			return cli.CallContext(ctx, &data, src, method, args...)
 		},
 		clientpool.WithoutTags[CONFIG](clientpool.MethodNotSupportedTag(method)),
 	)
@@ -144,7 +143,6 @@ func ProxyJSONRPCRequest[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCCl
 }
 
 func NewJSONRPCProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCClient](
-	svr string,
 	clientPool *clientpool.ClientPool[CONFIG, CLIENT],
 ) Middleware {
 	return func(next MethodHandler) MethodHandler {
@@ -153,7 +151,7 @@ func NewJSONRPCProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jso
 			if err != nil {
 				return nil, err
 			}
-			return ProxyJSONRPCRequest(ctx, svr, method, args, clientPool)
+			return ProxyJSONRPCRequest(ctx, method, args, clientPool)
 		}
 	}
 }

@@ -5,6 +5,6 @@ import (
 	"sentioxyz/sentio-core/common/jsonrpc"
 )
 
-func NewSimpleProxyService(svr string, client *sol.ClientPool) []jsonrpc.Middleware {
-	return []jsonrpc.Middleware{jsonrpc.NewJSONRPCProxyMiddleware(svr, client.ClientPool)}
+func NewSimpleProxyService(client *sol.ClientPool) []jsonrpc.Middleware {
+	return []jsonrpc.Middleware{jsonrpc.NewJSONRPCProxyMiddleware(client.ClientPool)}
 }

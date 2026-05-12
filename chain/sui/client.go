@@ -90,13 +90,12 @@ func (c ClientConfig) Equal(a ClientConfig) bool {
 var httpClient = https.NewClient(https.WithTimeout(time.Minute))
 
 type Client struct {
-	name           string
-	config         ClientConfig
-	httpClient     *http.Client
-	rpcClient      *rpc.Client
-	addiRpcClients map[string]*rpc.Client
-	grpcConn       *grpc.ClientConn
-	stat           *ex.StatWinManager
+	name       string
+	config     ClientConfig
+	httpClient *http.Client
+	rpcClient  *rpc.Client
+	grpcConn   *grpc.ClientConn
+	stat       *ex.StatWinManager
 }
 
 func NewClient(config ClientConfig) *Client {
@@ -116,19 +115,6 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 		// always because the endpoint is invalid
 		return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
 			"failed to dial endpoint %q: %v", c.config.Endpoint, err)
-	}
-
-	// c.addiRpcClients
-	c.addiRpcClients = make(map[string]*rpc.Client)
-	for svr, endpoint := range c.config.AdditionalEndpoints {
-		var cli *rpc.Client
-		cli, err = rpc.DialOptions(ctx, endpoint, rpc.WithHTTPClient(c.httpClient))
-		if err != nil {
-			// always because the endpoint is invalid
-			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
-				"failed to dial %s endpoint %q: %v", svr, endpoint, err)
-		}
-		c.addiRpcClients[svr] = cli
 	}
 
 	// c.grpcConn
@@ -243,12 +229,12 @@ func (c *Client) getLatest(ctx context.Context, src string) (clientpool.Block, e
 	}
 
 	var latestNum types.Number
-	r := c.CallContext(ctx, &latestNum, "", src, "sui_getLatestCheckpointSequenceNumber")
+	r := c.CallContext(ctx, &latestNum, src, "sui_getLatestCheckpointSequenceNumber")
 	if r.Err != nil {
 		return clientpool.Block{}, r.Err
 	}
 	var latest *types.CheckpointResponse
-	r = c.CallContext(ctx, &latest, "", src, "sui_getCheckpoint", latestNum)
+	r = c.CallContext(ctx, &latest, src, "sui_getCheckpoint", latestNum)
 	if r.Err != nil {
 		return clientpool.Block{}, r.Err
 	}
@@ -276,21 +262,10 @@ func (c *Client) use(
 func (c *Client) CallContext(
 	ctx context.Context,
 	result any,
-	svr string,
 	src string,
 	method string,
 	args ...any,
 ) clientpool.Result {
-	cli := c.rpcClient
-	if svr != "" {
-		var has bool
-		if cli, has = c.addiRpcClients[svr]; !has {
-			return clientpool.Result{
-				BrokenForTask: true,
-				Err:           errors.Errorf("svr %q not supported", svr),
-			}
-		}
-	}
 	// rewrite method by c.config.SpecialMethodPrefix
 	if c.config.SpecialMethodPrefix != "" && strings.HasPrefix(method, "sui") {
 		method = c.config.SpecialMethodPrefix + strings.TrimPrefix(method, "sui")
@@ -315,7 +290,7 @@ func (c *Client) CallContext(
 		defer cancel()
 	}
 	return c.use(ctx, src+"."+method, func(ctx context.Context) clientpool.Result {
-		return clientpool.CallContext(cli, ctx, result, method, args...)
+		return clientpool.CallContext(c.rpcClient, ctx, result, method, args...)
 	})
 }
 

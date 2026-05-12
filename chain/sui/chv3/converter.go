@@ -438,7 +438,7 @@ func (m *SlotConverter) _fillFields(
 		ctx,
 		"converter.sui_tryMultiGetPastObjects",
 		func(ctx context.Context, cli *sui.Client) clientpool.Result {
-			return cli.CallContext(ctx, &pageResponse, "", "converter", "sui_tryMultiGetPastObjects", pageRequest, &getOpt)
+			return cli.CallContext(ctx, &pageResponse, "converter", "sui_tryMultiGetPastObjects", pageRequest, &getOpt)
 		},
 		clientpool.WithoutTags[sui.ClientConfig](clientpool.MethodNotSupportedTag("sui_tryMultiGetPastObjects")),
 	)

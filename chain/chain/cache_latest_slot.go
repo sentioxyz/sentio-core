@@ -24,11 +24,12 @@ type StdLatestSlotCache[SLOT Slot] struct {
 	name    string
 	network string
 
-	cacheBlockTimeLen   time.Duration
-	nodeClient          clientpool.Shell
-	persistent          Dimension[SLOT]
-	l2Cache             Dimension[SLOT]
-	l2CacheDumpInterval time.Duration
+	cacheBlockTimeLenMax time.Duration
+	cacheBlockTimeLenMin time.Duration
+	nodeClient           clientpool.Shell
+	persistent           Dimension[SLOT]
+	l2Cache              Dimension[SLOT]
+	l2CacheDumpInterval  time.Duration
 
 	lock     sync.RWMutex
 	memCache map[uint64]SLOT
@@ -53,7 +54,8 @@ type StdLatestSlotCache[SLOT Slot] struct {
 func NewStdLatestSlotCache[SLOT Slot](
 	name string,
 	network string,
-	cacheBlockTimeLen time.Duration,
+	cacheBlockTimeLenMax time.Duration,
+	cacheBlockTimeLenMin time.Duration,
 	nodeClient clientpool.Shell,
 	persistent Dimension[SLOT],
 	l2Cache Dimension[SLOT],
@@ -61,19 +63,23 @@ func NewStdLatestSlotCache[SLOT Slot](
 	growthUsed metric.Int64Histogram,
 	growthMargin metric.Int64Gauge,
 ) *StdLatestSlotCache[SLOT] {
+	if cacheBlockTimeLenMin > cacheBlockTimeLenMax {
+		panic(errors.Errorf("cacheBlockTimeLenMin should not greater than cacheBlockTimeLenMax"))
+	}
 	return &StdLatestSlotCache[SLOT]{
-		name:                name,
-		network:             network,
-		cacheBlockTimeLen:   cacheBlockTimeLen,
-		nodeClient:          nodeClient,
-		persistent:          persistent,
-		l2Cache:             l2Cache,
-		l2CacheDumpInterval: l2CacheDumpInterval,
-		memCache:            make(map[uint64]SLOT),
-		curRange:            rg.EmptyRange,
-		blockWaiter:         concurrency.NewStatusWaiter[uint64](0),
-		growthUsed:          growthUsed,
-		growthMargin:        growthMargin,
+		name:                 name,
+		network:              network,
+		cacheBlockTimeLenMax: cacheBlockTimeLenMax,
+		cacheBlockTimeLenMin: cacheBlockTimeLenMin,
+		nodeClient:           nodeClient,
+		persistent:           persistent,
+		l2Cache:              l2Cache,
+		l2CacheDumpInterval:  l2CacheDumpInterval,
+		memCache:             make(map[uint64]SLOT),
+		curRange:             rg.EmptyRange,
+		blockWaiter:          concurrency.NewStatusWaiter[uint64](0),
+		growthUsed:           growthUsed,
+		growthMargin:         growthMargin,
 	}
 }
 
@@ -206,7 +212,8 @@ func (c *StdLatestSlotCache[SLOT]) loadFromPersistent(
 	ctx context.Context,
 	curRange rg.Range,
 	extRange rg.Range,
-	memCacheSize uint64,
+	maxMemCacheSize uint64,
+	minMemCacheSize uint64,
 ) (newRange rg.Range, loaded []SLOT, reorg bool, err error) {
 	_, logger := log.FromContext(ctx)
 	newRange = curRange
@@ -220,8 +227,10 @@ func (c *StdLatestSlotCache[SLOT]) loadFromPersistent(
 	}
 
 	// will growth, first calculate the new range
-	newRange = rg.NewRangeByEndAndSize(*extRange.End, memCacheSize).Intersection(extRange)
-	if !curRange.IsEmpty() {
+	if curRange.IsEmpty() {
+		newRange = rg.NewRangeByEndAndSize(*extRange.End, minMemCacheSize).Intersection(extRange)
+	} else {
+		newRange = rg.NewRangeByEndAndSize(*extRange.End, maxMemCacheSize).Intersection(extRange)
 		newRange.Start = max(newRange.Start, curRange.Start)
 	}
 	logger = logger.With("extRange", extRange.String(), "curRange", curRange.String(), "newRange", newRange.String())
@@ -270,21 +279,14 @@ func (c *StdLatestSlotCache[SLOT]) loadFromPersistent(
 	}
 }
 
-func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context) error {
+func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context, bi time.Duration) error {
 	_, logger := log.FromContext(ctx)
 	t := timer.NewTimer()
 	start := t.Start("A")
 	logger.Debug("start to growth")
 
-	// get growth speed and update c.size
-	loadSpeedStart := t.Start("LS")
-	bi, err := c.nodeClient.WaitBlockInterval(ctx)
-	if err != nil {
-		logger.Errorfe(err, "growth failed because get block interval failed")
-		return err
-	}
-	memCacheSize := uint64(c.cacheBlockTimeLen/bi) + 1
-	loadSpeedStart.End()
+	maxMemCacheSize := uint64(c.cacheBlockTimeLenMax/bi) + 1
+	minMemCacheSize := uint64(c.cacheBlockTimeLenMin/bi) + 1
 
 	readRangeStart := t.Start("LR")
 	extRange, err := c.persistent.GetRange(ctx)
@@ -295,12 +297,12 @@ func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context) error {
 	readRangeStart.End()
 
 	loadStart := t.Start("LC")
-	curRange := c.tryLoadL2Cache(ctx, extRange, memCacheSize)
+	curRange := c.tryLoadL2Cache(ctx, extRange, maxMemCacheSize)
 	loadStart.End()
 
 	// load new data
 	readStart := t.Start("LE")
-	newRange, loaded, reorg, err := c.loadFromPersistent(ctx, curRange, extRange, memCacheSize)
+	newRange, loaded, reorg, err := c.loadFromPersistent(ctx, curRange, extRange, maxMemCacheSize, minMemCacheSize)
 	readStart.End()
 	if err != nil {
 		return err
@@ -346,7 +348,8 @@ func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context) error {
 		"extRange", extRange.String(),
 		"curRange", curRange.String(),
 		"newRange", newRange.String(),
-		"memCacheSize", memCacheSize)
+		"maxMemCacheSize", maxMemCacheSize,
+		"minMemCacheSize", minMemCacheSize)
 	if curRange.IsEmpty() {
 		logger.Infof("growth succeed")
 	} else {
@@ -407,13 +410,13 @@ func (c *StdLatestSlotCache[SLOT]) dump(ctx context.Context) {
 
 // KeepGrowth is the only entrypoint that will update memCache and curRange
 func (c *StdLatestSlotCache[SLOT]) KeepGrowth(ctx context.Context) error {
-	if _, err := c.nodeClient.WaitBlock(ctx, 0); err != nil {
+	if _, err := c.nodeClient.WaitBlockInterval(ctx); err != nil {
 		return err // only because ctx canceled
 	}
 	for round := 0; ; round++ {
-		latest, _, _, _ := c.nodeClient.GetState()
+		latest, bi, _, _ := c.nodeClient.GetState()
 		roundCtx, logger := log.FromContext(ctx, "round", round)
-		if err := c.growth(roundCtx); err != nil {
+		if err := c.growth(roundCtx, bi); err != nil {
 			logger.Errorfe(err, "growth failed")
 		}
 		if _, err := c.nodeClient.WaitBlock(ctx, latest.Number+1); err != nil {
@@ -445,9 +448,10 @@ func (c *StdLatestSlotCache[SLOT]) Snapshot() any {
 	c.statLock.Lock()
 	defer c.statLock.Unlock()
 	m := map[string]any{
-		"name":              c.name,
-		"network":           c.network,
-		"cacheBlockTimeLen": c.cacheBlockTimeLen.String(),
+		"name":                 c.name,
+		"network":              c.network,
+		"cacheBlockTimeLenMax": c.cacheBlockTimeLenMax.String(),
+		"cacheBlockTimeLenMin": c.cacheBlockTimeLenMin.String(),
 		"memCache": map[string]any{
 			"ready": c.ready,
 			"len":   len(c.memCache),

@@ -31,6 +31,7 @@ go_library(
 go_test(
     name = "chain_test",
     srcs = [
+        "cache_latest_slot_test.go",
         "dimension_simple_test.go",
         "operation_test.go",
     ],

@@ -144,6 +144,7 @@ func Test_suiRpc(t *testing.T) {
 		"ext",
 		"sui_mainnet",
 		time.Millisecond*500, // ~500ms Sui checkpoint time
+		time.Millisecond*500, // ~500ms Sui checkpoint time
 		cli,
 		ext,
 		nil,

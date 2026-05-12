@@ -93,6 +93,7 @@ func Test_evmRpc(t *testing.T) {
 		"ext",
 		"eth_mainnet",
 		time.Second*12, // ~12s ETH block time
+		time.Second*12, // ~12s ETH block time
 		cli,
 		evm.NewExtServerDimension(cli, 1, 3, rg.Range{}, "1", evm.NetworkOptions{DisableTrace: true}, 0),
 		nil,

@@ -337,7 +337,7 @@ func (s *standardService) filterLogSQL(args *evm.EthGetLogsArgs) []string {
 
 func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs) ([]types.Log, error) {
 	checker := args.Checker()
-	return queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
+	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
 		func(st *evm.Slot) ([]types.Log, error) {
 			return utils.FilterArr(st.Logs, checker), nil
 		},
@@ -353,6 +353,10 @@ func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs)
 		}),
 		jsonrpc.CallNextMiddleware,
 	)
+	if logs == nil && err == nil {
+		logs = make([]types.Log, 0)
+	}
+	return logs, err
 }
 
 func (s *standardService) GetLogsPacked(

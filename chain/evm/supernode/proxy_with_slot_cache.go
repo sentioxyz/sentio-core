@@ -202,7 +202,7 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 	args *evm.EthGetLogsArgs,
 ) ([]types.Log, error) {
 	checker := args.Checker()
-	return queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
+	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
 		func(st *evm.Slot) ([]types.Log, error) {
 			return utils.FilterArr(st.Logs, checker), nil
 		},
@@ -228,6 +228,10 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 		},
 		jsonrpc.CallNextMiddleware,
 	)
+	if logs == nil && err == nil {
+		logs = make([]types.Log, 0)
+	}
+	return logs, err
 }
 
 func (s *proxyWithLatestSlotCacheService) TraceFilter(

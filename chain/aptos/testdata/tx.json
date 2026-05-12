@@ -1,0 +1,2899 @@
+{
+  "version": "2079718499",
+  "hash": "0x868ca49f2d1d44af1e6521535499739152394c8a194ef1e79518b6b0bf4b0b79",
+  "state_change_hash": "0x053447ee8664da49e7b428029c5ac2e1e2591002b2dde8034a9d0f830ab0e949",
+  "event_root_hash": "0x93cd9263578bca3c87d7555de42b56b03a74c290794b28bca4223ea138a292ea",
+  "state_checkpoint_hash": null,
+  "gas_used": "241",
+  "success": true,
+  "vm_status": "Executed successfully",
+  "accumulator_root_hash": "0x6ccae6d3b3c1a54eeb96d858b817e292accc932db8810c9c2690454d1e5be5d0",
+  "changes": [
+    {
+      "address": "0x61b1c40cd7e68b9e8ed4bf26a276d44dca0ed23acf62500563a0a515a3375a8",
+      "state_key_hash": "0xbbf44e4d60a59f4dab3512900f4836327f6ba4500a337500a6b1884ab2c2b28d",
+      "data": {
+        "type": "0x1::fungible_asset::FungibleStore",
+        "data": {
+          "balance": "57934535",
+          "frozen": false,
+          "metadata": {
+            "inner": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x61b1c40cd7e68b9e8ed4bf26a276d44dca0ed23acf62500563a0a515a3375a8",
+      "state_key_hash": "0xbbf44e4d60a59f4dab3512900f4836327f6ba4500a337500a6b1884ab2c2b28d",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": false,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0x7730cd28ee1cdc9e999336cbc430f99e7c44397c0aa77516f6f23a78559bb5",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0x61b1c40cd7e68b9e8ed4bf26a276d44dca0ed23acf62500563a0a515a3375a8",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c",
+      "state_key_hash": "0x38c54ffed1567ae95c36031851344457b680d58c84dcd5640980f726b59546aa",
+      "data": {
+        "type": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c::tiered_oracle::TieredOracle",
+        "data": {
+          "data_table": {
+            "handle": "0x7a36d3935ebd2045f49fab033acad5212782ff81c4b79bd55cc1af3ce7c8418b"
+          },
+          "oracle_change_events": {
+            "counter": "50",
+            "guid": {
+              "id": {
+                "addr": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c",
+                "creation_num": "8"
+              }
+            }
+          },
+          "price_events": {
+            "counter": "1155994",
+            "guid": {
+              "id": {
+                "addr": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c",
+                "creation_num": "7"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x11872e1d83f3b14b4436bd8c86f80f6e27d604fc4af9a03ae3fd218f7963d864",
+      "state_key_hash": "0x07128a0a2761966666d60d44d0e3e7fbe5e95e638413492caf0aedfc3e25dced",
+      "data": {
+        "type": "0x1::fungible_asset::FungibleStore",
+        "data": {
+          "balance": "0",
+          "frozen": false,
+          "metadata": {
+            "inner": "0x69aac4a43c6abcdf4611fac2bcec7d7526ae89d311d1f20071fd03fedb0ee28a"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x11872e1d83f3b14b4436bd8c86f80f6e27d604fc4af9a03ae3fd218f7963d864",
+      "state_key_hash": "0x07128a0a2761966666d60d44d0e3e7fbe5e95e638413492caf0aedfc3e25dced",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": true,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0x7286c936c901fced7e3fb739d6a7c9b0790f4ebd94d043f8699aeff9b46b261a",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0x11872e1d83f3b14b4436bd8c86f80f6e27d604fc4af9a03ae3fd218f7963d864",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x11872e1d83f3b14b4436bd8c86f80f6e27d604fc4af9a03ae3fd218f7963d864",
+      "state_key_hash": "0x07128a0a2761966666d60d44d0e3e7fbe5e95e638413492caf0aedfc3e25dced",
+      "data": {
+        "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::rewards_pool::RewardsPool",
+        "data": {
+          "extend_ref": {
+            "self": "0x11872e1d83f3b14b4436bd8c86f80f6e27d604fc4af9a03ae3fd218f7963d864"
+          },
+          "last_update_time": "0",
+          "reward_duration": "604800",
+          "reward_per_token_stored": "0",
+          "reward_period_finish": "0",
+          "reward_rate": "0",
+          "rewards": {
+            "buckets": {
+              "inner": {
+                "handle": "0x5098f807da2d76a468bd800429bd7a0c0dd277257d1ee307c0f06724d3e2963b"
+              },
+              "length": "71"
+            },
+            "level": 6,
+            "num_buckets": "71",
+            "size": "1118",
+            "split_load_threshold": 75,
+            "target_bucket_size": "21"
+          },
+          "stakes": {
+            "buckets": {
+              "inner": {
+                "handle": "0x6d88fe1782a5df7b4e045a7c2167ee508c48a28b6277050f2af661c8def88fca"
+              },
+              "length": "13"
+            },
+            "level": 3,
+            "num_buckets": "13",
+            "size": "196",
+            "split_load_threshold": 75,
+            "target_bucket_size": "21"
+          },
+          "total_stake": "14656562091556",
+          "user_reward_per_token_paid": {
+            "buckets": {
+              "inner": {
+                "handle": "0x194bea794f2e57e625fd52e306e288bd1dd3a826f23f2bb349a0a2e087a0f54f"
+              },
+              "length": "71"
+            },
+            "level": 6,
+            "num_buckets": "71",
+            "size": "946",
+            "split_load_threshold": 75,
+            "target_bucket_size": "18"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+      "state_key_hash": "0x7eb56d11e89c98616f13ef73351d9e6ff9d9c47e56d674b43295c522586a1154",
+      "data": {
+        "type": "0x1::fungible_asset::FungibleStore",
+        "data": {
+          "balance": "945641913488",
+          "frozen": false,
+          "metadata": {
+            "inner": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+      "state_key_hash": "0x7eb56d11e89c98616f13ef73351d9e6ff9d9c47e56d674b43295c522586a1154",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": false,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0x7286c936c901fced7e3fb739d6a7c9b0790f4ebd94d043f8699aeff9b46b261a",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+      "state_key_hash": "0x7eb56d11e89c98616f13ef73351d9e6ff9d9c47e56d674b43295c522586a1154",
+      "data": {
+        "type": "0x1::object::Untransferable",
+        "data": {
+          "dummy_field": false
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+      "state_key_hash": "0x7eb56d11e89c98616f13ef73351d9e6ff9d9c47e56d674b43295c522586a1154",
+      "data": {
+        "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::lending_pool::Fees",
+        "data": {
+          "borrow_fee_bps": "0",
+          "protocol_interest_fee_bps": "2000"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+      "state_key_hash": "0x7eb56d11e89c98616f13ef73351d9e6ff9d9c47e56d674b43295c522586a1154",
+      "data": {
+        "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::lending_pool::InterestRate",
+        "data": {
+          "base_bps": "0",
+          "max_bps": "10000",
+          "optimal_bps": "700",
+          "optimal_utilization_bps": "9400"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+      "state_key_hash": "0x7eb56d11e89c98616f13ef73351d9e6ff9d9c47e56d674b43295c522586a1154",
+      "data": {
+        "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::lending_pool::LendingPool",
+        "data": {
+          "borrow_rewards_pool": {
+            "inner": "0x11872e1d83f3b14b4436bd8c86f80f6e27d604fc4af9a03ae3fd218f7963d864"
+          },
+          "emode_id": "USD",
+          "extend_ref": {
+            "self": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784"
+          },
+          "fungible_asset": {
+            "inner": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b"
+          },
+          "supply_rewards_pool": {
+            "inner": "0xb3808b38ef85f8c0941ac81d1635ad02c3691090c3f77e08b6088ea3075d2809"
+          },
+          "token": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+      "state_key_hash": "0x7eb56d11e89c98616f13ef73351d9e6ff9d9c47e56d674b43295c522586a1154",
+      "data": {
+        "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::lending_pool::Liquidation",
+        "data": {
+          "close_factor_bps": "5000",
+          "liquidation_fee_bps": "200",
+          "protocol_liquidation_fee_bps": "100"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+      "state_key_hash": "0x7eb56d11e89c98616f13ef73351d9e6ff9d9c47e56d674b43295c522586a1154",
+      "data": {
+        "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::lending_pool::Ltv",
+        "data": {
+          "emode_bps": "9300",
+          "emode_liquidation_threshold_bps": "9500",
+          "liquidation_threshold_bps": "8500",
+          "normal_bps": "8000"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784",
+      "state_key_hash": "0x7eb56d11e89c98616f13ef73351d9e6ff9d9c47e56d674b43295c522586a1154",
+      "data": {
+        "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::lending_pool::State",
+        "data": {
+          "borrow_cap": "92500000000000",
+          "is_paused": false,
+          "last_updated_timestamp": "1734800555",
+          "supply_cap": "100000000000000",
+          "total_debt": "14856181816112",
+          "total_debt_shares": "14656562091556",
+          "total_fees": "858166735",
+          "total_reserves": "945641913488",
+          "total_supply_shares": "15639862319487"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8",
+      "state_key_hash": "0x07c6495a92b6eae74407fe5b158a61bd35a975ee62c700eb529c3d0947636294",
+      "data": {
+        "type": "0x1::coin::PairedCoinType",
+        "data": {
+          "type": {
+            "account_address": "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa",
+            "module_name": "0x6173736574",
+            "struct_name": "0x55534443"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8",
+      "state_key_hash": "0x07c6495a92b6eae74407fe5b158a61bd35a975ee62c700eb529c3d0947636294",
+      "data": {
+        "type": "0x1::coin::PairedFungibleAssetRefs",
+        "data": {
+          "burn_ref_opt": {
+            "vec": [
+              {
+                "metadata": {
+                  "inner": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8"
+                }
+              }
+            ]
+          },
+          "mint_ref_opt": {
+            "vec": [
+              {
+                "metadata": {
+                  "inner": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8"
+                }
+              }
+            ]
+          },
+          "transfer_ref_opt": {
+            "vec": [
+              {
+                "metadata": {
+                  "inner": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8",
+      "state_key_hash": "0x07c6495a92b6eae74407fe5b158a61bd35a975ee62c700eb529c3d0947636294",
+      "data": {
+        "type": "0x1::fungible_asset::ConcurrentSupply",
+        "data": {
+          "current": {
+            "max_value": "340282366920938463463374607431768211455",
+            "value": "70880938068"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8",
+      "state_key_hash": "0x07c6495a92b6eae74407fe5b158a61bd35a975ee62c700eb529c3d0947636294",
+      "data": {
+        "type": "0x1::fungible_asset::Metadata",
+        "data": {
+          "decimals": 6,
+          "icon_uri": "",
+          "name": "USD Coin",
+          "project_uri": "",
+          "symbol": "USDC"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8",
+      "state_key_hash": "0x07c6495a92b6eae74407fe5b158a61bd35a975ee62c700eb529c3d0947636294",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": true,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xa",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8",
+      "state_key_hash": "0x07c6495a92b6eae74407fe5b158a61bd35a975ee62c700eb529c3d0947636294",
+      "data": {
+        "type": "0x1::primary_fungible_store::DeriveRefPod",
+        "data": {
+          "metadata_derive_ref": {
+            "self": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x4235181713dfc5927ea1aac84b8a05f1f8140b00bd92de62c1c7a1d345f141a1",
+      "state_key_hash": "0x09fe2c417fe3f5a466fc5087007fd6c2e854d2e883f432549c12a0e868bd67f3",
+      "data": {
+        "type": "0x1::fungible_asset::FungibleStore",
+        "data": {
+          "balance": "5270740",
+          "frozen": false,
+          "metadata": {
+            "inner": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x4235181713dfc5927ea1aac84b8a05f1f8140b00bd92de62c1c7a1d345f141a1",
+      "state_key_hash": "0x09fe2c417fe3f5a466fc5087007fd6c2e854d2e883f432549c12a0e868bd67f3",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": false,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0x4235181713dfc5927ea1aac84b8a05f1f8140b00bd92de62c1c7a1d345f141a1",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x4235181713dfc5927ea1aac84b8a05f1f8140b00bd92de62c1c7a1d345f141a1",
+      "state_key_hash": "0x09fe2c417fe3f5a466fc5087007fd6c2e854d2e883f432549c12a0e868bd67f3",
+      "data": {
+        "type": "0x1::object::Untransferable",
+        "data": {
+          "dummy_field": false
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8",
+      "state_key_hash": "0x91ff5b547e67fffc71b051550845c698d4ad64c9ce924c8613ec9c2bc209d1f9",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": true,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8",
+      "state_key_hash": "0x91ff5b547e67fffc71b051550845c698d4ad64c9ce924c8613ec9c2bc209d1f9",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::CoinInfo",
+        "data": {
+          "type_name": "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDT"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8",
+      "state_key_hash": "0x91ff5b547e67fffc71b051550845c698d4ad64c9ce924c8613ec9c2bc209d1f9",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::JumpInterestRateModel",
+        "data": {
+          "base_rate_bps": "0",
+          "jump_multiplier_bps": "60000",
+          "multiplier_bps": "700",
+          "utilization_kink_bps": "9000"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8",
+      "state_key_hash": "0x91ff5b547e67fffc71b051550845c698d4ad64c9ce924c8613ec9c2bc209d1f9",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::Market",
+        "data": {
+          "asset_mantissa": "1000000",
+          "asset_name": "Tether USD",
+          "asset_type": "300",
+          "borrow_cap": "50000000000000",
+          "collateral_factor_bps": "8000",
+          "efficiency_mode_id": 2,
+          "extend_ref": {
+            "self": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8"
+          },
+          "initial_liquidity": "1000000",
+          "interest_rate_index": {
+            "v": "19595354685935158127"
+          },
+          "interest_rate_last_update_seconds": "1734800555",
+          "interest_rate_model_type": "100",
+          "paused": false,
+          "supply_cap": "100000000000000",
+          "total_cash": "684991361163",
+          "total_liability": "7253022658659",
+          "total_reserve": "20560307512",
+          "total_shares": "7595294946664"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8",
+      "state_key_hash": "0x91ff5b547e67fffc71b051550845c698d4ad64c9ce924c8613ec9c2bc209d1f9",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::MarketLiquidationThreshold",
+        "data": {
+          "value_bps": "8200"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831",
+      "state_key_hash": "0x8d3daa998777f8d48546f5c3e8ca72f8b5c8199851ac0fe02a3be82fe4b9c5f8",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": true,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831",
+      "state_key_hash": "0x8d3daa998777f8d48546f5c3e8ca72f8b5c8199851ac0fe02a3be82fe4b9c5f8",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::CoinInfo",
+        "data": {
+          "type_name": "0x1::aptos_coin::AptosCoin"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831",
+      "state_key_hash": "0x8d3daa998777f8d48546f5c3e8ca72f8b5c8199851ac0fe02a3be82fe4b9c5f8",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::JumpInterestRateModel",
+        "data": {
+          "base_rate_bps": "0",
+          "jump_multiplier_bps": "30000",
+          "multiplier_bps": "500",
+          "utilization_kink_bps": "8000"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831",
+      "state_key_hash": "0x8d3daa998777f8d48546f5c3e8ca72f8b5c8199851ac0fe02a3be82fe4b9c5f8",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::Market",
+        "data": {
+          "asset_mantissa": "100000000",
+          "asset_name": "Aptos Coin",
+          "asset_type": "300",
+          "borrow_cap": "247500000000000",
+          "collateral_factor_bps": "7000",
+          "efficiency_mode_id": 1,
+          "extend_ref": {
+            "self": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831"
+          },
+          "initial_liquidity": "10000000",
+          "interest_rate_index": {
+            "v": "18891957724462910495"
+          },
+          "interest_rate_last_update_seconds": "1734800555",
+          "interest_rate_model_type": "100",
+          "paused": false,
+          "supply_cap": "12500000000000000",
+          "total_cash": "79790649875358",
+          "total_liability": "247506478628731",
+          "total_reserve": "6185306842027",
+          "total_shares": "317503980578304"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831",
+      "state_key_hash": "0x8d3daa998777f8d48546f5c3e8ca72f8b5c8199851ac0fe02a3be82fe4b9c5f8",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::MarketLiquidationThreshold",
+        "data": {
+          "value_bps": "7400"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xa474dc692683edaf549c04ddb6cf0792e671c4e0b9bbafa8c8aa49d91b3483eb",
+      "state_key_hash": "0xb3c99f337d3559d1f7b8716395348337db2a704098cf09bcc50fff40591a71ba",
+      "data": {
+        "type": "0x1::fungible_asset::FungibleStore",
+        "data": {
+          "balance": "2389308775093",
+          "frozen": false,
+          "metadata": {
+            "inner": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xa474dc692683edaf549c04ddb6cf0792e671c4e0b9bbafa8c8aa49d91b3483eb",
+      "state_key_hash": "0xb3c99f337d3559d1f7b8716395348337db2a704098cf09bcc50fff40591a71ba",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": false,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0xa474dc692683edaf549c04ddb6cf0792e671c4e0b9bbafa8c8aa49d91b3483eb",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xa474dc692683edaf549c04ddb6cf0792e671c4e0b9bbafa8c8aa49d91b3483eb",
+      "state_key_hash": "0xb3c99f337d3559d1f7b8716395348337db2a704098cf09bcc50fff40591a71ba",
+      "data": {
+        "type": "0x1::object::Untransferable",
+        "data": {
+          "dummy_field": false
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c",
+      "state_key_hash": "0xc5a613577726af4c0c3e2cce8b4cf0ad7cc4e2de243604314953b662524e1ac1",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": true,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c",
+      "state_key_hash": "0xc5a613577726af4c0c3e2cce8b4cf0ad7cc4e2de243604314953b662524e1ac1",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::CoinInfo",
+        "data": {
+          "type_name": "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c",
+      "state_key_hash": "0xc5a613577726af4c0c3e2cce8b4cf0ad7cc4e2de243604314953b662524e1ac1",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::JumpInterestRateModel",
+        "data": {
+          "base_rate_bps": "0",
+          "jump_multiplier_bps": "60000",
+          "multiplier_bps": "700",
+          "utilization_kink_bps": "9000"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c",
+      "state_key_hash": "0xc5a613577726af4c0c3e2cce8b4cf0ad7cc4e2de243604314953b662524e1ac1",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::Market",
+        "data": {
+          "asset_mantissa": "1000000",
+          "asset_name": "USD Coin",
+          "asset_type": "300",
+          "borrow_cap": "100000000000000",
+          "collateral_factor_bps": "8000",
+          "efficiency_mode_id": 2,
+          "extend_ref": {
+            "self": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c"
+          },
+          "initial_liquidity": "1000000",
+          "interest_rate_index": {
+            "v": "19528961351164253163"
+          },
+          "interest_rate_last_update_seconds": "1734800555",
+          "interest_rate_model_type": "100",
+          "paused": false,
+          "supply_cap": "125000000000000",
+          "total_cash": "7749039453504",
+          "total_liability": "75055985506479",
+          "total_reserve": "108632429872",
+          "total_shares": "79478718300334"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c",
+      "state_key_hash": "0xc5a613577726af4c0c3e2cce8b4cf0ad7cc4e2de243604314953b662524e1ac1",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::MarketLiquidationThreshold",
+        "data": {
+          "value_bps": "8200"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xaa6be15d03b651cae303a952122e03881d25aaf99795725f1f6403bfca3a9839",
+      "state_key_hash": "0x91a90f518773dd19c68521b2e2418c405bffdca5483197cbed6373276f0a6bc5",
+      "data": {
+        "type": "0x1::fungible_asset::FungibleStore",
+        "data": {
+          "balance": "2980726579",
+          "frozen": false,
+          "metadata": {
+            "inner": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xaa6be15d03b651cae303a952122e03881d25aaf99795725f1f6403bfca3a9839",
+      "state_key_hash": "0x91a90f518773dd19c68521b2e2418c405bffdca5483197cbed6373276f0a6bc5",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": false,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xaf5f759ce4a2594cec4d1982160c846eb6ec2c70e7e8e6e2723e2917f13ac88c",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0xaa6be15d03b651cae303a952122e03881d25aaf99795725f1f6403bfca3a9839",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xab2bab159c1ebc63532804cb638c40aa43ce3c8cc275d8a2b86cb6db070d03ca",
+      "state_key_hash": "0x2e6019866e07394baee4f5131232735f4ad4ab66aebb141e04dde7f01ca8650a",
+      "data": {
+        "type": "0x1::fungible_asset::FungibleStore",
+        "data": {
+          "balance": "3113743907",
+          "frozen": false,
+          "metadata": {
+            "inner": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xab2bab159c1ebc63532804cb638c40aa43ce3c8cc275d8a2b86cb6db070d03ca",
+      "state_key_hash": "0x2e6019866e07394baee4f5131232735f4ad4ab66aebb141e04dde7f01ca8650a",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": false,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xaf5f759ce4a2594cec4d1982160c846eb6ec2c70e7e8e6e2723e2917f13ac88c",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0xab2bab159c1ebc63532804cb638c40aa43ce3c8cc275d8a2b86cb6db070d03ca",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xab2bab159c1ebc63532804cb638c40aa43ce3c8cc275d8a2b86cb6db070d03ca",
+      "state_key_hash": "0x2e6019866e07394baee4f5131232735f4ad4ab66aebb141e04dde7f01ca8650a",
+      "data": {
+        "type": "0x1::object::Untransferable",
+        "data": {
+          "dummy_field": false
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be",
+      "state_key_hash": "0xb0f220111f77c12e34074bf92bbe22cba13f5e5f8291ffa53fc3bbdd10e6062e",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": true,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be",
+      "state_key_hash": "0xb0f220111f77c12e34074bf92bbe22cba13f5e5f8291ffa53fc3bbdd10e6062e",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::FungibleAssetInfo",
+        "data": {
+          "metadata": {
+            "inner": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b"
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be",
+      "state_key_hash": "0xb0f220111f77c12e34074bf92bbe22cba13f5e5f8291ffa53fc3bbdd10e6062e",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::JumpInterestRateModel",
+        "data": {
+          "base_rate_bps": "0",
+          "jump_multiplier_bps": "60000",
+          "multiplier_bps": "700",
+          "utilization_kink_bps": "9000"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be",
+      "state_key_hash": "0xb0f220111f77c12e34074bf92bbe22cba13f5e5f8291ffa53fc3bbdd10e6062e",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::Market",
+        "data": {
+          "asset_mantissa": "1000000",
+          "asset_name": "Tether USD",
+          "asset_type": "301",
+          "borrow_cap": "50000000000000",
+          "collateral_factor_bps": "8000",
+          "efficiency_mode_id": 2,
+          "extend_ref": {
+            "self": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be"
+          },
+          "initial_liquidity": "10000",
+          "interest_rate_index": {
+            "v": "18638814776230801324"
+          },
+          "interest_rate_last_update_seconds": "1734800555",
+          "interest_rate_model_type": "100",
+          "paused": false,
+          "supply_cap": "100000000000000",
+          "total_cash": "2389308775093",
+          "total_liability": "21689642934676",
+          "total_reserve": "14313904333",
+          "total_shares": "23882610557237"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be",
+      "state_key_hash": "0xb0f220111f77c12e34074bf92bbe22cba13f5e5f8291ffa53fc3bbdd10e6062e",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::MarketLiquidationThreshold",
+        "data": {
+          "value_bps": "8200"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45",
+      "state_key_hash": "0x94833faafb355ae1d5cc0843ea240d3580349a52feb559563ff6666a78a6dea5",
+      "data": {
+        "type": "0x1::coin::CoinStore<0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt>",
+        "data": {
+          "coin": {
+            "value": "200025731281536"
+          },
+          "deposit_events": {
+            "counter": "32189",
+            "guid": {
+              "id": {
+                "addr": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45",
+                "creation_num": "4"
+              }
+            }
+          },
+          "frozen": false,
+          "withdraw_events": {
+            "counter": "23084",
+            "guid": {
+              "id": {
+                "addr": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45",
+                "creation_num": "5"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45",
+      "state_key_hash": "0x95604442db5790b55cdead0c76e6539186f7bdaeeb1e3a5225674cc2041a9a1d",
+      "data": {
+        "type": "0x1::object::ObjectCore",
+        "data": {
+          "allow_ungated_transfer": true,
+          "guid_creation_num": "1125899906842625",
+          "owner": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba",
+          "transfer_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45",
+                "creation_num": "1125899906842624"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45",
+      "state_key_hash": "0x95604442db5790b55cdead0c76e6539186f7bdaeeb1e3a5225674cc2041a9a1d",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::CoinInfo",
+        "data": {
+          "type_name": "0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45",
+      "state_key_hash": "0x95604442db5790b55cdead0c76e6539186f7bdaeeb1e3a5225674cc2041a9a1d",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::JumpInterestRateModel",
+        "data": {
+          "base_rate_bps": "0",
+          "jump_multiplier_bps": "30000",
+          "multiplier_bps": "400",
+          "utilization_kink_bps": "4500"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45",
+      "state_key_hash": "0x95604442db5790b55cdead0c76e6539186f7bdaeeb1e3a5225674cc2041a9a1d",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::Market",
+        "data": {
+          "asset_mantissa": "100000000",
+          "asset_name": "Staked Aptos Coin",
+          "asset_type": "300",
+          "borrow_cap": "1250000000000000",
+          "collateral_factor_bps": "7000",
+          "efficiency_mode_id": 1,
+          "extend_ref": {
+            "self": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45"
+          },
+          "initial_liquidity": "10000000",
+          "interest_rate_index": {
+            "v": "18463357674645571496"
+          },
+          "interest_rate_last_update_seconds": "1734800555",
+          "interest_rate_model_type": "100",
+          "paused": false,
+          "supply_cap": "2500000000000000",
+          "total_cash": "200025731281536",
+          "total_liability": "6689593730592",
+          "total_reserve": "4549586091",
+          "total_shares": "206725353767590"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45",
+      "state_key_hash": "0x95604442db5790b55cdead0c76e6539186f7bdaeeb1e3a5225674cc2041a9a1d",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::MarketLiquidationThreshold",
+        "data": {
+          "value_bps": "7400"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba",
+      "state_key_hash": "0x4d7bd2a7441bd6868e73cbe76432844e2d07ef1ef3a6c64edc9214de01c4a19c",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::farming::Farming",
+        "data": {
+          "pools": {
+            "data": [
+              {
+                "key": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8200",
+                "value": {
+                  "farming_identifier": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "acc_rewards_per_share": "9321414567567518953",
+                          "alloc_point": "1419",
+                          "last_rewards_sec": "1722902400",
+                          "reward_name": "Aptos Coin"
+                        }
+                      },
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "acc_rewards_per_share": "3586049684754165841",
+                          "alloc_point": "380",
+                          "last_rewards_sec": "1734799814",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "7595237874861"
+                }
+              },
+              {
+                "key": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8201",
+                "value": {
+                  "farming_identifier": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "7208651423514"
+                }
+              },
+              {
+                "key": "@0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c200",
+                "value": {
+                  "farming_identifier": "@0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "acc_rewards_per_share": "6323923145699506956",
+                          "alloc_point": "8150",
+                          "last_rewards_sec": "1722902400",
+                          "reward_name": "Aptos Coin"
+                        }
+                      },
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "acc_rewards_per_share": "3338513027538298592",
+                          "alloc_point": "4633",
+                          "last_rewards_sec": "1734800489",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "79478553396197"
+                }
+              },
+              {
+                "key": "@0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c201",
+                "value": {
+                  "farming_identifier": "@0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "74575195930464"
+                }
+              },
+              {
+                "key": "@0xef2ae89796725d0eb363326ecb7df159feb949f6d1f400f76deeeebccbac00f1200",
+                "value": {
+                  "farming_identifier": "@0xef2ae89796725d0eb363326ecb7df159feb949f6d1f400f76deeeebccbac00f1200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "acc_rewards_per_share": "73150360554310889",
+                          "alloc_point": "2440",
+                          "last_rewards_sec": "1722902400",
+                          "reward_name": "Aptos Coin"
+                        }
+                      },
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "acc_rewards_per_share": "36083741372598769",
+                          "alloc_point": "144",
+                          "last_rewards_sec": "1734799267",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "214296624569103"
+                }
+              },
+              {
+                "key": "@0xef2ae89796725d0eb363326ecb7df159feb949f6d1f400f76deeeebccbac00f1201",
+                "value": {
+                  "farming_identifier": "@0xef2ae89796725d0eb363326ecb7df159feb949f6d1f400f76deeeebccbac00f1201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "202594695308415"
+                }
+              },
+              {
+                "key": "@0x127ea5b4c450be695e488da1c3bc013e2e93d8cf00270ef90385189844bc9755200",
+                "value": {
+                  "farming_identifier": "@0x127ea5b4c450be695e488da1c3bc013e2e93d8cf00270ef90385189844bc9755200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "609130174096099"
+                }
+              },
+              {
+                "key": "@0x127ea5b4c450be695e488da1c3bc013e2e93d8cf00270ef90385189844bc9755201",
+                "value": {
+                  "farming_identifier": "@0x127ea5b4c450be695e488da1c3bc013e2e93d8cf00270ef90385189844bc9755201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "9941502492636"
+                }
+              },
+              {
+                "key": "@0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831200",
+                "value": {
+                  "farming_identifier": "@0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "acc_rewards_per_share": "744064715741000693",
+                          "alloc_point": "0",
+                          "last_rewards_sec": "1722902400",
+                          "reward_name": "Aptos Coin"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "317497008252432"
+                }
+              },
+              {
+                "key": "@0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831201",
+                "value": {
+                  "farming_identifier": "@0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831201",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "acc_rewards_per_share": "186927513031673009",
+                          "alloc_point": "0",
+                          "last_rewards_sec": "1722902400",
+                          "reward_name": "Aptos Coin"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "245739840168910"
+                }
+              },
+              {
+                "key": "@0xed6bf9fe7e3f42c6831ffac91824a545c4b8bfcb40a59b3f4ccfe203cafb7f42200",
+                "value": {
+                  "farming_identifier": "@0xed6bf9fe7e3f42c6831ffac91824a545c4b8bfcb40a59b3f4ccfe203cafb7f42200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "acc_rewards_per_share": "139026564326913837",
+                          "alloc_point": "0",
+                          "last_rewards_sec": "1722902400",
+                          "reward_name": "Aptos Coin"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "110425530348614"
+                }
+              },
+              {
+                "key": "@0xed6bf9fe7e3f42c6831ffac91824a545c4b8bfcb40a59b3f4ccfe203cafb7f42201",
+                "value": {
+                  "farming_identifier": "@0xed6bf9fe7e3f42c6831ffac91824a545c4b8bfcb40a59b3f4ccfe203cafb7f42201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "2256369219627"
+                }
+              },
+              {
+                "key": "@0xa76ebfb432982c864783fdb33cdf5a9edb18ac1b950deb8037f5cf8c984da3d2200",
+                "value": {
+                  "farming_identifier": "@0xa76ebfb432982c864783fdb33cdf5a9edb18ac1b950deb8037f5cf8c984da3d2200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "19768044601"
+                }
+              },
+              {
+                "key": "@0xa76ebfb432982c864783fdb33cdf5a9edb18ac1b950deb8037f5cf8c984da3d2201",
+                "value": {
+                  "farming_identifier": "@0xa76ebfb432982c864783fdb33cdf5a9edb18ac1b950deb8037f5cf8c984da3d2201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "15813150690"
+                }
+              },
+              {
+                "key": "@0x548cf587bd918a0005b3372a1d23e64b18ace3c61962f087a21eac52cf228504200",
+                "value": {
+                  "farming_identifier": "@0x548cf587bd918a0005b3372a1d23e64b18ace3c61962f087a21eac52cf228504200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "acc_rewards_per_share": "6292268635285314798319",
+                          "alloc_point": "432",
+                          "last_rewards_sec": "1734799816",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "1475381209"
+                }
+              },
+              {
+                "key": "@0x548cf587bd918a0005b3372a1d23e64b18ace3c61962f087a21eac52cf228504201",
+                "value": {
+                  "farming_identifier": "@0x548cf587bd918a0005b3372a1d23e64b18ace3c61962f087a21eac52cf228504201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "378852611"
+                }
+              },
+              {
+                "key": "@0x114ee519ffa1e8697784bd1a350822cb37601a1476289051b8295165597a4538200",
+                "value": {
+                  "farming_identifier": "@0x114ee519ffa1e8697784bd1a350822cb37601a1476289051b8295165597a4538200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "100802734"
+                }
+              },
+              {
+                "key": "@0x114ee519ffa1e8697784bd1a350822cb37601a1476289051b8295165597a4538201",
+                "value": {
+                  "farming_identifier": "@0x114ee519ffa1e8697784bd1a350822cb37601a1476289051b8295165597a4538201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "31840322"
+                }
+              },
+              {
+                "key": "@0x41b039e5518b1a3786ee798d895e0ddf3141fbbc20009284323fa51ea279c819200",
+                "value": {
+                  "farming_identifier": "@0x41b039e5518b1a3786ee798d895e0ddf3141fbbc20009284323fa51ea279c819200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "159507680300521"
+                }
+              },
+              {
+                "key": "@0x41b039e5518b1a3786ee798d895e0ddf3141fbbc20009284323fa51ea279c819201",
+                "value": {
+                  "farming_identifier": "@0x41b039e5518b1a3786ee798d895e0ddf3141fbbc20009284323fa51ea279c819201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "68571215084981"
+                }
+              },
+              {
+                "key": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45200",
+                "value": {
+                  "farming_identifier": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "206724761827268"
+                }
+              },
+              {
+                "key": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45201",
+                "value": {
+                  "farming_identifier": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "6688761498915"
+                }
+              },
+              {
+                "key": "@0xacb7262b33a147b47b950a3a26d7699e1a58bcaa475ef636cb0fea53fa0eb872200",
+                "value": {
+                  "farming_identifier": "@0xacb7262b33a147b47b950a3a26d7699e1a58bcaa475ef636cb0fea53fa0eb872200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "403604255017"
+                }
+              },
+              {
+                "key": "@0xacb7262b33a147b47b950a3a26d7699e1a58bcaa475ef636cb0fea53fa0eb872201",
+                "value": {
+                  "farming_identifier": "@0xacb7262b33a147b47b950a3a26d7699e1a58bcaa475ef636cb0fea53fa0eb872201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "9619060324"
+                }
+              },
+              {
+                "key": "@0x75c39f18c7bc00ac0f81a0f9ab7e319e23790d7d8c3df968d84a23699584bd9200",
+                "value": {
+                  "farming_identifier": "@0x75c39f18c7bc00ac0f81a0f9ab7e319e23790d7d8c3df968d84a23699584bd9200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "49088576427"
+                }
+              },
+              {
+                "key": "@0x75c39f18c7bc00ac0f81a0f9ab7e319e23790d7d8c3df968d84a23699584bd9201",
+                "value": {
+                  "farming_identifier": "@0x75c39f18c7bc00ac0f81a0f9ab7e319e23790d7d8c3df968d84a23699584bd9201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "150238"
+                }
+              },
+              {
+                "key": "@0x7bd5be03df0fb3841fed337b8e7a353818b917cce6db28b807b691002a122d73200",
+                "value": {
+                  "farming_identifier": "@0x7bd5be03df0fb3841fed337b8e7a353818b917cce6db28b807b691002a122d73200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "249815679030597"
+                }
+              },
+              {
+                "key": "@0x7bd5be03df0fb3841fed337b8e7a353818b917cce6db28b807b691002a122d73201",
+                "value": {
+                  "farming_identifier": "@0x7bd5be03df0fb3841fed337b8e7a353818b917cce6db28b807b691002a122d73201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "83567750"
+                }
+              },
+              {
+                "key": "@0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be200",
+                "value": {
+                  "farming_identifier": "@0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "acc_rewards_per_share": "46948119087768811226",
+                          "alloc_point": "1256",
+                          "last_rewards_sec": "1734800475",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "23882610547237"
+                }
+              },
+              {
+                "key": "@0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be201",
+                "value": {
+                  "farming_identifier": "@0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "21672124043119"
+                }
+              },
+              {
+                "key": "@0x754114c656e26498a8c0b20fa24af663fed5e4b24acb471c103daea0f7006b40200",
+                "value": {
+                  "farming_identifier": "@0x754114c656e26498a8c0b20fa24af663fed5e4b24acb471c103daea0f7006b40200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "20997765986"
+                }
+              },
+              {
+                "key": "@0x754114c656e26498a8c0b20fa24af663fed5e4b24acb471c103daea0f7006b40201",
+                "value": {
+                  "farming_identifier": "@0x754114c656e26498a8c0b20fa24af663fed5e4b24acb471c103daea0f7006b40201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "10983330"
+                }
+              }
+            ]
+          },
+          "rewards": {
+            "data": [
+              {
+                "key": "Aptos Coin",
+                "value": {
+                  "epoch_end_sec": "1722902400",
+                  "epoch_reward_per_sec": "1984953",
+                  "epoch_start_sec": "1722305060",
+                  "reward_name": "Aptos Coin",
+                  "total_alloc_point": "12009"
+                }
+              },
+              {
+                "key": "Thala APT",
+                "value": {
+                  "epoch_end_sec": "1734825600",
+                  "epoch_reward_per_sec": "1584490",
+                  "epoch_start_sec": "1734404167",
+                  "reward_name": "Thala APT",
+                  "total_alloc_point": "6845"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa",
+      "state_key_hash": "0x67b918e2fb37288d5761312d385332ffe8fd0e6b84379b8308e92765975a5783",
+      "data": {
+        "type": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa::swap::PairEventHolder<0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt, 0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC>",
+        "data": {
+          "add_liquidity": {
+            "counter": "680",
+            "guid": {
+              "id": {
+                "addr": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa",
+                "creation_num": "5661"
+              }
+            }
+          },
+          "remove_liquidity": {
+            "counter": "368",
+            "guid": {
+              "id": {
+                "addr": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa",
+                "creation_num": "5662"
+              }
+            }
+          },
+          "swap": {
+            "counter": "161018",
+            "guid": {
+              "id": {
+                "addr": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa",
+                "creation_num": "5663"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa",
+      "state_key_hash": "0x013804f5003fb2110cb8a920c082e4d999bd0b4b6b8c292db26cc2310472c9cb",
+      "data": {
+        "type": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa::swap::TokenPairReserve<0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt, 0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC>",
+        "data": {
+          "block_timestamp_last": "1734800555",
+          "reserve_x": "1273360487240",
+          "reserve_y": "136656322619"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa",
+      "state_key_hash": "0x80c94eb675508011fe7227e6683348c3add3e22e9466d16c778200f3c691ef84",
+      "data": {
+        "type": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa::swap::TokenPairMetadata<0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt, 0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC>",
+        "data": {
+          "balance_x": {
+            "value": "1273360487240"
+          },
+          "balance_y": {
+            "value": "136656322619"
+          },
+          "burn_cap": {
+            "dummy_field": false
+          },
+          "creator": "0xf881038ada44f6323bb133caa8c578b62d3d16a53ad5a5c3b54e396c05b9087b",
+          "fee_amount": {
+            "value": "4654327311"
+          },
+          "freeze_cap": {
+            "dummy_field": false
+          },
+          "k_last": "173986115778468259726075",
+          "mint_cap": {
+            "dummy_field": false
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+      "state_key_hash": "0x348feab86f2f3888dc45a78668eeea0f25ddc7fdaadb9657d34ddec5dd7e81e2",
+      "data": {
+        "type": "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>",
+        "data": {
+          "coin": {
+            "value": "123086361"
+          },
+          "deposit_events": {
+            "counter": "5",
+            "guid": {
+              "id": {
+                "addr": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+                "creation_num": "2"
+              }
+            }
+          },
+          "frozen": false,
+          "withdraw_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+                "creation_num": "3"
+              }
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+      "state_key_hash": "0xa21d7dec37bfd667d69151a985318e18ac1000cd374de533efd5be8ae6605be2",
+      "data": {
+        "type": "0x1::account::Account",
+        "data": {
+          "authentication_key": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+          "coin_register_events": {
+            "counter": "14",
+            "guid": {
+              "id": {
+                "addr": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+                "creation_num": "0"
+              }
+            }
+          },
+          "guid_creation_num": "30",
+          "key_rotation_events": {
+            "counter": "0",
+            "guid": {
+              "id": {
+                "addr": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+                "creation_num": "1"
+              }
+            }
+          },
+          "rotation_capability_offer": {
+            "for": {
+              "vec": []
+            }
+          },
+          "sequence_number": "1223",
+          "signer_capability_offer": {
+            "for": {
+              "vec": []
+            }
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+      "state_key_hash": "0x7330c34d65b6c7d3f52927f2115e7e24c7b78a094be17b3f9834f7a3f28c55a0",
+      "data": {
+        "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::lending_pool::UserPosition",
+        "data": {
+          "debt_shares": {
+            "data": []
+          },
+          "deposit_shares": {
+            "data": []
+          },
+          "emode_id": ""
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+      "state_key_hash": "0x8ac501cf2baacc91e92cf74157ad0540f2f0b9beed0226818357790c354e7c77",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::farming::Staker",
+        "data": {
+          "user_pools": {
+            "data": [
+              {
+                "key": "@0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831200",
+                "value": {
+                  "farming_identifier": "@0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "last_acc_rewards_per_share": "744064715741000693",
+                          "reward_amount": "0",
+                          "reward_name": "Aptos Coin"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "0"
+                }
+              },
+              {
+                "key": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45200",
+                "value": {
+                  "farming_identifier": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "0"
+                }
+              },
+              {
+                "key": "@0xed6bf9fe7e3f42c6831ffac91824a545c4b8bfcb40a59b3f4ccfe203cafb7f42200",
+                "value": {
+                  "farming_identifier": "@0xed6bf9fe7e3f42c6831ffac91824a545c4b8bfcb40a59b3f4ccfe203cafb7f42200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "last_acc_rewards_per_share": "139026564326913837",
+                          "reward_amount": "0",
+                          "reward_name": "Aptos Coin"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "0"
+                }
+              },
+              {
+                "key": "@0xef2ae89796725d0eb363326ecb7df159feb949f6d1f400f76deeeebccbac00f1200",
+                "value": {
+                  "farming_identifier": "@0xef2ae89796725d0eb363326ecb7df159feb949f6d1f400f76deeeebccbac00f1200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "last_acc_rewards_per_share": "73150360554310889",
+                          "reward_amount": "0",
+                          "reward_name": "Aptos Coin"
+                        }
+                      },
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "last_acc_rewards_per_share": "24043437574538230",
+                          "reward_amount": "0",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "0"
+                }
+              },
+              {
+                "key": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8200",
+                "value": {
+                  "farming_identifier": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "last_acc_rewards_per_share": "9321414567567518953",
+                          "reward_amount": "0",
+                          "reward_name": "Aptos Coin"
+                        }
+                      },
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "last_acc_rewards_per_share": "3313935669978224348",
+                          "reward_amount": "0",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "0"
+                }
+              },
+              {
+                "key": "@0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c200",
+                "value": {
+                  "farming_identifier": "@0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "last_acc_rewards_per_share": "6323923145699506956",
+                          "reward_amount": "0",
+                          "reward_name": "Aptos Coin"
+                        }
+                      },
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "last_acc_rewards_per_share": "3335388423537084075",
+                          "reward_amount": "0",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "0"
+                }
+              },
+              {
+                "key": "@0x127ea5b4c450be695e488da1c3bc013e2e93d8cf00270ef90385189844bc9755200",
+                "value": {
+                  "farming_identifier": "@0x127ea5b4c450be695e488da1c3bc013e2e93d8cf00270ef90385189844bc9755200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "0"
+                }
+              },
+              {
+                "key": "@0x548cf587bd918a0005b3372a1d23e64b18ace3c61962f087a21eac52cf228504200",
+                "value": {
+                  "farming_identifier": "@0x548cf587bd918a0005b3372a1d23e64b18ace3c61962f087a21eac52cf228504200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "last_acc_rewards_per_share": "5598132977426106338922",
+                          "reward_amount": "0",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "0"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+      "state_key_hash": "0xecf96686cc75f12ada44a4265b9747d496c6b6754731fadaaf05e102f1e3c7ef",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::Vault",
+        "data": {
+          "collaterals": {
+            "data": []
+          },
+          "efficiency_mode_id": 0,
+          "liabilities": {
+            "data": []
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa",
+      "state_key_hash": "0xb2c6ac0fb290adcc000aa3dabb872c3d702d9db5ffcd79f0372c468d66b9ad75",
+      "data": {
+        "type": "0x1::coin::CoinInfo<0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC>",
+        "data": {
+          "decimals": 6,
+          "name": "USD Coin",
+          "supply": {
+            "vec": [
+              {
+                "aggregator": {
+                  "vec": []
+                },
+                "integer": {
+                  "vec": [
+                    {
+                      "limit": "340282366920938463463374607431768211455",
+                      "value": "109301209217774"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "symbol": "USDC"
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+      "state_key_hash": "0x87a1a642db1f33d15de5bf65f54d093121737da52a3e88f3131a06097d39e17e",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::farming::Staker",
+        "data": {
+          "user_pools": {
+            "data": [
+              {
+                "key": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8200",
+                "value": {
+                  "farming_identifier": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8200",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "last_acc_rewards_per_share": "9321414567567518953",
+                          "reward_amount": "0",
+                          "reward_name": "Aptos Coin"
+                        }
+                      },
+                      {
+                        "key": "Thala APT",
+                        "value": {
+                          "last_acc_rewards_per_share": "3455444984052239020",
+                          "reward_amount": "0",
+                          "reward_name": "Thala APT"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "3"
+                }
+              },
+              {
+                "key": "@0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831201",
+                "value": {
+                  "farming_identifier": "@0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831201",
+                  "rewards": {
+                    "data": [
+                      {
+                        "key": "Aptos Coin",
+                        "value": {
+                          "last_acc_rewards_per_share": "186927513031673009",
+                          "reward_amount": "0",
+                          "reward_name": "Aptos Coin"
+                        }
+                      }
+                    ]
+                  },
+                  "stake_amount": "350264206"
+                }
+              },
+              {
+                "key": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45200",
+                "value": {
+                  "farming_identifier": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45200",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "2261446296"
+                }
+              },
+              {
+                "key": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8201",
+                "value": {
+                  "farming_identifier": "@0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "41969074"
+                }
+              },
+              {
+                "key": "@0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c201",
+                "value": {
+                  "farming_identifier": "@0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "56656778"
+                }
+              },
+              {
+                "key": "@0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be201",
+                "value": {
+                  "farming_identifier": "@0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be201",
+                  "rewards": {
+                    "data": []
+                  },
+                  "stake_amount": "38897140"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "address": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+      "state_key_hash": "0x289c6cd9dfbef63aaf5b929a8adc3908a51c52da0ff2a4972e95c9c7b87ceec0",
+      "data": {
+        "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::Vault",
+        "data": {
+          "collaterals": {
+            "data": [
+              {
+                "key": {
+                  "inner": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8"
+                },
+                "value": "3"
+              },
+              {
+                "key": {
+                  "inner": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45"
+                },
+                "value": "2261446296"
+              }
+            ]
+          },
+          "efficiency_mode_id": 0,
+          "liabilities": {
+            "data": [
+              {
+                "key": {
+                  "inner": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831"
+                },
+                "value": {
+                  "interest_accumulated": "45336",
+                  "last_interest_rate_index": {
+                    "v": "18891957724462910495"
+                  },
+                  "principal": "350264206"
+                }
+              },
+              {
+                "key": {
+                  "inner": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8"
+                },
+                "value": {
+                  "interest_accumulated": "12922",
+                  "last_interest_rate_index": {
+                    "v": "19595354685935158127"
+                  },
+                  "principal": "41969074"
+                }
+              },
+              {
+                "key": {
+                  "inner": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c"
+                },
+                "value": {
+                  "interest_accumulated": "22665",
+                  "last_interest_rate_index": {
+                    "v": "19528961351164253163"
+                  },
+                  "principal": "56656778"
+                }
+              },
+              {
+                "key": {
+                  "inner": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be"
+                },
+                "value": {
+                  "interest_accumulated": "0",
+                  "last_interest_rate_index": {
+                    "v": "18638814776230801324"
+                  },
+                  "principal": "38897140"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "type": "write_resource"
+    },
+    {
+      "state_key_hash": "0x0fff9d1b0119dbde03fd53fa7e77e431848781b90aba9c3ffb1f2f25caaf2722",
+      "handle": "0x194bea794f2e57e625fd52e306e288bd1dd3a826f23f2bb349a0a2e087a0f54f",
+      "key": "0x0900000000000000",
+      "value": "0x1489bebba4f7b017ee8812fe3c4ba2b1d9546c63042618d8428ae41e60dcdded3a73f1cadea89c861d0000000000000000000000000000000009512ab3d17e04f4482732182022da206fce74c8f4b17b61a2316a10c6426bad9ea407016d8333610000000000000000000000000000000009453f560b3b3c67dd84a7f0aa5fa2a4421b056a89966deb2882d409b7d9b9d67097f5c26811d5110000000000000000000000000000000049d9c7bffead334551cc338f3ad1d13083049e39ec8a68c440b01466c4883dd88c0dfe5d12c630e300000000000000000000000000000000c9e935b7a0346b861a025558fe4d3f7b7bec4a8399ea395f3e23a6489dbdc9efdbea1e84eb99c2d80000000000000000000000000000000009b0179ab704ca6372254481bc52a531c32c22892cd4d4275dbdf3a2a6418f6b62c45046c34221ed0000000000000000000000000000000089a1b9da6aa56f4fec8680b879e4fc734e25d96894800d20255a5db242c5b5c187681f921897f00a00000000000000000000000000000000498787de6c582803b5f617450c466f5e0f992becf34ce76a302c71152a637520cdc00b80ad7ec19c00000000000000000000000000000000898f98f993480be1f1895b889d12e8f1573435b53876e15d25c00d8ddbacc52fcf08f4fd34f5d76e00000000000000000000000000000000c9c1f27b12c12a2a998f56a6ae23b3e3e9f336341a78cacfd221acb4574056beeeb021c267e935480000000000000000000000000000000089857592c14e2b12b9a78a3917c7cd5682c40566d9a3194487e10fd04c6ca0d7e0fd3181443b4c690000000000000000000000000000000089b66b037ce23e137f9ae11e5f4ec35fbc5d0be1eea610b662783c9685ae0ecfbe990aad24ccc1340000000000000000000000000000000009b4e96700b78bfbaafe3533579e8736f47020b131793fce48eec75661ad8580d6f696da7acfb16d0000000000000000000000000000000089968c0d6af2416365b56f23e4fac526c426757ee39ed40e3b8c7262dd6014b025b9d4dfde7b1f6b0000000000000000000000000000000049fe399044e2ca179ceffb443428c56093ab2b40d6f7e28102458ba3743b56051b73b5256deb2a0a0000000000000000000000000000000009e9bbd7ff6fb15409a40fd66d56561f4e9c0b79be540d0c0da929dbd8a5ac9b224c336550e5deaf0000000000000000000000000000000009a843e015095cd11ee2e552c761422bd9d202ac7a803dd49ff93442860f65074f8699191079bec90000000000000000000000000000000089fc91f68073f5d513656beadaaab970a3f0c30b5149acf37fd25a5f02889a75895151becc286980000000000000000000000000000000000950183e0d40c6c214e3c2df04f4264b94871edf28ecd517fc08896edc969dc5924356170abb4dba0000000000000000000000000000000049cd6196143134b04e7a7a56e05bb889ffdef845af6b20acb4014c50be28edd414b9817f0e7a518700000000000000000000000000000000",
+      "data": null,
+      "type": "write_table_item"
+    },
+    {
+      "state_key_hash": "0x6e4b28d40f98a106a65163530924c0dcb40c1349d3aa915d108b4d6cfc1ddb19",
+      "handle": "0x1b854694ae746cdbd8d44186ca4929b2b337df21d1c74633be19b2710552fdca",
+      "key": "0x0619dc29a0aac8fa146714058e8dd6d2d0f3bdf5f6331907bf91f3acd81e6935",
+      "value": "0x03732c33ff2a92010000000000000000",
+      "data": null,
+      "type": "write_table_item"
+    },
+    {
+      "state_key_hash": "0xa6ab6137ddab6d55e4f964d9c67dae216532d6c63983098ce4f9d99f69e3e628",
+      "handle": "0x5098f807da2d76a468bd800429bd7a0c0dd277257d1ee307c0f06724d3e2963b",
+      "key": "0x0900000000000000",
+      "value": "0x1749d9c7bffead334551cc338f3ad1d13083049e39ec8a68c440b01466c4883dd88c0dfe5d12c630e3000000000000000089bebba4f7b017ee8812fe3c4ba2b1d9546c63042618d8428ae41e60dcdded3a73f1cadea89c861d000000000000000009512ab3d17e04f4482732182022da206fce74c8f4b17b61a2316a10c6426bad9ea407016d8333610000000000000000c9e935b7a0346b861a025558fe4d3f7b7bec4a8399ea395f3e23a6489dbdc9efdbea1e84eb99c2d8000000000000000009b0179ab704ca6372254481bc52a531c32c22892cd4d4275dbdf3a2a6418f6b62c45046c34221ed000000000000000089a1b9da6aa56f4fec8680b879e4fc734e25d96894800d20255a5db242c5b5c187681f921897f00a000000000000000009453f560b3b3c67dd84a7f0aa5fa2a4421b056a89966deb2882d409b7d9b9d67097f5c26811d5110000000000000000498787de6c582803b5f617450c466f5e0f992becf34ce76a302c71152a637520cdc00b80ad7ec19c0000000000000000898f98f993480be1f1895b889d12e8f1573435b53876e15d25c00d8ddbacc52fcf08f4fd34f5d76e0000000000000000c9c1f27b12c12a2a998f56a6ae23b3e3e9f336341a78cacfd221acb4574056beeeb021c267e93548000000000000000089857592c14e2b12b9a78a3917c7cd5682c40566d9a3194487e10fd04c6ca0d7e0fd3181443b4c69000000000000000089b66b037ce23e137f9ae11e5f4ec35fbc5d0be1eea610b662783c9685ae0ecfbe990aad24ccc134000000000000000009b4e96700b78bfbaafe3533579e8736f47020b131793fce48eec75661ad8580d6f696da7acfb16d000000000000000089772e54a0d1e9d0d1edf6af2fd66067223badf63492a4facb715b1e0d380127e2858e1624685f3e000000000000000009602f9ec5ea25a6ad38c4c90ba935ff276c481a09381121298acb689834bea8afb30b2984de7dc4000000000000000049fe399044e2ca179ceffb443428c56093ab2b40d6f7e28102458ba3743b56051b73b5256deb2a0a000000000000000009e9bbd7ff6fb15409a40fd66d56561f4e9c0b79be540d0c0da929dbd8a5ac9b224c336550e5deaf000000000000000009a843e015095cd11ee2e552c761422bd9d202ac7a803dd49ff93442860f65074f8699191079bec9000000000000000089968c0d6af2416365b56f23e4fac526c426757ee39ed40e3b8c7262dd6014b025b9d4dfde7b1f6b000000000000000089fc91f68073f5d513656beadaaab970a3f0c30b5149acf37fd25a5f02889a75895151becc28698000000000000000000950183e0d40c6c214e3c2df04f4264b94871edf28ecd517fc08896edc969dc5924356170abb4dba000000000000000049cd6196143134b04e7a7a56e05bb889ffdef845af6b20acb4014c50be28edd414b9817f0e7a51870000000000000000c9f34d7f44ae3217cf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e2728465730000000000000000",
+      "data": null,
+      "type": "write_table_item"
+    },
+    {
+      "state_key_hash": "0x807e8713814bd25ee3e99a4087115aab527497be0f5f23183f5a9c5638bff730",
+      "handle": "0x6d88fe1782a5df7b4e045a7c2167ee508c48a28b6277050f2af661c8def88fca",
+      "key": "0x0900000000000000",
+      "value": "0x126900b65165f1beb793af0a86dae1b11e52622f0ef3c5d7ec6217b49144b011fd23903f9056e4753ca767ea050000000009453f560b3b3c67dd84a7f0aa5fa2a4421b056a89966deb2882d409b7d9b9d67097f5c26811d511bb0100000000000039d09077f1de4bbabc52253e0a9a4706c85fc3e9b7001b9f7fe6112620e160913c5dd8fb582cc9d8d27ad52ccc000000d94c78e981785e3824e075e822d70581b318e195b61618488568e3a464237b756d7f8e7a5c08feab6e04000000000000f95ee3501b5924e21b742d85cd4406f7514149b75670b55c7f4e872d4385e397bc2ef42251dbfcde6f00000000000000a982f347633b035ddaae31f8c67ff83e7cecdbbfa0c63f37ccb9728051017bfa0d19afc589251b6ded9eead600000000595b4f1ea749da4f74423a22341490d8f84d882d0166f4761eaa6625b826d525f136c165dd49fc62cf10df0b00000000f91ccd3a533ed71af75dbd5d7684aa8183353125ab264b98b4d7d3b89b9a131bb45f48a313861826010000000000000069cea80973dbaa0df0fd055de05a78a3fa4ad45cdd45e590974581e57b683e4713c0373bdd989fa306ce600200000000b9936dc61df256170cb8cc804e9ea1f3c5c179dcae47656998738ce556d7f79ed6bff14117608c27878133010000000099eaf55b62cea1b180e24db9b68deaf4a5cb053e3b86eee401e7cd9d2bb0caf478f51c554f9f9b4e2400000000000000d937252be84934c15ffc8df9e7c79bf04129f4198c2fcd688e4cbbcbfa1b16264b84d34b83b93bd82ad5e9490000000049cd6196143134b04e7a7a56e05bb889ffdef845af6b20acb4014c50be28edd414b9817f0e7a5187219e170000000000a9fa8f15c97900abc6e1b9b400e68748d9ba55d76a7b549122109f1300b41f1de911198eabc8314c0b592e040000000059ba0280811f848a51be9fc61a1761ada2cabd8d791ba7a1f86ad7fa8c4c1e60ad3a6fd69388fd2ec32513010000000099ce605a6d1a98bf9f7f65698c2c58a6be8e709b250a9c85f98e7657bca4e8333b6bb8767fea42dc02c3b7110000000059b6f5e6dde0de66f0e86b6a8bb805ac0cf66b871c0851606f42d0ea8b14a0d82c7e9c810a473d813a1b801d0000000089fc91f68073f5d513656beadaaab970a3f0c30b5149acf37fd25a5f02889a75895151becc2869806c71560000000000",
+      "data": null,
+      "type": "write_table_item"
+    },
+    {
+      "state_key_hash": "0x490b372329a4a93aa1d7dcbba9b20b397517d4df599199a467ba59070c4d1ce1",
+      "handle": "0x7a36d3935ebd2045f49fab033acad5212782ff81c4b79bd55cc1af3ce7c8418b",
+      "key": "0x1a3078313a3a6170746f735f636f696e3a3a4170746f73436f696e",
+      "value": "0x0de9a683abf2f3ab0900000000000000030104",
+      "data": null,
+      "type": "write_table_item"
+    },
+    {
+      "state_key_hash": "0x658c3927a9b996c2c6485732ef4e6ba53e06cbb23c574ee1ddcce8ff017ff9a4",
+      "handle": "0x7a36d3935ebd2045f49fab033acad5212782ff81c4b79bd55cc1af3ce7c8418b",
+      "key": "0x4340307833353762306237346263383333653935613131356164323236303438353464366230666361313531636563643934313131373730653564366666633964633262",
+      "value": "0xbd56be3ea510e9ff00000000000000000300",
+      "data": null,
+      "type": "write_table_item"
+    },
+    {
+      "state_key_hash": "0xd4359c5e0faebd6cec3576059e6cf484a0155392a2cb25908669a08a05baffc8",
+      "handle": "0x7a36d3935ebd2045f49fab033acad5212782ff81c4b79bd55cc1af3ce7c8418b",
+      "key": "0x4f3078663232626564653233376130376531323162353664393161343931656237626364666431663539303739323661396535383333386639363461303162313766613a3a61737365743a3a55534443",
+      "value": "0x3ef858136ea600000100000000000000030104",
+      "data": null,
+      "type": "write_table_item"
+    },
+    {
+      "state_key_hash": "0xfad0bcc5b4c2389592a39e9aa278c102cfe518141f4a946a2eea3c9b95bf6299",
+      "handle": "0x7a36d3935ebd2045f49fab033acad5212782ff81c4b79bd55cc1af3ce7c8418b",
+      "key": "0x4f3078663232626564653233376130376531323162353664393161343931656237626364666431663539303739323661396535383333386639363461303162313766613a3a61737365743a3a55534454",
+      "value": "0xbd56be3ea510e9ff0000000000000000030101",
+      "data": null,
+      "type": "write_table_item"
+    }
+  ],
+  "sender": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+  "sequence_number": "1222",
+  "max_gas_amount": "40000",
+  "gas_unit_price": "300",
+  "expiration_timestamp_secs": "1734800614",
+  "payload": {
+    "function": "0x50412e61f14963b832963c559495fd222e89cdb4d4dc7fea379108956cebde38::prdr_echelon_v2::lm",
+    "type_arguments": [
+      "0x9770fa9c725cbd97eb50b2be5f7416efdfd1f1554beb0750d4dae4c64e860da3::fa_to_coin_wrapper::WrappedUSDT",
+      "0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt",
+      "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC",
+      "0x1::string::String",
+      "0x1::string::String",
+      "0x1::string::String",
+      "0x1::string::String",
+      "0x1::string::String",
+      "0x1::string::String",
+      "0x1::string::String",
+      "0x1::string::String",
+      "0x1::string::String",
+      "0x1::string::String"
+    ],
+    "arguments": [
+      "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+      "38897127",
+      "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b",
+      "0x0",
+      2,
+      1,
+      true,
+      "0",
+      [],
+      16,
+      true,
+      "100",
+      [
+        "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b",
+        "0xaf5f759ce4a2594cec4d1982160c846eb6ec2c70e7e8e6e2723e2917f13ac88c"
+      ],
+      0,
+      true,
+      "0",
+      [],
+      0,
+      true,
+      "0",
+      []
+    ],
+    "type": "entry_function_payload"
+  },
+  "signature": {
+    "public_key": "0xca40b172776b8be7c755f9e0a6081d4b076072f7e76b66e2fba6db4c15d72fea",
+    "signature": "0x5546fec61edfde0b19b56f0b356db5649af0e4470f879fa6839def3ed3e67e86b94543a4f58ba9c93e30a31577d06910166c54499ec1ab2052d71e33fd0f1a02",
+    "type": "ed25519_signature"
+  },
+  "events": [
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::lending_pool::Borrow",
+      "data": {
+        "amount": "38897126",
+        "token": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b",
+        "user": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x1::fungible_asset::Withdraw",
+      "data": {
+        "amount": "38897126",
+        "store": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::AccrueMarketInterestEvent",
+      "data": {
+        "borrow_interest_rate": {
+          "v": "1307054762282801079"
+        },
+        "interest_accumulated": "3070161",
+        "interest_fee": "614032",
+        "interest_rate_index": {
+          "v": "18638814776230801324"
+        },
+        "market_obj": {
+          "inner": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be"
+        },
+        "second_delta": "63",
+        "simple_interest_factor": {
+          "v": "2611125381249"
+        },
+        "total_liability": "21689681831802",
+        "total_reserve": "14313904333"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::AccrueMarketInterestEvent",
+      "data": {
+        "borrow_interest_rate": {
+          "v": "710918807360996275"
+        },
+        "interest_accumulated": "302469",
+        "interest_fee": "60493",
+        "interest_rate_index": {
+          "v": "18891957724462910495"
+        },
+        "market_obj": {
+          "inner": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831"
+        },
+        "second_delta": "1",
+        "simple_interest_factor": {
+          "v": "22543087498"
+        },
+        "total_liability": "247506478628731",
+        "total_reserve": "6185306842027"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::AccrueVaultInterestEvent",
+      "data": {
+        "account_addr": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+        "interest_accumulated": "45336",
+        "interest_rate_index": {
+          "v": "18891957724462910495"
+        },
+        "market_obj": {
+          "inner": "0x761a97787fa8b3ae0cef91ebc2d96e56cc539df5bc88dadabee98ae00363a831"
+        },
+        "prev_user_liability": "350264206",
+        "user_liability": "350309542"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::AccrueMarketInterestEvent",
+      "data": {
+        "borrow_interest_rate": {
+          "v": "2941901347523390463"
+        },
+        "interest_accumulated": "2310794",
+        "interest_fee": "462158",
+        "interest_rate_index": {
+          "v": "19595354685935158127"
+        },
+        "market_obj": {
+          "inner": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8"
+        },
+        "second_delta": "63",
+        "simple_interest_factor": {
+          "v": "5877086025258"
+        },
+        "total_liability": "7253022658659",
+        "total_reserve": "20560307512"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::AccrueVaultInterestEvent",
+      "data": {
+        "account_addr": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+        "interest_accumulated": "12922",
+        "interest_rate_index": {
+          "v": "19595354685935158127"
+        },
+        "market_obj": {
+          "inner": "0x447b3b516546f28e8c4f6825a6287b09161659e7c500c599c29c28a8492844b8"
+        },
+        "prev_user_liability": "41969889",
+        "user_liability": "41981996"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::AccrueMarketInterestEvent",
+      "data": {
+        "borrow_interest_rate": {
+          "v": "2004306250546001775"
+        },
+        "interest_accumulated": "258597",
+        "interest_fee": "51719",
+        "interest_rate_index": {
+          "v": "19528961351164253163"
+        },
+        "market_obj": {
+          "inner": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c"
+        },
+        "second_delta": "1",
+        "simple_interest_factor": {
+          "v": "63556134276"
+        },
+        "total_liability": "75055985506479",
+        "total_reserve": "108632429872"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::AccrueVaultInterestEvent",
+      "data": {
+        "account_addr": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+        "interest_accumulated": "22665",
+        "interest_rate_index": {
+          "v": "19528961351164253163"
+        },
+        "market_obj": {
+          "inner": "0xa9c51ca3bcd93978d0c4aada7c4cf47c0791caced3cdc4e15f2c8e0797d1f93c"
+        },
+        "prev_user_liability": "56659293",
+        "user_liability": "56679443"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::AccrueVaultInterestEvent",
+      "data": {
+        "account_addr": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+        "interest_accumulated": "188765",
+        "interest_rate_index": {
+          "v": "18638814776230801324"
+        },
+        "market_obj": {
+          "inner": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be"
+        },
+        "prev_user_liability": "77771281",
+        "user_liability": "77794266"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::AccrueMarketInterestEvent",
+      "data": {
+        "borrow_interest_rate": {
+          "v": "23878966432832611"
+        },
+        "interest_accumulated": "275",
+        "interest_fee": "55",
+        "interest_rate_index": {
+          "v": "18463357674645571496"
+        },
+        "market_obj": {
+          "inner": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45"
+        },
+        "second_delta": "1",
+        "simple_interest_factor": {
+          "v": "757197058"
+        },
+        "total_liability": "6689593730592",
+        "total_reserve": "4539878476"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "7",
+        "account_address": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c"
+      },
+      "sequence_number": "1155986",
+      "type": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c::tiered_oracle::PriceEvent",
+      "data": {
+        "coin_name": "0x1::aptos_coin::AptosCoin",
+        "price": {
+          "v": "178411210481674414349"
+        }
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "7",
+        "account_address": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c"
+      },
+      "sequence_number": "1155987",
+      "type": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c::tiered_oracle::PriceEvent",
+      "data": {
+        "coin_name": "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDT",
+        "price": {
+          "v": "18440288451153516221"
+        }
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "7",
+        "account_address": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c"
+      },
+      "sequence_number": "1155988",
+      "type": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c::tiered_oracle::PriceEvent",
+      "data": {
+        "coin_name": "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC",
+        "price": {
+          "v": "18446927065410762814"
+        }
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "7",
+        "account_address": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c"
+      },
+      "sequence_number": "1155989",
+      "type": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c::tiered_oracle::PriceEvent",
+      "data": {
+        "coin_name": "@0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b",
+        "price": {
+          "v": "18440288451153516221"
+        }
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "7",
+        "account_address": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c"
+      },
+      "sequence_number": "1155990",
+      "type": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c::tiered_oracle::PriceEvent",
+      "data": {
+        "coin_name": "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDT",
+        "price": {
+          "v": "18440288451153516221"
+        }
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "7",
+        "account_address": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c"
+      },
+      "sequence_number": "1155991",
+      "type": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c::tiered_oracle::PriceEvent",
+      "data": {
+        "coin_name": "0x1::aptos_coin::AptosCoin",
+        "price": {
+          "v": "178411210481674414349"
+        }
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::farming::UnstakeEvent",
+      "data": {
+        "amount": "38708361",
+        "farming_identifier": "@0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be201"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::RepayEvent",
+      "data": {
+        "amount": "38897126",
+        "borrower_addr": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+        "market_obj": {
+          "inner": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be"
+        },
+        "repayer_addr": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+        "total_cash": "2389308775093",
+        "total_liability": "21689642934676",
+        "user_liability": "38897140"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "7",
+        "account_address": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c"
+      },
+      "sequence_number": "1155992",
+      "type": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c::tiered_oracle::PriceEvent",
+      "data": {
+        "coin_name": "@0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b",
+        "price": {
+          "v": "18440288451153516221"
+        }
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "7",
+        "account_address": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c"
+      },
+      "sequence_number": "1155993",
+      "type": "0x92e95ed77b5ac815d3fbc2227e76db238339e9ca43ace45031ec2589bea5b8c::tiered_oracle::PriceEvent",
+      "data": {
+        "coin_name": "0x1::aptos_coin::AptosCoin",
+        "price": {
+          "v": "178411210481674414349"
+        }
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::farming::UnstakeEvent",
+      "data": {
+        "amount": "388331968",
+        "farming_identifier": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45200"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::farming::StakeEvent",
+      "data": {
+        "amount": "378623669",
+        "farming_identifier": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45200"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::LiquidateEvent",
+      "data": {
+        "borrow_market_obj": {
+          "inner": "0xac00e90cdadec06d81e0d5ce7a3e93d63d563e982dea0ca15bad2b067f42d2be"
+        },
+        "borrower_addr": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+        "borrower_shares": "2261446296",
+        "collateral_market_obj": {
+          "inner": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45"
+        },
+        "liquidation_fee_coins": "9707615",
+        "liquidator_addr": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+        "liquidator_shares": "378623669",
+        "repay_amount": "38897126",
+        "seize_shares": "388331968",
+        "seize_shares_post_fee": "378623669",
+        "total_reserve": "4549586091"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x1::fungible_asset::Deposit",
+      "data": {
+        "amount": "38897126",
+        "store": "0xa474dc692683edaf549c04ddb6cf0792e671c4e0b9bbafa8c8aa49d91b3483eb"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x50412e61f14963b832963c559495fd222e89cdb4d4dc7fea379108956cebde38::agg_events::LiqEvent",
+      "data": {
+        "borrower": "0xfebff3cf4e7967b5ac0da2d7fa5f066424e075af82be8b503064a43c8e6878bf",
+        "repay_amount": "38897126",
+        "repay_coin": "Tether USD",
+        "seize_amount": "378596968",
+        "seize_coin": "0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt",
+        "ts": "1734800555"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::farming::UnstakeEvent",
+      "data": {
+        "amount": "378623669",
+        "farming_identifier": "@0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45200"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0xc6bc659f1649553c1a3fa05d9727433dc03843baac29473c817d06d39e7621ba::lending::WithdrawEvent",
+      "data": {
+        "account_addr": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+        "amount": "378596968",
+        "market_obj": {
+          "inner": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45"
+        },
+        "shares": "378623669",
+        "total_cash": "200025731281536",
+        "total_shares": "206725353767590",
+        "user_shares": "0"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "5",
+        "account_address": "0xc3c9cc885a52004e0490f6a8291b3bc5854f0e42d931fb124736bd189c9f0f45"
+      },
+      "sequence_number": "23083",
+      "type": "0x1::coin::WithdrawEvent",
+      "data": {
+        "amount": "378596968"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "5663",
+        "account_address": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa"
+      },
+      "sequence_number": "161017",
+      "type": "0xc7efb4076dbe143cbcd98cfaaa929ecfc8f299203dfff63b95ccb6bfe19850fa::swap::SwapEvent<0x111ae3e5bc816a5e63c2da97d0aa3886519e0cd5e4b046659fa35796bd11542a::stapt_token::StakedApt, 0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC>",
+      "data": {
+        "amount_x_in": "378596968",
+        "amount_x_out": "0",
+        "amount_y_in": "0",
+        "amount_y_out": "40541287",
+        "user": "0x0"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x1::fungible_asset::Deposit",
+      "data": {
+        "amount": "2027",
+        "store": "0x61b1c40cd7e68b9e8ed4bf26a276d44dca0ed23acf62500563a0a515a3375a8"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x1::fungible_asset::Deposit",
+      "data": {
+        "amount": "40539260",
+        "store": "0xaa6be15d03b651cae303a952122e03881d25aaf99795725f1f6403bfca3a9839"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x1::fungible_asset::Withdraw",
+      "data": {
+        "amount": "40539534",
+        "store": "0xab2bab159c1ebc63532804cb638c40aa43ce3c8cc275d8a2b86cb6db070d03ca"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x7730cd28ee1cdc9e999336cbc430f99e7c44397c0aa77516f6f23a78559bb5::pool::SwapEvent",
+      "data": {
+        "amount_in": "40541287",
+        "amount_out": "40539534",
+        "idx_in": "0",
+        "idx_out": "1",
+        "metadata": [
+          {
+            "inner": "0x2b3be0a97a73c87ff62cbdd36837a9fb5bbd1d7f06a73b7ed62ec15c5326c1b8"
+          },
+          {
+            "inner": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b"
+          }
+        ],
+        "pool_balances": ["2980726579", "3113743907"],
+        "pool_obj": {
+          "inner": "0xaf5f759ce4a2594cec4d1982160c846eb6ec2c70e7e8e6e2723e2917f13ac88c"
+        },
+        "protocol_fee_amount": "2027",
+        "total_fee_amount": "4054"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x1::fungible_asset::Deposit",
+      "data": {
+        "amount": "38897127",
+        "store": "0x1dd5533671217066156a8c47191f05df47ac6b5c3ad490aaf6a03135261c1784"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x68476f9d437e3f32fd262ba898b5e3ee0a23a1d586a6cf29a28add35f253f6f7::lending_pool::Repay",
+      "data": {
+        "amount": "38897127",
+        "token": "0x357b0b74bc833e95a115ad22604854d6b0fca151cecd94111770e5d6ffc9dc2b",
+        "user": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x50412e61f14963b832963c559495fd222e89cdb4d4dc7fea379108956cebde38::agg_events::TakeProfitEvent",
+      "data": {
+        "amount": "1642407",
+        "coin": "Tether USD",
+        "target": "0xcf709bd7324d1eb179326e9e15b28eeae29a9e62815cfcb315e775e272846573",
+        "ts": "1734800555"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x1::fungible_asset::Deposit",
+      "data": {
+        "amount": "1642407",
+        "store": "0x4235181713dfc5927ea1aac84b8a05f1f8140b00bd92de62c1c7a1d345f141a1"
+      }
+    },
+    {
+      "guid": {
+        "creation_number": "0",
+        "account_address": "0x0"
+      },
+      "sequence_number": "0",
+      "type": "0x1::transaction_fee::FeeStatement",
+      "data": {
+        "execution_gas_units": "172",
+        "io_gas_units": "69",
+        "storage_fee_octas": "0",
+        "storage_fee_refund_octas": "0",
+        "total_charge_gas_units": "241"
+      }
+    }
+  ],
+  "timestamp": "1734800555118186",
+  "type": "user_transaction"
+}

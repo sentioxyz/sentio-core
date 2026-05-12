@@ -1,0 +1,470 @@
+package supernode
+
+import (
+	"context"
+	"encoding/json"
+	"github.com/pkg/errors"
+	"math"
+	"sentioxyz/sentio-core/chain/chain"
+	"sentioxyz/sentio-core/chain/sui"
+	"sentioxyz/sentio-core/chain/sui/types"
+	"sentioxyz/sentio-core/common/jsonrpc"
+	"sentioxyz/sentio-core/common/kvstore"
+	"sentioxyz/sentio-core/common/log"
+	rg "sentioxyz/sentio-core/common/range"
+	"sentioxyz/sentio-core/common/set"
+	"sentioxyz/sentio-core/common/utils"
+	"strconv"
+)
+
+func NewSuperNode(
+	superSvr *SuperService,
+	client *sui.ClientPool,
+) []jsonrpc.Middleware {
+	return []jsonrpc.Middleware{
+		func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
+			return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
+				switch method {
+				case "sui_getLatestCheckpointSequenceNumber": // driverV2
+					return superSvr.GetLatestCheckpointSequenceNumber(ctx)
+				case "sui_getCheckpointTime": // driverV2
+					return jsonrpc.CallMethod(superSvr.GetCheckpointTime, ctx, params)
+				case "sui_getTransactions": // driverV2
+					return jsonrpc.CallMethod(superSvr.GetTransactions, ctx, params)
+				case "sui_filterObjectChanges": // driverV2
+					return jsonrpc.CallMethod(superSvr.FilterObjectChanges, ctx, params)
+				case "sui_getLatestSimpleCheckpoint": // driverV3
+					return jsonrpc.CallMethod(superSvr.GetLatestSimpleCheckpoint, ctx, params)
+				case "sui_getSimpleCheckpoint": // driverV3
+					return jsonrpc.CallMethod(superSvr.GetSimpleCheckpoint, ctx, params)
+				case "sui_getTransactionsV2": // driverV3
+					return jsonrpc.CallMethod(superSvr.GetTransactionsV2, ctx, params)
+				case "sui_filterObjectChangesV2": // driverV3
+					return jsonrpc.CallMethod(superSvr.FilterObjectChangesV2, ctx, params)
+				case "sui_getObjectCreation": // driverV2 driverV3
+					return jsonrpc.CallMethod(superSvr.GetObjectCreation, ctx, params)
+				case "sui_getObjectStat": // driverV2 driverV3
+					return jsonrpc.CallMethod(superSvr.GetObjectStat, ctx, params)
+				case "sui_getObjectsStat": // driverV2 driverV3
+					return jsonrpc.CallMethod(superSvr.GetObjectsStat, ctx, params)
+				default:
+					return next(ctx, method, params)
+				}
+			}
+		},
+		jsonrpc.NewJSONRPCProxyMiddleware("", client.ClientPool),
+	}
+}
+
+type SuperService struct {
+	slotCache              chain.LatestSlotCache[*sui.Slot]
+	cachedSimpleCheckpoint kvstore.Store[sui.SimpleCheckpoint]
+	cachedCheckpointTime   kvstore.Store[sui.CheckpointTime]
+	cachedObjectCreation   kvstore.Store[sui.ObjectCreation]
+	storage                Storage
+}
+
+func NewSuperService(
+	slotCache chain.LatestSlotCache[*sui.Slot],
+	cachedSimpleCheckpoint kvstore.Store[sui.SimpleCheckpoint],
+	cachedCheckpointTime kvstore.Store[sui.CheckpointTime],
+	cachedObjectCreation kvstore.Store[sui.ObjectCreation],
+	storage Storage,
+) *SuperService {
+	return &SuperService{
+		slotCache:              slotCache,
+		cachedSimpleCheckpoint: cachedSimpleCheckpoint,
+		cachedCheckpointTime:   cachedCheckpointTime,
+		cachedObjectCreation:   cachedObjectCreation,
+		storage:                storage,
+	}
+}
+
+func (s *SuperService) GetLatestCheckpointSequenceNumber(ctx context.Context) (types.Number, error) {
+	cur, err := s.slotCache.GetRange(ctx)
+	if err != nil {
+		return types.Uint64ToNumber(0), err
+	}
+	return types.Uint64ToNumber(*cur.End), nil
+}
+
+func (s *SuperService) GetLatestSimpleCheckpoint(
+	ctx context.Context,
+	checkpointGt uint64,
+) (sui.GetLatestSimpleCheckpointResponse, error) {
+	jsonrpc.GetCtxData(ctx).NotSlowRequest = true
+	resp := sui.GetLatestSimpleCheckpointResponse{APIVersion: sui.APIVersion}
+	latest, err := s.slotCache.Wait(ctx, checkpointGt)
+	if err != nil {
+		return resp, err
+	}
+	latestSlot, err := s.slotCache.GetByNumber(ctx, latest)
+	if err != nil {
+		return resp, err
+	}
+	resp.Checkpoint = sui.NewSimpleCheckpoint(latestSlot)
+	return resp, nil
+}
+
+func (s *SuperService) GetSimpleCheckpoint(ctx context.Context, checkpoint uint64) (sui.SimpleCheckpoint, error) {
+	ctx, logger := log.FromContext(ctx, "checkpoint", checkpoint)
+	key := strconv.FormatUint(checkpoint, 10)
+	if cached, err := s.cachedSimpleCheckpoint.Get(ctx, key); err != nil {
+		logger.Errorfe(err, "get simple checkpoint from cache failed")
+		return sui.SimpleCheckpoint{}, err
+	} else if sc, has := cached[key]; has {
+		return sc, nil
+	}
+	scs, err := chain.QueryRangeWithCache(
+		ctx,
+		rg.NewSingleRange(checkpoint),
+		s.slotCache,
+		func(slot *sui.Slot) ([]sui.SimpleCheckpoint, error) {
+			return []sui.SimpleCheckpoint{sui.NewSimpleCheckpoint(slot)}, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) ([]sui.SimpleCheckpoint, error) {
+			sc, queryErr := s.storage.QuerySimpleCheckpoint(ctx, queryRange.Start)
+			if queryErr != nil {
+				return nil, queryErr
+			}
+			return []sui.SimpleCheckpoint{sc}, nil
+		},
+	)
+	if err != nil {
+		return sui.SimpleCheckpoint{}, err
+	}
+	if len(scs) == 0 {
+		return sui.SimpleCheckpoint{}, errors.Errorf("checkpoint %d not found", checkpoint)
+	}
+	err = s.cachedSimpleCheckpoint.Set(ctx, map[string]sui.SimpleCheckpoint{key: scs[0]})
+	if err != nil {
+		logger.Warne(err, "update cached simple checkpoint failed")
+	}
+	return scs[0], nil
+}
+
+// GetCheckpointTime return [checkpointTimestampMs, minTxnTimestampMs, maxTxnTimestampMs]
+func (s *SuperService) GetCheckpointTime(
+	ctx context.Context,
+	network string,
+	checkpointSequenceNumber types.Number,
+) ([]uint64, error) {
+	ctx, logger := log.FromContext(ctx, "checkpoint", checkpointSequenceNumber)
+	key := checkpointSequenceNumber.String()
+	cached, getCacheErr := s.cachedCheckpointTime.Get(ctx, key)
+	if getCacheErr != nil {
+		logger.Errorfe(getCacheErr, "get checkpoint time from cache failed")
+		return nil, getCacheErr
+	}
+	if ct, has := cached[key]; has {
+		return []uint64{ct.CheckpointTime, ct.MinTxnTime, ct.MaxTxnTime}, nil
+	}
+	return chain.QueryRangeWithCache(
+		ctx,
+		rg.NewSingleRange(checkpointSequenceNumber.Uint64()),
+		s.slotCache,
+		func(slot *sui.Slot) ([]uint64, error) {
+			ts := slot.TimestampMs.Uint64()
+			minMs, maxMs := ts, ts
+			for _, tx := range slot.Transactions {
+				maxMs = max(maxMs, tx.TimestampMs.Uint64())
+				minMs = min(minMs, tx.TimestampMs.Uint64())
+			}
+			return []uint64{ts, minMs, maxMs}, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) ([]uint64, error) {
+			key := checkpointSequenceNumber.String()
+			cached, getCacheErr := s.cachedCheckpointTime.Get(ctx, key)
+			if getCacheErr != nil {
+				logger.Errorfe(getCacheErr, "get checkpoint time from cache failed")
+				return nil, getCacheErr
+			}
+			if ct, has := cached[key]; has {
+				return []uint64{ct.CheckpointTime, ct.MinTxnTime, ct.MaxTxnTime}, nil
+			}
+			// cache missing, query from clickhouse
+			result, err := s.storage.QueryCheckpointTime(ctx, checkpointSequenceNumber.Uint64())
+			if err != nil {
+				return nil, err
+			}
+			// update cache
+			err = s.cachedCheckpointTime.Set(ctx, map[string]sui.CheckpointTime{key: result})
+			if err != nil {
+				logger.Warne(err, "update cached checkpoint time failed")
+			}
+			return []uint64{result.CheckpointTime, result.MinTxnTime, result.MaxTxnTime}, nil
+		},
+	)
+}
+
+func (s *SuperService) GetTransactions(
+	ctx context.Context,
+	network string,
+	query *sui.TransactionQuery,
+) ([]types.TransactionResponseV1, error) {
+	return chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(query.FromSequenceNumber, query.ToSequenceNumber),
+		s.slotCache,
+		func(slot *sui.Slot) ([]types.TransactionResponseV1, error) {
+			var resp []types.TransactionResponseV1
+			for i := range slot.Transactions {
+				tx := slot.Transactions[i] // tx is a copy, so we can change tx.Events tx.Effects tx.Transaction below
+				if !query.CheckAndTrim(&tx) {
+					continue
+				}
+				resp = append(resp, tx)
+			}
+			return resp, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) (txs []types.TransactionResponseV1, err error) {
+			storeQuery := *query
+			storeQuery.FromSequenceNumber = queryRange.Start
+			storeQuery.ToSequenceNumber = *queryRange.End
+			return s.storage.QueryTransactions(ctx, &storeQuery)
+		},
+	)
+}
+
+func (s *SuperService) GetTransactionsV2(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	filter sui.TransactionFilter,
+	fetchConfig sui.TransactionFetchConfig,
+) ([]types.TransactionResponseV1, error) {
+	return chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(fromBlock, toBlock),
+		s.slotCache,
+		func(slot *sui.Slot) ([]types.TransactionResponseV1, error) {
+			var resp []types.TransactionResponseV1
+			for i := range slot.Transactions {
+				tx := slot.Transactions[i] // tx is a copy, so we can change tx.Events tx.Effects tx.Transaction below
+				if !filter.Check(tx) {
+					continue
+				}
+				resp = append(resp, fetchConfig.PruneTransaction(tx, filter.EventFilters))
+			}
+			return resp, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) (txs []types.TransactionResponseV1, err error) {
+			return s.storage.QueryTransactionsV2(ctx, queryRange.Start, *queryRange.End, filter, fetchConfig)
+		},
+	)
+}
+
+func (s *SuperService) FilterObjectChanges(
+	ctx context.Context,
+	query *sui.ObjectChangeQuery,
+) ([]types.ObjectChangeExtend, error) {
+	result, err := chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(query.FromSequenceNumber, query.ToSequenceNumber),
+		s.slotCache,
+		func(slot *sui.Slot) ([]types.ObjectChangeExtend, error) {
+			var result []types.ObjectChangeExtend
+			for txIndex, tx := range slot.Transactions {
+				for _, oc := range tx.ObjectChanges {
+					result = append(result, types.ObjectChangeExtend{
+						Checkpoint:       types.Uint64ToNumber(slot.SequenceNumber),
+						CheckpointDigest: types.StrToDigestMust(slot.Digest),
+						TxIndex:          txIndex,
+						TxDigest:         tx.Digest,
+						ObjectChange:     oc,
+					})
+				}
+			}
+			return query.Filter(result), nil
+		},
+		func(ctx context.Context, queryRange rg.Range) (objs []types.ObjectChangeExtend, err error) {
+			storeQuery := *query
+			storeQuery.FromSequenceNumber = queryRange.Start
+			storeQuery.ToSequenceNumber = *queryRange.End
+			return s.storage.QueryObjectChanges(ctx, &storeQuery)
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if query.OnlyLastVersion {
+		set := make(map[string]types.ObjectChangeExtend)
+		for _, oc := range result {
+			set[oc.GetObjectID()] = oc
+		}
+		result = utils.GetMapValues(set)
+	}
+	return result, nil
+}
+
+func (s *SuperService) FilterObjectChangesV2(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	filter sui.ObjectChangeFilter,
+) ([]types.ObjectChangeExtend, error) {
+	checker := filter.Checker()
+	return chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(fromBlock, toBlock),
+		s.slotCache,
+		func(slot *sui.Slot) (result []types.ObjectChangeExtend, err error) {
+			checkpoint := types.Uint64ToNumber(slot.SequenceNumber)
+			checkpointDigest := types.StrToDigestMust(slot.Digest)
+			for txIndex, tx := range slot.Transactions {
+				for _, oc := range tx.ObjectChanges {
+					oce := types.ObjectChangeExtend{
+						Checkpoint:       checkpoint,
+						CheckpointDigest: checkpointDigest,
+						TxIndex:          txIndex,
+						TxDigest:         tx.Digest,
+						ObjectChange:     oc,
+					}
+					if checker(oce) {
+						result = append(result, oce)
+					}
+				}
+			}
+			return result, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) (objs []types.ObjectChangeExtend, err error) {
+			return s.storage.QueryObjectChangesV2(ctx, queryRange.Start, *queryRange.End, filter)
+		},
+	)
+}
+
+func (s *SuperService) GetObjectCreation(ctx context.Context, objectID string) (*sui.ObjectCreation, error) {
+	_, logger := log.FromContext(ctx, "objectID", objectID)
+	cached, getCacheErr := s.cachedObjectCreation.Get(ctx, objectID)
+	if getCacheErr != nil {
+		logger.Errorfe(getCacheErr, "get object creation from cache failed")
+		return nil, getCacheErr
+	}
+	if oc, has := cached[objectID]; has {
+		return &oc, nil
+	}
+	stat, err := s.GetObjectStat(ctx, 0, math.MaxUint64, objectID)
+	if err != nil {
+		return nil, err
+	}
+	if stat.Count == 0 {
+		return nil, nil
+	}
+	creation := sui.ObjectCreation{
+		ObjectVersion: stat.MinObjectVersion,
+		Checkpoint:    stat.MinCheckpoint,
+	}
+	if err = s.cachedObjectCreation.Set(ctx, map[string]sui.ObjectCreation{objectID: creation}); err != nil {
+		logger.Warne(err, "update cached object creation failed")
+	}
+	return &creation, nil
+}
+
+func (s *SuperService) GetObjectStat(
+	ctx context.Context,
+	startCheckpoint uint64,
+	endCheckpoint uint64,
+	objectID string,
+) (sui.ObjectStat, error) {
+	ss, err := chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(startCheckpoint, endCheckpoint),
+		s.slotCache,
+		func(st *sui.Slot) ([]sui.ObjectStat, error) {
+			var result sui.ObjectStat
+			for _, tx := range st.Transactions {
+				for _, oc := range tx.ObjectChanges {
+					if oc.GetObjectID() != objectID {
+						continue
+					}
+					result = result.Merge(sui.ObjectStat{
+						Count:            1,
+						MinObjectVersion: oc.Version.Uint64(),
+						MinCheckpoint:    st.GetNumber(),
+						MaxObjectVersion: oc.Version.Uint64(),
+						MaxCheckpoint:    st.GetNumber(),
+					})
+				}
+			}
+			if result.Count == 0 {
+				return nil, nil
+			}
+			return []sui.ObjectStat{result}, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) ([]sui.ObjectStat, error) {
+			r, err := s.storage.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, []string{objectID})
+			if err != nil {
+				return nil, err
+			}
+			if result, has := r[objectID]; has && result.Count > 0 {
+				return []sui.ObjectStat{result}, nil
+			}
+			return nil, nil
+		},
+	)
+	if err != nil {
+		return sui.ObjectStat{}, err
+	}
+	return utils.Reduce(ss, sui.ObjectStat.Merge), nil
+}
+
+func (s *SuperService) GetObjectsStat(
+	ctx context.Context,
+	startCheckpoint uint64,
+	endCheckpoint uint64,
+	objectIDList []string,
+) (map[string]sui.ObjectStat, error) {
+	const maxObjectIDLen = 200
+	if len(objectIDList) > maxObjectIDLen {
+		return nil, errors.Errorf("too many object ids, should <= %d", maxObjectIDLen)
+	}
+	objectIDSet := set.New[string](objectIDList...)
+	ss, err := chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(startCheckpoint, endCheckpoint),
+		s.slotCache,
+		func(st *sui.Slot) ([]map[string]sui.ObjectStat, error) {
+			result := make(map[string]sui.ObjectStat)
+			for _, tx := range st.Transactions {
+				for _, oc := range tx.ObjectChanges {
+					objID := oc.GetObjectID()
+					if !objectIDSet.Contains(objID) {
+						continue
+					}
+					result[objID] = result[objID].Merge(sui.ObjectStat{
+						Count:            1,
+						MinObjectVersion: oc.Version.Uint64(),
+						MinCheckpoint:    st.GetNumber(),
+						MaxObjectVersion: oc.Version.Uint64(),
+						MaxCheckpoint:    st.GetNumber(),
+					})
+				}
+			}
+			if len(result) == 0 {
+				return nil, nil
+			}
+			return []map[string]sui.ObjectStat{result}, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) ([]map[string]sui.ObjectStat, error) {
+			r, err := s.storage.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, objectIDList)
+			if err != nil {
+				return nil, err
+			}
+			if len(r) == 0 {
+				return nil, nil
+			}
+			return []map[string]sui.ObjectStat{r}, nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return utils.Reduce(ss, func(a, b map[string]sui.ObjectStat) map[string]sui.ObjectStat {
+		r := make(map[string]sui.ObjectStat)
+		for k, v := range a {
+			r[k] = v
+		}
+		for k, v := range b {
+			r[k] = r[k].Merge(v)
+		}
+		return r
+	}), nil
+}

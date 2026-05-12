@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kvstore",
+    srcs = [
+        "kvstore.go",
+        "lru.go",
+    ],
+    importpath = "sentioxyz/sentio-core/common/kvstore",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_sentioxyz_golang_lru//:golang-lru"],
+)
+
+go_test(
+    name = "kvstore_test",
+    srcs = ["lru_test.go"],
+    embed = [":kvstore"],
+    deps = [
+        "//common/concurrency",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

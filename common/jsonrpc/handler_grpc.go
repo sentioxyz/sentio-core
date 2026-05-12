@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/textproto"
+	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/timewin"
 	"strconv"
@@ -51,12 +53,11 @@ func (grpcRawCodec) Unmarshal(data []byte, v any) error {
 func (grpcRawCodec) Name() string { return "proto" }
 
 type ConnectionPool interface {
-	UseRawConnection(
+	UseGRPCConnection(
 		ctx context.Context,
 		method string,
-		fn func(ctx context.Context, conn *grpc.ClientConn) error,
-	) (bool, error)
-	Snapshot() any
+		fn func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result,
+	) clientpool.Report
 }
 
 // GRPCProbe is an optional callback interface that allows callers to observe
@@ -157,7 +158,6 @@ func (h *GRPCProxyHandler) Snapshot() any {
 		"name":           h.name,
 		"debug":          h.debug,
 		"requestCounter": h.requestCounter.Load(),
-		"pool":           h.pool.Snapshot(),
 		"statistics":     h.stat.Snapshot(),
 	}
 }
@@ -208,7 +208,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	done, err := h.pool.UseRawConnection(ctx, method, func(ctx context.Context, conn *grpc.ClientConn) error {
+	report := h.pool.UseGRPCConnection(ctx, "grpc.proxy."+method, func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
 		// Propagate request metadata (HTTP headers) as gRPC outgoing metadata.
 		outCtx := metadata.NewOutgoingContext(ctx, grpcMetadataFromHTTPHeaders(r.Header))
 
@@ -222,7 +222,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 		)
 		if err != nil {
 			grpcWriteError(w, err)
-			return err
+			return clientpool.Result{Err: err}
 		}
 
 		// Forward client → backend frames in a background goroutine.
@@ -246,7 +246,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 		hdr, err := cs.Header()
 		if err != nil {
 			grpcWriteError(w, err)
-			return err
+			return clientpool.Result{Err: err}
 		}
 
 		// Write HTTP response status and headers.
@@ -303,11 +303,11 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		return nil
+		return clientpool.Result{}
 	})
 
-	if !done {
-		grpcErr := status.Errorf(codes.Unavailable, "no healthy backend: %v", err)
+	if errors.Is(report.Err, clientpool.ErrNoValidClient) {
+		grpcErr := status.Errorf(codes.Unavailable, "no healthy backend")
 		grpcWriteError(w, grpcErr)
 		// Probe: OnFinish for pool-miss.
 		if h.probe != nil {

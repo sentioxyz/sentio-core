@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "redis",
+    srcs = [
+        "cache.go",
+        "kv_store.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/redis",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/chain",
+        "//common/concurrency",
+        "//common/errgroup",
+        "//common/log",
+        "//common/range",
+        "//common/utils",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)
+
+go_test(
+    name = "redis_test",
+    srcs = [
+        "cache_test.go",
+        "kv_store_test.go",
+    ],
+    embed = [":redis"],
+    deps = [
+        "//chain/chain",
+        "//common/concurrency",
+        "//common/range",
+        "//common/set",
+        "@com_github_alicebob_miniredis_v2//:miniredis",
+        "@com_github_redis_go_redis_v9//:go-redis",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

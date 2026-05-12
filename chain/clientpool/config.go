@@ -68,7 +68,7 @@ type PoolConfig[CONFIG EntryConfig[CONFIG]] struct {
 	ClientConfigs []ClientConfig[CONFIG] `json:"endpoints" yaml:"endpoints"`
 }
 
-func (c PoolConfig[CONFIG]) Trim() PoolConfig[CONFIG] {
+func (c PoolConfig[CONFIG]) Trim(configModifiers []ConfigModifier[CONFIG]) PoolConfig[CONFIG] {
 	return PoolConfig[CONFIG]{
 		BrokenFallBehind:   max(c.BrokenFallBehind, 0),
 		CheckSpeedInterval: utils.Select(c.CheckSpeedInterval > 0, c.CheckSpeedInterval, time.Minute),
@@ -80,9 +80,13 @@ func (c PoolConfig[CONFIG]) Trim() PoolConfig[CONFIG] {
 		AdjustPriorityInterval: utils.Select(c.AdjustPriorityInterval > 0, c.AdjustPriorityInterval, time.Second*30),
 		UpgradeSensitivity:     utils.Select(c.UpgradeSensitivity > 0, c.UpgradeSensitivity, time.Minute*3),
 		ClientConfigs: utils.MapSliceNoError(c.ClientConfigs, func(cc ClientConfig[CONFIG]) ClientConfig[CONFIG] {
+			ccc := cc.Config
+			for _, m := range configModifiers {
+				ccc = m(ccc)
+			}
 			return ClientConfig[CONFIG]{
 				Priority: cc.Priority,
-				Config:   cc.Config.Trim(),
+				Config:   ccc,
 			}
 		}),
 	}

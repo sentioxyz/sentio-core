@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "types",
+    srcs = [
+        "address.go",
+        "common.go",
+        "digest.go",
+        "event.go",
+        "language.go",
+        "object.go",
+        "rpc_types.go",
+        "sig.go",
+        "structpb.go",
+        "transaction.go",
+        "transaction_command.go",
+        "transaction_data_v1.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/sui/types",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/sui/types/serde",
+        "//common/log",
+        "//common/utils",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_fardream_go_bcs//bcs",
+        "@com_github_goccy_go_json//:go-json",
+        "@com_github_mr_tron_base58//base58",
+        "@com_github_pkg_errors//:errors",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "types_test",
+    srcs = [
+        "address_test.go",
+        "digest_test.go",
+        "language_test.go",
+        "object_test.go",
+        "rpc_types_test.go",
+        "sig_test.go",
+        "structpb_test.go",
+        "transaction_command_test.go",
+        "transaction_data_v1_test.go",
+        "transaction_test.go",
+    ],
+    data = ["//chain/sui/types/testdata:txs-v1.json"],
+    embed = [":types"],
+    deps = [
+        "//chain/sui/types/serde",
+        "//common/log",
+        "//common/utils",
+        "@com_github_goccy_go_json//:go-json",
+        "@com_github_kinbiko_jsonassert//:jsonassert",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_zap//zapcore",
+    ],
+)

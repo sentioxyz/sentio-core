@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "chain",
+    srcs = [
+        "cache_latest_slot.go",
+        "dimension_external.go",
+        "dimension_simple.go",
+        "operation.go",
+        "slot.go",
+        "types.go",
+        "util.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/chain",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/clientpool",
+        "//common/concurrency",
+        "//common/errgroup",
+        "//common/log",
+        "//common/range",
+        "//common/timehist",
+        "//common/timer",
+        "//common/utils",
+        "@com_github_pkg_errors//:errors",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
+    ],
+)
+
+go_test(
+    name = "chain_test",
+    srcs = [
+        "dimension_simple_test.go",
+        "operation_test.go",
+    ],
+    embed = [":chain"],
+    deps = [
+        "//common/concurrency",
+        "//common/log",
+        "//common/range",
+        "//common/utils",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_zap//zapcore",
+    ],
+)

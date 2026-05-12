@@ -284,18 +284,22 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isJSONRPCRequest {
-		messages, isBatch = ParseRPCMessage(ctx, rawMsg)
-		for _, msg := range messages {
-			if msg.Method == "" {
-				logger.Debugf("message miss method")
-				isJSONRPCRequest = false
-				break
+		messages, isBatch, err = ParseRPCMessage(ctx, rawMsg)
+		if err != nil {
+			isJSONRPCRequest = false
+		} else {
+			for _, msg := range messages {
+				if msg.Method == "" {
+					logger.Debugf("message miss method")
+					isJSONRPCRequest = false
+					break
+				}
 			}
 		}
 	}
 
 	if !isJSONRPCRequest {
-		// not a jsonrpc request, and not a websocket connection, try to call the wildcard method in NonJSONRPCNamespace
+		// not a jsonrpc request, and not a websocket connection
 		if s.debug {
 			logger.Debugw("[ACCESS] non-jsonrpc request", "url", r.URL.String(), "reqBody", string(rawBody))
 			for hk, hv := range r.Header {
@@ -328,7 +332,7 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.debug {
 		logger.Debugw("[ACCESS] jsonrpc request", "body", utils.MustJSONMarshal(rawMsg))
 		for hk, hv := range r.Header {
-			logger.Debugf("Header[%s]: %v", hk, hv)
+			logger.Debugf("ReqHeader[%s]: %v", hk, hv)
 		}
 	}
 	logger.Debugf("Received %d requests", len(messages))
@@ -417,6 +421,11 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.debug {
+		for i, headers := range respHeaders {
+			for hk, hv := range headers {
+				logger.Debugf("RespHeader[%d][%s]: %v", i, hk, hv)
+			}
+		}
 		logger.Debugw("[ACCESS] jsonrpc response", "body", utils.MustJSONMarshal(responses))
 	}
 }

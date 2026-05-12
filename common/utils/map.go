@@ -245,6 +245,12 @@ func CopyMap[K comparable, V any](m map[K]V) map[K]V {
 	return n
 }
 
+func PutIfNotExist[K comparable, V any](m map[K]V, k K, v V) {
+	if _, has := m[k]; !has {
+		m[k] = v
+	}
+}
+
 func PrintCountMap[K comparable, V any](m map[K][]V) string {
 	sec := make([]string, 0, len(m))
 	for k, v := range m {

@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "fuel",
+    srcs = [
+        "client.go",
+        "extserver.go",
+        "slot.go",
+        "types.go",
+        "types_extend.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/fuel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/chain",
+        "//chain/clientpool",
+        "//chain/clientpool/ex",
+        "//common/envconf",
+        "//common/https",
+        "//common/log",
+        "//common/range",
+        "//common/utils",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_fuel_go//:fuel-go",
+        "@com_github_sentioxyz_fuel_go//types",
+    ],
+)
+
+go_test(
+    name = "fuel_test",
+    srcs = [
+        "client_test.go",
+        "types_test.go",
+    ],
+    embed = [":fuel"],
+    deps = [
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_fuel_go//:fuel-go",
+        "@com_github_sentioxyz_fuel_go//types",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

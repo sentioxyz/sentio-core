@@ -572,21 +572,266 @@ func Test_updateConfig_priorityOrderingSetCorrectly(t *testing.T) {
 // ── adjustPriority tests ──────────────────────────────────────────────────────
 
 func Test_adjustPriority_noWaiters_cursorUnchanged(t *testing.T) {
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient)
-	p.updateConfig(PoolConfig[testClientConfig]{
-		AdjustPriorityInterval: 0,
-		ClientConfigs: []ClientConfig[testClientConfig]{
-			quickClientCfg("c1", 1),
-			quickClientCfg("c2", 3),
-		},
-	})
+	// Pool must be ready before calling adjustPriority; otherwise shouldDowngrade
+	// triggers "overall fall behind" (ps.Ready == false) and downgrades the cursor.
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 3))
 
-	p.adjustPriority() // pool.Waiting() == 0 → no downgrade
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, p.WaitReady(ctx))
+
+	p.adjustPriority() // no waiters, pool ready, valid entry → no downgrade
 
 	p.mu.Lock()
 	assert.Equal(t, 0, p.priorityCursor)
 	p.mu.Unlock()
 }
+
+// ── poolStatus.Ready ─────────────────────────────────────────────────────────
+
+func Test_poolStatusBuilder_readyTrueWhenValidEntry(t *testing.T) {
+	p := newPoolForStatus()
+	now := time.Now()
+	entries := map[string]pool.Entry[ClientConfig[testClientConfig], entryStatus[*testClient]]{
+		"c1": makeEnabledEntry("c1", 100, now),
+	}
+	result := p.poolStatusBuilder(entries, poolStatus{}, 0)
+	assert.True(t, result.Ready)
+}
+
+func Test_poolStatusBuilder_readyFalseWhenNoValidEntries(t *testing.T) {
+	p := newPoolForStatus()
+	result := p.poolStatusBuilder(nil, poolStatus{}, 0)
+	assert.False(t, result.Ready)
+}
+
+// ── WithMaxPriority ───────────────────────────────────────────────────────────
+
+func Test_UseClient_withMaxPriority_filtersHigherPriority(t *testing.T) {
+	// Both c1 (priority 1) and c2 (priority 1) are enabled; WithMaxPriority(0) excludes all.
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 1))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	r := p.UseClient(ctx, "test", func(_ context.Context, _ *testClient) Result {
+		return Result{}
+	}, WithMaxPriority[testClientConfig](0))
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+}
+
+// ── UseClient: Broken + BrokenForTask simultaneously ─────────────────────────
+
+func Test_UseClient_brokenAndBrokenForTask_bansAndBlacklists(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 1))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	callCount := 0
+	var firstClient string
+	r := p.UseClient(ctx, "test", func(_ context.Context, cli *testClient) Result {
+		callCount++
+		if callCount == 1 {
+			firstClient = cli.config.Name
+			return Result{Broken: true, BrokenForTask: true, Err: fmt.Errorf("both broken")}
+		}
+		// Must be a different client (first is blacklisted for this task)
+		assert.NotEqual(t, firstClient, cli.config.Name)
+		return Result{}
+	})
+	require.NoError(t, r.Err)
+	assert.Equal(t, 2, callCount)
+
+	// Verify the first client is now banned.
+	p.mu.Lock()
+	extra := p.entryExtra[firstClient]
+	p.mu.Unlock()
+	assert.NotNil(t, extra, "entryExtra should exist for banned client")
+	assert.NotNil(t, extra.ban, "ban should be set on the broken client")
+	assert.True(t, extra.ban.enable(time.Now()))
+}
+
+// ── UseClient: BrokenForTask with a single client → ErrNoValidClient ─────────
+
+func Test_UseClient_brokenForTask_singleClient_returnsErrNoValidClient(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	r := p.UseClient(ctx, "test", func(_ context.Context, _ *testClient) Result {
+		return Result{BrokenForTask: true}
+	})
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+}
+
+// ── ConfigModifier applied via Start ─────────────────────────────────────────
+
+func Test_ConfigModifier_appliedWhenStartReceivesConfig(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	modifier := func(c testClientConfig) testClientConfig {
+		c.Value = "modified"
+		return c
+	}
+
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, modifier)
+	ch := make(chan PoolConfig[testClientConfig], 1)
+	go p.Start(ctx, ch)
+
+	ch <- PoolConfig[testClientConfig]{
+		BrokenFallBehind:   time.Hour,
+		CheckSpeedInterval: time.Hour,
+		BanConfig:          BanConfig{Min: 50 * time.Millisecond, ExtendMax: time.Second, ExtendRate: 1.5},
+		ClientConfigs: []ClientConfig[testClientConfig]{
+			{Priority: 1, Config: testClientConfig{Name: "c1", Value: "original", Interval: 10 * time.Millisecond}},
+		},
+	}
+
+	// Wait for the config to be processed and the pool to become ready.
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+
+	useCtx, useCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer useCancel()
+
+	var configValue string
+	r := p.UseClient(useCtx, "test", func(_ context.Context, cli *testClient) Result {
+		configValue = cli.config.Value
+		return Result{}
+	})
+	require.NoError(t, r.Err)
+	assert.Equal(t, "modified", configValue)
+}
+
+// ── Start: closed config channel ─────────────────────────────────────────────
+
+func Test_Start_closedChannel_poolContinuesWorking(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient)
+	ch := make(chan PoolConfig[testClientConfig])
+	go p.Start(ctx, ch)
+
+	ch <- PoolConfig[testClientConfig]{
+		BrokenFallBehind:   time.Hour,
+		CheckSpeedInterval: time.Hour,
+		BanConfig:          BanConfig{Min: 50 * time.Millisecond, ExtendMax: time.Second, ExtendRate: 1.5},
+		ClientConfigs: []ClientConfig[testClientConfig]{
+			{Priority: 1, Config: testClientConfig{Name: "c1", Interval: 10 * time.Millisecond}},
+		},
+	}
+	// Close the channel — pool should keep running and serving requests.
+	close(ch)
+	time.Sleep(20 * time.Millisecond) // let the close propagate
+
+	useCtx, useCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer useCancel()
+
+	r := p.UseClient(useCtx, "test", func(_ context.Context, _ *testClient) Result {
+		return Result{}
+	})
+	require.NoError(t, r.Err)
+}
+
+// ── GetState ─────────────────────────────────────────────────────────────────
+
+func Test_GetState_readyAndBlockAfterInit(t *testing.T) {
+	p := startPoolWith(t, ClientConfig[testClientConfig]{
+		Priority: 1,
+		Config:   testClientConfig{Name: "c1", Interval: 10 * time.Millisecond},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, p.WaitReady(ctx))
+
+	latest, _, ready, psi := p.GetState()
+	assert.True(t, ready)
+	assert.Greater(t, latest.Number, uint64(0))
+	assert.Greater(t, psi, uint64(0))
+}
+
+// ── WaitReady / WaitBlock / WaitBlockInterval ─────────────────────────────────
+
+func Test_WaitReady_returnsNilWhenPoolBecomesReady(t *testing.T) {
+	p := startPoolWith(t, ClientConfig[testClientConfig]{
+		Priority: 1,
+		Config:   testClientConfig{Name: "c1", Interval: 10 * time.Millisecond},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, p.WaitReady(ctx))
+	_, _, ready, _ := p.GetState()
+	assert.True(t, ready)
+}
+
+func Test_WaitReady_returnsErrOnContextCancel(t *testing.T) {
+	neverInit := ClientConfig[testClientConfig]{
+		Priority: 1,
+		Config: testClientConfig{
+			Name:          "c1",
+			Interval:      10 * time.Millisecond,
+			InitSuccessAt: time.Now().Add(time.Hour),
+		},
+	}
+	p := startPoolWith(t, neverInit)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- p.WaitReady(ctx) }()
+
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		assert.Error(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("WaitReady did not return after context cancellation")
+	}
+}
+
+func Test_WaitBlock_returnsBlockAtOrAboveTarget(t *testing.T) {
+	p := startPoolWith(t, ClientConfig[testClientConfig]{
+		Priority: 1,
+		Config:   testClientConfig{Name: "c1", Interval: 10 * time.Millisecond},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, p.WaitReady(ctx))
+	current, _, _, _ := p.GetState()
+
+	// WaitBlock for the number we already have should return immediately.
+	got, err := p.WaitBlock(ctx, current.Number)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, got.Number, current.Number)
+}
+
+func Test_WaitBlockInterval_returnsPositiveDuration(t *testing.T) {
+	// Block numbers in testClient advance 1 per real second, so this test takes ~1s.
+	p := startPoolWith(t, ClientConfig[testClientConfig]{
+		Priority: 1,
+		Config:   testClientConfig{Name: "c1", Interval: 10 * time.Millisecond},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	dur, err := p.WaitBlockInterval(ctx)
+	require.NoError(t, err)
+	assert.Greater(t, dur, time.Duration(0))
+}
+
+// ── adjustPriority: upgrade path ─────────────────────────────────────────────
 
 func Test_adjustPriority_withWaiters_downgradesCursor(t *testing.T) {
 	// client that never initializes → UseClient will wait → pool.Waiting() > 0
@@ -625,4 +870,42 @@ func Test_adjustPriority_withWaiters_downgradesCursor(t *testing.T) {
 	p.mu.Lock()
 	assert.Equal(t, 1, p.priorityCursor) // moved from 0→1 (priority 1→3)
 	p.mu.Unlock()
+}
+
+func Test_adjustPriority_upgradesWhenValidHigherPriorityExists(t *testing.T) {
+	fast1 := ClientConfig[testClientConfig]{Priority: 1, Config: testClientConfig{Name: "c1", Interval: 10 * time.Millisecond}}
+	fast2 := ClientConfig[testClientConfig]{Priority: 3, Config: testClientConfig{Name: "c2", Interval: 10 * time.Millisecond}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient)
+	p.updateConfig(PoolConfig[testClientConfig]{
+		BrokenFallBehind:       time.Hour,
+		CheckSpeedInterval:     time.Hour,
+		BanConfig:              BanConfig{Min: 50 * time.Millisecond, ExtendMax: time.Second, ExtendRate: 1.5},
+		AdjustPriorityInterval: 0,
+		UpgradeSensitivity:     0, // upgrade as soon as no recent activity at current priority
+		ClientConfigs:          []ClientConfig[testClientConfig]{fast1, fast2},
+	})
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	// Force cursor to 1 (priority 3), enabling both c1 and c2.
+	p.mu.Lock()
+	p.priorityCursor = 1
+	p.mu.Unlock()
+	p.enablePriority()
+
+	// Wait until c1 (priority 1) is ready.
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer waitCancel()
+	require.NoError(t, p.WaitReady(waitCtx))
+
+	// No waiters, no recent activity at priority-3, c1 is valid at priority < 3 → upgrade.
+	p.adjustPriority()
+
+	p.mu.Lock()
+	cursor := p.priorityCursor
+	p.mu.Unlock()
+	assert.Equal(t, 0, cursor) // upgraded back to highest priority (cursor 0 = priority 1)
 }

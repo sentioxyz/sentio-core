@@ -75,6 +75,10 @@ func (c ClientConfig) SetSpecialMethodPrefix(specialMethodPrefix string) ClientC
 	return r
 }
 
+func (c ClientConfig) SupportGRPC() bool {
+	return c.GrpcEndpoint != ""
+}
+
 func (c ClientConfig) GetName() string {
 	return c.Endpoint
 }
@@ -379,7 +383,12 @@ func (p *ClientPool) UseGRPCConnection(
 	method string,
 	fn func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result,
 ) clientpool.Report {
-	return p.UseClient(ctx, method, func(ctx context.Context, cli *Client) clientpool.Result {
-		return cli.UseGRPCConnection(ctx, method, fn)
-	})
+	return p.UseClient(
+		ctx,
+		method,
+		func(ctx context.Context, cli *Client) clientpool.Result {
+			return cli.UseGRPCConnection(ctx, method, fn)
+		},
+		clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
+	)
 }

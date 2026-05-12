@@ -153,6 +153,7 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 func (c *Client) subscribeUsingGRPC(ctx context.Context, ch chan<- clientpool.Block) error {
 	_, logger := log.FromContext(ctx, "grpcEndpoint", c.config.GrpcEndpoint)
 	cli := rpcv2.NewSubscriptionServiceClient(c.grpcConn)
+	startAt := time.Now()
 	stream, err := cli.SubscribeCheckpoints(ctx, &rpcv2.SubscribeCheckpointsRequest{
 		ReadMask: &fieldmaskpb.FieldMask{
 			Paths: []string{
@@ -162,6 +163,7 @@ func (c *Client) subscribeUsingGRPC(ctx context.Context, ch chan<- clientpool.Bl
 			},
 		},
 	})
+	c.stat.Record("subscribe.grpc_SubscribeCheckpoints", time.Since(startAt), err != nil)
 	if err != nil {
 		logger.Warnfe(err, "call subscribe checkpoints failed")
 		return err
@@ -170,7 +172,7 @@ func (c *Client) subscribeUsingGRPC(ctx context.Context, ch chan<- clientpool.Bl
 		_ = stream.CloseSend()
 	}()
 	for {
-		startAt := time.Now()
+		startAt = time.Now()
 		var res *rpcv2.SubscribeCheckpointsResponse
 		res, err = stream.Recv()
 		if err != nil {
@@ -182,7 +184,7 @@ func (c *Client) subscribeUsingGRPC(ctx context.Context, ch chan<- clientpool.Bl
 			Hash:      res.GetCheckpoint().GetDigest(),
 			Timestamp: res.GetCheckpoint().GetSummary().GetTimestamp().AsTime(),
 		}
-		c.stat.Record("subscribe.gotCheckpoint", time.Since(startAt), false)
+		c.stat.Record("subscribe.grpc_SubscribeCheckpoints.recv", time.Since(startAt), false)
 		select {
 		case ch <- block:
 		case <-ctx.Done():

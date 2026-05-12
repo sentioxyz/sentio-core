@@ -65,7 +65,7 @@ func (p *ClientPool[CONFIG, CLIENT]) Snapshot() any {
 		clients = append(clients, client{
 			ent:        ent,
 			name:       entName,
-			publicName: ent.Status.Client.GetName(),
+			publicName: ent.Status.ClientName,
 			state:      p._clientState(entName, ent, now),
 		})
 	}

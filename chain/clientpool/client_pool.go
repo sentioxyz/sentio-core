@@ -19,7 +19,8 @@ import (
 )
 
 type entryStatus[CLIENT pool.Status] struct {
-	Client CLIENT
+	Client     CLIENT
+	ClientName string
 
 	Initialized            bool
 	InitializeFailedTimes  int
@@ -235,6 +236,7 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 
 	if !es.Initialized {
 		es.Client = p.clientBuilder(config.Config)
+		es.ClientName = es.Client.GetName()
 		var latest Block
 		err := backoff.RetryNotify(
 			func() (err error) {
@@ -489,7 +491,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		}
 		if !result.Broken && !result.BrokenForTask {
 			p.clientActive(curCtx, entName, theme)
-			return Report{Err: result.Err, ConfigName: entName, ClientName: ent.Status.Client.GetName()}
+			return Report{Err: result.Err, ConfigName: entName, ClientName: ent.Status.ClientName}
 		}
 	}
 }

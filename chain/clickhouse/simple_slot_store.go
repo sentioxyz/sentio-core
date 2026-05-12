@@ -258,8 +258,8 @@ func (s *SimpleSlotStore[SLOT]) Save(
 	flushUsed := make([]time.Duration, len(s.tablesMeta.Tables))
 	flushRows := make([]int, len(s.tablesMeta.Tables))
 	flushNums := make([]int, len(s.tablesMeta.Tables))
-	flushDone := make([]rg.RangeSet, len(s.tablesMeta.Tables))
-	var allDone rg.RangeSet
+	flushDone := utils.BuildSlice(rg.EmptyRangeSet, len(s.tablesMeta.Tables))
+	allDone := rg.EmptyRangeSet
 
 	concurrency.RunWithTaskChan(
 		saveGroup, saveCtx, int(s.flushConcurrency), taskChan,

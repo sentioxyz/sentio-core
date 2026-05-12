@@ -909,3 +909,20 @@ func Test_adjustPriority_upgradesWhenValidHigherPriorityExists(t *testing.T) {
 	p.mu.Unlock()
 	assert.Equal(t, 0, cursor) // upgraded back to highest priority (cursor 0 = priority 1)
 }
+
+// ── Result ─────────────────────────────────────────────
+
+func Test_ResultString(t *testing.T) {
+	var r Result
+	assert.Equal(t, "", r.String())
+	r.Err = fmt.Errorf("has error")
+	assert.Equal(t, "Err[has error]", r.String())
+	r.AddTags = []string{"tag1", "tag2"}
+	assert.Equal(t, "Err[has error],AddTags[tag1,tag2]", r.String())
+	r.Broken = true
+	assert.Equal(t, "Err[has error],Broken,AddTags[tag1,tag2]", r.String())
+	r.BrokenForTask = true
+	assert.Equal(t, "Err[has error],Broken,BrokenForTask,AddTags[tag1,tag2]", r.String())
+	r.Err = nil
+	assert.Equal(t, "Broken,BrokenForTask,AddTags[tag1,tag2]", r.String())
+}

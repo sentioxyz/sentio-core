@@ -1,6 +1,7 @@
 package clientpool
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/cenkalti/backoff/v4"
@@ -377,6 +378,41 @@ type Result struct {
 	AddTags       []string
 }
 
+func (r Result) String() string {
+	var buf bytes.Buffer
+	if r.Err != nil {
+		buf.WriteString("Err[")
+		buf.WriteString(r.Err.Error())
+		buf.WriteString("]")
+	}
+	if r.Broken {
+		if buf.Len() > 0 {
+			buf.WriteString(",")
+		}
+		buf.WriteString("Broken")
+	}
+	if r.BrokenForTask {
+		if buf.Len() > 0 {
+			buf.WriteString(",")
+		}
+		buf.WriteString("BrokenForTask")
+	}
+	if len(r.AddTags) > 0 {
+		if buf.Len() > 0 {
+			buf.WriteString(",")
+		}
+		buf.WriteString("AddTags[")
+		for i, tag := range r.AddTags {
+			if i > 0 {
+				buf.WriteString(",")
+			}
+			buf.WriteString(tag)
+		}
+		buf.WriteString("]")
+	}
+	return buf.String()
+}
+
 type Report struct {
 	Err        error
 	ConfigName string
@@ -489,7 +525,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		logger.Debugw("choose client", "client", entName, "count", len(entries))
 		p.consumerDoing(cid, "executing")
 		result := fn(ctx, ent.Status.Client)
-		logger.Debugw("got use result", "client", entName, "result", result)
+		logger.Debugw("got use result", "client", entName, "result", result.String())
 		for _, tag := range result.AddTags {
 			p.clientAddTag(curCtx, entName, tag)
 		}
@@ -497,7 +533,6 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 			p.clientBan(curCtx, entName, result.Err)
 		}
 		if result.BrokenForTask {
-			logger.Debugw("client excluded for this task", "client", entName)
 			blackList.Add(entName)
 		}
 		if !result.Broken && !result.BrokenForTask {

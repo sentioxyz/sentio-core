@@ -717,12 +717,18 @@ func (f TransactionFetchConfig) PruneTransaction(txn Transaction, eventFilters [
 	if !f.NeedAllEvents {
 		r.Events = utils.FilterArr(txn.Events, BuildEventFilter(eventFilters))
 	} else {
-		// r.Events and r.Changes should be a empty string at least, can not be nil
-		r.Events = make([]*Event, 0)
+		r.Events = txn.Events
 	}
 	r.Changes = utils.FilterArr(txn.Changes, func(c *WriteSetChange) bool {
 		return f.ChangeResourceTypes.IncludeTypeString(c.ResourceType())
 	})
+	// r.Events and r.Changes should be a empty string at least, can not be nil
+	if r.Events == nil {
+		r.Events = make([]*Event, 0)
+	}
+	if r.Changes == nil {
+		r.Changes = make([]*WriteSetChange, 0)
+	}
 	return r
 }
 

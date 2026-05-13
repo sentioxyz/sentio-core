@@ -2,7 +2,9 @@ package chains
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"strings"
 )
 
 type ExplorerAPIType string
@@ -51,6 +53,40 @@ func (e EthVariation) String() string {
 
 func (e EthVariation) MarshalJSON() ([]byte, error) {
 	return json.Marshal(e.String())
+}
+
+func (e *EthVariation) UnmarshalJSON(b []byte) error {
+	var s string
+	if json.Unmarshal(b, &s) == nil {
+		switch strings.ToLower(s) {
+		case "default":
+			*e = EthVariationDefault
+		case "arbitrum":
+			*e = EthVariationArbitrum
+		case "optimism":
+			*e = EthVariationOptimism
+		case "zksync":
+			*e = EthVariationZkSync
+		case "polygonzkevm":
+			*e = EthVariationPolygonZkEVM
+		case "substrate":
+			*e = EthVariationSubstrate
+		case "tron":
+			*e = EthVariationTron
+		default:
+			return fmt.Errorf("unknown EthVariation value: %s", s)
+		}
+		return nil
+	}
+	var n uint
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	if n > 6 {
+		return fmt.Errorf("unknown EthVariation value: %d", n)
+	}
+	*e = EthVariation(n)
+	return nil
 }
 
 type EthChainInfo struct {

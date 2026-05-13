@@ -33,27 +33,29 @@ func Test_ResourceChange(t *testing.T) {
 	assert.Len(t, filtered, 2)
 }
 
+func makeChange(typeStr string) *WriteSetChange {
+	return &WriteSetChange{
+		WriteSetChange: &api.WriteSetChange{
+			Type: api.WriteSetChangeVariantWriteResource,
+			Inner: &api.WriteSetChangeWriteResource{
+				Data: &api.MoveResource{Type: typeStr},
+			},
+		},
+	}
+}
+
+func makeEvent(typeStr string) *Event {
+	return &Event{
+		Event: &api.Event{Type: typeStr},
+	}
+}
+
 func Test_PruneTransaction(t *testing.T) {
 	tx := Transaction{
-		Changes: []*WriteSetChange{{
-			WriteSetChange: &api.WriteSetChange{
-				Type: api.WriteSetChangeVariantWriteResource,
-				Inner: &api.WriteSetChangeWriteResource{
-					Data: &api.MoveResource{
-						Type: "0x1::aa::bb",
-					},
-				},
-			},
-		}, {
-			WriteSetChange: &api.WriteSetChange{
-				Type: api.WriteSetChangeVariantWriteResource,
-				Inner: &api.WriteSetChangeWriteResource{
-					Data: &api.MoveResource{
-						Type: "0x1::aa::cc",
-					},
-				},
-			},
-		}},
+		Changes: []*WriteSetChange{
+			makeChange("0x1::aa::bb"),
+			makeChange("0x1::aa::cc"),
+		},
 	}
 	c := TransactionFetchConfig{
 		NeedAllEvents: false,
@@ -68,6 +70,99 @@ func Test_PruneTransaction(t *testing.T) {
 
 	// tx not changed
 	assert.Equal(t, 2, len(tx.Changes))
+}
+
+func Test_PruneTransaction_NeedAllEvents(t *testing.T) {
+	ev1 := makeEvent("0x1::coin::DepositEvent")
+	ev2 := makeEvent("0x1::coin::WithdrawEvent")
+	tx := Transaction{
+		Events:  []*Event{ev1, ev2},
+		Changes: []*WriteSetChange{makeChange("0x1::aa::bb")},
+	}
+
+	c := TransactionFetchConfig{
+		NeedAllEvents:       true,
+		ChangeResourceTypes: move.TypeSet{move.MustBuildType("0x1::aa::bb")},
+	}
+	ntx := c.PruneTransaction(tx, nil)
+
+	assert.Equal(t, 2, len(ntx.Events))
+	assert.Equal(t, ev1, ntx.Events[0])
+	assert.Equal(t, ev2, ntx.Events[1])
+	// original not mutated
+	assert.Equal(t, 2, len(tx.Events))
+}
+
+func Test_PruneTransaction_EventFilter(t *testing.T) {
+	ev1 := makeEvent("0x1::coin::DepositEvent")
+	ev2 := makeEvent("0x1::coin::WithdrawEvent")
+	tx := Transaction{
+		Events:  []*Event{ev1, ev2},
+		Changes: []*WriteSetChange{makeChange("0x1::aa::bb")},
+	}
+
+	c := TransactionFetchConfig{
+		NeedAllEvents:       false,
+		ChangeResourceTypes: move.TypeSet{move.MustBuildType("0x1::aa::bb")},
+	}
+	filters := []EventFilter{
+		{Type: move.MustBuildType("0x1::coin::DepositEvent")},
+	}
+	ntx := c.PruneTransaction(tx, filters)
+
+	assert.Equal(t, 1, len(ntx.Events))
+	assert.Equal(t, ev1, ntx.Events[0])
+}
+
+func Test_PruneTransaction_NilProtection(t *testing.T) {
+	tx := Transaction{} // no events, no changes
+
+	c := TransactionFetchConfig{
+		NeedAllEvents:       false,
+		ChangeResourceTypes: move.TypeSet{},
+	}
+	ntx := c.PruneTransaction(tx, nil)
+
+	assert.NotNil(t, ntx.Events)
+	assert.NotNil(t, ntx.Changes)
+	assert.Equal(t, 0, len(ntx.Events))
+	assert.Equal(t, 0, len(ntx.Changes))
+}
+
+func Test_PruneTransaction_NilProtection_NeedAllEvents(t *testing.T) {
+	tx := Transaction{} // nil events
+
+	c := TransactionFetchConfig{
+		NeedAllEvents:       true,
+		ChangeResourceTypes: move.TypeSet{},
+	}
+	ntx := c.PruneTransaction(tx, nil)
+
+	assert.NotNil(t, ntx.Events)
+	assert.NotNil(t, ntx.Changes)
+}
+
+func Test_TransactionFetchConfig_Merge(t *testing.T) {
+	a := TransactionFetchConfig{
+		NeedAllEvents:       false,
+		ChangeResourceTypes: move.TypeSet{move.MustBuildType("0x1::aa::bb")},
+	}
+	b := TransactionFetchConfig{
+		NeedAllEvents:       true,
+		ChangeResourceTypes: move.TypeSet{move.MustBuildType("0x1::aa::cc")},
+	}
+
+	merged := a.Merge(b)
+	assert.True(t, merged.NeedAllEvents)
+	bb := "0x1::aa::bb"
+	cc := "0x1::aa::cc"
+	assert.True(t, merged.ChangeResourceTypes.IncludeTypeString(&bb))
+	assert.True(t, merged.ChangeResourceTypes.IncludeTypeString(&cc))
+
+	// NeedAllEvents is OR: false OR false = false
+	c := TransactionFetchConfig{NeedAllEvents: false}
+	d := TransactionFetchConfig{NeedAllEvents: false}
+	assert.False(t, c.Merge(d).NeedAllEvents)
 }
 
 func Test_ResourceChangeWithGeneric(t *testing.T) {

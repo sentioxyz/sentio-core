@@ -1,6 +1,9 @@
 package chains
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"encoding/json"
+	"github.com/ethereum/go-ethereum/common"
+)
 
 type ExplorerAPIType string
 
@@ -24,6 +27,31 @@ const (
 	EthVariationSubstrate    EthVariation = 5
 	EthVariationTron         EthVariation = 6
 )
+
+func (e EthVariation) String() string {
+	switch e {
+	case EthVariationDefault:
+		return "default"
+	case EthVariationArbitrum:
+		return "arbitrum"
+	case EthVariationOptimism:
+		return "optimism"
+	case EthVariationZkSync:
+		return "zksync"
+	case EthVariationPolygonZkEVM:
+		return "polygonzkevm"
+	case EthVariationSubstrate:
+		return "substrate"
+	case EthVariationTron:
+		return "tron"
+	default:
+		return "unknown"
+	}
+}
+
+func (e EthVariation) MarshalJSON() ([]byte, error) {
+	return json.Marshal(e.String())
+}
 
 type EthChainInfo struct {
 	ChainInfo

@@ -547,6 +547,7 @@ func (c *Client) Snapshot() any {
 	return map[string]any{
 		"statistic":        c.stat.Snapshot(),
 		"hasStateDataFrom": c.hasStateDataFrom,
+		"chainInfo":        c.info,
 	}
 }
 

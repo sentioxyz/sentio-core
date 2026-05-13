@@ -156,14 +156,14 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 		return clientpool.Block{}, err
 	}
 
-	if c.config.IgnoreStateFromCheck {
-		logger.Warnf("will be treated as a archive node because IgnoreStateFromCheck is true")
-		return latest, nil
-	}
-
 	if c.isTronChain() {
 		c.hasStateDataFrom = math.MaxUint64
 		logger.Warnf("no history state for tron chains")
+		return latest, nil
+	}
+
+	if c.config.IgnoreStateFromCheck {
+		logger.Warnf("will be treated as a archive node because IgnoreStateFromCheck is true")
 		return latest, nil
 	}
 

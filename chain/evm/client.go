@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
@@ -467,37 +466,24 @@ func (c *Client) CallContext(
 	if c.hasStateDataFrom > 0 {
 		// not a archive node
 		if argIndex, has := stateMethodBlockNumberArgIndex[method]; has {
-			var blockNumber = rpc.LatestBlockNumber // no block parameter means use latest
-			var blockHash *common.Hash
+			var bp rpc.BlockNumberOrHash
 			if argIndex < len(args) {
 				raw, _ := json.Marshal(args[argIndex])
-				var hash common.Hash
-				if json.Unmarshal(raw, &blockNumber) != nil {
-					if json.Unmarshal(raw, &hash) == nil {
-						// is a block hash (EIP-1898)
-						blockHash = &hash
-					} else {
-						// not block number/tag/hash, invalid request
-						return clientpool.Result{
-							Err: errors.Errorf("invalid block parameter in #%d arg for the method %s: %s",
-								argIndex, method, string(raw)),
-							BrokenForTask: true,
-						}
+				if err := json.Unmarshal(raw, &bp); err != nil {
+					// invalid request
+					return clientpool.Result{
+						Err: errors.Wrapf(err, "invalid block parameter %s in #%d arg for the method %s",
+							string(raw), argIndex, method),
 					}
 				}
 			}
-			var block string
-			if blockHash != nil {
-				block = blockHash.String()
-			} else {
-				block = blockNumber.String()
-			}
-			if c.isTronChain() && (blockHash != nil || blockNumber != rpc.LatestBlockNumber) {
+			if c.isTronChain() && (bp.BlockHash != nil || *bp.BlockNumber != rpc.LatestBlockNumber) {
 				return clientpool.Result{
-					Err: errors.Errorf("method %s with block %s is not supported, just support TAG as latest", method, block),
+					Err: errors.Errorf("method %s with block parameter %s is not supported, just support TAG as latest",
+						method, bp.String()),
 				}
 			}
-			if blockHash != nil || (blockNumber >= 0 && uint64(blockNumber) < c.hasStateDataFrom) {
+			if bp.BlockHash != nil || (*bp.BlockNumber >= 0 && uint64(*bp.BlockNumber) < c.hasStateDataFrom) {
 				var reason string
 				if c.hasStateDataFrom == math.MaxUint64 {
 					reason = "this is a full node"
@@ -505,7 +491,8 @@ func (c *Client) CallContext(
 					reason = fmt.Sprintf("the start block of state data is %d", c.hasStateDataFrom)
 				}
 				return clientpool.Result{
-					Err:           errors.Errorf("miss state data at block %s for the method %s, %s", block, method, reason),
+					Err: errors.Errorf("miss state data at block %s for the method %s, %s",
+						bp.String(), method, reason),
 					BrokenForTask: true,
 				}
 			}

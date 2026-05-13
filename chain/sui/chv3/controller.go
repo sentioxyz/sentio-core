@@ -270,6 +270,13 @@ func (c *Controller) QueryTransactionsV2(
 	if len(filter.EventFilters) > 0 {
 		var parts []string
 		// typePattern
+		for _, ff := range filter.EventFilters {
+			for _, typ := range ff.TypePattern {
+				if typ.MainHasAny() {
+					return nil, errors.Errorf("invalid event type %s", typ.String())
+				}
+			}
+		}
 		rawTypes := utils.MapSliceNoError(filter.EventFilters, func(ff sui.EventFilterV2) []string {
 			return utils.MapSliceNoError(ff.TypePattern, move.Type.Main)
 		})
@@ -508,12 +515,16 @@ func (c *Controller) QueryObjectChangesV2(
 	}
 	// typePattern filter
 	for _, typ := range filter.TypePattern {
-		if typ.HasArgs() {
+		if typ.HasArgs() && !typ.HasAny() {
 			filters = append(filters, "object_type = ?")
-		} else {
+			args = append(args, typ.String())
+		} else if !typ.MainHasAny() {
 			filters = append(filters, "object_raw_type = ?")
+			args = append(args, typ.Main())
+		} else {
+			filters = append(filters, "object_raw_type LIKE ?")
+			args = append(args, strings.ReplaceAll(typ.Main(), "*", "%"))
 		}
-		args = append(args, typ.String())
 	}
 	// objectIDIn filter
 	if filter.ObjectIDIn != nil && !filter.ObjectIDIn.Empty() {

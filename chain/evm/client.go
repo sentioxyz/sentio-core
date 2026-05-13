@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
@@ -14,10 +16,12 @@ import (
 	"reflect"
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/chain/clientpool/ex"
+	"sentioxyz/sentio-core/common/chains"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -100,6 +104,7 @@ type Client struct {
 	config     ClientConfig
 	httpClient *http.Client
 	rpcClient  *rpc.Client
+	info       *chains.EthChainInfo
 	stat       *ex.StatWinManager
 
 	hasStateDataFrom uint64
@@ -112,6 +117,10 @@ func NewClient(config ClientConfig) *Client {
 		httpClient: httpClient,
 		stat:       ex.NewStatWinManager(time.Minute),
 	}
+}
+
+func (c *Client) isTronChain() bool {
+	return c.info != nil && c.info.Variation == chains.EthVariationTron
 }
 
 func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
@@ -137,6 +146,7 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
 				"result of eth_chainId is %d, expected is %d", uint64(result), c.config.ChainID)
 		}
+		c.info = chains.EthChainIDToInfo[chains.ChainID(strconv.FormatUint(c.config.ChainID, 10))]
 	}
 
 	// get latest block
@@ -148,6 +158,12 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 
 	if c.config.IgnoreStateFromCheck {
 		logger.Warnf("will be treated as a archive node because IgnoreStateFromCheck is true")
+		return latest, nil
+	}
+
+	if c.isTronChain() {
+		c.hasStateDataFrom = math.MaxUint64
+		logger.Warnf("no history state for tron chains")
 		return latest, nil
 	}
 
@@ -448,32 +464,48 @@ func (c *Client) CallContext(
 		defer cancel()
 	}
 	// for all state-related method, checking block number in args to detect missing state data
-	switch {
-	case c.hasStateDataFrom == math.MaxUint64:
-		if _, has := stateMethodBlockNumberArgIndex[method]; has {
-			return clientpool.Result{
-				Err:           errors.Errorf("miss state data"),
-				BrokenForTask: true,
-			}
-		}
-	case c.hasStateDataFrom > 0:
+	if c.hasStateDataFrom > 0 {
+		// not a archive node
 		if argIndex, has := stateMethodBlockNumberArgIndex[method]; has {
 			var blockNumber = rpc.LatestBlockNumber // no block parameter means use latest
+			var blockHash *common.Hash
 			if argIndex < len(args) {
 				raw, _ := json.Marshal(args[argIndex])
-				if err := json.Unmarshal(raw, &blockNumber); err != nil {
-					// invalid request or it is a block hash
-					return clientpool.Result{
-						Err: errors.Wrapf(err, "unmarshal block parameter in #%d args %v for the method %s failed",
-							argIndex, args[argIndex], method),
-						BrokenForTask: true,
+				var hash common.Hash
+				if json.Unmarshal(raw, &blockNumber) != nil {
+					if json.Unmarshal(raw, &hash) == nil {
+						// is a block hash (EIP-1898)
+						blockHash = &hash
+					} else {
+						// not block number/tag/hash, invalid request
+						return clientpool.Result{
+							Err: errors.Errorf("invalid block parameter in #%d arg for the method %s: %s",
+								argIndex, method, string(raw)),
+							BrokenForTask: true,
+						}
 					}
 				}
 			}
-			if blockNumber >= 0 && uint64(blockNumber) < c.hasStateDataFrom {
+			var block string
+			if blockHash != nil {
+				block = blockHash.String()
+			} else {
+				block = blockNumber.String()
+			}
+			if c.isTronChain() && (blockHash != nil || blockNumber != rpc.LatestBlockNumber) {
 				return clientpool.Result{
-					Err: errors.Errorf("miss state data at block %d for the method %s, "+
-						"the start block of state data is %d", blockNumber, method, c.hasStateDataFrom),
+					Err: errors.Errorf("method %s with block %s is not supported, just support TAG as latest", method, block),
+				}
+			}
+			if blockHash != nil || (blockNumber >= 0 && uint64(blockNumber) < c.hasStateDataFrom) {
+				var reason string
+				if c.hasStateDataFrom == math.MaxUint64 {
+					reason = "this is a full node"
+				} else {
+					reason = fmt.Sprintf("the start block of state data is %d", c.hasStateDataFrom)
+				}
+				return clientpool.Result{
+					Err:           errors.Errorf("miss state data at block %s for the method %s, %s", block, method, reason),
 					BrokenForTask: true,
 				}
 			}

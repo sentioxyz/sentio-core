@@ -104,6 +104,11 @@ type entryExtra struct {
 	*active
 }
 
+const (
+	consumerWaiting   = "waiting"
+	consumerExecuting = "executing"
+)
+
 type consumer struct {
 	theme     string
 	blackList map[string]error
@@ -442,6 +447,17 @@ func (p *ClientPool[CONFIG, CLIENT]) consumerDoing(id uint64, doing string) {
 	p.consumer[id] = c
 }
 
+func (p *ClientPool[CONFIG, CLIENT]) consumerCountDoing(doing string) (count int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, c := range p.consumer {
+		if c.doing == doing {
+			count++
+		}
+	}
+	return count
+}
+
 func (p *ClientPool[CONFIG, CLIENT]) consumerLeave(id uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -531,7 +547,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 			if backup == 0 {
 				return Report{Err: ErrNoValidClient}
 			}
-			p.consumerDoing(cid, "waiting")
+			p.consumerDoing(cid, consumerWaiting)
 			if err := p.pool.Wait(ctx, psi); err != nil {
 				return Report{Err: err} // only because ctx canceled
 			}
@@ -539,7 +555,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		}
 		entName, ent := p.chooseOne(entries)
 		logger.Debugw("choose client", "client", entName, "count", len(entries))
-		p.consumerDoing(cid, "executing")
+		p.consumerDoing(cid, consumerExecuting)
 		result := fn(ctx, ent.Status.Client)
 		logger.Debugw("got use result", "client", entName, "result", result.String())
 		for _, tag := range result.AddTags {
@@ -703,7 +719,7 @@ func (p *ClientPool[CONFIG, CLIENT]) updateConfig(c PoolConfig[CONFIG]) {
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) shouldDowngrade() string {
-	if p.pool.Waiting() > 0 {
+	if p.consumerCountDoing(consumerWaiting) > 0 {
 		return "has waiting consumer"
 	}
 	ps, _ := p.pool.Status()
@@ -736,32 +752,42 @@ func (p *ClientPool[CONFIG, CLIENT]) adjustPriority() {
 		hasValidEntryAfterUpgrade = len(entries) > 0
 	}
 
+	logger := log.With("pool", p.pool.Name())
+
 	p.mu.Lock()
 	if shouldDowngrade != "" {
 		// should downgrade, try to downgrade
 		if p.priorityCursor+1 < len(p.configPriorities) {
 			p.priorityCursor++
-			log.With("pool", p.pool.Name()).
-				Infof("pool downgrade to %d because %s", p.configPriorities[p.priorityCursor], shouldDowngrade)
+			logger.Infof("pool downgrade to %d because %s", p.configPriorities[p.priorityCursor], shouldDowngrade)
+		} else {
+			logger.Infof("pool want to downgrade because %s but already in the lowest priority %d",
+				shouldDowngrade, p.configPriorities[p.priorityCursor])
 		}
-	} else if p.priorityCursor > 0 && hasValidEntryAfterUpgrade {
+	} else if p.priorityCursor > 0 {
 		// should not downgrade, may be can upgrade
-		priority := make(map[string]uint32)
-		for entName, cc := range p.configEntries {
-			priority[entName] = cc.Priority
-		}
-		var lastActiveAt time.Time
-		for entryName, extra := range p.entryExtra {
-			if priority[entryName] != p.configPriorities[p.priorityCursor] {
-				continue
+		if hasValidEntryAfterUpgrade {
+			priority := make(map[string]uint32)
+			for entName, cc := range p.configEntries {
+				priority[entName] = cc.Priority
 			}
-			if extra.active != nil && extra.active.time.After(lastActiveAt) {
-				lastActiveAt = extra.active.time
+			var lastActiveAt time.Time
+			for entryName, extra := range p.entryExtra {
+				if priority[entryName] != p.configPriorities[p.priorityCursor] {
+					continue
+				}
+				if extra.active != nil && extra.active.time.After(lastActiveAt) {
+					lastActiveAt = extra.active.time
+				}
 			}
-		}
-		if time.Since(lastActiveAt) > p.config.UpgradeSensitivity {
-			p.priorityCursor--
-			log.With("pool", p.pool.Name()).Infof("pool upgrade to %d", p.configPriorities[p.priorityCursor])
+			if time.Since(lastActiveAt) > p.config.UpgradeSensitivity {
+				p.priorityCursor--
+				logger.Infof("pool upgrade to %d", p.configPriorities[p.priorityCursor])
+			} else {
+				logger.Infof("pool want to upgrade but current priority entries last active at %s", lastActiveAt)
+			}
+		} else {
+			logger.Infof("pool want to upgrade but no valid entry after upgrade")
 		}
 	}
 	p.mu.Unlock()

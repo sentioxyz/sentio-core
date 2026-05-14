@@ -65,6 +65,9 @@ func QueryRangeWithCache[SLOT Slot, ELEM any](
 	cachedBlockProcessor func(slot SLOT) ([]ELEM, error),
 	queryResultLoader func(ctx context.Context, queryRange rg.Range) (results []ELEM, err error),
 ) ([]ELEM, error) {
+	if interval.IsEmpty() {
+		return nil, nil
+	}
 	var cached []ELEM
 	_, logger := log.FromContext(ctx)
 	start := time.Now()

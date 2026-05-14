@@ -834,7 +834,7 @@ func Test_WaitBlockInterval_returnsPositiveDuration(t *testing.T) {
 // ── adjustPriority: upgrade path ─────────────────────────────────────────────
 
 func Test_adjustPriority_withWaiters_downgradesCursor(t *testing.T) {
-	// client that never initializes → UseClient will wait → consumerCountDoing(consumerWaiting) > 0
+	// client that never initializes → UseClient will wait → consumerCollectDoing(consumerWaiting) > 0
 	neverInit := ClientConfig[testClientConfig]{
 		Priority: 1,
 		Config: testClientConfig{
@@ -865,7 +865,7 @@ func Test_adjustPriority_withWaiters_downgradesCursor(t *testing.T) {
 	}()
 	time.Sleep(50 * time.Millisecond) // give goroutine time to block in Wait
 
-	p.adjustPriority() // consumerCountDoing(consumerWaiting) > 0 → downgrade cursor
+	p.adjustPriority() // consumerCollectDoing(consumerWaiting) > 0 → downgrade cursor
 
 	p.mu.Lock()
 	assert.Equal(t, 1, p.priorityCursor) // moved from 0→1 (priority 1→3)

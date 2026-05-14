@@ -447,15 +447,15 @@ func (p *ClientPool[CONFIG, CLIENT]) consumerDoing(id uint64, doing string) {
 	p.consumer[id] = c
 }
 
-func (p *ClientPool[CONFIG, CLIENT]) consumerCountDoing(doing string) (count int) {
+func (p *ClientPool[CONFIG, CLIENT]) consumerCollectDoing(doing string) (themes []string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, c := range p.consumer {
 		if c.doing == doing {
-			count++
+			themes = append(themes, c.theme)
 		}
 	}
-	return count
+	return themes
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) consumerLeave(id uint64) {
@@ -548,7 +548,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 				return Report{Err: ErrNoValidClient}
 			}
 			// doing stays "waiting" until the next consumerDoing(executing) call below,
-			// so consumerCountDoing may briefly over-count after Wait returns and before
+			// so consumerCollectDoing may briefly over-count after Wait returns and before
 			// entries are found on the next iteration. This is safe: it only causes a
 			// conservative (spurious) downgrade signal, never a missed one.
 			p.consumerDoing(cid, consumerWaiting)
@@ -723,8 +723,8 @@ func (p *ClientPool[CONFIG, CLIENT]) updateConfig(c PoolConfig[CONFIG]) {
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) shouldDowngrade() string {
-	if p.consumerCountDoing(consumerWaiting) > 0 {
-		return "has waiting consumer"
+	if themes := p.consumerCollectDoing(consumerWaiting); len(themes) > 0 {
+		return "has waiting consumer " + utils.ArrSummary(themes)
 	}
 	ps, _ := p.pool.Status()
 	if !ps.Ready || time.Since(ps.LatestBlock.Timestamp) > p.config.BrokenFallBehind {

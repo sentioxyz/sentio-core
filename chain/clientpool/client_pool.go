@@ -547,6 +547,10 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 			if backup == 0 {
 				return Report{Err: ErrNoValidClient}
 			}
+			// doing stays "waiting" until the next consumerDoing(executing) call below,
+			// so consumerCountDoing may briefly over-count after Wait returns and before
+			// entries are found on the next iteration. This is safe: it only causes a
+			// conservative (spurious) downgrade signal, never a missed one.
 			p.consumerDoing(cid, consumerWaiting)
 			if err := p.pool.Wait(ctx, psi); err != nil {
 				return Report{Err: err} // only because ctx canceled
@@ -784,10 +788,10 @@ func (p *ClientPool[CONFIG, CLIENT]) adjustPriority() {
 				p.priorityCursor--
 				logger.Infof("pool upgrade to %d", p.configPriorities[p.priorityCursor])
 			} else {
-				logger.Infof("pool want to upgrade but current priority entries last active at %s", lastActiveAt)
+				logger.Debugf("pool want to upgrade but current priority entries last active at %s", lastActiveAt)
 			}
 		} else {
-			logger.Infof("pool want to upgrade but no valid entry after upgrade")
+			logger.Debugf("pool want to upgrade but no valid entry after upgrade")
 		}
 	}
 	p.mu.Unlock()

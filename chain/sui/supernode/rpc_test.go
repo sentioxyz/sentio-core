@@ -115,7 +115,7 @@ func Test_suiRpc(t *testing.T) {
 	g, gctx := errgroup.WithContext(ctx)
 
 	// prepare client pool targeting Sui mainnet (official Mysten Labs public endpoint)
-	cli := sui.NewClientPool("client")
+	cli := sui.NewClientPool("client", nil, nil)
 	g.Go(func() error {
 		ch := make(chan clientpool.PoolConfig[sui.ClientConfig], 1)
 		ch <- clientpool.PoolConfig[sui.ClientConfig]{

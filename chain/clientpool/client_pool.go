@@ -129,6 +129,8 @@ func (c consumer) Snapshot() any {
 	}
 }
 
+type PriorityNotifier func(int)
+type LatestNotifier[CONFIG EntryConfig[CONFIG]] func(ClientConfig[CONFIG], Block)
 type ConfigModifier[CONFIG any] func(CONFIG) CONFIG
 
 // ClientPool
@@ -136,8 +138,10 @@ type ConfigModifier[CONFIG any] func(CONFIG) CONFIG
 type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 	pool *pool.Pool[ClientConfig[CONFIG], entryStatus[CLIENT], poolStatus]
 
-	clientBuilder func(CONFIG) CLIENT
-	confModifiers []ConfigModifier[CONFIG]
+	clientBuilder       func(CONFIG) CLIENT
+	priorityNotifier    PriorityNotifier
+	entryLatestNotifier LatestNotifier[CONFIG]
+	confModifiers       []ConfigModifier[CONFIG]
 
 	statDowngrade *timewin.TimeWindowsManager[*downgradeStatWindow]
 
@@ -160,14 +164,18 @@ type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 func NewClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client](
 	name string,
 	clientBuilder func(CONFIG) CLIENT,
+	priorityNotifier PriorityNotifier,
+	entryLatestNotifier LatestNotifier[CONFIG],
 	confModifiers ...ConfigModifier[CONFIG],
 ) *ClientPool[CONFIG, CLIENT] {
 	p := &ClientPool[CONFIG, CLIENT]{
-		clientBuilder: clientBuilder,
-		confModifiers: confModifiers,
-		entryExtra:    make(map[string]*entryExtra),
-		consumer:      make(map[uint64]consumer),
-		statDowngrade: timewin.NewTimeWindowsManager[*downgradeStatWindow](time.Minute),
+		clientBuilder:       clientBuilder,
+		priorityNotifier:    priorityNotifier,
+		entryLatestNotifier: entryLatestNotifier,
+		confModifiers:       confModifiers,
+		entryExtra:          make(map[string]*entryExtra),
+		consumer:            make(map[uint64]consumer),
+		statDowngrade:       timewin.NewTimeWindowsManager[*downgradeStatWindow](time.Minute),
 	}
 	p.pool = pool.NewPool[ClientConfig[CONFIG], entryStatus[CLIENT], poolStatus](
 		name,
@@ -279,6 +287,9 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 		if !pushChan(ctx, ch, es) {
 			return
 		}
+		if p.entryLatestNotifier != nil {
+			p.entryLatestNotifier(config, latest)
+		}
 	}
 
 	latestChan := make(chan Block)
@@ -297,6 +308,9 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 			es.LatestBlock = latest
 			if !pushChan(ctx, ch, es) {
 				return
+			}
+			if p.entryLatestNotifier != nil {
+				p.entryLatestNotifier(config, latest)
 			}
 		}
 	}()
@@ -654,6 +668,14 @@ func (p *ClientPool[CONFIG, CLIENT]) enablePriority() {
 		}
 	}
 	p.mu.Unlock()
+
+	if p.priorityNotifier != nil {
+		if current == math.MaxUint32 {
+			p.priorityNotifier(-1)
+		} else {
+			p.priorityNotifier(int(current))
+		}
+	}
 
 	for _, name := range enableList {
 		if p.pool.Enable(name) {

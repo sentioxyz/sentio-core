@@ -93,7 +93,7 @@ func Test_fuelRpc(t *testing.T) {
 	g, gctx := errgroup.WithContext(ctx)
 
 	// prepare client pool
-	cli := fuel.NewClientPool("client")
+	cli := fuel.NewClientPool("client", nil, nil)
 	g.Go(func() error {
 		ch := make(chan clientpool.PoolConfig[fuel.ClientConfig], 1)
 		ch <- clientpool.PoolConfig[fuel.ClientConfig]{

@@ -258,8 +258,19 @@ type ClientPool struct {
 	*clientpool.ClientPool[ClientConfig, *Client]
 }
 
-func NewClientPool(name string, confModifiers ...clientpool.ConfigModifier[ClientConfig]) *ClientPool {
+func NewClientPool(
+	name string,
+	priorityNotifier clientpool.PriorityNotifier,
+	latestNotifier clientpool.LatestNotifier[ClientConfig],
+	confModifiers ...clientpool.ConfigModifier[ClientConfig],
+) *ClientPool {
 	return &ClientPool{
-		ClientPool: clientpool.NewClientPool(name, NewClient, append(confModifiers, ClientConfig.Trim)...),
+		ClientPool: clientpool.NewClientPool(
+			name,
+			NewClient,
+			priorityNotifier,
+			latestNotifier,
+			append(confModifiers, ClientConfig.Trim)...,
+		),
 	}
 }

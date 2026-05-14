@@ -7,6 +7,9 @@ import (
 )
 
 type ClientConfig[CONFIG EntryConfig[CONFIG]] struct {
+	// Index is the position of this entry in the original ClientConfigs slice, assigned during Trim.
+	// Excluded from serialization; used by notifier callbacks (LatestNotifier, PriorityNotifier) to identify which entry triggered the notification.
+	Index    uint32 `json:"-" yaml:"-"`
 	Priority uint32 `json:"priority" yaml:"priority"`
 	Config   CONFIG `json:",inline" yaml:",inline"`
 }
@@ -79,15 +82,16 @@ func (c PoolConfig[CONFIG]) Trim(configModifiers []ConfigModifier[CONFIG]) PoolC
 		},
 		AdjustPriorityInterval: utils.Select(c.AdjustPriorityInterval > 0, c.AdjustPriorityInterval, time.Second*30),
 		UpgradeSensitivity:     utils.Select(c.UpgradeSensitivity > 0, c.UpgradeSensitivity, time.Minute*3),
-		ClientConfigs: utils.MapSliceNoError(c.ClientConfigs, func(cc ClientConfig[CONFIG]) ClientConfig[CONFIG] {
+		ClientConfigs: utils.MapSliceNoErrWithIndex(c.ClientConfigs, func(index int, cc ClientConfig[CONFIG]) (ClientConfig[CONFIG], bool) {
 			ccc := cc.Config
 			for _, m := range configModifiers {
 				ccc = m(ccc)
 			}
 			return ClientConfig[CONFIG]{
+				Index:    uint32(index),
 				Priority: cc.Priority,
 				Config:   ccc,
-			}
+			}, true
 		}),
 	}
 }

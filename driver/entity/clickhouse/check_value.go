@@ -18,6 +18,10 @@ var (
 	int256Min = new(big.Int).Neg(new(big.Int).Lsh(big.NewInt(1), 255))
 	int256Max = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(1))
 
+	// Tuple(Bool,Int8,UInt256) range: [-2^256, 2^256-1]
+	tupleMin = new(big.Int).Neg(new(big.Int).Lsh(big.NewInt(1), 256))
+	tupleMax = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1))
+
 	// Decimal256(30) range: |val| <= (10^76-1)/10^30
 	decimal256_30_max = decimal.NewFromBigInt(
 		new(big.Int).Sub(new(big.Int).Exp(big.NewInt(10), big.NewInt(76), nil), big.NewInt(1)), -30)
@@ -101,10 +105,18 @@ func (s *Store) checkBigIntBounds(entityName, fieldName string, val any) error {
 	default:
 		return nil
 	}
-	if v.Cmp(int256Min) < 0 || v.Cmp(int256Max) > 0 {
-		return fmt.Errorf(
-			"field %s.%s has BigInt value %s out of Int256 range [-2^255, 2^255-1]",
-			entityName, fieldName, v.String())
+	if s.feaOpt.BigIntUseInt256 {
+		if v.Cmp(int256Min) < 0 || v.Cmp(int256Max) > 0 {
+			return fmt.Errorf(
+				"field %s.%s has BigInt value %s out of Int256 range [-2^255, 2^255-1]",
+				entityName, fieldName, v.String())
+		}
+	} else {
+		if v.Cmp(tupleMin) < 0 || v.Cmp(tupleMax) > 0 {
+			return fmt.Errorf(
+				"field %s.%s has BigInt value %s out of range [-2^256, 2^256-1]",
+				entityName, fieldName, v.String())
+		}
 	}
 	return nil
 }

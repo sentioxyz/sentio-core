@@ -5,7 +5,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/assert"
 	"testing"
 
@@ -166,8 +166,8 @@ func BenchmarkLogDecodeMsgpack(b *testing.B) {
 }
 
 func TestTraceFilterArgsMarshalUnmarshalShouldEqual(t *testing.T) {
-	fromBlock := hexutil.Uint64(1)
-	toBlock := hexutil.Uint64(2)
+	fromBlock := rpc.BlockNumber(1)
+	toBlock := rpc.BlockNumber(2)
 	address1 := common.HexToAddress("0x1")
 	address2 := common.HexToAddress("0x2")
 	traceArgs := &TraceFilterArgs{
@@ -185,8 +185,8 @@ func TestTraceFilterArgsMarshalUnmarshalShouldEqual(t *testing.T) {
 }
 
 func TestEthGetLogsArgsMarshalUnmarshalShouldEqual(t *testing.T) {
-	fromBlock := hexutil.Uint64(1)
-	toBlock := hexutil.Uint64(2)
+	fromBlock := rpc.BlockNumber(1)
+	toBlock := rpc.BlockNumber(2)
 	address1 := common.HexToAddress("0x1")
 	address2 := common.HexToAddress("0x2")
 	hash1 := common.HexToHash("0x1")

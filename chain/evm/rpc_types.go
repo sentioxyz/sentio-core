@@ -334,7 +334,7 @@ func (args *EthGetLogsArgs) Checker() func(log types.Log) bool {
 			return false
 		}
 		for i, s := range topicsSet {
-			if !s.Empty() && (len(log.Topics) < i || !s.Contains(log.Topics[i])) {
+			if !s.Empty() && (len(log.Topics) <= i || !s.Contains(log.Topics[i])) {
 				return false
 			}
 		}

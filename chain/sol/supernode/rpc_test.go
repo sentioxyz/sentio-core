@@ -25,7 +25,7 @@ func Test_solRpc(t *testing.T) {
 	g, gctx := errgroup.WithContext(ctx)
 
 	// prepare client pool
-	cli := sol.NewClientPool("client")
+	cli := sol.NewClientPool("client", nil, nil)
 	g.Go(func() error {
 		ch := make(chan clientpool.PoolConfig[sol.ClientConfig], 1)
 		ch <- clientpool.PoolConfig[sol.ClientConfig]{

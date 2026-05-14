@@ -102,7 +102,7 @@ func Test_aptosRpc(t *testing.T) {
 	g, gctx := errgroup.WithContext(ctx)
 
 	// prepare client pool
-	cli := aptos.NewClientPool("client")
+	cli := aptos.NewClientPool("client", nil, nil)
 	g.Go(func() error {
 		ch := make(chan clientpool.PoolConfig[aptos.ClientConfig], 1)
 		ch <- clientpool.PoolConfig[aptos.ClientConfig]{

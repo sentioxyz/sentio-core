@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/evm"
+	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/set"
@@ -99,7 +100,7 @@ func (s *standardService) GetBlockHeaderByNumber(
 	ctx context.Context,
 	blockNumber rpc.BlockNumber,
 ) (*evm.ExtendedHeader, error) {
-	headers, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil,
+	headers, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0,
 		func(st *evm.Slot) ([]evm.ExtendedHeader, error) {
 			return []evm.ExtendedHeader{*st.Header}, nil
 		},
@@ -122,7 +123,7 @@ func (s *standardService) GetBlockByNumber(
 	blockNumber rpc.BlockNumber,
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
-	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil,
+	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -172,7 +173,7 @@ func (s *standardService) GetBlockByHash(
 	hash common.Hash,
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
-	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil,
+	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil, 0,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -192,7 +193,7 @@ func (s *standardService) GetBlockReceipts(
 	ctx context.Context,
 	numOrHash rpc.BlockNumberOrHash,
 ) ([]evm.ExtendedReceipt, error) {
-	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil,
+	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil, 0,
 		func(st *evm.Slot) ([]evm.ExtendedReceipt, error) {
 			return st.Receipts, nil
 		},
@@ -263,16 +264,18 @@ func (s *standardService) queryPackedBlockAppendPart(
 	return
 }
 
+var maxQueryRangeSize = envconf.LoadUInt64("EVM_SUPER_NODE_MAX_QUERY_SIZE", 10000)
+
 func (s *standardService) GetBlocksPacked(
 	ctx context.Context,
-	fromBlock hexutil.Uint64,
-	toBlock hexutil.Uint64,
+	fromBlock rpc.BlockNumber,
+	toBlock rpc.BlockNumber,
 	needTransaction bool,
 	needReceipt bool,
 	needReceiptLogs bool,
 	needTraces bool,
 ) ([]*evm.PackedBlock, error) {
-	return queryWithCache(ctx, s.slotCache, nil, nil, &fromBlock, &toBlock,
+	return queryWithCache(ctx, s.slotCache, nil, nil, &fromBlock, &toBlock, maxQueryRangeSize,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
 			block := evm.PackedBlock{BlockHeader: st.Header}
 			if needTransaction {
@@ -337,7 +340,7 @@ func (s *standardService) filterLogSQL(args *evm.EthGetLogsArgs) []string {
 
 func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs) ([]types.Log, error) {
 	checker := args.Checker()
-	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
+	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize,
 		func(st *evm.Slot) ([]types.Log, error) {
 			return utils.FilterArr(st.Logs, checker), nil
 		},
@@ -367,7 +370,7 @@ func (s *standardService) GetLogsPacked(
 	needReceiptLogs bool,
 ) ([]*evm.PackedBlock, error) {
 	checker := args.Checker()
-	return queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
+	return queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
 			logs := utils.FilterArr(st.Logs, checker)
 			if len(logs) == 0 {
@@ -429,7 +432,7 @@ func (s *standardService) filterTraceSQL(args *evm.TraceFilterArgs) []string {
 
 func (s *standardService) TraceFilter(ctx context.Context, args *evm.TraceFilterArgs) ([]evm.ParityTrace, error) {
 	checker := args.Checker()
-	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
+	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize,
 		func(st *evm.Slot) ([]evm.ParityTrace, error) {
 			return utils.FilterArr(st.Traces, checker), nil
 		},
@@ -454,7 +457,7 @@ func (s *standardService) TraceFilterPacked(
 	needReceiptLogs bool,
 ) ([]*evm.PackedBlock, error) {
 	checker := args.Checker()
-	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
+	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
 			traces := utils.FilterArr(st.Traces, checker)
 			if len(traces) == 0 {
@@ -465,7 +468,6 @@ func (s *standardService) TraceFilterPacked(
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]*evm.PackedBlock, error) {
 			blockWhere := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
-
 			where := strings.Join(append(s.filterTraceSQL(args), blockWhere), " AND ")
 			traces, err := s.store.QueryTraces(ctx, where)
 			if err != nil {

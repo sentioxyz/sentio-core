@@ -18,6 +18,7 @@ go_library(
     deps = [
         "//chain/chain",
         "//chain/evm",
+        "//common/envconf",
         "//common/errgroup",
         "//common/jsonrpc",
         "//common/log",

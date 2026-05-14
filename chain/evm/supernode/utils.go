@@ -3,7 +3,6 @@ package supernode
 import (
 	"context"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
@@ -61,16 +60,17 @@ func buildPackedBlocks(
 func queryWithCache[ELEM any](
 	ctx context.Context,
 	slotCache chain.LatestSlotCache[*evm.Slot],
-	hash *common.Hash,
+	blockHash *common.Hash,
 	blockNumber *rpc.BlockNumber,
-	fromBlock *hexutil.Uint64,
-	toBlock *hexutil.Uint64,
+	fromBlock *rpc.BlockNumber,
+	toBlock *rpc.BlockNumber,
+	maxQueryRangeSize uint64,
 	collectFromSlot func(st *evm.Slot) ([]ELEM, error),
 	collectFromStore func(ctx context.Context, r rg.Range) ([]ELEM, error),
 	cacheMissHashReturn error,
 ) ([]ELEM, error) {
-	if hash != nil {
-		st, err := slotCache.GetByHash(ctx, hash.String())
+	if blockHash != nil {
+		st, err := slotCache.GetByHash(ctx, blockHash.String())
 		if err != nil {
 			if errors.Is(err, chain.ErrSlotNotFound) {
 				return nil, cacheMissHashReturn
@@ -79,41 +79,64 @@ func queryWithCache[ELEM any](
 		}
 		return collectFromSlot(st)
 	}
-
 	var sn, en uint64
 	if blockNumber != nil {
-		if *blockNumber != rpc.LatestBlockNumber {
-			return nil, jsonrpc.CallNextMiddleware
-		}
-		r, err := slotCache.GetRange(ctx)
-		if err != nil {
-			return nil, err
-		}
-		sn, en = *r.End, *r.End
-	} else if fromBlock == nil || toBlock == nil {
-		r, err := slotCache.GetRange(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if fromBlock == nil {
-			sn = *r.End
+		if *blockNumber >= 0 {
+			sn, en = (uint64)(*blockNumber), (uint64)(*blockNumber)
 		} else {
-			sn = (uint64)(*fromBlock)
-		}
-		if toBlock == nil {
-			en = *r.End
-		} else {
-			en = (uint64)(*toBlock)
+			if *blockNumber == rpc.LatestBlockNumber {
+				r, err := slotCache.GetRange(ctx)
+				if err != nil {
+					return nil, err
+				}
+				sn, en = *r.End, *r.End
+			} else {
+				return nil, jsonrpc.CallNextMiddleware
+			}
 		}
 	} else {
-		sn, en = (uint64)(*fromBlock), (uint64)(*toBlock)
+		if fromBlock == nil {
+			fromBlock = utils.WrapPointer(rpc.LatestBlockNumber)
+		}
+		if toBlock == nil {
+			toBlock = utils.WrapPointer(rpc.LatestBlockNumber)
+		}
+		// slotCache only holds the latest block, other tags fall through to the next handler
+		if *fromBlock < 0 && *fromBlock != rpc.LatestBlockNumber {
+			return nil, jsonrpc.CallNextMiddleware
+		}
+		if *toBlock < 0 && *toBlock != rpc.LatestBlockNumber {
+			return nil, jsonrpc.CallNextMiddleware
+		}
+		if *fromBlock >= 0 && *toBlock >= 0 {
+			sn, en = (uint64)(*fromBlock), (uint64)(*toBlock)
+		} else {
+			r, err := slotCache.GetRange(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if *fromBlock < 0 {
+				sn = *r.End
+			} else {
+				sn = (uint64)(*fromBlock)
+			}
+			if *toBlock < 0 {
+				en = *r.End
+			} else {
+				en = (uint64)(*toBlock)
+			}
+		}
 	}
-
 	return chain.QueryRangeWithCache[*evm.Slot, ELEM](
 		ctx,
 		rg.NewRange(sn, en),
 		slotCache,
 		collectFromSlot,
-		collectFromStore,
+		func(ctx context.Context, queryRange rg.Range) ([]ELEM, error) {
+			if maxQueryRangeSize > 0 && *queryRange.Size() > maxQueryRangeSize {
+				return nil, errors.Errorf("query range too large, %s size > %d", queryRange, maxQueryRangeSize)
+			}
+			return collectFromStore(ctx, queryRange)
+		},
 	)
 }

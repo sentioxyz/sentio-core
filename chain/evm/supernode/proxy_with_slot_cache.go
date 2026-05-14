@@ -107,7 +107,7 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockByNumber(
 	blockNumber rpc.BlockNumber,
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
-	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil,
+	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -130,7 +130,7 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockByHash(
 	hash common.Hash,
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
-	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil,
+	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil, 0,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -186,7 +186,7 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockReceipts(
 	ctx context.Context,
 	numOrHash rpc.BlockNumberOrHash,
 ) ([]evm.ExtendedReceipt, error) {
-	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil,
+	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil, 0,
 		func(st *evm.Slot) ([]evm.ExtendedReceipt, error) {
 			return st.Receipts, nil
 		},
@@ -202,14 +202,15 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 	args *evm.EthGetLogsArgs,
 ) ([]types.Log, error) {
 	checker := args.Checker()
-	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
+	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, 0,
 		func(st *evm.Slot) ([]types.Log, error) {
 			return utils.FilterArr(st.Logs, checker), nil
 		},
 		func(ctx context.Context, r rg.Range) ([]types.Log, error) {
+			fromBlock, toBlock := (rpc.BlockNumber)(r.Start), (rpc.BlockNumber)(*r.End)
 			proxyArgs := *args
-			proxyArgs.FromBlock = (*hexutil.Uint64)(&r.Start)
-			proxyArgs.ToBlock = (*hexutil.Uint64)(r.End)
+			proxyArgs.FromBlock = &fromBlock
+			proxyArgs.ToBlock = &toBlock
 			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
 				ctx,
 				"eth_getLogs",
@@ -238,14 +239,15 @@ func (s *proxyWithLatestSlotCacheService) TraceFilter(
 	args *evm.TraceFilterArgs,
 ) ([]evm.ParityTrace, error) {
 	checker := args.Checker()
-	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
+	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0,
 		func(st *evm.Slot) ([]evm.ParityTrace, error) {
 			return utils.FilterArr(st.Traces, checker), nil
 		},
 		func(ctx context.Context, r rg.Range) ([]evm.ParityTrace, error) {
+			fromBlock, toBlock := (rpc.BlockNumber)(r.Start), (rpc.BlockNumber)(*r.End)
 			proxyArgs := *args
-			proxyArgs.FromBlock = (*hexutil.Uint64)(&r.Start)
-			proxyArgs.ToBlock = (*hexutil.Uint64)(r.End)
+			proxyArgs.FromBlock = &fromBlock
+			proxyArgs.ToBlock = &toBlock
 			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
 				ctx,
 				"trace_filter",

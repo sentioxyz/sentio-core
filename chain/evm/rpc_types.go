@@ -206,17 +206,17 @@ type EthGetLogsArgs struct {
 	Addresses []common.Address
 	Topics    [][]common.Hash
 	BlockHash *common.Hash
-	FromBlock *hexutil.Uint64
-	ToBlock   *hexutil.Uint64
+	FromBlock *rpc.BlockNumber
+	ToBlock   *rpc.BlockNumber
 }
 
 func (args *EthGetLogsArgs) MarshalJSON() ([]byte, error) {
 	type input struct {
-		BlockHash *common.Hash    `json:"blockHash,omitempty"`
-		FromBlock *hexutil.Uint64 `json:"fromBlock,omitempty"`
-		ToBlock   *hexutil.Uint64 `json:"toBlock,omitempty"`
-		Addresses []string        `json:"address,omitempty"`
-		Topics    [][]string      `json:"topics,omitempty"`
+		BlockHash *common.Hash     `json:"blockHash,omitempty"`
+		FromBlock *rpc.BlockNumber `json:"fromBlock,omitempty"`
+		ToBlock   *rpc.BlockNumber `json:"toBlock,omitempty"`
+		Addresses []string         `json:"address,omitempty"`
+		Topics    [][]string       `json:"topics,omitempty"`
 	}
 	var enc input
 	enc.BlockHash = args.BlockHash
@@ -259,15 +259,8 @@ func (args *EthGetLogsArgs) UnmarshalJSON(data []byte) error {
 		}
 		args.BlockHash = raw.BlockHash
 	} else {
-		if raw.FromBlock != nil {
-			from := hexutil.Uint64(*raw.FromBlock)
-			args.FromBlock = &from
-		}
-
-		if raw.ToBlock != nil {
-			to := hexutil.Uint64(*raw.ToBlock)
-			args.ToBlock = &to
-		}
+		args.FromBlock = raw.FromBlock
+		args.ToBlock = raw.ToBlock
 	}
 
 	args.Addresses = []common.Address{}
@@ -350,18 +343,18 @@ func (args *EthGetLogsArgs) Checker() func(log types.Log) bool {
 }
 
 type TraceFilterArgs struct {
-	FromBlock   *hexutil.Uint64
-	ToBlock     *hexutil.Uint64
+	FromBlock   *rpc.BlockNumber
+	ToBlock     *rpc.BlockNumber
 	FromAddress []common.Address
 	ToAddress   []string
 }
 
 func (args *TraceFilterArgs) MarshalJSON() ([]byte, error) {
 	type input struct {
-		FromBlock   *hexutil.Uint64 `json:"fromBlock,omitempty"`
-		ToBlock     *hexutil.Uint64 `json:"toBlock,omitempty"`
-		FromAddress []string        `json:"fromAddress,omitempty"`
-		ToAddress   []string        `json:"toAddress,omitempty"`
+		FromBlock   *rpc.BlockNumber `json:"fromBlock,omitempty"`
+		ToBlock     *rpc.BlockNumber `json:"toBlock,omitempty"`
+		FromAddress []string         `json:"fromAddress,omitempty"`
+		ToAddress   []string         `json:"toAddress,omitempty"`
 	}
 	var enc input
 	enc.FromBlock = args.FromBlock
@@ -375,10 +368,10 @@ func (args *TraceFilterArgs) MarshalJSON() ([]byte, error) {
 
 func (args *TraceFilterArgs) UnmarshalJSON(data []byte) error {
 	type input struct {
-		FromBlock   *hexutil.Uint64 `json:"fromBlock"`
-		ToBlock     *hexutil.Uint64 `json:"toBlock"`
-		FromAddress interface{}     `json:"fromAddress"`
-		ToAddress   interface{}     `json:"toAddress"`
+		FromBlock   *rpc.BlockNumber `json:"fromBlock"`
+		ToBlock     *rpc.BlockNumber `json:"toBlock"`
+		FromAddress interface{}      `json:"fromAddress"`
+		ToAddress   interface{}      `json:"toAddress"`
 	}
 	var aux input
 	if err := json.Unmarshal(data, &aux); err != nil {

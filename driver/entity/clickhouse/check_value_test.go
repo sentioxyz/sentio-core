@@ -160,7 +160,7 @@ type EntityX @entity {
 	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": nil}))
 }
 
-func Test_checkBigIntBounds(t *testing.T) {
+func Test_checkBigIntBounds_tupleMode(t *testing.T) {
 	sch, err := schema.ParseAndVerifySchema(`
 type EntityX @entity {
 	id: String!
@@ -168,7 +168,39 @@ type EntityX @entity {
 }
 `)
 	assert.NoError(t, err)
-	s := newDefaultStore()
+	s := newDefaultStore() // default: Tuple(Bool,Int8,UInt256) mode
+	etype := sch.GetEntity("EntityX")
+
+	// exactly at tuple max: 2^256-1
+	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(tupleMax)}))
+	// exactly at tuple min: -2^256
+	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(tupleMin)}))
+	// Int256 max (2^255-1) is valid in tuple mode
+	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(int256Max)}))
+	// Int256 max + 1 (2^255) is also valid in tuple mode
+	beyondInt256 := new(big.Int).Add(int256Max, big.NewInt(1))
+	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": beyondInt256}))
+	// overflow: 2^256
+	overflow := new(big.Int).Add(tupleMax, big.NewInt(1))
+	assert.ErrorContains(t,
+		s.CheckValue(etype, map[string]any{"id": "a", "prop": overflow}),
+		"out of range [-2^256, 2^256-1]")
+	// underflow: -2^256-1
+	underflow := new(big.Int).Sub(tupleMin, big.NewInt(1))
+	assert.ErrorContains(t,
+		s.CheckValue(etype, map[string]any{"id": "a", "prop": underflow}),
+		"out of range [-2^256, 2^256-1]")
+}
+
+func Test_checkBigIntBounds_int256Mode(t *testing.T) {
+	sch, err := schema.ParseAndVerifySchema(`
+type EntityX @entity {
+	id: String!
+	prop: BigInt!
+}
+`)
+	assert.NoError(t, err)
+	s := &Store{feaOpt: Features{BigIntUseInt256: true}}
 	etype := sch.GetEntity("EntityX")
 
 	// exactly at Int256 max: 2^255-1
@@ -179,12 +211,12 @@ type EntityX @entity {
 	overflow := new(big.Int).Add(int256Max, big.NewInt(1))
 	assert.ErrorContains(t,
 		s.CheckValue(etype, map[string]any{"id": "a", "prop": overflow}),
-		"out of Int256 range")
+		"out of Int256 range [-2^255, 2^255-1]")
 	// underflow: -2^255-1
 	underflow := new(big.Int).Sub(int256Min, big.NewInt(1))
 	assert.ErrorContains(t,
 		s.CheckValue(etype, map[string]any{"id": "a", "prop": underflow}),
-		"out of Int256 range")
+		"out of Int256 range [-2^255, 2^255-1]")
 }
 
 func Test_checkBigIntList(t *testing.T) {
@@ -211,8 +243,8 @@ type EntityX @entity {
 	assert.ErrorContains(t,
 		s.CheckValue(etype, map[string]any{"id": "a", "prop": []*big.Int(nil)}),
 		"EntityX.prop cannot be null")
-	// overflow element in list
-	overflow := new(big.Int).Add(int256Max, big.NewInt(1))
+	// overflow element in list (beyond 2^256-1)
+	overflow := new(big.Int).Add(tupleMax, big.NewInt(1))
 	assert.ErrorContains(t,
 		s.CheckValue(etype, map[string]any{"id": "a", "prop": []*big.Int{big.NewInt(0), overflow}}),
 		"EntityX.prop[1]")
@@ -236,8 +268,8 @@ type EntityX @entity {
 	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": [][]big.Int{{one}}}))
 	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": nil}))
 	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": []any{nil}}))
-	// overflow in nested list
-	overflow := new(big.Int).Add(int256Max, big.NewInt(1))
+	// overflow in nested list (beyond 2^256-1)
+	overflow := new(big.Int).Add(tupleMax, big.NewInt(1))
 	assert.ErrorContains(t,
 		s.CheckValue(etype, map[string]any{"id": "a", "prop": [][]*big.Int{{big.NewInt(0), overflow}}}),
 		"EntityX.prop[0][1]")

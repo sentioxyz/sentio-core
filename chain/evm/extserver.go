@@ -14,6 +14,7 @@ import (
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,6 +28,9 @@ type NetworkOptions struct {
 type ExtServerDimension struct {
 	chainID string
 	opts    NetworkOptions
+
+	missTraceDowngrade time.Duration
+	disableTraceUntil  atomic.Int64
 
 	client *ClientPool
 
@@ -43,11 +47,13 @@ func NewExtServerDimension(
 	chainID string,
 	opts NetworkOptions,
 	fallBehind time.Duration,
+	missTraceDowngrade time.Duration,
 ) *ExtServerDimension {
 	dim := &ExtServerDimension{
-		chainID: chainID,
-		opts:    opts,
-		client:  client,
+		chainID:            chainID,
+		opts:               opts,
+		client:             client,
+		missTraceDowngrade: missTraceDowngrade,
 	}
 	// loadBatchSize more than 1 is meaningless
 	dim.ExtServerDimension = chain.NewExtServerDimension[*Slot](
@@ -237,12 +243,29 @@ func traceTxMatch(trace GethTraceBlockResult, tx RPCTransaction) bool {
 	return score >= 2
 }
 
-func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) error {
+func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) (err error) {
 	if d.opts.DisableTrace {
 		return nil
 	}
 
 	_, logger := log.FromContext(ctx)
+
+	if d.missTraceDowngrade > 0 && time.Now().UnixNano() < d.disableTraceUntil.Load() {
+		logger.Debugf("block %d will not load trace because temporary disable trace", st.GetNumber())
+		return nil
+	}
+
+	defer func() {
+		st.HaveTrace = err == nil
+		if err != nil && d.missTraceDowngrade > 0 {
+			disableTraceUntil := time.Now().Add(d.missTraceDowngrade)
+			logger.Warnfe(err, "load trace for block %d failed, will disable trace until %s",
+				st.GetNumber(), disableTraceUntil)
+			d.disableTraceUntil.Store(disableTraceUntil.UnixNano())
+			err = nil // so GetSlot will return succeed but this slot will have feature `featureMissTrace`
+		}
+	}()
+
 	blockNumber := st.Header.Number.Uint64()
 	blockHash := st.Header.Hash
 	txIndexMap := make(map[common.Hash]uint64)

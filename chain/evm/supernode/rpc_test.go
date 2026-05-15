@@ -95,7 +95,7 @@ func Test_evmRpc(t *testing.T) {
 		time.Second*12, // ~12s ETH block time
 		time.Second*12, // ~12s ETH block time
 		cli,
-		evm.NewExtServerDimension(cli, 1, 3, rg.Range{}, "1", evm.NetworkOptions{DisableTrace: true}, 0),
+		evm.NewExtServerDimension(cli, 1, 3, rg.Range{}, "1", evm.NetworkOptions{DisableTrace: true}, 0, 0),
 		nil,
 		0,
 		nil,
@@ -151,6 +151,9 @@ func Test_evmRpc(t *testing.T) {
 
 	b, _ := json.MarshalIndent(cli.Snapshot(), "", "\t")
 	log.Infof("client: %s", string(b))
+
+	b, _ = json.MarshalIndent(sc.Snapshot(), "", "\t")
+	log.Infof("ExternalDimension: %s", string(b))
 
 	cancel()
 	_ = g.Wait()

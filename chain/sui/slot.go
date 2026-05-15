@@ -33,6 +33,15 @@ func (s *Slot) GetParentHash() string {
 	return ""
 }
 
+const featureFromGRPC = "FromGRPC"
+
+func (s *Slot) Features() []string {
+	if s.GrpcCheckpoint != nil {
+		return []string{featureFromGRPC}
+	}
+	return nil
+}
+
 func (s *Slot) Linked() bool {
 	return false
 }

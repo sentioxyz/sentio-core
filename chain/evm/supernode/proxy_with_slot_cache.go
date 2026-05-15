@@ -241,6 +241,9 @@ func (s *proxyWithLatestSlotCacheService) TraceFilter(
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0,
 		func(st *evm.Slot) ([]evm.ParityTrace, error) {
+			if !st.HaveTrace {
+				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
+			}
 			return utils.FilterArr(st.Traces, checker), nil
 		},
 		func(ctx context.Context, r rg.Range) ([]evm.ParityTrace, error) {

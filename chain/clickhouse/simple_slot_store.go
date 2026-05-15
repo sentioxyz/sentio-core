@@ -93,6 +93,10 @@ func (h *slotHeader[SLOT]) GetParentHash() string {
 	return h.parentHash
 }
 
+func (h *slotHeader[SLOT]) Features() []string {
+	return nil
+}
+
 func (h *slotHeader[SLOT]) Linked() bool {
 	var st SLOT
 	return st.Linked()

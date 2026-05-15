@@ -32,6 +32,10 @@ func (b *testSlot) GetParentHash() string {
 	return b.ParentHash
 }
 
+func (b *testSlot) Features() []string {
+	return nil
+}
+
 func (b *testSlot) Linked() bool {
 	return true
 }

@@ -434,6 +434,9 @@ func (s *standardService) TraceFilter(ctx context.Context, args *evm.TraceFilter
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize,
 		func(st *evm.Slot) ([]evm.ParityTrace, error) {
+			if !st.HaveTrace {
+				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
+			}
 			return utils.FilterArr(st.Traces, checker), nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]evm.ParityTrace, error) {
@@ -459,6 +462,9 @@ func (s *standardService) TraceFilterPacked(
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
+			if !st.HaveTrace {
+				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
+			}
 			traces := utils.FilterArr(st.Traces, checker)
 			if len(traces) == 0 {
 				return nil, nil

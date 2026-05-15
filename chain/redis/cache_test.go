@@ -30,6 +30,10 @@ func (s *testSlot) GetParentHash() string {
 	return fmt.Sprintf("%s%d", s.HashPrefix, s.Version-1)
 }
 
+func (s *testSlot) Features() []string {
+	return nil
+}
+
 func (s *testSlot) Linked() bool {
 	return true
 }

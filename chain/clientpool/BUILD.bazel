@@ -16,11 +16,11 @@ go_library(
     importpath = "sentioxyz/sentio-core/chain/clientpool",
     visibility = ["//visibility:public"],
     deps = [
-        "//chain/clientpool/ex",
         "//common/log",
         "//common/pool",
         "//common/queue",
         "//common/set",
+        "//common/timehist",
         "//common/timewin",
         "//common/utils",
         "@com_github_cenkalti_backoff_v4//:backoff",

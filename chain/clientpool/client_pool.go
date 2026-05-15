@@ -9,7 +9,6 @@ import (
 	"math"
 	"math/rand"
 	"reflect"
-	"sentioxyz/sentio-core/chain/clientpool/ex"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/pool"
 	"sentioxyz/sentio-core/common/queue"
@@ -136,8 +135,6 @@ type Notifier[CONFIG EntryConfig[CONFIG]] interface {
 	EntryUsed(c ClientConfig[CONFIG], what string, dur time.Duration, hasErr bool)
 }
 
-type PriorityNotifier func(int)
-type LatestNotifier[CONFIG EntryConfig[CONFIG]] func(ClientConfig[CONFIG], Block)
 type ConfigModifier[CONFIG any] func(CONFIG) CONFIG
 
 // ClientPool
@@ -150,7 +147,7 @@ type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 	confModifiers []ConfigModifier[CONFIG]
 
 	statDowngrade *timewin.TimeWindowsManager[*downgradeStatWindow]
-	statEntryUsed *ex.StatWinManager
+	statEntryUsed *timewin.TimeWindowsManager[*usedStatWindow]
 
 	// protect all properties below
 	mu sync.Mutex
@@ -181,7 +178,7 @@ func NewClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client](
 		entryExtra:    make(map[string]*entryExtra),
 		consumer:      make(map[uint64]consumer),
 		statDowngrade: timewin.NewTimeWindowsManager[*downgradeStatWindow](time.Minute),
-		statEntryUsed: ex.NewStatWinManager(time.Minute),
+		statEntryUsed: timewin.NewTimeWindowsManager[*usedStatWindow](time.Minute),
 	}
 	p.pool = pool.NewPool[ClientConfig[CONFIG], entryStatus[CLIENT], poolStatus](
 		name,
@@ -261,7 +258,8 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 
 	if !es.Initialized {
 		es.Client = p.clientBuilder(config.Config, func(what string, dur time.Duration, hasErr bool) {
-			p.statEntryUsed.Record(fmt.Sprintf("P%d(%s)%s", config.Priority, config.Config.GetName(), what), dur, hasErr)
+			key := fmt.Sprintf("P%d(%s)%s", config.Priority, config.Config.GetName(), what)
+			p.statEntryUsed.Append(newUsedStatWin(key, dur, hasErr))
 			if p.notifier != nil {
 				p.notifier.EntryUsed(config, what, dur, hasErr)
 			}

@@ -8,7 +8,7 @@ import (
 
 type ClientConfig[CONFIG EntryConfig[CONFIG]] struct {
 	// Index is the position of this entry in the original ClientConfigs slice, assigned during Trim.
-	// Excluded from serialization; passed to LatestNotifier so callers can identify which entry triggered the notification.
+	// Excluded from serialization; passed to Notifier so callers can identify which entry triggered the notification.
 	Index    uint32 `json:"-" yaml:"-"`
 	Priority uint32 `json:"priority" yaml:"priority"`
 	Config   CONFIG `json:",inline" yaml:",inline"`

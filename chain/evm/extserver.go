@@ -250,7 +250,7 @@ func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) (err erro
 
 	_, logger := log.FromContext(ctx)
 
-	if time.Now().UnixNano() < d.disableTraceUntil.Load() {
+	if d.missTraceDowngrade > 0 && time.Now().UnixNano() < d.disableTraceUntil.Load() {
 		logger.Debugf("block %d will not load trace because temporary disable trace", st.GetNumber())
 		return nil
 	}
@@ -261,7 +261,7 @@ func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) (err erro
 			disableTraceUntil := time.Now().Add(d.missTraceDowngrade)
 			logger.Warnf("load trace for block %d failed, will disable trace until %s", st.GetNumber(), disableTraceUntil)
 			d.disableTraceUntil.Store(disableTraceUntil.UnixNano())
-			err = nil
+			err = nil // so GetSlot will return succeed but this slot will have feature `featureMissTrace`
 		}
 	}()
 

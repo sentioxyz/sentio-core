@@ -27,6 +27,10 @@ func (s *Slot) GetParentHash() string {
 	return ""
 }
 
+func (s *Slot) Features() []string {
+	return nil
+}
+
 func (s *Slot) Linked() bool {
 	return false
 }

@@ -9,6 +9,7 @@ type Slot interface {
 	GetNumber() uint64
 	GetHash() string
 	GetParentHash() string
+	Features() []string
 
 	// Linked zero-value calls must be allowed.
 	// a true value indicates that the link state between ParentHash and Hash needs to be checked.

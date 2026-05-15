@@ -447,15 +447,32 @@ func (c *StdLatestSlotCache[SLOT]) Snapshot() any {
 	defer c.lock.RUnlock()
 	c.statLock.Lock()
 	defer c.statLock.Unlock()
+
+	featureRanges := make(map[string]rg.RangeSet)
+	if c.curRange.End != nil {
+		for n := c.curRange.Start; n <= *c.curRange.End; n++ {
+			if slot, ok := c.memCache[n]; ok {
+				for _, fea := range slot.Features() {
+					rs, has := featureRanges[fea]
+					if !has {
+						rs = rg.EmptyRangeSet
+					}
+					featureRanges[fea] = rs.Union(rg.NewSingleRange(n))
+				}
+			}
+		}
+	}
+
 	m := map[string]any{
 		"name":                 c.name,
 		"network":              c.network,
 		"cacheBlockTimeLenMax": c.cacheBlockTimeLenMax.String(),
 		"cacheBlockTimeLenMin": c.cacheBlockTimeLenMin.String(),
 		"memCache": map[string]any{
-			"ready": c.ready,
-			"len":   len(c.memCache),
-			"range": c.curRange.String(),
+			"ready":    c.ready,
+			"len":      len(c.memCache),
+			"range":    c.curRange.String(),
+			"features": utils.MapMapNoError(featureRanges, rg.RangeSet.String),
 		},
 		"loadExternal": map[string]any{
 			"used":       c.loadExtUsed.String(),

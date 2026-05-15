@@ -9,6 +9,7 @@ import (
 	"math"
 	"math/rand"
 	"reflect"
+	"sentioxyz/sentio-core/chain/clientpool/ex"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/pool"
 	"sentioxyz/sentio-core/common/queue"
@@ -129,6 +130,12 @@ func (c consumer) Snapshot() any {
 	}
 }
 
+type Notifier[CONFIG EntryConfig[CONFIG]] interface {
+	CurrentPriority(currentPriority int)
+	EntryLatestBlock(c ClientConfig[CONFIG], latest Block)
+	EntryUsed(c ClientConfig[CONFIG], what string, dur time.Duration, hasErr bool)
+}
+
 type PriorityNotifier func(int)
 type LatestNotifier[CONFIG EntryConfig[CONFIG]] func(ClientConfig[CONFIG], Block)
 type ConfigModifier[CONFIG any] func(CONFIG) CONFIG
@@ -138,12 +145,12 @@ type ConfigModifier[CONFIG any] func(CONFIG) CONFIG
 type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 	pool *pool.Pool[ClientConfig[CONFIG], entryStatus[CLIENT], poolStatus]
 
-	clientBuilder       func(CONFIG) CLIENT
-	priorityNotifier    PriorityNotifier
-	entryLatestNotifier LatestNotifier[CONFIG]
-	confModifiers       []ConfigModifier[CONFIG]
+	clientBuilder func(CONFIG, UsedNotifier) CLIENT
+	notifier      Notifier[CONFIG]
+	confModifiers []ConfigModifier[CONFIG]
 
 	statDowngrade *timewin.TimeWindowsManager[*downgradeStatWindow]
+	statEntryUsed *ex.StatWinManager
 
 	// protect all properties below
 	mu sync.Mutex
@@ -163,19 +170,18 @@ type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 
 func NewClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client](
 	name string,
-	clientBuilder func(CONFIG) CLIENT,
-	priorityNotifier PriorityNotifier,
-	entryLatestNotifier LatestNotifier[CONFIG],
+	clientBuilder func(CONFIG, UsedNotifier) CLIENT,
+	notifier Notifier[CONFIG],
 	confModifiers ...ConfigModifier[CONFIG],
 ) *ClientPool[CONFIG, CLIENT] {
 	p := &ClientPool[CONFIG, CLIENT]{
-		clientBuilder:       clientBuilder,
-		priorityNotifier:    priorityNotifier,
-		entryLatestNotifier: entryLatestNotifier,
-		confModifiers:       confModifiers,
-		entryExtra:          make(map[string]*entryExtra),
-		consumer:            make(map[uint64]consumer),
-		statDowngrade:       timewin.NewTimeWindowsManager[*downgradeStatWindow](time.Minute),
+		clientBuilder: clientBuilder,
+		notifier:      notifier,
+		confModifiers: confModifiers,
+		entryExtra:    make(map[string]*entryExtra),
+		consumer:      make(map[uint64]consumer),
+		statDowngrade: timewin.NewTimeWindowsManager[*downgradeStatWindow](time.Minute),
+		statEntryUsed: ex.NewStatWinManager(time.Minute),
 	}
 	p.pool = pool.NewPool[ClientConfig[CONFIG], entryStatus[CLIENT], poolStatus](
 		name,
@@ -254,7 +260,12 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 	}()
 
 	if !es.Initialized {
-		es.Client = p.clientBuilder(config.Config)
+		es.Client = p.clientBuilder(config.Config, func(what string, dur time.Duration, hasErr bool) {
+			p.statEntryUsed.Record(fmt.Sprintf("P%d(%s)%s", config.Priority, config.Config.GetName(), what), dur, hasErr)
+			if p.notifier != nil {
+				p.notifier.EntryUsed(config, what, dur, hasErr)
+			}
+		})
 		es.ClientName = es.Client.GetName()
 		var latest Block
 		err := backoff.RetryNotify(
@@ -287,8 +298,8 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 		if !pushChan(ctx, ch, es) {
 			return
 		}
-		if p.entryLatestNotifier != nil {
-			p.entryLatestNotifier(config, latest)
+		if p.notifier != nil {
+			p.notifier.EntryLatestBlock(config, latest)
 		}
 	}
 
@@ -309,8 +320,8 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 			if !pushChan(ctx, ch, es) {
 				return
 			}
-			if p.entryLatestNotifier != nil {
-				p.entryLatestNotifier(config, latest)
+			if p.notifier != nil {
+				p.notifier.EntryLatestBlock(config, latest)
 			}
 		}
 	}()
@@ -669,11 +680,11 @@ func (p *ClientPool[CONFIG, CLIENT]) enablePriority() {
 	}
 	p.mu.Unlock()
 
-	if p.priorityNotifier != nil {
+	if p.notifier != nil {
 		if current == math.MaxUint32 {
-			p.priorityNotifier(-1)
+			p.notifier.CurrentPriority(-1)
 		} else {
-			p.priorityNotifier(int(current))
+			p.notifier.CurrentPriority(int(current))
 		}
 	}
 

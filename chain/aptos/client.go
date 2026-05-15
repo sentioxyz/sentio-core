@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"reflect"
 	"sentioxyz/sentio-core/chain/clientpool"
-	"sentioxyz/sentio-core/chain/clientpool/ex"
 	"sentioxyz/sentio-core/common/https"
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
@@ -51,15 +50,15 @@ type Client struct {
 	name       string
 	config     ClientConfig
 	httpClient *http.Client
-	stat       *ex.StatWinManager
+	notifier   clientpool.UsedNotifier
 }
 
-func NewClient(config ClientConfig) *Client {
+func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) *Client {
 	return &Client{
 		name:       clientpool.BuildPublicName(config.Endpoint),
 		config:     config,
 		httpClient: httpClient,
-		stat:       ex.NewStatWinManager(time.Minute),
+		notifier:   notifier,
 	}
 }
 
@@ -145,7 +144,7 @@ func (c *Client) use(
 ) clientpool.Result {
 	startAt := time.Now()
 	r := fn(ctx)
-	c.stat.Record(method, time.Since(startAt), r.Err != nil)
+	c.notifier(method, time.Since(startAt), r.Err != nil)
 	return r
 }
 
@@ -196,9 +195,7 @@ func (c *Client) GetName() string {
 }
 
 func (c *Client) Snapshot() any {
-	return map[string]any{
-		"statistic": c.stat.Snapshot(),
-	}
+	return nil
 }
 
 type ClientPool struct {
@@ -207,16 +204,14 @@ type ClientPool struct {
 
 func NewClientPool(
 	name string,
-	priorityNotifier clientpool.PriorityNotifier,
-	latestNotifier clientpool.LatestNotifier[ClientConfig],
+	notifier clientpool.Notifier[ClientConfig],
 	confModifiers ...clientpool.ConfigModifier[ClientConfig],
 ) *ClientPool {
 	return &ClientPool{
 		ClientPool: clientpool.NewClientPool(
 			name,
 			NewClient,
-			priorityNotifier,
-			latestNotifier,
+			notifier,
 			append(confModifiers, ClientConfig.Trim)...,
 		),
 	}

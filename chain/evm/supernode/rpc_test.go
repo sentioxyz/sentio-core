@@ -71,7 +71,7 @@ func Test_evmRpc(t *testing.T) {
 	g, gctx := errgroup.WithContext(ctx)
 
 	// prepare client pool targeting ETH mainnet (Cloudflare public endpoint)
-	cli := evm.NewClientPool("client", nil, nil)
+	cli := evm.NewClientPool("client", nil)
 	g.Go(func() error {
 		ch := make(chan clientpool.PoolConfig[evm.ClientConfig], 1)
 		ch <- clientpool.PoolConfig[evm.ClientConfig]{

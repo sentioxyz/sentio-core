@@ -18,7 +18,6 @@ go_library(
     deps = [
         "//chain/chain",
         "//chain/clientpool",
-        "//chain/clientpool/ex",
         "//common/chains",
         "//common/errgroup",
         "//common/https",

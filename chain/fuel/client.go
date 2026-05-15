@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"reflect"
 	"sentioxyz/sentio-core/chain/clientpool"
-	"sentioxyz/sentio-core/chain/clientpool/ex"
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/log"
@@ -52,12 +51,13 @@ type Client struct {
 	config     ClientConfig
 	httpClient *http.Client
 	client     *fuelGo.Client
-	stat       *ex.StatWinManager
+
+	notifier clientpool.UsedNotifier
 }
 
 var httpClient = https.NewClient(https.WithTimeout(time.Minute))
 
-func NewClient(config ClientConfig) *Client {
+func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) *Client {
 	opts := []fuelGo.Options{fuelGo.WithHTTPClient(httpClient)}
 	if debugFuelClient {
 		_, logger := log.FromContext(context.Background(), "endpoint", config.Endpoint)
@@ -68,7 +68,7 @@ func NewClient(config ClientConfig) *Client {
 		config:     config,
 		httpClient: httpClient,
 		client:     fuelGo.NewClient(config.Endpoint, opts...),
-		stat:       ex.NewStatWinManager(time.Minute),
+		notifier:   notifier,
 	}
 }
 
@@ -180,7 +180,7 @@ func (c *Client) use(
 ) clientpool.Result {
 	startAt := time.Now()
 	r := fn(ctx)
-	c.stat.Record(key, time.Since(startAt), r.Err != nil)
+	c.notifier(key, time.Since(startAt), r.Err != nil)
 	return r
 }
 
@@ -239,9 +239,7 @@ func (c *Client) GetName() string {
 }
 
 func (c *Client) Snapshot() any {
-	return map[string]any{
-		"statistic": c.stat.Snapshot(),
-	}
+	return nil
 }
 
 type ClientPool struct {
@@ -250,16 +248,14 @@ type ClientPool struct {
 
 func NewClientPool(
 	name string,
-	priorityNotifier clientpool.PriorityNotifier,
-	latestNotifier clientpool.LatestNotifier[ClientConfig],
+	notifier clientpool.Notifier[ClientConfig],
 	confModifiers ...clientpool.ConfigModifier[ClientConfig],
 ) *ClientPool {
 	return &ClientPool{
 		ClientPool: clientpool.NewClientPool(
 			name,
 			NewClient,
-			priorityNotifier,
-			latestNotifier,
+			notifier,
 			append(confModifiers, ClientConfig.Trim)...,
 		),
 	}

@@ -7,7 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//chain/clientpool",
-        "//chain/clientpool/ex",
         "//common/https",
         "//common/utils",
         "@com_github_gagliardetto_solana_go//:solana-go",

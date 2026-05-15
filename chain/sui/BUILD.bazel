@@ -17,7 +17,6 @@ go_library(
     deps = [
         "//chain/chain",
         "//chain/clientpool",
-        "//chain/clientpool/ex",
         "//chain/move",
         "//chain/sui/types",
         "//common/concurrency",

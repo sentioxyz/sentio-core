@@ -165,7 +165,7 @@ func Test_convertReal(t *testing.T) {
 		GrpcEndpoint: "http://127.0.0.1:9000",
 	}
 
-	cli := sui.NewClient(conf)
+	cli := sui.NewClient(conf, func(string, time.Duration, bool) {})
 	_, err = cli.Init(context.Background())
 	assert.NoError(t, err)
 

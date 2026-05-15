@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"reflect"
 	"sentioxyz/sentio-core/chain/clientpool"
-	"sentioxyz/sentio-core/chain/clientpool/ex"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/log"
@@ -95,15 +94,16 @@ type Client struct {
 	httpClient *http.Client
 	rpcClient  *rpc.Client
 	grpcConn   *grpc.ClientConn
-	stat       *ex.StatWinManager
+
+	notifier clientpool.UsedNotifier
 }
 
-func NewClient(config ClientConfig) *Client {
+func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) *Client {
 	return &Client{
 		name:       clientpool.BuildPublicName(config.Endpoint),
 		config:     config,
 		httpClient: httpClient,
-		stat:       ex.NewStatWinManager(time.Minute),
+		notifier:   notifier,
 	}
 }
 
@@ -153,7 +153,7 @@ func (c *Client) subscribeUsingGRPC(ctx context.Context, ch chan<- clientpool.Bl
 			},
 		},
 	})
-	c.stat.Record("subscribe.grpc_SubscribeCheckpoints", time.Since(startAt), err != nil)
+	c.notifier("subscribe.grpc_SubscribeCheckpoints", time.Since(startAt), err != nil)
 	if err != nil {
 		logger.Warnfe(err, "call subscribe checkpoints failed")
 		return err
@@ -174,7 +174,7 @@ func (c *Client) subscribeUsingGRPC(ctx context.Context, ch chan<- clientpool.Bl
 			Hash:      res.GetCheckpoint().GetDigest(),
 			Timestamp: res.GetCheckpoint().GetSummary().GetTimestamp().AsTime(),
 		}
-		c.stat.Record("subscribe.grpc_SubscribeCheckpoints.recv", time.Since(startAt), false)
+		c.notifier("subscribe.grpc_SubscribeCheckpoints.recv", time.Since(startAt), false)
 		select {
 		case ch <- block:
 		case <-ctx.Done():
@@ -258,7 +258,7 @@ func (c *Client) use(
 ) clientpool.Result {
 	startAt := time.Now()
 	r := fn(ctx)
-	c.stat.Record(key, time.Since(startAt), r.Err != nil)
+	c.notifier(key, time.Since(startAt), r.Err != nil)
 	return r
 }
 
@@ -341,9 +341,7 @@ func (c *Client) GetName() string {
 }
 
 func (c *Client) Snapshot() any {
-	return map[string]any{
-		"statistic": c.stat.Snapshot(),
-	}
+	return nil
 }
 
 type ClientPool struct {
@@ -352,16 +350,14 @@ type ClientPool struct {
 
 func NewClientPool(
 	name string,
-	priorityNotifier clientpool.PriorityNotifier,
-	latestNotifier clientpool.LatestNotifier[ClientConfig],
+	notifier clientpool.Notifier[ClientConfig],
 	confModifiers ...clientpool.ConfigModifier[ClientConfig],
 ) *ClientPool {
 	return &ClientPool{
 		ClientPool: clientpool.NewClientPool(
 			name,
 			NewClient,
-			priorityNotifier,
-			latestNotifier,
+			notifier,
 			append(confModifiers, ClientConfig.Trim)...,
 		),
 	}

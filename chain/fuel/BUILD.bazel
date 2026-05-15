@@ -14,7 +14,6 @@ go_library(
     deps = [
         "//chain/chain",
         "//chain/clientpool",
-        "//chain/clientpool/ex",
         "//common/envconf",
         "//common/https",
         "//common/log",

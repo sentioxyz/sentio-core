@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"reflect"
 	"sentioxyz/sentio-core/chain/clientpool"
-	"sentioxyz/sentio-core/chain/clientpool/ex"
 	"sentioxyz/sentio-core/common/chains"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/https"
@@ -104,17 +103,18 @@ type Client struct {
 	httpClient *http.Client
 	rpcClient  *rpc.Client
 	info       *chains.EthChainInfo
-	stat       *ex.StatWinManager
 
 	hasStateDataFrom uint64
+
+	notifier clientpool.UsedNotifier
 }
 
-func NewClient(config ClientConfig) *Client {
+func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) *Client {
 	return &Client{
 		name:       clientpool.BuildPublicName(config.Endpoint),
 		config:     config,
 		httpClient: httpClient,
-		stat:       ex.NewStatWinManager(time.Minute),
+		notifier:   notifier,
 	}
 }
 
@@ -278,17 +278,17 @@ func (c *Client) subscribeUsingWebsocket(ctx context.Context, ch chan<- clientpo
 			}
 
 			if resp.Method == "" {
-				c.stat.Record("subscribe.eth_subscribe", used, false)
+				c.notifier("subscribe.eth_subscribe", used, false)
 				continue
 			}
 
 			if resp.Method != "eth_subscription" || resp.Params.Result == nil || resp.Params.Result.Number == nil {
 				roundLogger.Warnw("invalid subscribe result")
-				c.stat.Record("subscribe.eth_subscription", used, true)
+				c.notifier("subscribe.eth_subscription", used, true)
 				continue
 			}
 
-			c.stat.Record("subscribe.eth_subscription", used, false)
+			c.notifier("subscribe.eth_subscription", used, false)
 
 			if checkErr := c.strictDataIntegrityCheck(gctx, "subscribe"); checkErr != nil {
 				roundLogger.Warnfe(checkErr, "strict data integrity check failed")
@@ -399,7 +399,7 @@ func (c *Client) use(
 ) clientpool.Result {
 	startAt := time.Now()
 	r := fn(ctx)
-	c.stat.Record(method, time.Since(startAt), r.Err != nil)
+	c.notifier(method, time.Since(startAt), r.Err != nil)
 	return r
 }
 
@@ -532,7 +532,6 @@ func (c *Client) GetName() string {
 
 func (c *Client) Snapshot() any {
 	return map[string]any{
-		"statistic":        c.stat.Snapshot(),
 		"hasStateDataFrom": c.hasStateDataFrom,
 		"chainInfo":        c.info,
 	}
@@ -544,16 +543,14 @@ type ClientPool struct {
 
 func NewClientPool(
 	name string,
-	priorityNotifier clientpool.PriorityNotifier,
-	latestNotifier clientpool.LatestNotifier[ClientConfig],
+	notifier clientpool.Notifier[ClientConfig],
 	confModifiers ...clientpool.ConfigModifier[ClientConfig],
 ) *ClientPool {
 	return &ClientPool{
 		ClientPool: clientpool.NewClientPool(
 			name,
 			NewClient,
-			priorityNotifier,
-			latestNotifier,
+			notifier,
 			append(confModifiers, ClientConfig.Trim)...,
 		),
 	}

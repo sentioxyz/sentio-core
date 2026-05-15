@@ -44,7 +44,7 @@ type testClient struct {
 	stat map[string]int
 }
 
-func newTestClient(config testClientConfig) *testClient {
+func newTestClient(config testClientConfig, _ UsedNotifier) *testClient {
 	return &testClient{config: config, stat: make(map[string]int)}
 }
 
@@ -107,7 +107,7 @@ func Test_clientPool(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, nil)
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
 	cc := make(chan PoolConfig[testClientConfig])
 	go p.Start(ctx, cc)
 
@@ -231,7 +231,7 @@ func Test_ban_extend(t *testing.T) {
 // ── _poolStatusBuilder ───────────────────────────────────────────────────────
 
 func newPoolForStatus() *ClientPool[testClientConfig, *testClient] {
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, nil)
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
 	p.config.BrokenFallBehind = time.Minute
 	p.config.CheckSpeedInterval = time.Minute
 	return p
@@ -343,7 +343,7 @@ func startPoolWith(t *testing.T, clients ...ClientConfig[testClientConfig]) *Cli
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, nil)
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
 	// Call updateConfig directly so the config is guaranteed applied before we return.
 	p.updateConfig(defaultPoolConfig(clients))
 	// Start the pool loop for future use (AdjustPriority etc.).
@@ -527,7 +527,7 @@ func Test_UseClient_contextCancelled_whileWaiting(t *testing.T) {
 func Test_updateConfig_addAndRemoveClients(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, nil)
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
 	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
 
 	// Apply initial config: only c1
@@ -554,7 +554,7 @@ func Test_updateConfig_addAndRemoveClients(t *testing.T) {
 }
 
 func Test_updateConfig_priorityOrderingSetCorrectly(t *testing.T) {
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, nil)
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
 	p.updateConfig(PoolConfig[testClientConfig]{
 		ClientConfigs: []ClientConfig[testClientConfig]{
 			quickClientCfg("c1", 1),
@@ -677,7 +677,7 @@ func Test_ConfigModifier_appliedWhenStartReceivesConfig(t *testing.T) {
 		return c
 	}
 
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, nil, modifier)
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, modifier)
 	ch := make(chan PoolConfig[testClientConfig], 1)
 	go p.Start(ctx, ch)
 
@@ -713,7 +713,7 @@ func Test_Start_closedChannel_poolContinuesWorking(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, nil)
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
 	ch := make(chan PoolConfig[testClientConfig])
 	go p.Start(ctx, ch)
 
@@ -845,7 +845,7 @@ func Test_adjustPriority_withWaiters_downgradesCursor(t *testing.T) {
 	}
 	fast := quickClientCfg("c2", 3)
 
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, nil)
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
 	p.updateConfig(PoolConfig[testClientConfig]{
 		BrokenFallBehind:       time.Hour,
 		CheckSpeedInterval:     time.Hour,
@@ -879,7 +879,7 @@ func Test_adjustPriority_upgradesWhenValidHigherPriorityExists(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil, nil)
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
 	p.updateConfig(PoolConfig[testClientConfig]{
 		BrokenFallBehind:       time.Hour,
 		CheckSpeedInterval:     time.Hour,

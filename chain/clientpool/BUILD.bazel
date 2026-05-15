@@ -16,6 +16,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/chain/clientpool",
     visibility = ["//visibility:public"],
     deps = [
+        "//chain/clientpool/ex",
         "//common/log",
         "//common/pool",
         "//common/queue",

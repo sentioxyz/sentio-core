@@ -115,6 +115,7 @@ func (p *ClientPool[CONFIG, CLIENT]) Snapshot() any {
 				"stateDetail": stateDetail,
 			}
 		}),
+		"entryUsed": p.statEntryUsed.Snapshot(),
 		"consumers": map[string]any{
 			"total":        p.consumerCounter,
 			"currentCount": len(p.consumer),

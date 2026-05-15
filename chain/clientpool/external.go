@@ -46,3 +46,5 @@ type EntryConfig[CONFIG any] interface {
 	GetName() string // as the unique identity of the entry
 	Equal(a CONFIG) bool
 }
+
+type UsedNotifier func(what string, dur time.Duration, hasErr bool)

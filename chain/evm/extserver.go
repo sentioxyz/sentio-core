@@ -259,7 +259,8 @@ func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) (err erro
 		st.HaveTrace = err == nil
 		if err != nil && d.missTraceDowngrade > 0 {
 			disableTraceUntil := time.Now().Add(d.missTraceDowngrade)
-			logger.Warnf("load trace for block %d failed, will disable trace until %s", st.GetNumber(), disableTraceUntil)
+			logger.Warnfe(err, "load trace for block %d failed, will disable trace until %s",
+				st.GetNumber(), disableTraceUntil)
 			d.disableTraceUntil.Store(disableTraceUntil.UnixNano())
 			err = nil // so GetSlot will return succeed but this slot will have feature `featureMissTrace`
 		}

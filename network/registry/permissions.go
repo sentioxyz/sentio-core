@@ -1,6 +1,11 @@
 package registry
 
-import "context"
+import (
+	"context"
+	"strconv"
+
+	"github.com/go-faster/errors"
+)
 
 // PermissionSource retrieves raw per-database permission strings for a
 // lowercased Ethereum address. Values are decimal int64 strings (see
@@ -8,6 +13,29 @@ import "context"
 // an error.
 type PermissionSource interface {
 	GetAccountPermissions(ctx context.Context, account string) (map[string]string, bool, error)
+}
+
+// expandAuth applies the permission hierarchy: Owner ⇒ Admin|Write|Read, Write ⇒ Read.
+// Admin alone does NOT imply Write or Read.
+func expandAuth(auth DbAuth) DbAuth {
+	if auth&DbAuthOwner != 0 {
+		auth |= DbAuthAdmin | DbAuthWrite | DbAuthRead
+	}
+	if auth&DbAuthWrite != 0 {
+		auth |= DbAuthRead
+	}
+	return auth
+}
+
+func parseAuth(s string) (DbAuth, error) {
+	if s == "" {
+		return 0, nil
+	}
+	i, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, errors.Errorf("invalid permission format: %s", s)
+	}
+	return DbAuth(i), nil
 }
 
 // MergeAccountPermissions returns the effective per-database permission

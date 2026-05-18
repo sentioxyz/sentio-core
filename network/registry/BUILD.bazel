@@ -1,19 +1,36 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "registry",
     srcs = [
-        "db_registry.go",
         "permissions.go",
-        "processor_registry.go",
+        "registry.go",
+        "registry_db.go",
+        "registry_indexer.go",
+        "registry_processor.go",
+        "types.go",
     ],
     importpath = "sentioxyz/sentio-core/network/registry",
     visibility = ["//visibility:public"],
     deps = [
-        "//common/clickhousemanager",
         "//common/log",
         "//common/statemirror",
         "//network/state",
         "@com_github_go_faster_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "registry_test",
+    srcs = [
+        "permissions_test.go",
+        "registry_db_test.go",
+        "registry_indexer_test.go",
+        "registry_processor_test.go",
+    ],
+    embed = [":registry"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

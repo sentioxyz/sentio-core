@@ -2,7 +2,6 @@ package registry
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	"sentioxyz/sentio-core/common/log"
@@ -12,76 +11,39 @@ import (
 	"github.com/go-faster/errors"
 )
 
-type Database string
-type Address string
-
-// WildcardAddress is the all-zeros account whose permissions are unioned
-// into every caller's effective bitmap. A grant to this address means
-// "everyone has this permission" and is the encoding the smart-contract
-// layer uses for public reads. Both RetrievePermissionsByAccount and
-// AccountHasPermission merge this row into the caller's result.
-const WildcardAddress Address = "0x0000000000000000000000000000000000000000"
-
-type DbAuth int64
-
-const (
-	DbAuthRead DbAuth = 1 << iota
-	DbAuthWrite
-	DbAuthAdmin
-	DbAuthOwner
-)
-
-type Action int64
-
-const (
-	Read Action = 1 << iota
-	Write
-)
-
-type DbRegistry interface {
-	RetrieveDatabaseInfo(ctx context.Context, database Database) (state.DatabaseInfo, error)
-	RetrievePermissionsByAccount(ctx context.Context, address Address) (map[Database]DbAuth, error)
-	AccountHasPermission(ctx context.Context, address Address, database Database, action Action) (bool, error)
-	RetrieveAllDatabaseInfos(ctx context.Context) (map[Database]state.DatabaseInfo, error)
-}
-
 type dbRegistry struct {
 	mirror           statemirror.Mirror
 	databaseMirror   statemirror.MirrorReadOnlyState[string, state.DatabaseInfo]
 	permissionMirror statemirror.MirrorReadOnlyState[string, map[string]string]
 }
 
-var databaseCodec = statemirror.JSONCodec[string, state.DatabaseInfo]{
-	FieldFunc: func(db string) (string, error) {
-		return db, nil
-	},
-	ParseFunc: func(field string) (string, error) {
-		return field, nil
-	},
-}
-
-var permissionCodec = statemirror.JSONCodec[string, map[string]string]{
-	FieldFunc: func(account string) (string, error) {
-		return account, nil
-	},
-	ParseFunc: func(field string) (string, error) {
-		return field, nil
-	},
-}
-
-func NewUserDbRegistry(m statemirror.Mirror) DbRegistry {
+func NewDbRegistry(m statemirror.Mirror) DbRegistry {
 	return &dbRegistry{
-		mirror:           m,
-		databaseMirror:   statemirror.NewTypedMirror(m, statemirror.MappingDatabases, databaseCodec),
-		permissionMirror: statemirror.NewTypedMirror(m, statemirror.MappingDatabasePermissions, permissionCodec),
+		mirror: m,
+		databaseMirror: statemirror.NewTypedMirror(m, statemirror.MappingDatabases, statemirror.JSONCodec[string, state.DatabaseInfo]{
+			FieldFunc: func(db string) (string, error) {
+				return db, nil
+			},
+			ParseFunc: func(field string) (string, error) {
+				return field, nil
+			},
+		}),
+		permissionMirror: statemirror.NewTypedMirror(m, statemirror.MappingDatabasePermissions, statemirror.JSONCodec[string, map[string]string]{
+			FieldFunc: func(account string) (string, error) {
+				return account, nil
+			},
+			ParseFunc: func(field string) (string, error) {
+				return field, nil
+			},
+		}),
 	}
 }
 
 func (r *dbRegistry) RetrieveDatabaseInfo(ctx context.Context, database Database) (state.DatabaseInfo, error) {
-	if r.databaseMirror == nil {
+	if r.mirror == nil {
 		return state.DatabaseInfo{}, errors.New("database mirror is not initialized")
 	}
-	_, logger := log.FromContext(ctx)
+	_, logger := log.FromContext(ctx, "database", database)
 	info, ok, err := r.databaseMirror.Get(ctx, string(database))
 	if err != nil {
 		logger.Errorf("failed to get database info for %s: %s", database, err.Error())
@@ -95,7 +57,7 @@ func (r *dbRegistry) RetrieveDatabaseInfo(ctx context.Context, database Database
 }
 
 func (r *dbRegistry) RetrieveAllDatabaseInfos(ctx context.Context) (map[Database]state.DatabaseInfo, error) {
-	if r.databaseMirror == nil {
+	if r.mirror == nil {
 		return nil, errors.New("database mirror is not initialized")
 	}
 	_, logger := log.FromContext(ctx)
@@ -125,7 +87,7 @@ func (m *mirrorPermissionSource) GetAccountPermissions(ctx context.Context, acco
 }
 
 func (r *dbRegistry) RetrievePermissionsByAccount(ctx context.Context, address Address) (map[Database]DbAuth, error) {
-	if r.databaseMirror == nil || r.permissionMirror == nil {
+	if r.mirror == nil {
 		return nil, errors.New("mirror is not initialized")
 	}
 	address = Address(strings.ToLower(string(address)))
@@ -149,7 +111,7 @@ func (r *dbRegistry) RetrievePermissionsByAccount(ctx context.Context, address A
 }
 
 func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, database Database, action Action) (bool, error) {
-	if r.databaseMirror == nil || r.permissionMirror == nil {
+	if r.mirror == nil {
 		return false, errors.New("mirror is not initialized")
 	}
 	address = Address(strings.ToLower(string(address)))
@@ -173,27 +135,4 @@ func (r *dbRegistry) AccountHasPermission(ctx context.Context, address Address, 
 	hasPermission := effectiveAuth&DbAuth(action) != 0
 	logger.Debugf("permission check for %s on %s: effective=%d, action=%d, has=%v", address, database, effectiveAuth, action, hasPermission)
 	return hasPermission, nil
-}
-
-// expandAuth applies the permission hierarchy: Owner ⇒ Admin|Write|Read, Write ⇒ Read.
-// Admin alone does NOT imply Write or Read.
-func expandAuth(auth DbAuth) DbAuth {
-	if auth&DbAuthOwner != 0 {
-		auth |= DbAuthAdmin | DbAuthWrite | DbAuthRead
-	}
-	if auth&DbAuthWrite != 0 {
-		auth |= DbAuthRead
-	}
-	return auth
-}
-
-func parseAuth(s string) (DbAuth, error) {
-	if s == "" {
-		return 0, nil
-	}
-	i, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0, errors.Errorf("invalid permission format: %s", s)
-	}
-	return DbAuth(i), nil
 }

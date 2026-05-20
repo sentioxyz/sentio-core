@@ -736,10 +736,10 @@
         ]
       }
     },
-    "@@aspect_rules_ts+//ts:extensions.bzl%ext": {
+    "@@aspect_rules_ts+//ts:extensions.bzl%ext%<root>+rules_ts_ext": {
       "general": {
         "bzlTransitiveDigest": "QDTi1Wl/eEY4IgbXjRhegUQfHj+bB8ZEVyiSGLZc6qo=",
-        "usagesDigest": "ESmLVIHdYwcpVjtrR2zsjzxljyL8Mku4xra6JgSw3gc=",
+        "usagesDigest": "IgLvkMuTknh70kl5lH/eRxUeCYO1ZrbgP2W/qAj8OaA=",
         "recordedFileInputs": {
           "@@//package.json": "c3b2ba1d3ae653519ab8fc100012b1a6583bf4aaaf8d4928afec4c0ad5dd3ce3"
         },

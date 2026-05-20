@@ -212,9 +212,9 @@ npm.npm_translate_lock(
     #     "next": ["next=./dist/bin/next"],
     # },
     data = [
-        "@//:package.json",
-        "@//:packages/chain/package.json",
-        "@//:pnpm-workspace.yaml",
+        "//:package.json",
+        "//:packages/chain/package.json",
+        "//:pnpm-workspace.yaml",
     ],
     npmrc = "//:.npmrc",
     pnpm_lock = "//:pnpm-lock.yaml",

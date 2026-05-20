@@ -15,6 +15,7 @@ This repository has custom git aliases configured:
 - **`git dev-clean`** - Clean up your dev/* branches (except current)
 - **`git pr-clean`** - Clean up all pr/* branches
 - **`git patch <name>`** - Create a patch branch (see `.github/.gitconfig` for details)
+- **`git patch-clean`** - Delete all `patch/*` branches
 
 ### Recommended Workflow
 
@@ -73,6 +74,17 @@ bazel run //service/launcher:launcher_load     # Load image into Docker
 bazel run //service/launcher:launcher_push     # Push to registry
 ```
 
+### Repo Scripts
+
+Prefer these wrappers over invoking Bazel/Go targets directly — they chain the steps you actually need:
+
+```bash
+./scripts/deps-update.sh                   # go mod tidy + bazel mod tidy + gazelle + python lock regen
+./scripts/proto-go-update.sh               # regenerate Go proto bindings (wraps bazel/golang:update_go_pb)
+./scripts/clean-bazel-bin-stale-files.sh   # purge stale files from bazel-bin
+./scripts/check_sui_grpc.py                # verify a Sui gRPC endpoint is reachable and healthy
+```
+
 ### Language-Specific Commands
 
 **Go:**
@@ -81,17 +93,17 @@ bazel run //service/launcher:launcher_push     # Push to registry
 - After modifying `go.mod`, run `bazel run //:gazelle-update-repos` then `bazel run //:gazelle`
 
 **TypeScript/JavaScript:**
-- Uses `pnpm` as package manager (enforced by preinstall hook)
-- Node version: 22+ (specified in package.json engines)
-- Format code: `pnpm format` (runs prettier)
-- Packages are in `packages/` directory (ui-core, ui-web3, chain, etc.)
+- Node version: **24+** (`engines.node` in package.json)
+- Package manager: **pnpm 10.29.3** (pinned via `packageManager`; `preinstall` enforces pnpm)
+- Format code: `pnpm format` (runs prettier across the workspace)
+- Packages are in `packages/` directory (ui-core, ui-web3, chain, browser-extension, remix-plugin)
 
 **Protocol Buffers:**
 - Proto files generate code for multiple languages (Go, Python, TypeScript, C++)
 - After modifying `.proto` files, rebuild affected targets
 - Proto definitions are in `*/protos/` directories
 - Uses built-in protobuf toolchain (since protobuf@33.4) with `--@protobuf//bazel/toolchains:prefer_prebuilt_protoc`
-- After protobuf version upgrades, regenerate proto files: `bazel run //processor/protos:protos.update_go_pb`
+- After protobuf version upgrades, regenerate proto files via `./scripts/proto-go-update.sh` (wraps `bazel/golang:update_go_pb`)
 
 ## Architecture Overview
 
@@ -130,7 +142,9 @@ The codebase is organized into several major components:
 - `sqlrewriter/` - SQL rewriting for network-specific data access
 
 **`chain/`** - Blockchain-specific implementations:
-- `evm/` - Ethereum Virtual Machine support
+- `evm/`, `aptos/`, `sui/`, `sol/`, `fuel/`, `move/` - chain-specific clients and types
+- `clickhouse/`, `redis/`, `clientpool/` - shared infra used across chain backends
+- `chain/` - core chain abstractions
 
 **`packages/`** - Frontend TypeScript/JavaScript packages:
 - `chain/` - Chain-specific utilities

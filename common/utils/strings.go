@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"github.com/pkg/errors"
 	"golang.org/x/exp/constraints"
 	"regexp"
 	"strconv"
@@ -254,4 +255,53 @@ func StringsLenSum(arr []string) (sum int) {
 		sum += len(s)
 	}
 	return sum
+}
+
+// SplitTopLevel splits raw by delim, but only at the top level (not inside brackets).
+// left and right must be paired characters of equal length (e.g. "([" and ")]").
+// n is the maximum number of splits; n=0 means no limit.
+func SplitTopLevel(raw string, delim rune, left string, right string, n int) ([]string, error) {
+	raw_ := []rune(raw)
+	left_ := []rune(left)
+	right_ := []rune(right)
+	if len(left_) != len(right_) {
+		panic(errors.Errorf("left and right must be same length"))
+	}
+	stack := make([]rune, 0)
+	s := 0
+	var result []string
+	for i, c := range raw_ {
+		if len(stack) == 0 && c == delim {
+			result = append(result, string(raw_[s:i]))
+			s = i + 1
+			if len(result) == n {
+				break
+			}
+		} else if p := IndexOf(left_, c); p >= 0 {
+			stack = append(stack, right_[p])
+		} else if len(stack) > 0 && c == stack[len(stack)-1] {
+			stack = stack[:len(stack)-1]
+		} else if p = IndexOf(right_, c); p >= 0 {
+			return nil, errors.Errorf("unexpected character '%c' at position %d, no matching '%c'", c, i, left_[p])
+		}
+	}
+	if len(stack) > 0 {
+		return nil, errors.Errorf("unclosed '%c'", stack[len(stack)-1])
+	}
+	result = append(result, string(raw_[s:]))
+	return result, nil
+}
+
+// CutTopLevel splits raw into two parts at the first top-level occurrence of delim.
+// If delim is not found at the top level, returns (raw, "", false, nil).
+func CutTopLevel(raw string, delim rune, left string, right string) (first, second string, hasSec bool, err error) {
+	var parts []string
+	parts, err = SplitTopLevel(raw, delim, left, right, 1)
+	if err != nil {
+		return
+	}
+	if len(parts) < 2 {
+		return parts[0], "", false, nil
+	}
+	return parts[0], parts[1], true, nil
 }

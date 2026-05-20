@@ -33,3 +33,14 @@ func findNotIn(str string, target, quota rune) int {
 	}
 	return -1
 }
+
+func NewGetter[T any](raw []T, converter func(T) []any) func() ([]any, bool) {
+	var cursor int
+	return func() ([]any, bool) {
+		if cursor >= len(raw) {
+			return nil, false
+		}
+		cursor++
+		return converter(raw[cursor-1]), true
+	}
+}

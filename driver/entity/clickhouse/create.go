@@ -83,16 +83,16 @@ var (
 )
 
 func (s *Store) loadExists(ctx context.Context, categories []string) (map[string]map[string]chx.TableOrView, error) {
-	loaded, err := s.ctrl.Load(ctx, s.database, s.buildTableNameLike())
+	loaded, err := s.ctrl.LoadAll(ctx, false)
 	if err != nil {
 		return nil, err
 	}
 	valid := set.New(categories...)
 	tvs := make(map[string]map[string]chx.TableOrView)
-	for tableName, tv := range loaded {
-		category, entityName := s.cutTableName(tableName)
+	for _, tv := range loaded {
+		category, entityName := s.cutName(tv.GetName())
 		if valid.Contains(category) {
-			utils.PutIntoK2Map(tvs, entityName, tableName, tv)
+			utils.PutIntoK2Map(tvs, entityName, tv.GetName(), tv)
 		}
 	}
 	return tvs, nil
@@ -100,7 +100,7 @@ func (s *Store) loadExists(ctx context.Context, categories []string) (map[string
 
 func (s *Store) syncTablesAndViews(ctx context.Context, viewOnly bool) (err error) {
 	startAt := time.Now()
-	_, logger := log.FromContext(ctx, "processorID", s.processorID, "viewOnly", viewOnly)
+	_, logger := log.FromContext(ctx, "viewOnly", viewOnly)
 	logger.Info("will sync tables and views from subgraph schema")
 	defer func() {
 		logger = logger.With("used", time.Since(startAt).String())
@@ -132,18 +132,13 @@ func (s *Store) syncTablesAndViews(ctx context.Context, viewOnly bool) (err erro
 
 	// sync
 	expects := s.buildTablesAndViews(viewOnly)
-	// Mirror physical tables to the on-chain Databases contract before any
-	// CREATE TABLE statements run. Only active for decentralized network
-	// processors; the cloud path leaves registrar nil and skips entirely.
-	if !viewOnly && s.onChainRegistrationEnabled() {
-		if err = s.ensureOnChainTables(ctx, expects); err != nil {
-			return err
-		}
-	}
 	for _, item := range s.sch.ListEntitiesAndInterfacesAndAggregations(false) {
 		for _, tv := range expects[item.GetName()] {
-			pre, has := utils.GetFromK2Map(exists, item.GetName(), tv.GetFullName().Name)
+			pre, has := utils.GetFromK2Map(exists, item.GetName(), tv.GetName())
 			if !has {
+				if err = s.probe.PreCreateTable(ctx, tv); err != nil {
+					return err
+				}
 				if err = s.ctrl.Create(ctx, tv); err != nil {
 					return err
 				}
@@ -156,7 +151,7 @@ func (s *Store) syncTablesAndViews(ctx context.Context, viewOnly bool) (err erro
 						return err
 					}
 				}
-				utils.DelFromK2Map(exists, item.GetName(), tv.GetFullName().Name)
+				utils.DelFromK2Map(exists, item.GetName(), tv.GetName())
 			}
 		}
 	}
@@ -171,31 +166,6 @@ func (s *Store) InitEntitySchema(ctx context.Context) error {
 
 func (s *Store) CreateViews(ctx context.Context) error {
 	return s.syncTablesAndViews(ctx, true)
-}
-
-// ensureOnChainTables registers every physical base table in the expected
-// set on-chain with tableType="entity". Views and materialized views are not
-// registered because they have no independent storage. The processor
-// database itself is created by Controller.startProcessor; drivers only
-// register tables.
-func (s *Store) ensureOnChainTables(
-	ctx context.Context,
-	expects map[string][]chx.TableOrView,
-) error {
-	replica := uint32(s.processorReplica)
-	prefix := s.tableNamePrefix()
-	for _, tvs := range expects {
-		for _, tv := range tvs {
-			if _, is := tv.(chx.Table); !is {
-				continue
-			}
-			tableID := strings.TrimPrefix(tv.GetFullName().Name, prefix)
-			if err := s.registrar.EnsureTable(ctx, s.processorID, replica, tableID, "entity"); err != nil {
-				return fmt.Errorf("ensure on-chain table %q in %s_%d: %w", tableID, s.processorID, s.processorReplica, err)
-			}
-		}
-	}
-	return nil
 }
 
 func (s *Store) getViewFields(item schema.EntityOrInterface, latestView bool) []ViewField {
@@ -421,12 +391,9 @@ func (s *Store) TableOrViewComment(entityType schema.EntityOrInterface) string {
 // <ProcessorID>_versionedEntity_<EntityName>
 func (s *Store) buildVersionedEntityTable(entityType *schema.Entity) chx.Table {
 	return chx.Table{
-		FullName: chx.FullName{
-			Database: s.database,
-			Name:     s.VersionedTableName(entityType),
-		},
+		Name: s.VersionedTableName(entityType),
 		Config: chx.TableConfig{
-			Engine:      chx.NewDefaultMergeTreeEngine(s.ctrl.GetCluster() != ""),
+			Engine:      s.ctrl.NewDefaultMergeTreeEngine(),
 			PartitionBy: genBlockChainFieldName,
 			OrderBy: []string{
 				genBlockChainFieldName,
@@ -455,16 +422,9 @@ func (s *Store) buildVersionedEntityTable(entityType *schema.Entity) chx.Table {
 // <ProcessorID>_versionedLatestEntity_<EntityName>
 func (s *Store) buildVersionedLatestEntityTable(entityType *schema.Entity) chx.Table {
 	return chx.Table{
-		FullName: chx.FullName{
-			Database: s.database,
-			Name:     s.VersionedLatestTableName(entityType),
-		},
+		Name: s.VersionedLatestTableName(entityType),
 		Config: chx.TableConfig{
-			Engine: chx.NewDefaultVersionedCollapsingMergeTreeEngine(
-				s.ctrl.GetCluster() != "",
-				signFieldName,
-				versionFieldName,
-			),
+			Engine:      s.ctrl.NewDefaultVersionedCollapsingMergeTreeEngine(signFieldName, versionFieldName),
 			PartitionBy: genBlockChainFieldName,
 			OrderBy:     []string{genBlockChainFieldName, schema.EntityPrimaryFieldName},
 			Settings:    s.tableOpt.TableSettings,
@@ -490,10 +450,7 @@ func (s *Store) buildVersionedLatestEntityTable(entityType *schema.Entity) chx.T
 func (s *Store) buildVersionedLatestEntityMaterializedView(entityType *schema.Entity) chx.MaterializedView {
 	return chx.MaterializedView{
 		View: chx.View{
-			FullName: chx.FullName{
-				Database: s.database,
-				Name:     s.VersionedLatestTableMaterializedViewName(entityType),
-			},
+			Name: s.VersionedLatestTableMaterializedViewName(entityType),
 			Fields: append(s.getClickhouseFields(entityType),
 				chx.Field{Name: genBlockNumberFieldName, Type: genBlockNumberFieldType},
 				chx.Field{Name: genBlockTimeFieldName, Type: genBlockTimeFieldType},
@@ -507,10 +464,7 @@ func (s *Store) buildVersionedLatestEntityMaterializedView(entityType *schema.En
 			Select:  "SELECT * FROM " + s.fullName(s.VersionedTableName(entityType)),
 			Comment: s.TableOrViewComment(entityType),
 		},
-		To: chx.FullName{
-			Database: s.database,
-			Name:     s.VersionedLatestTableName(entityType),
-		},
+		To: s.VersionedLatestTableName(entityType),
 	}
 }
 
@@ -518,10 +472,7 @@ func (s *Store) buildVersionedLatestEntityMaterializedView(entityType *schema.En
 // view of <ProcessorID>_versionedEntity_<EntityName> that ignored all opposite rows
 func (s *Store) buildEntityView(entityType *schema.Entity) chx.View {
 	return chx.View{
-		FullName: chx.FullName{
-			Database: s.database,
-			Name:     s.TableName(entityType),
-		},
+		Name: s.TableName(entityType),
 		Fields: append(s.getClickhouseFields(entityType),
 			chx.Field{Name: genBlockNumberFieldName, Type: genBlockNumberFieldType},
 			chx.Field{Name: genBlockTimeFieldName, Type: genBlockTimeFieldType},
@@ -565,12 +516,9 @@ func (s *Store) buildEntityTable(entityType schema.EntityOrInterface) chx.Table 
 		orderBy = []string{genBlockChainFieldName, aggIntervalFieldName, schema.EntityTimestampFieldName}
 	}
 	return chx.Table{
-		FullName: chx.FullName{
-			Database: s.database,
-			Name:     s.TableName(entityType),
-		},
+		Name: s.TableName(entityType),
 		Config: chx.TableConfig{
-			Engine:      chx.NewDefaultMergeTreeEngine(s.ctrl.GetCluster() != ""),
+			Engine:      s.ctrl.NewDefaultMergeTreeEngine(),
 			PartitionBy: genBlockChainFieldName,
 			OrderBy:     orderBy,
 			Settings:    s.tableOpt.TableSettings,
@@ -600,10 +548,7 @@ func (s *Store) buildInterfaceView(ifaceType *schema.Interface) chx.View {
 		))
 	}
 	return chx.View{
-		FullName: chx.FullName{
-			Database: s.database,
-			Name:     s.TableName(ifaceType),
-		},
+		Name: s.TableName(ifaceType),
 		Fields: append(s.getClickhouseFields(ifaceType),
 			chx.Field{Name: genBlockNumberFieldName, Type: genBlockNumberFieldType},
 			chx.Field{Name: genBlockTimeFieldName, Type: genBlockTimeFieldType},
@@ -624,10 +569,7 @@ func (s *Store) buildView(item schema.EntityOrInterface) chx.View {
 	viewFields := s.GetViewFields(item)
 	selects := utils.MapSliceNoError(viewFields, ViewField.GetSelectSQL)
 	return chx.View{
-		FullName: chx.FullName{
-			Database: s.database,
-			Name:     s.ViewName(item),
-		},
+		Name:    s.ViewName(item),
 		Fields:  utils.MapSliceNoError(viewFields, ViewField.GetField),
 		Select:  fmt.Sprintf("SELECT %s FROM %s", strings.Join(selects, ", "), s.fullName(s.TableName(item))),
 		Comment: s.TableOrViewComment(item),
@@ -638,10 +580,7 @@ func (s *Store) buildView(item schema.EntityOrInterface) chx.View {
 func (s *Store) buildLatestView(entityType *schema.Entity) chx.View {
 	viewFields := s.GetLatestViewFields(entityType)
 	view := chx.View{
-		FullName: chx.FullName{
-			Database: s.database,
-			Name:     s.LatestViewName(entityType),
-		},
+		Name:    s.LatestViewName(entityType),
 		Fields:  utils.MapSliceNoError(viewFields, ViewField.GetField),
 		Comment: s.TableOrViewComment(entityType),
 	}
@@ -740,10 +679,7 @@ func (s *Store) buildInterfaceLatestView(ifaceType *schema.Interface) chx.View {
 		))
 	}
 	return chx.View{
-		FullName: chx.FullName{
-			Database: s.database,
-			Name:     s.LatestViewName(ifaceType),
-		},
+		Name:    s.LatestViewName(ifaceType),
 		Fields:  utils.MapSliceNoError(s.GetLatestViewFields(ifaceType), ViewField.GetField),
 		Select:  strings.Join(entitySelects, " UNION ALL "),
 		Comment: s.TableOrViewComment(ifaceType),
@@ -756,10 +692,7 @@ func (s *Store) buildAggregationLatestView(agg *schema.Aggregation) chx.View {
 	viewFields := s.GetLatestViewFields(agg)
 	selects := utils.MapSliceNoError(viewFields, ViewField.GetFieldName)
 	return chx.View{
-		FullName: chx.FullName{
-			Database: s.database,
-			Name:     s.LatestViewName(agg),
-		},
+		Name:    s.LatestViewName(agg),
 		Fields:  utils.MapSliceNoError(viewFields, ViewField.GetField),
 		Select:  fmt.Sprintf("SELECT %s FROM %s", joinWithQuote(selects, ", "), s.fullName(s.ViewName(agg))),
 		Comment: s.TableOrViewComment(agg),

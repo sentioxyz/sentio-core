@@ -50,7 +50,7 @@ type cohortAdaptor struct {
 }
 
 func NewCohortAdaptor(ctx context.Context,
-	store timeseries.Store, processor *processormodels.Processor) CohortAdaptor {
+	store Store, processor *processormodels.Processor) CohortAdaptor {
 	ctx, logger := log.FromContext(ctx, "processor_id", processor.ID, "function", "CohortAdaptor")
 	return &cohortAdaptor{
 		Base: Base{
@@ -222,7 +222,7 @@ func (c *cohortAdaptor) filterQuery(groupIdx, filterIdx int, filter *protoscommo
 	args := map[string]any{
 		"user_field": timeseries.SystemUserID,
 		"agg_field":  aggregateField,
-		"table":      c.store.MetaTableWithOptions(meta, timeseries.DefaultMetaTableOption),
+		"table":      c.store.MetaTableName(meta),
 		"cond":       strings.Join([]string{timeCond, selectorCond}, " AND "),
 		"having":     having,
 	}
@@ -352,7 +352,7 @@ func (c *cohortAdaptor) Build() string {
 					"SELECT "+timeseries.SystemUserID+","+
 						timeseries.SystemTimestamp+","+
 						timeseries.SystemFieldPrefix+"chain FROM "+
-						c.store.MetaTableWithOptions(m, timeseries.DefaultMetaTableOption))
+						c.store.MetaTableName(m))
 			}
 		default:
 			c.cte = append(c.cte, cte.CTE{
@@ -367,7 +367,7 @@ func (c *cohortAdaptor) Build() string {
 					"SELECT "+timeseries.SystemUserID+","+
 						timeseries.SystemTimestamp+","+
 						timeseries.SystemFieldPrefix+"chain FROM "+
-						c.store.MetaTableWithOptions(m, timeseries.DefaultMetaTableOption)+
+						c.store.MetaTableName(m)+
 						" WHERE has((select a from "+dataTable+"),"+timeseries.SystemUserID+")")
 			}
 			userPropertyCond = "WHERE has((select a from " + dataTable + "), user)"

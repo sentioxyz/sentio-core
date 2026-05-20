@@ -83,3 +83,76 @@ func Test_CheckModify(t *testing.T) {
 		assert.False(t, a.CheckModify(b))
 	}
 }
+
+func Test_BuildFieldType_Tuple(t *testing.T) {
+	// unnamed tuple
+	assert.Equal(t, FieldTypeTuple{
+		Parts: []TuplePart{
+			{Name: "", Type: FieldTypeInt64},
+			{Name: "", Type: FieldTypeString},
+		},
+	}, BuildFieldType("Tuple(Int64, String)"))
+
+	// named tuple
+	assert.Equal(t, FieldTypeTuple{
+		Parts: []TuplePart{
+			{Name: "a", Type: FieldTypeInt64},
+			{Name: "b", Type: FieldTypeString},
+		},
+	}, BuildFieldType("Tuple(a Int64, b String)"))
+
+	// nested: Tuple containing Array and Nullable
+	assert.Equal(t, FieldTypeTuple{
+		Parts: []TuplePart{
+			{Name: "ids", Type: FieldTypeArray{Inner: FieldTypeUInt64}},
+			{Name: "label", Type: FieldTypeNullable{Inner: FieldTypeString}},
+		},
+	}, BuildFieldType("Tuple(ids Array(UInt64), label Nullable(String))"))
+
+	// nested: Array of Tuple
+	assert.Equal(t, FieldTypeArray{
+		Inner: FieldTypeTuple{
+			Parts: []TuplePart{
+				{Name: "x", Type: FieldTypeInt32},
+				{Name: "y", Type: FieldTypeInt32},
+			},
+		},
+	}, BuildFieldType("Array(Tuple(x Int32, y Int32))"))
+}
+
+func Test_FieldTypeTuple_String(t *testing.T) {
+	assert.Equal(t, "Tuple(Int64, String)", FieldTypeTuple{
+		Parts: []TuplePart{
+			{Name: "", Type: FieldTypeInt64},
+			{Name: "", Type: FieldTypeString},
+		},
+	}.String())
+
+	assert.Equal(t, "Tuple(a Int64, b String)", FieldTypeTuple{
+		Parts: []TuplePart{
+			{Name: "a", Type: FieldTypeInt64},
+			{Name: "b", Type: FieldTypeString},
+		},
+	}.String())
+}
+
+func Test_FieldTypeTuple_SameAs(t *testing.T) {
+	a := BuildFieldType("Tuple(a Int64, b String)")
+
+	// same
+	assert.True(t, a.SameAs(BuildFieldType("Tuple(a Int64, b String)")))
+	// different field name
+	assert.False(t, a.SameAs(BuildFieldType("Tuple(a Int64, c String)")))
+	// different field type
+	assert.False(t, a.SameAs(BuildFieldType("Tuple(a Int64, b Int64)")))
+	// different count
+	assert.False(t, a.SameAs(BuildFieldType("Tuple(a Int64)")))
+	// different kind entirely
+	assert.False(t, a.SameAs(FieldTypeString))
+}
+
+func Test_FieldTypeTuple_CheckModify(t *testing.T) {
+	// Tuple does not support online schema modification
+	a := BuildFieldType("Tuple(a Int64, b String)")
+	assert.False(t, a.CheckModify(BuildFieldType("Tuple(a Int64, b String, c Int32)")))
+}

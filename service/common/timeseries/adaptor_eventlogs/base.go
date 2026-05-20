@@ -15,10 +15,16 @@ const (
 	JsonObjectErr = "Cannot parse JSON object here"
 )
 
+// Store extends timeseries.Store with the clickhouse-specific table name resolution.
+type Store interface {
+	timeseries.Store
+	MetaTableName(meta timeseries.Meta) string
+}
+
 type Base struct {
 	ctx       context.Context
 	logger    *log.SentioLogger
-	store     timeseries.Store
+	store     Store
 	meta      map[string]timeseries.Meta
 	processor *processormodels.Processor
 	errors    []error

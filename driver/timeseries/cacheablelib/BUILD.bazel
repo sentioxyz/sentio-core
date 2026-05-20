@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common/cache",
+        "//common/chx",
         "//common/clickhousemanager",
         "//driver/timeseries",
         "//driver/timeseries/clickhouse",

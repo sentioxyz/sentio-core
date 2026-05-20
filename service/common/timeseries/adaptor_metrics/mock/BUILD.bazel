@@ -6,6 +6,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/mock",
     visibility = ["//visibility:public"],
     deps = [
+        "//common/chx",
         "//common/clickhousemanager",
         "//driver/timeseries",
         "//driver/timeseries/clickhouse",

@@ -123,9 +123,7 @@ func (bi balanceItem) toBytes() []byte {
 type balanceController struct {
 	enable bool
 
-	ctrl         chx.Controller
-	balanceTable chx.FullName
-	txTable      chx.FullName
+	ctrl chx.Controller
 
 	store *pebble.DB // the latest balance of all addr/coinType pairs has been persisted here.
 	clean bool       // not clean means store may have data beyond the current progress.
@@ -177,8 +175,6 @@ func (s *balanceController) resetCurrent(storePath string) error {
 
 func (s *balanceController) Init(
 	ctrl chx.Controller,
-	balanceTable chx.FullName,
-	txTable chx.FullName,
 	storePath string,
 ) (err error) {
 	s.enable = storePath != ""
@@ -186,8 +182,6 @@ func (s *balanceController) Init(
 		return nil
 	}
 	s.ctrl = ctrl
-	s.balanceTable = balanceTable
-	s.txTable = txTable
 	var opts pebble.Options
 	opts.EnsureDefaults()
 	s.store, err = pebble.Open(storePath, &opts)
@@ -296,7 +290,7 @@ func (s *balanceController) reload(
 		"WHERE (address, coin_type) IN [%s] AND checkpoint < %d "+
 		"ORDER BY address, coin_type, checkpoint, tx_index"+ // to make sure that the query will use the projection `holder`
 		") "+
-		"GROUP BY address, coin_type", s.balanceTable.InSQL(), missSet, checkpoint)
+		"GROUP BY address, coin_type", s.ctrl.FullLogicName(tableNameBalances), missSet, checkpoint)
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var addr, coinType string
 		var item balanceItem
@@ -484,7 +478,7 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 	sql := fmt.Sprintf(
 		"SELECT checkpoint, checkpoint_digest, timestamp, epoch, tx_index, tx_digest, balance_changes "+
 			"FROM %s WHERE %s AND length(balance_changes) > 0 ORDER BY checkpoint, tx_index",
-		s.txTable.InSQL(), where,
+		s.ctrl.FullLogicName(tableNameTransactions), where,
 	)
 	pre := Transaction{CheckpointIndex: CheckpointIndex{Checkpoint: math.MaxUint64}}
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -549,26 +543,22 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 	}
 
 	// 3. Delete old records from clickhouse
-	if _, err = s.ctrl.Delete(chx.LightDeleteCtx(ctx), s.balanceTable, where); err != nil {
+	if _, err = s.ctrl.Delete(chx.LightDeleteCtx(ctx), tableNameBalances, where); err != nil {
 		return 0, errors.Wrapf(err, "delete balance records in [%d,%d] failed", from, to)
 	}
 
 	// 4. Insert new records with corrected balance values
 	sql = fmt.Sprintf(
 		"INSERT INTO %s (`%s`)",
-		s.balanceTable.InSQL(),
+		s.ctrl.FullLogicName(tableNameBalances),
 		strings.Join(objectx.CollectTagValue(&Balance{}, "clickhouse"), "`,`"),
 	)
 	idx := 0
 	fieldFilter := objectx.HasTag("clickhouse")
 	const insertBatchSize = 100000
-	err = s.ctrl.BatchInsert(ctx, sql, insertBatchSize, func() ([]any, bool) {
-		if idx >= len(records) {
-			return nil, false
-		}
-		idx++
-		return objectx.CollectFieldValues(&records[idx-1], fieldFilter), true
-	})
+	err = s.ctrl.BatchInsert(ctx, sql, insertBatchSize, chx.NewGetter(records, func(record Balance) []any {
+		return objectx.CollectFieldValues(&records[idx-1], fieldFilter)
+	}))
 	if err != nil {
 		return 0, errors.Wrapf(err, "insert balance records in [%d,%d] failed", from, to)
 	}

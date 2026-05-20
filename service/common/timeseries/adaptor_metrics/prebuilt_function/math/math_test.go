@@ -122,7 +122,7 @@ func (s *MathFunctionSuite) Test_Ln_NoLabels() {
 func (s *MathFunctionSuite) Test_CustomValueField_And_Table() {
 	// Use Withdraw meta to test custom numeric field 'amount' and explicit table override
 	meta := timeseries.Meta{Name: "Withdraw", Type: timeseries.MetaTypeGauge}
-	table := s.Store.MetaTableWithOptions(meta, timeseries.DefaultMetaTableOption)
+	table := s.Store.MetaTableName(meta)
 	sql, err := NewMathFunction(meta, s.Store).Math().
 		WithTable(table).
 		WithValueField("amount").

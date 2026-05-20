@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/format"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
@@ -33,46 +34,52 @@ var conditionSymbol = map[persistent.EntityFilterOp]string{
 }
 
 const timeLayoutAllDigital = "20060102150405"
+const tempTableFieldName = "s"
 
 func (s *Store) buildTemporaryTable(ctx context.Context, filter persistent.EntityFilter) (string, func(), error) {
-	_, logger := log.FromContext(ctx)
 	start := time.Now()
-	name := s.buildTableOrViewName("filter",
+	name := s.buildName("filter",
 		fmt.Sprintf("%x_%s_%08x", sha1.Sum([]byte(filter.String())), start.Format(timeLayoutAllDigital), rand.Uint32()))
-	err := s.ctrl.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s (s String) ENGINE = Memory", name))
-	if err != nil {
+	_, logger := log.FromContext(ctx, "tmpTableName", name)
+	table := chx.Table{
+		Name:        name,
+		IsTemporary: true,
+		Config: chx.TableConfig{
+			Engine: chx.NewMemoryEngine(),
+		},
+		Fields: []chx.Field{{Name: tempTableFieldName, Type: chx.FieldTypeString}},
+	}
+	if err := s.ctrl.Create(ctx, table); err != nil {
 		logger.With("filter", filter.String(), "used", time.Since(start).String()).
-			Errorfe(err, "created temporary table %s failed", name)
+			Errore(err, "created temporary table failed")
 		return name, nil, err
 	}
-	logger.With("used", time.Since(start).String()).Debugf("created temporary table %s", name)
+	logger.Debugw("created temporary table", "used", time.Since(start).String())
 	const dropTempTableTimeout = time.Second * 30
 	epilogue := func() {
 		dropCtx, cancel := context.WithTimeout(context.Background(), dropTempTableTimeout)
 		defer cancel()
 		dropStart := time.Now()
-		dropErr := s.ctrl.Exec(dropCtx, fmt.Sprintf("DROP TABLE %s", name))
+		dropErr := s.ctrl.Drop(dropCtx, table)
 		if dropErr != nil {
 			logger.With("filter", filter.String(), "used", time.Since(dropStart).String()).
-				Warnfe(dropErr, "drop temporary table %s failed", name)
+				Warne(dropErr, "drop temporary table failed")
 		} else {
 			logger.With("used", time.Since(dropStart).String()).
-				Debugf("drop temporary table %s succeed", name)
+				Debug("drop temporary table succeed")
 		}
 	}
-	for si := 0; si < len(filter.Value); si += s.tableOpt.BatchInsertSizeLimit {
-		n := min(s.tableOpt.BatchInsertSizeLimit, len(filter.Value)-si)
-		start = time.Now()
-		sql := fmt.Sprintf("INSERT INTO %s (s) VALUES %s", name, utils.Dup("(?)", ",", n))
-		err = s.ctrl.Exec(ctx, sql, filter.Value[si:si+n]...)
-		if err != nil {
-			logger.With("filter", filter.String(), "used", time.Since(start).String()).
-				Errorfe(err, "insert %d:%d/%d rows to temporary table %s failed", si, si+n, len(filter.Value), name)
-			return name, epilogue, err
-		}
-		logger.With("used", time.Since(start).String()).
-			Debugf("insert %d:%d/%d rows to temporary table %s succeed", si, si+n, len(filter.Value), name)
+	start = time.Now()
+	sql := fmt.Sprintf("INSERT INTO %s (%s)", s.ctrl.FullLogicName(table.Name), tempTableFieldName)
+	getter := chx.NewGetter(filter.Value, func(v any) []any {
+		return []any{v}
+	})
+	if err := s.ctrl.BatchInsert(ctx, sql, s.tableOpt.BatchInsertSizeLimit, getter); err != nil {
+		logger.With("filter", filter.String(), "used", time.Since(start).String()).
+			Errore(err, "insert to temporary table failed")
+		return name, epilogue, err
 	}
+	logger.Debugw("insert to temporary table succeed", "used", time.Since(start).String())
 	return name, epilogue, nil
 }
 
@@ -160,7 +167,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 			if err != nil {
 				return
 			}
-			slot = fmt.Sprintf("(SELECT s FROM %s)", tempTable)
+			slot = fmt.Sprintf("(SELECT %s FROM %s)", tempTableFieldName, s.ctrl.FullLogicName(tempTable))
 		} else {
 			var hasNil bool
 			var setSize int
@@ -488,7 +495,7 @@ func (s *Store) _listEntities(
 	}
 	// execute query and get the response
 	// may be used temporary table, so here do not use SelectCtx(ctx) instead of ctx
-	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
+	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
 		box, scanErr := kit.ScanOne(rows)
 		if scanErr != nil {
 			return scanErr
@@ -498,7 +505,6 @@ func (s *Store) _listEntities(
 		return nil
 	}, sql, sqlArgs...)
 	_, logger := log.FromContext(ctx,
-		"processorID", s.processorID,
 		"entity", entityType.Name,
 		"chain", chain,
 		"excludeDeleted", excludeDeleted,
@@ -534,7 +540,7 @@ func (s *Store) ListEntities(
 }
 
 func (s *Store) CountEntity(ctx context.Context, entityType *schema.Entity, chain string) (count uint64, err error) {
-	_, logger := log.FromContext(ctx, "processorID", s.processorID, "entity", entityType.Name, "chain", chain)
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
 	var sql string
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?",
@@ -626,7 +632,7 @@ func (s *Store) CountEntity(ctx context.Context, entityType *schema.Entity, chai
 }
 
 func (s *Store) GetAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids []string, err error) {
-	_, logger := log.FromContext(ctx, "processorID", s.processorID, "entity", entityType.Name, "chain", chain)
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
 	var sql string
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?",
@@ -725,7 +731,6 @@ func (s *Store) GetMaxID(ctx context.Context, entityType *schema.Entity, chain s
 		return rows.Scan(&maxID)
 	}, sql, chain)
 	_, logger := log.FromContext(ctx,
-		"processorID", s.processorID,
 		"entity", entityType.Name,
 		"chain", chain,
 		"sql", sql,

@@ -20,7 +20,7 @@ type LogAdaptorSuite struct {
 	suite.Suite
 	ctx       context.Context
 	processor *processormodels.Processor
-	store     timeseries.Store
+	store     *mock.MockStore
 	conn      ckhmanager.Conn
 	wq        LogAdaptor
 }
@@ -31,7 +31,7 @@ func (s *LogAdaptorSuite) SetupSuite() {
 	s.processor = mockProcessor
 	s.store = mock.NewMockStore(mockProcessor, s.conn)
 	_ = s.store.CleanAll(s.ctx)
-	if err := s.store.Init(s.ctx, true); err != nil {
+	if err := s.store.Init(s.ctx); err != nil {
 		panic(err)
 	}
 	log.Infof("setup suite for cohort test")
@@ -94,7 +94,7 @@ func (s *LogAdaptorSuite) Test_OriginalQuery_3() {
 func (s *LogAdaptorSuite) Test_GetValueBucket_1() {
 	wq, err := NewLogAdaptor(mockCtx, s.store, s.processor, mock.NewTimeRange(), "event_name:Transfer amount.data.usd:[0 TO 10]")
 	s.Nil(err)
-	bucket, err := wq.GetValueBucket(s.store.Client(), "event_name", timeseries.FieldTypeString, 2)
+	bucket, err := wq.GetValueBucket(s.conn, "event_name", timeseries.FieldTypeString, 2)
 	s.Nil(err)
 	log.Infof("bucket: %v", bucket)
 }
@@ -102,7 +102,7 @@ func (s *LogAdaptorSuite) Test_GetValueBucket_1() {
 func (s *LogAdaptorSuite) Test_GetValueBucket_2() {
 	wq, err := NewLogAdaptor(mockCtx, s.store, s.processor, mock.NewTimeRange(), "")
 	s.Nil(err)
-	bucket, err := wq.GetValueBucket(s.store.Client(), "data.number.string", timeseries.FieldTypeString, 10)
+	bucket, err := wq.GetValueBucket(s.conn, "data.number.string", timeseries.FieldTypeString, 10)
 	s.Nil(err)
 	log.Infof("bucket: %v", bucket)
 }
@@ -110,7 +110,7 @@ func (s *LogAdaptorSuite) Test_GetValueBucket_2() {
 func (s *LogAdaptorSuite) Test_GetValueMinMax_1() {
 	wq, err := NewLogAdaptor(mockCtx, s.store, s.processor, mock.NewTimeRange(), "event_name:Transfer amount.data.usd:[0 TO 10]")
 	s.Nil(err)
-	minValue, maxValue, err := wq.GetValueMinMax(s.store.Client(), "event_name", timeseries.FieldTypeString)
+	minValue, maxValue, err := wq.GetValueMinMax(s.conn, "event_name", timeseries.FieldTypeString)
 	s.Nil(err)
 	log.Infof("min: %s, max: %s", utils.Any2String(minValue), utils.Any2String(maxValue))
 }
@@ -118,7 +118,7 @@ func (s *LogAdaptorSuite) Test_GetValueMinMax_1() {
 func (s *LogAdaptorSuite) Test_GetValueMinMax_2() {
 	wq, err := NewLogAdaptor(mockCtx, s.store, s.processor, mock.NewTimeRange(), "event_name:Transfer amount.data.usd:[0 TO 10]")
 	s.Nil(err)
-	minValue, maxValue, err := wq.GetValueMinMax(s.store.Client(), "amount.data.usd", timeseries.FieldTypeString)
+	minValue, maxValue, err := wq.GetValueMinMax(s.conn, "amount.data.usd", timeseries.FieldTypeString)
 	s.Nil(err)
 	log.Infof("min: %s, max: %s", utils.Any2String(minValue), utils.Any2String(maxValue))
 }

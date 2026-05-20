@@ -16,7 +16,6 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
-	"sentioxyz/sentio-core/service/processor/models"
 )
 
 const (
@@ -97,18 +96,19 @@ type EntitySuite struct {
 }
 
 func (es *EntitySuite) init(ctx context.Context) {
+	const processorID = "processor0"
+
 	es.conn = ckhmanager.NewConn(localClickhouseDSN)
-	es.ctrl = chx.NewController(es.conn)
+	es.ctrl = chx.New(es.conn,
+		chx.WithTableNamePrefix(processorID+"_"),
+		chx.WithLogicTableNamePrefix(processorID+"_"),
+	)
 
 	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
 	assert.NoError(es.t, err)
 
-	processorID := "processor0"
 	es.s = NewStore(
 		es.ctrl,
-		processorID,
-		0,
-		models.TablePatternPlatformV1,
 		Features{
 			VersionedCollapsing:    true,
 			TimestampUseDateTime64: true,
@@ -123,7 +123,7 @@ func (es *EntitySuite) init(ctx context.Context) {
 		nil,
 	)
 
-	assert.NoError(es.t, es.ctrl.DropAll(context.Background(), testClickhouseDB, processorID+"\\_%"))
+	assert.NoError(es.t, es.ctrl.DropAll(context.Background()))
 	assert.NoError(es.t, es.s.InitEntitySchema(ctx))
 }
 

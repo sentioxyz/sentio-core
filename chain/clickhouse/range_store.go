@@ -22,7 +22,7 @@ type rangeObject struct {
 
 type RangeStore struct {
 	ctrl     chx.Controller
-	name     chx.FullName
+	name     string
 	readOnly bool
 
 	current    *rg.Range
@@ -30,10 +30,10 @@ type RangeStore struct {
 	mu         sync.Mutex
 }
 
-func NewReadOnlyRangeStore(connCtrl chx.Controller, tableName string) *RangeStore {
+func NewReadOnlyRangeStore(ctrl chx.Controller, tableName string) *RangeStore {
 	s, _ := NewRangeStore(
 		context.Background(),
-		connCtrl,
+		ctrl,
 		tableName,
 		0,
 		0,
@@ -43,7 +43,7 @@ func NewReadOnlyRangeStore(connCtrl chx.Controller, tableName string) *RangeStor
 
 func NewRangeStore(
 	ctx context.Context,
-	connCtrl chx.Controller,
+	ctrl chx.Controller,
 	tableName string,
 	cleanInterval time.Duration,
 	maxKeepDays int,
@@ -51,11 +51,8 @@ func NewRangeStore(
 ) (*RangeStore, error) {
 	_, logger := log.FromContext(ctx)
 	s := &RangeStore{
-		ctrl: connCtrl,
-		name: chx.FullName{
-			Database: connCtrl.GetDatabase(),
-			Name:     tableName,
-		},
+		ctrl:     ctrl,
+		name:     tableName,
 		readOnly: readOnly,
 	}
 	if !readOnly {
@@ -63,22 +60,19 @@ func NewRangeStore(
 			return nil, errors.Errorf("invalid clean interval %s", cleanInterval)
 		}
 		sch := BuildTable(
-			chx.FullName{
-				Database: connCtrl.GetDatabase(),
-				Name:     tableName,
-			},
+			tableName,
 			&rangeObject{},
 			chx.TableConfig{
-				Engine:      chx.NewDefaultMergeTreeEngine(connCtrl.GetCluster() != ""),
+				Engine:      s.ctrl.NewDefaultMergeTreeEngine(),
 				PartitionBy: "toYYYYMMDD(create_at)",
 				OrderBy:     []string{"create_at"},
 				Settings:    nil,
 			},
 			"",
 		)
-		pre, has, err := s.ctrl.LoadOne(ctx, sch.Table.FullName)
+		pre, has, err := s.ctrl.LoadOne(ctx, tableName, false)
 		if err != nil {
-			return nil, errors.Wrapf(err, "load table %s failed", sch.Table.FullName)
+			return nil, errors.Wrapf(err, "load table %s failed", tableName)
 		}
 		if has {
 			err = s.ctrl.Sync(ctx, pre, sch.Table)
@@ -95,8 +89,8 @@ func NewRangeStore(
 }
 
 func (s *RangeStore) cleanExpiredPartitions(ctx context.Context, maxKeepDays int) {
-	_, logger := log.FromContext(ctx, "table", s.name.String())
-	partitions, err := s.listPartitions(ctx)
+	_, logger := log.FromContext(ctx, "table", s.name)
+	partitions, err := s.ctrl.ListPartitions(ctx, s.name)
 	if err != nil {
 		logger.Errorfe(err, "list partitions for clean expired failed")
 	}
@@ -104,7 +98,7 @@ func (s *RangeStore) cleanExpiredPartitions(ctx context.Context, maxKeepDays int
 		return
 	}
 	for _, partition := range partitions[:len(partitions)-maxKeepDays] {
-		if err = s.deletePartition(ctx, partition.Partition); err != nil {
+		if err = s.ctrl.AlterTable(ctx, s.name, "DROP PARTITION ?", partition.Partition); err != nil {
 			logger.With("partition", partition.Partition).Errorfe(err, "drop expired partition")
 		} else {
 			logger.With("partition", partition.Partition).Infof("drop expired partition")
@@ -147,7 +141,7 @@ func (s *RangeStore) get(ctx context.Context) (r rg.Range, err error) {
 		return cur, nil
 	}
 	r = rg.EmptyRange
-	sql := fmt.Sprintf("SELECT left, right FROM %s ORDER BY create_at DESC LIMIT 1", s.name.InSQL())
+	sql := fmt.Sprintf("SELECT left, right FROM %s ORDER BY create_at DESC LIMIT 1", s.ctrl.FullLogicName(s.name))
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var left, right uint64
 		if scanErr := rows.Scan(&left, &right); scanErr != nil {
@@ -164,7 +158,7 @@ func (s *RangeStore) get(ctx context.Context) (r rg.Range, err error) {
 }
 
 func (s *RangeStore) set(ctx context.Context, r rg.Range) error {
-	sql := fmt.Sprintf("INSERT INTO %s (left, right, create_at) VALUES(%d, %d, NOW64())", s.name.InSQL(), r.Start, *r.End)
+	sql := fmt.Sprintf("INSERT INTO %s (left, right, create_at) VALUES(%d, %d, NOW64())", s.ctrl.FullLogicName(s.name), r.Start, *r.End)
 	return s.ctrl.Exec(ctx, sql)
 }
 

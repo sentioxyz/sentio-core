@@ -62,7 +62,6 @@ func (s *Store) GetEntity(
 		return scanErr
 	}, sql, id, chain)
 	_, logger := log.FromContext(ctx,
-		"processorID", s.processorID,
 		"entity", entityType.Name,
 		"id", id,
 		"chain", chain,
@@ -154,7 +153,6 @@ func (s *Store) setEntities(
 	}
 	useVersionedCollapsingTable := s.UseVersionedCollapsingTable(entityType)
 	ctx, logger := log.FromContext(ctx,
-		"processorID", s.processorID,
 		"entity", entityType.Name,
 		"chain", chain,
 		"count", len(entities),
@@ -548,11 +546,7 @@ func (s *Store) reorgInVersionedLatestTable(
 	// it will be very heavy. Considering that the probability is relatively low, we just rebuild them all.
 	rebuilt = true
 	// always partition by chain, so use drop partition delete all data in the chain
-	sql = fmt.Sprintf("ALTER TABLE %s DROP PARTITION ?", s.ctrl.FullNameWithOnCluster(chx.FullName{
-		Database: s.database,
-		Name:     table,
-	}))
-	if err = s.ctrl.Exec(ctx, sql, chain); err != nil {
+	if err = s.ctrl.AlterTable(ctx, table, "DROP PARTITION ?", chain); err != nil {
 		err = fmt.Errorf("delete all in %s failed: %w", table, err)
 		return
 	}
@@ -577,7 +571,6 @@ func (s *Store) Reorg(ctx context.Context, blockNumber int64, chain string) erro
 		start := time.Now()
 		deleted, err := s.reorgInTable(ctx, blockNumber, chain, tableName)
 		entityLogger := logger.With(
-			"processorID", s.processorID,
 			"entity", entityType.Name,
 			"blockNumber", blockNumber,
 			"chain", chain,
@@ -611,7 +604,6 @@ func (s *Store) Reorg(ctx context.Context, blockNumber int64, chain string) erro
 		start := time.Now()
 		deleted, err := s.reorgInTable(ctx, blockNumber, chain, tableName)
 		entityLogger := logger.With(
-			"processorID", s.processorID,
 			"aggregation", agg.Name,
 			"blockNumber", blockNumber,
 			"chain", chain,

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"sentioxyz/sentio-core/common/cache"
+	"sentioxyz/sentio-core/common/chx"
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/driver/timeseries"
 	"sentioxyz/sentio-core/driver/timeseries/clickhouse"
@@ -90,20 +91,22 @@ func NewCacheableMetaWithTTL(
 	}
 	// Query-only cache: no table creation happens here, so the on-chain
 	// registrar is not needed.
+	tableNamePrefix, logicDatabase, logicTableNamePrefix := processorTablePattern.GetProcessorDBConfig(
+		conn.GetDatabase(), processorId, processorReplica)
 	tsm.store = clickhouse.NewStore(
-		conn,
-		conn.GetCluster(),
-		conn.GetDatabase(),
-		processorId,
-		processorReplica,
-		processorTablePattern,
+		chx.New(
+			conn,
+			chx.WithTableNamePrefix(tableNamePrefix),
+			chx.WithLogicDatabase(logicDatabase),
+			chx.WithLogicTableNamePrefix(logicTableNamePrefix),
+		),
 		clickhouse.Option{},
 		nil,
 	)
 	tsm.reload = func(ctx context.Context) (timeseries.Store, error) {
 		if err := tsm.store.ReloadMeta(lo.IfF(ctxInject != nil, func() context.Context {
 			return ctxInject(ctx)
-		}).Else(ctx), false); err != nil {
+		}).Else(ctx)); err != nil {
 			return nil, err
 		}
 		return tsm.store, nil

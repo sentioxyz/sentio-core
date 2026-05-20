@@ -126,7 +126,7 @@ func mergeQueryOptions(options ...QueryOption) QueryOption {
 }
 
 func NewSegmentationAdaptor(ctx context.Context,
-	store timeseries.Store, processor *processormodels.Processor, option ...QueryOption) SegmentationAdaptor {
+	store Store, processor *processormodels.Processor, option ...QueryOption) SegmentationAdaptor {
 	ctx, logger := log.FromContext(ctx, "processor_id", processor.ID, "function", "SegmentationAdaptor")
 	q := &segmentationAdaptor{
 		Base: Base{
@@ -386,7 +386,7 @@ func (s *segmentationAdaptor) resourceTable(resource string, nullAsDefault, earl
 			resourceCond,
 		}
 		condsStr = strings.Join(conds, " AND ")
-		table    = s.store.MetaTableWithOptions(s.meta[resource], timeseries.DefaultMetaTableOption)
+		table    = s.store.MetaTableName(s.meta[resource])
 	)
 	for _, column := range utils.GetOrderedMapKeys(s.columns) {
 		if property, ok := s.resourceColumns[resource][column]; !ok {

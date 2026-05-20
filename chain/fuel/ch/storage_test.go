@@ -20,7 +20,10 @@ func Test_clickhouse(t *testing.T) {
 
 	const contractID = "0xd5340abd158bc960469c4a0153b17bab06e9228a404d467489921b050f41463b"
 
-	s := NewStore(chx.NewController(conn), "fuel.v2")
+	s := NewStore(chx.New(conn,
+		chx.WithTableNamePrefix("fuel.v2."),
+		chx.WithLogicTableNamePrefix("fuel.v2."),
+	))
 
 	txns, err := s.QueryTransactions(
 		context.Background(),

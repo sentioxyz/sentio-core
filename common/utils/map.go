@@ -123,6 +123,16 @@ func MergeMap[K comparable, V any](dst map[K]V, data map[K]V) map[K]V {
 	return dst
 }
 
+func MergeMapIfNotExist[K comparable, V any](dst map[K]V, data map[K]V) (count int) {
+	for k, v := range data {
+		if _, has := dst[k]; !has {
+			dst[k] = v
+			count++
+		}
+	}
+	return count
+}
+
 func AppendArrMap[K comparable, V any](dst map[K][]V, data map[K][]V) map[K][]V {
 	if len(data) == 0 {
 		return dst

@@ -2,13 +2,11 @@ package clickhouse
 
 import (
 	"context"
-
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio-core/driver/registrar"
 	"sentioxyz/sentio-core/driver/timeseries"
-	"sentioxyz/sentio-core/service/processor/models"
+	"sync"
 )
 
 type Option struct {
@@ -16,25 +14,20 @@ type Option struct {
 	BatchInsertSizeLimit int
 }
 
-type Store struct {
-	client                chx.Conn
-	cluster               string
-	database              string
-	tableSettings         string
-	processorID           string
-	processorReplica      int
-	processorTablePattern models.TablePattern
-	option                Option
+type Probe interface {
+	PreCreateTable(ctx context.Context, tv chx.TableOrView) error
+}
 
-	meta *storeMeta
+type Store struct {
+	ctrl   chx.Controller
+	option Option
+
+	metaLock sync.Mutex
+	meta     storeMeta
 
 	cachedCounterSeriesLatest *utils.SafeMap[string, *counterSeriesLatestCache]
 
-	// registrar mirrors table creations to the on-chain Databases contract.
-	// Only consulted when processorTablePattern == TablePatternNetworkV1.
-	// Nil disables on-chain registration. The processor database itself is
-	// created by Controller.startProcessor — drivers only register tables.
-	registrar registrar.OnChain
+	probe Probe
 }
 
 type counterSeriesLatestCache struct {
@@ -48,47 +41,38 @@ var (
 		2000, envconf.WithMin(10), envconf.WithMax(2000))
 )
 
-func NewStore(
-	client chx.Conn,
-	cluster string,
-	database string,
-	processorID string,
-	processorReplica int,
-	processorTablePattern models.TablePattern,
-	option Option,
-	reg registrar.OnChain,
-) *Store {
+func NewStore(ctrl chx.Controller, option Option, probe Probe) *Store {
 	if option.BatchInsertSizeLimit == 0 {
 		option.BatchInsertSizeLimit = int(defaultBatchInsertSizeLimit)
 	}
 	return &Store{
-		client:                client,
-		cluster:               cluster,
-		database:              database,
-		processorID:           processorID,
-		processorReplica:      processorReplica,
-		processorTablePattern: processorTablePattern,
-		option:                option,
-		meta: &storeMeta{
-			Metas: make(map[timeseries.MetaType]map[string]timeseries.Meta),
-		},
+		ctrl:                      ctrl,
+		option:                    option,
 		cachedCounterSeriesLatest: utils.NewSafeMap[string, *counterSeriesLatestCache](),
-		registrar:                 reg,
+		probe:                     probe,
 	}
 }
 
-func (s *Store) Init(ctx context.Context, overWriteMeta bool) error {
-	return s.fetchMetas(ctx, overWriteMeta)
+func (s *Store) Init(ctx context.Context) error {
+	s.metaLock.Lock()
+	defer s.metaLock.Unlock()
+	if err := s.fetchMetas(ctx, true); err != nil {
+		return err
+	}
+	for _, item := range s.meta {
+		if err := s.syncMeta(ctx, timeseries.Dataset{Meta: item.meta}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// onChainRegistrationEnabled reports whether the store should mirror table
-// creations to the on-chain Databases contract.
-func (s *Store) onChainRegistrationEnabled() bool {
-	return s.processorTablePattern == models.TablePatternNetworkV1 && s.registrar != nil
+func (s *Store) MetaTableName(meta timeseries.Meta) string {
+	return s.ctrl.FullLogicName(meta.GetTableName())
 }
 
-func (s *Store) Client() timeseries.QueryClient {
-	return s.client
+func (s *Store) Client() chx.Conn {
+	return s.ctrl.GetConnection()
 }
 
 var _ timeseries.Store = (*Store)(nil)

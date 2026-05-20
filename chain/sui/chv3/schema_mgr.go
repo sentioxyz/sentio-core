@@ -6,7 +6,6 @@ import (
 	"sentioxyz/sentio-core/chain/clickhouse"
 	"sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/common/chx"
-	"sentioxyz/sentio-core/common/utils"
 )
 
 type ClickhouseSchemaMgrV3 struct {
@@ -15,41 +14,25 @@ type ClickhouseSchemaMgrV3 struct {
 }
 
 const (
-	TransactionsTableIdx   = 0
-	ObjectChangeTableIdx   = 4
-	ObjectPositionTableIdx = 5
+	tableNameTransactions    = "transactions"
+	tableNameEvents          = "events"
+	tableNameMoveCalls       = "move_calls"
+	tableNameBalanceChanges  = "balance_changes"
+	tableNameObjectChanges   = "object_changes"
+	tableNameObjectPositions = "object_positions"
 )
 
-func tableNames(database, tableNamePrefix string) []chx.FullName {
-	return utils.MapSliceNoError([]string{
-		"transactions",
-		"events",
-		"move_calls",
-		"balance_changes",
-		"object_changes",
-		"object_positions",
-	}, func(suffix string) chx.FullName {
-		return chx.FullName{
-			Database: database,
-			Name:     tableNamePrefix + "." + suffix,
-		}
-	})
-}
-
 func NewClickhouseSchemaMgr(
-	cluster string,
-	database string,
-	tableNamePrefix string,
+	ctrl chx.Controller,
 	slotConverter SlotConverter,
 	checkpointPartitionSize uint64,
 ) *ClickhouseSchemaMgrV3 {
-	tablesName := tableNames(database, tableNamePrefix)
-	engine := chx.NewDefaultMergeTreeEngine(cluster != "")
+	engine := ctrl.NewDefaultMergeTreeEngine()
 	tableSettings := make(map[string]string)
 	chx.WithLightDeleteTableSettings(tableSettings)
 	chx.WithProjectionTableSettings(tableSettings)
 	partitionBy := fmt.Sprintf("intDiv(checkpoint, %d)", checkpointPartitionSize)
-	createTableSchema := func(name chx.FullName, tblObj any, orderBy ...string) clickhouse.TableSchema {
+	createTableSchema := func(name string, tblObj any, orderBy ...string) clickhouse.TableSchema {
 		config := chx.TableConfig{
 			Engine:      engine,
 			PartitionBy: partitionBy,
@@ -62,12 +45,12 @@ func NewClickhouseSchemaMgr(
 		return clickhouse.BuildTable(name, tblObj, config, "")
 	}
 	tables := []clickhouse.TableSchema{
-		createTableSchema(tablesName[0], &CHUTransaction{}, "checkpoint", "checkpoint_timestamp_ms", "digest"),
-		createTableSchema(tablesName[1], &CHUEvent{}, "checkpoint", "timestamp_ms", "digest"),
-		createTableSchema(tablesName[2], &CHUMoveCall{}, "checkpoint", "timestamp_ms", "digest"),
-		createTableSchema(tablesName[3], &CHUBalanceChange{}, "checkpoint", "timestamp_ms", "digest"),
-		createTableSchema(tablesName[4], &CHUObjectChange{}, "checkpoint", "timestamp_ms", "digest"),
-		createTableSchema(tablesName[5], &CHUObjectPosition{}, "object_id", "object_version", "checkpoint"),
+		createTableSchema(tableNameTransactions, &CHUTransaction{}, "checkpoint", "checkpoint_timestamp_ms", "digest"),
+		createTableSchema(tableNameEvents, &CHUEvent{}, "checkpoint", "timestamp_ms", "digest"),
+		createTableSchema(tableNameMoveCalls, &CHUMoveCall{}, "checkpoint", "timestamp_ms", "digest"),
+		createTableSchema(tableNameBalanceChanges, &CHUBalanceChange{}, "checkpoint", "timestamp_ms", "digest"),
+		createTableSchema(tableNameObjectChanges, &CHUObjectChange{}, "checkpoint", "timestamp_ms", "digest"),
+		createTableSchema(tableNameObjectPositions, &CHUObjectPosition{}, "object_id", "object_version", "checkpoint"),
 	}
 	return &ClickhouseSchemaMgrV3{
 		tablesMeta: clickhouse.TablesMeta{

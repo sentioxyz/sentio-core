@@ -3,6 +3,7 @@ package chx
 import (
 	"bytes"
 	"fmt"
+	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/common/utils"
 	"strconv"
 	"strings"
@@ -213,6 +214,51 @@ func (t FieldTypeArray) SameAs(a FieldType) bool {
 	return t.Inner.SameAs(x.Inner)
 }
 
+type TuplePart struct {
+	Name string
+	Type FieldType
+}
+
+type FieldTypeTuple struct {
+	Parts []TuplePart
+}
+
+func (t FieldTypeTuple) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("Tuple(")
+	for i, part := range t.Parts {
+		if i > 0 {
+			buf.WriteString(", ")
+		}
+		if part.Name != "" {
+			buf.WriteString(part.Name)
+			buf.WriteString(" ")
+		}
+		buf.WriteString(part.Type.String())
+	}
+	buf.WriteString(")")
+	return buf.String()
+}
+func (t FieldTypeTuple) CheckModify(a FieldType) bool {
+	return false
+}
+
+func (t FieldTypeTuple) SameAs(a FieldType) bool {
+	x, is := a.(FieldTypeTuple)
+	if !is {
+		return false
+	}
+	if len(t.Parts) != len(x.Parts) {
+		return false
+	}
+	for i := 0; i < len(t.Parts); i++ {
+		if t.Parts[i].Name != x.Parts[i].Name || !t.Parts[i].Type.SameAs(x.Parts[i].Type) {
+			return false
+		}
+	}
+	return true
+}
+
 func getInnerPart(raw string, left, right byte) string {
 	raw = raw[strings.IndexByte(raw, left)+1:]
 	return raw[:strings.LastIndexByte(raw, right)]
@@ -229,6 +275,30 @@ func BuildFieldType(raw string) FieldType {
 		return FieldTypeArray{
 			Inner: BuildFieldType(getInnerPart(raw, '(', ')')),
 		}
+	}
+	if strings.HasPrefix(raw, "Tuple") {
+		// Tuple(a Int64, b String) or Tuple(Int64, String)
+		rawParts, err := utils.SplitTopLevel(getInnerPart(raw, '(', ')'), ',', "(", ")", 0)
+		if err != nil {
+			panic(errors.Wrapf(err, "invalid type %s", raw))
+		}
+		var ft FieldTypeTuple
+		for _, rawPart := range rawParts {
+			// rawPart should be [<Name> ]<Type>
+			// may be `Tuple(a Int64, b String)`, so cannot cut by space simply
+			partName, partType, has, cutErr := utils.CutTopLevel(strings.TrimSpace(rawPart), ' ', "(", ")")
+			if cutErr != nil {
+				panic(errors.Wrapf(cutErr, "invalid type %s", raw))
+			}
+			if !has {
+				partName, partType = "", partName
+			}
+			ft.Parts = append(ft.Parts, TuplePart{
+				Name: strings.TrimSpace(partName),
+				Type: BuildFieldType(strings.TrimSpace(partType)),
+			})
+		}
+		return ft
 	}
 	if strings.HasPrefix(raw, "Enum") {
 		// Enum8('AAA' = 1, 'BBB' = 2, 'CCC' = 3, 'DDD' = 4)

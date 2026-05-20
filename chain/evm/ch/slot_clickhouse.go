@@ -17,11 +17,10 @@ type ClickhouseSchemaMgr struct {
 func NewClickhouseSchemaMgr(
 	chainID string,
 	ctrl chx.Controller,
-	tablePrefix string,
 	blockPartitionSize uint64,
 	convertConcurrency uint,
 ) *ClickhouseSchemaMgr {
-	ethVarCtrl := NewEthVarCtrl(chainID, ctrl, tablePrefix)
+	ethVarCtrl := NewEthVarCtrl(chainID, ctrl)
 	return &ClickhouseSchemaMgr{
 		ethVarCtrl:         ethVarCtrl,
 		tablesMeta:         ethVarCtrl.BuildTablesMeta(blockPartitionSize),

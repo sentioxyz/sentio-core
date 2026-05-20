@@ -15,7 +15,6 @@ import (
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
-	"sentioxyz/sentio-core/service/processor/models"
 )
 
 // Real DeFi scenario - Uniswap V3 Pool
@@ -68,10 +67,11 @@ func TestDecimal512_E2E_UserWorkflow(t *testing.T) {
 
 	processorID := fmt.Sprintf("e2e_dec512_%d", time.Now().Unix())
 	store := NewStore(
-		chx.NewController(conn),
-		processorID,
-		0,
-		models.TablePatternPlatformV1,
+		chx.New(
+			conn,
+			chx.WithTableNamePrefix(processorID+"_"),
+			chx.WithLogicTableNamePrefix(processorID+"_"),
+		),
 		BuildFeatures(8), // EntitySchemaVersion = 8 enables Decimal512
 		sch,
 		TableOption{},

@@ -42,7 +42,7 @@ func (s *SegmentationSuite) SetupSuite() {
 	s.processor = mockProcessor
 	s.store = mock.NewMockStore(mockProcessor, s.conn)
 	_ = s.store.CleanAll(s.ctx)
-	if err := s.store.Init(s.ctx, true); err != nil {
+	if err := s.store.Init(s.ctx); err != nil {
 		panic(err)
 	}
 	log.Infof("setup suite for segmentation test")

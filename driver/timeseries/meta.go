@@ -21,11 +21,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-type MetaComment struct {
-	Hash    string
-	Encoded string
-}
-
 type MetaType string
 
 const (
@@ -47,6 +42,11 @@ type Meta struct {
 	HashData    string       `json:"-"`
 }
 
+type metaComment struct {
+	Hash    string
+	Encoded string
+}
+
 func (m Meta) Dump() []byte {
 	data, err := sonic.Marshal(m)
 	if err != nil {
@@ -61,7 +61,7 @@ func (m Meta) Dump() []byte {
 	if err := gw.Close(); err != nil {
 		panic(err)
 	}
-	mc := MetaComment{
+	mc := metaComment{
 		Hash:    m.CalculateHash(),
 		Encoded: base64.StdEncoding.EncodeToString(buf.Bytes()),
 	}
@@ -73,10 +73,11 @@ func (m Meta) Dump() []byte {
 	return encoded
 }
 
+// LoadMeta reverse operation of Meta.Dump()
 func LoadMeta(comment string) (Meta, error) {
 	var (
 		meta Meta
-		mc   MetaComment
+		mc   metaComment
 	)
 	if err := sonic.Unmarshal([]byte(comment), &mc); err != nil {
 		return meta, err
@@ -103,16 +104,25 @@ func LoadMeta(comment string) (Meta, error) {
 	return meta, nil
 }
 
-func (m Meta) Load(data []byte) error {
-	return fmt.Errorf("not implemented, use LoadMeta instead")
-}
-
 func (m Meta) GetFullName() string {
 	return fmt.Sprintf("%s.%s", m.Type, m.Name)
 }
 
-func (m Meta) GetTableSuffix() string {
+func (m Meta) GetTableName() string {
 	return fmt.Sprintf("%s_%s", m.Type, m.Name)
+}
+
+// CutTableName reverse operation of Meta.GetTableName()
+func CutTableName(tableName string) (MetaType, string, error) {
+	typ, name, _ := strings.Cut(tableName, "_")
+	metaType := MetaType(typ)
+	if !IsValidMetaType(metaType) {
+		return metaType, name, errors.Errorf("invalid type %q", typ)
+	}
+	if name == "" {
+		return metaType, name, errors.Errorf("empty name")
+	}
+	return metaType, name, nil
 }
 
 func (m Meta) DiffFields(other Meta) FieldsDiff {
@@ -135,6 +145,7 @@ func (m Meta) Merge(target Meta) Meta {
 			r.Fields[field.Name] = field
 		}
 	}
+	r.HashData = r.CalculateHash()
 	return r
 }
 
@@ -219,95 +230,39 @@ func (m Meta) Hash() string {
 	return m.HashData
 }
 
-func (m Meta) IsNumeric(fieldName string) bool {
-	if field, ok := m.Fields[fieldName]; ok {
-		return field.IsNumeric()
-	}
-	parts := SplitNestedFieldName(fieldName)
-	if len(parts) > 1 {
-		if field, ok := m.Fields[parts[0]]; ok {
-			return field.NestedTypeChecker(fieldName, isNumericType)
-		}
+func (m Meta) checkFieldType(fieldName string, checker fieldTypeFunc) bool {
+	if fieldType, has := m.GetFieldType(fieldName); has {
+		return checker(fieldType)
 	}
 	return false
+}
+
+func (m Meta) IsNumeric(fieldName string) bool {
+	return m.checkFieldType(fieldName, isNumericType)
 }
 
 func (m Meta) IsString(fieldName string) bool {
-	if field, ok := m.Fields[fieldName]; ok {
-		return field.IsString()
-	}
-	parts := SplitNestedFieldName(fieldName)
-	if len(parts) > 1 {
-		if field, ok := m.Fields[parts[0]]; ok {
-			return field.NestedTypeChecker(fieldName, isStringType)
-		}
-	}
-	return false
+	return m.checkFieldType(fieldName, isStringType)
 }
 
 func (m Meta) IsBool(fieldName string) bool {
-	if field, ok := m.Fields[fieldName]; ok {
-		return field.IsBool()
-	}
-	parts := SplitNestedFieldName(fieldName)
-	if len(parts) > 1 {
-		if field, ok := m.Fields[parts[0]]; ok {
-			return field.NestedTypeChecker(fieldName, isBoolType)
-		}
-	}
-	return false
+	return m.checkFieldType(fieldName, isBoolType)
 }
 
 func (m Meta) IsTime(fieldName string) bool {
-	if field, ok := m.Fields[fieldName]; ok {
-		return field.IsTime()
-	}
-	parts := SplitNestedFieldName(fieldName)
-	if len(parts) > 1 {
-		if field, ok := m.Fields[parts[0]]; ok {
-			return field.NestedTypeChecker(fieldName, isTimeType)
-		}
-	}
-	return false
+	return m.checkFieldType(fieldName, isTimeType)
 }
 
 func (m Meta) IsJSON(fieldName string) bool {
-	if field, ok := m.Fields[fieldName]; ok {
-		return field.IsJSON()
-	}
-	parts := SplitNestedFieldName(fieldName)
-	if len(parts) > 1 {
-		if field, ok := m.Fields[parts[0]]; ok {
-			return field.NestedTypeChecker(fieldName, isJSONType)
-		}
-	}
-	return false
+	return m.checkFieldType(fieldName, isJSONType)
 }
 
 func (m Meta) IsToken(fieldName string) bool {
-	if field, ok := m.Fields[fieldName]; ok {
-		return field.IsToken()
-	}
-	parts := SplitNestedFieldName(fieldName)
-	if len(parts) > 1 {
-		if field, ok := m.Fields[parts[0]]; ok {
-			return field.NestedTypeChecker(fieldName, isTokenType)
-		}
-	}
-	return false
+	return m.checkFieldType(fieldName, isTokenType)
 }
 
 func (m Meta) IsArray(fieldName string) bool {
-	if field, ok := m.Fields[fieldName]; ok {
-		return field.IsArray()
-	}
-	parts := SplitNestedFieldName(fieldName)
-	if len(parts) > 1 {
-		if field, ok := m.Fields[parts[0]]; ok {
-			return field.NestedTypeChecker(fieldName, isArrayType)
-		}
-	}
-	return false
+	return m.checkFieldType(fieldName, isArrayType)
 }
 
 func (m Meta) GetFieldTypeValue(name string) any {
@@ -531,10 +486,6 @@ func GetFieldsDiffSummary(fields []FieldDiff, indent, seq string) string {
 			indent, field.Before.Name, field.Before.String(), field.After.String()))
 	}
 	return strings.Join(sectors, seq)
-}
-
-func (m Meta) GetInvertedIndex() map[string]map[string]map[string]bool {
-	panic("not implemented")
 }
 
 type Metaset map[string]Meta

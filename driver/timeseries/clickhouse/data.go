@@ -3,6 +3,7 @@ package clickhouse
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -17,13 +18,13 @@ import (
 	"sentioxyz/sentio-core/driver/timeseries"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/pkg/errors"
 )
 
 func (s *Store) AppendData(ctx context.Context, data []timeseries.Dataset, chainID string, curTime time.Time) error {
-	s.meta.Lock()
-	defer s.meta.Unlock()
+	s.metaLock.Lock()
+	defer s.metaLock.Unlock()
 	_, logger := log.FromContext(ctx,
-		"processorID", s.processorID,
 		"chainID", chainID,
 		"curTime", curTime.String(),
 		"datasets", timeseries.GetDatasetsSummary(data))
@@ -58,7 +59,7 @@ func (s *Store) AppendData(ctx context.Context, data []timeseries.Dataset, chain
 		if ds.Meta.Aggregation != nil {
 			continue
 		}
-		ds.Meta, _ = utils.GetFromK2Map(s.meta.Metas, ds.Meta.Type, ds.Meta.Name)
+		ds.Meta, _, _ = s.meta.find(ds.Meta.Type, ds.Meta.Name)
 		g.Go(func() error {
 			return s.insertData(ctx, ds, chainID)
 		})
@@ -71,16 +72,11 @@ func (s *Store) AppendData(ctx context.Context, data []timeseries.Dataset, chain
 	// aggregation growth
 	growthTm := tm.Start("G")
 	g, gctx = errgroup.WithContext(ctx)
-	for _, metas := range s.meta.Metas {
-		for _, meta_ := range metas {
-			if meta_.Aggregation == nil {
-				continue
-			}
-			meta := meta_
-			g.Go(func() error {
-				return s.aggregationGrowth(gctx, meta, chainID, curTime)
-			})
-		}
+	for _, meta_ := range s.meta.listMetaWithAgg() {
+		meta := meta_
+		g.Go(func() error {
+			return s.aggregationGrowth(gctx, meta, chainID, curTime)
+		})
 	}
 	if err = g.Wait(); err != nil {
 		return err
@@ -94,22 +90,18 @@ func (s *Store) AppendData(ctx context.Context, data []timeseries.Dataset, chain
 }
 
 func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID string) error {
-	_, logger := log.FromContext(ctx,
-		"processorID", s.processorID,
-		"chainID", chainID,
-		"meta", ds.Meta.GetFullName(),
-		"rows", len(ds.Rows))
+	_, logger := log.FromContext(ctx, "chainID", chainID, "meta", ds.Meta.GetFullName(), "rows", len(ds.Rows))
 	logger.Debug("will insert rows")
 	fieldNames := utils.GetOrderedMapKeys(ds.Meta.Fields)
 	chainIDField := ds.Meta.GetChainIDField()
 	var modifier func(row timeseries.Row) timeseries.Row
 	if ds.Type == timeseries.MetaTypeCounter {
-		logger.Debug("will query last value of each series")
 		labelFields := ds.Meta.GetFieldsByRole(timeseries.FieldRoleSeriesLabel)
 		valueFields := ds.Meta.GetFieldsByRole(timeseries.FieldRoleSeriesValue)
 		var seriesLast map[string]timeseries.Row
 		cache, has := s.cachedCounterSeriesLatest.Get(ds.Name)
 		if has && timeseries.SameFields(cache.labelFields, labelFields) && timeseries.SameFields(cache.valueFields, valueFields) {
+			logger.Debug("use cached last value of each series")
 			seriesLast = cache.seriesLast
 		} else {
 			// has new fields, the previously cached data needs to be discarded
@@ -119,33 +111,33 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 				"WHERE %chainIDFieldName#s = '%chainID#s' "+
 				"GROUP BY %labelFieldNames#s",
 				map[string]any{
-					"labelFieldNames": strings.Join(utils.MapSliceNoError(labelFields, s.buildFieldName), ", "),
-					"lastValueFields": strings.Join(utils.MapSliceNoError(valueFields, func(f timeseries.Field) string {
-						return fmt.Sprintf("argMax(%s, %s)", s.buildFieldName(f), s.buildFieldName(ds.Meta.GetTimestampField()))
+					"labelFieldNames": strings.Join(utils.MapSliceNoError(labelFields, func(f timeseries.Field) string {
+						return quote(f.Name)
 					}), ", "),
-					"tableName":          s.buildTableName(ds.Meta),
-					"timestampFieldName": s.buildFieldName(ds.Meta.GetTimestampField()),
-					"chainIDFieldName":   s.buildFieldName(chainIDField),
-					"chainID":            chainID,
+					"lastValueFields": strings.Join(utils.MapSliceNoError(valueFields, func(f timeseries.Field) string {
+						return fmt.Sprintf("argMax(%s, %s)", quote(f.Name), quote(ds.Meta.GetTimestampField().Name))
+					}), ", "),
+					"tableName":        s.MetaTableName(ds.Meta),
+					"chainIDFieldName": quote(chainIDField.Name),
+					"chainID":          chainID,
 				})
 			seriesLast = make(map[string]timeseries.Row)
-			startTime := time.Now()
-			err := queryAndScan(ctx, s.client, func(rows driver.Rows) error {
-				for rows.Next() {
-					if row, err := scanRow(rows, append(labelFields, valueFields...)); err != nil {
-						return err
-					} else {
-						seriesLast[buildSeriesID(row, labelFields)] = row
-					}
+			startAt := time.Now()
+			scanFields := append(labelFields, valueFields...)
+			err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
+				row, err := scanRow(rows, scanFields)
+				if err != nil {
+					return err
 				}
+				seriesLast[buildSeriesID(row, labelFields)] = row
 				return nil
 			}, sql)
 			if err != nil {
-				logger.With("used", time.Since(startTime).String()).Errore(err, "query last value of each series failed")
+				logger.With("used", time.Since(startAt).String()).Errore(err, "query last value of each series failed")
 				return fmt.Errorf("query last value of each series for %q failed: %v", ds.Meta.GetFullName(), err)
 			}
 			logger.Infow("got last value of all series",
-				"used", time.Since(startTime).String(),
+				"used", time.Since(startAt).String(),
 				"series", buildSeriesSummary(seriesLast, 10))
 			s.cachedCounterSeriesLatest.Put(ds.Name, &counterSeriesLatestCache{
 				labelFields: labelFields,
@@ -167,48 +159,35 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 			return after
 		}
 	}
-	sql := fmt.Sprintf("INSERT INTO %s (%s)", s.buildTableName(ds.Meta), strings.Join(fieldNames, ","))
-	startTime := time.Now()
-	for bi, cursor := 0, 0; cursor < len(ds.Rows); bi++ {
-		next := min(len(ds.Rows), cursor+s.option.BatchInsertSizeLimit)
-		batchStartTime := time.Now()
-		uniqToken := strconv.FormatUint(rand.Uint64(), 16)
-		pageLogger := logger.With("batch", fmt.Sprintf("%d-%d/%d", cursor, next, len(ds.Rows)), "uniqToken", uniqToken)
-		batch, err := s.client.PrepareBatch(chx.InsertCtx(ctx, uniqToken), sql)
-		if err != nil {
-			pageLogger.Errore(err, "prepare batch failed")
-			return fmt.Errorf("prepare batch for %q failed: %w", ds.Meta.GetFullName(), err)
+	sql := fmt.Sprintf("INSERT INTO %s (%s)",
+		s.MetaTableName(ds.Meta),
+		strings.Join(utils.MapSliceNoError(fieldNames, quote), ","),
+	)
+	startAt := time.Now()
+	getter := chx.NewGetter(ds.Rows, func(row timeseries.Row) []any {
+		// check chainID
+		if rowChainID, is := row[chainIDField.Name].(string); !is {
+			panic(fmt.Errorf("row chainID for %q is %T not a string", ds.Meta.GetFullName(), row[chainIDField.Name]))
+		} else if rowChainID != chainID {
+			panic(fmt.Errorf("chainID for %q is %q, not %q", ds.Meta.GetFullName(), rowChainID, chainID))
 		}
-		for _, row := range ds.Rows[cursor:next] {
-			// check chainID
-			if rowChainID, is := row[chainIDField.Name].(string); !is {
-				panic(fmt.Errorf("row chainID for %q is %T not a string", ds.Meta.GetFullName(), row[chainIDField.Name]))
-			} else if rowChainID != chainID {
-				panic(fmt.Errorf("chainID for %q is %q, not %q", ds.Meta.GetFullName(), rowChainID, chainID))
-			}
-			// build columns
-			if modifier != nil {
-				row = modifier(row)
-			}
-			var columns []any
-			for _, fn := range fieldNames {
-				columns = append(columns, row[fn])
-			}
-			// append
-			if err = batch.Append(columns...); err != nil {
-				pageLogger.With("fields", utils.GetMapValuesOrderByKey(ds.Meta.Fields), "row", row, "columns", columns).
-					Errore(err, "batch append failed")
-				return fmt.Errorf("batch append for %q failed: %w", ds.Meta.GetFullName(), err)
-			}
+		// build columns
+		if modifier != nil {
+			row = modifier(row)
 		}
-		if err = batch.Send(); err != nil {
-			pageLogger.Errore(err, "batch send failed")
-			return fmt.Errorf("batch send for %q failed: %w", ds.Meta.GetFullName(), err)
+		columns := make([]any, len(fieldNames))
+		for i, fn := range fieldNames {
+			columns[i] = row[fn]
 		}
-		pageLogger.With("used", time.Since(batchStartTime).String()).Debug("batch send succeed")
-		cursor = next
+		return columns
+	})
+	err := s.ctrl.BatchInsert(ctx, sql, s.option.BatchInsertSizeLimit, getter)
+	logger = logger.With("used", time.Since(startAt).String())
+	if err != nil {
+		logger.Errorfe(err, "insert data failed")
+		return errors.Wrapf(err, "batch insert for %q failed", ds.Meta.GetFullName())
 	}
-	logger.Infow("insert data succeed", "used", time.Since(startTime).String())
+	logger.Infow("insert data succeed")
 	return nil
 }
 
@@ -224,7 +203,6 @@ var aggFunctionMapping = map[string]string{
 
 func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, chainID string, curTime time.Time) error {
 	_, logger := log.FromContext(ctx,
-		"processorID", s.processorID,
 		"chainID", chainID,
 		"meta", meta.GetFullName(),
 		"source", meta.Aggregation.Source,
@@ -235,18 +213,17 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 		func(f timeseries.Field) string {
 			return f.Name
 		})
-	srcMeta, has := utils.GetFromK2Map(s.meta.Metas, meta.Type, meta.Aggregation.Source)
+	srcMeta, _, has := s.meta.find(meta.Type, meta.Aggregation.Source)
 	if !has {
 		return fmt.Errorf("%w: source for %q is %q, but not found",
 			timeseries.ErrInvalidMeta, meta.GetFullName(), meta.Aggregation.Source)
 	}
-	srcTable := s.buildTableName(srcMeta)
 	aggFieldNames := utils.GetOrderedMapKeys(meta.Aggregation.Fields)
 	aggFields := utils.MapSliceNoError(aggFieldNames, func(fn string) string {
 		agg := meta.Aggregation.Fields[fn]
 		return format.Format(aggFunctionMapping[agg.Function], map[string]any{
 			"expr": agg.Expression,
-			"ts":   srcMeta.GetTimestampField().Name,
+			"ts":   quote(srcMeta.GetTimestampField().Name),
 		})
 	})
 
@@ -281,26 +258,26 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 			"GROUP BY %srcChainIDFieldName#s, %dimFieldNames#s, __timeWin__",
 			map[string]any{
 				"const1ns":               "INTERVAL '1 ns'",
-				"aggTableName":           s.buildTableName(meta),
-				"chainIDFieldName":       meta.GetChainIDField().Name,
-				"timestampFieldName":     meta.GetTimestampField().Name,
-				"slotNumberFieldName":    meta.GetSlotNumberField().Name,
-				"intervalFieldName":      meta.GetAggIntervalField().Name,
-				"srcTable":               srcTable,
-				"srcChainIDFieldName":    srcMeta.GetChainIDField().Name,
-				"srcTimestampFieldName":  srcMeta.GetTimestampField().Name,
-				"srcSlotNumberFieldName": srcMeta.GetSlotNumberField().Name,
+				"aggTableName":           s.MetaTableName(meta),
+				"chainIDFieldName":       quote(meta.GetChainIDField().Name),
+				"timestampFieldName":     quote(meta.GetTimestampField().Name),
+				"slotNumberFieldName":    quote(meta.GetSlotNumberField().Name),
+				"intervalFieldName":      quote(meta.GetAggIntervalField().Name),
+				"srcTable":               s.MetaTableName(srcMeta),
+				"srcChainIDFieldName":    quote(srcMeta.GetChainIDField().Name),
+				"srcTimestampFieldName":  quote(srcMeta.GetTimestampField().Name),
+				"srcSlotNumberFieldName": quote(srcMeta.GetSlotNumberField().Name),
 				"intervalText":           interval.String(),
 				"curTime":                curTime.UTC().Format(time.DateTime),
 				"interval":               interval.PGInterval(),
 				"chainID":                chainID,
-				"dimFieldNames":          strings.Join(dimFieldNames, ","),
-				"aggFieldNames":          strings.Join(aggFieldNames, ","),
+				"dimFieldNames":          strings.Join(utils.MapSliceNoError(dimFieldNames, quote), ","),
+				"aggFieldNames":          strings.Join(utils.MapSliceNoError(aggFieldNames, quote), ","),
 				"aggFields":              strings.Join(aggFields, ","),
 			})
 		start := time.Now()
 		uniqToken := strconv.FormatUint(rand.Uint64(), 16)
-		err := s.client.Exec(chx.InsertSelectCtx(chx.InsertCtx(ctx, uniqToken)), sql)
+		err := s.ctrl.Exec(chx.InsertSelectCtx(chx.InsertCtx(ctx, uniqToken)), sql)
 		exeLogger := logger.With(
 			"interval", interval.String(),
 			"sql", sql,
@@ -318,48 +295,35 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 }
 
 func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int64) error {
-	s.meta.Lock()
-	defer s.meta.Unlock()
-
-	_, logger := log.FromContext(ctx, "processorID", s.processorID, "chainID", chainID, "slotNumberGt", slotNumberGt)
+	s.metaLock.Lock()
+	defer s.metaLock.Unlock()
+	_, logger := log.FromContext(ctx, "chainID", chainID, "slotNumberGt", slotNumberGt)
 	logger.Debug("will delete")
-
-	for _, metas := range s.meta.Metas {
-		for _, meta := range metas {
-			tableName := s.buildTableName(meta)
-			chainIDField := meta.GetChainIDField()
-			slotNumberField := meta.GetSlotNumberField()
-
-			// count rows to delete
-			startTime := time.Now()
-			sql := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s > ?",
-				tableName, chainIDField.Name, slotNumberField.Name)
-			count, err := queryCount(ctx, s.client, sql, chainID, slotNumberGt)
-			metaLogger := logger.With("meta", meta.GetFullName(), "used", time.Since(startTime), "sql", sql)
-			if err != nil {
-				metaLogger.Errore(err, "count for deleting failed")
-				return fmt.Errorf("count for deleting for %s with chainID %s and slotNumber greater than %d failed: %w",
-					meta.GetFullName(), chainID, slotNumberGt, err)
-			}
-			if count == 0 {
-				metaLogger.Debug("not need to delete")
-				continue
-			}
-			metaLogger.Infof("need to delete %d rows", count)
-
-			// execute delete
-			// because always partition by ChainID field, so here can use `IN PARTITION` segment
-			startTime = time.Now()
-			sql = fmt.Sprintf("DELETE FROM %s %s IN PARTITION '%s' WHERE %s > ?",
-				tableName, s.sqlOnClusterPart(), chainID, slotNumberField.Name)
-			err = s.client.Exec(chx.LightDeleteCtx(ctx), sql, slotNumberGt)
-			metaLogger = logger.With("meta", meta.GetFullName(), "used", time.Since(startTime), "sql", sql)
-			if err != nil {
-				metaLogger.Errore(err, "delete failed")
-				return fmt.Errorf("delete for %s with chainID %s and slotNumber greater than %d failed: %w",
-					meta.GetFullName(), chainID, slotNumberGt, err)
-			}
-			metaLogger.Infof("deleted %d rows", count)
+	for _, item := range s.meta {
+		startAt := time.Now()
+		var deleted uint64 = math.MaxUint64
+		var err error
+		if slotNumberGt < 0 {
+			err = s.ctrl.AlterTable(ctx, item.meta.GetTableName(), fmt.Sprintf("DROP PARTITION '%s'", chainID))
+		} else {
+			where := fmt.Sprintf("%s = '%s' AND %s > %d",
+				quote(item.meta.GetChainIDField().Name),
+				chainID,
+				quote(item.meta.GetSlotNumberField().Name),
+				slotNumberGt,
+			)
+			deleted, err = s.ctrl.Delete(chx.LightDeleteCtx(ctx), item.meta.GetTableName(), where)
+		}
+		metaLogger := logger.With("meta", item.meta.GetFullName(), "used", time.Since(startAt).String())
+		if err != nil {
+			metaLogger.Errore(err, "delete failed")
+			return errors.Wrapf(err, "delete for %s with chainID %s and slotNumber greater than %d failed",
+				item.meta.GetFullName(), chainID, slotNumberGt)
+		}
+		if deleted == math.MaxUint64 {
+			metaLogger.Infof("deleted the whole partition")
+		} else {
+			metaLogger.Infof("deleted %d rows", deleted)
 		}
 	}
 	logger.Info("deleted")

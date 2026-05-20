@@ -204,6 +204,7 @@ npm = use_extension(
     "@aspect_rules_js//npm:extensions.bzl",
     "npm",
     dev_dependency = True,
+    isolate = True,
 )
 npm.npm_translate_lock(
     name = "npm",
@@ -232,6 +233,7 @@ rules_ts_ext = use_extension(
     "@aspect_rules_ts//ts:extensions.bzl",
     "ext",
     dev_dependency = True,
+    isolate = True,
 )
 rules_ts_ext.deps(
     # curl --silent https://registry.npmjs.org/typescript/5.9.2 | jq -r '.dist.integrity'

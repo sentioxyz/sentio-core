@@ -68,7 +68,7 @@ func (s *Store) Init(ctx context.Context) error {
 }
 
 func (s *Store) MetaTableName(meta timeseries.Meta) string {
-	return s.ctrl.FullLogicName(meta.GetTableName())
+	return s.ctrl.LogicName(meta.GetTableName())
 }
 
 func (s *Store) Client() chx.Conn {

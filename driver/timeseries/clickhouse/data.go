@@ -117,7 +117,7 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 					"lastValueFields": strings.Join(utils.MapSliceNoError(valueFields, func(f timeseries.Field) string {
 						return fmt.Sprintf("argMax(%s, %s)", quote(f.Name), quote(ds.Meta.GetTimestampField().Name))
 					}), ", "),
-					"tableName":        s.MetaTableName(ds.Meta),
+					"tableName":        s.ctrl.FullLogicName(ds.Meta.GetTableName()),
 					"chainIDFieldName": quote(chainIDField.Name),
 					"chainID":          chainID,
 				})
@@ -160,7 +160,7 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 		}
 	}
 	sql := fmt.Sprintf("INSERT INTO %s (%s)",
-		s.MetaTableName(ds.Meta),
+		s.ctrl.FullLogicName(ds.Meta.GetTableName()),
 		strings.Join(utils.MapSliceNoError(fieldNames, quote), ","),
 	)
 	startAt := time.Now()
@@ -258,12 +258,12 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 			"GROUP BY %srcChainIDFieldName#s, %dimFieldNames#s, __timeWin__",
 			map[string]any{
 				"const1ns":               "INTERVAL '1 ns'",
-				"aggTableName":           s.MetaTableName(meta),
+				"aggTableName":           s.ctrl.FullLogicName(meta.GetTableName()),
 				"chainIDFieldName":       quote(meta.GetChainIDField().Name),
 				"timestampFieldName":     quote(meta.GetTimestampField().Name),
 				"slotNumberFieldName":    quote(meta.GetSlotNumberField().Name),
 				"intervalFieldName":      quote(meta.GetAggIntervalField().Name),
-				"srcTable":               s.MetaTableName(srcMeta),
+				"srcTable":               s.ctrl.FullLogicName(srcMeta.GetTableName()),
 				"srcChainIDFieldName":    quote(srcMeta.GetChainIDField().Name),
 				"srcTimestampFieldName":  quote(srcMeta.GetTimestampField().Name),
 				"srcSlotNumberFieldName": quote(srcMeta.GetSlotNumberField().Name),

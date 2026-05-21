@@ -216,6 +216,14 @@ func (s *Store) LatestViewName(item schema.EntityOrInterface) string {
 	return s.buildName("latestView", item.GetName())
 }
 
+func (s *Store) ViewFullName(item schema.EntityOrInterface) string {
+	return s.ctrl.FullLogicName(s.ViewName(item))
+}
+
+func (s *Store) LatestViewFullName(item schema.EntityOrInterface) string {
+	return s.ctrl.FullLogicName(s.LatestViewName(item))
+}
+
 func quote(cnt string) string {
 	buf := bytes.NewBuffer(make([]byte, 0, len(cnt)+2))
 	buf.WriteRune(nameQuoteMarks)

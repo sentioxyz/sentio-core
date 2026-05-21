@@ -16,7 +16,7 @@ type aggregatedSlidingWindowFunction struct {
 	aggregatedWindowSize time.Duration
 }
 
-func NewAggregatedSlidingWindowFunction(meta timeseries.Meta, store timeseries.Store) prebuilt.AggregatedOverTimeFunction {
+func NewAggregatedSlidingWindowFunction(meta timeseries.Meta, store prebuilt.Store) prebuilt.AggregatedOverTimeFunction {
 	return &aggregatedSlidingWindowFunction{
 		BaseFunction: prebuilt.NewBaseFunction(meta, store, "aggregated"),
 	}

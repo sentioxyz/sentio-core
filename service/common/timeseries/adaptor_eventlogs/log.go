@@ -41,8 +41,8 @@ type LogAdaptor interface {
 	OriginalQuery() string
 	BuildWideQuery() (string, string)
 	BuildCountQuery(alignToStart bool, filters ...string) string
-	GetValueBucket(queryClient timeseries.QueryClient, field string, fieldType timeseries.FieldType, limit int, filters ...string) (map[string]uint64, error)
-	GetValueMinMax(queryClient timeseries.QueryClient, field string, fieldType timeseries.FieldType, filters ...string) (any, any, error)
+	GetValueBucket(conn ckhmanager.Conn, field string, fieldType timeseries.FieldType, limit int, filters ...string) (map[string]uint64, error)
+	GetValueMinMax(conn ckhmanager.Conn, field string, fieldType timeseries.FieldType, filters ...string) (any, any, error)
 	Scan(ctx context.Context, scan ScanFunc, sql string, args ...any) (matrix.Matrix, error)
 }
 
@@ -65,7 +65,7 @@ type logAdaptor struct {
 }
 
 func NewLogAdaptor(ctx context.Context,
-	store timeseries.Store,
+	store Store,
 	processor *processormodels.Processor,
 	timeRange *timerange.TimeRange,
 	luceneSearch string) (LogAdaptor, error) {
@@ -167,7 +167,7 @@ func (l *logAdaptor) buildMetaQuery(meta timeseries.Meta) string {
 		"preset":           strings.Join(preset, ", "),
 		"event_name":       meta.Name,
 		"attributes_field": "map(" + strings.Join(attributes, ", ") + ")::JSON",
-		"table":            l.store.MetaTableWithOptions(meta, timeseries.DefaultMetaTableOption),
+		"table":            l.store.MetaTableName(meta),
 		"time_range":       l.timeRangeCondString(),
 	})
 }
@@ -206,7 +206,7 @@ func (l *logAdaptor) OriginalQuery() string {
 	return sql
 }
 
-func (l *logAdaptor) GetValueBucket(queryClient timeseries.QueryClient, field string, fieldType timeseries.FieldType, limit int, filters ...string) (map[string]uint64, error) {
+func (l *logAdaptor) GetValueBucket(conn ckhmanager.Conn, field string, fieldType timeseries.FieldType, limit int, filters ...string) (map[string]uint64, error) {
 	l.buildQuery()
 	const (
 		tpl = "{with} " +
@@ -248,7 +248,7 @@ func (l *logAdaptor) GetValueBucket(queryClient timeseries.QueryClient, field st
 		})
 	)
 	l.logger.Infof("get value bucket query: %s", sql)
-	rows, err := queryClient.Query(ckhmanager.ContextMergeSettings(l.ctx, map[string]any{
+	rows, err := conn.Query(ckhmanager.ContextMergeSettings(l.ctx, map[string]any{
 		"allow_simdjson": 0,
 	}), sql)
 	if err != nil {
@@ -285,7 +285,7 @@ func (l *logAdaptor) GetValueBucket(queryClient timeseries.QueryClient, field st
 	return buckets, nil
 }
 
-func (l *logAdaptor) GetValueMinMax(queryClient timeseries.QueryClient, field string, fieldType timeseries.FieldType, filters ...string) (any, any, error) {
+func (l *logAdaptor) GetValueMinMax(conn ckhmanager.Conn, field string, fieldType timeseries.FieldType, filters ...string) (any, any, error) {
 	l.buildQuery()
 	const (
 		tpl = "{with} SELECT min({field}) AS min, max({field}) AS max FROM {wide_table} {where}"
@@ -309,7 +309,7 @@ func (l *logAdaptor) GetValueMinMax(queryClient timeseries.QueryClient, field st
 		})
 	)
 	l.logger.Infof("get value min max query: %s", sql)
-	rows, err := queryClient.Query(ckhmanager.ContextMergeSettings(l.ctx, map[string]any{
+	rows, err := conn.Query(ckhmanager.ContextMergeSettings(l.ctx, map[string]any{
 		"allow_simdjson": 0,
 	}), sql)
 	if err != nil {

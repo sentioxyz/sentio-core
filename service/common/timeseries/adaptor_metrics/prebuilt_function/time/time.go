@@ -12,7 +12,7 @@ type timeFunction struct {
 	*prebuilt.BaseFunction
 }
 
-func NewTimeFunction(meta timeseries.Meta, store timeseries.Store) prebuilt.TimeFunction {
+func NewTimeFunction(meta timeseries.Meta, store prebuilt.Store) prebuilt.TimeFunction {
 	return &timeFunction{
 		BaseFunction: prebuilt.NewBaseFunction(meta, store, "time"),
 	}

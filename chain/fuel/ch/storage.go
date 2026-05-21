@@ -14,17 +14,13 @@ import (
 )
 
 type Store struct {
-	table chx.FullName
-	ctrl  chx.Controller
+	ctrl chx.Controller
 
 	statistic
 }
 
-func NewStore(connCtrl chx.Controller, tableNamePrefix string) *Store {
-	s := &Store{
-		table: tableName(connCtrl.GetDatabase(), tableNamePrefix),
-		ctrl:  connCtrl, // just used to query, so cluster is not needed
-	}
+func NewStore(connCtrl chx.Controller) *Store {
+	s := &Store{ctrl: connCtrl}
 	s.init()
 	return s
 }
@@ -192,7 +188,7 @@ func (s *Store) queryTransactions(
 	columns := objectx.CollectTagValue(&ClickhouseTransaction{}, "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s ORDER BY block_height, transaction_index",
 		strings.Join(columns, "`,`"),
-		s.table.InSQL(),
+		s.ctrl.FullLogicName(tableNameTransactions),
 		where)
 	if limit > 0 {
 		sql += fmt.Sprintf(" LIMIT %d", limit)

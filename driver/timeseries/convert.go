@@ -3,7 +3,6 @@ package timeseries
 import (
 	"math/big"
 	"strconv"
-
 	"strings"
 	"time"
 

@@ -212,6 +212,74 @@ func Test_LikePatternToRegexp(t *testing.T) {
 	}
 }
 
+func Test_SplitTopLevel(t *testing.T) {
+	split := func(raw string, n int) []string {
+		parts, err := SplitTopLevel(raw, ',', "(", ")", n)
+		assert.NoError(t, err)
+		return parts
+	}
+	splitErr := func(raw string) error {
+		_, err := SplitTopLevel(raw, ',', "(", ")", 0)
+		return err
+	}
+
+	// basic split
+	assert.Equal(t, []string{"a", "b", "c"}, split("a,b,c", 0))
+	assert.Equal(t, []string{""}, split("", 0))
+	assert.Equal(t, []string{"a"}, split("a", 0))
+
+	// nested brackets are not split
+	assert.Equal(t, []string{"Tuple(a Int64, b String)", "Int32"}, split("Tuple(a Int64, b String),Int32", 0))
+	assert.Equal(t, []string{"Array(Tuple(Int64, String))", "UInt64"}, split("Array(Tuple(Int64, String)),UInt64", 0))
+
+	// n=1 splits at most once, remainder goes to second element
+	assert.Equal(t, []string{"a", "b,c"}, split("a,b,c", 1))
+	assert.Equal(t, []string{"Tuple(a,b)", "c,d"}, split("Tuple(a,b),c,d", 1))
+
+	// error: unmatched closing bracket
+	assert.Error(t, splitErr("a),b"))
+	// error: unclosed bracket
+	assert.Error(t, splitErr("(a,b"))
+}
+
+func Test_CutTopLevel(t *testing.T) {
+	cut := func(raw string) (string, string, bool) {
+		first, second, has, err := CutTopLevel(raw, ' ', "(", ")")
+		assert.NoError(t, err)
+		return first, second, has
+	}
+
+	// no delimiter -> hasSec=false
+	first, second, has := cut("Int64")
+	assert.Equal(t, "Int64", first)
+	assert.Equal(t, "", second)
+	assert.False(t, has)
+
+	// has delimiter -> split at first space
+	first, second, has = cut("a Int64")
+	assert.Equal(t, "a", first)
+	assert.Equal(t, "Int64", second)
+	assert.True(t, has)
+
+	// space inside nested brackets is not a delimiter
+	first, second, has = cut("ids Array(UInt64)")
+	assert.Equal(t, "ids", first)
+	assert.Equal(t, "Array(UInt64)", second)
+	assert.True(t, has)
+
+	// space inside nested brackets is not a delimiter
+	first, second, has = cut("Tuple(x Int64, y String)")
+	assert.Equal(t, "Tuple(x Int64, y String)", first)
+	assert.Equal(t, "", second)
+	assert.False(t, has)
+
+	// only split at the first space, rest goes to second
+	first, second, has = cut("a Tuple(x Int64, y String)")
+	assert.Equal(t, "a", first)
+	assert.Equal(t, "Tuple(x Int64, y String)", second)
+	assert.True(t, has)
+}
+
 func Test_JoinWithQuote(t *testing.T) {
 	assert.Equal(t, "", JoinWithQuote(nil, ",", "#"))
 	assert.Equal(t, "#a#", JoinWithQuote([]string{"a"}, ",", "#"))

@@ -18,7 +18,7 @@ type sampleFunction struct {
 	d time.Duration
 }
 
-func NewSampleFunction(meta timeseries.Meta, store timeseries.Store) prebuilt.SampleFunction {
+func NewSampleFunction(meta timeseries.Meta, store prebuilt.Store) prebuilt.SampleFunction {
 	return &sampleFunction{
 		BaseFunction: prebuilt.NewBaseFunction(meta, store, "sample"),
 	}

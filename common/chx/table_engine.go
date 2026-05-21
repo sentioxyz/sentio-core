@@ -13,6 +13,20 @@ type Engine interface {
 	Replicated() bool
 }
 
+type engineMemory struct{}
+
+func (e engineMemory) Name() string {
+	return "Memory"
+}
+
+func (e engineMemory) Full() string {
+	return "Memory"
+}
+
+func (e engineMemory) Replicated() bool {
+	return false
+}
+
 type engineMergeTree struct {
 	ReplicatedArgs []string
 }
@@ -101,6 +115,8 @@ func buildEngineFromString(str string) (Engine, error) {
 			SignFieldName:    strings.Trim(params[2], "`"),
 			VersionFieldName: strings.Trim(params[3], "`"),
 		}, nil
+	case "Memory":
+		return engineMemory{}, nil
 	default:
 		return nil, errors.Errorf("unknown engine %q", str)
 	}
@@ -131,4 +147,16 @@ func NewDefaultVersionedCollapsingMergeTreeEngine(
 		VersionFieldName: versionFieldName,
 	}
 	return e
+}
+
+func NewMemoryEngine() Engine {
+	return engineMemory{}
+}
+
+func (c Controller) NewDefaultMergeTreeEngine() Engine {
+	return newDefaultMergeTreeEngine(c.cluster != "")
+}
+
+func (c Controller) NewDefaultVersionedCollapsingMergeTreeEngine(signFieldName string, versionFieldName string) Engine {
+	return NewDefaultVersionedCollapsingMergeTreeEngine(c.cluster != "", signFieldName, versionFieldName)
 }

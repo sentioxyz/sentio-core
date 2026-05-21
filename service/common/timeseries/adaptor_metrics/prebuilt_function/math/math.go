@@ -12,7 +12,7 @@ type mathFunction struct {
 	*prebuilt.BaseFunction
 }
 
-func NewMathFunction(meta timeseries.Meta, store timeseries.Store) prebuilt.MathFunction {
+func NewMathFunction(meta timeseries.Meta, store prebuilt.Store) prebuilt.MathFunction {
 	return &mathFunction{
 		BaseFunction: prebuilt.NewBaseFunction(meta, store, "math"),
 	}

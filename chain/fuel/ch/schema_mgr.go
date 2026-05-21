@@ -17,17 +17,10 @@ type ClickhouseSchemaMgr struct {
 	convertConcurrency uint
 }
 
-func tableName(database, tableNamePrefix string) chx.FullName {
-	return chx.FullName{
-		Database: database,
-		Name:     tableNamePrefix + ".transactions",
-	}
-}
+const tableNameTransactions = "transactions"
 
 func NewClickhouseSchemaMgr(
-	cluster string,
-	database string,
-	tableNamePrefix string,
+	ctrl chx.Controller,
 	blockPartitionSize uint64,
 	convertConcurrency uint,
 ) *ClickhouseSchemaMgr {
@@ -35,10 +28,10 @@ func NewClickhouseSchemaMgr(
 	chx.WithLightDeleteTableSettings(tableSettings)
 	chx.WithProjectionTableSettings(tableSettings)
 	table := clickhouse.BuildTable(
-		tableName(database, tableNamePrefix),
+		tableNameTransactions,
 		&ClickhouseTransaction{},
 		chx.TableConfig{
-			Engine:      chx.NewDefaultMergeTreeEngine(cluster != ""),
+			Engine:      ctrl.NewDefaultMergeTreeEngine(),
 			PartitionBy: fmt.Sprintf("intDiv(block_height, %d)", blockPartitionSize),
 			OrderBy:     []string{"block_height", "block_time_ms", "transaction_id"},
 			Settings:    tableSettings,

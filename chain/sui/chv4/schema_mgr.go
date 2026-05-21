@@ -29,40 +29,24 @@ type ClickhouseSchemaMgr struct {
 }
 
 const (
-	CheckpointTableIdx   = 0
-	TransactionsTableIdx = 1
-	ObjectsTableIdx      = 3
-	BalanceTableIdx      = 4
+	tableNameCheckpoints  = "checkpoints"
+	tableNameTransactions = "transactions"
+	tableNameEvents       = "events"
+	tableNameObjects      = "objects"
+	tableNameBalances     = "balances"
 )
-
-func tableNames(database, tableNamePrefix string) []chx.FullName {
-	return utils.MapSliceNoError([]string{
-		"checkpoints",
-		"transactions",
-		"events",
-		"objects",
-		"balances",
-	}, func(suffix string) chx.FullName {
-		return chx.FullName{
-			Database: database,
-			Name:     tableNamePrefix + "." + suffix,
-		}
-	})
-}
 
 func NewClickhouseSchemaMgr(
 	ctrl chx.Controller,
-	tableNamePrefix string,
 	checkpointPartitionSize uint64,
 	balanceStorePath string,
 ) (*ClickhouseSchemaMgr, error) {
-	tablesName := tableNames(ctrl.GetDatabase(), tableNamePrefix)
-	engine := chx.NewDefaultMergeTreeEngine(ctrl.GetCluster() != "")
+	engine := ctrl.NewDefaultMergeTreeEngine()
 	tableSettings := make(map[string]string)
 	chx.WithLightDeleteTableSettings(tableSettings)
 	chx.WithProjectionTableSettings(tableSettings)
 	partitionBy := fmt.Sprintf("intDiv(checkpoint, %d)", checkpointPartitionSize)
-	createTableSchema := func(name chx.FullName, tblObj any, orderBy ...string) clickhouse.TableSchema {
+	createTableSchema := func(name string, tblObj any, orderBy ...string) clickhouse.TableSchema {
 		config := chx.TableConfig{
 			Engine:      engine,
 			PartitionBy: partitionBy,
@@ -72,11 +56,11 @@ func NewClickhouseSchemaMgr(
 		return clickhouse.BuildTable(name, tblObj, config, "")
 	}
 	tables := []clickhouse.TableSchema{
-		createTableSchema(tablesName[0], &Checkpoint{}, "checkpoint", "checkpoint_digest"),
-		createTableSchema(tablesName[1], &Transaction{}, "checkpoint", "tx_index", "tx_digest"),
-		createTableSchema(tablesName[2], &Event{}, "checkpoint", "tx_index", "event_index"),
-		createTableSchema(tablesName[3], &Object{}, "checkpoint", "tx_index", "object_id"),
-		createTableSchema(tablesName[4], &Balance{}, "checkpoint", "tx_index", "address"),
+		createTableSchema(tableNameCheckpoints, &Checkpoint{}, "checkpoint", "checkpoint_digest"),
+		createTableSchema(tableNameTransactions, &Transaction{}, "checkpoint", "tx_index", "tx_digest"),
+		createTableSchema(tableNameEvents, &Event{}, "checkpoint", "tx_index", "event_index"),
+		createTableSchema(tableNameObjects, &Object{}, "checkpoint", "tx_index", "object_id"),
+		createTableSchema(tableNameBalances, &Balance{}, "checkpoint", "tx_index", "address"),
 	}
 	mgr := &ClickhouseSchemaMgr{
 		tablesMeta: clickhouse.TablesMeta{
@@ -86,12 +70,7 @@ func NewClickhouseSchemaMgr(
 		},
 	}
 
-	err := mgr.balanceCtrl.Init(
-		ctrl,
-		tables[BalanceTableIdx].Table.GetFullName(),
-		tables[TransactionsTableIdx].Table.GetFullName(),
-		balanceStorePath,
-	)
+	err := mgr.balanceCtrl.Init(ctrl, balanceStorePath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to init balance store with path %q", balanceStorePath)
 	}

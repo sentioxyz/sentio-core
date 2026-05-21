@@ -3,11 +3,54 @@ package clickhouse
 import (
 	"crypto/sha1"
 	"fmt"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/shopspring/decimal"
 	"math/big"
+	"reflect"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/timeseries"
+	"time"
 )
+
+// Only used to query latest value of each series in counter table,
+// so will not face FieldTypeJSON FieldTypeArray FieldTypeToken.
+func scanRow(rows driver.Rows, fields []timeseries.Field) (timeseries.Row, error) {
+	placeholders := make([]any, len(fields))
+	for i, field := range fields {
+		switch field.Type {
+		case timeseries.FieldTypeString:
+			var v string
+			placeholders[i] = &v
+		case timeseries.FieldTypeBool:
+			var v bool
+			placeholders[i] = &v
+		case timeseries.FieldTypeTime:
+			var v time.Time
+			placeholders[i] = &v
+		case timeseries.FieldTypeInt:
+			var v int64
+			placeholders[i] = &v
+		case timeseries.FieldTypeBigInt:
+			var v *big.Int
+			placeholders[i] = &v
+		case timeseries.FieldTypeFloat:
+			var v float64
+			placeholders[i] = &v
+		case timeseries.FieldTypeBigFloat:
+			var v decimal.Decimal
+			placeholders[i] = &v
+		}
+	}
+	err := rows.Scan(placeholders...)
+	if err != nil {
+		return nil, err
+	}
+	row := make(timeseries.Row, len(fields))
+	for i, field := range fields {
+		row[field.Name] = reflect.ValueOf(placeholders[i]).Elem().Interface()
+	}
+	return row, nil
+}
 
 func buildSeriesID(row timeseries.Row, labelFields []timeseries.Field) string {
 	h := sha1.New()
@@ -57,4 +100,8 @@ func addValues(base, add timeseries.Row, valueFields []timeseries.Field) timeser
 		}
 	}
 	return base
+}
+
+func quote(name string) string {
+	return fmt.Sprintf("`%s`", name)
 }

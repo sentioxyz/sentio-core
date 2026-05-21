@@ -10,8 +10,6 @@ import (
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/schema"
-	"sentioxyz/sentio-core/driver/registrar"
-	"sentioxyz/sentio-core/service/processor/models"
 	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -102,20 +100,17 @@ func (f Features) BuildVerifyOptions() []schema.VerifyOption {
 	return nil
 }
 
+type Probe interface {
+	PreCreateTable(ctx context.Context, tv chx.TableOrView) error
+}
+
 type Store struct {
-	ctrl                  chx.Controller
-	database              string
-	processorID           string
-	processorReplica      int
-	processorTablePattern models.TablePattern
-	feaOpt                Features
-	sch                   *schema.Schema
-	schHash               string
-	tableOpt              TableOption
-	// registrar mirrors table creations to the on-chain Databases contract.
-	// Only consulted when processorTablePattern == TablePatternNetworkV1.
-	// Nil disables on-chain registration.
-	registrar registrar.OnChain
+	ctrl     chx.Controller
+	feaOpt   Features
+	sch      *schema.Schema
+	schHash  string
+	tableOpt TableOption
+	probe    Probe
 }
 
 func enableVersionedCollapsingInsertSettings() map[string]any {
@@ -142,13 +137,10 @@ const schemaHashSalt = "2"
 
 func NewStore(
 	ctrl chx.Controller,
-	processorID string,
-	processorReplica int,
-	processorTablePattern models.TablePattern,
 	feaOpt Features,
 	sch *schema.Schema,
 	tableOpt TableOption,
-	reg registrar.OnChain,
+	probe Probe,
 ) *Store {
 	// build schema hash
 	h := sha1.New()
@@ -159,23 +151,13 @@ func NewStore(
 	}
 	h.Write([]byte(sch.SchemaString))
 	return &Store{
-		ctrl:                  ctrl,
-		database:              ctrl.GetDatabase(),
-		processorID:           processorID,
-		processorReplica:      processorReplica,
-		processorTablePattern: processorTablePattern,
-		feaOpt:                feaOpt,
-		sch:                   sch,
-		schHash:               fmt.Sprintf("%x", h.Sum(nil)),
-		tableOpt:              tableOpt,
-		registrar:             reg,
+		ctrl:     ctrl,
+		feaOpt:   feaOpt,
+		sch:      sch,
+		schHash:  fmt.Sprintf("%x", h.Sum(nil)),
+		tableOpt: tableOpt,
+		probe:    probe,
 	}
-}
-
-// onChainRegistrationEnabled reports whether the store should mirror table
-// creations to the on-chain Databases contract.
-func (s *Store) onChainRegistrationEnabled() bool {
-	return s.processorTablePattern == models.TablePatternNetworkV1 && s.registrar != nil
 }
 
 func (s *Store) GetEntityType(entity string) *schema.Entity {
@@ -186,37 +168,29 @@ func (s *Store) GetEntityOrInterfaceType(name string) schema.EntityOrInterface {
 	return s.sch.GetEntityOrInterface(name)
 }
 
-func (s *Store) tableNamePrefix() string {
-	return s.processorTablePattern.TableNamePrefix(s.processorID, s.processorReplica)
+func (s *Store) buildName(category string, name string) string {
+	return fmt.Sprintf("%s_%s", category, name)
 }
 
-func (s *Store) buildTableNameLike() string {
-	return s.processorTablePattern.TableNameLike(s.processorID, s.processorReplica)
-}
-
-func (s *Store) buildTableOrViewName(category string, name string) string {
-	return s.tableNamePrefix() + fmt.Sprintf("%s_%s", category, name)
-}
-
-func (s *Store) cutTableName(tableName string) (category, name string) {
-	category, name, _ = strings.Cut(strings.TrimPrefix(tableName, s.tableNamePrefix()), "_")
+func (s *Store) cutName(tableName string) (category, name string) {
+	category, name, _ = strings.Cut(tableName, "_")
 	return
 }
 
-func (s *Store) fullName(tableName string) string {
-	return fmt.Sprintf("`%s`.`%s`", s.database, tableName)
+func (s *Store) fullName(name string) string {
+	return s.ctrl.FullLogicName(name)
 }
 
 func (s *Store) VersionedTableName(item schema.EntityOrInterface) string {
-	return s.buildTableOrViewName("versionedEntity", item.GetName())
+	return s.buildName("versionedEntity", item.GetName())
 }
 
 func (s *Store) VersionedLatestTableName(item schema.EntityOrInterface) string {
-	return s.buildTableOrViewName("versionedLatestEntity", item.GetName())
+	return s.buildName("versionedLatestEntity", item.GetName())
 }
 
 func (s *Store) VersionedLatestTableMaterializedViewName(item schema.EntityOrInterface) string {
-	return s.buildTableOrViewName("versionedLatestEntityMV", item.GetName())
+	return s.buildName("versionedLatestEntityMV", item.GetName())
 }
 
 func (s *Store) TableName(item schema.EntityOrInterface) string {
@@ -231,15 +205,15 @@ func (s *Store) TableName(item schema.EntityOrInterface) string {
 	default:
 		panic(fmt.Errorf("unreachable, unexpected item type %T", item))
 	}
-	return s.buildTableOrViewName(category, item.GetName())
+	return s.buildName(category, item.GetName())
 }
 
 func (s *Store) ViewName(item schema.EntityOrInterface) string {
-	return s.buildTableOrViewName("view", item.GetName())
+	return s.buildName("view", item.GetName())
 }
 
 func (s *Store) LatestViewName(item schema.EntityOrInterface) string {
-	return s.buildTableOrViewName("latestView", item.GetName())
+	return s.buildName("latestView", item.GetName())
 }
 
 func quote(cnt string) string {

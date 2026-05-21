@@ -2,16 +2,16 @@ package clickhouse
 
 import (
 	"context"
-	"sentioxyz/sentio-core/service/processor/models"
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+
+	"sentioxyz/sentio-core/common/chx"
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/period"
 	"sentioxyz/sentio-core/driver/timeseries"
-
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -22,12 +22,16 @@ func Test_common(t *testing.T) {
 	t.Skip("test filter condition with too many elements")
 
 	conn := ckhmanager.NewConn(localClickhouseDSN)
+	ctrl := chx.New(conn,
+		chx.WithTableNamePrefix("processor0_"),
+		chx.WithLogicTableNamePrefix("processor0_"),
+	)
 
 	ctx := context.Background()
 
-	store := NewStore(conn, "", conn.GetDatabase(), "processor0", 0, models.TablePatternPlatformV1, Option{}, nil)
+	store := NewStore(ctrl, Option{}, nil)
 
-	assert.NoError(t, store.Init(ctx, true))
+	assert.NoError(t, store.Init(ctx))
 
 	assert.NoError(t, store.CleanAll(ctx))
 
@@ -149,7 +153,7 @@ func Test_common(t *testing.T) {
 		}},
 	}}, "1", parseTime("2025-06-11 12:13:18")))
 
-	assert.NoError(t, store.Init(ctx, true))
+	assert.NoError(t, store.Init(ctx))
 
 	assert.NoError(t, store.DeleteData(ctx, "1", 28))
 

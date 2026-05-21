@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	rg "sentioxyz/sentio-core/common/range"
-	"sentioxyz/sentio-core/common/utils"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,7 +16,9 @@ import (
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/format"
 	"sentioxyz/sentio-core/common/log"
+	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/timer"
+	"sentioxyz/sentio-core/common/utils"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/pkg/errors"
@@ -55,20 +55,20 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		slowFlushThreshold: slowFlushThreshold,
 	}
 	for _, table := range tablesMeta.Tables {
-		pre, has, err := s.ctrl.LoadOne(ctx, table.Table.FullName)
+		pre, has, err := s.ctrl.LoadOne(ctx, table.Table.Name, false)
 		if err != nil {
-			logger.Errorfe(err, "load table %s failed", table.Table.FullName)
-			return nil, errors.Wrapf(err, "load table %s failed", table.Table.FullName)
+			logger.Errorfe(err, "load table %s failed", table.Table.Name)
+			return nil, errors.Wrapf(err, "load table %s failed", table.Table.Name)
 		}
 		if !has {
 			if err = s.ctrl.Create(ctx, table.Table); err != nil {
-				logger.Errorfe(err, "create table %s failed", table.Table.FullName)
-				return nil, errors.Wrapf(err, "create table %s failed", table.Table.FullName)
+				logger.Errorfe(err, "create table %s failed", table.Table.Name)
+				return nil, errors.Wrapf(err, "create table %s failed", table.Table.Name)
 			}
 		} else {
 			if err = s.ctrl.Sync(ctx, pre, table.Table); err != nil {
-				logger.Errorfe(err, "sync table %s failed", table.Table.FullName)
-				return nil, errors.Wrapf(err, "sync table %s failed", table.Table.FullName)
+				logger.Errorfe(err, "sync table %s failed", table.Table.Name)
+				return nil, errors.Wrapf(err, "sync table %s failed", table.Table.Name)
 			}
 		}
 	}
@@ -110,7 +110,7 @@ func (s *SimpleSlotStore[SLOT]) LoadHeader(ctx context.Context, sn uint64) (chai
 	sql := format.Format("SELECT %numberField#s, %hashField#s, %parentHashField#s "+
 		"FROM %tableName#s WHERE %numberField#s = ? LIMIT 1",
 		map[string]any{
-			"tableName":       linkTable.FullName.InSQL(),
+			"tableName":       s.ctrl.FullLogicName(linkTable.Name),
 			"numberField":     s.tablesMeta.LinkTableNumberField,
 			"hashField":       s.tablesMeta.LinkTableHashField,
 			"parentHashField": s.tablesMeta.LinkTableParentHashField,
@@ -149,13 +149,13 @@ func (s *SimpleSlotStore[SLOT]) checkMissing(
 
 	table := s.tablesMeta.Tables[tableIndex]
 	numberField := table.NumberField
-	_, logger := log.FromContext(ctx, "table", table.Table.FullName.String())
+	_, logger := log.FromContext(ctx, "table", table.Table.Name)
 
 	const rangeTooBig = 100000000
 	if *interval.Size() < rangeTooBig {
 		// detect if has missing slot
 		sql := fmt.Sprintf("SELECT COUNT(distinct %s) FROM %s WHERE %s >= %d AND %s <= %d",
-			numberField, table.Table.FullName.InSQL(), numberField, interval.Start, numberField, *interval.End)
+			numberField, s.ctrl.FullLogicName(table.Table.Name), numberField, interval.Start, numberField, *interval.End)
 		count, err := s.ctrl.QueryCount(ctx, sql)
 		if err != nil {
 			return errors.Wrapf(err, "count distinct block in range %s failed", interval)
@@ -183,7 +183,7 @@ func (s *SimpleSlotStore[SLOT]) checkMissing(
 
 	// interval is small enough, this is a leaf node, query the exists
 	sql := fmt.Sprintf("SELECT distinct %s FROM %s WHERE %s >= %d AND %s <= %d",
-		numberField, table.Table.FullName.InSQL(), numberField, interval.Start, numberField, *interval.End)
+		numberField, s.ctrl.FullLogicName(table.Table.Name), numberField, interval.Start, numberField, *interval.End)
 	var exists []uint64
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var bn uint64
@@ -274,7 +274,7 @@ func (s *SimpleSlotStore[SLOT]) Save(
 			taskLogger := logger.With(
 				"fid", task.id,
 				"token", batchToken,
-				"table", table.FullName.String(),
+				"table", table.Name,
 				"rows", len(task.rows),
 				"slot", task.slotSet)
 			taskLogger.Debugf("will flush")
@@ -282,20 +282,16 @@ func (s *SimpleSlotStore[SLOT]) Save(
 			// flush data
 			taskStart := time.Now()
 			if len(task.rows) > 0 {
-				sql := fmt.Sprintf("INSERT INTO %s (`%s`)", table.FullName.InSQL(), strings.Join(table.Fields.Names(), "`,`"))
-				var p int
-				insertErr := s.ctrl.BatchInsert(ctx, sql, math.MaxInt,
-					func() ([]any, bool) {
-						if p >= len(task.rows) {
-							return nil, false
-						}
-						p++
-						return task.rows[p-1], true
-					},
+				sql := fmt.Sprintf("INSERT INTO %s (`%s`)",
+					s.ctrl.FullLogicName(table.Name),
+					strings.Join(table.Fields.Names(), "`,`"),
 				)
+				insertErr := s.ctrl.BatchInsert(ctx, sql, math.MaxInt, chx.NewGetter(task.rows, func(row []any) []any {
+					return row
+				}))
 				if insertErr != nil {
 					taskLogger.Errorfe(insertErr, "insert failed")
-					return errors.Wrapf(insertErr, "insert %d rows for table %s failed", len(task.rows), table.FullName)
+					return errors.Wrapf(insertErr, "insert %d rows for table %s failed", len(task.rows), table.Name)
 				}
 			}
 			// report
@@ -453,7 +449,7 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 			blockTable.NumberField,
 			s.tablesMeta.BlockTableMinSubNumberField,
 			s.tablesMeta.BlockTableMaxSubNumberField,
-			blockTable.Table.FullName.InSQL(),
+			s.ctrl.FullLogicName(blockTable.Table.Name),
 			blockTable.NumberField,
 			strings.Join(blockNumbers, ","),
 		)
@@ -481,7 +477,7 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 		}, sql)
 		if err != nil {
 			return errors.Wrapf(err, "convert block range %s to sub block range in table %s failed",
-				interval, blockTable.Table.FullName)
+				interval, blockTable.Table.Name)
 		}
 	}
 
@@ -504,11 +500,11 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 		}
 		// execute delete sql
 		startAt := time.Now()
-		count, err := s.ctrl.Delete(chx.LightDeleteCtx(ctx), table.Table.FullName, where)
-		tableLogger := logger.With("table", table.Table.FullName.String(), "used", time.Since(startAt).String())
+		count, err := s.ctrl.Delete(chx.LightDeleteCtx(ctx), table.Table.Name, where)
+		tableLogger := logger.With("table", table.Table.Name, "used", time.Since(startAt).String())
 		if err != nil {
 			tableLogger.Errorfe(err, "delete in range failed")
-			return errors.Wrapf(err, "delete from %s in range %s failed", table.Table.FullName, interval)
+			return errors.Wrapf(err, "delete from %s in range %s failed", table.Table.Name, interval)
 		}
 		tableLogger.Infow("delete in range succeed", "rows", count)
 	}

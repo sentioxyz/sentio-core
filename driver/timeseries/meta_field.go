@@ -3,14 +3,7 @@ package timeseries
 import (
 	"bytes"
 	"fmt"
-	"strconv"
-	"strings"
-	"time"
-
 	"sentioxyz/sentio-core/common/utils"
-
-	"github.com/jinzhu/copier"
-	"github.com/shopspring/decimal"
 )
 
 type FieldType string
@@ -254,24 +247,16 @@ type Field struct {
 	Type FieldType
 	Role FieldRole
 
-	// Eventlog field property
+	// FieldTypeJSON field property
 	NestedStructSchema map[string]FieldType
-	BuiltIn            bool
+	BuiltIn            bool // TODO 到底什么意思？
 
 	// Index info
 	Index       bool
 	NestedIndex map[string]FieldType
 }
 
-func (f *Field) Copy() Field {
-	n := Field{}
-	_ = copier.CopyWithOption(&n, f, copier.Option{
-		DeepCopy: true,
-	})
-	return n
-}
-
-func (f *Field) Compatible(other Field) bool {
+func (f Field) Compatible(other Field) bool {
 	equal := f.Name == other.Name &&
 		f.Type == other.Type &&
 		f.Role == other.Role
@@ -287,7 +272,7 @@ func (f *Field) Compatible(other Field) bool {
 	return true
 }
 
-func (f *Field) CompatibleDiff(other Field) FieldDiff {
+func (f Field) CompatibleDiff(other Field) FieldDiff {
 	if f.Compatible(other) {
 		return FieldDiff{}
 	}
@@ -323,31 +308,34 @@ func (f *Field) CompatibleDiff(other Field) FieldDiff {
 	return FieldDiff{}
 }
 
-func (f *Field) Merge(other Field) (newField Field, changed bool) {
+func (f Field) Merge(other Field) (n Field, changed bool) {
 	if !f.Compatible(other) {
-		return f.Copy(), false
+		return f, false
 	}
-	changed = false
 
-	newField = f.Copy()
-	if !f.BuiltIn && other.BuiltIn {
-		newField.BuiltIn = true
+	n = Field{
+		Name:               f.Name,
+		Type:               f.Type,
+		Role:               f.Role,
+		BuiltIn:            f.BuiltIn,
+		NestedStructSchema: utils.CopyMap(f.NestedStructSchema),
+		Index:              f.Index,
+		NestedIndex:        utils.CopyMap(f.NestedIndex),
+	}
+	if !n.BuiltIn && other.BuiltIn {
+		n.BuiltIn = true
 		changed = true
 	}
-	if newField.NestedStructSchema == nil {
-		newField.NestedStructSchema = make(map[string]FieldType)
+	if utils.MergeMapIfNotExist(n.NestedStructSchema, other.NestedStructSchema) > 0 {
+		changed = true
 	}
-	for _, k := range utils.GetOrderedMapKeys(other.NestedStructSchema) {
-		_, has := f.NestedStructSchema[k]
-		if !has {
-			changed = true
-			newField.NestedStructSchema[k] = other.NestedStructSchema[k]
-		}
+	if utils.MergeMapIfNotExist(n.NestedIndex, other.NestedIndex) > 0 {
+		changed = true
 	}
 	return
 }
 
-func (f *Field) String() string {
+func (f Field) String() string {
 	var buf bytes.Buffer
 	buf.WriteString(f.Name)
 	buf.WriteString("/")
@@ -383,139 +371,8 @@ func (f *Field) String() string {
 	return buf.String()
 }
 
-func (f *Field) IsBuiltIn() bool {
+func (f Field) IsBuiltIn() bool {
 	return f.BuiltIn
-}
-
-func (f *Field) GetDisplayName() string {
-	return f.Name
-}
-
-func (f *Field) GetName() string {
-	return f.Name
-}
-
-func (f *Field) GetType() string {
-	return string(f.Type)
-}
-
-func (f *Field) IsJSON() bool {
-	return isJSONType(f.Type)
-}
-
-func (f *Field) IsToken() bool {
-	return isTokenType(f.Type)
-}
-
-func (f *Field) IsTime() bool {
-	return isTimeType(f.Type)
-}
-
-func (f *Field) IsBool() bool {
-	return isBoolType(f.Type)
-}
-
-func (f *Field) IsNumeric() bool {
-	return isNumericType(f.Type)
-}
-
-func (f *Field) IsString() bool {
-	return isStringType(f.Type)
-}
-
-func (f *Field) IsArray() bool {
-	return isArrayType(f.Type)
-}
-
-func (f *Field) NestedTypeChecker(name string, checker fieldTypeFunc) bool {
-	if !f.IsJSON() {
-		return false
-	}
-	if f.NestedStructSchema == nil {
-		return false
-	}
-	fieldType, has := f.NestedStructSchema[strings.ReplaceAll(strings.Join(strings.Split(name, ".")[1:], "."), "`", "")]
-	if !has {
-		return false
-	}
-	return checker(fieldType)
-}
-
-func (f *Field) TypeMatch(value any) (any, bool) {
-	switch {
-	case f.IsString():
-		switch v := value.(type) {
-		case string:
-			return v, true
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-			return fmt.Sprintf("%d", v), true
-		case float32, float64:
-			return fmt.Sprintf("%f", v), true
-		case time.Time:
-			return v.Format(time.RFC3339), true
-		default:
-			return nil, false
-		}
-	case f.IsNumeric():
-		switch v := value.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-			return v, true
-		case float32, float64:
-			return v, true
-		case string:
-			if i, err := strconv.ParseInt(v, 10, 64); err == nil {
-				return i, true
-			}
-			if f, err := strconv.ParseFloat(v, 64); err == nil {
-				return f, true
-			}
-		case decimal.Decimal:
-			return v, true
-		default:
-			return nil, false
-		}
-	case f.IsTime():
-		switch v := value.(type) {
-		case time.Time:
-			return v, true
-		case string:
-			if t, err := time.Parse(time.RFC3339, v); err == nil {
-				return t, true
-			}
-			if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
-				return t, true
-			}
-			return nil, false
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-			switch i := v.(type) {
-			case int:
-				return time.Unix(int64(i), 0), true
-			case int8:
-				return time.Unix(int64(i), 0), true
-			case int16:
-				return time.Unix(int64(i), 0), true
-			case int32:
-				return time.Unix(int64(i), 0), true
-			case int64:
-				return time.Unix(i, 0), true
-			case uint:
-				return time.Unix(int64(i), 0), true
-			case uint8:
-				return time.Unix(int64(i), 0), true
-			case uint16:
-				return time.Unix(int64(i), 0), true
-			case uint32:
-				return time.Unix(int64(i), 0), true
-			case uint64:
-				return time.Unix(int64(i), 0), true
-			default:
-				return nil, false
-			}
-		default:
-			return nil, false
-		}
-	}
-	return nil, false
 }
 
 func BuildFields(fields ...Field) map[string]Field {

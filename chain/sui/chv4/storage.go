@@ -22,16 +22,14 @@ import (
 
 type Storage struct {
 	ctrl       chx.Controller
-	tables     []chx.FullName
 	rangeStore chain.RangeStore
 
 	statistic
 }
 
-func NewStorage(ctrl chx.Controller, tableNamePrefix string, rangeStore chain.RangeStore) *Storage {
+func NewStorage(ctrl chx.Controller, rangeStore chain.RangeStore) *Storage {
 	s := &Storage{
 		ctrl:       ctrl,
-		tables:     tableNames(ctrl.GetDatabase(), tableNamePrefix),
 		rangeStore: rangeStore,
 	}
 	s.init()
@@ -62,7 +60,7 @@ func (s *Storage) QueryCheckpointTime(ctx context.Context, checkpoint uint64) (s
 	if err := s.checkRange(ctx, rg.NewSingleRange(checkpoint)); err != nil {
 		return sui.CheckpointTime{}, err
 	}
-	sql := fmt.Sprintf("SELECT timestamp FROM %s WHERE checkpoint = ?", s.tables[CheckpointTableIdx].InSQL())
+	sql := fmt.Sprintf("SELECT timestamp FROM %s WHERE checkpoint = ?", s.ctrl.FullLogicName(tableNameCheckpoints))
 	var t time.Time
 	var has bool
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -88,7 +86,7 @@ func (s *Storage) QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) 
 		return sui.SimpleCheckpoint{}, err
 	}
 	sql := fmt.Sprintf("SELECT checkpoint_digest, timestamp FROM %s WHERE checkpoint = ?",
-		s.tables[CheckpointTableIdx].InSQL())
+		s.ctrl.FullLogicName(tableNameCheckpoints))
 	sc := sui.SimpleCheckpoint{Checkpoint: checkpoint}
 	var t time.Time
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -114,7 +112,7 @@ func (s *Storage) queryTransactions(
 	columns := objectx.CollectTagValue(&Transaction{}, "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT %s FROM %s WHERE %s",
 		strings.Join(columns, ","),
-		s.tables[TransactionsTableIdx].InSQL(),
+		s.ctrl.FullLogicName(tableNameTransactions),
 		where)
 	startAt := time.Now()
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -428,7 +426,7 @@ func (s *Storage) queryObjectChanges(
 	columns := objectx.CollectTagValue(&Object{}, "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT %s FROM %s WHERE %s ORDER BY checkpoint",
 		strings.Join(columns, ","),
-		s.tables[ObjectsTableIdx].InSQL(),
+		s.ctrl.FullLogicName(tableNameObjects),
 		where)
 	startAt := time.Now()
 	var result []types.ObjectChangeExtend
@@ -536,7 +534,7 @@ func (s *Storage) QueryObjectChanges(ctx context.Context, query *sui.ObjectChang
 	if query.OnlyLastVersion {
 		sql := fmt.Sprintf("SELECT object_id,max(object_version),max(checkpoint) "+
 			"FROM %s WHERE %s GROUP BY object_id",
-			s.tables[ObjectsTableIdx].InSQL(),
+			s.ctrl.FullLogicName(tableNameObjects),
 			strings.Join(conditions, " AND "))
 		where = fmt.Sprintf("(object_id,object_version,checkpoint) IN (%s)", sql)
 	} else {
@@ -624,7 +622,7 @@ func (s *Storage) QueryObjectsStat(
 		"FROM %s "+
 		"WHERE checkpoint >= ? AND checkpoint <= ? AND object_id IN ? "+
 		"GROUP BY object_id",
-		s.tables[ObjectsTableIdx].InSQL())
+		s.ctrl.FullLogicName(tableNameObjects))
 	result := make(map[string]sui.ObjectStat)
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var r sui.ObjectStat

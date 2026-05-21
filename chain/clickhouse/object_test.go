@@ -22,7 +22,7 @@ func Test_BuildTable(t *testing.T) {
 	}
 	assert.Equal(t, TableSchema{
 		Table: chx.Table{
-			FullName: chx.FullName{Database: "db", Name: "object"},
+			Name: "object",
 			Config: chx.TableConfig{
 				Engine:      chx.NewDefaultMergeTreeEngine(true),
 				PartitionBy: "p1",
@@ -51,7 +51,7 @@ func Test_BuildTable(t *testing.T) {
 		NumberField:    "p1",
 		SubNumberField: "p8",
 	}, BuildTable(
-		chx.FullName{Database: "db", Name: "object"},
+		"object",
 		obj{},
 		chx.TableConfig{
 			Engine:      chx.NewDefaultMergeTreeEngine(true),

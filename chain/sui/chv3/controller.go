@@ -20,16 +20,14 @@ import (
 
 type Controller struct {
 	ctrl       chx.Controller
-	tablesName []chx.FullName
 	rangeStore chain.RangeStore
 
 	statistic
 }
 
-func NewController(ctrl chx.Controller, tableNamePrefix string, rangeStore chain.RangeStore) *Controller {
+func NewController(ctrl chx.Controller, rangeStore chain.RangeStore) *Controller {
 	c := &Controller{
 		ctrl:       ctrl,
-		tablesName: tableNames(ctrl.GetDatabase(), tableNamePrefix),
 		rangeStore: rangeStore,
 	}
 	c.init()
@@ -61,7 +59,7 @@ func (c *Controller) QueryCheckpointTime(ctx context.Context, checkpoint uint64)
 		return sui.CheckpointTime{}, err
 	}
 	sql := fmt.Sprintf("SELECT COUNT(*), max(checkpoint_timestamp_ms), min(timestamp_ms), max(timestamp_ms) "+
-		"FROM %s WHERE checkpoint = ?", c.tablesName[TransactionsTableIdx].InSQL())
+		"FROM %s WHERE checkpoint = ?", c.ctrl.FullLogicName(tableNameTransactions))
 	type Result struct {
 		Count          uint64
 		CheckpointTime uint64
@@ -90,7 +88,7 @@ func (c *Controller) QuerySimpleCheckpoint(ctx context.Context, checkpoint uint6
 		return sui.SimpleCheckpoint{}, err
 	}
 	sql := fmt.Sprintf("SELECT COUNT(*), max(checkpoint_digest), max(checkpoint_timestamp_ms) "+
-		"FROM %s WHERE checkpoint = ?", c.tablesName[TransactionsTableIdx].InSQL())
+		"FROM %s WHERE checkpoint = ?", c.ctrl.FullLogicName(tableNameTransactions))
 	var count uint64
 	var digest string
 	var timestampMS uint64
@@ -364,7 +362,7 @@ func (c *Controller) queryTransactions(
 	columns := objectx.CollectTagValue(&CHUTransaction{}, "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s",
 		strings.Join(columns, "`,`"),
-		c.tablesName[TransactionsTableIdx].InSQL(),
+		c.ctrl.FullLogicName(tableNameTransactions),
 		where)
 	startAt := time.Now()
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -469,11 +467,11 @@ func (c *Controller) QueryObjectChanges(
 	var where string
 	if query.OnlyLastVersion {
 		sql := fmt.Sprintf("SELECT distinct object_id FROM %s WHERE %s",
-			c.tablesName[ObjectChangeTableIdx].InSQL(),
+			c.ctrl.FullLogicName(tableNameObjectChanges),
 			strings.Join(conditions, " AND "))
 		sql = fmt.Sprintf("SELECT object_id,max(object_version),max(checkpoint) FROM %s "+
 			"WHERE object_id IN (%s) AND checkpoint >= %d AND checkpoint <= %d GROUP BY object_id",
-			c.tablesName[ObjectPositionTableIdx].InSQL(),
+			c.ctrl.FullLogicName(tableNameObjectPositions),
 			sql,
 			query.FromSequenceNumber,
 			query.ToSequenceNumber)
@@ -548,7 +546,7 @@ func (c *Controller) queryObjectChanges(
 	columns := objectx.CollectTagValue(&CHUObjectChange{}, "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s ORDER BY checkpoint",
 		strings.Join(columns, "`,`"),
-		c.tablesName[ObjectChangeTableIdx].InSQL(),
+		c.ctrl.FullLogicName(tableNameObjectChanges),
 		where)
 	startAt := time.Now()
 	var result []types.ObjectChangeExtend
@@ -589,7 +587,7 @@ func (c *Controller) QueryObjectsStat(
 		"FROM %s "+
 		"WHERE checkpoint >= ? AND checkpoint <= ? AND object_id IN ? "+
 		"GROUP BY object_id",
-		c.tablesName[ObjectPositionTableIdx].InSQL())
+		c.ctrl.FullLogicName(tableNameObjectPositions))
 	err := c.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var r sui.ObjectStat
 		var objectID string

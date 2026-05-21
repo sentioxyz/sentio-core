@@ -301,23 +301,24 @@ const (
 	TablePatternCompatible TablePattern = ""
 )
 
-func (p TablePattern) TableNamePrefix(processorID string, processorReplica int) string {
+func (p TablePattern) GetProcessorDBConfig(database, processorID string, processorReplica int) (
+	tableNamePrefix string,
+	logicDatabase string,
+	logicTableNamePrefix string,
+) {
 	switch p {
-	case TablePatternPlatformV1:
-		return fmt.Sprintf("%s_", processorID)
 	case TablePatternNetworkV1:
-		return fmt.Sprintf("%s_%d.", processorID, processorReplica)
-	case TablePatternCompatible:
-		// use platform as default
-		return fmt.Sprintf("%s_", processorID)
+		proc := fmt.Sprintf("%s_%d", processorID, processorReplica)
+		return proc + ".", proc, ""
 	default:
-		log.Errorf("unknown table pattern: %s, fallback to compatible pattern", p)
-		return fmt.Sprintf("%s_", processorID)
+		switch p {
+		case TablePatternPlatformV1, TablePatternCompatible:
+		default:
+			log.Errorf("unknown table pattern: %s, fallback to compatible pattern", p)
+		}
+		prefix := fmt.Sprintf("%s_", processorID)
+		return prefix, database, prefix
 	}
-}
-
-func (p TablePattern) TableNameLike(processorID string, processorReplica int) string {
-	return strings.ReplaceAll(p.TableNamePrefix(processorID, processorReplica), "_", "\\_") + "%"
 }
 
 func (p TablePattern) IsNetworkPattern() bool {

@@ -33,7 +33,7 @@ type FunctionAdaptor interface {
 
 type functionAdaptor struct {
 	meta      timeseries.Meta
-	store     timeseries.Store
+	store     prebuilt.Store
 	functions []*protoscommon.Function
 	labels    []string
 
@@ -45,7 +45,7 @@ type functionAdaptor struct {
 	cascade  cascade.Functions
 }
 
-func NewFunctionAdaptor(meta timeseries.Meta, store timeseries.Store,
+func NewFunctionAdaptor(meta timeseries.Meta, store prebuilt.Store,
 	functions []*protoscommon.Function, params *Parameters) (FunctionAdaptor, error) {
 	fa := &functionAdaptor{
 		meta:      meta,

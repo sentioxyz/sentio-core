@@ -17,7 +17,7 @@ type rollupSlidingWindowFunction struct {
 	rollupWindowSize     time.Duration
 }
 
-func NewRollupSlidingWindowFunction(meta timeseries.Meta, store timeseries.Store) prebuilt.RollupFunction {
+func NewRollupSlidingWindowFunction(meta timeseries.Meta, store prebuilt.Store) prebuilt.RollupFunction {
 	return &rollupSlidingWindowFunction{
 		BaseFunction: prebuilt.NewBaseFunction(meta, store, "rollup"),
 	}

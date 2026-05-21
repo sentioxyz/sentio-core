@@ -5,13 +5,11 @@ import (
 	"context"
 	"testing"
 
-	"sentioxyz/sentio-core/service/processor/models"
-
+	"github.com/stretchr/testify/require"
+	"sentioxyz/sentio-core/common/chx"
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/period"
 	"sentioxyz/sentio-core/driver/timeseries"
-
-	"github.com/stretchr/testify/require"
 )
 
 type testMetaOption struct {
@@ -73,8 +71,23 @@ func newDataset(name string, option testMetaOption) timeseries.Dataset {
 	}
 }
 
+func newTestStore(conn ckhmanager.Conn) *Store {
+	opts := []chx.Option{
+		chx.WithTableNamePrefix("proc_"),
+		chx.WithLogicTableNamePrefix("proc_"),
+	}
+	if conn == nil {
+		opts = append(opts,
+			chx.WithDatabase("testdb"),
+			chx.WithLogicDatabase("testdb"),
+		)
+	}
+	ctrl := chx.New(conn, opts...)
+	return NewStore(ctrl, Option{}, nil)
+}
+
 func TestCalculateMetasHash_BasicStability(t *testing.T) {
-	store := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{}, nil)
+	store := newTestStore(nil)
 
 	// Initial (empty) hash
 	h1 := store.Meta().GetHash()
@@ -86,57 +99,58 @@ func TestCalculateMetasHash_BasicStability(t *testing.T) {
 }
 
 func TestCalculateMetasHash_OrderIndependence(t *testing.T) {
+	metaA := newMeta("alpha", testMetaOption{})
+	tableA := chx.Table{Name: metaA.GetTableName()}
+	metaB := newMeta("beta", testMetaOption{})
+	tableB := chx.Table{Name: metaB.GetTableName()}
+
 	// Store A insertion order A then B
-	a := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{}, nil)
-	a.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{
-		timeseries.MetaTypeGauge: {
-			"alpha": newMeta("alpha", testMetaOption{}),
-			"beta":  newMeta("beta", testMetaOption{}),
-		},
-	}
+	a := newTestStore(nil)
+	a.meta = newStoreMeta([]metaAndTable{
+		{meta: metaA, table: tableA},
+		{meta: metaB, table: tableB},
+	})
 	hashA := a.Meta().GetHash()
 
 	// Store B insertion order reversed
-	b := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{}, nil)
-	b.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{
-		timeseries.MetaTypeGauge: {
-			"beta":  newMeta("beta", testMetaOption{}),
-			"alpha": newMeta("alpha", testMetaOption{}),
-		},
-	}
+	b := newTestStore(nil)
+	b.meta = newStoreMeta([]metaAndTable{
+		{meta: metaB, table: tableB},
+		{meta: metaA, table: tableA},
+	})
 	hashB := b.Meta().GetHash()
 
 	require.Equal(t, hashA, hashB, "hash must be deterministic irrespective of map insertion order")
 }
 
 func TestCalculateMetasHash_FieldChangeAffectsHash(t *testing.T) {
-	store := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{}, nil)
-	store.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{
-		timeseries.MetaTypeGauge: {
-			"alpha": newMeta("alpha", testMetaOption{}),
-		},
-	}
+	store := newTestStore(nil)
+	store.meta = newStoreMeta([]metaAndTable{{
+		meta: newMeta("alpha", testMetaOption{}),
+	}})
 	h1 := store.Meta().GetHash()
 
 	// Add a new field
-	store.meta.Metas[timeseries.MetaTypeGauge]["alpha"] = newMeta("alpha", testMetaOption{extra: true})
+	store.meta = newStoreMeta([]metaAndTable{{
+		meta: newMeta("alpha", testMetaOption{extra: true}),
+	}})
 	h2 := store.Meta().GetHash()
 
 	require.NotEqual(t, h1, h2)
 }
 
 func TestCalculateMetasHash_AggregationAffectsHash(t *testing.T) {
-	store := NewStore(nil, "", "", "proc", 0, models.TablePatternPlatformV1, Option{}, nil)
-	store.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{
-		timeseries.MetaTypeGauge: {
-			"alpha": newMeta("alpha", testMetaOption{}),
-		},
-	}
+	store := newTestStore(nil)
+	store.meta = newStoreMeta([]metaAndTable{{
+		meta: newMeta("alpha", testMetaOption{}),
+	}})
 	h1 := store.Meta().GetHash()
 
 	// Add aggregation config
 	metaWithAgg := newMeta("alpha", testMetaOption{agg: true})
-	store.meta.Metas[timeseries.MetaTypeGauge]["alpha"] = metaWithAgg
+	store.meta = newStoreMeta([]metaAndTable{{
+		meta: metaWithAgg,
+	}})
 	h2 := store.Meta().GetHash()
 
 	require.NotEqual(t, h1, h2)
@@ -146,165 +160,11 @@ func TestCalculateMetasHash_AggregationAffectsHash(t *testing.T) {
 	require.Equal(t, h2, h3)
 }
 
-func TestMetaTableWithOptions(t *testing.T) {
-	meta := newMeta("alpha", testMetaOption{})
-
-	tests := []struct {
-		name              string
-		pattern           models.TablePattern
-		replica           int
-		options           timeseries.MetaTableOption
-		wantMetaTable     string
-		wantMetaTableWith string
-	}{
-		{
-			name:              "platform default",
-			pattern:           models.TablePatternPlatformV1,
-			wantMetaTable:     "proc_gauge_alpha",
-			wantMetaTableWith: "proc_gauge_alpha",
-		},
-		{
-			name:              "platform escaped",
-			pattern:           models.TablePatternPlatformV1,
-			options:           timeseries.MetaTableOption{EnableEscape: true},
-			wantMetaTable:     "proc_gauge_alpha",
-			wantMetaTableWith: "`proc_gauge_alpha`",
-		},
-		{
-			name:              "platform logical database ignored without separator",
-			pattern:           models.TablePatternPlatformV1,
-			options:           timeseries.MetaTableOption{EnableAutoParsingDatabaseForStorageNetwork: true},
-			wantMetaTable:     "proc_gauge_alpha",
-			wantMetaTableWith: "proc_gauge_alpha",
-		},
-		{
-			name:              "platform escaped with logical database ignored without separator",
-			pattern:           models.TablePatternPlatformV1,
-			options:           timeseries.MetaTableOption{EnableEscape: true, EnableAutoParsingDatabaseForStorageNetwork: true},
-			wantMetaTable:     "proc_gauge_alpha",
-			wantMetaTableWith: "`proc_gauge_alpha`",
-		},
-		{
-			name:              "network default keeps full name when logical database disabled",
-			pattern:           models.TablePatternNetworkV1,
-			replica:           3,
-			wantMetaTable:     "proc_3.gauge_alpha",
-			wantMetaTableWith: "proc_3.gauge_alpha",
-		},
-		{
-			name:              "network escaped keeps full name when logical database disabled",
-			pattern:           models.TablePatternNetworkV1,
-			replica:           3,
-			options:           timeseries.MetaTableOption{EnableEscape: true},
-			wantMetaTable:     "proc_3.gauge_alpha",
-			wantMetaTableWith: "`proc_3.gauge_alpha`",
-		},
-		{
-			name:              "network logical database enabled splits database and table",
-			pattern:           models.TablePatternNetworkV1,
-			replica:           3,
-			options:           timeseries.MetaTableOption{EnableAutoParsingDatabaseForStorageNetwork: true},
-			wantMetaTable:     "proc_3.gauge_alpha",
-			wantMetaTableWith: "proc_3.gauge_alpha",
-		},
-		{
-			name:              "network escaped logical database enabled escapes database and table separately",
-			pattern:           models.TablePatternNetworkV1,
-			replica:           3,
-			options:           timeseries.MetaTableOption{EnableEscape: true, EnableAutoParsingDatabaseForStorageNetwork: true},
-			wantMetaTable:     "proc_3.gauge_alpha",
-			wantMetaTableWith: "`proc_3`.`gauge_alpha`",
-		},
-		{
-			name:              "network auto detect logical database enabled splits database and table",
-			pattern:           models.TablePatternNetworkV1,
-			replica:           3,
-			options:           timeseries.DefaultMetaTableOption,
-			wantMetaTable:     "proc_3.gauge_alpha",
-			wantMetaTableWith: "`proc_3`.`gauge_alpha`",
-		},
-		{
-			name:              "network auto detect with platform",
-			pattern:           models.TablePatternPlatformV1,
-			replica:           3,
-			options:           timeseries.DefaultMetaTableOption,
-			wantMetaTable:     "proc_gauge_alpha",
-			wantMetaTableWith: "`proc_gauge_alpha`",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			store := NewStore(nil, "", "", "proc", tt.replica, tt.pattern, Option{}, nil)
-
-			require.Equal(t, tt.wantMetaTable, store.MetaTable(meta))
-			require.Equal(t, tt.wantMetaTableWith, store.MetaTableWithOptions(meta, tt.options))
-		})
-	}
-}
-
 func TestMeta_BuildSQL(t *testing.T) {
 	t.Skip("need to run manually")
 
 	conn := ckhmanager.NewConn(localClickhouseDSN)
+	store := newTestStore(conn)
 
-	store := NewStore(conn, "", conn.GetDatabase(), "proc", 0, models.TablePatternPlatformV1, Option{}, nil)
-	require.Nil(t, store.Init(context.Background(), true))
-}
-
-func TestMeta_RWMeta(t *testing.T) {
-	t.Skip("need to run manually")
-
-	conn := ckhmanager.NewConn(localClickhouseDSN)
-
-	ctx := context.Background()
-	store := NewStore(conn, "", conn.GetDatabase(), "proc", 0, models.TablePatternPlatformV1, Option{}, nil)
-	store.meta.Metas = map[timeseries.MetaType]map[string]timeseries.Meta{}
-
-	_ = conn.Exec(ctx, "DROP TABLE IF EXISTS proc_gauge_beta, proc_gauge_alpha, proc_gauge_sigma, proc_gauge_gamma, proc_gauge_zetta")
-
-	require.Nil(t, store.syncMeta(ctx, newDataset("beta", testMetaOption{})))
-	require.Nil(t, store.syncMeta(ctx, newDataset("alpha", testMetaOption{token: true, array: true})))
-	require.Nil(t, store.syncMeta(ctx, newDataset("sigma", testMetaOption{extra: true})))
-	loaded1, err := store.loadMeta(ctx)
-	require.Nil(t, err)
-	require.Equal(t, store.meta.GetHash(), loaded1.GetHash())
-
-	require.Nil(t, store.syncMeta(ctx, newDataset("gamma", testMetaOption{extra: true})))
-	loaded2, err := store.loadMeta(ctx)
-	require.Nil(t, err)
-	require.NotEqual(t, store.meta.GetHash(), loaded1.GetHash())
-	require.Equal(t, store.meta.GetHash(), loaded2.GetHash())
-
-	require.Nil(t, store.syncMeta(ctx, newDataset("zetta", testMetaOption{nested: true, nestedSchema: map[string]timeseries.FieldType{"nested": timeseries.FieldTypeString}})))
-	loaded3, err := store.loadMeta(ctx)
-	require.Nil(t, err)
-	require.Equal(t, store.meta.GetHash(), loaded3.GetHash())
-
-	require.Nil(t, store.syncMeta(ctx, newDataset("zetta", testMetaOption{
-		nested: true,
-		nestedSchema: map[string]timeseries.FieldType{
-			"nested":      timeseries.FieldTypeString,
-			"middle":      timeseries.FieldTypeJSON,
-			"middle.leaf": timeseries.FieldTypeArray,
-		}})))
-	loaded4, err := store.loadMeta(ctx)
-	require.Nil(t, err)
-	require.Equal(t, store.meta.GetHash(), loaded4.GetHash())
-
-	require.Nil(t, store.syncMeta(ctx, newDataset("zetta", testMetaOption{
-		nested: true,
-		nestedSchema: map[string]timeseries.FieldType{
-			"nested_array": timeseries.FieldTypeArray,
-		}})))
-	loaded5, err := store.loadMeta(ctx)
-	require.Nil(t, err)
-	require.Equal(t, store.meta.GetHash(), loaded5.GetHash())
-
-	m, ok := loaded5.Meta(timeseries.MetaTypeGauge, "zetta")
-	require.True(t, ok)
-	m.Fields["nested_struct"].NestedStructSchema["nested_array"] = timeseries.FieldTypeArray
-	m.Fields["nested_struct"].NestedStructSchema["middle.leaf"] = timeseries.FieldTypeArray
-	m.Fields["nested_struct"].NestedStructSchema["middle"] = timeseries.FieldTypeJSON
-	m.Fields["nested_struct"].NestedStructSchema["nested"] = timeseries.FieldTypeString
+	require.Nil(t, store.Init(context.Background()))
 }

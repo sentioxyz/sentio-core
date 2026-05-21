@@ -92,11 +92,11 @@ func clickhouseType(rawType reflect.Type) chx.FieldType {
 	}
 }
 
-func BuildTable(name chx.FullName, obj any, config chx.TableConfig, comment string) TableSchema {
+func BuildTable(name string, obj any, config chx.TableConfig, comment string) TableSchema {
 	projections := make(map[string]map[uint64]string)
 	sch := TableSchema{
 		Table: chx.Table{
-			FullName:    name,
+			Name:        name,
 			Config:      config,
 			Comment:     comment,
 			Fields:      nil, // will be filled below

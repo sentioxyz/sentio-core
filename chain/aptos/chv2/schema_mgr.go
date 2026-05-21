@@ -9,18 +9,7 @@ import (
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/objectx"
 	rg "sentioxyz/sentio-core/common/range"
-	"sentioxyz/sentio-core/common/utils"
 	"time"
-)
-
-const (
-	BlockTableIdx       = 0
-	TransactionTableIdx = 1
-	EventTableIdx       = 2
-	ChangeTableIdx      = 3
-	ResourceTableIdx    = 4
-	ModuleTableIdx      = 5
-	TableItemTableIdx   = 6
 )
 
 type ClickhouseSchemaMgr struct {
@@ -28,39 +17,29 @@ type ClickhouseSchemaMgr struct {
 	convertConcurrency uint
 }
 
-func tableNames(database, tableNamePrefix string) []chx.FullName {
-	return utils.MapSliceNoError([]string{
-		"blocks",
-		"transactions",
-		"events",
-		"changes",
-		"resources",
-		"modules",
-		"table_items",
-	}, func(suffix string) chx.FullName {
-		return chx.FullName{
-			Database: database,
-			Name:     tableNamePrefix + "." + suffix,
-		}
-	})
-}
+const (
+	tableNameBlocks       = "blocks"
+	tableNameTransactions = "transactions"
+	tableNameEvents       = "events"
+	tableNameChanges      = "changes"
+	tableNameResources    = "resources"
+	tableNameModules      = "modules"
+	tableNameTableItems   = "table_items"
+)
 
 func NewClickhouseSchemaMgr(
-	cluster string,
-	database string,
-	tableNamePrefix string,
+	ctrl chx.Controller,
 	blockPartitionSize uint64,
 	txnPartitionSize uint64,
 	convertConcurrency uint,
 ) *ClickhouseSchemaMgr {
-	tablesName := tableNames(database, tableNamePrefix)
-	engine := chx.NewDefaultMergeTreeEngine(cluster != "")
+	engine := ctrl.NewDefaultMergeTreeEngine()
 	blockPartitionBy := fmt.Sprintf("intDiv(block_height, %d)", blockPartitionSize)
 	txnPartitionBy := fmt.Sprintf("intDiv(transaction_version, %d)", txnPartitionSize)
 	tableSettings := make(map[string]string)
 	chx.WithLightDeleteTableSettings(tableSettings)
 	chx.WithProjectionTableSettings(tableSettings)
-	createTableSchema := func(name chx.FullName, tblObj any, partitionBy string, orderBy ...string) clickhouse.TableSchema {
+	createTableSchema := func(name string, tblObj any, partitionBy string, orderBy ...string) clickhouse.TableSchema {
 		config := chx.TableConfig{
 			Engine:      engine,
 			PartitionBy: partitionBy,
@@ -71,13 +50,13 @@ func NewClickhouseSchemaMgr(
 	}
 	// the order should match to const *TableIdx
 	tables := []clickhouse.TableSchema{
-		createTableSchema(tablesName[0], &Block{}, blockPartitionBy, "block_height"),
-		createTableSchema(tablesName[1], &Transaction{}, txnPartitionBy, "transaction_version"),
-		createTableSchema(tablesName[2], &Event{}, txnPartitionBy, "transaction_version", "event_index"),
-		createTableSchema(tablesName[3], &Change{}, txnPartitionBy, "transaction_version", "change_index"),
-		createTableSchema(tablesName[4], &Resource{}, txnPartitionBy, "transaction_version", "change_index"),
-		createTableSchema(tablesName[5], &Module{}, txnPartitionBy, "transaction_version", "change_index"),
-		createTableSchema(tablesName[6], &TableItem{}, txnPartitionBy, "transaction_version", "change_index"),
+		createTableSchema(tableNameBlocks, &Block{}, blockPartitionBy, "block_height"),
+		createTableSchema(tableNameTransactions, &Transaction{}, txnPartitionBy, "transaction_version"),
+		createTableSchema(tableNameEvents, &Event{}, txnPartitionBy, "transaction_version", "event_index"),
+		createTableSchema(tableNameChanges, &Change{}, txnPartitionBy, "transaction_version", "change_index"),
+		createTableSchema(tableNameResources, &Resource{}, txnPartitionBy, "transaction_version", "change_index"),
+		createTableSchema(tableNameModules, &Module{}, txnPartitionBy, "transaction_version", "change_index"),
+		createTableSchema(tableNameTableItems, &TableItem{}, txnPartitionBy, "transaction_version", "change_index"),
 	}
 	return &ClickhouseSchemaMgr{
 		tablesMeta: clickhouse.TablesMeta{

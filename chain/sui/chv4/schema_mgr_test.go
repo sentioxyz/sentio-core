@@ -157,7 +157,11 @@ func Test_convertReal(t *testing.T) {
 	t.Skipf("call endpoint")
 
 	const balanceStorePath = "xxx.test"
-	sm, err := NewClickhouseSchemaMgr(chx.NewController(nil, ""), "", 0, balanceStorePath)
+	ctrl := chx.New(nil,
+		chx.WithTableNamePrefix("sui.v2."),
+		chx.WithLogicTableNamePrefix("sui.v2."),
+	)
+	sm, err := NewClickhouseSchemaMgr(ctrl, 0, balanceStorePath)
 	assert.NoError(t, err)
 
 	conf := sui.ClientConfig{

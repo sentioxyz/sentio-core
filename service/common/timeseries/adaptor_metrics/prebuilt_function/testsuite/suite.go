@@ -6,7 +6,6 @@ import (
 
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/driver/timeseries"
 	"sentioxyz/sentio-core/service/common/timeseries/adaptor_metrics/mock"
 	processormodels "sentioxyz/sentio-core/service/processor/models"
 
@@ -25,7 +24,7 @@ type Suite struct {
 	suite.Suite
 	conn ckhmanager.Conn
 
-	Store     timeseries.Store
+	Store     *mock.MockStore
 	Processor *processormodels.Processor
 	Ctx       context.Context
 }
@@ -36,7 +35,7 @@ func (s *Suite) SetupSuite() {
 	s.Processor = mockProcessor
 	s.Store = mock.NewMockStore(mockProcessor, s.conn)
 	_ = s.Store.CleanAll(s.Ctx)
-	if err := s.Store.Init(s.Ctx, true); err != nil {
+	if err := s.Store.Init(s.Ctx); err != nil {
 		panic(err)
 	}
 	log.Infof("setup suite for segmentation test")

@@ -8,25 +8,14 @@ import (
 
 type TableOrView interface {
 	GetKind() string
-	GetFullName() FullName
+	GetName() string
 	GetComment() string
 }
 
-type FullName struct {
-	Database string
-	Name     string
-}
-
-func (fn FullName) String() string {
-	return fn.Database + "." + fn.Name
-}
-
-func (fn FullName) InSQL() string {
-	return fmt.Sprintf("`%s`.`%s`", fn.Database, fn.Name)
-}
-
 type Table struct {
-	FullName
+	Name string
+
+	IsTemporary bool
 
 	Config  TableConfig
 	Comment string
@@ -42,8 +31,8 @@ func (t Table) GetKind() string {
 	return "table"
 }
 
-func (t Table) GetFullName() FullName {
-	return t.FullName
+func (t Table) GetName() string {
+	return t.Name
 }
 
 func (t Table) GetComment() string {
@@ -100,17 +89,17 @@ func (p Projection) Equal(a Projection) bool {
 }
 
 type View struct {
-	FullName
+	Name string
 
 	Fields Fields
 
-	Select string
+	Select string // should use FullLogicName inside the select sql
 
 	Comment string
 }
 
 func (v View) Equal(a View) bool {
-	return v.FullName == a.FullName &&
+	return v.Name == a.Name &&
 		v.Select == a.Select &&
 		v.Comment == a.Comment &&
 		utils.ArrEqual(v.Fields, a.Fields)
@@ -120,8 +109,8 @@ func (v View) GetKind() string {
 	return "view"
 }
 
-func (v View) GetFullName() FullName {
-	return v.FullName
+func (v View) GetName() string {
+	return v.Name
 }
 
 func (v View) GetComment() string {
@@ -131,7 +120,7 @@ func (v View) GetComment() string {
 type MaterializedView struct {
 	View
 
-	To FullName
+	To string // just name, not FullName non FullLogicName, like Table.Name, View.Name
 }
 
 func (v MaterializedView) Equal(a MaterializedView) bool {
@@ -142,8 +131,8 @@ func (v MaterializedView) GetKind() string {
 	return "materialized view"
 }
 
-func (v MaterializedView) GetFullName() FullName {
-	return v.FullName
+func (v MaterializedView) GetName() string {
+	return v.Name
 }
 
 func (v MaterializedView) GetComment() string {

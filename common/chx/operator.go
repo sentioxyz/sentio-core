@@ -13,87 +13,109 @@ import (
 	"github.com/pkg/errors"
 )
 
-// LoadTables load tables only contains FullName, Engine, Comment
-func (c Controller) LoadTables(ctx context.Context, database string, tableNameLike string) ([]TableOrView, error) {
+type EqualOrLike struct {
+	Name     *string
+	NameLike *string
+}
+
+func (c Controller) loadCondition(name EqualOrLike) (operator string, arg string) {
+	if name.Name != nil {
+		return "=", c.tableNamePrefix + *name.Name
+	}
+	tableNamePrefix := strings.ReplaceAll(c.tableNamePrefix, "_", "\\_")
+	tableNamePrefix = strings.ReplaceAll(tableNamePrefix, "%", "\\%")
+	if name.NameLike != nil {
+		return "LIKE", tableNamePrefix + *name.NameLike
+	}
+	return "LIKE", tableNamePrefix + "%"
+}
+
+// result only contains Name, Comment
+func (c Controller) loadSimple(ctx context.Context, name EqualOrLike) ([]TableOrView, error) {
 	var tableOrViews []TableOrView
-	sql := "SELECT name, engine, comment FROM system.tables WHERE database = ? AND name LIKE ?"
+	operator, nameArg := c.loadCondition(name)
+	sql := fmt.Sprintf("SELECT name, engine, comment "+
+		"FROM system.tables "+
+		"WHERE database = ? AND name %s ? AND is_temporary = 0", operator)
 	err := c.Query(ctx, func(rows driver.Rows) error {
 		var name, engine, comment string
 		scanErr := rows.Scan(&name, &engine, &comment)
 		if scanErr != nil {
 			return scanErr
 		}
-		fn := FullName{
-			Database: database,
-			Name:     name,
-		}
+		name = strings.TrimPrefix(name, c.tableNamePrefix)
 		switch engine {
 		case "View":
 			tableOrViews = append(tableOrViews, View{
-				FullName: fn,
-				Comment:  comment,
+				Name:    name,
+				Comment: comment,
 			})
 		case "MaterializedView":
 			tableOrViews = append(tableOrViews, MaterializedView{
 				View: View{
-					FullName: fn,
-					Comment:  comment,
+					Name:    name,
+					Comment: comment,
 				},
 			})
 		default:
+			// TODO There might also be other elements (like View MaterializedView) that indicate this is not a regular table engine.
 			tableOrViews = append(tableOrViews, Table{
-				FullName: fn,
-				Comment:  comment,
+				Name:    name,
+				Comment: comment,
 			})
 		}
 		return nil
-	}, sql, database, tableNameLike)
+	}, sql, c.database, nameArg)
 	if err != nil {
 		return nil, errors.Wrapf(err, "list table failed")
 	}
 	return tableOrViews, nil
 }
 
-func (c Controller) Load(
-	ctx context.Context,
-	database string,
-	tableNameLike string,
-) (tables map[string]TableOrView, err error) {
+func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableOrView, err error) {
 	_, logger := log.FromContext(ctx)
+	operator, nameArg := c.loadCondition(name)
 	defer func() {
 		if err != nil {
-			logger.With("database", database, "tableNameLike", tableNameLike).Errorfe(err, "load tables failed")
+			logger.Errorfe(err, "load tables failed")
 		}
 	}()
-	tables = make(map[string]TableOrView)
+	tables := make(map[string]TableOrView)
 
 	// show tables
-	sql := "SELECT name, engine, engine_full, create_table_query, as_select, partition_key, sorting_key, comment " +
-		"FROM system.tables " +
-		"WHERE database = ? AND name LIKE ?"
+	sql := fmt.Sprintf(
+		"SELECT name, engine, engine_full, create_table_query, as_select, partition_key, sorting_key, comment "+
+			"FROM system.tables "+
+			"WHERE database = ? AND name %s ? AND is_temporary = 0", operator)
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var name, engine, engineFull, createTableQuery, asSelect, partitionKey, sortingKey, comment string
-		scanErr := rows.Scan(&name, &engine, &engineFull, &createTableQuery, &asSelect, &partitionKey, &sortingKey, &comment)
+		var rawName, engine, engineFull, createTableQuery, asSelect, partitionKey, sortingKey, comment string
+		scanErr := rows.Scan(
+			&rawName,
+			&engine,
+			&engineFull,
+			&createTableQuery,
+			&asSelect,
+			&partitionKey,
+			&sortingKey,
+			&comment,
+		)
 		if scanErr != nil {
 			return scanErr
 		}
-		fn := FullName{
-			Database: database,
-			Name:     name,
-		}
+		name := strings.TrimPrefix(rawName, c.tableNamePrefix)
 		switch engine {
 		case "View":
 			tables[name] = View{
-				FullName: fn,
-				Select:   asSelect,
-				Comment:  comment,
+				Name:    name,
+				Select:  asSelect,
+				Comment: comment,
 			}
 		case "MaterializedView":
 			view := MaterializedView{
 				View: View{
-					FullName: fn,
-					Select:   asSelect,
-					Comment:  comment,
+					Name:    name,
+					Select:  asSelect,
+					Comment: comment,
 				},
 			}
 			var sector string
@@ -101,16 +123,27 @@ func (c Controller) Load(
 				sector, createTableQuery, _ = cutBySpace(createTableQuery)
 			}
 			if sector == "TO" {
+				// raw is FullLogicName, not FullName
 				raw, _, _ := cutBySpace(createTableQuery)
 				p := findNotIn(raw, '.', '`')
-				view.To.Database = strings.Trim(raw[:p], "`")
-				view.To.Name = strings.Trim(raw[p+1:], "`")
+				db, table := strings.Trim(raw[:p], "`"), strings.Trim(raw[p+1:], "`")
+				logicDatabase, logicTableNamePrefix := c.getLogicDatabase(), c.getLogicTableNamePrefix()
+				if db != logicDatabase {
+					return errors.Errorf("invalid To database %s for MaterializedView %s, should be %s",
+						db, view.Name, logicDatabase)
+				}
+				if !strings.HasPrefix(table, logicTableNamePrefix) {
+					return errors.Errorf("invalid To table %q for MaterializedView %s, should start with %q",
+						table, view.Name, logicTableNamePrefix)
+				}
+				view.To = strings.TrimPrefix(table, logicTableNamePrefix)
 			}
 			tables[name] = view
 		default:
+			// TODO There might also be other elements (like View MaterializedView) that indicate this is not a regular table engine.
 			table := Table{
-				FullName: fn,
-				Comment:  comment,
+				Name:    name,
+				Comment: comment,
 			}
 			// PartitionBy
 			table.Config.PartitionBy = partitionKey
@@ -123,7 +156,7 @@ func (c Controller) Load(
 			engineWithArgs, engineFull, _ = cutBySpace(engineFull)
 			table.Config.Engine, err = buildEngineFromString(engineWithArgs)
 			if err != nil {
-				logger.Warnfe(err, "load engine of table %s failed, will be ignored", name)
+				logger.Warnfe(err, "build engine of table %s failed, will be ignored", rawName)
 				return nil
 			}
 			// Settings
@@ -142,22 +175,22 @@ func (c Controller) Load(
 			tables[name] = table
 		}
 		return nil
-	}, sql, database, tableNameLike)
+	}, sql, c.database, nameArg)
 	if err != nil {
 		return nil, errors.Wrapf(err, "list table failed")
 	}
 
 	// get table fields
-	sql = "SELECT table, name, type, default_expression, comment, compression_codec " +
-		"FROM system.columns " +
-		"WHERE database = ? AND table LIKE ? " +
-		"ORDER BY table, position"
+	sql = fmt.Sprintf("SELECT table, name, type, default_expression, comment, compression_codec "+
+		"FROM system.columns "+
+		"WHERE database = ? AND table %s ? "+
+		"ORDER BY table, position", operator)
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var tableName string
+		var rawTableName string
 		var field Field
 		var rawFieldType string
 		scanErr := rows.Scan(
-			&tableName,
+			&rawTableName,
 			&field.Name,
 			&rawFieldType,
 			&field.DefaultExpr,
@@ -167,6 +200,7 @@ func (c Controller) Load(
 		if scanErr != nil {
 			return scanErr
 		}
+		tableName := strings.TrimPrefix(rawTableName, c.tableNamePrefix)
 		field.Type = BuildFieldType(rawFieldType)
 		tableOrView, has := tables[tableName]
 		if !has {
@@ -185,22 +219,23 @@ func (c Controller) Load(
 			tables[tableName] = tv
 		}
 		return nil
-	}, sql, database, tableNameLike)
+	}, sql, c.database, nameArg)
 	if err != nil {
 		return nil, errors.Wrapf(err, "list table fields failed")
 	}
 
 	// get index
-	sql = "SELECT table, name, type_full, expr, granularity " +
-		"FROM system.data_skipping_indices " +
-		"WHERE database = ? AND table like ? " +
-		"ORDER BY table, name"
+	sql = fmt.Sprintf("SELECT table, name, type_full, expr, granularity "+
+		"FROM system.data_skipping_indices "+
+		"WHERE database = ? AND table %s ? "+
+		"ORDER BY table, name", operator)
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var tableName string
+		var rawTableName string
 		var index Index
-		if scanErr := rows.Scan(&tableName, &index.Name, &index.Type, &index.Expr, &index.Granularity); scanErr != nil {
+		if scanErr := rows.Scan(&rawTableName, &index.Name, &index.Type, &index.Expr, &index.Granularity); scanErr != nil {
 			return scanErr
 		}
+		tableName := strings.TrimPrefix(rawTableName, c.tableNamePrefix)
 		tableOrView, has := tables[tableName]
 		if !has {
 			// this is a index of a ignored table, just ignore it
@@ -214,22 +249,23 @@ func (c Controller) Load(
 		table.Indexes = append(table.Indexes, index)
 		tables[tableName] = table
 		return nil
-	}, sql, database, tableNameLike)
+	}, sql, c.database, nameArg)
 	if err != nil {
 		return nil, errors.Wrapf(err, "list indices failed")
 	}
 
 	// get projection
-	sql = "SELECT table, name, query " +
-		"FROM system.projections " +
-		"WHERE database = ? AND table like ? " +
-		"ORDER BY table, name"
+	sql = fmt.Sprintf("SELECT table, name, query "+
+		"FROM system.projections "+
+		"WHERE database = ? AND table %s ? "+
+		"ORDER BY table, name", operator)
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var tableName string
+		var rawTableName string
 		var projection Projection
-		if scanErr := rows.Scan(&tableName, &projection.Name, &projection.Query); scanErr != nil {
+		if scanErr := rows.Scan(&rawTableName, &projection.Name, &projection.Query); scanErr != nil {
 			return scanErr
 		}
+		tableName := strings.TrimPrefix(rawTableName, c.tableNamePrefix)
 		tableOrView, has := tables[tableName]
 		if !has {
 			// this is a projection of a ignored table, just ignore it
@@ -243,23 +279,46 @@ func (c Controller) Load(
 		table.Projections = append(table.Projections, projection)
 		tables[tableName] = table
 		return nil
-	}, sql, database, tableNameLike)
+	}, sql, c.database, nameArg)
 
-	return tables, nil
+	return utils.GetMapValuesOrderByKey(tables), nil
 }
 
-func (c Controller) LoadOne(ctx context.Context, fullName FullName) (TableOrView, bool, error) {
-	r, err := c.Load(ctx, fullName.Database, fullName.Name)
-	if err != nil {
+// Load result only contains name and comment if simple is true
+func (c Controller) Load(ctx context.Context, name EqualOrLike, simple bool) (result []TableOrView, err error) {
+	if simple {
+		return c.loadSimple(ctx, name)
+	}
+	return c.load(ctx, name)
+}
+
+// LoadAll result only contains name and comment if simple is true
+func (c Controller) LoadAll(ctx context.Context, simple bool) ([]TableOrView, error) {
+	return c.Load(ctx, EqualOrLike{}, simple)
+}
+
+// LoadOne result only contains name and comment if simple is true
+func (c Controller) LoadOne(ctx context.Context, name string, simple bool) (TableOrView, bool, error) {
+	r, err := c.Load(ctx, EqualOrLike{Name: &name}, simple)
+	if err != nil || len(r) == 0 {
 		return nil, false, err
 	}
-	tv, has := r[fullName.Name]
-	return tv, has, nil
+	return r[0], true, nil
 }
 
 func (c Controller) buildCreateTableSQL(table Table) string {
 	var sql bytes.Buffer
-	sql.WriteString(fmt.Sprintf("CREATE TABLE %s (", c.FullNameWithOnCluster(table.FullName)))
+	sql.WriteString("CREATE ")
+	if table.IsTemporary {
+		sql.WriteString("TEMPORARY ")
+	}
+	sql.WriteString("TABLE ")
+	if table.IsTemporary {
+		sql.WriteString(c.FullLogicName(table.Name))
+	} else {
+		sql.WriteString(c.FullLogicNameWithOnCluster(table.Name))
+	}
+	sql.WriteString(" (")
 	for i, field := range table.Fields {
 		if i > 0 {
 			sql.WriteString(", ")
@@ -301,7 +360,7 @@ func (c Controller) buildCreateTableSQL(table Table) string {
 func (c Controller) buildCreateViewSQL(view View, replace bool) string {
 	var sql bytes.Buffer
 	sql.WriteString(utils.Select(replace, "CREATE OR REPLACE VIEW ", "CREATE VIEW "))
-	sql.WriteString(c.FullNameWithOnCluster(view.FullName))
+	sql.WriteString(c.FullLogicNameWithOnCluster(view.Name))
 	if len(view.Fields) > 0 {
 		sql.WriteString(" (")
 		for i, field := range view.Fields {
@@ -319,8 +378,8 @@ func (c Controller) buildCreateViewSQL(view View, replace bool) string {
 
 func (c Controller) buildCreateMaterializedViewSQL(view MaterializedView) string {
 	var sql bytes.Buffer
-	sql.WriteString(fmt.Sprintf("CREATE MATERIALIZED VIEW %s TO `%s`.`%s`",
-		c.FullNameWithOnCluster(view.FullName), view.To.Database, view.To.Name))
+	sql.WriteString("CREATE MATERIALIZED VIEW ")
+	sql.WriteString(fmt.Sprintf("%s TO %s", c.FullLogicNameWithOnCluster(view.Name), c.FullLogicName(view.To)))
 	if len(view.Fields) > 0 {
 		sql.WriteString(" (")
 		for i, field := range view.Fields {
@@ -350,18 +409,17 @@ func (c Controller) BuildCreateSQL(tableOrView TableOrView) string {
 }
 
 func (c Controller) Create(ctx context.Context, tableOrView TableOrView) (err error) {
-	_, logger := log.FromContext(ctx, "name", tableOrView.GetFullName().String())
+	_, logger := log.FromContext(ctx, "name", tableOrView.GetName())
 	if err = c.Exec(ctx, c.BuildCreateSQL(tableOrView)); err != nil {
 		logger.Errorfe(err, "create %s failed", tableOrView.GetKind())
-		return errors.Wrapf(err, "create %s %s failed", tableOrView.GetKind(), tableOrView.GetFullName())
+		return errors.Wrapf(err, "create %s %s failed", tableOrView.GetKind(), tableOrView.GetName())
 	}
 	switch tableOrView.(type) {
 	case View, MaterializedView:
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY COMMENT '%s'",
-			c.FullNameWithOnCluster(tableOrView.GetFullName()), tableOrView.GetComment()))
+		err = c.AlterTable(ctx, tableOrView.GetName(), fmt.Sprintf("MODIFY COMMENT '%s'", tableOrView.GetComment()))
 		if err != nil {
 			return errors.Wrapf(err, "create %s %s failed: set comment failed",
-				tableOrView.GetKind(), tableOrView.GetFullName())
+				tableOrView.GetKind(), tableOrView.GetName())
 		}
 	}
 	logger.Infof("create %s succeed", tableOrView.GetKind())
@@ -370,13 +428,10 @@ func (c Controller) Create(ctx context.Context, tableOrView TableOrView) (err er
 
 func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	// === check diff
-	if pre.Database != cur.Database {
-		return errors.Errorf("try to change database from %q to %q", pre.Database, cur.Database)
-	}
 	if pre.Name != cur.Name {
 		return errors.Errorf("try to change table name from %q to %q", pre.Name, cur.Name)
 	}
-	_, logger := log.FromContext(ctx, "table", pre.GetFullName())
+	_, logger := log.FromContext(ctx, "table", pre.Name)
 	logger.Info("will sync table")
 	if pe, ce := pre.Config.Engine.Name(), cur.Config.Engine.Name(); pe != ce {
 		logger.Warnf("engine changed from %q to %q, will be ignored", pe, ce)
@@ -469,14 +524,14 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 		logger = logger.With("used", time.Since(startAt).String())
 		if err != nil {
 			logger.Errorfe(err, "sync table failed")
-			err = errors.Wrapf(err, "sync table %s failed", cur.GetFullName())
+			err = errors.Wrapf(err, "sync table %s failed", cur.Name)
 		} else {
 			logger.Info("sync table succeed")
 		}
 	}()
 	// drop fields
 	for _, fn := range delFields {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s DROP COLUMN `%s`", c.FullNameWithOnCluster(cur.FullName), fn))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("DROP COLUMN `%s`", fn))
 		if err != nil {
 			return errors.Wrapf(err, "drop column %q failed", fn)
 		}
@@ -484,8 +539,7 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	}
 	// add fields
 	for _, field := range addFields {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s",
-			c.FullNameWithOnCluster(cur.FullName), field.CreateSQL()))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("ADD COLUMN %s", field.CreateSQL()))
 		if err != nil {
 			return errors.Wrapf(err, "add column %q failed", field.Name)
 		}
@@ -495,21 +549,18 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	for _, field := range defaultChangedFields {
 		var sql string
 		if field.DefaultExpr == "" {
-			sql = fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN `%s` REMOVE DEFAULT",
-				c.FullNameWithOnCluster(cur.FullName), field.Name)
+			sql = fmt.Sprintf("MODIFY COLUMN `%s` REMOVE DEFAULT", field.Name)
 		} else {
-			sql = fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN `%s` %s DEFAULT %s",
-				c.FullNameWithOnCluster(cur.FullName), field.Name, field.Type, field.DefaultExpr)
+			sql = fmt.Sprintf("MODIFY COLUMN `%s` %s DEFAULT %s", field.Name, field.Type, field.DefaultExpr)
 		}
-		if err = c.Exec(ctx, sql); err != nil {
+		if err = c.AlterTable(ctx, cur.Name, sql); err != nil {
 			return errors.Wrapf(err, "modify default of column %q failed", field.Name)
 		}
 		logger.With("defaultExpr", field.DefaultExpr).Infof("updated default of column %s", field.Name)
 	}
 	// modify field, should behind update field default because may be need to remove default first
 	for _, field := range typeChangedFields {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s",
-			c.FullNameWithOnCluster(cur.FullName), field.CreateSQL()))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("MODIFY COLUMN %s", field.CreateSQL()))
 		if err != nil {
 			return errors.Wrapf(err, "modify type to %s for column %q failed", field.Type, field.Name)
 		}
@@ -517,8 +568,7 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	}
 	// update field comment
 	for _, field := range commentChangedFields {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s COMMENT COLUMN `%s` '%s'",
-			c.FullNameWithOnCluster(cur.FullName), field.Name, field.Comment))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("COMMENT COLUMN `%s` '%s'", field.Name, field.Comment))
 		if err != nil {
 			return errors.Wrapf(err, "comment column %q failed", field.Name)
 		}
@@ -526,8 +576,7 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	}
 	// drop indexes
 	for _, index := range delIndexes {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s DROP INDEX `%s`",
-			c.FullNameWithOnCluster(cur.FullName), index.Name))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("DROP INDEX `%s`", index.Name))
 		if err != nil {
 			return errors.Wrapf(err, "drop index %q failed", index.Name)
 		}
@@ -535,8 +584,7 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	}
 	// add indexes
 	for _, index := range addIndexes {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD INDEX `%s` %s TYPE %s GRANULARITY %d",
-			c.FullNameWithOnCluster(cur.FullName), index.Name, index.Expr, index.Type, index.Granularity))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("ADD %s", index.CreateSQL()))
 		if err != nil {
 			return errors.Wrapf(err, "add index %q failed", index.Name)
 		}
@@ -544,8 +592,7 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	}
 	// drop projections
 	for _, projection := range delProjections {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s DROP PROJECTION `%s`",
-			c.FullNameWithOnCluster(cur.FullName), projection.Name))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("DROP PROJECTION `%s`", projection.Name))
 		if err != nil {
 			return errors.Wrapf(err, "drop projection %q failed", projection.Name)
 		}
@@ -553,8 +600,7 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	}
 	// add projections
 	for _, projection := range addProjections {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s ADD PROJECTION `%s` (%s)",
-			c.FullNameWithOnCluster(cur.FullName), projection.Name, projection.Query))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("ADD PROJECTION `%s` (%s)", projection.Name, projection.Query))
 		if err != nil {
 			return errors.Wrapf(err, "add projection %q failed", projection.Name)
 		}
@@ -569,8 +615,7 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 		}
 	}
 	if len(updateSettings) > 0 {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY SETTING %s",
-			c.FullNameWithOnCluster(cur.FullName), strings.Join(updateSettings, ",")))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("MODIFY SETTING %s", strings.Join(updateSettings, ",")))
 		if err != nil {
 			return errors.Wrapf(err, "modify settings failed")
 		}
@@ -579,8 +624,7 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 	}
 	// update table comment
 	if pre.Comment != cur.Comment {
-		err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY COMMENT '%s'",
-			c.FullNameWithOnCluster(cur.FullName), cur.Comment))
+		err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("MODIFY COMMENT '%s'", cur.Comment))
 		if err != nil {
 			return errors.Wrapf(err, "modify table comment failed")
 		}
@@ -590,50 +634,42 @@ func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
 }
 
 func (c Controller) SyncView(ctx context.Context, pre, cur View) (err error) {
-	if pre.Database != cur.Database {
-		return errors.Errorf("try to change database from %q to %q", pre.Database, cur.Database)
-	}
 	if pre.Name != cur.Name {
 		return errors.Errorf("try to change table name from %q to %q", pre.Name, cur.Name)
 	}
-	_, logger := log.FromContext(ctx, "name", cur.GetFullName())
+	_, logger := log.FromContext(ctx, "name", cur.Name)
 	logger.Info("will sync view")
 	if err = c.Exec(ctx, c.buildCreateViewSQL(cur, true)); err != nil {
 		logger.Errorfe(err, "replace view failed")
-		return errors.Wrapf(err, "sync view %s failed, replace view failed", cur.GetFullName())
+		return errors.Wrapf(err, "sync view %s failed, replace view failed", cur.Name)
 	}
-	err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY COMMENT '%s'",
-		c.FullNameWithOnCluster(cur.FullName), cur.Comment))
+	err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("MODIFY COMMENT '%s'", cur.Comment))
 	if err != nil {
 		logger.Errorfe(err, "set comment failed")
-		return errors.Wrapf(err, "sync view %s failed, set comment failed", cur.GetFullName())
+		return errors.Wrapf(err, "sync view %s failed, set comment failed", cur.Name)
 	}
 	logger.Info("sync view succeed")
 	return nil
 }
 
 func (c Controller) SyncMaterializedView(ctx context.Context, pre, cur MaterializedView) (err error) {
-	if pre.Database != cur.Database {
-		return errors.Errorf("try to change database from %q to %q", pre.Database, cur.Database)
-	}
 	if pre.Name != cur.Name {
 		return errors.Errorf("try to change table name from %q to %q", pre.Name, cur.Name)
 	}
-	_, logger := log.FromContext(ctx, "name", cur.GetFullName())
+	_, logger := log.FromContext(ctx, "name", cur.Name)
 	logger.Info("will sync materialized view")
-	if err = c.Exec(ctx, fmt.Sprintf("DROP VIEW %s", c.FullNameWithOnCluster(pre.FullName))); err != nil {
+	if err = c.Exec(ctx, fmt.Sprintf("DROP VIEW %s", c.FullLogicNameWithOnCluster(pre.Name))); err != nil {
 		logger.Errorfe(err, "drop old one failed")
-		return errors.Wrapf(err, "sync materialized view %s failed: drop old one failed", cur.GetFullName())
+		return errors.Wrapf(err, "sync materialized view %s failed: drop old one failed", cur.Name)
 	}
 	if err = c.Exec(ctx, c.buildCreateMaterializedViewSQL(cur)); err != nil {
 		logger.Errorfe(err, "create new one failed")
-		return errors.Wrapf(err, "sync materialized view %s failed: create new one failed", cur.GetFullName())
+		return errors.Wrapf(err, "sync materialized view %s failed: create new one failed", cur.Name)
 	}
-	err = c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s MODIFY COMMENT '%s'",
-		c.FullNameWithOnCluster(cur.FullName), cur.Comment))
+	err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("MODIFY COMMENT '%s'", cur.Comment))
 	if err != nil {
 		logger.Errorfe(err, "set comment failed")
-		return errors.Wrapf(err, "sync materialized view %s failed: set comment failed", cur.GetFullName())
+		return errors.Wrapf(err, "sync materialized view %s failed: set comment failed", cur.Name)
 	}
 	logger.Info("sync materialized view succeed")
 	return nil
@@ -656,21 +692,22 @@ func (c Controller) Sync(ctx context.Context, pre, cur TableOrView) error {
 }
 
 func (c Controller) drop(ctx context.Context, tableOrView TableOrView) error {
-	_, logger := log.FromContext(ctx, "name", tableOrView.GetFullName().String())
+	_, logger := log.FromContext(ctx, "name", tableOrView.GetName())
 	var sql string
 	switch tv := tableOrView.(type) {
 	case Table:
-		sql = fmt.Sprintf("DROP TABLE %s", c.FullNameWithOnCluster(tv.FullName))
+		name := utils.Select(tv.IsTemporary, c.FullLogicName(tv.Name), c.FullLogicNameWithOnCluster(tv.Name))
+		sql = fmt.Sprintf("DROP TABLE %s", name)
 	case View:
-		sql = fmt.Sprintf("DROP VIEW %s", c.FullNameWithOnCluster(tv.FullName))
+		sql = fmt.Sprintf("DROP VIEW %s", c.FullLogicNameWithOnCluster(tv.Name))
 	case MaterializedView:
-		sql = fmt.Sprintf("DROP VIEW %s", c.FullNameWithOnCluster(tv.FullName))
+		sql = fmt.Sprintf("DROP VIEW %s", c.FullLogicNameWithOnCluster(tv.Name))
 	default:
 		panic(fmt.Sprintf("unknown type %T", tableOrView))
 	}
 	if err := c.Exec(ctx, sql); err != nil {
 		logger.Errorfe(err, "drop %s failed", tableOrView.GetKind())
-		return errors.Wrapf(err, "drop %s %s failed", tableOrView.GetKind(), tableOrView.GetFullName())
+		return errors.Wrapf(err, "drop %s %s failed", tableOrView.GetKind(), tableOrView.GetName())
 	}
 	logger.Infof("drop %s succeed", tableOrView.GetKind())
 	return nil
@@ -690,8 +727,8 @@ func (c Controller) Drop(ctx context.Context, tablesOrViews ...TableOrView) erro
 	return nil
 }
 
-func (c Controller) DropAll(ctx context.Context, database, tableNameLike string) error {
-	tvs, err := c.LoadTables(ctx, database, tableNameLike)
+func (c Controller) DropAll(ctx context.Context) error {
+	tvs, err := c.loadSimple(ctx, EqualOrLike{})
 	if err != nil {
 		return err
 	}

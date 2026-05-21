@@ -6,7 +6,6 @@ import (
 
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/driver/timeseries"
 	protoscommon "sentioxyz/sentio-core/service/common/protos"
 	"sentioxyz/sentio-core/service/common/timeseries/adaptor_eventlogs/mock"
 	processormodels "sentioxyz/sentio-core/service/processor/models"
@@ -19,7 +18,7 @@ type CohortSuite struct {
 	suite.Suite
 	ctx       context.Context
 	processor *processormodels.Processor
-	store     timeseries.Store
+	store     *mock.MockStore
 	conn      ckhmanager.Conn
 	b         CohortAdaptor
 }
@@ -30,7 +29,7 @@ func (s *CohortSuite) SetupSuite() {
 	s.processor = mockProcessor
 	s.store = mock.NewMockStore(mockProcessor, s.conn)
 	_ = s.store.CleanAll(s.ctx)
-	if err := s.store.Init(s.ctx, true); err != nil {
+	if err := s.store.Init(s.ctx); err != nil {
 		panic(err)
 	}
 	log.Infof("setup suite for cohort test")

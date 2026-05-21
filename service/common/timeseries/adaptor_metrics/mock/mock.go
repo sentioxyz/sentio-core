@@ -2,9 +2,9 @@ package mock
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	"sentioxyz/sentio-core/common/chx"
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/driver/timeseries"
 	chstimeseries "sentioxyz/sentio-core/driver/timeseries/clickhouse"
@@ -23,7 +23,6 @@ type MockStore struct {
 	storeMeta   timeseries.StoreMeta
 	client      ckhmanager.Conn
 	processorID string
-	database    string
 }
 
 func (m *mockStoreMeta) GetHash() string                                                { return "mock" }
@@ -43,9 +42,9 @@ func (m *mockStoreMeta) String() string {
 	return ""
 }
 
-func (m *MockStore) Init(ctx context.Context, _ bool) error {
+func (m *MockStore) Init(ctx context.Context) error {
 	for _, meta := range m.storeMeta.MetaByType(timeseries.MetaTypeGauge) {
-		if err := m.Store.CreateTable(ctx, meta); err != nil {
+		if err := m.Store.AppendData(ctx, []timeseries.Dataset{{Meta: meta}}, "", time.Now()); err != nil {
 			return err
 		}
 	}
@@ -53,20 +52,14 @@ func (m *MockStore) Init(ctx context.Context, _ bool) error {
 }
 func (m *MockStore) CleanAll(ctx context.Context) error {
 	for _, meta := range m.storeMeta.MetaByType(timeseries.MetaTypeGauge) {
-		if err := m.client.Exec(ctx, "DROP TABLE IF EXISTS `"+m.MetaTable(meta)+"`"); err != nil {
+		if err := m.client.Exec(ctx, "DROP TABLE IF EXISTS "+m.MetaTableName(meta)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (m *MockStore) Meta() timeseries.StoreMeta                 { return m.storeMeta }
-func (m *MockStore) ReloadMeta(_ context.Context, _ bool) error { return nil }
-func (m *MockStore) MetaTable(meta timeseries.Meta) string {
-	return fmt.Sprintf("%s_%s", m.processorID, meta.GetTableSuffix())
-}
-func (m *MockStore) MetaTableWithOptions(meta timeseries.Meta, _ timeseries.MetaTableOption) string {
-	return fmt.Sprintf("`%s_%s`", m.processorID, meta.GetTableSuffix())
-}
+func (m *MockStore) Meta() timeseries.StoreMeta         { return m.storeMeta }
+func (m *MockStore) ReloadMeta(_ context.Context) error { return nil }
 
 func (m *MockStore) AppendData(context.Context, []timeseries.Dataset, string, time.Time) error {
 	return nil
@@ -74,7 +67,6 @@ func (m *MockStore) AppendData(context.Context, []timeseries.Dataset, string, ti
 func (m *MockStore) DeleteData(context.Context, string, int64) error {
 	return nil
 }
-func (m *MockStore) Client() timeseries.QueryClient { return m.client }
 
 type fields map[string]timeseries.Field
 
@@ -176,13 +168,13 @@ func newMockStoreMeta() timeseries.StoreMeta {
 }
 
 func NewMockStore(processor *processormodel.Processor, conn ckhmanager.Conn) *MockStore {
-	s := chstimeseries.NewStore(conn, "", conn.GetDatabase(), processor.ID, 0, processormodel.TablePatternPlatformV1, chstimeseries.Option{}, nil)
+	ctrl := chx.New(conn, chx.WithTableNamePrefix(processor.ID+"_"))
+	s := chstimeseries.NewStore(ctrl, chstimeseries.Option{}, nil)
 	return &MockStore{
 		Store:       s,
 		storeMeta:   newMockStoreMeta(),
 		processorID: processor.ID,
 		client:      conn,
-		database:    conn.GetDatabase(),
 	}
 }
 

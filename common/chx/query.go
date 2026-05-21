@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"sentioxyz/sentio-core/common/log"
 	"strconv"
 	"time"
+
+	"sentioxyz/sentio-core/common/log"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/pkg/errors"
@@ -24,13 +25,13 @@ func (c Controller) Query(
 	var rowsNum int
 	defer func() {
 		used := time.Since(startAt)
-		_, logger := log.FromContext(ctx)
+		_, logger := log.FromContext(ctx, "sql", sql, "rows", rowsNum, "used", used.String())
 		if e != nil {
-			logger.With("sql", sql, "rows", rowsNum, "used", used.String()).Warnfe(e, "clickhouse query failed")
+			logger.Warnfe(e, "clickhouse query failed")
 		} else if used >= slowQueryLimit {
-			logger.With("sql", sql, "rows", rowsNum, "used", used.String()).Warnf("clickhouse query succeed, but used > %s", slowQueryLimit)
+			logger.Warnf("clickhouse query succeed, but used > %s", slowQueryLimit)
 		} else {
-			logger.Debugw("clickhouse query succeed", "sql", sql, "rows", rowsNum, "used", used.String())
+			logger.Debug("clickhouse query succeed")
 		}
 	}()
 	rows, err := c.conn.Query(ctx, sql, sqlArgs...)
@@ -53,12 +54,12 @@ func (c Controller) Query(
 func (c Controller) Exec(ctx context.Context, sql string, args ...any) error {
 	startAt := time.Now()
 	err := c.conn.Exec(ctx, sql, args...)
-	_, logger := log.FromContext(ctx)
+	_, logger := log.FromContext(ctx, "sql", sql, "used", time.Since(startAt).String())
 	if err != nil {
-		logger.With("sql", sql, "used", time.Since(startAt).String()).Warnfe(err, "clickhouse execute failed")
+		logger.Warnfe(err, "clickhouse execute failed")
 		return err
 	}
-	logger.Debugw("clickhouse execute succeed", "sql", sql, "used", time.Since(startAt).String())
+	logger.Debug("clickhouse execute succeed")
 	return nil
 }
 
@@ -117,17 +118,52 @@ func (c Controller) BatchInsert(
 	return nil
 }
 
-func (c Controller) Delete(ctx context.Context, table FullName, condition string) (uint64, error) {
-	sql := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s", table.InSQL(), condition)
+func (c Controller) Delete(ctx context.Context, table string, condition string) (uint64, error) {
+	sql := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s", c.FullLogicName(table), condition)
 	count, err := c.QueryCount(DisableProjectionCtx(ctx), sql)
 	if err != nil {
 		return 0, errors.Wrapf(err, "query count for deleting from %s failed", table)
 	} else if count == 0 {
 		return 0, nil
 	}
-	sql = fmt.Sprintf("DELETE FROM %s WHERE %s", table.InSQL(), condition)
+	sql = fmt.Sprintf("DELETE FROM %s WHERE %s", c.FullLogicName(table), condition)
 	if err = c.Exec(ctx, sql); err != nil {
 		return 0, errors.Wrapf(err, "delete from %s failed", table)
 	}
 	return count, nil
+}
+
+func (c Controller) AlterTable(ctx context.Context, table string, sql string, args ...any) error {
+	return c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s %s", c.FullLogicNameWithOnCluster(table), sql), args...)
+}
+
+type PartitionMeta struct {
+	Partition             string
+	Rows                  uint64
+	BytesOnDisk           uint64
+	DataCompressedBytes   uint64
+	DataUncompressedBytes uint64
+}
+
+func (c Controller) ListPartitions(ctx context.Context, table string) (partitions []PartitionMeta, err error) {
+	sql := "SELECT " +
+		"partition," +
+		"sum(rows)," +
+		"sum(bytes_on_disk)," +
+		"sum(data_compressed_bytes)," +
+		"sum(data_uncompressed_bytes) " +
+		"FROM system.parts " +
+		"WHERE database = ? AND table = ? AND active = 1 " +
+		"GROUP BY partition " +
+		"ORDER BY partition"
+	err = c.Query(ctx, func(rows driver.Rows) error {
+		var p PartitionMeta
+		scanErr := rows.Scan(&p.Partition, &p.Rows, &p.BytesOnDisk, &p.DataCompressedBytes, &p.DataUncompressedBytes)
+		if scanErr != nil {
+			return scanErr
+		}
+		partitions = append(partitions, p)
+		return nil
+	}, sql, c.database, c.tableNamePrefix+table)
+	return partitions, err
 }

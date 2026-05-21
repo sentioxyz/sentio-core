@@ -52,15 +52,12 @@ type EthVariationCtrl interface {
 }
 
 type EthVariationController[BLOCK SlotBlock, TXN SlotTransaction] struct {
-	ctrl       chx.Controller
-	tablesName []chx.FullName
+	ctrl chx.Controller
 
 	statistic
 }
 
-func NewEthVarCtrl(chainID string, ctrl chx.Controller, tablePrefix string) EthVariationCtrl {
-	names := tableNames(ctrl.GetDatabase(), tablePrefix)
-
+func NewEthVarCtrl(chainID string, ctrl chx.Controller) EthVariationCtrl {
 	chainInfo, ok := chains.EthChainIDToInfo[chains.ChainID(chainID)]
 	if !ok {
 		panic(errors.Errorf("unknown chainID %q", chainID))
@@ -68,15 +65,15 @@ func NewEthVarCtrl(chainID string, ctrl chx.Controller, tablePrefix string) EthV
 
 	switch chainInfo.Variation {
 	case chains.EthVariationArbitrum:
-		return &EthVariationController[*BlockArbitrum, *TransactionArbitrum]{ctrl: ctrl, tablesName: names}
+		return &EthVariationController[*BlockArbitrum, *TransactionArbitrum]{ctrl: ctrl}
 	case chains.EthVariationOptimism:
-		return &EthVariationController[*Block, *TransactionOptimism]{ctrl: ctrl, tablesName: names}
+		return &EthVariationController[*Block, *TransactionOptimism]{ctrl: ctrl}
 	case chains.EthVariationZkSync:
-		return &EthVariationController[*BlockCronosZkevm, *TransactionCronosZkevm]{ctrl: ctrl, tablesName: names}
+		return &EthVariationController[*BlockCronosZkevm, *TransactionCronosZkevm]{ctrl: ctrl}
 	case chains.EthVariationSubstrate:
-		return &EthVariationController[*BlockMoonbeam, *Transaction]{ctrl: ctrl, tablesName: names}
+		return &EthVariationController[*BlockMoonbeam, *Transaction]{ctrl: ctrl}
 	case chains.EthVariationDefault:
-		return &EthVariationController[*Block, *Transaction]{ctrl: ctrl, tablesName: names}
+		return &EthVariationController[*Block, *Transaction]{ctrl: ctrl}
 	default:
 		panic(errors.Errorf("variation of chainID %q is %v, it is not supported", chainID, chainInfo.Variation))
 	}
@@ -263,34 +260,20 @@ func (c *EthVariationController[BLOCK, TXN]) Convert(st *evm.Slot) (clickhouse.C
 }
 
 const (
-	BlocksTableIdx       = 0
-	TransactionsTableIdx = 1
-	LogsTableIdx         = 2
-	TracesTableIdx       = 3
+	tableNameBlocks       = "blocks"
+	tableNameTransactions = "transactions"
+	tableNameLogs         = "logs"
+	tableNameTraces       = "traces"
+	tableNameWithdrawals  = "withdrawals"
 )
 
-func tableNames(database, tableNamePrefix string) []chx.FullName {
-	return utils.MapSliceNoError([]string{
-		"blocks",
-		"transactions",
-		"logs",
-		"traces",
-		"withdrawals",
-	}, func(suffix string) chx.FullName {
-		return chx.FullName{
-			Database: database,
-			Name:     tableNamePrefix + "." + suffix,
-		}
-	})
-}
-
 func (c *EthVariationController[BLOCK, TXN]) BuildTablesMeta(blockPartitionSize uint64) clickhouse.TablesMeta {
-	engine := chx.NewDefaultMergeTreeEngine(c.ctrl.GetCluster() != "")
+	engine := c.ctrl.NewDefaultMergeTreeEngine()
 	tableSettings := make(map[string]string)
 	chx.WithLightDeleteTableSettings(tableSettings)
 	chx.WithProjectionTableSettings(tableSettings)
 	partitionBy := fmt.Sprintf("intDiv(block_number, %d)", blockPartitionSize)
-	createTableSchema := func(name chx.FullName, tblObj any, orderBy ...string) clickhouse.TableSchema {
+	createTableSchema := func(name string, tblObj any, orderBy ...string) clickhouse.TableSchema {
 		config := chx.TableConfig{
 			Engine:      engine,
 			PartitionBy: partitionBy,
@@ -300,11 +283,11 @@ func (c *EthVariationController[BLOCK, TXN]) BuildTablesMeta(blockPartitionSize 
 		return clickhouse.BuildTable(name, tblObj, config, "")
 	}
 	tables := []clickhouse.TableSchema{
-		createTableSchema(c.tablesName[0], c.newBlock(), "block_number"),
-		createTableSchema(c.tablesName[1], c.newTxn(), "block_number", "transaction_index"),
-		createTableSchema(c.tablesName[2], &Log{}, "block_number", "transaction_index", "log_index"),
-		createTableSchema(c.tablesName[3], &Trace{}, "block_number", "transaction_index", "trace_index"),
-		createTableSchema(c.tablesName[4], &Withdrawal{}, "block_number"),
+		createTableSchema(tableNameBlocks, c.newBlock(), "block_number"),
+		createTableSchema(tableNameTransactions, c.newTxn(), "block_number", "transaction_index"),
+		createTableSchema(tableNameLogs, &Log{}, "block_number", "transaction_index", "log_index"),
+		createTableSchema(tableNameTraces, &Trace{}, "block_number", "transaction_index", "trace_index"),
+		createTableSchema(tableNameWithdrawals, &Withdrawal{}, "block_number"),
 	}
 	const blockTableIndex = 0
 	return clickhouse.TablesMeta{
@@ -326,7 +309,7 @@ func (c *EthVariationController[BLOCK, TXN]) QueryBlocks(
 	columns := objectx.CollectTagValue(c.newBlock(), "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s ORDER BY block_number",
 		strings.Join(columns, "`,`"),
-		c.tablesName[BlocksTableIdx].InSQL(),
+		c.ctrl.FullLogicName(tableNameBlocks),
 		where)
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
 		block := c.newBlock()
@@ -345,7 +328,7 @@ func (c *EthVariationController[BLOCK, TXN]) QueryBlockTxHashes(
 	blockNumber uint64,
 ) (result []string, err error) {
 	sql := fmt.Sprintf("SELECT transaction_hash FROM %s WHERE block_number = ? ORDER BY transaction_index",
-		c.tablesName[TransactionsTableIdx].InSQL())
+		c.ctrl.FullLogicName(tableNameTransactions))
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var hash string
 		if scanErr := rows.Scan(&hash); scanErr != nil {
@@ -366,7 +349,7 @@ func (c *EthVariationController[BLOCK, TXN]) QueryTxs(
 	columns := objectx.CollectTagValue(c.newTxn(), "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s ORDER BY block_number, transaction_index",
 		strings.Join(columns, "`,`"),
-		c.tablesName[TransactionsTableIdx].InSQL(),
+		c.ctrl.FullLogicName(tableNameTransactions),
 		where)
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
 		txn := c.newTxn()
@@ -395,7 +378,7 @@ func (c *EthVariationController[BLOCK, TXN]) QueryLogs(
 	columns := objectx.CollectTagValue(Log{}, "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s ORDER BY block_number, log_index",
 		strings.Join(columns, "`,`"),
-		c.tablesName[LogsTableIdx].InSQL(),
+		c.ctrl.FullLogicName(tableNameLogs),
 		where)
 	startAt := time.Now()
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -412,7 +395,7 @@ func (c *EthVariationController[BLOCK, TXN]) QueryLogs(
 }
 
 func (c *EthVariationController[BLOCK, TXN]) QueryLogsBlockSQL(where string) string {
-	return fmt.Sprintf("SELECT block_number FROM %s WHERE %s", c.tablesName[LogsTableIdx].InSQL(), where)
+	return fmt.Sprintf("SELECT block_number FROM %s WHERE %s", c.ctrl.FullLogicName(tableNameLogs), where)
 }
 
 func (c *EthVariationController[BLOCK, TXN]) QueryTraces(
@@ -424,7 +407,7 @@ func (c *EthVariationController[BLOCK, TXN]) QueryTraces(
 	columns := objectx.CollectTagValue(Trace{}, "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s ORDER BY block_number, transaction_index, trace_index",
 		strings.Join(columns, "`,`"),
-		c.tablesName[TracesTableIdx].InSQL(),
+		c.ctrl.FullLogicName(tableNameTraces),
 		where)
 	startAt := time.Now()
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -441,7 +424,7 @@ func (c *EthVariationController[BLOCK, TXN]) QueryTraces(
 }
 
 func (c *EthVariationController[BLOCK, TXN]) QueryTracesBlockSQL(where string) string {
-	return fmt.Sprintf("SELECT block_number FROM %s WHERE %s", c.tablesName[TracesTableIdx].InSQL(), where)
+	return fmt.Sprintf("SELECT block_number FROM %s WHERE %s", c.ctrl.FullLogicName(tableNameTraces), where)
 }
 
 // QuerySimpleTrace used to query traces by address and some other conditions,
@@ -457,7 +440,7 @@ func (c *EthVariationController[BLOCK, TXN]) QuerySimpleTrace(
 		"WHERE %s "+
 		"GROUP BY block_number, transaction_index "+
 		"ORDER BY block_number DESC, transaction_index DESC",
-		c.tablesName[TracesTableIdx].InSQL(),
+		c.ctrl.FullLogicName(tableNameTraces),
 		where)
 	if limit > 0 {
 		sql += fmt.Sprintf(" LIMIT %d", limit)
@@ -497,12 +480,12 @@ func (c *EthVariationController[BLOCK, TXN]) QueryEstimateBlockNumberAtDate(
 			"WHERE block_number >= ? AND block_number <= ? AND block_timestamp <= ? "+
 			"ORDER BY block_number DESC "+
 			"LIMIT 1",
-			c.tablesName[BlocksTableIdx].InSQL())
+			c.ctrl.FullLogicName(tableNameBlocks))
 	} else {
 		sql = fmt.Sprintf("SELECT block_number FROM %s "+
 			"WHERE block_number >= ? AND block_number <= ? AND block_timestamp >= ? "+
 			"ORDER BY block_number ASC "+
-			"LIMIT 1", c.tablesName[BlocksTableIdx].InSQL())
+			"LIMIT 1", c.ctrl.FullLogicName(tableNameBlocks))
 	}
 	var blockNumber uint64 = math.MaxUint64
 	err := c.ctrl.Query(ctx, func(rows driver.Rows) error {

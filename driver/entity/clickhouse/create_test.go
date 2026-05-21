@@ -10,7 +10,6 @@ import (
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/schema"
-	"sentioxyz/sentio-core/service/processor/models"
 )
 
 const testSchemaCnt = `
@@ -308,15 +307,17 @@ func Test_createTableSQL(t *testing.T) {
 	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
 	assert.NoError(t, err)
 
-	ctrl := chx.NewController(nil, "")
+	ctrl := chx.New(nil,
+		chx.WithDatabase("db"),
+		chx.WithTableNamePrefix("processor0_"),
+		chx.WithLogicDatabase("db"),
+		chx.WithLogicTableNamePrefix("processor0_"),
+	)
 	s := Store{
-		ctrl:                  ctrl,
-		database:              "db",
-		processorID:           "processor0",
-		processorTablePattern: models.TablePatternPlatformV1,
-		sch:                   sch,
-		schHash:               "xxx",
-		tableOpt:              DefaultCreateTableOption,
+		ctrl:     ctrl,
+		sch:      sch,
+		schHash:  "xxx",
+		tableOpt: DefaultCreateTableOption,
 	}
 
 	sqlMap := make(map[string][]string)
@@ -1918,14 +1919,16 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
 	assert.NoError(t, err)
 
-	ctrl := chx.NewController(nil, "")
+	ctrl := chx.New(nil,
+		chx.WithDatabase("db"),
+		chx.WithTableNamePrefix("processor0_"),
+		chx.WithLogicDatabase("db"),
+		chx.WithLogicTableNamePrefix("processor0_"),
+	)
 	s := Store{
-		ctrl:                  ctrl,
-		database:              "db",
-		processorID:           "processor0",
-		processorTablePattern: models.TablePatternPlatformV1,
-		sch:                   sch,
-		schHash:               "xxx",
+		ctrl:    ctrl,
+		sch:     sch,
+		schHash: "xxx",
 		feaOpt: Features{
 			VersionedCollapsing:    true,
 			TimestampUseDateTime64: true,
@@ -4209,15 +4212,17 @@ type EntityB @entity(immutable: false) {
 `)
 	assert.NoError(t, err)
 
-	ctrl := chx.NewController(nil, "")
+	ctrl := chx.New(nil,
+		chx.WithDatabase("db"),
+		chx.WithTableNamePrefix("processor0_"),
+		chx.WithLogicDatabase("db"),
+		chx.WithLogicTableNamePrefix("processor0_"),
+	)
 	s := Store{
-		ctrl:                  ctrl,
-		database:              "db",
-		processorID:           "processor0",
-		processorTablePattern: models.TablePatternPlatformV1,
-		sch:                   sch,
-		schHash:               "xxx",
-		tableOpt:              DefaultCreateTableOption,
+		ctrl:     ctrl,
+		sch:      sch,
+		schHash:  "xxx",
+		tableOpt: DefaultCreateTableOption,
 	}
 
 	sqlMap := make(map[string][]string)

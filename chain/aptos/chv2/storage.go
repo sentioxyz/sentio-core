@@ -21,7 +21,6 @@ import (
 )
 
 type Store struct {
-	tables     []chx.FullName
 	ctrl       chx.Controller
 	rangeStore chain.RangeStore
 
@@ -34,11 +33,9 @@ type Store struct {
 
 func NewStore(
 	connCtrl chx.Controller,
-	tableNamePrefix string,
 	rangeStore chain.RangeStore,
 ) *Store {
 	s := &Store{
-		tables:     tableNames(connCtrl.GetDatabase(), tableNamePrefix),
 		ctrl:       connCtrl,
 		rangeStore: rangeStore,
 	}
@@ -59,7 +56,7 @@ func (s *Store) getTxVersionRange(ctx context.Context) (rg.Range, error) {
 		return rg.EmptyRange, err
 	}
 	sql := fmt.Sprintf("SELECT block_height, first_version, last_version FROM %s WHERE block_height IN (?, ?)",
-		s.tables[BlockTableIdx].InSQL())
+		s.ctrl.FullLogicName(tableNameBlocks))
 	var blocks []Block
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var blk Block
@@ -119,7 +116,7 @@ func (s *Store) queryTransactions(
 	startAt := time.Now()
 	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s ORDER BY transaction_version LIMIT %d",
 		strings.Join(selectFields, "`,`"),
-		s.tables[TransactionTableIdx].InSQL(),
+		s.ctrl.FullLogicName(tableNameTransactions),
 		where,
 		getTransactionsMaxReturn)
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -307,7 +304,7 @@ func (s *Store) GetChangeStat(ctx context.Context, minTxVersion uint64, address 
 		"min(block_height), "+
 		"max(block_height), "+
 		"count(*) "+
-		"FROM %s WHERE transaction_version >= ? AND address = ?", s.tables[ChangeTableIdx].InSQL())
+		"FROM %s WHERE transaction_version >= ? AND address = ?", s.ctrl.FullLogicName(tableNameChanges))
 	var cs aptos.ChangeStat
 	startAt := time.Now()
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -327,7 +324,7 @@ func (s *Store) GetFirstChange(
 	}
 	sql := fmt.Sprintf("SELECT transaction_version, block_height "+
 		"FROM %s WHERE transaction_version <= ? AND address = ? ORDER BY transaction_version LIMIT 1",
-		s.tables[ChangeTableIdx].InSQL())
+		s.ctrl.FullLogicName(tableNameChanges))
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		has = true
 		return rows.Scan(&version, &blockHeight)
@@ -343,7 +340,7 @@ func (s *Store) QueryMinimalistTransaction(
 		return nil, err
 	}
 	sql := fmt.Sprintf("SELECT transaction_hash, timestamp "+
-		"FROM %s WHERE transaction_version = ?", s.tables[TransactionTableIdx].InSQL())
+		"FROM %s WHERE transaction_version = ?", s.ctrl.FullLogicName(tableNameTransactions))
 	var txs []aptos.MinimalistTransaction
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var tx aptos.MinimalistTransaction
@@ -478,7 +475,7 @@ func (s *Store) QueryResourceChanges(
 	}
 	sql := fmt.Sprintf("SELECT transaction_version, transaction_hash, timestamp, changes "+
 		"FROM %s WHERE %s ORDER BY transaction_version",
-		s.tables[TransactionTableIdx].InSQL(), where)
+		s.ctrl.FullLogicName(tableNameTransactions), where)
 	startAt := time.Now()
 	var count int
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {

@@ -17,7 +17,7 @@ type filterFunction struct {
 	*prebuilt.BaseFunction
 }
 
-func NewFilterFunction(meta timeseries.Meta, store timeseries.Store) prebuilt.FilterFunction {
+func NewFilterFunction(meta timeseries.Meta, store prebuilt.Store) prebuilt.FilterFunction {
 	return &filterFunction{
 		BaseFunction: prebuilt.NewBaseFunction(meta, store, "filter"),
 	}

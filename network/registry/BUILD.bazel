@@ -30,6 +30,8 @@ go_test(
     ],
     embed = [":registry"],
     deps = [
+        "//common/statemirror",
+        "//network/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

@@ -73,7 +73,7 @@ func (s *RankFunctionSuite) Test_TopK_WithTimeRange() {
 func (s *RankFunctionSuite) Test_CustomValueField_And_Table() {
 	// Use Withdraw meta to test custom numeric field 'amount' and explicit table override
 	meta := timeseries.Meta{Name: "Withdraw", Type: timeseries.MetaTypeGauge}
-	table := s.Store.MetaTableWithOptions(meta, timeseries.DefaultMetaTableOption)
+	table := s.Store.MetaTableName(meta)
 	sql, err := NewRankFunction(meta, s.Store).Rank(4).
 		WithTable(table).
 		WithValueField("amount").

@@ -23,9 +23,15 @@ const (
 	SecondTimestamp      = "toUnixTimestamp64Second(" + timeseries.SystemTimestamp + ") AS " + SecondTimestampField
 )
 
+// Store extends timeseries.Store with the clickhouse-specific table name resolution.
+type Store interface {
+	timeseries.Store
+	MetaTableName(meta timeseries.Meta) string
+}
+
 type BaseFunction struct {
 	Meta  timeseries.Meta
-	Store timeseries.Store
+	Store Store
 
 	TableName   string
 	Operator    Operator
@@ -38,7 +44,7 @@ type BaseFunction struct {
 	self Function
 }
 
-func NewBaseFunction(meta timeseries.Meta, store timeseries.Store, category string) *BaseFunction {
+func NewBaseFunction(meta timeseries.Meta, store Store, category string) *BaseFunction {
 	return &BaseFunction{
 		Meta:        meta,
 		Store:       store,
@@ -212,10 +218,7 @@ func (f *BaseFunction) GetFuncName() string {
 
 func (f *BaseFunction) GetTableName() string {
 	return lo.IfF(f.TableName == "", func() string {
-		return f.Store.MetaTableWithOptions(f.Meta, timeseries.MetaTableOption{
-			EnableEscape:                       true,
-			EnableAutoPatternForStorageNetwork: true,
-		})
+		return f.Store.MetaTableName(f.Meta)
 	}).Else(f.TableName)
 }
 

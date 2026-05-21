@@ -31,6 +31,7 @@ go_library(
         "@com_github_ethereum_go_ethereum//common",
         "@com_github_ethereum_go_ethereum//common/hexutil",
         "@com_github_ethereum_go_ethereum//core/types",
+        "@com_github_pkg_errors//:errors",
         "@com_github_sentioxyz_golang_lru//:golang-lru",
         "@com_github_shopspring_decimal//:decimal",
         "@in_gopkg_yaml_v3//:yaml_v3",
@@ -46,6 +47,7 @@ go_test(
     srcs = [
         "any_test.go",
         "bit_test.go",
+        "map_test.go",
         "strings_test.go",
         "utils_test.go",
     ],

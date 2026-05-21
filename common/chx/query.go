@@ -134,7 +134,7 @@ func (c Controller) Delete(ctx context.Context, table string, condition string) 
 }
 
 func (c Controller) AlterTable(ctx context.Context, table string, sql string, args ...any) error {
-	return c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s %s", c.FullNameWithOnCluster(table), sql), args...)
+	return c.Exec(ctx, fmt.Sprintf("ALTER TABLE %s %s", c.FullLogicNameWithOnCluster(table), sql), args...)
 }
 
 type PartitionMeta struct {

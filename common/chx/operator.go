@@ -121,21 +121,20 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 				sector, createTableQuery, _ = cutBySpace(createTableQuery)
 			}
 			if sector == "TO" {
-				// raw is FullName, not FullLogicName
-				// TODO may be wrong
+				// raw is FullLogicName, not FullName
 				raw, _, _ := cutBySpace(createTableQuery)
 				p := findNotIn(raw, '.', '`')
-				db := strings.Trim(raw[:p], "`")
-				if db != c.database {
-					// TODO
-					return errors.Errorf("invalid database %s, not %s", db, c.database)
+				db, table := strings.Trim(raw[:p], "`"), strings.Trim(raw[p+1:], "`")
+				logicDatabase, logicTableNamePrefix := c.getLogicDatabase(), c.getLogicTableNamePrefix()
+				if db != logicDatabase {
+					return errors.Errorf("invalid To database %s for MaterializedView %s, should be %s",
+						db, view.Name, logicDatabase)
 				}
-				table := strings.Trim(raw[p+1:], "`")
-				if !strings.HasPrefix(table, c.tableNamePrefix) {
-					// TODO
-					return errors.Errorf("invalid table name %q, not start with %q", table, c.tableNamePrefix)
+				if !strings.HasPrefix(table, logicTableNamePrefix) {
+					return errors.Errorf("invalid To table %q for MaterializedView %s, should start with %q",
+						table, view.Name, logicTableNamePrefix)
 				}
-				view.To = strings.TrimPrefix(table, c.tableNamePrefix)
+				view.To = strings.TrimPrefix(table, logicTableNamePrefix)
 			}
 			tables[name] = view
 		default:
@@ -311,9 +310,9 @@ func (c Controller) buildCreateTableSQL(table Table) string {
 	}
 	sql.WriteString("TABLE ")
 	if table.IsTemporary {
-		sql.WriteString(c.FullName(table.Name))
+		sql.WriteString(c.FullLogicName(table.Name))
 	} else {
-		sql.WriteString(c.FullNameWithOnCluster(table.Name))
+		sql.WriteString(c.FullLogicNameWithOnCluster(table.Name))
 	}
 	sql.WriteString(" (")
 	for i, field := range table.Fields {
@@ -357,7 +356,7 @@ func (c Controller) buildCreateTableSQL(table Table) string {
 func (c Controller) buildCreateViewSQL(view View, replace bool) string {
 	var sql bytes.Buffer
 	sql.WriteString(utils.Select(replace, "CREATE OR REPLACE VIEW ", "CREATE VIEW "))
-	sql.WriteString(c.FullNameWithOnCluster(view.Name))
+	sql.WriteString(c.FullLogicNameWithOnCluster(view.Name))
 	if len(view.Fields) > 0 {
 		sql.WriteString(" (")
 		for i, field := range view.Fields {
@@ -376,7 +375,7 @@ func (c Controller) buildCreateViewSQL(view View, replace bool) string {
 func (c Controller) buildCreateMaterializedViewSQL(view MaterializedView) string {
 	var sql bytes.Buffer
 	sql.WriteString("CREATE MATERIALIZED VIEW ")
-	sql.WriteString(fmt.Sprintf("%s TO %s", c.FullNameWithOnCluster(view.Name), c.FullName(view.To)))
+	sql.WriteString(fmt.Sprintf("%s TO %s", c.FullLogicNameWithOnCluster(view.Name), c.FullLogicName(view.To)))
 	if len(view.Fields) > 0 {
 		sql.WriteString(" (")
 		for i, field := range view.Fields {
@@ -655,7 +654,7 @@ func (c Controller) SyncMaterializedView(ctx context.Context, pre, cur Materiali
 	}
 	_, logger := log.FromContext(ctx, "name", cur.Name)
 	logger.Info("will sync materialized view")
-	if err = c.Exec(ctx, fmt.Sprintf("DROP VIEW %s", c.FullNameWithOnCluster(pre.Name))); err != nil {
+	if err = c.Exec(ctx, fmt.Sprintf("DROP VIEW %s", c.FullLogicNameWithOnCluster(pre.Name))); err != nil {
 		logger.Errorfe(err, "drop old one failed")
 		return errors.Wrapf(err, "sync materialized view %s failed: drop old one failed", cur.Name)
 	}
@@ -693,12 +692,12 @@ func (c Controller) drop(ctx context.Context, tableOrView TableOrView) error {
 	var sql string
 	switch tv := tableOrView.(type) {
 	case Table:
-		name := utils.Select(tv.IsTemporary, c.FullName(tv.Name), c.FullNameWithOnCluster(tv.Name))
+		name := utils.Select(tv.IsTemporary, c.FullLogicName(tv.Name), c.FullLogicNameWithOnCluster(tv.Name))
 		sql = fmt.Sprintf("DROP TABLE %s", name)
 	case View:
-		sql = fmt.Sprintf("DROP VIEW %s", c.FullNameWithOnCluster(tv.Name))
+		sql = fmt.Sprintf("DROP VIEW %s", c.FullLogicNameWithOnCluster(tv.Name))
 	case MaterializedView:
-		sql = fmt.Sprintf("DROP VIEW %s", c.FullNameWithOnCluster(tv.Name))
+		sql = fmt.Sprintf("DROP VIEW %s", c.FullLogicNameWithOnCluster(tv.Name))
 	default:
 		panic(fmt.Sprintf("unknown type %T", tableOrView))
 	}

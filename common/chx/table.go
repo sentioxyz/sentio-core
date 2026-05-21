@@ -93,7 +93,7 @@ type View struct {
 
 	Fields Fields
 
-	Select string
+	Select string // should use FullLogicName inside the select sql
 
 	Comment string
 }
@@ -120,7 +120,7 @@ func (v View) GetComment() string {
 type MaterializedView struct {
 	View
 
-	To string
+	To string // just name, not FullName non FullLogicName, like Table.Name, View.Name
 }
 
 func (v MaterializedView) Equal(a MaterializedView) bool {

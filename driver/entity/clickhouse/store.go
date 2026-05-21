@@ -217,11 +217,11 @@ func (s *Store) LatestViewName(item schema.EntityOrInterface) string {
 }
 
 func (s *Store) ViewFullName(item schema.EntityOrInterface) string {
-	return s.ctrl.FullLogicName(s.ViewName(item))
+	return s.fullName(s.ViewName(item))
 }
 
 func (s *Store) LatestViewFullName(item schema.EntityOrInterface) string {
-	return s.ctrl.FullLogicName(s.LatestViewName(item))
+	return s.fullName(s.LatestViewName(item))
 }
 
 func quote(cnt string) string {

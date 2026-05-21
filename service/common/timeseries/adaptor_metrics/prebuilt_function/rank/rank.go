@@ -14,7 +14,7 @@ type rankFunction struct {
 	k int
 }
 
-func NewRankFunction(meta timeseries.Meta, store timeseries.Store) prebuilt.RankFunction {
+func NewRankFunction(meta timeseries.Meta, store prebuilt.Store) prebuilt.RankFunction {
 	return &rankFunction{
 		BaseFunction: prebuilt.NewBaseFunction(meta, store, "rank"),
 	}

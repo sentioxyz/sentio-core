@@ -17,7 +17,7 @@ type rateFunction struct {
 	step time.Duration
 }
 
-func NewRateFunction(meta timeseries.Meta, store timeseries.Store) prebuilt.RateFunction {
+func NewRateFunction(meta timeseries.Meta, store prebuilt.Store) prebuilt.RateFunction {
 	return &rateFunction{
 		BaseFunction: prebuilt.NewBaseFunction(meta, store, "rate"),
 	}

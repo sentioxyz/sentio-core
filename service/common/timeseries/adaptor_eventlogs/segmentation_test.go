@@ -8,7 +8,6 @@ import (
 
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/driver/timeseries"
 	commonprotos "sentioxyz/sentio-core/service/common/protos"
 	"sentioxyz/sentio-core/service/common/timerange"
 	"sentioxyz/sentio-core/service/common/timeseries/adaptor_eventlogs/mock"
@@ -31,7 +30,7 @@ type SegmentationSuite struct {
 	suite.Suite
 	ctx       context.Context
 	processor *processormodel.Processor
-	store     timeseries.Store
+	store     *mock.MockStore
 	conn      ckhmanager.Conn
 	b         SegmentationAdaptor
 }

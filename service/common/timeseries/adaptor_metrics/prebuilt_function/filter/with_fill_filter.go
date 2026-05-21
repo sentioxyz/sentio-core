@@ -12,7 +12,7 @@ type withFillFilterFunction struct {
 	*filterFunction
 }
 
-func NewWithFillFilterFunction(meta timeseries.Meta, store timeseries.Store) prebuilt.FilterFunction {
+func NewWithFillFilterFunction(meta timeseries.Meta, store prebuilt.Store) prebuilt.FilterFunction {
 	return &withFillFilterFunction{
 		filterFunction: &filterFunction{
 			BaseFunction: prebuilt.NewBaseFunction(meta, store, "filter"),

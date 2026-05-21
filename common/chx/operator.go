@@ -34,7 +34,9 @@ func (c Controller) loadCondition(name EqualOrLike) (operator string, arg string
 func (c Controller) loadSimple(ctx context.Context, name EqualOrLike) ([]TableOrView, error) {
 	var tableOrViews []TableOrView
 	operator, nameArg := c.loadCondition(name)
-	sql := fmt.Sprintf("SELECT name, engine, comment FROM system.tables WHERE database = ? AND name %s ?", operator)
+	sql := fmt.Sprintf("SELECT name, engine, comment "+
+		"FROM system.tables "+
+		"WHERE database = ? AND name %s ? AND is_temporary = 0", operator)
 	err := c.Query(ctx, func(rows driver.Rows) error {
 		var name, engine, comment string
 		scanErr := rows.Scan(&name, &engine, &comment)
@@ -84,7 +86,7 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 	sql := fmt.Sprintf(
 		"SELECT name, engine, engine_full, create_table_query, as_select, partition_key, sorting_key, comment "+
 			"FROM system.tables "+
-			"WHERE database = ? AND name %s ?", operator)
+			"WHERE database = ? AND name %s ? AND is_temporary = 0", operator)
 	err = c.Query(ctx, func(rows driver.Rows) error {
 		var rawName, engine, engineFull, createTableQuery, asSelect, partitionKey, sortingKey, comment string
 		scanErr := rows.Scan(
@@ -290,10 +292,12 @@ func (c Controller) Load(ctx context.Context, name EqualOrLike, simple bool) (re
 	return c.load(ctx, name)
 }
 
+// LoadAll result only contains name and comment if simple is true
 func (c Controller) LoadAll(ctx context.Context, simple bool) ([]TableOrView, error) {
 	return c.Load(ctx, EqualOrLike{}, simple)
 }
 
+// LoadOne result only contains name and comment if simple is true
 func (c Controller) LoadOne(ctx context.Context, name string, simple bool) (TableOrView, bool, error) {
 	r, err := c.Load(ctx, EqualOrLike{Name: &name}, simple)
 	if err != nil || len(r) == 0 {

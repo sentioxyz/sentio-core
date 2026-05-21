@@ -91,6 +91,10 @@ func (c Controller) FullNameWithOnCluster(name string) string {
 	return c.FullName(name) + c.sqlOnClusterPart()
 }
 
+func (c Controller) LogicName(name string) string {
+	return fmt.Sprintf("`%s%s`", c.getLogicTableNamePrefix(), name)
+}
+
 func (c Controller) FullLogicName(name string) string {
 	return fmt.Sprintf("`%s`.`%s%s`", c.getLogicDatabase(), c.getLogicTableNamePrefix(), name)
 }

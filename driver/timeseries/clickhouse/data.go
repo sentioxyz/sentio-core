@@ -304,7 +304,7 @@ func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int
 		var deleted uint64 = math.MaxUint64
 		var err error
 		if slotNumberGt < 0 {
-			err = s.ctrl.AlterTable(ctx, item.meta.GetTableName(), fmt.Sprintf("DROP PARTITION '%s'", chainID))
+			err = s.ctrl.AlterTable(ctx, item.meta.GetTableName(), "DROP PARTITION ?", chainID)
 		} else {
 			where := fmt.Sprintf("%s = '%s' AND %s > %d",
 				quote(item.meta.GetChainIDField().Name),

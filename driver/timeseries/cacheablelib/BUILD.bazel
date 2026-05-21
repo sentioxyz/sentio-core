@@ -9,7 +9,6 @@ go_library(
         "//common/cache",
         "//common/chx",
         "//common/clickhousemanager",
-        "//driver/timeseries",
         "//driver/timeseries/clickhouse",
         "//service/processor/models",
         "@com_github_samber_lo//:lo",

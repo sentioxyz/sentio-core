@@ -8,7 +8,6 @@ import (
 	"sentioxyz/sentio-core/common/cache"
 	"sentioxyz/sentio-core/common/chx"
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
-	"sentioxyz/sentio-core/driver/timeseries"
 	"sentioxyz/sentio-core/driver/timeseries/clickhouse"
 	"sentioxyz/sentio-core/service/processor/models"
 
@@ -23,8 +22,8 @@ type CacheableMeta struct {
 	conn            ckhmanager.Conn
 	ttl             time.Duration
 	refreshInterval time.Duration
-	store           timeseries.Store
-	reload          func(ctx context.Context) (timeseries.Store, error)
+	store           *clickhouse.Store
+	reload          func(ctx context.Context) (*clickhouse.Store, error)
 }
 
 func (t *CacheableMeta) Key() string {
@@ -39,7 +38,7 @@ func (t *CacheableMeta) RefreshInterval() time.Duration {
 	return t.refreshInterval
 }
 
-func (t *CacheableMeta) Reload(ctx context.Context) (timeseries.Store, error) {
+func (t *CacheableMeta) Reload(ctx context.Context) (*clickhouse.Store, error) {
 	if t.reload != nil {
 		return t.reload(ctx)
 	}
@@ -54,7 +53,7 @@ func NewCacheableMeta(
 	projectId string,
 	conn ckhmanager.Conn,
 	ctxInject func(ctx context.Context) context.Context,
-) (cache.Cacheable[timeseries.Store], error) {
+) (cache.Cacheable[*clickhouse.Store], error) {
 	return NewCacheableMetaWithTTL(
 		processorId,
 		processorVersion,
@@ -77,7 +76,7 @@ func NewCacheableMetaWithTTL(
 	conn ckhmanager.Conn,
 	ttl, refreshInterval time.Duration,
 	ctxInject func(ctx context.Context) context.Context,
-) (cache.Cacheable[timeseries.Store], error) {
+) (cache.Cacheable[*clickhouse.Store], error) {
 	if conn == nil {
 		return nil, fmt.Errorf("processor %s clickhouse conn is nil", processorId)
 	}
@@ -103,7 +102,7 @@ func NewCacheableMetaWithTTL(
 		clickhouse.Option{},
 		nil,
 	)
-	tsm.reload = func(ctx context.Context) (timeseries.Store, error) {
+	tsm.reload = func(ctx context.Context) (*clickhouse.Store, error) {
 		if err := tsm.store.ReloadMeta(lo.IfF(ctxInject != nil, func() context.Context {
 			return ctxInject(ctx)
 		}).Else(ctx)); err != nil {

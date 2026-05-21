@@ -332,6 +332,8 @@ func defaultPoolConfig(clients []ClientConfig[testClientConfig]) PoolConfig[test
 		BanConfig:              BanConfig{Min: 50 * time.Millisecond, ExtendMax: time.Second, ExtendRate: 1.5},
 		AdjustPriorityInterval: 0,
 		UpgradeSensitivity:     time.Hour,
+		TagDuration:            time.Hour,
+		ConsumerMaxWait:        time.Hour,
 		ClientConfigs:          clients,
 	}
 }
@@ -908,6 +910,262 @@ func Test_adjustPriority_upgradesWhenValidHigherPriorityExists(t *testing.T) {
 	cursor := p.priorityCursor
 	p.mu.Unlock()
 	assert.Equal(t, 0, cursor) // upgraded back to highest priority (cursor 0 = priority 1)
+}
+
+// ── hasTag ────────────────────────────────────────────────────────────────────
+
+func Test_hasTag_validTag_returnsTrue(t *testing.T) {
+	e := &entryExtra{tags: map[string]tagInfo{
+		"t1": {lastActiveAt: time.Now()},
+	}}
+	assert.True(t, e.hasTag("t1", time.Now().Add(-time.Minute)))
+	assert.Contains(t, e.tags, "t1") // not evicted
+}
+
+func Test_hasTag_expiredTag_returnsFalseAndEvicts(t *testing.T) {
+	e := &entryExtra{tags: map[string]tagInfo{
+		"t1": {lastActiveAt: time.Now().Add(-time.Hour)},
+	}}
+	assert.False(t, e.hasTag("t1", time.Now().Add(-time.Minute)))
+	assert.NotContains(t, e.tags, "t1") // evicted
+}
+
+func Test_hasTag_missingTag_returnsFalse(t *testing.T) {
+	e := &entryExtra{}
+	assert.False(t, e.hasTag("missing", time.Now().Add(-time.Minute)))
+}
+
+// ── tag expiry integration ─────────────────────────────────────────────────────
+
+func Test_UseClient_withTags_expiredTag_returnsErrNoValidClient(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	p.mu.Lock()
+	p.config.TagDuration = time.Millisecond
+	p.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Tag c1 with "fast"
+	r := p.UseClient(ctx, "tag-setup", func(_ context.Context, _ *testClient) Result {
+		return Result{AddTags: []string{"fast"}}
+	}, WithConfigFilter[testClientConfig](func(c testClientConfig) bool {
+		return c.Name == "c1"
+	}))
+	require.NoError(t, r.Err)
+
+	time.Sleep(10 * time.Millisecond) // let tag expire
+
+	// No client holds an unexpired "fast" tag → backup == 0 → immediate ErrNoValidClient
+	r = p.UseClient(ctx, "filtered", func(_ context.Context, _ *testClient) Result {
+		return Result{}
+	}, WithTags[testClientConfig]("fast"))
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+}
+
+func Test_UseClient_withoutTags_expiredTag_noLongerExcluded(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	p.mu.Lock()
+	p.config.TagDuration = time.Millisecond
+	p.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Tag c1 with "excluded"
+	r := p.UseClient(ctx, "tag-setup", func(_ context.Context, _ *testClient) Result {
+		return Result{AddTags: []string{"excluded"}}
+	}, WithConfigFilter[testClientConfig](func(c testClientConfig) bool {
+		return c.Name == "c1"
+	}))
+	require.NoError(t, r.Err)
+
+	time.Sleep(10 * time.Millisecond) // let tag expire
+
+	// Tag expired → c1 is no longer excluded
+	var usedName string
+	r = p.UseClient(ctx, "filtered", func(_ context.Context, cli *testClient) Result {
+		usedName = cli.config.Name
+		return Result{}
+	}, WithoutTags[testClientConfig]("excluded"))
+	require.NoError(t, r.Err)
+	assert.Equal(t, "c1", usedName)
+}
+
+// ── clientAddTag metadata ──────────────────────────────────────────────────────
+
+func Test_clientAddTag_preservesStartAt_onSubsequentCalls(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	ctx := context.Background()
+
+	before := time.Now()
+	p.clientAddTag(ctx, "c1", "tag1", nil)
+
+	p.mu.Lock()
+	firstStartAt := p.entryExtra["c1"].tags["tag1"].startAt
+	p.mu.Unlock()
+	assert.False(t, firstStartAt.Before(before))
+
+	time.Sleep(5 * time.Millisecond)
+	p.clientAddTag(ctx, "c1", "tag1", nil)
+
+	p.mu.Lock()
+	info := p.entryExtra["c1"].tags["tag1"]
+	p.mu.Unlock()
+
+	assert.Equal(t, firstStartAt, info.startAt)                 // startAt unchanged
+	assert.True(t, info.lastActiveAt.After(firstStartAt))       // lastActiveAt refreshed
+}
+
+func Test_clientAddTag_storesReason(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	ctx := context.Background()
+	reason := fmt.Errorf("sync needed")
+
+	p.clientAddTag(ctx, "c1", "syncing", reason)
+
+	p.mu.Lock()
+	info := p.entryExtra["c1"].tags["syncing"]
+	p.mu.Unlock()
+	assert.Equal(t, reason, info.lastActiveReason)
+}
+
+// ── consumerWaitTooLong ────────────────────────────────────────────────────────
+
+func Test_consumerWaitTooLong_notExceeded_returnsFalse(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	cid := p.consumerCome("test")
+	defer p.consumerLeave(cid)
+	assert.False(t, p.consumerWaitTooLong(cid))
+}
+
+func Test_consumerWaitTooLong_exceeded_returnsTrue(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	p.mu.Lock()
+	p.config.ConsumerMaxWait = time.Millisecond
+	p.mu.Unlock()
+
+	cid := p.consumerCome("test")
+	defer p.consumerLeave(cid)
+	time.Sleep(10 * time.Millisecond)
+	assert.True(t, p.consumerWaitTooLong(cid))
+}
+
+func Test_consumerWaitTooLong_zeroDisabled_alwaysFalse(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	p.mu.Lock()
+	p.config.ConsumerMaxWait = 0
+	p.mu.Unlock()
+
+	cid := p.consumerCome("test")
+	defer p.consumerLeave(cid)
+	time.Sleep(10 * time.Millisecond)
+	assert.False(t, p.consumerWaitTooLong(cid))
+}
+
+func Test_consumerWaitTooLong_executedDurationSubtracted(t *testing.T) {
+	// executedDuration is subtracted from total elapsed, so execution time doesn't count.
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	p.mu.Lock()
+	p.config.ConsumerMaxWait = 20 * time.Millisecond
+	p.mu.Unlock()
+
+	cid := p.consumerCome("test")
+	defer p.consumerLeave(cid)
+
+	// Simulate 15ms elapsed with 14ms execution time → net wait < ConsumerMaxWait
+	time.Sleep(15 * time.Millisecond)
+	p.consumerExecuted(cid, 14*time.Millisecond, Result{})
+	assert.False(t, p.consumerWaitTooLong(cid))
+}
+
+// ── UseClient: ConsumerMaxWait timeout ───────────────────────────────────────
+
+func Test_UseClient_consumerMaxWait_returnsErrNoValidClient(t *testing.T) {
+	neverInit := ClientConfig[testClientConfig]{
+		Priority: 1,
+		Config: testClientConfig{
+			Name:          "c1",
+			Interval:      10 * time.Millisecond,
+			InitSuccessAt: time.Now().Add(time.Hour),
+		},
+	}
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{neverInit})
+	cfg.ConsumerMaxWait = 50 * time.Millisecond
+
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	useCtx, useCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer useCancel()
+
+	r := p.UseClient(useCtx, "test", func(_ context.Context, _ *testClient) Result {
+		return Result{}
+	})
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+}
+
+// ── consumer state methods ────────────────────────────────────────────────────
+
+func Test_consumerWaiting_updatesState(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	cid := p.consumerCome("test")
+	defer p.consumerLeave(cid)
+
+	p.consumerWaiting(cid, 42)
+
+	p.mu.Lock()
+	c := p.consumer[cid]
+	p.mu.Unlock()
+	assert.Equal(t, consumerWaiting, c.doing)
+	assert.Equal(t, uint64(42), c.waitingPSI)
+	assert.Equal(t, 1, c.waitIndex)
+}
+
+func Test_consumerWaiting_incrementsWaitIndex(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	cid := p.consumerCome("test")
+	defer p.consumerLeave(cid)
+
+	p.consumerWaiting(cid, 1)
+	p.consumerWaiting(cid, 2)
+
+	p.mu.Lock()
+	c := p.consumer[cid]
+	p.mu.Unlock()
+	assert.Equal(t, 2, c.waitIndex)
+}
+
+func Test_consumerExecuting_updatesState(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	cid := p.consumerCome("test")
+	defer p.consumerLeave(cid)
+
+	p.consumerExecuting(cid, "c1")
+
+	p.mu.Lock()
+	c := p.consumer[cid]
+	p.mu.Unlock()
+	assert.Equal(t, consumerExecuting, c.doing)
+	assert.Equal(t, "c1", c.useClient)
+}
+
+func Test_consumerExecuted_accumulatesStats(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	cid := p.consumerCome("test")
+	defer p.consumerLeave(cid)
+
+	p.consumerExecuted(cid, 10*time.Millisecond, Result{})
+	p.consumerExecuted(cid, 20*time.Millisecond, Result{})
+
+	p.mu.Lock()
+	c := p.consumer[cid]
+	p.mu.Unlock()
+	assert.Equal(t, 2, c.executed)
+	assert.Equal(t, 30*time.Millisecond, c.executedDuration)
 }
 
 // ── Result ─────────────────────────────────────────────

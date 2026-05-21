@@ -68,6 +68,10 @@ type PoolConfig[CONFIG EntryConfig[CONFIG]] struct {
 	AdjustPriorityInterval time.Duration `json:"adjust_priority_interval" yaml:"adjust_priority_interval"`
 	UpgradeSensitivity     time.Duration `json:"upgrade_sensitivity" yaml:"upgrade_sensitivity"`
 
+	TagDuration time.Duration `json:"tag_duration" yaml:"tag_duration"`
+
+	ConsumerMaxWait time.Duration `json:"consumer_max_wait" yaml:"consumer_max_wait"`
+
 	ClientConfigs []ClientConfig[CONFIG] `json:"endpoints" yaml:"endpoints"`
 }
 
@@ -82,6 +86,8 @@ func (c PoolConfig[CONFIG]) Trim(configModifiers []ConfigModifier[CONFIG]) PoolC
 		},
 		AdjustPriorityInterval: utils.Select(c.AdjustPriorityInterval > 0, c.AdjustPriorityInterval, time.Second*30),
 		UpgradeSensitivity:     utils.Select(c.UpgradeSensitivity > 0, c.UpgradeSensitivity, time.Minute*3),
+		TagDuration:            utils.Select(c.TagDuration > 0, c.TagDuration, time.Minute*30),
+		ConsumerMaxWait:        utils.Select(c.ConsumerMaxWait > 0, c.ConsumerMaxWait, time.Minute*2),
 		ClientConfigs: utils.MapSliceNoErrWithIndex(c.ClientConfigs, func(index int, cc ClientConfig[CONFIG]) (ClientConfig[CONFIG], bool) {
 			ccc := cc.Config
 			for _, m := range configModifiers {

@@ -98,10 +98,25 @@ func (a active) String() string {
 	return fmt.Sprintf("%s at %s", a.theme, a.time)
 }
 
+type tagInfo struct {
+	startAt          time.Time
+	lastActiveAt     time.Time
+	lastActiveReason error
+}
+
 type entryExtra struct {
-	tags set.Set[string]
+	tags map[string]tagInfo
 	*ban
 	*active
+}
+
+func (e *entryExtra) hasTag(tag string, validFrom time.Time) bool {
+	info, has := e.tags[tag]
+	if has && info.lastActiveAt.Before(validFrom) {
+		has = false
+		delete(e.tags, tag)
+	}
+	return has
 }
 
 const (
@@ -110,23 +125,43 @@ const (
 )
 
 type consumer struct {
-	theme     string
-	blackList map[string]error
-	enterAt   time.Time
-	doing     string
-	doingFrom time.Time
+	theme            string
+	blackList        map[string]error
+	enterAt          time.Time
+	executed         int
+	executedDuration time.Duration
+	executedLast     Result
+	waitIndex        int
+	useClient        string
+	doing            string
+	waitingPSI       uint64
+	doingFrom        time.Time
 }
 
 func (c consumer) Snapshot() any {
-	return map[string]any{
-		"theme":     c.theme,
-		"enterAt":   c.enterAt.String(),
-		"doing":     c.doing,
-		"doingFrom": c.doingFrom.String(),
+	sn := map[string]any{
+		"theme":              c.theme,
+		"enterAt":            c.enterAt.String(),
+		"enterDuration":      time.Since(c.enterAt).String(),
+		"executed":           c.executed,
+		"executedDuration":   c.executedDuration.String(),
+		"executedLastResult": c.executedLast.String(),
+		"waitIndex":          c.waitIndex,
+		"doing":              c.doing,
 		"blackList": utils.MapMapNoError(c.blackList, func(err error) string {
 			return fmt.Sprintf("%v", err)
 		}),
 	}
+	switch c.doing {
+	case consumerWaiting:
+		sn["executedLastClient"] = c.useClient
+		sn["waitingPoolStatusIndex"] = c.waitingPSI
+		sn["waitingDuration"] = time.Since(c.doingFrom).String()
+	case consumerExecuting:
+		sn["executingUseClient"] = c.useClient
+		sn["executingDuration"] = time.Since(c.doingFrom).String()
+	}
+	return sn
 }
 
 type Notifier[CONFIG EntryConfig[CONFIG]] interface {
@@ -461,12 +496,43 @@ func (p *ClientPool[CONFIG, CLIENT]) consumerCome(theme string) uint64 {
 	return id
 }
 
-func (p *ClientPool[CONFIG, CLIENT]) consumerDoing(id uint64, doing string) {
+func (p *ClientPool[CONFIG, CLIENT]) consumerWaitTooLong(id uint64) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.config.ConsumerMaxWait <= 0 {
+		return false
+	}
+	c := p.consumer[id]
+	return time.Since(c.enterAt)-c.executedDuration > p.config.ConsumerMaxWait
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) consumerWaiting(id uint64, psi uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	c := p.consumer[id]
-	c.doing = doing
+	c.doing = consumerWaiting
 	c.doingFrom = time.Now()
+	c.waitIndex += 1
+	c.waitingPSI = psi
+	p.consumer[id] = c
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) consumerExecuting(id uint64, client string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	c := p.consumer[id]
+	c.doing = consumerExecuting
+	c.doingFrom = time.Now()
+	c.useClient = client
+	p.consumer[id] = c
+}
+
+func (p *ClientPool[CONFIG, CLIENT]) consumerExecuted(id uint64, used time.Duration, result Result) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	c := p.consumer[id]
+	c.executed += 1
+	c.executedDuration += used
 	p.consumer[id] = c
 }
 
@@ -516,15 +582,16 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 				return false
 			}
 			p.mu.Lock()
+			defer p.mu.Unlock()
+			tagValidFrom := time.Now().Add(-p.config.TagDuration)
 			extra, has := p.entryExtra[name]
-			p.mu.Unlock()
 			for _, tag := range opt.withTags {
-				if !has || !extra.tags.Contains(tag) {
+				if !has || !extra.hasTag(tag, tagValidFrom) {
 					return false
 				}
 			}
 			for _, tag := range opt.noTags {
-				if has && extra.tags.Contains(tag) {
+				if has && extra.hasTag(tag, tagValidFrom) {
 					return false
 				}
 			}
@@ -567,14 +634,14 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	for {
 		entries, backup, psi := p.findEntries(blackList, c)
 		if len(entries) == 0 {
-			if backup == 0 {
+			if backup == 0 || p.consumerWaitTooLong(cid) {
 				return Report{Err: ErrNoValidClient}
 			}
 			// doing stays "waiting" until the next consumerDoing(executing) call below,
 			// so consumerCollectDoing may briefly over-count after Wait returns and before
 			// entries are found on the next iteration. This is safe: it only causes a
 			// conservative (spurious) downgrade signal, never a missed one.
-			p.consumerDoing(cid, consumerWaiting)
+			p.consumerWaiting(cid, psi)
 			if err := p.pool.Wait(ctx, psi); err != nil {
 				return Report{Err: err} // only because ctx canceled
 			}
@@ -582,11 +649,13 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		}
 		entName, ent := p.chooseOne(entries)
 		logger.Debugw("choose client", "client", entName, "count", len(entries))
-		p.consumerDoing(cid, consumerExecuting)
+		p.consumerExecuting(cid, entName)
+		startAt := time.Now()
 		result := fn(ctx, ent.Status.Client)
+		p.consumerExecuted(cid, time.Since(startAt), result)
 		logger.Debugw("got use result", "client", entName, "result", result.String())
 		for _, tag := range result.AddTags {
-			p.clientAddTag(curCtx, entName, tag)
+			p.clientAddTag(curCtx, entName, tag, result.Err)
 		}
 		if result.Broken {
 			p.clientBan(curCtx, entName, result.Err)
@@ -602,7 +671,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	}
 }
 
-func (p *ClientPool[CONFIG, CLIENT]) clientAddTag(ctx context.Context, name string, tag string) {
+func (p *ClientPool[CONFIG, CLIENT]) clientAddTag(ctx context.Context, name string, tag string, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if _, has := p.configEntries[name]; !has {
@@ -610,14 +679,22 @@ func (p *ClientPool[CONFIG, CLIENT]) clientAddTag(ctx context.Context, name stri
 	}
 	extra, has := p.entryExtra[name]
 	if !has {
-		extra = &entryExtra{tags: set.New[string]()}
+		extra = &entryExtra{}
 		p.entryExtra[name] = extra
 	}
-	if !extra.tags.Contains(tag) {
-		extra.tags.Add(tag)
-		_, logger := log.FromContext(ctx, "client", name)
-		logger.Infof("client add tag %s", tag)
+	if extra.tags == nil {
+		extra.tags = make(map[string]tagInfo)
 	}
+	now := time.Now()
+	var info tagInfo
+	if info, has = extra.tags[tag]; !has {
+		info = tagInfo{startAt: now}
+	}
+	info.lastActiveAt = now
+	info.lastActiveReason = err
+	extra.tags[tag] = info
+	_, logger := log.FromContext(ctx, "client", name, "reason", err)
+	logger.Infof("client add tag %s", tag)
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) clientBan(ctx context.Context, name string, reason error) {
@@ -630,7 +707,7 @@ func (p *ClientPool[CONFIG, CLIENT]) clientBan(ctx context.Context, name string,
 	now := time.Now()
 	extra, has := p.entryExtra[name]
 	if !has {
-		extra = &entryExtra{tags: set.New[string]()}
+		extra = &entryExtra{}
 		p.entryExtra[name] = extra
 	}
 	if extra.ban == nil {
@@ -651,7 +728,7 @@ func (p *ClientPool[CONFIG, CLIENT]) clientActive(ctx context.Context, name stri
 	_, logger := log.FromContext(ctx, "client", name)
 	extra, has := p.entryExtra[name]
 	if !has {
-		extra = &entryExtra{tags: set.New[string]()}
+		extra = &entryExtra{}
 		p.entryExtra[name] = extra
 	}
 	if extra.active == nil {

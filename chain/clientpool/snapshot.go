@@ -1,6 +1,7 @@
 package clientpool
 
 import (
+	"fmt"
 	"sentioxyz/sentio-core/common/pool"
 	"sentioxyz/sentio-core/common/utils"
 	"sort"
@@ -97,8 +98,16 @@ func (p *ClientPool[CONFIG, CLIENT]) Snapshot() any {
 				"enable": cli.ent.Enable,
 			}
 			extra, has := p.entryExtra[cli.name]
-			if has && !extra.tags.Empty() {
-				stateDetail["tags"] = extra.tags.DumpValues()
+			if has && extra.tags != nil {
+				stateDetail["tags"] = utils.MapMapNoError(extra.tags, func(info tagInfo) map[string]any {
+					return map[string]any{
+						"startAt":          info.startAt.String(),
+						"lastActiveAt":     info.lastActiveAt.String(),
+						"lastActiveReason": fmt.Sprintf("%v", info.lastActiveReason),
+						"expireAt":         info.lastActiveAt.Add(p.config.TagDuration),
+						"expired":          info.lastActiveAt.Add(p.config.TagDuration).Before(now),
+					}
+				})
 			}
 			if has && extra.ban != nil {
 				stateDetail["ban"] = extra.ban.String()

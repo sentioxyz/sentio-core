@@ -95,6 +95,9 @@ func indexName(fieldName, nestedName string) string {
 	return idxName
 }
 
+var errInvalidTableName = errors.New("invalid table name")
+
+// may return errInvalidTableName
 func tableToMeta(
 	ctx context.Context,
 	table chx.Table,
@@ -105,7 +108,7 @@ func tableToMeta(
 	meta.Type, meta.Name, err = timeseries.CutTableName(table.Name)
 	if err != nil {
 		logger.Warnfe(err, "invalid table name %q", table.Name)
-		return meta, errors.Wrapf(err, "invalid table name %q", table.Name)
+		return meta, errInvalidTableName
 	}
 
 	var metaFromComment timeseries.Meta
@@ -186,6 +189,9 @@ func tablesToMetes(
 		var meta timeseries.Meta
 		meta, err = tableToMeta(ctx, table, ignoreInvalidTableCommentErr)
 		if err != nil {
+			if errors.Is(err, errInvalidTableName) {
+				continue // just ignore this table
+			}
 			return nil, err
 		}
 		items = append(items, metaAndTable{meta: meta, table: table})

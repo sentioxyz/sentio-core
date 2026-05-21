@@ -56,7 +56,7 @@ func NewStore(ctrl chx.Controller, option Option, probe Probe) *Store {
 func (s *Store) Init(ctx context.Context) error {
 	s.metaLock.Lock()
 	defer s.metaLock.Unlock()
-	if err := s.fetchMetas(ctx, true); err != nil {
+	if err := s.fetchMetas(ctx, false); err != nil {
 		return err
 	}
 	for _, item := range s.meta {

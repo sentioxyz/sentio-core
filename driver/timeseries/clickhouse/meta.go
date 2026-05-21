@@ -245,10 +245,10 @@ func (s *Store) metaToTable(ctx context.Context, meta timeseries.Meta) chx.Table
 	return table
 }
 
-func (s *Store) fetchMetas(ctx context.Context, fullLoad bool) error {
+func (s *Store) fetchMetas(ctx context.Context, simple bool) error {
 	startAt := time.Now()
-	_, logger := log.FromContext(ctx, "fullLoad", fullLoad)
-	tvs, err := s.ctrl.LoadAll(ctx, fullLoad)
+	_, logger := log.FromContext(ctx, "simple", simple)
+	tvs, err := s.ctrl.LoadAll(ctx, simple)
 	if err != nil {
 		return err
 	}
@@ -356,7 +356,7 @@ func (s *Store) Meta() timeseries.StoreMeta {
 func (s *Store) ReloadMeta(ctx context.Context) error {
 	s.metaLock.Lock()
 	defer s.metaLock.Unlock()
-	return s.fetchMetas(ctx, false)
+	return s.fetchMetas(ctx, true)
 }
 
 func GetDBTypeMapping(ttype timeseries.FieldType) string {

@@ -352,3 +352,7 @@ func (s *Store) ReloadMeta(ctx context.Context) error {
 	defer s.metaLock.Unlock()
 	return s.fetchMetas(ctx, false)
 }
+
+func GetDBTypeMapping(ttype timeseries.FieldType) string {
+	return dbTypeMapping[ttype]
+}

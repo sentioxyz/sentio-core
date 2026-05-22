@@ -175,7 +175,7 @@ func (d *ExtServerGrpcDimension) GetSlotHeader(ctx context.Context, sn uint64) (
 }
 
 func (d *ExtServerGrpcDimension) Snapshot() any {
-	sn := d.ExtServerDimension.Snapshot()
+	sn := d.ExtServerDimension.Snapshot().(map[string]any)
 	sn["kind"] = "grpc"
 	sn["asSyncerSource"] = d.asSyncerSource
 	sn["loadObjectsBatchSize"] = d.loadObjectsBatchSize

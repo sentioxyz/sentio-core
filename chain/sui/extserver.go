@@ -211,7 +211,7 @@ func (d *ExtServerDimension) GetSlotHeader(ctx context.Context, sn uint64) (chai
 }
 
 func (d *ExtServerDimension) Snapshot() any {
-	sn := d.ExtServerDimension.Snapshot()
+	sn := d.ExtServerDimension.Snapshot().(map[string]any)
 	sn["kind"] = "jsonrpc"
 	sn["skipValidate"] = d.skipValidate
 	return sn

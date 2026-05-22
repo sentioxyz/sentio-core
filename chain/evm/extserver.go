@@ -468,7 +468,7 @@ func (d *ExtServerDimension) GetSlots(ctx context.Context, sr rg.Range) ([]*Slot
 }
 
 func (d *ExtServerDimension) Snapshot() any {
-	sn := d.ExtServerDimension.Snapshot()
+	sn := d.ExtServerDimension.Snapshot().(map[string]any)
 	sn["chainID"] = d.chainID
 	sn["opts"] = d.opts
 	sn["missTraceDowngrade"] = d.missTraceDowngrade.String()

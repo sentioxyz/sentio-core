@@ -164,7 +164,7 @@ func (d *ExtServerDimension[SLOT]) Delete(ctx context.Context, interval rg.Range
 	panic("impossible")
 }
 
-func (d *ExtServerDimension[SLOT]) Snapshot() map[string]any {
+func (d *ExtServerDimension[SLOT]) Snapshot() any {
 	return map[string]any{
 		"loadConcurrency": d.loadConcurrency,
 		"loadBatchSize":   d.loadBatchSize,

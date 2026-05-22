@@ -99,6 +99,7 @@ const _BaseDialog: FC<Props> = ({
                 <Dialog.Panel
                   className={classNames(
                     'border border-main relative transform overflow-hidden rounded-lg pb-4 pt-5 text-left shadow-sm transition-all sm:my-8 sm:w-full sm:max-w-3xl',
+                    'bg-default-bg',
                     panelClassName
                   )}
                 >

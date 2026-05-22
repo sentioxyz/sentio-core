@@ -8,6 +8,9 @@ export const Default = () => (
         Hover me
       </button>
     </DivTooltip>
+    <div>
+      Longer tooltip text that should wrap properly and demonstrate how the component handles longer content. It includes multiple sentences and should show proper text wrapping behavior.
+    </div>
   </div>
 )
 

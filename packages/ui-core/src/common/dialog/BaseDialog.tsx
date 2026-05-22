@@ -81,7 +81,7 @@ const _BaseDialog: FC<Props> = ({
               aria-hidden="true"
               className={classNames(
                 'fixed inset-0 transition-opacity',
-                mask === 'light' ? 'bg-gray-500/10 dark:bg-gray-200/30' : 'bg-gray-500/15 dark:bg-gray-200/50'
+                mask === 'light' ? 'bg-gray-200/30 dark:bg-gray-200/40' : 'bg-gray-200/40 dark:bg-gray-200/50'
               )}
             />
           </Transition.Child>

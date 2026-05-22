@@ -62,7 +62,7 @@ export function ConfirmDialog({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-gray-500/15 transition-opacity dark:bg-gray-200/50" />
+          <div className="fixed inset-0 transition-opacity bg-gray-200/40 dark:bg-gray-200/50" />
         </Transition.Child>
 
         <div className="fixed inset-0 z-10 overflow-y-auto">

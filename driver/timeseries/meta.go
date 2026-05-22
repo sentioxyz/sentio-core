@@ -48,7 +48,7 @@ type metaComment struct {
 }
 
 func (m Meta) Dump() []byte {
-	data, err := sonic.Marshal(m)
+	data, err := encoder.Encode(m, encoder.SortMapKeys)
 	if err != nil {
 		panic(err)
 	}

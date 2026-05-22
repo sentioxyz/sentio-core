@@ -38,14 +38,16 @@ func (t *Tracker) Snapshot() map[string]interface{} {
 	return snapshot
 }
 
-func (t *Tracker) Get(name string) any {
+func (t *Tracker) Fetch(keys []string) map[string]any {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	v, ok := t.TrackedObjects[name]
-	if !ok {
-		return nil
+	snapshot := make(map[string]any)
+	for _, key := range keys {
+		if v, ok := t.TrackedObjects[key]; ok {
+			snapshot[key] = v.Snapshot()
+		}
 	}
-	return v.Snapshot()
+	return snapshot
 }
 
 var GlobalTracker *Tracker = NewTracker()
@@ -71,13 +73,17 @@ func SnapshotTrackedObjects() map[string]interface{} {
 }
 
 func HTTPHandler(w http.ResponseWriter, r *http.Request) {
-	var body bytes.Buffer
-	var target any
-	if r.URL.Fragment == "" {
-		target = SnapshotTrackedObjects()
-	} else {
-		target = GlobalTracker.Get(r.URL.Fragment)
+	var keys []string
+	for key := range r.URL.Query() {
+		keys = append(keys, key)
 	}
+	var target map[string]any
+	if len(keys) == 0 {
+		target = GlobalTracker.Snapshot()
+	} else {
+		target = GlobalTracker.Fetch(keys)
+	}
+	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(target)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

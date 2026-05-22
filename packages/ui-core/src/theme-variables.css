@@ -1,185 +1,225 @@
-.dark {
+body.dark {
   --white: 255, 255, 255;
-  --text-background: 32, 32, 32;
-  --text-foreground: 228, 228, 228;
-  --text-foreground-secondary: 166, 166, 166;
-  --text-foreground-tertiary: 143, 143, 143;
-  --text-foreground-disabled: 117, 117, 117;
-  --border-color: var(--gray-100);
-  --input-border-color: var(--gray-200);
+  --text-background: 11, 7, 20;
+  --text-foreground: 255, 255, 255;
+  --text-foreground-secondary: 183, 180, 199;
+  --text-foreground-tertiary: 125, 120, 147;
+  --text-foreground-disabled: 92, 88, 112;
+  --border-color: 43, 36, 64;
+  --input-border-color: var(--border-light);
   --input-background: var(--gray-100);
   --navbar-foreground: var(--text-foreground-secondary);
-  --navbar-hover-background: var(--sentio-gray-50);
-  --navbar-selected-background: var(--primary-600);
-  --navbar-hover-foreground: var(--text-foreground);
+  --navbar-hover-background: 91, 124, 255;
+  --navbar-selected-background: 91, 124, 255;
+  --navbar-hover-foreground: var(--white);
   --box-gradient-background: linear-gradient(
     131.26deg,
-    rgba(189, 36, 181, 0.2) 0%,
-    rgba(7, 86, 213, 0.1) 12%,
+    rgba(192, 38, 211, 0.2) 0%,
+    rgba(37, 99, 235, 0.1) 12%,
     rgba(18, 18, 18, 0) 30%,
     transparent 100%
   );
 
-  /* blue-gray #*/
-  --gray-50: 32, 35, 41;
-  --gray-100: 66, 66, 72;
-  --gray-200: 93, 97, 101;
-  --gray-300: 113, 115, 121;
-  --gray-400: 152, 156, 160;
-  --gray-500: 181, 185, 189;
-  --gray-600: 216, 218, 224;
-  --gray-700: 228, 232, 237;
-  --gray-800: 235, 239, 243;
-  --gray-900: 247, 259, 251;
+  /* purple-gray (from Figma) */
+  --gray-50: 11, 7, 20;
+  --gray-100: 17, 9, 31;
+  --gray-200: 23, 16, 40;
+  --gray-300: 30, 22, 51;
+  --gray-400: 36, 27, 61;
+  --gray-500: 43, 36, 64;
+  --gray-600: 54, 43, 75;
+  --gray-700: 65, 57, 76;
+  --gray-800: 92, 88, 112;
+  --gray-900: 125, 120, 147;
+  --gray-950: 183, 180, 199;
 
-  /* red #*/
-  --red-50: 39, 18, 17;
-  --red-100: 63, 22, 20;
-  --red-200: 84, 30, 26;
-  --red-300: 117, 36, 29;
-  --red-400: 160, 45, 34;
-  --red-500: 204, 53, 39;
-  --red-600: 227, 95, 78;
-  --red-700: 243, 141, 123;
-  --red-800: 248, 179, 164;
-  --red-900: 245, 211, 201;
+  /* red (from Figma) */
+  --red-50: 27, 12, 16;
+  --red-100: 40, 16, 22;
+  --red-200: 59, 23, 32;
+  --red-300: 86, 33, 45;
+  --red-400: 125, 48, 64;
+  --red-500: 196, 71, 89;
+  --red-600: 255, 90, 107;
+  --red-700: 255, 125, 138;
+  --red-800: 255, 166, 175;
+  --red-900: 255, 208, 213;
+  --red-950: 255, 240, 242;
 
-  /* orange #*/
-  --orange-50: 42, 30, 15;
-  --orange-100: 68, 45, 14;
-  --orange-200: 89, 60, 14;
-  --orange-300: 125, 81, 12;
-  --orange-400: 172, 110, 10;
-  --orange-500: 219, 138, 7;
-  --orange-600: 231, 166, 43;
-  --orange-700: 243, 193, 84;
-  --orange-800: 248, 213, 125;
-  --orange-900: 250, 229, 165;
+  /* orange (from Figma) */
+  --orange-50: 27, 18, 8;
+  --orange-100: 38, 24, 10;
+  --orange-200: 56, 35, 13;
+  --orange-300: 82, 51, 20;
+  --orange-400: 119, 72, 29;
+  --orange-500: 183, 104, 40;
+  --orange-600: 242, 140, 56;
+  --orange-700: 255, 170, 99;
+  --orange-800: 255, 199, 155;
+  --orange-900: 255, 227, 204;
+  --orange-950: 255, 244, 235;
 
-  /* yellow #*/
-  --yellow-50: 42, 36, 15;
-  --yellow-100: 68, 57, 14;
-  --yellow-200: 89, 77, 14;
-  --yellow-300: 125, 106, 12;
-  --yellow-400: 172, 145, 10;
-  --yellow-500: 219, 184, 7;
-  --yellow-600: 231, 206, 43;
-  --yellow-700: 243, 227, 84;
-  --yellow-800: 248, 240, 125;
-  --yellow-900: 250, 247, 165;
+  /* yellow / golden amber (from Figma) */
+  --yellow-50: 26, 20, 8;
+  --yellow-100: 38, 29, 11;
+  --yellow-200: 58, 43, 14;
+  --yellow-300: 84, 62, 20;
+  --yellow-400: 122, 90, 29;
+  --yellow-500: 182, 132, 46;
+  --yellow-600: 255, 184, 77;
+  --yellow-700: 255, 201, 112;
+  --yellow-800: 255, 217, 154;
+  --yellow-900: 255, 233, 199;
+  --yellow-950: 255, 247, 234;
 
-  /* cyan #*/
-  --cyan-50: 21, 31, 17;
-  --cyan-100: 29, 49, 19;
-  --cyan-200: 40, 66, 24;
-  --cyan-300: 50, 90, 27;
-  --cyan-400: 65, 123, 30;
-  --cyan-500: 79, 155, 34;
-  --cyan-600: 109, 174, 66;
-  --cyan-700: 143, 195, 104;
-  --cyan-800: 176, 211, 146;
-  --cyan-900: 211, 229, 194;
+  /* green (variable name kept as cyan, from Figma) */
+  --cyan-50: 7, 26, 18;
+  --cyan-100: 10, 38, 24;
+  --cyan-200: 17, 56, 37;
+  --cyan-300: 24, 82, 55;
+  --cyan-400: 35, 117, 82;
+  --cyan-500: 43, 184, 109;
+  --cyan-600: 46, 212, 122;
+  --cyan-700: 85, 229, 152;
+  --cyan-800: 135, 240, 183;
+  --cyan-900: 193, 248, 218;
+  --cyan-950: 233, 255, 243;
 
-  /* purple #*/
-  --purple-50: 27, 15, 39;
-  --purple-100: 40, 14, 63;
-  --purple-200: 54, 15, 84;
-  --purple-300: 72, 14, 117;
-  --purple-400: 96, 12, 160;
-  --purple-500: 120, 10, 204;
-  --purple-600: 154, 44, 227;
-  --purple-700: 185, 85, 243;
-  --purple-800: 196, 120, 235;
-  --purple-900: 228, 170, 252;
-  /* primary #*/
-  --primary-50: 15, 22, 36;
-  --primary-100: 14, 29, 58;
-  --primary-200: 15, 38, 77;
-  --primary-300: 13, 49, 106;
-  --primary-400: 11, 62, 145;
-  --primary-500: 9, 76, 184;
-  --primary-600: 41, 110, 206;
-  --primary-700: 81, 147, 229;
-  --primary-800: 126, 184, 245;
-  --primary-900: 168, 210, 250;
-  /* daybreak-blue #*/
-  --daybreak-blue-50: 17, 30, 35;
-  --daybreak-blue-100: 20, 46, 56;
-  --daybreak-blue-200: 25, 63, 75;
-  --daybreak-blue-300: 28, 85, 104;
-  --daybreak-blue-400: 33, 115, 142;
-  --daybreak-blue-500: 38, 145, 180;
-  --daybreak-blue-600: 74, 174, 202;
-  --daybreak-blue-700: 117, 204, 224;
-  --daybreak-blue-800: 164, 228, 240;
-  --daybreak-blue-900: 206, 240, 245;
-  /* lake-blue #*/
-  --lake-blue-50: 16, 35, 34;
-  --lake-blue-100: 17, 56, 52;
-  --lake-blue-200: 21, 75, 68;
-  --lake-blue-300: 22, 103, 92;
-  --lake-blue-400: 24, 141, 125;
-  --lake-blue-500: 26, 179, 158;
-  --lake-blue-600: 59, 199, 176;
-  --lake-blue-700: 100, 221, 198;
-  --lake-blue-800: 145, 238, 217;
-  --lake-blue-900: 192, 250, 235;
-  /* gray #*/
-  --sentio-gray-50: 23, 23, 23;
-  --sentio-gray-100: 32, 32, 32;
-  --sentio-gray-200: 37, 37, 37;
-  --sentio-gray-300: 46, 46, 46;
-  --sentio-gray-400: 75, 75, 75;
-  --sentio-gray-500: 103, 103, 103;
-  --sentio-gray-600: 132, 132, 132;
-  --sentio-gray-700: 170, 170, 170;
-  --sentio-gray-800: 208, 208, 208;
-  --sentio-gray-900: 236, 236, 236;
-  /* deep-purple #*/
-  --deep-purple-50: 17, 16, 41;
-  --deep-purple-100: 21, 17, 67;
-  --deep-purple-200: 29, 21, 88;
-  --deep-purple-300: 34, 22, 122;
-  --deep-purple-400: 41, 24, 169;
-  --deep-purple-500: 48, 26, 215;
-  --deep-purple-600: 89, 64, 231;
-  --deep-purple-700: 130, 105, 243;
-  --deep-purple-800: 168, 146, 248;
-  --deep-purple-900: 205, 190, 252;
-  /* magenta #*/
-  --magenta-50: 36, 15, 30;
-  --magenta-100: 58, 14, 43;
-  --magenta-200: 77, 15, 54;
-  --magenta-300: 106, 13, 72;
-  --magenta-400: 145, 11, 95;
-  --magenta-500: 184, 9, 119;
-  --magenta-600: 206, 41, 140;
-  --magenta-700: 229, 81, 164;
-  --magenta-800: 245, 126, 190;
-  --magenta-900: 250, 168, 209;
+  /* purple (from Figma) */
+  --purple-50: 19, 13, 36;
+  --purple-100: 25, 18, 51;
+  --purple-200: 36, 24, 74;
+  --purple-300: 50, 32, 103;
+  --purple-400: 74, 49, 146;
+  --purple-500: 105, 71, 207;
+  --purple-600: 139, 92, 246;
+  --purple-700: 161, 118, 255;
+  --purple-800: 188, 155, 255;
+  --purple-900: 217, 198, 255;
+  --purple-950: 238, 230, 255;
+
+  /* indigo blue / primary (from Figma) */
+  --primary-50: 15, 22, 48;
+  --primary-100: 19, 29, 61;
+  --primary-200: 24, 36, 72;
+  --primary-300: 34, 48, 92;
+  --primary-400: 50, 69, 136;
+  --primary-500: 70, 98, 199;
+  --primary-600: 91, 124, 255;
+  --primary-700: 115, 144, 255;
+  --primary-800: 143, 168, 255;
+  --primary-900: 180, 197, 255;
+  --primary-950: 220, 229, 255;
+
+  /* light blue / daybreak-blue (from Figma) */
+  --daybreak-blue-50: 8, 26, 43;
+  --daybreak-blue-100: 11, 36, 59;
+  --daybreak-blue-200: 16, 51, 82;
+  --daybreak-blue-300: 21, 72, 114;
+  --daybreak-blue-400: 28, 103, 159;
+  --daybreak-blue-500: 23, 135, 217;
+  --daybreak-blue-600: 23, 153, 253;
+  --daybreak-blue-700: 69, 176, 255;
+  --daybreak-blue-800: 121, 200, 255;
+  --daybreak-blue-900: 177, 225, 255;
+  --daybreak-blue-950: 226, 245, 255;
+
+  /* turquoise / lake-blue (from Figma) */
+  --lake-blue-50: 7, 25, 25;
+  --lake-blue-100: 10, 36, 36;
+  --lake-blue-200: 14, 54, 54;
+  --lake-blue-300: 18, 77, 77;
+  --lake-blue-400: 24, 115, 115;
+  --lake-blue-500: 54, 247, 247;
+  --lake-blue-600: 31, 214, 214;
+  --lake-blue-700: 84, 229, 229;
+  --lake-blue-800: 138, 241, 241;
+  --lake-blue-900: 194, 250, 250;
+  --lake-blue-950: 235, 255, 255;
+
+  /* neutral gray — same as purple-gray scale from Figma */
+  --sentio-gray-50: 11, 7, 20;
+  --sentio-gray-100: 17, 9, 31;
+  --sentio-gray-200: 23, 16, 40;
+  --sentio-gray-300: 30, 22, 51;
+  --sentio-gray-400: 36, 27, 61;
+  --sentio-gray-500: 43, 36, 64;
+  --sentio-gray-600: 54, 43, 75;
+  --sentio-gray-700: 65, 57, 76;
+  --sentio-gray-800: 92, 88, 112;
+  --sentio-gray-900: 125, 120, 147;
+  --sentio-gray-950: 183, 180, 199;
+
+  /* deep-purple — alias of purple (from Figma) */
+  --deep-purple-50: 19, 13, 36;
+  --deep-purple-100: 25, 18, 51;
+  --deep-purple-200: 36, 24, 74;
+  --deep-purple-300: 50, 32, 103;
+  --deep-purple-400: 74, 49, 146;
+  --deep-purple-500: 105, 71, 207;
+  --deep-purple-600: 139, 92, 246;
+  --deep-purple-700: 161, 118, 255;
+  --deep-purple-800: 188, 155, 255;
+  --deep-purple-900: 217, 198, 255;
+  --deep-purple-950: 238, 230, 255;
+
+  /* pink / magenta (from Figma) */
+  --magenta-50: 27, 13, 25;
+  --magenta-100: 39, 17, 34;
+  --magenta-200: 58, 24, 50;
+  --magenta-300: 84, 33, 72;
+  --magenta-400: 122, 48, 112;
+  --magenta-500: 177, 69, 152;
+  --magenta-600: 255, 91, 181;
+  --magenta-700: 255, 124, 197;
+  --magenta-800: 255, 163, 216;
+  --magenta-900: 255, 200, 232;
+  --magenta-950: 255, 230, 245;
 
   /* sidebar */
-  --sidebar-background: 37, 37, 37;
+  --sidebar-background: 17, 9, 31;
+  --default-bg: #0b0714;
 
-  /* border tokens — dark mode */
-  --border-main: var(--gray-500);
-  --border-light: var(--gray-600);
-  --border-dark: var(--gray-700);
+  /* border tokens (from Figma — dark mode) */
+  --border-main: var(--gray-500); /* 43, 36, 64 */
+  --border-light: var(--gray-600); /* 54, 43, 75 */
+  --border-dark: var(--gray-700); /* 65, 57, 76 */
 
-  /* background surface tokens — dark mode */
-  --bg-canvas: var(--gray-50);
-  --bg-surface: var(--gray-100);
-  --bg-elevated: var(--gray-200);
-  --bg-hover: var(--gray-300);
-  --bg-active: var(--gray-400);
+  /* background surface tokens (from Figma — dark mode) */
+  --bg-canvas: var(--gray-50); /* 11, 7, 20 */
+  --bg-surface: var(--gray-100); /* 17, 9, 31 — Figma "BG / Primary" */
+  --bg-elevated: var(--gray-200); /* 23, 16, 40 */
+  --bg-hover: var(--gray-300); /* 30, 22, 51 */
+  --bg-active: var(--gray-400); /* 36, 27, 61 */
+
+  /* Sentio classic categorical palette — dark mode */
+  --sentio-classic-0: 123, 124, 255; /* #7b7cff */
+  --sentio-classic-1: 78, 168, 255;  /* #4ea8ff */
+  --sentio-classic-2: 169, 112, 255; /* #a970ff */
+  --sentio-classic-3: 255, 106, 213; /* #ff6ad5 */
+  --sentio-classic-4: 255, 152, 79;  /* #ff984f */
+  --sentio-classic-5: 255, 215, 106; /* #ffd76a */
+  --sentio-classic-6: 66, 211, 146;  /* #42d392 */
+  --sentio-classic-7: 62, 231, 229;  /* #3ee7e5 */
+  --sentio-classic-8: 20, 184, 166;  /* #14b8a6 */
+}
+
+body {
+  height: 100%;
+  background-color: var(--default-bg);
 }
 
 body.dark {
-  background: rgba(var(--sentio-gray-50));
-  color: #a6a6a6;
+  color: rgba(var(--text-foreground-secondary));
 }
 
-body.dark :focus-visible {
+/*
+ * Suppress browser default :focus-visible outline in both modes.
+ * Components opt-in to a focus halo via Tailwind `ring-*` / `outline-*` utilities.
+ * Without this, light mode shows a 2px UA outline that stacks between the
+ * input border and our `ring-*` halo, producing a visible inner bright line.
+ */
+body :focus-visible {
   outline: 0;
 }
 
@@ -189,143 +229,159 @@ body.dark :focus-visible {
 
 /* fix tailwind form select css variable issue */
 .dark select {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='rgba(181, 185, 189)' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='rgba(161, 161, 173)' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
 }
 
-input[type='checkbox'],
-[type='radio'] {
-  .dark & {
-    background-color: rgba(var(--sentio-gray-100));
-  }
+.dark input[type='checkbox']:not(:checked),
+.dark [type='radio']:not(:checked),
+.dark textarea {
+  background-color: rgba(var(--sentio-gray-100));
+}
+
+.dark [type='radio']:not(:checked) {
+  border-color: rgba(var(--sentio-gray-500));
 }
 
 body {
   --white: 255, 255, 255;
   --text-background: 255, 255, 255;
-  --text-foreground: var(--gray-900);
-  --text-foreground-secondary: var(--gray-600);
-  --text-foreground-tertiary: var(--gray-500);
-  --text-foreground-disabled: var(--gray-400);
-  --border-color: 235, 239, 243;
-  --input-border-color: var(--gray-200);
+  --text-foreground: 23, 19, 33;
+  --text-foreground-secondary: 98, 93, 117;
+  --text-foreground-tertiary: 144, 138, 163;
+  --text-foreground-disabled: 182, 177, 199;
+  --border-color: 236, 232, 245;
+  --input-border-color: var(--gray-300);
   --input-background: var(--white);
-  --navbar-foreground: var(--gray-600);
-  --navbar-hover-background: 220, 230, 255;
-  --navbar-selected-background: 220, 230, 255;
-  --navbar-hover-foreground: var(--primary-700);
+  --navbar-foreground: var(--gray-900);
+  --navbar-hover-background: var(--primary-600);
+  --navbar-selected-background: var(--primary-600);
+  --navbar-hover-foreground: var(--white);
   --box-gradient-background: linear-gradient(
     122.39deg,
-    rgba(249, 238, 255, 1) 0%,
-    rgba(244, 247, 255, 1) 5.6%,
+    rgba(253, 244, 255, 1) 0%,
+    rgba(239, 246, 255, 1) 5.6%,
     rgba(255, 255, 255, 1) 22%,
     transparent 100%
   );
 
-  /* blue-gray */
-  --gray-50: 247, 249, 251;
-  --gray-100: 235, 239, 243;
-  --gray-200: 228, 232, 237;
-  --gray-300: 216, 218, 224;
-  --gray-400: 181, 185, 189;
-  --gray-500: 152, 156, 160;
-  --gray-600: 113, 115, 121;
-  --gray-700: 93, 97, 101;
-  --gray-800: 64, 66, 72;
-  --gray-900: 32, 35, 41;
+  /* purple-gray */
+  --gray-50: 252, 251, 254;
+  --gray-100: 247, 245, 251;
+  --gray-200: 242, 239, 248;
+  --gray-300: 236, 232, 245;
+  --gray-400: 227, 220, 242;
+  --gray-500: 221, 214, 235;
+  --gray-600: 209, 204, 219;
+  --gray-700: 182, 177, 199;
+  --gray-800: 144, 138, 163;
+  --gray-900: 98, 93, 117;
+  --gray-950: 23, 19, 33;
 
   /* red */
-  --red-50: 254, 247, 247;
-  --red-100: 251, 216, 213;
-  --red-200: 249, 184, 179;
-  --red-300: 246, 153, 145;
-  --red-400: 243, 122, 111;
-  --red-500: 240, 90, 77;
-  --red-600: 237, 59, 43;
-  --red-700: 212, 43, 28;
-  --red-800: 186, 29, 15;
-  --red-900: 161, 18, 5;
+  --red-50: 255, 246, 244;
+  --red-100: 255, 234, 230;
+  --red-200: 255, 209, 201;
+  --red-300: 255, 172, 160;
+  --red-400: 244, 125, 107;
+  --red-500: 232, 95, 73;
+  --red-600: 216, 76, 54;
+  --red-700: 189, 58, 38;
+  --red-800: 154, 45, 28;
+  --red-900: 116, 33, 22;
+  --red-950: 71, 18, 12;
 
   /* orange */
-  --orange-50: 255, 251, 245;
-  --orange-100: 255, 236, 205;
-  --orange-200: 255, 221, 165;
-  --orange-300: 255, 205, 125;
-  --orange-400: 255, 190, 85;
-  --orange-500: 255, 175, 45;
-  --orange-600: 255, 159, 5;
-  --orange-700: 230, 120, 2;
-  --orange-800: 204, 106, 0;
-  --orange-900: 179, 92, 0;
+  --orange-50: 255, 247, 239;
+  --orange-100: 255, 236, 217;
+  --orange-200: 255, 209, 170;
+  --orange-300: 255, 179, 111;
+  --orange-400: 248, 151, 63;
+  --orange-500: 238, 139, 39;
+  --orange-600: 232, 130, 26;
+  --orange-700: 203, 109, 16;
+  --orange-800: 166, 86, 15;
+  --orange-900: 122, 64, 15;
+  --orange-950: 74, 38, 8;
 
-  /* yellow */
-  --yellow-50: 255, 253, 245;
-  --yellow-100: 255, 247, 205;
-  --yellow-200: 255, 240, 165;
-  --yellow-300: 255, 233, 125;
-  --yellow-400: 255, 227, 85;
-  --yellow-500: 255, 220, 45;
-  --yellow-600: 255, 213, 5;
-  --yellow-700: 229, 192, 2;
-  --yellow-800: 204, 171, 0;
-  --yellow-900: 153, 127, 0;
+  /* yellow / golden amber */
+  --yellow-50: 255, 251, 239;
+  --yellow-100: 255, 245, 217;
+  --yellow-200: 253, 233, 168;
+  --yellow-300: 247, 214, 107;
+  --yellow-400: 237, 193, 63;
+  --yellow-500: 225, 178, 47;
+  --yellow-600: 217, 169, 40;
+  --yellow-700: 190, 144, 27;
+  --yellow-800: 152, 113, 21;
+  --yellow-900: 115, 85, 16;
+  --yellow-950: 70, 50, 8;
 
-  /* cyan */
-  --cyan-50: 248, 252, 246;
-  --cyan-100: 222, 239, 211;
-  --cyan-200: 195, 226, 176;
-  --cyan-300: 168, 213, 141;
-  --cyan-400: 141, 200, 105;
-  --cyan-500: 115, 186, 70;
-  --cyan-600: 88, 173, 35;
-  --cyan-700: 70, 148, 21;
-  --cyan-800: 68, 122, 34;
-  --cyan-900: 53, 102, 22;
+  /* green (variable name kept as cyan for backwards compatibility) */
+  --cyan-50: 241, 252, 247;
+  --cyan-100: 221, 248, 236;
+  --cyan-200: 184, 240, 215;
+  --cyan-300: 125, 227, 181;
+  --cyan-400: 69, 208, 144;
+  --cyan-500: 34, 186, 121;
+  --cyan-600: 21, 159, 107;
+  --cyan-700: 15, 133, 90;
+  --cyan-800: 14, 106, 73;
+  --cyan-900: 12, 81, 57;
+  --cyan-950: 8, 47, 34;
 
   /* purple */
-  --purple-50: 250, 245, 253;
-  --purple-100: 231, 205, 247;
-  --purple-200: 211, 166, 240;
-  --purple-300: 192, 126, 233;
-  --purple-400: 173, 86, 226;
-  --purple-500: 153, 46, 219;
-  --purple-600: 138, 8, 237;
-  --purple-700: 112, 6, 192;
-  --purple-800: 91, 4, 156;
-  --purple-900: 74, 4, 126;
-  /* primary */
-  --primary-50: 245, 248, 253;
-  --primary-100: 205, 221, 247;
-  --primary-200: 166, 194, 240;
-  --primary-300: 126, 167, 233;
-  --primary-400: 86, 140, 226;
-  --primary-500: 46, 113, 219;
-  --primary-600: 7, 86, 213;
-  --primary-700: 5, 69, 173;
-  --primary-800: 4, 56, 140;
-  --primary-900: 4, 45, 113;
-  /* daybreak-blue */
-  --daybreak-blue-50: 245, 251, 253;
-  --daybreak-blue-100: 205, 235, 247;
-  --daybreak-blue-200: 166, 220, 241;
-  --daybreak-blue-300: 126, 204, 235;
-  --daybreak-blue-400: 86, 188, 229;
-  --daybreak-blue-500: 46, 173, 223;
-  --daybreak-blue-600: 7, 157, 217;
-  --daybreak-blue-700: 5, 127, 175;
-  --daybreak-blue-800: 4, 103, 141;
-  --daybreak-blue-900: 4, 84, 114;
-  /* lake-blue */
-  --lake-blue-50: 246, 253, 252;
-  --lake-blue-100: 209, 245, 241;
-  --lake-blue-200: 173, 238, 229;
-  --lake-blue-300: 136, 230, 217;
-  --lake-blue-400: 100, 222, 206;
-  --lake-blue-500: 63, 214, 194;
-  --lake-blue-600: 27, 207, 183;
-  --lake-blue-700: 22, 167, 149;
-  --lake-blue-800: 16, 121, 109;
-  --lake-blue-900: 13, 98, 88;
-  /* gray */
+  --purple-50: 247, 243, 255;
+  --purple-100: 240, 233, 255;
+  --purple-200: 226, 213, 255;
+  --purple-300: 200, 174, 255;
+  --purple-400: 171, 132, 255;
+  --purple-500: 154, 107, 255;
+  --purple-600: 139, 92, 246;
+  --purple-700: 118, 71, 232;
+  --purple-800: 96, 55, 199;
+  --purple-900: 71, 42, 148;
+  --purple-950: 43, 25, 94;
+
+  /* indigo blue / primary */
+  --primary-50: 242, 245, 255;
+  --primary-100: 232, 238, 255;
+  --primary-200: 215, 224, 255;
+  --primary-300: 184, 200, 255;
+  --primary-400: 142, 165, 255;
+  --primary-500: 93, 125, 255;
+  --primary-600: 59, 95, 255;
+  --primary-700: 46, 78, 235;
+  --primary-800: 34, 63, 212;
+  --primary-900: 27, 47, 168;
+  --primary-950: 17, 27, 102;
+
+  /* light blue / daybreak-blue */
+  --daybreak-blue-50: 240, 249, 255;
+  --daybreak-blue-100: 224, 242, 255;
+  --daybreak-blue-200: 189, 230, 255;
+  --daybreak-blue-300: 133, 210, 255;
+  --daybreak-blue-400: 78, 187, 255;
+  --daybreak-blue-500: 39, 168, 255;
+  --daybreak-blue-600: 23, 153, 253;
+  --daybreak-blue-700: 13, 131, 230;
+  --daybreak-blue-800: 10, 105, 184;
+  --daybreak-blue-900: 11, 79, 135;
+  --daybreak-blue-950: 8, 50, 86;
+
+  /* turquoise / lake-blue */
+  --lake-blue-50: 236, 254, 255;
+  --lake-blue-100: 207, 250, 254;
+  --lake-blue-200: 165, 243, 252;
+  --lake-blue-300: 103, 232, 249;
+  --lake-blue-400: 34, 211, 238;
+  --lake-blue-500: 6, 182, 212;
+  --lake-blue-600: 8, 145, 178;
+  --lake-blue-700: 14, 116, 144;
+  --lake-blue-800: 21, 94, 117;
+  --lake-blue-900: 22, 78, 99;
+  --lake-blue-950: 8, 51, 68;
+
+  /* neutral gray */
   --sentio-gray-50: 250, 250, 250;
   --sentio-gray-100: 245, 245, 245;
   --sentio-gray-200: 238, 238, 238;
@@ -336,57 +392,62 @@ body {
   --sentio-gray-700: 97, 97, 97;
   --sentio-gray-800: 66, 66, 66;
   --sentio-gray-900: 33, 33, 33;
-  /* deep-purple */
-  --deep-purple-50: 247, 246, 255;
-  --deep-purple-100: 215, 209, 254;
-  --deep-purple-200: 182, 173, 253;
-  --deep-purple-300: 150, 137, 252;
-  --deep-purple-400: 118, 100, 252;
-  --deep-purple-500: 86, 64, 251;
-  --deep-purple-600: 53, 27, 250;
-  --deep-purple-700: 43, 22, 203;
-  --deep-purple-800: 35, 18, 165;
-  --deep-purple-900: 28, 14, 134;
-  /* magenta */
-  --magenta-50: 253, 245, 250;
-  --magenta-100: 247, 205, 231;
-  --magenta-200: 240, 166, 213;
-  --magenta-300: 233, 126, 194;
-  --magenta-400: 226, 86, 175;
-  --magenta-500: 220, 47, 156;
-  --magenta-600: 213, 7, 137;
-  --magenta-700: 173, 5, 111;
-  --magenta-800: 140, 4, 90;
-  --magenta-900: 113, 4, 73;
+  --sentio-gray-950: 9, 9, 9;
+
+  /* deep-purple — alias of purple */
+  --deep-purple-50: 245, 243, 255;
+  --deep-purple-100: 237, 233, 254;
+  --deep-purple-200: 221, 214, 254;
+  --deep-purple-300: 196, 181, 253;
+  --deep-purple-400: 167, 139, 250;
+  --deep-purple-500: 139, 92, 246;
+  --deep-purple-600: 124, 58, 237;
+  --deep-purple-700: 109, 40, 217;
+  --deep-purple-800: 91, 33, 182;
+  --deep-purple-900: 76, 29, 149;
+  --deep-purple-950: 46, 16, 101;
+
+  /* pink / magenta */
+  --magenta-50: 255, 245, 253;
+  --magenta-100: 255, 234, 251;
+  --magenta-200: 255, 211, 246;
+  --magenta-300: 255, 173, 235;
+  --magenta-400: 251, 131, 224;
+  --magenta-500: 247, 111, 217;
+  --magenta-600: 243, 106, 217;
+  --magenta-700: 226, 85, 199;
+  --magenta-800: 197, 63, 168;
+  --magenta-900: 156, 47, 130;
+  --magenta-950: 99, 28, 83;
 
   /* sidebar */
-  --sidebar-background: 234, 241, 251;
+  --sidebar-background: 244, 244, 246;
+  --default-bg: #ffffff;
 
-  /* border tokens — light mode */
-  --border-main: var(--gray-200);
-  --border-light: var(--gray-100);
-  --border-dark: var(--gray-300);
+  /* border tokens — light mode (inferred from gray scale; flag if Figma differs) */
+  --border-main: 229, 223, 239;
+  --border-light: 236, 232, 245;
+  --border-dark: 221, 214, 235;
 
-  /* background surface tokens — light mode */
-  --bg-canvas: var(--white);
-  --bg-surface: var(--gray-50);
-  --bg-elevated: var(--gray-100);
-  --bg-hover: var(--gray-200);
-  --bg-active: var(--gray-300);
+  /* background surface tokens — light mode (inferred from gray scale) */
+  --bg-canvas: 252, 251, 254;
+  --bg-surface: 247, 245, 251; /* Figma "BG / Primary" */
+  --bg-elevated: 242, 239, 248;
+  --bg-hover: 236, 232, 245;
+  --bg-active: 227, 220, 242;
+
+  /* Sentio classic categorical palette — light mode */
+  --sentio-classic-0: 107, 99, 246; /* #6b63f6 */
+  --sentio-classic-1: 47, 124, 246; /* #2f7cf6 */
+  --sentio-classic-2: 138, 82, 245; /* #8a52f5 */
+  --sentio-classic-3: 226, 85, 199; /* #e255c7 */
+  --sentio-classic-4: 240, 139, 62; /* #f08b3e */
+  --sentio-classic-5: 217, 169, 40; /* #d9a928 */
+  --sentio-classic-6: 36, 182, 122; /* #24b67a */
+  --sentio-classic-7: 30, 191, 193; /* #1ebfc1 */
+  --sentio-classic-8: 15, 159, 146; /* #0f9f92 */
 }
 
-/* New theme overrides */
-body.new-theme {
-  background-color: initial;
-  --sidebar-background: 246, 246, 246;
-  --navbar-foreground: var(--gray-600);
-  --navbar-hover-background: var(--sentio-gray-200);
-  --navbar-selected-background: 233, 233, 233;
-  --navbar-hover-foreground: var(--gray-800);
-}
-
-body.dark.new-theme {
-  background: rgba(var(--sentio-gray-50));
-  --sidebar-background: 40, 41, 44;
-  --navbar-selected-background: 64, 64, 72;
+body select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='rgba(161, 161, 173)' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
 }

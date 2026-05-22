@@ -19,7 +19,7 @@ export const DisclosurePanel: FC<Props> = ({
   defaultOpen,
   className,
   containerClassName,
-  iconClassName = 'h-5 w-5',
+  iconClassName = 'h-4 w-4',
   titleClassName
 }) => {
   const [open, setOpen] = useState(defaultOpen || false)
@@ -32,13 +32,13 @@ export const DisclosurePanel: FC<Props> = ({
     <div
       className={
         containerClassName ||
-        'dark:bg-sentio-gray-200 w-full rounded-sm bg-[#F6F8FA]'
+        'w-full rounded-sm border border-main'
       }
     >
       <button
         className={classNames(
           open ? 'rounded-t' : 'rounded-sm',
-          'focus-visible:ring-primary-500/75 text-ilabel font-ilabel text-text-foreground hover:bg-sentio-gray-100 dark:hover:bg-sentio-gray-400 flex w-full px-2 py-1.5 text-left focus:outline-hidden focus-visible:ring-3',
+          'focus-visible:ring-primary-500/75 text-ilabel font-medium text-text-foreground hover:bg-sentio-gray-100 dark:hover:bg-sentio-gray-800 flex w-full px-2 py-1.5 text-left focus:outline-hidden focus-visible:ring-3',
           titleClassName
         )}
         onClick={toggle}

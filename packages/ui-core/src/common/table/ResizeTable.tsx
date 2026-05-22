@@ -395,7 +395,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                     key={row.id}
                     data-index={virtualRow.index}
                     className={classNames(
-                      'hover:bg-primary-50! dark:hover:bg-sentio-gray-300! group flex w-fit items-center border-b',
+                      'hover:bg-hover! group flex w-fit items-center border-b',
                       onClick ? 'cursor-pointer' : '',
                       rowClassNameFn ? rowClassNameFn(row) : ''
                     )}
@@ -424,7 +424,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                 <tr
                   key={row.id}
                   className={classNames(
-                    'hover:bg-primary-50! dark:hover:bg-sentio-gray-300! blinked group flex w-fit items-center border-b',
+                    'hover:bg-hover! group flex w-fit items-center border-b',
                     onClick ? 'cursor-pointer' : '',
                     rowClassNameFn ? rowClassNameFn(row) : ''
                   )}

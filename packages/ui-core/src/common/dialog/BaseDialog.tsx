@@ -78,11 +78,10 @@ const _BaseDialog: FC<Props> = ({
             leaveTo="opacity-0"
           >
             <div
+              aria-hidden="true"
               className={classNames(
                 'fixed inset-0 transition-opacity',
-                mask === 'light'
-                  ? 'bg-gray-500/30 dark:bg-gray-200/30'
-                  : 'bg-gray-500/75 dark:bg-gray-200/50'
+                mask === 'light' ? 'bg-gray-500/10 dark:bg-gray-200/30' : 'bg-gray-500/15 dark:bg-gray-200/50'
               )}
             />
           </Transition.Child>
@@ -98,9 +97,8 @@ const _BaseDialog: FC<Props> = ({
                 leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
               >
                 <Dialog.Panel
-                  data-testid="create-dashboard"
                   className={classNames(
-                    'dark:bg-sidebar relative transform overflow-hidden rounded-lg bg-white pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-3xl',
+                    'border border-main relative transform overflow-hidden rounded-lg pb-4 pt-5 text-left shadow-sm transition-all sm:my-8 sm:w-full sm:max-w-3xl',
                     panelClassName
                   )}
                 >

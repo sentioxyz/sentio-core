@@ -146,7 +146,7 @@ export const PopoverTooltip: FC<Props> = ({
           <div className="_sentio_">
             <div
               className={classNames(
-                'sentio-tooltip dark:bg-sentio-gray-200 z-10 rounded-md bg-white p-2 text-xs shadow-lg ring-1 ring-black/5 dark:ring-gray-100/5',
+                'sentio-tooltip z-10 rounded-md p-2 text-xs shadow-xs border border-light',
                 enableFadeAnimation &&
                   `transition-opacity duration-[${animationDuration}ms] ease-in-out`,
                 enableFadeAnimation ? (open ? 'opacity-100' : 'opacity-0') : ''
@@ -176,7 +176,7 @@ export const PopoverTooltip: FC<Props> = ({
                   <div
                     ref={arrowRef}
                     className={classNames(
-                      'h-2 w-2 rotate-45 bg-white dark:bg-sentio-gray-200 border-black/5 dark:border-light/5',
+                      'h-2 w-2 rotate-45 bg-default-bg border-light',
                       borderClass
                     )}
                     style={arrowStyle}

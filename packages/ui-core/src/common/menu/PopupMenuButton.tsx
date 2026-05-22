@@ -103,7 +103,7 @@ export function PopupMenuButton({
             leaveTo="transform opacity-0 scale-95"
           >
             <Menu.Items
-              className="dark:bg-sentio-gray-200 dark:divide-sentio-gray-400/50 z-10 mt-1 w-[80vw] origin-top cursor-pointer divide-y divide-gray-200 rounded-md bg-white shadow-lg ring-1 ring-black/5 focus:outline-hidden dark:ring-gray-100/5 sm:w-64"
+              className="bg-default-bg border border-main z-10 mt-1 w-[80vw] origin-top cursor-pointer divide-y divide-main rounded-md shadow-xs focus:outline-hidden sm:w-64"
               style={itemStyle}
             >
               {header}
@@ -147,7 +147,8 @@ export function PopupMenuButton({
           <>
             <Menu.Button
               className={classNames(
-                'text-text-foreground-secondary w-fit px-1 hover:text-text-foreground-secondary active:text-text-foreground-secondary',
+                'w-fit px-1',
+                open ? 'text-primary-600' : 'text-text-foreground-secondary hover:text-primary-600 active:text-primary-700',
                 buttonClassName
               )}
               aria-label={ariaLabel}

@@ -1,20 +1,36 @@
 import { ReactNode, useMemo } from 'react'
 import { classNames } from '../utils/classnames'
 
+/**
+ * Theme-aware reference to slot `i` of the Sentio "classic" categorical
+ * palette. The actual hex values live in `theme-variables.css` as
+ * `--sentio-classic-0..8` (one set under `body { }`, another under
+ * `body.dark { }`), so the returned CSS color swaps with the theme.
+ */
+export const classic = (i: number) =>
+  `rgb(var(--sentio-classic-${((i % 9) + 9) % 9}))`
+
+export type SegmentColor =
+  | string // Tailwind gradient utility, e.g. 'from-cyan-600 to-cyan-500'
+  | { from: string; to: string } // Any CSS color (hex, rgb, var(...))
+
 interface ProgressBarProps {
   progress: number // value between 0 and 1
-  segments?: Record<number, string> // segment color stops as a percentage
+  segments?: Record<number, SegmentColor> // segment color stops as a percentage
   gradient?: boolean // whether to use a gradient color or not
   upperTicks?: Record<number, ReactNode>
   lowerTicks?: Record<number, ReactNode>
   roundedFull?: boolean
 }
 
-const defaultSegments = {
-  0.25: 'from-cyan-600 to-cyan-500',
-  0.5: 'from-cyan-500 to-orange-600',
-  0.75: 'from-orange-600 to-red-600',
-  1: 'from-red-600 to-red-700'
+// Default ramp uses the Sentio classic palette (cool → warm), so it reads
+// naturally for "low/safe → high/danger" usage indicators in both themes.
+//   idx 6 (green)  → idx 7 (cyan)   → idx 5 (yellow) → idx 4 (orange) → idx 3 (pink)
+const defaultSegments: Record<number, SegmentColor> = {
+  0.25: { from: classic(6), to: classic(7) },
+  0.5: { from: classic(7), to: classic(5) },
+  0.75: { from: classic(5), to: classic(4) },
+  1: { from: classic(4), to: classic(3) }
 }
 
 export const ProgressBar = ({
@@ -34,15 +50,24 @@ export const ProgressBar = ({
       let pos = 0
       colors.forEach(([stop, color], idx) => {
         const width = (parseFloat(stop) - pos) * 100
+        const isObject = typeof color !== 'string'
+        const style: React.CSSProperties = {
+          left: `${pos * 100}%`,
+          width: `${width}%`
+        }
+        if (isObject) {
+          style.backgroundImage = `linear-gradient(to right, ${color.from}, ${color.to})`
+        }
         result.push(
           <div
             key={stop}
             className={classNames(
-              `absolute top-0 h-4 bg-linear-to-r ${color}`,
+              'absolute top-0 h-4',
+              !isObject && `bg-linear-to-r ${color as string}`,
               idx === 0 && 'rounded-l-full',
               idx === colors.length - 1 && 'rounded-r-full'
             )}
-            style={{ left: `${pos * 100}%`, width: `${width}%` }}
+            style={style}
           />
         )
         pos = parseFloat(stop)
@@ -51,12 +76,26 @@ export const ProgressBar = ({
       let pos = 0
       for (const [stop, color] of colors) {
         const width = (parseFloat(stop) - pos) * 100
+        const isObject = typeof color !== 'string'
+        const style: React.CSSProperties = {
+          left: `${pos * 100}%`,
+          width: `${width}%`
+        }
+        if (isObject) {
+          // Solid fill: take the `from` end of the segment.
+          style.backgroundColor = color.from
+        }
         result.push(
           <div
-            className={`absolute h-4 bg-${color} top-0 left-[${pos}] w-[${width}]`}
+            key={stop}
+            className={classNames(
+              'absolute top-0 h-4',
+              !isObject && `bg-${color as string}`
+            )}
+            style={style}
           />
         )
-        pos = parseFloat(stop) * 100
+        pos = parseFloat(stop)
       }
     }
     return result
@@ -126,7 +165,7 @@ export const ProgressBar = ({
         <div
           className={classNames(
             progress === 0 ? 'rounded-l-full' : '',
-            `dark:bg-sentio-gray-400 absolute right-0 top-0 h-4 rounded-r-full bg-gray-300`
+            `absolute right-0 top-0 h-4 rounded-r-full bg-default-bg border border-main`
           )}
           style={{ left: `${progress * 100}%` }}
         ></div>

@@ -129,7 +129,7 @@ export const WithHeaderAndFooter: Story = () => {
           </div>
         }
         footer={
-          <div className="px-4 py-2 border-t border-light text-xs text-text-foreground-secondary">
+          <div className="px-4 py-2 border-light text-xs text-text-foreground-secondary">
             v1.2.0
           </div>
         }

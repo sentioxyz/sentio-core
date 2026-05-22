@@ -416,7 +416,7 @@ export const AllFeatures = () => {
         }}
         rowClassNameFn={(row) => {
           const product = row.original as Product
-          return product === selectedRow ? 'bg-blue-100' : ''
+          return product === selectedRow ? 'bg-purple-200' : ''
         }}
       />
     </div>

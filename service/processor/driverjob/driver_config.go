@@ -41,6 +41,12 @@ type DriverConfig struct {
 	CacheDir         string `yaml:"cache_dir"`
 	ChainsConfig     string `yaml:"chains_config"`
 
+	// Forwarded to the driver container as SENTIO_NETWORK_HOUSEGATE_{DSN,DB,PRIVATE_KEY}.
+	// Required for network_v1 processors that write directly to housegate.
+	HousegateDSN        string `yaml:"housegate_dsn,omitempty"`
+	HousegateDB         string `yaml:"housegate_db,omitempty"`
+	HousegatePrivateKey string `yaml:"housegate_private_key,omitempty"`
+
 	// Specific Configs
 	Driver DriverSpecificConfig `yaml:"driver"`
 

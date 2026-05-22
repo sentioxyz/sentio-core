@@ -208,6 +208,18 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 			Target: CacheDirMountPath,
 		})
 	}
+
+	var envs []string
+	if d.config.HousegateDSN != "" {
+		envs = append(envs, "SENTIO_NETWORK_HOUSEGATE_DSN="+d.config.HousegateDSN)
+	}
+	if d.config.HousegateDB != "" {
+		envs = append(envs, "SENTIO_NETWORK_HOUSEGATE_DB="+d.config.HousegateDB)
+	}
+	if d.config.HousegatePrivateKey != "" {
+		envs = append(envs, "SENTIO_NETWORK_HOUSEGATE_PRIVATE_KEY="+d.config.HousegatePrivateKey)
+	}
+
 	return swarm.ServiceSpec{
 		Annotations: swarm.Annotations{
 			Name:   name,
@@ -219,6 +231,7 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 				Labels:  labels,
 				Command: []string{"/app/driver/cmd/cmd_/cmd"},
 				Args:    args,
+				Env:     envs,
 				Mounts:  mounts,
 				Hosts:   []string{"host-gateway host.docker.internal"},
 			},

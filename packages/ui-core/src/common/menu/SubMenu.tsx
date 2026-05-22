@@ -35,7 +35,7 @@ export const COLOR_MAP: Record<
 }
 
 const menuItemClass = cva(
-  'text-ilabel font-ilabel flex w-full items-center px-4 py-1.5 transition-colors duration-200',
+  'text-ilabel font-ilabel flex w-full items-center px-4 py-1.5',
   {
     variants: {
       status: {

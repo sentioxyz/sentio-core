@@ -146,7 +146,7 @@ export const PopoverTooltip: FC<Props> = ({
           <div className="_sentio_">
             <div
               className={classNames(
-                'sentio-tooltip z-10 rounded-md p-2 text-xs shadow-xs border border-light',
+                'sentio-tooltip z-10 rounded-md p-2 text-xs shadow-xs border border-light bg-default-bg',
                 enableFadeAnimation &&
                   `transition-opacity duration-[${animationDuration}ms] ease-in-out`,
                 enableFadeAnimation ? (open ? 'opacity-100' : 'opacity-0') : ''

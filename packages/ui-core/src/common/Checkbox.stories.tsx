@@ -79,18 +79,20 @@ export const Disabled: Story = () => {
   return (
     <div className="space-y-4 p-8">
       <h3 className="mb-4 text-lg font-semibold">Disabled States</h3>
-      <Checkbox
-        checked={false}
-        onChange={() => {}}
-        label="Disabled unchecked"
-        disabled
-      />
-      <Checkbox
-        checked={true}
-        onChange={() => {}}
-        label="Disabled checked"
-        disabled
-      />
+      <div className="space-x-4">
+        <Checkbox
+          checked={false}
+          onChange={() => {}}
+          label="Disabled unchecked"
+          disabled
+        />
+        <Checkbox
+          checked={true}
+          onChange={() => {}}
+          label="Disabled checked"
+          disabled
+        />
+      </div>
     </div>
   )
 }
@@ -113,7 +115,7 @@ export const MultipleCheckboxes: Story = () => {
   return (
     <div className="p-8">
       <h3 className="mb-4 text-lg font-semibold">Notification Preferences</h3>
-      <div className="space-y-3">
+      <div className="space-x-3">
         <Checkbox
           checked={options.email}
           onChange={handleChange('email')}

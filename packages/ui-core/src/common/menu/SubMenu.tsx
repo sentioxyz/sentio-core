@@ -11,6 +11,7 @@ import {
 } from '@floating-ui/react'
 import { Menu } from '@headlessui/react'
 import { classNames } from '../../utils/classnames'
+import { cva } from 'class-variance-authority'
 import { HiCheck } from 'react-icons/hi'
 import { PopoverTooltip } from '../DivTooltip'
 import { ChevronRightIcon } from '@heroicons/react/20/solid'
@@ -22,7 +23,7 @@ export const COLOR_MAP: Record<
 > = {
   default: {
     active:
-      'bg-gray-100 text-text-foreground dark:bg-primary-600 dark:text-white',
+      'bg-primary-50 text-primary-600',
     default: 'text-text-foreground',
     disabled: 'text-text-foreground-disabled cursor-not-allowed'
   },
@@ -32,6 +33,44 @@ export const COLOR_MAP: Record<
     disabled: 'text-red-200 dark:text-red-600/40 cursor-not-allowed'
   }
 }
+
+const menuItemClass = cva(
+  'text-ilabel font-ilabel flex w-full items-center px-4 py-1.5 transition-colors duration-200',
+  {
+    variants: {
+      status: {
+        default: '',
+        danger: ''
+      },
+      disabled: {
+        true: 'cursor-not-allowed',
+        false: ''
+      },
+      active: {
+        true: '',
+        false: ''
+      },
+      selected: {
+        true: 'bg-primary-600 text-white',
+        false: ''
+      }
+    },
+    compoundVariants: [
+      { status: 'default', disabled: false, active: false, selected: false, class: 'text-text-foreground' },
+      { status: 'default', disabled: false, active: true, selected: false, class: 'bg-primary-50 text-primary-600' },
+      { status: 'default', disabled: true, selected: false, class: 'text-text-foreground-disabled' },
+      { status: 'danger', disabled: false, active: false, selected: false, class: 'text-red-600' },
+      { status: 'danger', disabled: false, active: true, selected: false, class: 'bg-red-100 text-red-600 dark:bg-red-600 dark:text-white' },
+      { status: 'danger', disabled: true, selected: false, class: 'text-red-200 dark:text-red-600/40' }
+    ],
+    defaultVariants: {
+      status: 'default',
+      disabled: false,
+      active: false,
+      selected: false
+    }
+  }
+)
 
 export const MenuContext = createContext<{ selectedKey?: string }>({})
 
@@ -71,14 +110,12 @@ export const MenuItem = ({ item, onSelect, labelClassName }: ItemProps) => {
         const buttonNode = (
           <button
             onClick={(e) => onSelect?.(item.key, e, item)}
-            className={classNames(
-              item.disabled
-                ? COLOR_MAP[item.status || 'default'].disabled
-                : active
-                  ? COLOR_MAP[item.status || 'default'].active
-                  : COLOR_MAP[item.status || 'default'].default,
-              'text-ilabel font-ilabel flex w-full items-center px-4 py-1.5 transition-colors duration-200'
-            )}
+            className={menuItemClass({
+              status: item.status as 'default' | 'danger' || 'default',
+              disabled: !!item.disabled,
+              active,
+              selected: item.key === selectedKey
+            })}
             disabled={item.disabled}
           >
             {item.icon}

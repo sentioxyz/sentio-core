@@ -24,9 +24,7 @@ export type { DataNode } from './common/tree/FlatTree'
 export { ROOT_KEY, SUFFIX_NODE_KEY } from './common/tree/FlatTree'
 export {
   PlusSquareO,
-  MinusSquareO,
-  CloseSquareO,
-  EyeO
+  MinusSquareO
 } from './common/tree/TreeIcons'
 export { Empty } from './common/Empty'
 export { StatusBadge, StatusRole } from './common/badge/StatusBadge'

@@ -71,7 +71,7 @@ export const Descriptions = (props: Props) => {
               {colon}
               <td
                 className={classNames(
-                  'text-ilabel font-ilabel',
+                  'text-ilabel',
                   valueClassName
                 )}
                 style={valueStyle}

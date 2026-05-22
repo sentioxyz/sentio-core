@@ -5,7 +5,7 @@ import { isFunction } from 'lodash'
 
 const switchClass = cva(
   [
-    'relative inline-flex shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus-visible:ring-2  focus-visible:ring-white/75'
+    'relative inline-flex shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white/75'
   ],
   {
     variants: {
@@ -15,8 +15,8 @@ const switchClass = cva(
         sm: 'h-[16px] w-[30px]'
       },
       enabled: {
-        true: 'bg-primary group-hover:bg-primary-500',
-        false: 'bg-gray-400/50 group-hover:bg-primary-200'
+        true: 'bg-primary-600',
+        false: 'bg-gray-400/50 dark:bg-white/40'
       },
       disabled: {
         true: 'cursor-not-allowed opacity-50',
@@ -25,13 +25,19 @@ const switchClass = cva(
     },
     defaultVariants: {
       size: 'default',
-      enabled: false
+      enabled: false,
+      disabled: false
     },
     compoundVariants: [
       {
+        enabled: true,
+        disabled: false,
+        class: 'hover:bg-primary-500'
+      },
+      {
         enabled: false,
-        disabled: true,
-        class: 'bg-gray-400/50!'
+        disabled: false,
+        class: 'dark:hover:bg-primary-500 hover:bg-primary-200'
       }
     ]
   }

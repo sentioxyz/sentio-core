@@ -133,13 +133,13 @@ export const NestedCollapse = () => {
           <p className="text-sm">This is the parent content.</p>
 
           <Collapse title="Nested Panel 1">
-            <div className="rounded-md border bg-gray-50 p-4">
+            <div className="rounded-md border bg-surface p-4">
               <p className="text-sm">First nested panel content.</p>
             </div>
           </Collapse>
 
           <Collapse title="Nested Panel 2">
-            <div className="rounded-md border bg-gray-50 p-4">
+            <div className="rounded-md border bg-surface p-4">
               <p className="text-sm">Second nested panel content.</p>
             </div>
           </Collapse>
@@ -172,23 +172,6 @@ export const MultipleCollapse = () => {
         <div className="rounded-md border p-4">
           <h3 className="mb-2 font-semibold">Conclusion</h3>
           <p className="text-sm">Final thoughts and conclusions.</p>
-        </div>
-      </Collapse>
-    </div>
-  )
-}
-
-export const DarkMode = () => {
-  return (
-    <div className="bg-sentio-gray-50 dark min-h-screen p-4">
-      <Collapse title="Dark Mode Panel" defaultOpen={true}>
-        <div className="rounded-md border border-dark bg-gray-800 p-4">
-          <p className="text-sm text-text-foreground-disabled">
-            This panel looks good in dark mode.
-          </p>
-          <p className="mt-2 text-sm text-text-foreground-disabled">
-            The collapse component adapts to dark mode styling.
-          </p>
         </div>
       </Collapse>
     </div>

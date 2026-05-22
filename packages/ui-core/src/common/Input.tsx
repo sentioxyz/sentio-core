@@ -4,7 +4,7 @@ import { forwardRef } from 'react'
 import { FieldError, UseFormRegisterReturn } from 'react-hook-form'
 
 const inputContainerStyles = cva(
-  'flex relative rounded-md border focus-within:ring-1 w-full font-normal overflow-hidden',
+  'flex relative rounded-md border focus-within:ring-3 w-full font-normal overflow-hidden',
   {
     variants: {
       size: {
@@ -13,12 +13,12 @@ const inputContainerStyles = cva(
         lg: 'text-lg h-10'
       },
       error: {
-        true: 'border-red-300 text-red-900 placeholder:text-red-300 focus-within:ring-red-500',
+        true: 'border-red-300 text-red-900 placeholder:text-red-300 focus-within:border-red-600 focus-within:ring-red-600/30',
         false:
-          'border-main  focus-within:ring-primary-500 focus-within:border-primary-500'
+          'border-light focus-within:ring-primary-600/30 focus-within:border-primary-600'
       },
       readOnly: {
-        true: 'bg-gray-50 text-text-foreground-disabled',
+        true: 'text-text-foreground opacity-50',
         false: 'text-text-foreground'
       }
     },
@@ -27,7 +27,18 @@ const inputContainerStyles = cva(
       error: false,
       readOnly: false
     },
-    compoundVariants: []
+    compoundVariants: [
+      {
+        error: true,
+        readOnly: false,
+        class: "hover:border-red-600"
+      },
+      {
+        error: false,
+        readOnly: false,
+        class: "hover:border-primary-600"
+      }
+    ]
   }
 )
 
@@ -48,7 +59,7 @@ const inputStyles = cva(
       },
       error: {
         true: 'border-red-300',
-        false: 'border-main '
+        false: 'border-light'
       }
     },
     defaultVariants: {

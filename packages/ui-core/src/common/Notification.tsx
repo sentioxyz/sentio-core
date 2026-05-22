@@ -37,7 +37,7 @@ export function Notification({
     case 'error':
       icon = (
         <ExclamationCircleIcon
-          className="h-6 w-6 text-red-400"
+          className="h-6 w-6 text-red-600"
           aria-hidden="true"
         />
       )
@@ -45,7 +45,7 @@ export function Notification({
     case 'warning':
       icon = (
         <ExclamationCircleIcon
-          className="h-6 w-6 text-yellow-400"
+          className="h-6 w-6 text-orange-600"
           aria-hidden="true"
         />
       )
@@ -53,7 +53,7 @@ export function Notification({
     case 'info':
       icon = (
         <InformationCircleIcon
-          className="h-6 w-6 text-blue-400"
+          className="h-6 w-6 text-daybreak-blue-700"
           aria-hidden="true"
         />
       )
@@ -81,7 +81,7 @@ export function Notification({
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="dark:bg-sentio-gray-100 pointer-events-auto w-full max-w-sm rounded-lg bg-white shadow-lg ring-1 ring-black/5 dark:ring-gray-100/5">
+            <div className="border border-main bg-default-bg pointer-events-auto w-full max-w-sm rounded-lg shadow-xs">
               <div className="p-4">
                 <div className="flex items-start">
                   <div className="shrink-0">{icon}</div>

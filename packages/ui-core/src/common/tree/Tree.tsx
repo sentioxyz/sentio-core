@@ -84,7 +84,7 @@ export default forwardRef<HTMLDivElement, TreeProps>(function Tree(
       <div
         ref={ref}
         className={classNames(
-          'flex items-center px-2 py-1 hover:bg-gray-100',
+          'flex items-center px-2 py-1 transition-colors duration-200 hover:bg-hover active:bg-active',
           contentClassName
         )}
         onClick={onClick}
@@ -95,7 +95,7 @@ export default forwardRef<HTMLDivElement, TreeProps>(function Tree(
         <div className="inline-flex shrink-0 items-center">
           {children || showToggle ? (
             <button
-              className="text-text-foreground-secondary hover:text-primary-500 dark:hover:text-primary-700 mr-1.5 cursor-pointer"
+              className="text-text-foreground-secondary hover:text-primary-600 mr-1.5 cursor-pointer"
               onClick={toggle}
             >
               {open ? collapseIcon : expandIcon}

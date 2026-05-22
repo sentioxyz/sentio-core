@@ -1,8 +1,8 @@
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const defaultTheme = require('tailwindcss/defaultTheme')
 
 module.exports = {
   darkMode: 'selector',
-  content: ["./src/**/*.{ts,tsx}"],
   theme: {
     colors: ({ colors }) => ({
       inherit: colors.inherit,
@@ -22,6 +22,7 @@ module.exports = {
         700: 'rgba(var(--gray-700))',
         800: 'rgba(var(--gray-800))',
         900: 'rgba(var(--gray-900))',
+        950: 'rgba(var(--gray-950))',
         DEFAULT: 'rgba(var(--gray-600))'
       },
       zinc: colors.zinc,
@@ -38,6 +39,7 @@ module.exports = {
         700: 'rgba(var(--red-700))',
         800: 'rgba(var(--red-800))',
         900: 'rgba(var(--red-900))',
+        950: 'rgba(var(--red-950))',
         DEFAULT: 'rgba(var(--red-600))'
       },
       orange: {
@@ -51,6 +53,7 @@ module.exports = {
         700: 'rgba(var(--orange-700))',
         800: 'rgba(var(--orange-800))',
         900: 'rgba(var(--orange-900))',
+        950: 'rgba(var(--orange-950))',
         DEFAULT: 'rgba(var(--orange-600))'
       },
       amber: colors.amber,
@@ -65,6 +68,7 @@ module.exports = {
         700: 'rgba(var(--yellow-700))',
         800: 'rgba(var(--yellow-800))',
         900: 'rgba(var(--yellow-900))',
+        950: 'rgba(var(--yellow-950))',
         DEFAULT: 'rgba(var(--yellow-600))'
       },
       lime: colors.lime,
@@ -82,6 +86,7 @@ module.exports = {
         700: 'rgba(var(--cyan-700))',
         800: 'rgba(var(--cyan-800))',
         900: 'rgba(var(--cyan-900))',
+        950: 'rgba(var(--cyan-950))',
         DEFAULT: 'rgba(var(--cyan-600))'
       },
       sky: colors.sky,
@@ -99,6 +104,7 @@ module.exports = {
         700: 'rgba(var(--purple-700))',
         800: 'rgba(var(--purple-800))',
         900: 'rgba(var(--purple-900))',
+        950: 'rgba(var(--purple-950))',
         DEFAULT: 'rgba(var(--purple-600))'
       },
       fuchsia: colors.fuchsia,
@@ -118,6 +124,7 @@ module.exports = {
           700: 'rgba(var(--primary-700))',
           800: 'rgba(var(--primary-800))',
           900: 'rgba(var(--primary-900))',
+          950: 'rgba(var(--primary-950))',
           DEFAULT: 'rgba(var(--primary-600))'
         },
         nav: 'rgba(var(--gray-100))',
@@ -133,6 +140,7 @@ module.exports = {
           700: 'rgba(var(--daybreak-blue-700))',
           800: 'rgba(var(--daybreak-blue-800))',
           900: 'rgba(var(--daybreak-blue-900))',
+          950: 'rgba(var(--daybreak-blue-950))',
           DEFAULT: 'rgba(var(--daybreak-blue-600))'
         },
         'lake-blue': {
@@ -146,6 +154,7 @@ module.exports = {
           700: 'rgba(var(--lake-blue-700))',
           800: 'rgba(var(--lake-blue-800))',
           900: 'rgba(var(--lake-blue-900))',
+          950: 'rgba(var(--lake-blue-950))',
           DEFAULT: 'rgba(var(--lake-blue-600))'
         },
         'sentio-gray': {
@@ -159,6 +168,7 @@ module.exports = {
           700: 'rgba(var(--sentio-gray-700))',
           800: 'rgba(var(--sentio-gray-800))',
           900: 'rgba(var(--sentio-gray-900))',
+          950: 'rgba(var(--sentio-gray-950))',
           DEFAULT: 'rgba(var(--sentio-gray-600))'
         },
         'deep-purple': {
@@ -172,6 +182,7 @@ module.exports = {
           700: 'rgba(var(--deep-purple-700))',
           800: 'rgba(var(--deep-purple-800))',
           900: 'rgba(var(--deep-purple-900))',
+          950: 'rgba(var(--deep-purple-950))',
           DEFAULT: 'rgba(var(--deep-purple-600))'
         },
         magenta: {
@@ -185,12 +196,14 @@ module.exports = {
           700: 'rgba(var(--magenta-700))',
           800: 'rgba(var(--magenta-800))',
           900: 'rgba(var(--magenta-900))',
+          950: 'rgba(var(--magenta-950))',
           DEFAULT: 'rgba(var(--magenta-600))'
         },
         'text-foreground': 'rgba(var(--text-foreground))',
         'text-foreground-secondary': 'rgba(var(--text-foreground-secondary))',
         'text-foreground-disabled': 'rgba(var(--text-foreground-disabled))',
         'text-background': 'rgba(var(--text-background))',
+        'default-bg': 'var(--default-bg)',
         'border-color': 'rgba(var(--border-color))',
         'border-color-secondary': 'rgba(var(--border-color), 0.5)',
         'input-border-color': 'rgba(var(--input-border-color))',
@@ -208,23 +221,26 @@ module.exports = {
         active: 'rgba(var(--bg-active))'
       },
       borderColor: {
-        DEFAULT: 'rgba(var(--border-color))',
+        DEFAULT: 'rgba(var(--border-main))',
         main: 'rgba(var(--border-main))',
         light: 'rgba(var(--border-light))',
         dark: 'rgba(var(--border-dark))'
       },
       divideColor: {
-        DEFAULT: 'rgba(var(--border-color))'
+        DEFAULT: 'rgba(var(--border-main))',
+        main: 'rgba(var(--border-main))',
+        light: 'rgba(var(--border-light))',
+        dark: 'rgba(var(--border-dark))'
       },
       zIndex: {
         nav: '2',
         tooltip: '90'
       },
       fontSize: {
-        ichart: ['0.625rem', '1rem'],
-        icontent: ['0.8125rem', '1.125rem'],
-        ilabel: ['0.8125rem', '1.125rem'],
-        ititle: ['1.125rem', '1.75rem']
+        ichart: ['0.625rem', '1rem'], // chart font size 10px 16px
+        icontent: ['0.8125rem', '1.125rem'], // content font size 12px 16px
+        ilabel: ['0.8125rem', '1.125rem'], // content header font size 13px 18px
+        ititle: ['1.125rem', '1.75rem'] // first class header font size 18px 28px
       },
       fontWeight: {
         icontent: '400',
@@ -297,6 +313,5 @@ module.exports = {
         32: '8rem'
       }
     }
-  },
-  plugins: []
+  }
 }

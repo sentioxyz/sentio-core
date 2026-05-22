@@ -22,12 +22,12 @@ import { BaseZIndexContext } from '../dialog/BaseDialog'
 const buttonClass = cva(
   [
     'focus:ring-primary focus:border-primary',
-    'relative w-full rounded-md border bg-white dark:bg-sentio-gray-100 text-left focus:outline-hidden focus:ring-1 text-ilabel'
+    'relative w-full rounded-md border text-left focus:outline-hidden text-ilabel'
   ],
   {
     variants: {
       open: {
-        true: 'bg-sentio-gray-100 ring-1 ring-primary border-primary',
+        true: 'bg-sentio-gray-100 border-primary bg-primary-50',
         false: ''
       },
       size: {
@@ -35,7 +35,7 @@ const buttonClass = cva(
         md: 'py-2 px-3'
       },
       error: {
-        true: 'border-red-300 text-red-900 placeholder-red-300 focus-within:ring-red-500',
+        true: 'border-red-600 text-red-900 placeholder-red-300 focus-within:ring-red-500',
         false: 'border-border-color'
       },
       disabled: {
@@ -54,7 +54,17 @@ const buttonClass = cva(
         open: true,
         error: true,
         class: 'ring-red-300! border-red-300'
-      }
+      },
+      {
+        error: false,
+        disabled: false,
+        class: 'hover:border-primary-600'
+      },
+      {
+        error: true,
+        disabled: false,
+        class: 'hover:border-red-600'
+      },
     ]
   }
 )
@@ -62,19 +72,19 @@ const buttonClass = cva(
 const optionClass = cva(['relative cursor-default select-none'], {
   variants: {
     disabled: {
-      true: 'cursor-not-allowed text-text-foreground-disabled',
-      false: 'text-text-foreground'
+      true: 'cursor-not-allowed',
+      false: ''
     },
     size: {
       sm: 'py-1 pl-3 pr-5',
       md: 'py-2 pl-3 pr-6'
     },
     active: {
-      true: 'bg-primary-50 dark:bg-primary-400/50',
+      true: 'bg-primary-50 text-primary-600',
       false: ''
     },
     selected: {
-      true: 'bg-primary-100! dark:bg-primary-400!',
+      true: 'bg-primary-600! text-white!',
       false: ''
     }
   },
@@ -83,7 +93,19 @@ const optionClass = cva(['relative cursor-default select-none'], {
     active: false,
     selected: false,
     size: 'sm'
-  }
+  },
+  compoundVariants: [
+    {
+      active: true,
+      disabled: true,
+      class: 'text-text-foreground-disabled bg-transparent'
+    },
+    {
+      active: true,
+      disabled: false,
+      class: 'text-primary-600 bg-primary-50'
+    }
+  ]
 })
 
 const iconClass = cva([], {
@@ -292,7 +314,7 @@ export function Select<T>({
                               {selected ? (
                                 <span
                                   className={classNames(
-                                    'text-primary-600 absolute inset-y-0 right-0 flex items-center pr-2 dark:text-white'
+                                    'absolute inset-y-0 right-0 flex items-center pr-2 text-white'
                                   )}
                                 >
                                   <CheckIcon
@@ -344,7 +366,7 @@ export function Select<T>({
                     {selected ? (
                       <span
                         className={classNames(
-                          'text-primary-600 absolute inset-y-0 right-0 flex items-center pr-2 dark:text-white'
+                          'absolute inset-y-0 right-0 flex items-center pr-2'
                         )}
                       >
                         <CheckIcon

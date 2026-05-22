@@ -138,28 +138,3 @@ export const MultipleNested = () => {
     </div>
   )
 }
-
-export const DarkMode = () => {
-  return (
-    <div className="bg-sentio-gray-50 dark min-h-screen p-4">
-      <div className="space-y-4">
-        <DisclosurePanel title="Dark Mode Panel">
-          <p className="text-sm text-text-foreground-disabled">
-            This panel uses the default dark mode styling.
-          </p>
-        </DisclosurePanel>
-
-        <DisclosurePanel title="Another Dark Panel" defaultOpen={true}>
-          <div className="space-y-2">
-            <p className="text-sm text-text-foreground-disabled">
-              The dark mode is automatically applied based on the dark class.
-            </p>
-            <p className="text-sm text-text-foreground-disabled">
-              All interactive elements adapt to the dark theme.
-            </p>
-          </div>
-        </DisclosurePanel>
-      </div>
-    </div>
-  )
-}

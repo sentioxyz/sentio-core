@@ -1,6 +1,6 @@
 import { Fragment, ReactNode, useCallback, useEffect, useRef } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
-import { XMarkIcon as XIcon } from '@heroicons/react/24/outline'
+import { LuX } from 'react-icons/lu'
 
 interface Props {
   title?: string | ReactNode
@@ -56,12 +56,12 @@ export default function SlideOver({
           {/*  hack, make tailwind css compile all these widths */}
         </div>
         <Dialog.Panel
-          className={`dark:bg-sentio-gray-100 pointer-events-auto flex h-full w-screen flex-col overflow-x-hidden border-l bg-white shadow-md max-w-${
+          className={`bg-default-bg pointer-events-auto flex h-full w-screen flex-col overflow-x-hidden border-l shadow-md max-w-${
             size || '2xl'
           }`}
         >
           {/* Header */}
-          <div className="dark:bg-sentio-gray-100 relative border-b bg-white px-4 py-3">
+          <div className="bg-default-bg relative border-b px-4 py-3">
             <div className="flex h-auto items-start justify-between space-x-3 sm:h-5">
               <div className="flex-1 space-y-1">
                 <Dialog.Title className="text-text-foreground text-[15px] font-semibold">
@@ -72,11 +72,11 @@ export default function SlideOver({
                 {headAddon}
                 <button
                   type="button"
-                  className="hover:text-text-foreground ml-2 text-text-foreground dark:text-text-foreground-secondary"
+                  className="hover:text-primary-600 ml-2 text-text-foreground cursor-pointer"
                   onClick={() => onClose()}
                 >
                   <span className="sr-only">Close panel</span>
-                  <XIcon className="h-5 w-5" aria-hidden="true" />
+                  <LuX className="h-5 w-5" aria-hidden="true" />
                 </button>
               </div>
             </div>

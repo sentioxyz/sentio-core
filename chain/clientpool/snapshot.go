@@ -11,24 +11,27 @@ import (
 type state string
 
 const (
-	stateDisabled  state = "Disabled"
-	stateNotReady  state = "NotReady"
-	stateBroken    state = "Broken"
-	stateRecovered state = "Recovered"
-	stateOK        state = "OK"
+	stateDisabled   state = "Disabled"
+	stateNotReady   state = "NotReady"
+	stateFallBehind state = "FallBehind"
+	stateBroken     state = "Broken"
+	stateRecovered  state = "Recovered"
+	stateOK         state = "OK"
 )
 
 var stateIndex = map[state]int{
-	stateOK:        0,
-	stateRecovered: 1,
-	stateBroken:    2,
-	stateNotReady:  3,
-	stateDisabled:  4,
+	stateOK:         0,
+	stateRecovered:  1,
+	stateBroken:     2,
+	stateFallBehind: 3,
+	stateNotReady:   4,
+	stateDisabled:   5,
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) _clientState(
 	entName string,
 	ent pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]],
+	ps poolStatus,
 	now time.Time,
 ) state {
 	if !ent.Enable {
@@ -43,6 +46,9 @@ func (p *ClientPool[CONFIG, CLIENT]) _clientState(
 		} else {
 			return stateRecovered
 		}
+	}
+	if ent.Status.LatestBlock.Number < ps.LatestBlock.Number {
+		return stateFallBehind
 	}
 	return stateOK
 }
@@ -67,7 +73,7 @@ func (p *ClientPool[CONFIG, CLIENT]) Snapshot() any {
 			ent:        ent,
 			name:       entName,
 			publicName: ent.Status.ClientName,
-			state:      p._clientState(entName, ent, now),
+			state:      p._clientState(entName, ent, ps, now),
 		})
 	}
 	sort.Slice(clients, func(i, j int) bool {

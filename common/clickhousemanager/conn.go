@@ -26,15 +26,18 @@ var connSettingsKey = &connSettings{
 
 // ContextMergeSettings merges the provided settings into the existing context settings.
 // This is a wrapper around clickhouse-go, whose implementation does not support being called multiple times.
+// Always creates a new map to avoid concurrent map writes when the same context is shared across goroutines.
 func ContextMergeSettings(ctx context.Context, settings clickhouse.Settings) context.Context {
-	exists, ok := ctx.Value(connSettingsKey).(clickhouse.Settings)
-	if ok {
-		for k, v := range settings {
-			exists[k] = v
+	merged := make(clickhouse.Settings)
+	if exists, ok := ctx.Value(connSettingsKey).(clickhouse.Settings); ok {
+		for k, v := range exists {
+			merged[k] = v
 		}
-		return context.WithValue(ctx, connSettingsKey, exists)
 	}
-	return context.WithValue(ctx, connSettingsKey, settings)
+	for k, v := range settings {
+		merged[k] = v
+	}
+	return context.WithValue(ctx, connSettingsKey, merged)
 }
 
 var (

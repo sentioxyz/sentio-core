@@ -15,7 +15,7 @@ export const WithMask = () => (
     <SpinLoading loading={true} showMask={true}>
       <div className="p-8 bg-blue-50 dark:bg-blue-900/20">
         <h3 className="text-lg font-bold mb-4">Content with Mask</h3>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-text-foreground-secondary dark:text-text-foreground-disabled">
           The mask overlay makes the content less visible while loading.
         </p>
       </div>

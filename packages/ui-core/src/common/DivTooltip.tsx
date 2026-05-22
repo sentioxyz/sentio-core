@@ -176,7 +176,7 @@ export const PopoverTooltip: FC<Props> = ({
                   <div
                     ref={arrowRef}
                     className={classNames(
-                      'h-2 w-2 rotate-45 bg-white dark:bg-sentio-gray-200 border-black/5 dark:border-gray-100/5',
+                      'h-2 w-2 rotate-45 bg-white dark:bg-sentio-gray-200 border-black/5 dark:border-light/5',
                       borderClass
                     )}
                     style={arrowStyle}

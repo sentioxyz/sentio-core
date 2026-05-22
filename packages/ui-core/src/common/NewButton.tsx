@@ -16,8 +16,8 @@ export const buttonClass = cva(['inline-flex', 'items-center', 'font-medium'], {
       dashed: ['btn-dashed'],
       text: ['btn-text'],
       link: ['btn-link'],
-      tertiary: [],
-      tertiarytext: [],
+      tertiary: ['btn-tertiary'],
+      tertiarytext: ['btn-tertiarytext'],
       custom: [] // custom button
     },
     status: {
@@ -71,41 +71,6 @@ export const buttonClass = cva(['inline-flex', 'items-center', 'font-medium'], {
       role: 'dashed',
       size: 'lg',
       class: 'py-[7px]'
-    },
-    {
-      role: 'tertiary',
-      disabled: false,
-      class: [
-        'bg-primary-100 dark:bg-gray-100',
-        'hover:bg-primary-100/90 dark:hover:bg-gray-200/90',
-        'active:bg-primary-200 dark:active:bg-gray-300',
-        'text-primary-600 dark:text-gray-600',
-        'hover:text-primary-500 dark:hover:text-gray-700',
-        'active:text-primary-700 dark:active:text-gray-800',
-        'focus:ring-primary-700 dark:focus:ring-gray-800'
-      ]
-    },
-    {
-      role: 'tertiary',
-      disabled: true,
-      class: 'cursor-not-allowed bg-gray-100 text-gray-400'
-    },
-    {
-      role: 'tertiarytext',
-      disabled: false,
-      class: [
-        'hover:bg-primary-100/90 dark:hover:bg-gray-200/90',
-        'active:bg-primary-200 dark:active:bg-gray-300',
-        'text-primary-600 dark:text-gray-600',
-        'hover:text-primary-500 dark:hover:text-gray-700',
-        'active:text-primary-700 dark:active:text-gray-800',
-        'focus:ring-primary-700 dark:focus:ring-gray-800'
-      ]
-    },
-    {
-      role: 'tertiarytext',
-      disabled: true,
-      class: 'cursor-not-allowed text-gray-400'
     }
   ],
   defaultVariants: {
@@ -278,8 +243,8 @@ function Button(
       <PopoverTooltip
         usePortal={disabledHintPortal}
         buttonClassName={disabledHintPortal ? 'w-full' : ''}
-        className="text-gray"
-        text={<p className="text-sm text-gray-500">{disabledHint}</p>}
+        className="text-text-foreground-secondary"
+        text={<p className="text-sm text-text-foreground-secondary">{disabledHint}</p>}
         hideArrow
       >
         {btn}

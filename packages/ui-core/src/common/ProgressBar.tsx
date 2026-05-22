@@ -69,12 +69,12 @@ export const ProgressBar = ({
       return (
         <div
           key={pos}
-          className="absolute top-0 border-l border-gray-500 text-xs text-gray-500 hover:z-1"
+          className="absolute top-0 border-l border-dark text-xs text-text-foreground-secondary hover:z-1"
           style={{ left: `${pos * 100}%` }}
         >
           <div
             className={classNames(
-              'absolute w-fit -translate-y-full whitespace-nowrap text-gray-500',
+              'absolute w-fit -translate-y-full whitespace-nowrap text-text-foreground-secondary',
               pos < 0.05
                 ? '-translate-x-1/4'
                 : pos > 0.95
@@ -84,7 +84,7 @@ export const ProgressBar = ({
           >
             {label}
           </div>
-          <div className="absolute h-3 w-2 translate-y-1 border-l border-gray-400 border-opacity-50"></div>
+          <div className="absolute h-3 w-2 translate-y-1 border-l border-dark border-opacity-50"></div>
         </div>
       )
     })
@@ -100,10 +100,10 @@ export const ProgressBar = ({
           className="relative bottom-0 text-xs hover:z-1"
           style={{ left: `${pos * 100}%` }}
         >
-          <div className="absolute top-0 h-3 w-2 border-l border-gray-400 border-opacity-50"></div>
+          <div className="absolute top-0 h-3 w-2 border-l border-dark border-opacity-50"></div>
           <div
             className={classNames(
-              'absolute translate-y-full text-gray-500',
+              'absolute translate-y-full text-text-foreground-secondary',
               pos < 0.05
                 ? '-translate-x-1/4'
                 : pos > 0.95

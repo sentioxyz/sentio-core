@@ -22,147 +22,56 @@
   }
 }
 
+/*
+  Button utilities — kept in sync with sentio/app/styles/globals.css so
+  ui-core can render the same buttons in standalone Ladle/test environments.
+  When updating, mirror the same rules in app/globals.css until we
+  consolidate to a single source of truth.
+*/
+
 @utility btn-primary {
-  /* Primary Button */
   &:not(.btn-disabled) {
-    @apply bg-primary-600 hover:bg-primary-500 active:bg-primary-700 focus:ring-primary-700 text-white;
-    @apply dark:bg-primary-500 dark:hover:bg-primary-500/90 dark:active:bg-primary-300 dark:focus:ring-primary-500 dark:text-white;
+    @apply bg-primary-600 hover:bg-primary-700 active:bg-primary-800 focus:ring-primary-700 text-white;
   }
 
   &.btn-disabled {
-    @apply bg-primary-200 cursor-not-allowed text-white;
-    @apply dark:bg-primary-200/90;
+    @apply bg-primary-600 cursor-not-allowed text-white opacity-50;
   }
 
   &.btn-status-danger:not(.btn-disabled) {
-    @apply bg-red-600 text-white hover:bg-red-500 focus:ring-red-700 active:bg-red-700;
+    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-700 active:bg-red-800;
   }
 
   &.btn-status-danger.btn-disabled {
-    @apply cursor-not-allowed bg-red-200 text-white;
-  }
-}
-
-@utility btn-disabled {
-  &.btn-primary {
-    @apply bg-primary-200 cursor-not-allowed text-white;
-    @apply dark:bg-primary-200/90;
-  }
-
-  &.btn-primary.btn-status-danger {
-    @apply cursor-not-allowed bg-red-200 text-white;
-  }
-
-  &.btn-secondary {
-    @apply cursor-not-allowed border border-gray-200 text-gray-400;
-    @apply dark:border-[#898989] dark:text-[#898989];
-  }
-
-  &.btn-secondary.btn-status-danger {
-    @apply cursor-not-allowed border border-red-200 text-red-200;
-  }
-
-  &.btn-dashed {
-    @apply cursor-not-allowed border border-dashed border-gray-200 text-gray-400;
-    @apply dark:border-[#898989] dark:text-[#898989];
-  }
-
-  &.btn-dashed.btn-status-danger {
-    @apply cursor-not-allowed border border-dashed border-red-200 text-red-200;
-  }
-
-  &.btn-text {
-    @apply cursor-not-allowed text-gray-400;
-    @apply dark:text-[#7b7b7b];
-  }
-
-  &.btn-text.btn-status-danger {
-    @apply cursor-not-allowed text-red-200;
-  }
-
-  &.btn-link {
-    @apply text-primary-200 cursor-not-allowed;
-    @apply dark:text-[#7b7b7b];
-  }
-
-  &.btn-link.btn-status-danger {
-    @apply cursor-not-allowed text-red-200;
-  }
-}
-
-@utility btn-status-danger {
-  &.btn-primary:not(.btn-disabled) {
-    @apply bg-red-600 text-white hover:bg-red-500 focus:ring-red-700 active:bg-red-700;
-  }
-
-  &.btn-primary.btn-disabled {
-    @apply cursor-not-allowed bg-red-200 text-white;
-  }
-
-  &.btn-secondary:not(.btn-disabled) {
-    @apply border border-red-600 text-red-600 hover:border-red-500 hover:text-red-500 focus:ring-red-700 active:border-red-700 active:text-red-700 dark:hover:bg-red-50;
-  }
-
-  &.btn-secondary.btn-disabled {
-    @apply cursor-not-allowed border border-red-200 text-red-200;
-  }
-
-  &.btn-dashed:not(.btn-disabled) {
-    @apply border border-dashed border-red-600 text-red-600 hover:border-red-500 hover:text-red-500 focus:ring-red-700 active:border-red-700 active:text-red-700;
-  }
-
-  &.btn-dashed.btn-disabled {
-    @apply cursor-not-allowed border border-dashed border-red-200 text-red-200;
-  }
-
-  &.btn-text:not(.btn-disabled) {
-    @apply text-red-600 hover:bg-red-100;
-  }
-
-  &.btn-text.btn-disabled {
-    @apply cursor-not-allowed text-red-200;
-  }
-
-  &.btn-link:not(.btn-disabled) {
-    @apply text-red-600 hover:text-red-500 focus:ring-red-700 active:text-red-700;
-  }
-
-  &.btn-link.btn-disabled {
-    @apply cursor-not-allowed text-red-200;
+    @apply cursor-not-allowed bg-red-600 text-white opacity-50;
   }
 }
 
 @utility btn-secondary {
-  /* Secondary Button */
   &:not(.btn-disabled) {
-    @apply hover:text-primary-600 hover:border-primary-600 active:text-primary-800 active:border-primary-800 border border-gray-300 text-gray-900;
-    @apply dark:hover:bg-primary-600 dark:hover:border-primary-600 dark:border-gray-200 dark:text-[#e5e5e5] dark:hover:text-white;
+    @apply hover:text-primary-600 hover:border-primary-600 hover:bg-primary-50 active:text-primary-800 active:border-primary-800 border border-main dark:border-gray-600 text-text-foreground;
   }
 
   &.btn-disabled {
-    @apply cursor-not-allowed border border-gray-200 text-gray-400;
-    @apply dark:border-[#898989] dark:text-[#898989];
+    @apply cursor-not-allowed border border-light dark:border-gray-600 text-text-foreground-disabled;
   }
 
   &.btn-status-danger:not(.btn-disabled) {
-    @apply border border-red-600 text-red-600 hover:border-red-500 hover:text-red-500 focus:ring-red-700 active:border-red-700 active:text-red-700 dark:hover:bg-red-50;
+    @apply border border-red-600 text-red-600 hover:border-red-700 hover:text-red-700 hover:bg-red-50 focus:ring-red-700 active:bg-red-100 active:text-red-800;
   }
 
   &.btn-status-danger.btn-disabled {
-    @apply cursor-not-allowed border border-red-200 text-red-200;
+    @apply cursor-not-allowed border border-red-600 text-red-600 opacity-50;
   }
 }
 
 @utility btn-dashed {
-  /* Dashed Button */
   &:not(.btn-disabled) {
-    @apply hover:text-primary-600 hover:border-primary-600 active:text-primary-700 active:border-primary-700 border border-dashed border-gray-300 text-gray-900;
-    @apply dark:hover:text-primary-500 dark:hover:border-primary-500 dark:border-[#5d6165] dark:text-[#e5e5e5];
+    @apply hover:text-primary-600 hover:border-primary-600 active:text-primary-700 active:border-primary-700 border border-dashed border-dark text-text-foreground;
   }
 
   &.btn-disabled {
-    @apply cursor-not-allowed border border-dashed border-gray-200 text-gray-400;
-    @apply dark:border-[#898989] dark:text-[#898989];
+    @apply cursor-not-allowed border border-dashed border-light text-text-foreground-disabled opacity-50;
   }
 
   &.btn-status-danger:not(.btn-disabled) {
@@ -175,14 +84,12 @@
 }
 
 @utility btn-text {
-  /* Text Button */
   &:not(.btn-disabled) {
-    @apply text-gray-900 hover:bg-gray-100;
+    @apply text-text-foreground hover:bg-primary-50 hover:text-primary-600 active:bg-primary-100 active:text-primary-800;
   }
 
   &.btn-disabled {
-    @apply cursor-not-allowed text-gray-400;
-    @apply dark:text-[#7b7b7b];
+    @apply cursor-not-allowed text-text-foreground opacity-50;
   }
 
   &.btn-status-danger:not(.btn-disabled) {
@@ -195,7 +102,6 @@
 }
 
 @utility btn-link {
-  /* Link Button */
   &:not(.btn-disabled) {
     @apply text-primary-600 hover:text-primary-500 active:text-primary-700 focus:ring-primary-700;
     @apply dark:text-primary-700 dark:hover:text-primary-800 dark:active:text-primary-900 dark:focus:ring-primary-800;
@@ -215,3 +121,40 @@
   }
 }
 
+@utility btn-tertiary {
+  &:not(.btn-disabled) {
+    @apply bg-primary-100 hover:bg-primary-100/90 active:bg-primary-200 text-primary-600 hover:text-primary-500 active:text-primary-700 focus:ring-primary-700;
+    @apply dark:bg-gray-100 dark:hover:bg-gray-200/90 dark:active:bg-gray-300 dark:text-text-foreground-secondary dark:hover:text-text-foreground-secondary dark:active:text-text-foreground dark:focus:ring-gray-800;
+  }
+
+  &.btn-disabled {
+    @apply cursor-not-allowed bg-gray-100 text-text-foreground-disabled;
+  }
+
+  &.btn-status-danger:not(.btn-disabled) {
+    @apply bg-red-100 hover:bg-red-100/90 active:bg-red-200 text-red-600 hover:text-red-500 active:text-red-700 focus:ring-red-700;
+  }
+
+  &.btn-status-danger.btn-disabled {
+    @apply cursor-not-allowed bg-red-100 text-red-300;
+  }
+}
+
+@utility btn-tertiarytext {
+  &:not(.btn-disabled) {
+    @apply hover:bg-primary-100/90 active:bg-primary-200 text-primary-600 hover:text-primary-500 active:text-primary-700 focus:ring-primary-700;
+    @apply dark:hover:bg-gray-200/90 dark:active:bg-gray-300 dark:text-text-foreground-secondary dark:hover:text-text-foreground-secondary dark:active:text-text-foreground dark:focus:ring-gray-800;
+  }
+
+  &.btn-disabled {
+    @apply cursor-not-allowed text-text-foreground-disabled;
+  }
+
+  &.btn-status-danger:not(.btn-disabled) {
+    @apply text-red-600 hover:bg-red-100/90 active:bg-red-200;
+  }
+
+  &.btn-status-danger.btn-disabled {
+    @apply cursor-not-allowed text-red-300;
+  }
+}

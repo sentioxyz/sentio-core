@@ -13,8 +13,8 @@ const VersionStateColors: { [key: string]: string } = {
   [StatusRole.Success]: 'bg-cyan-600/10 text-cyan-600',
   [StatusRole.Warning]: 'bg-orange-600/10 text-orange-600',
   [StatusRole.Error]: 'bg-red-600/10 text-red-600',
-  [StatusRole.Disabled]: 'bg-gray-600/10 text-gray-600',
-  [StatusRole.Info]: 'bg-gray-300/10 text-gray-300'
+  [StatusRole.Disabled]: 'bg-gray-600/10 text-text-foreground-secondary',
+  [StatusRole.Info]: 'bg-gray-300/10 text-text-foreground-disabled'
 }
 
 interface Props {

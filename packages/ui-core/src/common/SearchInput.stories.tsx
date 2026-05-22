@@ -10,7 +10,7 @@ export const BasicSearchInput: Story = () => {
     <div className="max-w-md p-8">
       <h3 className="mb-4 text-lg font-semibold">Basic Search Input</h3>
       <SearchInput value={value} onChange={setValue} />
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-text-foreground-secondary">
         Current value: {value || '(empty)'}
       </p>
     </div>
@@ -32,7 +32,7 @@ export const WithCustomPlaceholder: Story = () => {
         onChange={setValue}
         placeholder="Search users..."
       />
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-text-foreground-secondary">
         Searching for: {value || '(empty)'}
       </p>
     </div>
@@ -86,10 +86,10 @@ export const WithBlurHandler: Story = () => {
         onBlur={() => setLastBlurValue(value)}
         placeholder="Type and click outside"
       />
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-text-foreground-secondary">
         Current: {value || '(empty)'}
       </p>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-text-foreground-secondary">
         Last blur: {lastBlurValue || '(empty)'}
       </p>
     </div>
@@ -123,7 +123,7 @@ export const WithKeyboardHandler: Story = () => {
       {searches.length > 0 && (
         <div className="mt-4">
           <h4 className="mb-2 text-sm font-semibold">Search History:</h4>
-          <ul className="list-inside list-disc text-sm text-gray-600">
+          <ul className="list-inside list-disc text-sm text-text-foreground-secondary">
             {searches.map((search, idx) => (
               <li key={idx}>{search}</li>
             ))}

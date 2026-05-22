@@ -200,8 +200,18 @@ module.exports = {
         'navbar-hover-background': 'rgba(var(--navbar-hover-background))',
         'navbar-selected-background': 'rgba(var(--navbar-selected-background))'
       },
+      backgroundColor: {
+        canvas: 'rgba(var(--bg-canvas))',
+        surface: 'rgba(var(--bg-surface))',
+        elevated: 'rgba(var(--bg-elevated))',
+        hover: 'rgba(var(--bg-hover))',
+        active: 'rgba(var(--bg-active))'
+      },
       borderColor: {
-        DEFAULT: 'rgba(var(--border-color))'
+        DEFAULT: 'rgba(var(--border-color))',
+        main: 'rgba(var(--border-main))',
+        light: 'rgba(var(--border-light))',
+        dark: 'rgba(var(--border-dark))'
       },
       divideColor: {
         DEFAULT: 'rgba(var(--border-color))'

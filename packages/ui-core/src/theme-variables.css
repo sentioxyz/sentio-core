@@ -160,6 +160,18 @@
 
   /* sidebar */
   --sidebar-background: 37, 37, 37;
+
+  /* border tokens — dark mode */
+  --border-main: var(--gray-500);
+  --border-light: var(--gray-600);
+  --border-dark: var(--gray-700);
+
+  /* background surface tokens — dark mode */
+  --bg-canvas: var(--gray-50);
+  --bg-surface: var(--gray-100);
+  --bg-elevated: var(--gray-200);
+  --bg-hover: var(--gray-300);
+  --bg-active: var(--gray-400);
 }
 
 body.dark {
@@ -349,6 +361,18 @@ body {
 
   /* sidebar */
   --sidebar-background: 234, 241, 251;
+
+  /* border tokens — light mode */
+  --border-main: var(--gray-200);
+  --border-light: var(--gray-100);
+  --border-dark: var(--gray-300);
+
+  /* background surface tokens — light mode */
+  --bg-canvas: var(--white);
+  --bg-surface: var(--gray-50);
+  --bg-elevated: var(--gray-100);
+  --bg-hover: var(--gray-200);
+  --bg-active: var(--gray-300);
 }
 
 /* New theme overrides */

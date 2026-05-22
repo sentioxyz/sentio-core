@@ -28,10 +28,10 @@ export const SearchInput = forwardRef<HTMLInputElement, Props>((props, ref) => {
       <label htmlFor="search" className="sr-only">
         Search
       </label>
-      <div className="focus-within:ring-primary-500 focus-within:border-primary-500 relative flex  rounded-md  border border-gray-300">
+      <div className="focus-within:ring-primary-500 focus-within:border-primary-500 relative flex  rounded-md  border border-main">
         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-1 sm:pl-3">
           <SearchIcon
-            className="sm:h-4.5 sm:w-4.5 h-4 w-4 text-gray-400"
+            className="sm:h-4.5 sm:w-4.5 h-4 w-4 text-text-foreground-disabled"
             aria-hidden="true"
           />
         </div>

@@ -29,7 +29,7 @@ function _BarLoading({
         {logo}
 
         {hint && (
-          <div className="loading-text text-icontent text-gray my-2 text-center font-medium">
+          <div className="loading-text text-icontent text-text-foreground-secondary my-2 text-center font-medium">
             {hint}
           </div>
         )}

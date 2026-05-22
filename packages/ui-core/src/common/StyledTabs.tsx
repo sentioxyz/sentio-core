@@ -7,7 +7,7 @@ export const getTabClassName = ({ selected }: { selected: boolean }) =>
     'font-ilabel py-1 text-sm leading-5 border-b-2 outline-0',
     selected
       ? 'text-primary border-primary-500'
-      : 'text-gray hover:text-primary border-transparent hover:border-primary-500'
+      : 'text-text-foreground-secondary hover:text-primary border-transparent hover:border-primary-500'
   )
 
 export const Group = ({
@@ -62,7 +62,7 @@ export const List = ({
               'font-ilabel outline-primary/50 whitespace-nowrap border-b-2 py-1 text-sm leading-5 outline-offset-2',
               selected
                 ? 'border-primary text-primary'
-                : 'text-gray hover:text-primary border-transparent',
+                : 'text-text-foreground-secondary hover:text-primary border-transparent',
               className
             )
           }

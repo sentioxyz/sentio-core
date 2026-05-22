@@ -61,7 +61,7 @@ export const Descriptions = (props: Props) => {
             <tr key={item.key ?? index} className={trClassName}>
               <td
                 className={classNames(
-                  'text-gray text-ilabel font-ilabel w-px whitespace-nowrap pr-8 align-text-bottom',
+                  'text-text-foreground-secondary text-ilabel font-ilabel w-px whitespace-nowrap pr-8 align-text-bottom',
                   labelClassName
                 )}
                 style={labelStyle}
@@ -80,10 +80,10 @@ export const Descriptions = (props: Props) => {
                   item.value
                 ) : isObjectLike(item.value) ? (
                   isEmpty(item.value) ? (
-                    <div className="text-gray-400">{'{ }'}</div>
+                    <div className="text-text-foreground-disabled">{'{ }'}</div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="text-gray-400">{'{'}</div>
+                      <div className="text-text-foreground-disabled">{'{'}</div>
                       <Descriptions
                         {...props}
                         data={map(item.value, (value, label) => ({
@@ -92,7 +92,7 @@ export const Descriptions = (props: Props) => {
                           value
                         }))}
                       />
-                      <div className="text-gray-400">{'}'}</div>
+                      <div className="text-text-foreground-disabled">{'}'}</div>
                     </div>
                   )
                 ) : isFunction(renderValue) ? (

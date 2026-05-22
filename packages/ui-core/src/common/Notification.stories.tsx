@@ -137,7 +137,7 @@ export const WithButtons: Story = () => {
             </button>
             <button
               onClick={() => setShow(false)}
-              className="rounded-sm bg-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-400"
+              className="rounded-sm bg-gray-300 px-3 py-1 text-sm text-text-foreground-secondary hover:bg-gray-400"
             >
               Dismiss
             </button>
@@ -170,7 +170,7 @@ export const AutoDismiss: Story = () => {
       >
         Show Auto-Dismiss Notification (3s)
       </button>
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-text-foreground-secondary">
         This notification will automatically dismiss after 3 seconds
       </p>
       <Notification
@@ -208,7 +208,7 @@ export const MultipleNotifications: Story = () => {
           Error
         </button>
       </div>
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-text-foreground-secondary">
         Note: Multiple notifications will stack on top of each other
       </p>
       <Notification

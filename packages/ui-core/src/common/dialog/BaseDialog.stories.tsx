@@ -25,7 +25,7 @@ export const Default = () => {
         }}
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             This is a default dialog with title, content, and action buttons.
           </p>
         </div>
@@ -49,7 +49,7 @@ export const WithoutTitle = () => {
         onOk={() => setOpen(false)}
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             Dialog without title
           </p>
         </div>
@@ -76,7 +76,7 @@ export const WithoutBorders = () => {
         onOk={() => setOpen(false)}
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             Dialog without title and footer borders
           </p>
         </div>
@@ -103,7 +103,7 @@ export const CustomButtonText = () => {
         okText="Yes"
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             Are you sure you want to proceed?
           </p>
         </div>
@@ -129,7 +129,7 @@ export const WithErrorMessage = () => {
         errorMessages="This is an error message"
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             Dialog with error message displayed in the footer
           </p>
         </div>
@@ -162,7 +162,7 @@ export const WithExtraButtons = () => {
         }
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             Dialog with additional action buttons
           </p>
         </div>
@@ -187,7 +187,7 @@ export const OnlyOkButton = () => {
         okText="Got it"
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             This is an information dialog with only an OK button
           </p>
         </div>
@@ -215,7 +215,7 @@ export const CustomButtonProps = () => {
         okText="Processing..."
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             Dialog with custom button properties (processing state)
           </p>
         </div>
@@ -245,7 +245,7 @@ export const CustomFooter = () => {
         }
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             Dialog with completely custom footer
           </p>
         </div>
@@ -271,7 +271,7 @@ export const LightMask = () => {
         mask="light"
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             Dialog with lighter background mask
           </p>
         </div>
@@ -297,7 +297,7 @@ export const CustomPanelStyle = () => {
         panelClassName="sm:max-w-lg"
       >
         <div className="px-4 py-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             Dialog with custom panel size (smaller max width)
           </p>
         </div>
@@ -322,14 +322,14 @@ export const LargeContent = () => {
         onOk={() => setOpen(false)}
       >
         <div className="max-h-96 overflow-y-auto px-4 py-4">
-          <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mb-4 text-sm text-text-foreground-secondary dark:text-text-foreground-disabled">
             This dialog contains a lot of content to demonstrate scrolling
             behavior.
           </p>
           {Array.from({ length: 20 }).map((_, i) => (
             <p
               key={i}
-              className="mb-2 text-sm text-gray-600 dark:text-gray-400"
+              className="mb-2 text-sm text-text-foreground-secondary dark:text-text-foreground-disabled"
             >
               Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
               eiusmod tempor incididunt ut labore et dolore magna aliqua.

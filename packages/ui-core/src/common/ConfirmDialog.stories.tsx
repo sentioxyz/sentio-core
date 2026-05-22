@@ -91,15 +91,15 @@ export const WithChildren: Story = () => {
         buttonLabel="Remove"
       >
         <div className="mt-2">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-text-foreground-secondary">
             This will remove{' '}
             <strong className="font-semibold">john@example.com</strong> from the
             project.
           </p>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-text-foreground-secondary">
             They will lose access to:
           </p>
-          <ul className="ml-2 mt-1 list-inside list-disc text-sm text-gray-500">
+          <ul className="ml-2 mt-1 list-inside list-disc text-sm text-text-foreground-secondary">
             <li>Project dashboard</li>
             <li>Analytics data</li>
             <li>Team collaboration</li>
@@ -143,7 +143,7 @@ export const DisabledConfirm: Story = () => {
         disabled={!agreed}
       >
         <div className="mt-2">
-          <p className="mb-3 text-sm text-gray-500">
+          <p className="mb-3 text-sm text-text-foreground-secondary">
             Please read and accept the terms and conditions to proceed.
           </p>
           <label className="flex items-center gap-2">
@@ -153,7 +153,7 @@ export const DisabledConfirm: Story = () => {
               onChange={(e) => setAgreed(e.target.checked)}
               className="rounded-sm"
             />
-            <span className="text-sm text-gray-700">
+            <span className="text-sm text-text-foreground-secondary">
               I have read and agree to the terms
             </span>
           </label>
@@ -209,7 +209,7 @@ export const CustomButtons: Story = () => {
             </button>
             <button
               onClick={() => setOpen(false)}
-              className="flex-1 rounded-sm bg-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-400"
+              className="flex-1 rounded-sm bg-gray-300 px-4 py-2 text-text-foreground-secondary hover:bg-gray-400"
             >
               Cancel
             </button>

@@ -15,10 +15,10 @@ const inputContainerStyles = cva(
       error: {
         true: 'border-red-300 text-red-900 placeholder:text-red-300 focus-within:ring-red-500',
         false:
-          'border-gray-300  focus-within:ring-primary-500 focus-within:border-primary-500'
+          'border-main  focus-within:ring-primary-500 focus-within:border-primary-500'
       },
       readOnly: {
-        true: 'bg-gray-50 text-gray-400',
+        true: 'bg-gray-50 text-text-foreground-disabled',
         false: 'text-text-foreground'
       }
     },
@@ -48,7 +48,7 @@ const inputStyles = cva(
       },
       error: {
         true: 'border-red-300',
-        false: 'border-gray-300 '
+        false: 'border-main '
       }
     },
     defaultVariants: {

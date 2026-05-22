@@ -20,7 +20,7 @@ export const BasicProgressBar: Story = () => {
           onChange={(e) => setProgress(parseFloat(e.target.value))}
           className="w-full"
         />
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-text-foreground-secondary">
           Progress: {(progress * 100).toFixed(0)}%
         </p>
       </div>
@@ -61,7 +61,7 @@ export const WithUpperTicks: Story = () => {
           onChange={(e) => setProgress(parseFloat(e.target.value))}
           className="w-full"
         />
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-text-foreground-secondary">
           Progress: {(progress * 100).toFixed(0)}%
         </p>
       </div>
@@ -100,7 +100,7 @@ export const WithLowerTicks: Story = () => {
           onChange={(e) => setProgress(parseFloat(e.target.value))}
           className="w-full"
         />
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-text-foreground-secondary">
           Progress: {(progress * 100).toFixed(0)}%
         </p>
       </div>
@@ -146,7 +146,7 @@ export const WithBothTicks: Story = () => {
           onChange={(e) => setProgress(parseFloat(e.target.value))}
           className="w-full"
         />
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-text-foreground-secondary">
           Progress: {(progress * 100).toFixed(0)}%
         </p>
       </div>
@@ -189,7 +189,7 @@ export const CustomSegments: Story = () => {
           onChange={(e) => setProgress(parseFloat(e.target.value))}
           className="w-full"
         />
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-text-foreground-secondary">
           Progress: {(progress * 100).toFixed(0)}%
         </p>
       </div>
@@ -262,7 +262,7 @@ export const AnimatedProgress: Story = () => {
     <div className="p-8">
       <h3 className="mb-4 text-lg font-semibold">Animated Progress Bar</h3>
       <ProgressBar progress={progress} gradient />
-      <p className="mt-4 text-sm text-gray-600">
+      <p className="mt-4 text-sm text-text-foreground-secondary">
         Progress: {(progress * 100).toFixed(0)}%
       </p>
     </div>

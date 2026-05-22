@@ -18,6 +18,10 @@ type Probe interface {
 	PreCreateTable(ctx context.Context, tv chx.TableOrView) error
 }
 
+type emptyProbe struct{}
+
+func (p emptyProbe) PreCreateTable(_ context.Context, _ chx.TableOrView) error { return nil }
+
 type Store struct {
 	ctrl   chx.Controller
 	option Option
@@ -44,6 +48,9 @@ var (
 func NewStore(ctrl chx.Controller, option Option, probe Probe) *Store {
 	if option.BatchInsertSizeLimit == 0 {
 		option.BatchInsertSizeLimit = int(defaultBatchInsertSizeLimit)
+	}
+	if probe == nil {
+		probe = emptyProbe{}
 	}
 	return &Store{
 		ctrl:                      ctrl,

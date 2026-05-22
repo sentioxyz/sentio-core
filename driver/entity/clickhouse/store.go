@@ -104,6 +104,10 @@ type Probe interface {
 	PreCreateTable(ctx context.Context, tv chx.TableOrView) error
 }
 
+type emptyProbe struct{}
+
+func (e emptyProbe) PreCreateTable(_ context.Context, _ chx.TableOrView) error { return nil }
+
 type Store struct {
 	ctrl     chx.Controller
 	feaOpt   Features
@@ -150,6 +154,9 @@ func NewStore(
 		h.Write([]byte(fmt.Sprintf("%s=%s#", k, tableOpt.TableSettings[k])))
 	}
 	h.Write([]byte(sch.SchemaString))
+	if probe == nil {
+		probe = emptyProbe{}
+	}
 	return &Store{
 		ctrl:     ctrl,
 		feaOpt:   feaOpt,

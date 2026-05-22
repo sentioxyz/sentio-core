@@ -104,7 +104,7 @@ export function ConfirmDialog({
                       </Dialog.Title>
                       <div className="mt-2">
                         {message && (
-                          <p className="text-sm text-gray-500">{message}</p>
+                          <p className="text-sm text-text-foreground-secondary">{message}</p>
                         )}
                         {children}
                       </div>

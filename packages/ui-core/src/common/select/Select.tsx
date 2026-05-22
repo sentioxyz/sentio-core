@@ -62,7 +62,7 @@ const buttonClass = cva(
 const optionClass = cva(['relative cursor-default select-none'], {
   variants: {
     disabled: {
-      true: 'cursor-not-allowed text-gray-400',
+      true: 'cursor-not-allowed text-text-foreground-disabled',
       false: 'text-text-foreground'
     },
     size: {
@@ -240,7 +240,7 @@ export function Select<T>({
           className={optionClass({ disabled: true, size })}
         >
           {noOptionsMessage ?? (
-            <span className="text-gray-400">No options</span>
+            <span className="text-text-foreground-disabled">No options</span>
           )}
         </Listbox.Option>
       ) : null}
@@ -251,7 +251,7 @@ export function Select<T>({
             }
             return (
               <div key={label}>
-                <div className="text-gray px-3.5 py-1 text-xs font-medium">
+                <div className="text-text-foreground-secondary px-3.5 py-1 text-xs font-medium">
                   {label}
                 </div>
                 <div>
@@ -366,7 +366,7 @@ export function Select<T>({
         >
           <div className="flex w-full items-center justify-center gap-2">
             <ClipLoader size={16} color="#A6C2F0" />
-            <span className="text-gray/50 text-xs">Loading more...</span>
+            <span className="text-text-foreground-secondary/50 text-xs">Loading more...</span>
           </div>
         </Listbox.Option>
       )}
@@ -403,7 +403,7 @@ export function Select<T>({
                   <span
                     className={classNames(
                       'font-normal',
-                      error ? 'text-red-400' : 'text-gray-400'
+                      error ? 'text-red-400' : 'text-text-foreground-disabled'
                     )}
                   >
                     {placeholder}

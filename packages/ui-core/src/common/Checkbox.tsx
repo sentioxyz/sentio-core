@@ -38,7 +38,7 @@ export const Checkbox = ({
         id={id}
         name={name}
         type="checkbox"
-        className="text-primary-600 focus:ring-primary-500 h-4 w-4 rounded-sm border-gray-300 "
+        className="text-primary-600 focus:ring-primary-500 h-4 w-4 rounded-sm border-main "
         disabled={disabled}
         checked={checked}
         readOnly
@@ -47,7 +47,7 @@ export const Checkbox = ({
       {label && (
         <span
           className={classNames(
-            'text-ilabel text-gray font-medium',
+            'text-ilabel text-text-foreground-secondary font-medium',
             labelClassName
           )}
         >

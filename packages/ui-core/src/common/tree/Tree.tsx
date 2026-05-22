@@ -25,7 +25,7 @@ interface TreeProps {
 
 const Line = () => {
   return (
-    <div className="-my-1.5 mr-4.75 h-full min-h-6 w-[px] translate-x-2 border-l border-dashed border-gray-400/80"></div>
+    <div className="-my-1.5 mr-4.75 h-full min-h-6 w-[px] translate-x-2 border-l border-dashed border-dark/80"></div>
   )
 }
 
@@ -95,7 +95,7 @@ export default forwardRef<HTMLDivElement, TreeProps>(function Tree(
         <div className="inline-flex shrink-0 items-center">
           {children || showToggle ? (
             <button
-              className="text-gray hover:text-primary-500 dark:hover:text-primary-700 mr-1.5 cursor-pointer"
+              className="text-text-foreground-secondary hover:text-primary-500 dark:hover:text-primary-700 mr-1.5 cursor-pointer"
               onClick={toggle}
             >
               {open ? collapseIcon : expandIcon}

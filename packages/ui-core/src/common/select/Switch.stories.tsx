@@ -15,7 +15,7 @@ export const BasicSwitch: Story = () => {
         label="Enable notifications"
         srText="Enable notifications"
       />
-      <p className="mt-4 text-sm text-gray-600">
+      <p className="mt-4 text-sm text-text-foreground-secondary">
         Enabled: {checked ? 'Yes' : 'No'}
       </p>
     </div>
@@ -37,7 +37,7 @@ export const WithoutLabel: Story = () => {
         onChange={setChecked}
         srText="Toggle feature"
       />
-      <p className="mt-4 text-sm text-gray-600">
+      <p className="mt-4 text-sm text-text-foreground-secondary">
         Enabled: {checked ? 'Yes' : 'No'}
       </p>
     </div>

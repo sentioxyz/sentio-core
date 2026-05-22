@@ -12,7 +12,7 @@ export const BasicTabs: Story = () => {
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Panel 1 Content</h3>
-              <p className="text-gray-600">
+              <p className="text-text-foreground-secondary">
                 This is the content for the first tab.
               </p>
             </div>
@@ -20,7 +20,7 @@ export const BasicTabs: Story = () => {
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Panel 2 Content</h3>
-              <p className="text-gray-600">
+              <p className="text-text-foreground-secondary">
                 This is the content for the second tab.
               </p>
             </div>
@@ -28,7 +28,7 @@ export const BasicTabs: Story = () => {
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Panel 3 Content</h3>
-              <p className="text-gray-600">
+              <p className="text-text-foreground-secondary">
                 This is the content for the third tab.
               </p>
             </div>
@@ -109,13 +109,13 @@ export const TabsWithIcons: Story = () => {
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Home</h3>
-              <p className="text-gray-600">Welcome to the home page.</p>
+              <p className="text-text-foreground-secondary">Welcome to the home page.</p>
             </div>
           </Panel>
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Profile</h3>
-              <p className="text-gray-600">
+              <p className="text-text-foreground-secondary">
                 Manage your profile settings here.
               </p>
             </div>
@@ -123,7 +123,7 @@ export const TabsWithIcons: Story = () => {
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Settings</h3>
-              <p className="text-gray-600">
+              <p className="text-text-foreground-secondary">
                 Configure your application settings.
               </p>
             </div>
@@ -150,23 +150,23 @@ export const DisabledTabs: Story = () => {
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Tab 1</h3>
-              <p className="text-gray-600">This tab is available.</p>
+              <p className="text-text-foreground-secondary">This tab is available.</p>
             </div>
           </Panel>
           <Panel>
             <div className="p-4">
-              <p className="text-gray-600">This tab is disabled.</p>
+              <p className="text-text-foreground-secondary">This tab is disabled.</p>
             </div>
           </Panel>
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Tab 3</h3>
-              <p className="text-gray-600">This tab is available.</p>
+              <p className="text-text-foreground-secondary">This tab is available.</p>
             </div>
           </Panel>
           <Panel>
             <div className="p-4">
-              <p className="text-gray-600">This tab is disabled.</p>
+              <p className="text-text-foreground-secondary">This tab is disabled.</p>
             </div>
           </Panel>
         </Panels>
@@ -188,19 +188,19 @@ export const NoBorderTabs: Story = () => {
           <Panel>
             <div className="rounded-sm bg-white p-4 shadow-sm">
               <h3 className="mb-2 text-lg font-semibold">First Panel</h3>
-              <p className="text-gray-600">No border on the tab list.</p>
+              <p className="text-text-foreground-secondary">No border on the tab list.</p>
             </div>
           </Panel>
           <Panel>
             <div className="rounded-sm bg-white p-4 shadow-sm">
               <h3 className="mb-2 text-lg font-semibold">Second Panel</h3>
-              <p className="text-gray-600">Content for second panel.</p>
+              <p className="text-text-foreground-secondary">Content for second panel.</p>
             </div>
           </Panel>
           <Panel>
             <div className="rounded-sm bg-white p-4 shadow-sm">
               <h3 className="mb-2 text-lg font-semibold">Third Panel</h3>
-              <p className="text-gray-600">Content for third panel.</p>
+              <p className="text-text-foreground-secondary">Content for third panel.</p>
             </div>
           </Panel>
         </Panels>
@@ -245,7 +245,7 @@ export const ControlledTabs: Story = () => {
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Panel 1</h3>
-              <p className="text-gray-600">
+              <p className="text-text-foreground-secondary">
                 Controlled tab - Current index: {selectedIndex}
               </p>
             </div>
@@ -253,7 +253,7 @@ export const ControlledTabs: Story = () => {
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Panel 2</h3>
-              <p className="text-gray-600">
+              <p className="text-text-foreground-secondary">
                 Controlled tab - Current index: {selectedIndex}
               </p>
             </div>
@@ -261,7 +261,7 @@ export const ControlledTabs: Story = () => {
           <Panel>
             <div className="p-4">
               <h3 className="mb-2 text-lg font-semibold">Panel 3</h3>
-              <p className="text-gray-600">
+              <p className="text-text-foreground-secondary">
                 Controlled tab - Current index: {selectedIndex}
               </p>
             </div>

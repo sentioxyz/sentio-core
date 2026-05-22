@@ -111,7 +111,7 @@ export function PopupMenuButton({
                 {items.map((items, i) => (
                   <div key={i} className="py-1">
                     {groupLabels?.[i] ? (
-                      <div className="px-4 py-0.5 text-[10px] font-medium leading-3 text-gray-500">
+                      <div className="px-4 py-0.5 text-[10px] font-medium leading-3 text-text-foreground-secondary">
                         {groupLabels[i]}
                       </div>
                     ) : null}
@@ -147,7 +147,7 @@ export function PopupMenuButton({
           <>
             <Menu.Button
               className={classNames(
-                'text-gray w-fit px-1 hover:text-gray-500 active:text-gray-700',
+                'text-text-foreground-secondary w-fit px-1 hover:text-text-foreground-secondary active:text-text-foreground-secondary',
                 buttonClassName
               )}
               aria-label={ariaLabel}

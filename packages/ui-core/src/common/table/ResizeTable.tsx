@@ -266,7 +266,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                           header.column.getIsSorted()
                             ? 'hover:text-text-foreground visible hover:bg-gray-200'
                             : 'invisible',
-                          'ml-2 flex-none rounded-sm px-1 py-0.5 text-gray-600 group-hover:visible group-focus:visible',
+                          'ml-2 flex-none rounded-sm px-1 py-0.5 text-text-foreground-secondary group-hover:visible group-focus:visible',
                           'inline-block cursor-pointer',
                           'shrink-0'
                         )}
@@ -361,7 +361,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                       onTouchStart={header.getResizeHandler()}
                       className={classNames(
                         `text-md hover:bg-primary-200/50 absolute right-0 top-0 flex
-                          h-full w-2 cursor-col-resize touch-none select-none items-center text-gray-400`
+                          h-full w-2 cursor-col-resize touch-none select-none items-center text-text-foreground-disabled`
                       )}
                       style={{
                         transform:
@@ -409,7 +409,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                           }
                         }}
                         onClick={() => onClick && onClick(row, cell)}
-                        className="text-ilabel dark:text-text-foreground-secondary truncate whitespace-nowrap py-2 pl-2 text-gray-600"
+                        className="text-ilabel dark:text-text-foreground-secondary truncate whitespace-nowrap py-2 pl-2 text-text-foreground-secondary"
                       >
                         {flexRender(
                           cell.column.columnDef.cell,
@@ -438,7 +438,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
                         }
                       }}
                       onClick={() => onClick && onClick(row, cell)}
-                      className="text-ilabel dark:text-text-foreground-secondary truncate whitespace-nowrap py-2 pl-2 text-gray-600"
+                      className="text-ilabel dark:text-text-foreground-secondary truncate whitespace-nowrap py-2 pl-2 text-text-foreground-secondary"
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
@@ -459,7 +459,7 @@ const _ResizeTable = forwardRef<HTMLDivElement, Props>(function _ResizeTable(
             <tr>
               <td
                 colSpan={table.getHeaderGroups()[0].headers.length}
-                className="text-ilabel hover:bg-primary-50 cursor-pointer py-2 text-center text-gray-600"
+                className="text-ilabel hover:bg-primary-50 cursor-pointer py-2 text-center text-text-foreground-secondary"
                 onClick={() => {
                   if (isFetching) return
                   onFetchMore?.()

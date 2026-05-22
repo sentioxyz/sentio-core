@@ -72,7 +72,7 @@ export default function SlideOver({
                 {headAddon}
                 <button
                   type="button"
-                  className="hover:text-text-foreground ml-2 text-gray-800 dark:text-gray-500"
+                  className="hover:text-text-foreground ml-2 text-text-foreground dark:text-text-foreground-secondary"
                   onClick={() => onClose()}
                 >
                   <span className="sr-only">Close panel</span>

@@ -34,7 +34,7 @@ export const Collapse: FC<CollapseProps> = ({
     <div className={classNames('space-y-2', className)}>
       <span
         className={classNames(
-          'text-gray hover:text-primary active:text-primary-700 inline-flex cursor-pointer items-center gap-2',
+          'text-text-foreground-secondary hover:text-primary active:text-primary-700 inline-flex cursor-pointer items-center gap-2',
           titleClassName
         )}
         onClick={toggle}

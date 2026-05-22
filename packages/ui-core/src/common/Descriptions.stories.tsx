@@ -172,9 +172,9 @@ export const CustomStyling: Story = () => {
           }
         ]}
         labelClassName="text-blue-700 font-bold"
-        valueClassName="text-gray-900"
-        trClassName="border-b border-gray-200 last:border-0"
-        className="rounded-sm border border-gray-300 p-4"
+        valueClassName="text-text-foreground"
+        trClassName="border-b border-light last:border-0"
+        className="rounded-sm border border-main p-4"
       />
     </div>
   )
@@ -206,7 +206,7 @@ export const WithColon: Story = () => {
             value: 'HTTPS'
           }
         ]}
-        colon={<td className="pr-2 text-gray-400">:</td>}
+        colon={<td className="pr-2 text-text-foreground-disabled">:</td>}
       />
     </div>
   )
@@ -267,8 +267,8 @@ export const TransactionData: Story = () => {
     <div className="p-8">
       <h3 className="mb-4 text-lg font-semibold">Complex Transaction Data</h3>
       <Descriptions
-        labelClassName="text-gray-600"
-        valueClassName="text-gray-800 font-mono text-sm"
+        labelClassName="text-text-foreground-secondary"
+        valueClassName="text-text-foreground font-mono text-sm"
         data={[
           {
             key: 'hash',

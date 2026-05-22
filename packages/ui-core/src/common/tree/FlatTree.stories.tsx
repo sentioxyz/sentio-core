@@ -113,7 +113,7 @@ const createFileSystemData = (): DataNode[] => [
             key: 'helpers.ts',
             title: (
               <div className="flex items-center gap-2">
-                <LuFile className="text-gray-500" />
+                <LuFile className="text-text-foreground-secondary" />
                 <span>helpers.ts</span>
               </div>
             )
@@ -124,7 +124,7 @@ const createFileSystemData = (): DataNode[] => [
         key: 'index.ts',
         title: (
           <div className="flex items-center gap-2">
-            <LuFile className="text-gray-500" />
+            <LuFile className="text-text-foreground-secondary" />
             <span>index.ts</span>
           </div>
         )
@@ -183,7 +183,7 @@ export const WithClickHandler = () => {
   return (
     <div style={{ padding: 16 }}>
       <div className="mb-4">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-text-foreground-secondary">
           Selected Node: <strong>{selectedNode?.key || 'None'}</strong>
         </p>
       </div>
@@ -202,7 +202,7 @@ export const WithClickHandler = () => {
 export const VirtualizedTree = () => {
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Virtualized tree with 100 parent nodes (300+ total nodes)
       </p>
       <FlatTree
@@ -270,7 +270,7 @@ export const WithExpandDepth = () => {
   return (
     <div style={{ padding: 16 }}>
       <div className="mb-4 flex items-center gap-4">
-        <label className="text-sm text-gray-600">Expand Depth:</label>
+        <label className="text-sm text-text-foreground-secondary">Expand Depth:</label>
         <select
           value={expandDepth}
           onChange={(e) => setExpandDepth(Number(e.target.value))}
@@ -307,7 +307,7 @@ export const ScrollToKey = () => {
   return (
     <div style={{ padding: 16 }}>
       <div className="mb-4 flex items-center gap-4">
-        <label className="text-sm text-gray-600">Scroll to key:</label>
+        <label className="text-sm text-text-foreground-secondary">Scroll to key:</label>
         <input
           type="text"
           value={scrollToKey}
@@ -359,7 +359,7 @@ export const DynamicTitleRendering = () => {
             title: (data) => (
               <div className="flex w-full items-center justify-between">
                 <span>{data.key}</span>
-                <span className="ml-4 text-xs text-gray-500">
+                <span className="ml-4 text-xs text-text-foreground-secondary">
                   Depth: {data.depth}
                 </span>
               </div>
@@ -370,7 +370,7 @@ export const DynamicTitleRendering = () => {
                 title: (data) => (
                   <div className="flex w-full items-center justify-between">
                     <span>{data.key}</span>
-                    <span className="ml-4 text-xs text-gray-500">
+                    <span className="ml-4 text-xs text-text-foreground-secondary">
                       Depth: {data.depth}
                     </span>
                   </div>

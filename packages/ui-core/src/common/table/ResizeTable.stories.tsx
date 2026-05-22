@@ -126,7 +126,7 @@ const peopleColumns: ColumnDef<Person>[] = [
       const status = getValue() as Person['status']
       const colors = {
         active: 'bg-green-100 text-green-800',
-        inactive: 'bg-gray-100 text-gray-800',
+        inactive: 'bg-gray-100 text-text-foreground',
         pending: 'bg-yellow-100 text-yellow-800'
       }
       return (
@@ -198,7 +198,7 @@ export const Default = () => {
 export const WithSorting = () => {
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">Click column headers to sort</p>
+      <p className="mb-4 text-sm text-text-foreground-secondary">Click column headers to sort</p>
       <ResizeTable
         data={createPeopleData(20)}
         columns={peopleColumns}
@@ -213,7 +213,7 @@ export const WithSorting = () => {
 export const WithColumnResize = () => {
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Drag column dividers to resize
       </p>
       <ResizeTable
@@ -232,7 +232,7 @@ export const WithColumnEditing = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Click the dropdown icon in column headers to reorder or remove columns
       </p>
       <ResizeTable
@@ -252,7 +252,7 @@ export const WithColumnEditing = () => {
 export const FixedHeight = () => {
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Table with fixed height (400px)
       </p>
       <ResizeTable
@@ -295,7 +295,7 @@ export const WithRowClick = () => {
 export const VirtualizedTable = () => {
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Virtualized table with 1000 rows for optimal performance
       </p>
       <ResizeTable
@@ -340,7 +340,7 @@ export const InfiniteScroll = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Scroll to bottom to load more items. Currently loaded: {data.length}
       </p>
       <ResizeTable
@@ -360,7 +360,7 @@ export const InfiniteScroll = () => {
 export const CustomRowStyling = () => {
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Rows with 'active' status have green background
       </p>
       <ResizeTable
@@ -395,7 +395,7 @@ export const AllFeatures = () => {
             : 'Click a row to select'}
         </p>
       </div>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Full featured table: sorting, resizing, column editing, row selection,
         virtualization
       </p>
@@ -427,7 +427,7 @@ export const AllFeatures = () => {
 export const ResizeOnEnd = () => {
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Column resize applies when mouse is released (onEnd mode)
       </p>
       <ResizeTable
@@ -444,7 +444,7 @@ export const ResizeOnEnd = () => {
 export const WithMinWidth = () => {
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Table with minimum width of 1200px (columns are scaled to fit)
       </p>
       <ResizeTable
@@ -488,7 +488,7 @@ export const CompactTable = () => {
 
   return (
     <div style={{ padding: 16 }}>
-      <p className="mb-4 text-sm text-gray-600">
+      <p className="mb-4 text-sm text-text-foreground-secondary">
         Compact table with fewer columns
       </p>
       <ResizeTable

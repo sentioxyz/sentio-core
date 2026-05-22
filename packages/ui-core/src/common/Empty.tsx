@@ -17,7 +17,7 @@ export const Empty: React.FC<EmptyProps> = (props) => {
         alt="empty icon"
         className="mx-auto"
       />
-      <span className="text-ilabel text-gray">
+      <span className="text-ilabel text-text-foreground-secondary">
         {props.title || 'No results found'}
       </span>
     </div>

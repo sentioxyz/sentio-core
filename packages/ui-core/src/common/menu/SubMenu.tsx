@@ -24,7 +24,7 @@ export const COLOR_MAP: Record<
     active:
       'bg-gray-100 text-text-foreground dark:bg-primary-600 dark:text-white',
     default: 'text-text-foreground',
-    disabled: 'text-gray-400 cursor-not-allowed'
+    disabled: 'text-text-foreground-disabled cursor-not-allowed'
   },
   danger: {
     active: 'bg-red-100 text-red-600 dark:bg-red-600 dark:text-white',
@@ -99,7 +99,7 @@ export const MenuItem = ({ item, onSelect, labelClassName }: ItemProps) => {
           return (
             <PopoverTooltip
               text={
-                <span className="text-icontent font-icontent text-gray cursor-auto">
+                <span className="text-icontent font-icontent text-text-foreground-secondary cursor-auto">
                   {item.disabledHint}
                 </span>
               }
@@ -147,7 +147,7 @@ export const SubMenuButton = (props: Props) => {
         'group flex items-center',
         'text-ilabel rounded-md',
         disabled
-          ? 'pointer-events-none cursor-not-allowed text-gray-400'
+          ? 'pointer-events-none cursor-not-allowed text-text-foreground-disabled'
           : 'cursor-pointer'
       )}
     >
@@ -170,8 +170,8 @@ export const SubMenuButton = (props: Props) => {
         <span className="shrink grow text-left">{label}</span>
         <ChevronRightIcon
           className={classNames(
-            open ? 'text-gray-500' : 'text-gray-400',
-            'h-4.5 w-4.5 shrink-0  group-hover:text-gray-500',
+            open ? 'text-text-foreground-secondary' : 'text-text-foreground-disabled',
+            'h-4.5 w-4.5 shrink-0  group-hover:text-text-foreground-secondary',
             placement?.startsWith('bottom') ? 'rotate-90' : ''
           )}
           aria-label="expand items"

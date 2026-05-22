@@ -14,7 +14,7 @@ export const BasicCheckbox: Story = () => {
         onChange={setChecked}
         label="Accept terms and conditions"
       />
-      <p className="mt-4 text-sm text-gray-600">
+      <p className="mt-4 text-sm text-text-foreground-secondary">
         Checked: {checked ? 'Yes' : 'No'}
       </p>
     </div>
@@ -32,7 +32,7 @@ export const WithoutLabel: Story = () => {
     <div className="p-8">
       <h3 className="mb-4 text-lg font-semibold">Checkbox Without Label</h3>
       <Checkbox checked={checked} onChange={setChecked} />
-      <p className="mt-4 text-sm text-gray-600">
+      <p className="mt-4 text-sm text-text-foreground-secondary">
         Checked: {checked ? 'Yes' : 'No'}
       </p>
     </div>
@@ -132,7 +132,7 @@ export const MultipleCheckboxes: Story = () => {
       </div>
       <div className="mt-4 rounded-sm bg-gray-100 p-3">
         <p className="text-sm font-medium">Selected:</p>
-        <ul className="list-inside list-disc text-sm text-gray-600">
+        <ul className="list-inside list-disc text-sm text-text-foreground-secondary">
           {options.email && <li>Email</li>}
           {options.sms && <li>SMS</li>}
           {options.push && <li>Push</li>}
@@ -156,7 +156,7 @@ export const WithCustomStyling: Story = () => {
         checked={checked}
         onChange={setChecked}
         label="Premium feature"
-        className="rounded-sm border border-gray-300 p-3 hover:bg-gray-50"
+        className="rounded-sm border border-main p-3 hover:bg-gray-50"
         labelClassName="text-lg font-bold text-purple-600"
       />
     </div>
@@ -180,7 +180,7 @@ export const WithIdAndName: Story = () => {
         id="newsletter-checkbox"
         name="newsletter"
       />
-      <p className="mt-2 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-text-foreground-secondary">
         Inspect the checkbox element to see id="newsletter-checkbox" and
         name="newsletter"
       </p>

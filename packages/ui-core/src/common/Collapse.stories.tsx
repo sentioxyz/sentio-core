@@ -182,11 +182,11 @@ export const DarkMode = () => {
   return (
     <div className="bg-sentio-gray-50 dark min-h-screen p-4">
       <Collapse title="Dark Mode Panel" defaultOpen={true}>
-        <div className="rounded-md border border-gray-700 bg-gray-800 p-4">
-          <p className="text-sm text-gray-300">
+        <div className="rounded-md border border-dark bg-gray-800 p-4">
+          <p className="text-sm text-text-foreground-disabled">
             This panel looks good in dark mode.
           </p>
-          <p className="mt-2 text-sm text-gray-300">
+          <p className="mt-2 text-sm text-text-foreground-disabled">
             The collapse component adapts to dark mode styling.
           </p>
         </div>

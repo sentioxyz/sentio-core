@@ -45,7 +45,7 @@ export const CustomizeLabel: Story = () => {
                   <span
                     className={cx(
                       'text-xs',
-                      active ? 'text-white' : 'text-gray-600'
+                      active ? 'text-white' : 'text-text-foreground-secondary'
                     )}
                   >
                     raw format
@@ -94,7 +94,7 @@ export const CustomizeRender: Story = () => {
             <span
               className={cx(
                 'text-xs',
-                state.active ? 'text-white' : 'text-gray-600'
+                state.active ? 'text-white' : 'text-text-foreground-secondary'
               )}
             >
               raw format

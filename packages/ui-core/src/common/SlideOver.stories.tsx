@@ -22,18 +22,18 @@ export const BasicSlideOver: Story = () => {
       >
         <div className="p-6">
           <h2 className="mb-4 text-lg font-semibold">Content Area</h2>
-          <p className="mb-4 text-gray-600">
+          <p className="mb-4 text-text-foreground-secondary">
             This is a slide-over panel that appears from the right side of the
             screen.
           </p>
-          <p className="mb-4 text-gray-600">
+          <p className="mb-4 text-text-foreground-secondary">
             You can close it by clicking the X button, clicking outside (if
             triggerClose is 'all'), or pressing the Escape key.
           </p>
           <div className="space-y-2">
-            <div className="rounded-sm border border-gray-200 p-3">Item 1</div>
-            <div className="rounded-sm border border-gray-200 p-3">Item 2</div>
-            <div className="rounded-sm border border-gray-200 p-3">Item 3</div>
+            <div className="rounded-sm border border-light p-3">Item 1</div>
+            <div className="rounded-sm border border-light p-3">Item 2</div>
+            <div className="rounded-sm border border-light p-3">Item 3</div>
           </div>
         </div>
       </SlideOver>
@@ -78,7 +78,7 @@ export const DifferentSizes: Story = () => {
       >
         <div className="p-6">
           <h2 className="mb-4 text-lg font-semibold">Size: {size}</h2>
-          <p className="text-gray-600">
+          <p className="text-text-foreground-secondary">
             This slide-over has a max-width of {size}. Try different sizes to
             see the difference.
           </p>
@@ -124,7 +124,7 @@ export const WithHeaderAddon: Story = () => {
               <label className="mb-1 block text-sm font-medium">Name</label>
               <input
                 type="text"
-                className="w-full rounded-sm border border-gray-300 px-3 py-2"
+                className="w-full rounded-sm border border-main px-3 py-2"
                 placeholder="Enter name"
               />
             </div>
@@ -132,7 +132,7 @@ export const WithHeaderAddon: Story = () => {
               <label className="mb-1 block text-sm font-medium">Email</label>
               <input
                 type="email"
-                className="w-full rounded-sm border border-gray-300 px-3 py-2"
+                className="w-full rounded-sm border border-main px-3 py-2"
                 placeholder="Enter email"
               />
             </div>
@@ -159,7 +159,7 @@ export const ButtonCloseOnly: Story = () => {
         Open (Button Close Only)
       </button>
 
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-text-foreground-secondary">
         This SlideOver only closes via the X button or Escape key. Clicking
         outside won't close it.
       </p>
@@ -172,7 +172,7 @@ export const ButtonCloseOnly: Story = () => {
       >
         <div className="p-6">
           <h2 className="mb-4 text-lg font-semibold">Modal-like Behavior</h2>
-          <p className="text-gray-600">
+          <p className="text-text-foreground-secondary">
             This slide-over won't close when you click outside of it. You must
             use the X button or press Escape.
           </p>
@@ -206,7 +206,7 @@ export const NoAnimation: Story = () => {
       >
         <div className="p-6">
           <h2 className="mb-4 text-lg font-semibold">Instant Display</h2>
-          <p className="text-gray-600">
+          <p className="text-text-foreground-secondary">
             This slide-over appears instantly without any animation transition.
           </p>
         </div>

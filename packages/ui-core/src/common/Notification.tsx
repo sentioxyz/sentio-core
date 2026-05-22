@@ -89,13 +89,13 @@ export function Notification({
                     <p className="text-text-foreground text-sm font-medium">
                       {title}
                     </p>
-                    <p className="mt-1 text-sm text-gray-500">{message}</p>
+                    <p className="mt-1 text-sm text-text-foreground-secondary">{message}</p>
                     {buttons && <div className="mt-4 flex">{buttons()}</div>}
                   </div>
                   <div className="ml-4 flex shrink-0">
                     <button
                       type="button"
-                      className="focus:ring-primary-500 dark:bg-sentio-gray-100 inline-flex rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-hidden focus:ring-2 focus:ring-offset-2"
+                      className="focus:ring-primary-500 dark:bg-sentio-gray-100 inline-flex rounded-md bg-white text-text-foreground-disabled hover:text-text-foreground-secondary focus:outline-hidden focus:ring-2 focus:ring-offset-2"
                       onClick={() => {
                         setShow(false)
                       }}

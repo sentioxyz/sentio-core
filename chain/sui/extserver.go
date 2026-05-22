@@ -3,18 +3,18 @@ package sui
 import (
 	"context"
 	"fmt"
-	"github.com/pkg/errors"
-	"sentioxyz/sentio-core/chain/clientpool"
-	rg "sentioxyz/sentio-core/common/range"
 	"strconv"
 	"time"
 
+	"github.com/goccy/go-json"
+	"github.com/pkg/errors"
+
 	"sentioxyz/sentio-core/chain/chain"
+	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/concurrency"
 	"sentioxyz/sentio-core/common/log"
-
-	"github.com/goccy/go-json"
+	rg "sentioxyz/sentio-core/common/range"
 )
 
 type ExtServerDimension struct {
@@ -208,4 +208,11 @@ func (d *ExtServerDimension) GetSlots(ctx context.Context, sr rg.Range) ([]*Slot
 
 func (d *ExtServerDimension) GetSlotHeader(ctx context.Context, sn uint64) (chain.Slot, error) {
 	return &Slot{SlotCheckpointInfo: SlotCheckpointInfo{SequenceNumber: sn}}, nil
+}
+
+func (d *ExtServerDimension) Snapshot() any {
+	sn := d.ExtServerDimension.Snapshot()
+	sn["kind"] = "jsonrpc"
+	sn["skipValidate"] = d.skipValidate
+	return sn
 }

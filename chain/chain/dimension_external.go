@@ -163,3 +163,13 @@ func (d *ExtServerDimension[SLOT]) Save(ctx context.Context, interval rg.Range, 
 func (d *ExtServerDimension[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
 	panic("impossible")
 }
+
+func (d *ExtServerDimension[SLOT]) Snapshot() map[string]any {
+	return map[string]any{
+		"loadConcurrency": d.loadConcurrency,
+		"loadBatchSize":   d.loadBatchSize,
+		"loadRetry":       d.loadRetry,
+		"validRange":      d.validRange.String(),
+		"fallBehind":      d.fallBehind.String(),
+	}
+}

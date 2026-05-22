@@ -173,3 +173,12 @@ func (d *ExtServerGrpcDimension) GetSlots(ctx context.Context, sr rg.Range) ([]*
 func (d *ExtServerGrpcDimension) GetSlotHeader(ctx context.Context, sn uint64) (chain.Slot, error) {
 	return &Slot{SlotCheckpointInfo: SlotCheckpointInfo{SequenceNumber: sn}}, nil
 }
+
+func (d *ExtServerGrpcDimension) Snapshot() any {
+	sn := d.ExtServerDimension.Snapshot()
+	sn["kind"] = "grpc"
+	sn["asSyncerSource"] = d.asSyncerSource
+	sn["loadObjectsBatchSize"] = d.loadObjectsBatchSize
+	sn["loadObjectsConcurrency"] = d.loadObjectsConcurrency
+	return sn
+}

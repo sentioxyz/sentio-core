@@ -466,3 +466,12 @@ func (d *ExtServerDimension) GetSlots(ctx context.Context, sr rg.Range) ([]*Slot
 	}
 	return slots, nil
 }
+
+func (d *ExtServerDimension) Snapshot() any {
+	sn := d.ExtServerDimension.Snapshot()
+	sn["chainID"] = d.chainID
+	sn["opts"] = d.opts
+	sn["missTraceDowngrade"] = d.missTraceDowngrade.String()
+	sn["disableTraceUntil"] = time.Unix(0, d.disableTraceUntil.Load()).String()
+	return sn
+}

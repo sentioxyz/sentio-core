@@ -55,6 +55,7 @@ var typeMapping = map[protos.TimeseriesResult_TimeseriesType]MetaType{
 
 const (
 	SystemFieldPrefix          = "meta."
+	ReservedFieldEscapePrefix  = "u."
 	MetricValueFieldName       = "value"
 	MetricAggIntervalFieldName = SystemFieldPrefix + "aggregation_interval"
 	SystemUserID               = "distinctId"
@@ -114,7 +115,7 @@ func UpdateEvents(data *commonProtos.RichStruct, row *Row, meta *Meta, blockTime
 		}
 		_, allowOverwrite = eventAllowOverwriteField[fn]
 		if _, has := (*row)[fn]; has && !allowOverwrite {
-			return errors.Wrapf(ErrInvalidMeta, "field %s.%s is reserved", meta.GetFullName(), fn)
+			fn = ReservedFieldEscapePrefix + fn
 		}
 		var (
 			fieldType          FieldType
@@ -288,7 +289,7 @@ func Convert(
 					continue
 				}
 				if _, has = row[fn]; has {
-					return nil, errors.Wrapf(ErrInvalidMeta, "field %s.%s is reserved", metaFullName, fn)
+					fn = ReservedFieldEscapePrefix + fn
 				}
 				if _, is := val.GetValue().(*commonProtos.RichValue_NullValue_); !is {
 					row[fn], _ = rsh.GetString(val)

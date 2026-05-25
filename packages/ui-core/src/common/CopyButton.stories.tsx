@@ -16,3 +16,18 @@ export const WithCustomChildren = () => (
     </CopyButton>
   </div>
 )
+
+export const WithAsyncText = () => (
+  <div className="p-4 space-y-4">
+    <p className="text-sm text-gray-500">
+      Async Text Example
+    </p>
+    <CopyButton
+      text={async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        return `Async content fetched at ${new Date().toISOString()}`
+      }}
+      size={16}
+    />
+  </div>
+)

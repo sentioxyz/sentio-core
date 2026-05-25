@@ -110,16 +110,16 @@ export const CopyButton: FC<Props> = ({
       if (copied) return
       if (typeof text === 'function') {
         const val = text() as string | Promise<string>
-        if (val instanceof Promise) {
-          val
+        if (val != null && typeof (val as Promise<string>).then === 'function') {
+          ;(val as Promise<string>)
             .then((res: string) => {
               copyToClipboard(res)
             })
-            .catch((error) => {
+            .catch((error: unknown) => {
               console.error(error)
             })
         } else {
-          copyToClipboard(val)
+          copyToClipboard(val as string)
         }
       } else {
         copyToClipboard(text)

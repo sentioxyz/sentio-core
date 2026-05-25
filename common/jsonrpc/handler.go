@@ -221,11 +221,22 @@ func (s *Handler) callMethod(ctx context.Context, ctxData *CtxData, encoder Enco
 
 const HTTPRequestMethod = "methodHTTP"
 
+// RequestSourceHeader is set by upstream proxies to identify the request source.
+// Its value is a JSON-encoded RequestSource (Name + Labels fields only).
+const RequestSourceHeader = "X-Sentio-Source"
+
 func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	remoteHost, _, _ := strings.Cut(r.RemoteAddr, ":")
 	src := RequestSource{RemoteHost: remoteHost}
 	if s.sourceGetter != nil {
 		src.Name, src.Labels = s.sourceGetter.GetByIP(remoteHost)
+	}
+	if src.Name == "" {
+		if raw := r.Header.Get(RequestSourceHeader); raw != "" {
+			if err := json.Unmarshal([]byte(raw), &src); err == nil {
+				src.RemoteHost = remoteHost
+			}
+		}
 	}
 	rid := s.requestCounter.Add(1)
 	ctx, logger := log.FromContextWithTrace(r.Context(), "svr", s.name, "rid", rid, "src", src)

@@ -729,7 +729,7 @@ func TestUpdateEvents_DistinctEntityId_NullSkipped(t *testing.T) {
 	assert.NotContains(t, meta.Fields, "distinctId")
 }
 
-func TestUpdateEvents_ReservedFieldError(t *testing.T) {
+func TestUpdateEvents_ReservedFieldRenamed(t *testing.T) {
 	row := make(Row)
 	row["testField"] = "existing value" // Pre-populate row with reserved field
 	meta := &Meta{
@@ -749,8 +749,12 @@ func TestUpdateEvents_ReservedFieldError(t *testing.T) {
 
 	err := UpdateEvents(data, &row, meta, blockTime)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "testField is reserved")
+	require.NoError(t, err)
+	// Original reserved value is preserved
+	assert.Equal(t, "existing value", row["testField"])
+	// User value is stored under escaped field name
+	assert.Equal(t, "new value", row[ReservedFieldEscapePrefix+"testField"])
+	assert.Contains(t, meta.Fields, ReservedFieldEscapePrefix+"testField")
 }
 
 func TestUpdateEvents_CompatibleFieldTypes(t *testing.T) {

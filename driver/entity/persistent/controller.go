@@ -327,8 +327,8 @@ func (w *timeStatWindow) Snapshot(endAt time.Time) any {
 type Controller struct {
 	mu sync.Mutex
 
-	store     *CachedStore // persistent data
-	changes   changeSet    // uncommited data
+	store     Store     // persistent data (chain-bound)
+	changes   changeSet // uncommited data
 	committed *uint64
 
 	timeStat *timewin.TimeWindowsManager[*timeStatWindow]
@@ -336,7 +336,7 @@ type Controller struct {
 	noticeCtl NoticeController
 }
 
-func NewController(store *CachedStore, noticeCtl NoticeController) *Controller {
+func NewController(store Store, noticeCtl NoticeController) *Controller {
 	return &Controller{
 		store:     store,
 		changes:   make(changeSet),
@@ -668,7 +668,7 @@ func (t *Controller) listEntity(
 				return
 			}
 		}
-		if pass, cke := checkFilters(filters, *box); cke != nil {
+		if pass, cke := CheckFilters(filters, *box); cke != nil {
 			logger.With("used", time.Since(start).String()).Errore(err, "check filters failed")
 			return nil, nil, cke
 		} else if !pass {
@@ -826,7 +826,7 @@ func (t *Controller) Commit(
 		if entityType.IsTimeSeries() {
 			// set timestamp and reset id for all boxes
 			var maxID int64
-			maxID, err = t.store.GetTimeSeriesMaxID(ctx, entityType)
+			maxID, err = t.store.GetMaxID(ctx, entityType)
 			if err != nil {
 				entityLogger.Errorfe(err, "commit changes of entity failed: get count of time series entity %q failed", entity)
 				return

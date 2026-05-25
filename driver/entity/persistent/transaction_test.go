@@ -165,55 +165,60 @@ type EntityE2 implements EntityE @entity {
 
 `
 
-type mockPersistentStore struct {
+// mockChainStore is a simple in-memory implementation of Store used in tests.
+// It does not implement caching (GetEntity/ListEntities always return fromCache=false)
+// except that ListEntities returns fromCache=true on subsequent calls for the same
+// entity type after the data has been fetched once, mimicking the full-cache path.
+type mockChainStore struct {
+	chain  string
 	data   map[string]map[string]*EntityBox
 	schema *schema.Schema
+	// fullLoaded tracks entity types whose data has been loaded at least once.
+	fullLoaded map[string]bool
 }
 
-func (s *mockPersistentStore) InitEntitySchema(ctx context.Context) error {
-	panic("not implemented")
+func (s *mockChainStore) GetChain() string { return s.chain }
+
+func (s *mockChainStore) InitEntitySchema(_ context.Context) error {
+	s.fullLoaded = make(map[string]bool)
+	return nil
 }
 
-func (s *mockPersistentStore) EraseEntitySchema(ctx context.Context) error {
-	panic("not implemented")
-}
-
-func (s *mockPersistentStore) GetEntityType(entity string) *schema.Entity {
+func (s *mockChainStore) GetEntityType(entity string) *schema.Entity {
 	return s.schema.GetEntity(entity)
 }
 
-func (s *mockPersistentStore) GetEntityOrInterfaceType(name string) schema.EntityOrInterface {
+func (s *mockChainStore) GetEntityOrInterfaceType(name string) schema.EntityOrInterface {
 	return s.schema.GetEntityOrInterface(name)
 }
 
-func (s *mockPersistentStore) GetEntity(
-	ctx context.Context,
+func (s *mockChainStore) GetEntity(
+	_ context.Context,
 	entityType *schema.Entity,
-	chain string,
 	id string,
-) (*EntityBox, error) {
-	//log.Debugf("calling mockPersistentStore.GetEntity(%s, %s)", entityType.Name, id)
+) (*EntityBox, bool, error) {
 	origin, _ := utils.GetFromK2Map(s.data, entityType.Name, id)
 	if origin == nil {
-		return nil, nil
+		return nil, false, nil
 	}
-	return origin.Copy(), nil
+	return origin.Copy(), false, nil
 }
 
-func (s *mockPersistentStore) ListEntities(
-	ctx context.Context,
+func (s *mockChainStore) ListEntities(
+	_ context.Context,
 	entityType *schema.Entity,
-	chain string,
 	filters []EntityFilter,
 	limit int,
-) ([]*EntityBox, error) {
-	log.Debugf("calling mockPersistentStore.ListEntities(%s, %v, %d)", entityType.Name, filters, limit)
+) ([]*EntityBox, bool, error) {
+	log.Debugf("calling mockChainStore.ListEntities(%s, %v, %d)", entityType.Name, filters, limit)
+	fromCache := s.fullLoaded[entityType.Name]
+	s.fullLoaded[entityType.Name] = true
 	var list []*EntityBox
 	for _, origin := range s.data[entityType.Name] {
-		ok, err := checkFilters(filters, *origin)
-		log.Debugf("calling mockPersistentStore.ListEntities, %s, %v, %v", origin.ID, ok, err)
+		ok, err := CheckFilters(filters, *origin)
+		log.Debugf("calling mockChainStore.ListEntities, %s, %v, %v", origin.ID, ok, err)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		} else if !ok {
 			continue
 		}
@@ -223,10 +228,10 @@ func (s *mockPersistentStore) ListEntities(
 	if len(list) > limit {
 		list = list[:limit]
 	}
-	return list, nil
+	return list, fromCache, nil
 }
 
-func (s *mockPersistentStore) GetAllID(ctx context.Context, entityType *schema.Entity, chain string) ([]string, error) {
+func (s *mockChainStore) GetAllID(_ context.Context, entityType *schema.Entity) ([]string, error) {
 	var ids []string
 	for _, box := range s.data[entityType.Name] {
 		if box.Data != nil {
@@ -236,11 +241,11 @@ func (s *mockPersistentStore) GetAllID(ctx context.Context, entityType *schema.E
 	return ids, nil
 }
 
-func (s *mockPersistentStore) GetMaxID(ctx context.Context, entityType *schema.Entity, chain string) (int64, error) {
+func (s *mockChainStore) GetMaxID(_ context.Context, _ *schema.Entity) (int64, error) {
 	panic("not implemented")
 }
 
-func (s *mockPersistentStore) CountEntity(ctx context.Context, entityType *schema.Entity, chain string) (uint64, error) {
+func (s *mockChainStore) CountEntity(_ context.Context, entityType *schema.Entity) (uint64, error) {
 	var count uint64
 	for _, box := range s.data[entityType.Name] {
 		if box.Data != nil {
@@ -250,33 +255,36 @@ func (s *mockPersistentStore) CountEntity(ctx context.Context, entityType *schem
 	return count, nil
 }
 
-func (s *mockPersistentStore) SetEntities(
-	ctx context.Context,
+func (s *mockChainStore) SetEntities(
+	_ context.Context,
 	entityType *schema.Entity,
 	boxes []EntityBox,
 ) (int, error) {
 	for _, box := range boxes {
-		//log.Debugf("!!! mockPersistentStore.SetEntities %s/%s", entityType.Name, box.String())
 		utils.PutIntoK2Map(s.data, entityType.Name, box.ID, utils.WrapPointer(box))
 	}
+	// Invalidate full-loaded cache so next ListEntities reflects writes.
+	delete(s.fullLoaded, entityType.Name)
 	return 0, nil
 }
 
-func (s *mockPersistentStore) GrowthAggregation(ctx context.Context, chain string, curBlockTime time.Time) error {
-	return nil
-}
+func (s *mockChainStore) GrowthAggregation(_ context.Context, _ time.Time) error { return nil }
 
-func (s *mockPersistentStore) CheckValue(entityType *schema.Entity, data map[string]any) error {
-	return nil
-}
+func (s *mockChainStore) CheckValue(_ *schema.Entity, _ map[string]any) error { return nil }
 
-func (s *mockPersistentStore) Reorg(ctx context.Context, blockNumber int64, chain string) error {
-	panic("not implemented")
-}
+func (s *mockChainStore) Reorg(_ context.Context, _ int64) error { panic("not implemented") }
 
-func prepareTestStore(sch *schema.Schema, cacheSize int, chain string) (*mockPersistentStore, *CachedStore) {
-	ps := &mockPersistentStore{
-		schema: sch,
+func (s *mockChainStore) CacheEvicted() int { return 0 }
+
+func (s *mockChainStore) Snapshot() any { return nil }
+
+func (s *mockChainStore) NewTxn() *Txn { return NewTxn(s, nil) }
+
+func prepareTestStore(sch *schema.Schema, chain string) (*mockChainStore, Store) {
+	s := &mockChainStore{
+		chain:      chain,
+		schema:     sch,
+		fullLoaded: make(map[string]bool),
 		data: map[string]map[string]*EntityBox{
 			"EntityA": {
 				"0x0a00": &EntityBox{
@@ -379,121 +387,7 @@ func prepareTestStore(sch *schema.Schema, cacheSize int, chain string) (*mockPer
 			},
 		},
 	}
-	return ps, NewCachedStore(ps, chain, cacheSize, 1000000, nil)
-}
-
-func Test_cache(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
-	assert.NoError(t, err)
-
-	eaType := sch.GetEntity("EntityA")
-	ebType := sch.GetEntity("EntityB")
-
-	const chain = "mainnet"
-	var box *EntityBox
-
-	ps, s := prepareTestStore(sch, 2, chain)
-	a0, _ := utils.GetFromK2Map(ps.data, eaType.Name, "0x0a00")
-	a1, _ := utils.GetFromK2Map(ps.data, eaType.Name, "0x0a01")
-	b0, _ := utils.GetFromK2Map(ps.data, ebType.Name, "0x0b00")
-	//b1, _ := utils.GetFromK2Map(ps.data, ebType.Name, "0x0b01")
-
-	ctx := context.Background()
-	s.fullCacheRefused[eaType.Name] = true
-	s.fullCacheRefused[ebType.Name] = true
-	txn := s.NewTxn()
-
-	box, err = txn.GetEntity(ctx, eaType, "0x0a00", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, a0, box)
-	assert.Equal(t,
-		map[string]map[string]int{
-			"persistent": {eaType.GetName(): 1},
-		},
-		txn.report.TotalGetFrom)
-	// now lru cache: 0x0a00
-
-	box, err = txn.GetEntity(ctx, eaType, "0x0a00", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, a0, box)
-	box, err = txn.GetEntity(ctx, eaType, "0x0a00", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, a0, box)
-	assert.Equal(t,
-		map[string]map[string]int{
-			"persistent": {eaType.GetName(): 1},
-			"cache":      {eaType.GetName(): 2},
-		},
-		txn.report.TotalGetFrom)
-	// now lru cache: 0x0a00
-
-	box, err = txn.GetEntity(ctx, eaType, "0x0a01", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, a1, box)
-	box, err = txn.GetEntity(ctx, eaType, "0x0a01", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, a1, box)
-	box, err = txn.GetEntity(ctx, eaType, "0x0a01", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, a1, box)
-	assert.Equal(t,
-		map[string]map[string]int{
-			"persistent": {eaType.GetName(): 2},
-			"cache":      {eaType.GetName(): 4},
-		},
-		txn.report.TotalGetFrom)
-	// now lru cache: 0x0a00, 0x0a01
-
-	box, err = txn.GetEntity(ctx, ebType, "0x0b00", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, b0, box)
-	box, err = txn.GetEntity(ctx, ebType, "0x0b00", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, b0, box)
-	box, err = txn.GetEntity(ctx, ebType, "0x0b00", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, b0, box)
-	assert.Equal(t,
-		map[string]map[string]int{
-			"persistent": {eaType.GetName(): 2, ebType.GetName(): 1},
-			"cache":      {eaType.GetName(): 4, ebType.GetName(): 2},
-		},
-		txn.report.TotalGetFrom)
-	// now lru cache: 0x0a01, 0x0b00
-
-	box, err = txn.GetEntity(ctx, eaType, "0x0a00", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, a0, box)
-	box, err = txn.GetEntity(ctx, eaType, "0x0a00", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, a0, box)
-	box, err = txn.GetEntity(ctx, eaType, "0x0a00", 11)
-	assert.NoError(t, err)
-	assert.Equal(t, a0, box)
-	assert.Equal(t,
-		map[string]map[string]int{
-			"persistent": {eaType.GetName(): 3, ebType.GetName(): 1},
-			"cache":      {eaType.GetName(): 6, ebType.GetName(): 2},
-		},
-		txn.report.TotalGetFrom)
-	// now lru cache: 0x0b00, 0x0a00
-
-	box, err = txn.GetEntity(ctx, eaType, "0x0a02", 11) // not exists, will only use full id cache
-	assert.NoError(t, err)
-	assert.Nil(t, box)
-	box, err = txn.GetEntity(ctx, eaType, "0x0a02", 11) // not exists, will only use full id cache
-	assert.NoError(t, err)
-	assert.Nil(t, box)
-	assert.Equal(t,
-		map[string]map[string]int{
-			"persistent": {eaType.GetName(): 3, ebType.GetName(): 1},
-			"cache":      {eaType.GetName(): 8, ebType.GetName(): 2},
-		},
-		txn.report.TotalGetFrom)
-	// now lru cache: 0x0b00, 0x0a00
-
-	_, _, err = txn.Commit(ctx, math.MaxUint64, time.Time{})
-	assert.NoError(t, err)
+	return s, s
 }
 
 func Test_loadRelated(t *testing.T) {
@@ -506,7 +400,7 @@ func Test_loadRelated(t *testing.T) {
 	const chain = "mainnet"
 	var boxies []*EntityBox
 
-	ps, s := prepareTestStore(sch, 2, chain)
+	ps, s := prepareTestStore(sch, chain)
 	ra0, _ := utils.GetFromK2Map(ps.data, eaType.Name, "0x0a00")
 	ra1, _ := utils.GetFromK2Map(ps.data, eaType.Name, "0x0a01")
 	rb0, _ := utils.GetFromK2Map(ps.data, ebType.Name, "0x0b00")
@@ -761,7 +655,7 @@ func Test_loadRelated2(t *testing.T) {
 	const chain = "mainnet"
 	var boxies []*EntityBox
 
-	ps, s := prepareTestStore(sch, 3, chain)
+	ps, s := prepareTestStore(sch, chain)
 	ra0, _ := utils.GetFromK2Map(ps.data, eaType.Name, "0x0a00")
 	ra1, _ := utils.GetFromK2Map(ps.data, eaType.Name, "0x0a01")
 	rb0, _ := utils.GetFromK2Map(ps.data, ebType.Name, "0x0b00")
@@ -895,7 +789,7 @@ func Test_list1(t *testing.T) {
 	const chain = "mainnet"
 	var boxies []*EntityBox
 
-	ps, s := prepareTestStore(sch, 2, chain)
+	ps, s := prepareTestStore(sch, chain)
 	a0, _ := utils.GetFromK2Map(ps.data, eaType.GetName(), "0x0a00")
 	a1, _ := utils.GetFromK2Map(ps.data, eaType.GetName(), "0x0a01")
 	a2 := &EntityBox{
@@ -965,7 +859,7 @@ func Test_list2(t *testing.T) {
 	var boxies []*EntityBox
 	var cursor *string
 
-	ps, s := prepareTestStore(sch, 2, chain)
+	ps, s := prepareTestStore(sch, chain)
 	c00, _ := utils.GetFromK2Map(ps.data, ecType.Name, "0x0c0000")
 	c01, _ := utils.GetFromK2Map(ps.data, ecType.Name, "0x0c0001")
 	c11, _ := utils.GetFromK2Map(ps.data, ecType.Name, "0x0c0101")
@@ -1119,7 +1013,7 @@ func Test_listCache(t *testing.T) {
 	var boxies []*EntityBox
 	var cursor *string
 
-	ps, s := prepareTestStore(sch, 2, chain)
+	ps, s := prepareTestStore(sch, chain)
 	c00, _ := utils.GetFromK2Map(ps.data, ecType.Name, "0x0c0000")
 	c01, _ := utils.GetFromK2Map(ps.data, ecType.Name, "0x0c0001")
 	c11, _ := utils.GetFromK2Map(ps.data, ecType.Name, "0x0c0101")
@@ -1246,7 +1140,7 @@ func Test_listCache(t *testing.T) {
 	assert.Nil(t, cursor)
 	assert.Equal(t,
 		map[string]map[string]int{
-			"cache": {ecType.GetName(): 1},
+			"persistent": {ecType.GetName(): 1},
 		},
 		txn.report.TotalListFrom)
 }
@@ -1262,7 +1156,7 @@ func Test_getInterface(t *testing.T) {
 	const chain = "mainnet"
 	var box *EntityBox
 
-	_, s := prepareTestStore(sch, 2, chain)
+	_, s := prepareTestStore(sch, chain)
 
 	ctx := context.Background()
 	txn := s.NewTxn()

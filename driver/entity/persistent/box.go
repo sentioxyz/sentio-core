@@ -39,7 +39,9 @@ func (e *EntityBox) Copy() *EntityBox {
 	box := *e
 	if e.Data != nil {
 		box.Data = utils.CopyMap(e.Data)
-		box.Operator = utils.CopyMap(e.Operator)
+		if e.Operator != nil {
+			box.Operator = utils.CopyMap(e.Operator)
+		}
 	}
 	return &box
 }

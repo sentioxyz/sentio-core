@@ -307,7 +307,8 @@ func checkFilter(filter EntityFilter, box EntityBox) (ok bool, err error) {
 	}
 }
 
-func checkFilters(filters []EntityFilter, box EntityBox) (bool, error) {
+// CheckFilters reports whether the box passes all given filters.
+func CheckFilters(filters []EntityFilter, box EntityBox) (bool, error) {
 	for _, filter := range filters {
 		if r, err := checkFilter(filter, box); err != nil {
 			return false, fmt.Errorf("check entity %s by filter %s failed: %w", box.String(), filter.String(), err)

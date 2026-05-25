@@ -47,7 +47,7 @@ export const Checkbox = ({
         type="checkbox"
         className={mergeClasses(
           'focus:ring-primary-500 h-3.5 w-3.5 shrink-0 rounded-[3px] border border-gray-800 align-middle',
-          disabled ? 'opacity-50' : 'hover:border-primary-600 cursor-pointer',
+          disabled ? 'opacity-50' : 'hover:border-primary-600 cursor-pointer checked:border-primary-600',
           inputClassName
         )}
         disabled={disabled}
@@ -60,7 +60,7 @@ export const Checkbox = ({
           htmlFor={inputId}
           className={classNames(
             'text-ilabel text-text-foreground-secondary select-none',
-            disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+            disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:text-primary-600',
             labelClassName
           )}
         >

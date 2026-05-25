@@ -250,7 +250,7 @@ export function Select<T>({
       }}
       unmount={unmountOptions}
       className={classNames(
-        'text-ilabel dark:bg-sentio-gray-100 scrollbar-thin max-h-60 w-full overflow-auto rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5 focus:outline-hidden dark:ring-gray-100/5 sm:text-sm',
+        'text-ilabel bg-default-bg scrollbar-thin max-h-60 w-full overflow-auto rounded-md py-1 shadow-xs sm:text-sm border border-main',
         asLayer ? '' : 'absolute z-10',
         optionsClassName
       )}

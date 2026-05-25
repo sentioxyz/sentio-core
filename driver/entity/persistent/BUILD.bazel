@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "box.go",
         "box_rich_struct.go",
-        "cache.go",
         "controller.go",
         "filter.go",
         "operator.go",
@@ -27,8 +26,6 @@ go_library(
         "@com_github_dmitriyvtitov_size//:size",
         "@com_github_ethereum_go_ethereum//common/hexutil",
         "@com_github_graph_gophers_graphql_go//types",
-        "@com_github_sentioxyz_golang_lru//:golang-lru",
-        "@com_github_sentioxyz_golang_lru//simplelru",
         "@com_github_shopspring_decimal//:decimal",
         "@io_opentelemetry_go_otel//attribute",
         "@io_opentelemetry_go_otel_metric//:metric",

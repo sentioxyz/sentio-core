@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type TxnReport struct {
@@ -120,7 +121,7 @@ func (t *Txn) NoticeCommit(
 	t.report.TotalCommit = utils.MergeMapSum(created, updated)
 	t.report.TotalCommitCreate = created
 	t.report.TotalCommitType = len(t.report.TotalCommit)
-	t.report.TotalCacheEvicted = t.store.cacheEvicted - t.storeCacheEvicted
+	t.report.TotalCacheEvicted = t.store.CacheEvicted() - t.storeCacheEvicted
 	t.report.TxnUsed = time.Since(t.start)
 	t.report.TxnCommitUsed = used
 	if utils.SumMap(t.report.TotalCommit) == 0 {
@@ -128,6 +129,26 @@ func (t *Txn) NoticeCommit(
 	} else {
 		logger.Infow("commit changes of all entities succeed", "report", t.report)
 	}
+}
+
+// NewTxn creates a new Txn backed by the given chain-bound Store.
+// usedMetric may be nil if latency recording is not required.
+func NewTxn(store Store, usedMetric metric.Float64Histogram) *Txn {
+	txn := &Txn{
+		start: time.Now(),
+		report: TxnReport{
+			TotalCommit:       make(map[string]int),
+			TotalCommitCreate: make(map[string]int),
+			TotalGetFrom:      make(map[string]map[string]int),
+			TotalGetFromUsed:  make(map[string]map[string]time.Duration),
+			TotalListFrom:     make(map[string]map[string]int),
+			TotalListFromUsed: make(map[string]map[string]time.Duration),
+		},
+		storeCacheEvicted: store.CacheEvicted(),
+		recordMetric:      SimpleNoticeController{UsedMetric: usedMetric},
+	}
+	txn.Controller = NewController(store, txn)
+	return txn
 }
 
 type keyMetricAttrs struct{}

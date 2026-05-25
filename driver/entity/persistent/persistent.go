@@ -9,29 +9,43 @@ import (
 	"time"
 )
 
+// Store is the chain-bound storage interface for entity data.
+// Each Store instance is bound to a single chain.
 type Store interface {
 	InitEntitySchema(ctx context.Context) error
-
+	GetChain() string
 	GetEntityType(entity string) *schema.Entity
 	GetEntityOrInterfaceType(name string) schema.EntityOrInterface
 
-	GetEntity(ctx context.Context, entityType *schema.Entity, chain string, id string) (*EntityBox, error)
+	// GetEntity returns the entity with the given id.
+	// fromCache is true when the result came entirely from in-memory cache.
+	GetEntity(ctx context.Context, entityType *schema.Entity, id string) (*EntityBox, bool, error)
+
+	// ListEntities returns entities matching the given filters.
+	// fromCache is true when the results came entirely from in-memory cache.
 	ListEntities(
 		ctx context.Context,
 		entityType *schema.Entity,
-		chain string,
 		filters []EntityFilter,
 		limit int,
-	) ([]*EntityBox, error)
-	GetAllID(ctx context.Context, entityType *schema.Entity, chain string) ([]string, error)
-	GetMaxID(ctx context.Context, entityType *schema.Entity, chain string) (int64, error)
-	CountEntity(ctx context.Context, entityType *schema.Entity, chain string) (uint64, error)
+	) ([]*EntityBox, bool, error)
+
+	GetAllID(ctx context.Context, entityType *schema.Entity) ([]string, error)
+	GetMaxID(ctx context.Context, entityType *schema.Entity) (int64, error)
+	CountEntity(ctx context.Context, entityType *schema.Entity) (uint64, error)
 	SetEntities(ctx context.Context, entityType *schema.Entity, boxes []EntityBox) (int, error)
-	GrowthAggregation(ctx context.Context, chain string, curBlockTime time.Time) error
-	Reorg(ctx context.Context, blockNumber int64, chain string) error
+	GrowthAggregation(ctx context.Context, curBlockTime time.Time) error
+	Reorg(ctx context.Context, blockNumber int64) error
 
 	// CheckValue checks whether values in data are valid for the storage backend.
 	CheckValue(entityType *schema.Entity, data map[string]any) error
+
+	// CacheEvicted returns the count of LRU cache evictions since creation.
+	CacheEvicted() int
+	// Snapshot returns a snapshot of cache and store state for debugging/monitoring.
+	Snapshot() any
+	// NewTxn creates and returns a new Txn backed by this store.
+	NewTxn() *Txn
 }
 
 type EntityFilterOp int

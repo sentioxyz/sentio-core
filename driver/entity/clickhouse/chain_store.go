@@ -1,0 +1,458 @@
+package clickhouse
+
+import (
+	"context"
+	"math"
+	"sort"
+	"time"
+
+	lru "github.com/sentioxyz/golang-lru"
+	"github.com/sentioxyz/golang-lru/simplelru"
+	"go.opentelemetry.io/otel/metric"
+	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/utils"
+	"sentioxyz/sentio-core/driver/entity/persistent"
+	"sentioxyz/sentio-core/driver/entity/schema"
+)
+
+// ChainStore wraps Store for a single chain, providing entity read/write caching.
+// It implements persistent.Store (chain-bound interface).
+//
+// ChainStore is NOT thread-safe by itself; callers (e.g. Controller.mu) are
+// expected to serialise access.
+type ChainStore struct {
+	store      *Store
+	chain      string
+	usedMetric metric.Float64Histogram
+
+	// lruCache caches individual entity lookups.  Key is "entityName/id".
+	lruCache   *simplelru.LRU[string, *persistent.EntityBox]
+	lruEvicted int
+
+	// fullIDCache holds the complete set of known IDs for entities that are
+	// too large to fully cache.  Key is entity name.
+	fullIDCache       map[string]map[string]bool
+	fullIDCacheLoaded map[string]bool
+
+	// fullCache holds all entity data for sparse (small) entities.
+	// Key is entity name.
+	fullCache        map[string]map[string]*persistent.EntityBox
+	fullCacheLoaded  map[string]bool
+	fullCacheRefused map[string]bool
+
+	// cacheEntity holds in-memory-only ("IsCache") entities.
+	// Key is entity name; value is a weight-limited LRU.
+	cacheEntity map[string]*lru.Cache[string, *persistent.EntityBox]
+
+	// fullCacheDataLimit is the maximum total data bytes that can be kept in
+	// fullCache before falling back to the LRU + fullIDCache path.
+	fullCacheDataLimit int
+}
+
+// NewChainStore creates a ChainStore bound to the given chain.
+//   - lruCapacity: number of entity entries in the LRU cache.
+//   - fullCacheDataSizeLimit: max total byte size of the full-data cache.
+//   - usedMetric: optional histogram for recording operation latency (may be nil).
+func NewChainStore(
+	store *Store,
+	chain string,
+	lruCapacity int,
+	fullCacheDataSizeLimit int,
+	usedMetric metric.Float64Histogram,
+) *ChainStore {
+	cs := &ChainStore{
+		store:              store,
+		chain:              chain,
+		usedMetric:         usedMetric,
+		fullCacheDataLimit: fullCacheDataSizeLimit,
+		fullIDCache:        make(map[string]map[string]bool),
+		fullIDCacheLoaded:  make(map[string]bool),
+		fullCache:          make(map[string]map[string]*persistent.EntityBox),
+		fullCacheLoaded:    make(map[string]bool),
+		fullCacheRefused:   make(map[string]bool),
+		cacheEntity:        make(map[string]*lru.Cache[string, *persistent.EntityBox]),
+	}
+	var err error
+	cs.lruCache, err = simplelru.NewLRU[string, *persistent.EntityBox](lruCapacity, func(_ string, _ *persistent.EntityBox) {
+		cs.lruEvicted++
+	})
+	if err != nil {
+		panic(err) // only if lruCapacity <= 0
+	}
+	return cs
+}
+
+// ─── persistent.Store implementation ────────────────────────────────────────
+
+// GetChain returns the chain this store is bound to.
+func (c *ChainStore) GetChain() string { return c.chain }
+
+// InitEntitySchema delegates to the underlying Store and purges the local cache.
+func (c *ChainStore) InitEntitySchema(ctx context.Context) error {
+	c.purgeCache()
+	return c.store.InitEntitySchema(ctx)
+}
+
+// GetEntityType returns the entity schema by name.
+func (c *ChainStore) GetEntityType(entity string) *schema.Entity {
+	return c.store.GetEntityType(entity)
+}
+
+// GetEntityOrInterfaceType returns the entity or interface schema by name.
+func (c *ChainStore) GetEntityOrInterfaceType(name string) schema.EntityOrInterface {
+	return c.store.GetEntityOrInterfaceType(name)
+}
+
+// GetEntity returns the entity with the given id, possibly from cache.
+// fromCache is true when the result was served entirely from in-memory cache.
+func (c *ChainStore) GetEntity(
+	ctx context.Context,
+	entityType *schema.Entity,
+	id string,
+) (box *persistent.EntityBox, fromCache bool, err error) {
+	if entityType.IsCache() {
+		cache, has := c.cacheEntity[entityType.GetName()]
+		if !has {
+			return nil, true, nil
+		}
+		box, has = cache.Get(id)
+		if !has {
+			return nil, true, nil
+		}
+		return box, true, nil
+	}
+
+	// Attempt to serve from the full-data cache.
+	var has bool
+	if has, fromCache, err = c.tryLoadFullCache(ctx, entityType); err != nil {
+		return
+	} else if has {
+		box = c.fullCache[entityType.Name][id].Copy()
+		return
+	}
+
+	// Full-data cache unavailable; use LRU + fullIDCache.
+	if fromCache, err = c.tryLoadFullIDCache(ctx, entityType); err != nil {
+		return
+	}
+	if !c.fullIDCache[entityType.Name][id] {
+		return // ID not in persistent storage
+	}
+	key := chainStoreCacheKey(entityType.Name, id)
+	if cached, ok := c.lruCache.Get(key); ok {
+		return cached.Copy(), fromCache, nil
+	}
+	// Not in LRU — fetch from DB.
+	box, err = c.store.GetEntity(ctx, entityType, c.chain, id)
+	if err == nil {
+		c.lruCache.Add(key, box)
+	}
+	return box, false, err
+}
+
+// ListEntities returns entities matching the filters, possibly from cache.
+// fromCache is true when all results came entirely from in-memory cache.
+func (c *ChainStore) ListEntities(
+	ctx context.Context,
+	entityType *schema.Entity,
+	filters []persistent.EntityFilter,
+	limit int,
+) (boxes []*persistent.EntityBox, fromCache bool, err error) {
+	if entityType.IsCache() {
+		cache, has := c.cacheEntity[entityType.GetName()]
+		if !has {
+			return nil, true, nil
+		}
+		keys := cache.Keys()
+		sort.Strings(keys)
+		for _, key := range keys {
+			box, _ := cache.Get(key)
+			var pass bool
+			if pass, err = persistent.CheckFilters(filters, *box); err != nil {
+				return nil, false, err
+			} else if pass {
+				boxes = append(boxes, box)
+			}
+			if len(boxes) >= limit {
+				break
+			}
+		}
+		return boxes, true, nil
+	}
+
+	// Attempt to serve from the full-data cache.
+	var has bool
+	if has, fromCache, err = c.tryLoadFullCache(ctx, entityType); err != nil {
+		return
+	} else if !has {
+		// No full cache — query the DB.
+		boxes, err = c.store.ListEntities(ctx, entityType, c.chain, filters, limit)
+		return
+	}
+	// Serve from full cache.
+	cacheSlice := make([]*persistent.EntityBox, 0, len(c.fullCache[entityType.Name]))
+	for _, box := range c.fullCache[entityType.Name] {
+		cacheSlice = append(cacheSlice, box)
+	}
+	sort.Slice(cacheSlice, func(i, j int) bool { return cacheSlice[i].ID < cacheSlice[j].ID })
+	for _, box := range cacheSlice {
+		if len(boxes) >= limit {
+			break
+		}
+		var pass bool
+		if pass, err = persistent.CheckFilters(filters, *box); err != nil {
+			return nil, false, err
+		} else if pass {
+			boxes = append(boxes, box)
+		}
+	}
+	return
+}
+
+// GetAllID returns all entity IDs from persistent storage.
+func (c *ChainStore) GetAllID(ctx context.Context, entityType *schema.Entity) ([]string, error) {
+	return c.store.GetAllID(ctx, entityType, c.chain)
+}
+
+// GetMaxID returns the maximum numeric ID for a time-series entity.
+func (c *ChainStore) GetMaxID(ctx context.Context, entityType *schema.Entity) (int64, error) {
+	return c.store.GetMaxID(ctx, entityType, c.chain)
+}
+
+// CountEntity returns the count of entities in persistent storage.
+func (c *ChainStore) CountEntity(ctx context.Context, entityType *schema.Entity) (uint64, error) {
+	return c.store.CountEntity(ctx, entityType, c.chain)
+}
+
+// SetEntities writes entities to persistent storage and updates the local cache.
+func (c *ChainStore) SetEntities(
+	ctx context.Context,
+	entityType *schema.Entity,
+	boxes []persistent.EntityBox,
+) (int, error) {
+	dataSize := entityType.DataSize()
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "dataSize", dataSize, "chainID", c.chain)
+	created, err := c.store.SetEntities(ctx, entityType, boxes)
+	if err != nil {
+		return created, err
+	}
+	if entityType.IsTimeSeries() {
+		return created, nil
+	}
+	// Build a map of the latest box per ID (later entries override earlier).
+	latest := make(map[string]*persistent.EntityBox)
+	for i := range boxes { // newer entries appear later
+		latest[boxes[i].ID] = &boxes[i]
+	}
+	if entityType.IsCache() {
+		cache, has := c.cacheEntity[entityType.GetName()]
+		if !has {
+			size := uint64(max(entityType.GetCacheSizeMB(), 10)) * 1024 * 1024
+			cache, _ = lru.NewWithWeightLimitAndEvict[string, *persistent.EntityBox](
+				int(size), size, (*persistent.EntityBox).MemSize, nil)
+			c.cacheEntity[entityType.GetName()] = cache
+		}
+		for id, box := range latest {
+			cache.Add(id, box)
+		}
+	} else if c.fullCacheRefused[entityType.Name] || !entityType.IsSparse() {
+		// LRU-cache + fullIDCache path.
+		if c.fullIDCacheLoaded[entityType.Name] {
+			for id, box := range latest {
+				c.lruCache.Add(chainStoreCacheKey(entityType.Name, id), box)
+				if box.Data == nil {
+					delete(c.fullIDCache[entityType.Name], id)
+				} else {
+					c.fullIDCache[entityType.Name][id] = true
+				}
+			}
+		}
+	} else if c.fullCacheLoaded[entityType.Name] {
+		// Full-data cache path.
+		for id, box := range latest {
+			if box.Data == nil {
+				delete(c.fullCache[entityType.Name], id)
+			} else {
+				c.fullCache[entityType.Name][id] = box
+			}
+		}
+		count := len(c.fullCache[entityType.Name])
+		logger = logger.With("count", count)
+		if count > c.fullCacheDataLimit/dataSize {
+			logger.Warn("too many entities in persistent, refuse to use full cache")
+			delete(c.fullCache, entityType.Name)
+			delete(c.fullCacheLoaded, entityType.Name)
+			c.fullCacheRefused[entityType.Name] = true
+		} else {
+			logger.Info("will keep to use full cache")
+		}
+	}
+	return created, nil
+}
+
+// GrowthAggregation runs growth aggregation for the chain.
+func (c *ChainStore) GrowthAggregation(ctx context.Context, curBlockTime time.Time) error {
+	return c.store.GrowthAggregation(ctx, c.chain, curBlockTime)
+}
+
+// Reorg purges caches and delegates to the underlying Store.
+func (c *ChainStore) Reorg(ctx context.Context, blockNumber int64) error {
+	c.purgeCache()
+	for _, cache := range c.cacheEntity {
+		for _, key := range cache.Keys() {
+			box, _ := cache.Peek(key)
+			if int64(box.GenBlockNumber) > blockNumber {
+				cache.Remove(key)
+			}
+		}
+	}
+	return c.store.Reorg(ctx, blockNumber, c.chain)
+}
+
+// CheckValue validates entity field values using the underlying store.
+func (c *ChainStore) CheckValue(entityType *schema.Entity, data map[string]any) error {
+	return c.store.CheckValue(entityType, data)
+}
+
+// CacheEvicted returns the number of LRU evictions since this ChainStore was created.
+func (c *ChainStore) CacheEvicted() int { return c.lruEvicted }
+
+// Snapshot returns a map describing the current cache state (for debugging/monitoring).
+func (c *ChainStore) Snapshot() any {
+	fullIDCache := make(map[string]int)
+	for entity, loaded := range c.fullIDCacheLoaded {
+		if loaded {
+			fullIDCache[entity] = len(c.fullIDCache[entity])
+		}
+	}
+	fullCache := make(map[string]map[string]any)
+	for entity, loaded := range c.fullCacheLoaded {
+		if loaded {
+			size := len(c.fullCache[entity])
+			dataSize := c.GetEntityType(entity).DataSize()
+			fullCache[entity] = map[string]any{
+				"loaded":            true,
+				"size":              size,
+				"dataSize":          dataSize,
+				"sizeOverLimitRate": float64(dataSize*size) / float64(c.fullCacheDataLimit),
+			}
+		}
+	}
+	for entity, refused := range c.fullCacheRefused {
+		if refused {
+			fullCache[entity] = map[string]any{"refused": true}
+		}
+	}
+	cacheEntity := make(map[string]map[string]any)
+	for entity, cache := range c.cacheEntity {
+		cacheEntity[entity] = map[string]any{
+			"total":     cache.Len(),
+			"totalSize": cache.WeightTotal(),
+		}
+	}
+	return map[string]any{
+		"config": map[string]any{
+			"fullCacheDataSizeLimit": c.fullCacheDataLimit,
+		},
+		"cacheEntity": cacheEntity,
+		"lruCache": map[string]any{
+			"evicted": c.lruEvicted,
+			"size":    c.lruCache.Len(),
+		},
+		"fullIDCache": fullIDCache,
+		"fullCache":   fullCache,
+	}
+}
+
+// NewTxn creates and returns a new Txn backed by this ChainStore.
+// This is a convenience method for callers that hold a *ChainStore directly.
+func (c *ChainStore) NewTxn() *persistent.Txn {
+	return persistent.NewTxn(c, c.usedMetric)
+}
+
+// ─── internal helpers ────────────────────────────────────────────────────────
+
+// purgeCache resets all cache state (except cacheEntity, which is trimmed by Reorg).
+func (c *ChainStore) purgeCache() {
+	c.lruCache.Purge()
+	c.fullIDCache = make(map[string]map[string]bool)
+	c.fullIDCacheLoaded = make(map[string]bool)
+	c.fullCache = make(map[string]map[string]*persistent.EntityBox)
+	c.fullCacheLoaded = make(map[string]bool)
+	c.fullCacheRefused = make(map[string]bool)
+}
+
+// chainStoreCacheKey builds an LRU key from the entity name and id.
+func chainStoreCacheKey(entityName, id string) string {
+	return entityName + "/" + id
+}
+
+// tryLoadFullCache attempts to load all entity data into the full-data cache.
+//   - has=true if the full cache is usable (either loaded now or was already loaded).
+//   - loaded=true when the data was already in cache (i.e. this was a cache hit).
+func (c *ChainStore) tryLoadFullCache(
+	ctx context.Context,
+	entityType *schema.Entity,
+) (has bool, loaded bool, err error) {
+	if c.fullCacheRefused[entityType.Name] || !entityType.IsSparse() {
+		return false, false, nil
+	}
+	if c.fullCacheLoaded[entityType.Name] {
+		return true, true, nil
+	}
+	start := time.Now()
+	dataSize := entityType.DataSize()
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "dataSize", dataSize, "chainID", c.chain)
+	logger.Debugf("will load all entities from persistent for full cache")
+	var count uint64
+	count, err = c.store.CountEntity(ctx, entityType, c.chain)
+	if err != nil {
+		logger.Errore(err, "load entities from persistent for full cache failed: count exists failed")
+		return
+	}
+	if count > uint64(c.fullCacheDataLimit/dataSize) {
+		logger.Warnw("too many entities in persistent, refuse to use full cache", "count", count)
+		c.fullCacheRefused[entityType.Name] = true
+		return false, false, nil
+	}
+	var data []*persistent.EntityBox
+	data, err = c.store.ListEntities(ctx, entityType, c.chain, nil, math.MaxInt)
+	logger = logger.With("used", time.Since(start).String())
+	if err != nil {
+		logger.Errore(err, "load entities from persistent for full cache failed")
+		return false, false, err
+	}
+	c.fullCache[entityType.Name] = make(map[string]*persistent.EntityBox)
+	for _, box := range data {
+		c.fullCache[entityType.Name][box.ID] = box
+	}
+	c.fullCacheLoaded[entityType.Name] = true
+	logger.Infow("loaded all entities from persistent into full cache", "count", len(data))
+	return true, false, nil
+}
+
+// tryLoadFullIDCache attempts to load all entity IDs into the full-ID cache.
+// loaded=true when the IDs were already cached (cache hit).
+func (c *ChainStore) tryLoadFullIDCache(
+	ctx context.Context,
+	entityType *schema.Entity,
+) (loaded bool, err error) {
+	loaded = c.fullIDCacheLoaded[entityType.Name]
+	if loaded {
+		return
+	}
+	start := time.Now()
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chainID", c.chain)
+	logger.Debugf("will load all entity ids from persistent for full id cache")
+	var ids []string
+	ids, err = c.store.GetAllID(ctx, entityType, c.chain)
+	logger = logger.With("used", time.Since(start).String())
+	if err != nil {
+		logger.Errore(err, "load all entity ids from persistent for full cache failed")
+		return
+	}
+	c.fullIDCache[entityType.Name] = utils.BuildSet(ids)
+	c.fullIDCacheLoaded[entityType.Name] = true
+	logger.Infow("loaded all entity ids from persistent into full id cache", "count", len(ids))
+	return
+}

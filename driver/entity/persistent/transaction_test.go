@@ -226,16 +226,6 @@ func (s *mockChainStore) ListEntities(
 	return list, fromCache, nil
 }
 
-func (s *mockChainStore) GetAllID(_ context.Context, entityType *schema.Entity) ([]string, error) {
-	var ids []string
-	for _, box := range s.data[entityType.Name] {
-		if box.Data != nil {
-			ids = append(ids, box.ID)
-		}
-	}
-	return ids, nil
-}
-
 func (s *mockChainStore) GetMaxID(_ context.Context, _ *schema.Entity) (int64, error) {
 	panic("not implemented")
 }

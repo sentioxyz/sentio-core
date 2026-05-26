@@ -198,11 +198,6 @@ func (c *ChainStore) ListEntities(
 	return
 }
 
-// GetAllID returns all entity IDs from persistent storage.
-func (c *ChainStore) GetAllID(ctx context.Context, entityType *schema.Entity) ([]string, error) {
-	return c.store.GetAllID(ctx, entityType, c.chain)
-}
-
 // GetMaxID returns the maximum numeric ID for a time-series entity.
 func (c *ChainStore) GetMaxID(ctx context.Context, entityType *schema.Entity) (int64, error) {
 	return c.store.GetMaxID(ctx, entityType, c.chain)

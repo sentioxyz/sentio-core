@@ -34,7 +34,6 @@ type Store interface {
 		limit int,
 	) ([]*EntityBox, bool, error)
 
-	GetAllID(ctx context.Context, entityType *schema.Entity) ([]string, error)
 	GetMaxID(ctx context.Context, entityType *schema.Entity) (int64, error)
 	CountEntity(ctx context.Context, entityType *schema.Entity) (uint64, error)
 	SetEntities(ctx context.Context, entityType *schema.Entity, boxes []EntityBox) (int, error)

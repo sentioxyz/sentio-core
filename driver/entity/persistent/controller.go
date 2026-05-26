@@ -19,112 +19,41 @@ import (
 	"sentioxyz/sentio-core/driver/entity/schema"
 )
 
-type changeHistory []*EntityBox
-type changeSet map[string]map[string]changeHistory // key is [entity][id]
+// ChainStore is the chain-bound storage interface for entity data.
+// Each ChainStore instance is bound to a single chain.
+//
+// Schema initialisation (InitEntitySchema) is intentionally excluded from this
+// interface: it is a one-time setup operation that belongs to the storage
+// backend (e.g. clickhouse.Store) and must be called once before any ChainStore
+// is created, not once per chain.
+type ChainStore interface {
+	GetChain() string
+	GetEntityType(entity string) *schema.Entity
+	GetEntityOrInterfaceType(name string) schema.EntityOrInterface
 
-func (cs changeSet) Count(blockNumberLE uint64) (total int) {
-	for _, set := range cs {
-		for _, history := range set {
-			total += history.Count(blockNumberLE)
-		}
-	}
-	return total
-}
+	// GetEntity returns the entity with the given id.
+	// fromCache is true when the result came entirely from in-memory cache.
+	GetEntity(ctx context.Context, entityType *schema.Entity, id string) (*EntityBox, bool, error)
 
-func (cs changeSet) Split(blockNumber uint64) changeSet {
-	ret := make(changeSet)
-	for entity, set := range cs {
-		newSet := make(map[string]changeHistory)
-		for id, history := range set {
-			after := history.Split(blockNumber)
-			if len(history) == 0 {
-				delete(set, id)
-			} else {
-				set[id] = history
-			}
-			if len(after) > 0 {
-				newSet[id] = after
-			}
-		}
-		if len(set) == 0 {
-			delete(cs, entity)
-		}
-		if len(newSet) > 0 {
-			ret[entity] = newSet
-		}
-	}
-	return ret
-}
+	// ListEntities returns entities matching the given filters.
+	// fromCache is true when the results came entirely from in-memory cache.
+	ListEntities(
+		ctx context.Context,
+		entityType *schema.Entity,
+		filters []EntityFilter,
+		limit int,
+	) ([]*EntityBox, bool, error)
 
-func (cs changeSet) Snapshot() any {
-	st := make(map[string]any)
-	for entity, changes := range cs {
-		var changeCount int
-		for _, history := range changes {
-			changeCount += len(history)
-		}
-		st[entity] = map[string]any{
-			"idCount":     len(changes),
-			"changeCount": changeCount,
-		}
-	}
-	return st
-}
+	GetTimeSeriesEntityMaxID(ctx context.Context, entityType *schema.Entity) (int64, error)
+	SetEntities(ctx context.Context, entityType *schema.Entity, boxes []EntityBox) (int, error)
+	GrowthAggregation(ctx context.Context, curBlockTime time.Time) error
+	Reorg(ctx context.Context, blockNumber int64) error
 
-func (ch *changeHistory) Count(blockNumberLE uint64) int {
-	if ch == nil {
-		return 0
-	}
-	n := len(*ch)
-	if n == 0 {
-		return 0
-	}
-	// let (*ch)[n].GenBlockNumber == +INF
-	// so  (*ch)[n].GenBlockNumber > blockNumberLE
-	// sort.Search return c so
-	//     (*ch)[c-1].GenBlockNumber <= blockNumberLE &&
-	//     (*ch)[c].GenBlockNumber > blockNumberLE
-	// so count is c
-	return sort.Search(n, func(i int) bool {
-		return (*ch)[i].GenBlockNumber > blockNumberLE
-	})
-}
+	// CheckValue checks whether values in data are valid for the storage backend.
+	CheckValue(entityType *schema.Entity, data map[string]any) error
 
-func (ch *changeHistory) Latest(blockNumber uint64) *EntityBox {
-	if p := ch.Count(blockNumber); p > 0 {
-		return (*ch)[p-1]
-	}
-	return nil
-}
-
-func (ch *changeHistory) Split(blockNumber uint64) changeHistory {
-	i := ch.Count(blockNumber)
-	if i == len(*ch) {
-		return nil
-	}
-	ret := make(changeHistory, len(*ch)-i)
-	copy(ret, (*ch)[i:])
-	*ch = (*ch)[:i]
-	return ret
-}
-
-func (ch *changeHistory) Push(entityType *schema.Entity, nw *EntityBox) {
-	i := ch.Count(nw.GenBlockNumber)
-	if i > 0 && (*ch)[i-1].GenBlockNumber == nw.GenBlockNumber {
-		// just override (*ch)[i-1]
-		(*ch)[i-1].Merge(entityType, nw)
-		return
-	}
-	// rebuild the history by [ch[:i] + nw + ch[i:]]
-	if i == len(*ch) {
-		*ch = append(*ch, nw)
-		return
-	}
-	*ch = append(*ch, nil)
-	for j := len(*ch) - 1; j > i; j-- {
-		(*ch)[j] = (*ch)[j-1]
-	}
-	(*ch)[i] = nw
+	// Snapshot returns a snapshot of cache and store state for debugging/monitoring.
+	Snapshot() any
 }
 
 type entityTimeStat struct {

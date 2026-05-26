@@ -5,11 +5,11 @@ go_library(
     srcs = [
         "box.go",
         "box_rich_struct.go",
+        "change.go",
         "controller.go",
         "filter.go",
         "monitor.go",
         "operator.go",
-        "persistent.go",
     ],
     importpath = "sentioxyz/sentio-core/driver/entity/persistent",
     visibility = ["//visibility:public"],

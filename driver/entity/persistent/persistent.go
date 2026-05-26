@@ -11,8 +11,12 @@ import (
 
 // Store is the chain-bound storage interface for entity data.
 // Each Store instance is bound to a single chain.
+//
+// Schema initialisation (InitEntitySchema) is intentionally excluded from this
+// interface: it is a one-time setup operation that belongs to the storage
+// backend (e.g. clickhouse.Store) and must be called once before any ChainStore
+// is created, not once per chain.
 type Store interface {
-	InitEntitySchema(ctx context.Context) error
 	GetChain() string
 	GetEntityType(entity string) *schema.Entity
 	GetEntityOrInterfaceType(name string) schema.EntityOrInterface

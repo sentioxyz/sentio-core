@@ -179,11 +179,6 @@ type mockChainStore struct {
 
 func (s *mockChainStore) GetChain() string { return s.chain }
 
-func (s *mockChainStore) InitEntitySchema(_ context.Context) error {
-	s.fullLoaded = make(map[string]bool)
-	return nil
-}
-
 func (s *mockChainStore) GetEntityType(entity string) *schema.Entity {
 	return s.schema.GetEntity(entity)
 }

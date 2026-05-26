@@ -87,12 +87,6 @@ func NewChainStore(
 // GetChain returns the chain this store is bound to.
 func (c *ChainStore) GetChain() string { return c.chain }
 
-// InitEntitySchema delegates to the underlying Store and purges the local cache.
-func (c *ChainStore) InitEntitySchema(ctx context.Context) error {
-	c.purgeCache()
-	return c.store.InitEntitySchema(ctx)
-}
-
 // GetEntityType returns the entity schema by name.
 func (c *ChainStore) GetEntityType(entity string) *schema.Entity {
 	return c.store.GetEntityType(entity)

@@ -632,7 +632,7 @@ func TestController_ListEntity(t *testing.T) {
 		assert.Nil(t, cursor)
 		assert.Equal(t,
 			map[string]map[string]int{"persistent": {ecType.GetName(): 1}},
-			monitor.Report.TotalListFrom)
+			monitor.Report().TotalListFrom)
 
 		// second list: served from cache
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 100, 20)
@@ -644,7 +644,7 @@ func TestController_ListEntity(t *testing.T) {
 				"persistent": {ecType.GetName(): 1},
 				"cache":      {ecType.GetName(): 1},
 			},
-			monitor.Report.TotalListFrom)
+			monitor.Report().TotalListFrom)
 
 		// insert c10, list partial (2): uncommitted=[c10], cache=[c00, c01, c11]
 		assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c10))
@@ -656,7 +656,7 @@ func TestController_ListEntity(t *testing.T) {
 				"persistent": {ecType.GetName(): 1},
 				"cache":      {ecType.GetName(): 2},
 			},
-			monitor.Report.TotalListFrom)
+			monitor.Report().TotalListFrom)
 		assert.NotNil(t, cursor)
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
 		assert.NoError(t, err)
@@ -667,7 +667,7 @@ func TestController_ListEntity(t *testing.T) {
 				"persistent": {ecType.GetName(): 1},
 				"cache":      {ecType.GetName(): 3},
 			},
-			monitor.Report.TotalListFrom)
+			monitor.Report().TotalListFrom)
 
 		// update c01: uncommitted=[c01_, c10], cache=[c00, c11]
 		assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c01_))
@@ -681,7 +681,7 @@ func TestController_ListEntity(t *testing.T) {
 				"persistent":  {ecType.GetName(): 1},
 				"cache":       {ecType.GetName(): 3},
 			},
-			monitor.Report.TotalListFrom)
+			monitor.Report().TotalListFrom)
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 2, 20)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{c10, c00}, boxes)
@@ -692,7 +692,7 @@ func TestController_ListEntity(t *testing.T) {
 				"persistent":  {ecType.GetName(): 1},
 				"cache":       {ecType.GetName(): 4},
 			},
-			monitor.Report.TotalListFrom)
+			monitor.Report().TotalListFrom)
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{c11}, boxes)
@@ -703,7 +703,7 @@ func TestController_ListEntity(t *testing.T) {
 				"persistent":  {ecType.GetName(): 1},
 				"cache":       {ecType.GetName(): 5},
 			},
-			monitor.Report.TotalListFrom)
+			monitor.Report().TotalListFrom)
 
 		// after commit, cache is invalidated → next list hits persistent again
 		_, _, err = ctrl.Commit(ctx, math.MaxUint64, time.Time{})
@@ -716,7 +716,7 @@ func TestController_ListEntity(t *testing.T) {
 		assert.Nil(t, cursor)
 		assert.Equal(t,
 			map[string]map[string]int{"persistent": {ecType.GetName(): 1}},
-			monitor.Report.TotalListFrom)
+			monitor.Report().TotalListFrom)
 	})
 }
 
@@ -757,9 +757,9 @@ func TestController_ListRelated(t *testing.T) {
 		// update a0.foreignA: 0x0b00 → 0x0b01
 		a0 = copyWith(a0, 11, "foreignA", "0x0b01")
 		assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a0))
-		assert.Equal(t, 1, monitor.Report.TotalSet)
-		assert.Equal(t, 0, monitor.Report.TotalSetNil)
-		assert.Equal(t, 0, monitor.Report.TotalSetPartly)
+		assert.Equal(t, 1, monitor.Report().TotalSet)
+		assert.Equal(t, 0, monitor.Report().TotalSetNil)
+		assert.Equal(t, 0, monitor.Report().TotalSetPartly)
 	})
 
 	t.Run("one-to-one (foreignD)", func(t *testing.T) {
@@ -770,7 +770,7 @@ func TestController_ListRelated(t *testing.T) {
 		a1_ := copyWith(a1, 12, "foreignD", utils.WrapPointer("0x0b00"))
 		assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a0_))
 		assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a1_))
-		assert.Equal(t, 3, monitor.Report.TotalSet)
+		assert.Equal(t, 3, monitor.Report().TotalSet)
 
 		// at block 11: a0 still has foreignD→b0 and a1 still has foreignD→b1
 		boxesB, _, err := ctrl.ListRelated(ctx, ebType, b0.ID, "foreignD", 11)
@@ -788,14 +788,14 @@ func TestController_ListRelated(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{a0_}, boxesB)
 
-		assert.Equal(t, 5, monitor.Report.TotalList)
-		assert.Equal(t, 4, monitor.Report.TotalListForLoadRelated)
+		assert.Equal(t, 5, monitor.Report().TotalList)
+		assert.Equal(t, 4, monitor.Report().TotalListForLoadRelated)
 		assert.Equal(t,
 			map[string]map[string]int{
 				"persistent": {eaType.GetName(): 1},
 				"cache":      {eaType.GetName(): 4},
 			},
-			monitor.Report.TotalListFrom)
+			monitor.Report().TotalListFrom)
 
 		a0, a1 = a0_, a1_
 	})

@@ -60,7 +60,7 @@ type Controller struct {
 	mu sync.Mutex
 
 	store     ChainStore // persistent data (chain-bound)
-	changes   changeSet // uncommited data
+	changes   changeSet  // uncommitted data
 	committed *uint64
 
 	timeStat *timewin.TimeWindowsManager[*timeStatWindow]
@@ -77,37 +77,37 @@ func NewController(store ChainStore, monitor Monitor) *Controller {
 	}
 }
 
-func (t *Controller) GetEntityOrInterfaceType(entity string) schema.EntityOrInterface {
-	return t.store.GetEntityOrInterfaceType(entity)
+func (c *Controller) GetEntityOrInterfaceType(entity string) schema.EntityOrInterface {
+	return c.store.GetEntityOrInterfaceType(entity)
 }
 
-func (t *Controller) GetEntityType(entity string) *schema.Entity {
-	return t.store.GetEntityType(entity)
+func (c *Controller) GetEntityType(entity string) *schema.Entity {
+	return c.store.GetEntityType(entity)
 }
 
 // GetEntity returns the latest version of the entity at or before
 // the given block number. May return ErrInvalidFieldValue.
-func (t *Controller) GetEntity(
+func (c *Controller) GetEntity(
 	ctx context.Context,
 	typ schema.EntityOrInterface,
 	id string,
 	blockNumber uint64,
 ) (box *EntityBox, err error) {
-	return t.getEntityOrInterface(ctx, typ, id, blockNumber, false)
+	return c.getEntityOrInterface(ctx, typ, id, blockNumber, false)
 }
 
 // GetEntityInBlock returns the entity only if it was created or
 // updated in the given block number. May return ErrInvalidFieldValue.
-func (t *Controller) GetEntityInBlock(
+func (c *Controller) GetEntityInBlock(
 	ctx context.Context,
 	typ schema.EntityOrInterface,
 	id string,
 	blockNumber uint64,
 ) (box *EntityBox, err error) {
-	return t.getEntityOrInterface(ctx, typ, id, blockNumber, true)
+	return c.getEntityOrInterface(ctx, typ, id, blockNumber, true)
 }
 
-func (t *Controller) getEntityOrInterface(
+func (c *Controller) getEntityOrInterface(
 	ctx context.Context,
 	typ schema.EntityOrInterface,
 	id string,
@@ -115,7 +115,7 @@ func (t *Controller) getEntityOrInterface(
 	inBlock bool,
 ) (box *EntityBox, err error) {
 	for _, entityType := range typ.ListEntities() {
-		box, err = t.getEntity(ctx, entityType, id, blockNumber, inBlock)
+		box, err = c.getEntity(ctx, entityType, id, blockNumber, inBlock)
 		if err != nil {
 			return
 		}
@@ -126,14 +126,14 @@ func (t *Controller) getEntityOrInterface(
 	return // not found, return the last get result
 }
 
-func (t *Controller) executeEntityOperator(
+func (c *Controller) executeEntityOperator(
 	ctx context.Context,
 	entityType *schema.Entity,
 	id string,
 	blockNumber uint64,
 ) (from string, err error) {
 	from = "uncommitted"
-	history, _ := utils.GetFromK2Map(t.changes, entityType.Name, id)
+	history, _ := utils.GetFromK2Map(c.changes, entityType.Name, id)
 	for i, box := range history {
 		if box.GenBlockNumber > blockNumber {
 			break
@@ -144,7 +144,7 @@ func (t *Controller) executeEntityOperator(
 		var preBox *EntityBox
 		if i == 0 {
 			var fromCache bool
-			preBox, fromCache, err = t.store.GetEntity(ctx, entityType, id)
+			preBox, fromCache, err = c.store.GetEntity(ctx, entityType, id)
 			from = utils.Select(fromCache, "cache", "persistent")
 			if err != nil {
 				return from, fmt.Errorf("execute entity operator for %s with id %s failed: get entity failed: %w",
@@ -167,7 +167,7 @@ func (t *Controller) executeEntityOperator(
 			}
 			box.Data[fieldName] = calcOperator(field.Type, originVal, op)
 		}
-		if err = t.store.CheckValue(entityType, box.Data); err != nil {
+		if err = c.store.CheckValue(entityType, box.Data); err != nil {
 			return from, fmt.Errorf(
 				"%w: entity operator result for %s with id %s: %v",
 				ErrInvalidFieldValue, entityType.GetFullName(), id, err,
@@ -178,11 +178,11 @@ func (t *Controller) executeEntityOperator(
 	return
 }
 
-func (t *Controller) executeAllEntityOperator(ctx context.Context, blockNumber uint64) error {
-	for entity, set := range t.changes {
-		entityType := t.store.GetEntityType(entity)
+func (c *Controller) executeAllEntityOperator(ctx context.Context, blockNumber uint64) error {
+	for entity, set := range c.changes {
+		entityType := c.store.GetEntityType(entity)
 		for id := range set {
-			if _, err := t.executeEntityOperator(ctx, entityType, id, blockNumber); err != nil {
+			if _, err := c.executeEntityOperator(ctx, entityType, id, blockNumber); err != nil {
 				return err
 			}
 		}
@@ -190,22 +190,22 @@ func (t *Controller) executeAllEntityOperator(ctx context.Context, blockNumber u
 	return nil
 }
 
-func (t *Controller) getEntity(
+func (c *Controller) getEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
 	id string,
 	blockNumber uint64,
 	inBlock bool,
 ) (box *EntityBox, err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "entityType", entityType.Name, "id", id, "blockNumber", blockNumber)
 
 	// get from s.changes
 	from := "uncommitted"
-	history, _ := utils.GetFromK2Map(t.changes, entityType.Name, id)
+	history, _ := utils.GetFromK2Map(c.changes, entityType.Name, id)
 	box = history.Latest(blockNumber)
 	if box != nil { // has uncommitted change
 		if inBlock && box.GenBlockNumber < blockNumber {
@@ -214,14 +214,14 @@ func (t *Controller) getEntity(
 		if box != nil && len(box.Operator) > 0 {
 			// calculate operators
 			// box will be changed,  box.Operator will be set to nil and box.Data will be filled
-			if from, err = t.executeEntityOperator(ctx, entityType, id, blockNumber); err != nil {
+			if from, err = c.executeEntityOperator(ctx, entityType, id, blockNumber); err != nil {
 				logger.Errorfe(err, "execute operator failed")
 				return
 			}
 		}
 	} else if !inBlock {
 		var fromCache bool
-		box, fromCache, err = t.store.GetEntity(ctx, entityType, id) // all changes in store will before block number
+		box, fromCache, err = c.store.GetEntity(ctx, entityType, id) // all changes in store will before block number
 		if err != nil {
 			logger.Errore(err, "get entity from store failed")
 			return
@@ -231,8 +231,8 @@ func (t *Controller) getEntity(
 
 	used := time.Since(start)
 	logger.Debugw("got entity", "box", box.String(), "from", from, "used", used)
-	t.monitor.OnGet(ctx, entityType.GetName(), id, blockNumber, inBlock, from, used)
-	t.timeStat.Append(&timeStatWindow{
+	c.monitor.OnGet(ctx, entityType.GetName(), id, blockNumber, inBlock, from, used)
+	c.timeStat.Append(&timeStatWindow{
 		startAt: time.Now(),
 		entityStat: map[string]entityTimeStat{
 			entityType.Name: {
@@ -264,15 +264,15 @@ var (
 
 // ListRelated returns entities related to the given entity via a reverse foreign key field.
 // May return ErrInvalidField.
-func (t *Controller) ListRelated(
+func (c *Controller) ListRelated(
 	ctx context.Context,
 	entityType *schema.Entity,
 	id string,
 	fieldName string,
 	blockNumber uint64,
 ) (boxes []*EntityBox, target schema.EntityOrInterface, err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	field := entityType.GetForeignKeyFieldByName(fieldName)
 	if field == nil {
@@ -298,7 +298,7 @@ func (t *Controller) ListRelated(
 			Value: []any{id},
 		}
 		var targetBoxes []*EntityBox
-		targetBoxes, _, err = t.listEntity(
+		targetBoxes, _, err = c.listEntity(
 			ctx,
 			targetEntityType,
 			[]EntityFilter{filter},
@@ -316,7 +316,7 @@ func (t *Controller) ListRelated(
 
 // ListEntity returns entities matching the given filters.
 // May return ErrInvalidFieldValue or ErrInvalidListFilter.
-func (t *Controller) ListEntity(
+func (c *Controller) ListEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
 	filters []EntityFilter,
@@ -324,12 +324,12 @@ func (t *Controller) ListEntity(
 	limit int,
 	blockNumber uint64,
 ) (boxes []*EntityBox, next *string, err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.listEntity(ctx, entityType, filters, cursor, limit, false, blockNumber)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.listEntity(ctx, entityType, filters, cursor, limit, false, blockNumber)
 }
 
-func (t *Controller) listEntity(
+func (c *Controller) listEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
 	filters []EntityFilter,
@@ -350,8 +350,8 @@ func (t *Controller) listEntity(
 			return
 		}
 		used := time.Since(start)
-		t.monitor.OnList(ctx, entityType.GetName(), blockNumber, loadRelated, from, len(boxes), len(persistentPart), used)
-		t.timeStat.Append(&timeStatWindow{
+		c.monitor.OnList(ctx, entityType.GetName(), blockNumber, loadRelated, from, len(boxes), len(persistentPart), used)
+		c.timeStat.Append(&timeStatWindow{
 			startAt: time.Now(),
 			entityStat: map[string]entityTimeStat{
 				entityType.Name: {
@@ -380,7 +380,7 @@ func (t *Controller) listEntity(
 	// get uncommitted part result
 	cp, cid := splitListCursor(cursor)
 	checked := make(map[string]bool)
-	for _, change := range t.changes[entityType.Name] {
+	for _, change := range c.changes[entityType.Name] {
 		box := change.Latest(blockNumber)
 		if box == nil {
 			continue
@@ -395,7 +395,7 @@ func (t *Controller) listEntity(
 		if len(box.Operator) > 0 {
 			// calculate operators
 			// box will be changed,  box.Operator will be set to nil and box.Data will be filled
-			if _, err = t.executeEntityOperator(ctx, entityType, box.ID, blockNumber); err != nil {
+			if _, err = c.executeEntityOperator(ctx, entityType, box.ID, blockNumber); err != nil {
 				logger.Errorfe(err, "execute operator failed")
 				return
 			}
@@ -431,7 +431,7 @@ func (t *Controller) listEntity(
 			Value: []any{cid},
 		})
 	}
-	persistentPart, persistentPartFromCache, err = t.store.ListEntities(ctx, entityType, filters, limit)
+	persistentPart, persistentPartFromCache, err = c.store.ListEntities(ctx, entityType, filters, limit)
 	if err != nil {
 		logger.With("used", time.Since(start).String()).Errore(err, "list entity in store failed")
 		return nil, nil, err
@@ -450,22 +450,22 @@ var uniqTimeSeriesID atomic.Int64
 
 // SetEntity stores an entity into the uncommitted change set.
 // May return ErrInvalidFieldValue or ErrUpdateImmutable.
-func (t *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, box EntityBox) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, box EntityBox) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	if box.GenBlockChain != t.store.GetChain() {
+	if box.GenBlockChain != c.store.GetChain() {
 		// unreachable
-		panic(fmt.Errorf("GenBlockChain %s not match the store chain %s", box.GenBlockChain, t.store.GetChain()))
+		panic(fmt.Errorf("GenBlockChain %s not match the store chain %s", box.GenBlockChain, c.store.GetChain()))
 	}
-	if t.committed != nil && box.GenBlockNumber <= *t.committed {
+	if c.committed != nil && box.GenBlockNumber <= *c.committed {
 		// unreachable
-		panic(fmt.Errorf("GenBlockNumber %d must be greater than last committed block %d", box.GenBlockNumber, *t.committed))
+		panic(fmt.Errorf("GenBlockNumber %d must be greater than last committed block %d", box.GenBlockNumber, *c.committed))
 	}
 	box.Entity = entityType.Name
 
 	if box.Data != nil {
-		if err := t.store.CheckValue(entityType, box.Data); err != nil {
+		if err := c.store.CheckValue(entityType, box.Data); err != nil {
 			return fmt.Errorf(
 				"%w: set entity %s/%s in chain %s failed: %v",
 				ErrInvalidFieldValue, entityType.Name,
@@ -493,16 +493,16 @@ func (t *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 		box.Data[schema.EntityTimestampFieldName] = box.GenBlockTime.UnixMicro()
 	}
 
-	history, _ := utils.GetFromK2Map(t.changes, entityType.Name, box.ID)
+	history, _ := utils.GetFromK2Map(c.changes, entityType.Name, box.ID)
 	if latest := history.Latest(math.MaxUint64); latest != nil && entityType.IsImmutable() {
 		logger.Errorw("update immutable entity", "latest", latest.String())
 		return fmt.Errorf("invalid update for %s/%s in chain %s, latest is %s: %w",
 			entityType.Name, box.ID, box.GenBlockChain, latest.String(), ErrUpdateImmutable)
 	}
 
-	// put into t.changes
+	// put into c.changes
 	history.Push(entityType, &box)
-	utils.PutIntoK2Map(t.changes, entityType.Name, box.ID, history)
+	utils.PutIntoK2Map(c.changes, entityType.Name, box.ID, history)
 
 	remove := box.Data == nil
 	hasOperator := len(box.Operator) > 0
@@ -514,8 +514,8 @@ func (t *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	}
 	used := time.Since(start)
 	logger.Debugw("set entity", "hasOperator", hasOperator, "remove", remove, "used", used)
-	t.monitor.OnSet(ctx, entityType.GetName(), box.ID, box.GenBlockNumber, remove, hasOperator, used)
-	t.timeStat.Append(&timeStatWindow{
+	c.monitor.OnSet(ctx, entityType.GetName(), box.ID, box.GenBlockNumber, remove, hasOperator, used)
+	c.timeStat.Append(&timeStatWindow{
 		startAt: time.Now(),
 		entityStat: map[string]entityTimeStat{
 			entityType.Name: {
@@ -527,42 +527,42 @@ func (t *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	return nil
 }
 
-func (t *Controller) CountUncommittedChanges(blockNumber uint64) int {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.changes.Count(blockNumber)
+func (c *Controller) CountUncommittedChanges(blockNumber uint64) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.changes.Count(blockNumber)
 }
 
 // Commit persists all uncommitted changes up to the given block
 // number. May return ErrInvalidFieldValue or ErrUpdateImmutable.
-func (t *Controller) Commit(
+func (c *Controller) Commit(
 	ctx context.Context,
 	blockNumber uint64,
 	blockTime time.Time,
 ) (created map[string]int, updated map[string]int, err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "blockNumber", blockNumber)
 
-	if err = t.executeAllEntityOperator(ctx, blockNumber); err != nil {
+	if err = c.executeAllEntityOperator(ctx, blockNumber); err != nil {
 		logger.Errorfe(err, "execute all entity operators failed")
 		return
 	}
 
 	created, updated = make(map[string]int), make(map[string]int)
-	newChanges := t.changes.Split(blockNumber)
-	for entity, set := range t.changes {
+	newChanges := c.changes.Split(blockNumber)
+	for entity, set := range c.changes {
 		entityLogger := logger.With("entity", entity)
 		// save to persistent
 		entityStart := time.Now()
-		entityType := t.store.GetEntityType(entity)
+		entityType := c.store.GetEntityType(entity)
 		var entities []EntityBox
 		if entityType.IsTimeSeries() {
 			// set timestamp and reset id for all boxes
 			var maxID int64
-			maxID, err = t.store.GetTimeSeriesEntityMaxID(ctx, entityType)
+			maxID, err = c.store.GetTimeSeriesEntityMaxID(ctx, entityType)
 			if err != nil {
 				entityLogger.Errorfe(err, "commit changes of entity failed: get count of time series entity %q failed", entity)
 				return
@@ -601,7 +601,7 @@ func (t *Controller) Commit(
 				}
 			}
 		}
-		created[entity], err = t.store.SetEntities(ctx, entityType, entities)
+		created[entity], err = c.store.SetEntities(ctx, entityType, entities)
 		updated[entity] = len(entities) - created[entity]
 		entityLogger = entityLogger.With("used", time.Since(entityStart))
 		if err != nil {
@@ -610,52 +610,52 @@ func (t *Controller) Commit(
 		}
 		entityLogger.Debugw("commit changes of entity succeed", "created", created[entity], "updated", updated[entity])
 	}
-	t.changes = newChanges
-	t.committed = &blockNumber
 
-	if err = t.store.GrowthAggregation(ctx, blockTime); err != nil {
+	if err = c.store.GrowthAggregation(ctx, blockTime); err != nil {
 		logger.Errorfe(err, "growth aggregation failed")
 		return
 	}
 
+	c.changes = newChanges
+	c.committed = &blockNumber
 	used := time.Since(start)
 	logger.Debugw("committed changes", "created", created, "updated", updated, "used", used)
-	t.monitor.OnCommit(ctx, blockNumber, created, updated, used)
-	t.timeStat.Append(&timeStatWindow{startAt: time.Now(), commit: timehist.Histogram{}.Incr(used)})
+	c.monitor.OnCommit(ctx, blockNumber, created, updated, used)
+	c.timeStat.Append(&timeStatWindow{startAt: time.Now(), commit: timehist.Histogram{}.Incr(used)})
 	return
 }
 
-func (t *Controller) Reorg(ctx context.Context, blockNumberGT int64) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+func (c *Controller) Reorg(ctx context.Context, blockNumberGT int64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	startAt := time.Now()
 	defer func() {
-		t.timeStat.Append(&timeStatWindow{
+		c.timeStat.Append(&timeStatWindow{
 			startAt: time.Now(),
 			reorg:   timehist.Histogram{}.Incr(time.Since(startAt)),
 		})
 	}()
 
 	if blockNumberGT < 0 {
-		t.changes = make(changeSet)
+		c.changes = make(changeSet)
+		c.committed = nil
 	} else {
-		for _, set := range t.changes {
-			for id, history := range set {
-				_ = history.Split(uint64(blockNumberGT))
-				set[id] = history
-			}
+		_ = c.changes.Split(uint64(blockNumberGT)) // discard changes above blockNumberGT, clean up empty entries
+		if c.committed != nil && *c.committed > uint64(blockNumberGT) {
+			n := uint64(blockNumberGT)
+			c.committed = &n
 		}
 	}
-	return t.store.Reorg(ctx, blockNumberGT)
+	return c.store.Reorg(ctx, blockNumberGT)
 }
 
-func (t *Controller) Snapshot() any {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+func (c *Controller) Snapshot() any {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return map[string]any{
-		"store":      t.store.Snapshot(),
-		"committed":  t.committed,
-		"uncommited": t.changes.Snapshot(),
-		"statistics": t.timeStat.Snapshot(),
+		"store":       c.store.Snapshot(),
+		"committed":   c.committed,
+		"uncommitted": c.changes.Snapshot(),
+		"statistics":  c.timeStat.Snapshot(),
 	}
 }

@@ -59,6 +59,7 @@ func (c MetricsMonitor) recordMetric(ctx context.Context, used time.Duration, at
 	if c.UsedMetric == nil {
 		return
 	}
+	attrs = utils.MergeArr(GetMetricAttrs(ctx), attrs)
 	c.UsedMetric.Record(ctx, float64(used.Nanoseconds())/1e6, metric.WithAttributes(attrs...))
 }
 
@@ -171,18 +172,15 @@ func newTxnReport() TxnReport {
 }
 
 // ReportMonitor is a Monitor implementation that accumulates per-commit
-// statistics in its Report field and logs a summary on each OnCommit call.
+// statistics and logs a summary on each OnCommit call.
 // It also delegates metric recording to an embedded MetricsMonitor.
 //
 // Lifecycle: call Reset before each processing cycle begins (equivalent to
-// the old NewTxn call).  Reset clears Report and records the cycle start time.
-// OnCommit then finalises the cycle by computing TxnUsed and logging the
-// report — it does NOT reset state.  Callers may read Report at any point to
-// observe in-progress statistics.
+// the old NewTxn call).  Reset clears accumulated stats and records the cycle
+// start time.  OnCommit finalises the cycle by computing TxnUsed and logging
+// the report — it does NOT reset state.  Use Report() to read current stats.
 type ReportMonitor struct {
-	// Report holds the statistics accumulated since the last Reset.
-	// It is reset by Reset, not by OnCommit.
-	Report TxnReport
+	report TxnReport
 
 	start   time.Time
 	metrics MetricsMonitor
@@ -194,15 +192,20 @@ type ReportMonitor struct {
 func NewReportMonitor(usedMetric metric.Float64Histogram) *ReportMonitor {
 	return &ReportMonitor{
 		metrics: MetricsMonitor{UsedMetric: usedMetric},
-		Report:  newTxnReport(),
+		report:  newTxnReport(),
 	}
 }
 
-// Reset clears Report and records the current time as the cycle start.
-// Call this before each round of processing (equivalent to the old NewTxn call).
+// Reset clears accumulated statistics and records the current time as the
+// cycle start.  Call this before each round of processing.
 func (m *ReportMonitor) Reset() {
 	m.start = time.Now()
-	m.Report = newTxnReport()
+	m.report = newTxnReport()
+}
+
+// Report returns a snapshot of the statistics accumulated since the last Reset.
+func (m *ReportMonitor) Report() TxnReport {
+	return m.report
 }
 
 func (m *ReportMonitor) OnGet(
@@ -214,14 +217,14 @@ func (m *ReportMonitor) OnGet(
 	from string,
 	used time.Duration,
 ) {
-	m.Report.TotalGet++
+	m.report.TotalGet++
 	if inBlock {
-		m.Report.TotalGetInBlock++
+		m.report.TotalGetInBlock++
 	}
-	m.Report.TotalGetUsed += used
-	utils.UpdateK2Map(m.Report.TotalGetFrom, from, entity,
+	m.report.TotalGetUsed += used
+	utils.UpdateK2Map(m.report.TotalGetFrom, from, entity,
 		func(v int) int { return v + 1 })
-	utils.UpdateK2Map(m.Report.TotalGetFromUsed, from, entity,
+	utils.UpdateK2Map(m.report.TotalGetFromUsed, from, entity,
 		func(v time.Duration) time.Duration { return v + used })
 	m.metrics.OnGet(ctx, entity, id, blockNumber, inBlock, from, used)
 }
@@ -236,14 +239,14 @@ func (m *ReportMonitor) OnList(
 	resultPersistentLen int,
 	used time.Duration,
 ) {
-	m.Report.TotalList++
+	m.report.TotalList++
 	if loadRelated {
-		m.Report.TotalListForLoadRelated++
+		m.report.TotalListForLoadRelated++
 	}
-	m.Report.TotalListUsed += used
-	utils.UpdateK2Map(m.Report.TotalListFrom, from, entity,
+	m.report.TotalListUsed += used
+	utils.UpdateK2Map(m.report.TotalListFrom, from, entity,
 		func(v int) int { return v + 1 })
-	utils.UpdateK2Map(m.Report.TotalListFromUsed, from, entity,
+	utils.UpdateK2Map(m.report.TotalListFromUsed, from, entity,
 		func(v time.Duration) time.Duration { return v + used })
 	m.metrics.OnList(ctx, entity, blockNumber, loadRelated, from, resultLen, resultPersistentLen, used)
 }
@@ -257,13 +260,13 @@ func (m *ReportMonitor) OnSet(
 	hasOperator bool,
 	used time.Duration,
 ) {
-	m.Report.TotalSet++
-	m.Report.TotalSetUsed += used
+	m.report.TotalSet++
+	m.report.TotalSetUsed += used
 	if remove {
-		m.Report.TotalSetNil++
+		m.report.TotalSetNil++
 	}
 	if hasOperator {
-		m.Report.TotalSetPartly++
+		m.report.TotalSetPartly++
 	}
 	m.metrics.OnSet(ctx, entity, id, blockNumber, remove, hasOperator, used)
 }
@@ -278,12 +281,12 @@ func (m *ReportMonitor) OnCommit(
 	used time.Duration,
 ) {
 	_, logger := log.FromContext(ctx)
-	m.Report.TotalCommit = utils.MergeMapSum(created, updated)
-	m.Report.TotalCommitCreate = created
-	m.Report.TotalCommitType = len(m.Report.TotalCommit)
-	m.Report.TxnUsed = time.Since(m.start)
-	m.Report.TxnCommitUsed = used
-	if utils.SumMap(m.Report.TotalCommit) == 0 {
+	m.report.TotalCommit = utils.MergeMapSum(created, updated)
+	m.report.TotalCommitCreate = created
+	m.report.TotalCommitType = len(m.report.TotalCommit)
+	m.report.TxnUsed = time.Since(m.start)
+	m.report.TxnCommitUsed = used
+	if utils.SumMap(m.report.TotalCommit) == 0 {
 		logger.Debugw("commit changes of all entities succeed", "report", m.Report)
 	} else {
 		logger.Infow("commit changes of all entities succeed", "report", m.Report)

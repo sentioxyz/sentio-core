@@ -35,7 +35,6 @@ type ChainStore interface {
 	) ([]*EntityBox, bool, error)
 
 	GetMaxID(ctx context.Context, entityType *schema.Entity) (int64, error)
-	CountEntity(ctx context.Context, entityType *schema.Entity) (uint64, error)
 	SetEntities(ctx context.Context, entityType *schema.Entity, boxes []EntityBox) (int, error)
 	GrowthAggregation(ctx context.Context, curBlockTime time.Time) error
 	Reorg(ctx context.Context, blockNumber int64) error

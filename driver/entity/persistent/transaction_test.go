@@ -230,16 +230,6 @@ func (s *mockChainStore) GetMaxID(_ context.Context, _ *schema.Entity) (int64, e
 	panic("not implemented")
 }
 
-func (s *mockChainStore) CountEntity(_ context.Context, entityType *schema.Entity) (uint64, error) {
-	var count uint64
-	for _, box := range s.data[entityType.Name] {
-		if box.Data != nil {
-			count++
-		}
-	}
-	return count, nil
-}
-
 func (s *mockChainStore) SetEntities(
 	_ context.Context,
 	entityType *schema.Entity,

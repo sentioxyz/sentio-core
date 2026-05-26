@@ -391,7 +391,7 @@ func Test_loadRelated(t *testing.T) {
 
 	ctx := context.Background()
 	monitor := NewReportMonitor(nil)
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl := NewController(s, monitor)
 	a0 := update(ra0, ra0.GenBlockNumber)
 	a1 := update(ra1, ra1.GenBlockNumber)
@@ -448,7 +448,7 @@ func Test_loadRelated(t *testing.T) {
 
 	// ================================================================================
 	// reset data
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl = NewController(s, monitor)
 
 	// change many-to-one relation
@@ -471,7 +471,7 @@ func Test_loadRelated(t *testing.T) {
 
 	// ================================================================================
 	// reset data
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl = NewController(s, monitor)
 	a0 = update(ra0, ra0.GenBlockNumber)
 	a1 = update(ra1, ra1.GenBlockNumber)
@@ -544,7 +544,7 @@ func Test_loadRelated(t *testing.T) {
 
 	// ================================================================================
 	// reset data
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl = NewController(s, monitor)
 	a0 = update(ra0, ra0.GenBlockNumber)
 	a1 = update(ra1, ra1.GenBlockNumber)
@@ -651,7 +651,7 @@ func Test_loadRelated2(t *testing.T) {
 
 	ctx := context.Background()
 	monitor := NewReportMonitor(nil)
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl := NewController(s, monitor)
 	a0 := update(ra0, ra0.GenBlockNumber)
 	a1 := update(ra1, ra1.GenBlockNumber)
@@ -721,7 +721,7 @@ func Test_loadRelated2(t *testing.T) {
 
 	_, _, err = ctrl.Commit(ctx, math.MaxUint64, time.Time{})
 	assert.NoError(t, err)
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl = NewController(s, monitor)
 
 	// change reserve relation
@@ -786,7 +786,7 @@ func Test_list1(t *testing.T) {
 
 	ctx := context.Background()
 	monitor := NewReportMonitor(nil)
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl := NewController(s, monitor)
 
 	// init
@@ -871,7 +871,7 @@ func Test_list2(t *testing.T) {
 
 	ctx := context.Background()
 	monitor := NewReportMonitor(nil)
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl := NewController(s, monitor)
 
 	// init
@@ -1027,7 +1027,7 @@ func Test_listCache(t *testing.T) {
 
 	ctx := context.Background()
 	monitor := NewReportMonitor(nil)
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl := NewController(s, monitor)
 
 	// init, will load all entity to list cache
@@ -1116,7 +1116,7 @@ func Test_listCache(t *testing.T) {
 	// commit, list cache will be reset
 	_, _, err = ctrl.Commit(ctx, math.MaxUint64, time.Time{})
 	assert.NoError(t, err)
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl = NewController(s, monitor)
 
 	// will load entities from persistent
@@ -1146,7 +1146,7 @@ func Test_getInterface(t *testing.T) {
 
 	ctx := context.Background()
 	monitor := NewReportMonitor(nil)
-	monitor.OnStart()
+	monitor.Reset()
 	ctrl := NewController(s, monitor)
 
 	// no EntityE1 and EntityE2 object

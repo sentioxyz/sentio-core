@@ -81,10 +81,9 @@ func NewReportMonitor(usedMetric metric.Float64Histogram) *ReportMonitor {
 	}
 }
 
-// OnStart marks the beginning of a new processing cycle.  It resets Report and
-// records the current time as the cycle start.  This is the equivalent of the
-// old NewTxn call and should be invoked once before each round of processing.
-func (m *ReportMonitor) OnStart() {
+// Reset resets Report and records the current time as the cycle start.
+// Call this before each round of processing (equivalent to the old NewTxn call).
+func (m *ReportMonitor) Reset() {
 	m.start = time.Now()
 	m.Report = newTxnReport()
 }

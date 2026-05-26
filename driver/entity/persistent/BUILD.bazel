@@ -10,6 +10,7 @@ go_library(
         "filter.go",
         "monitor.go",
         "operator.go",
+        "stat.go",
     ],
     importpath = "sentioxyz/sentio-core/driver/entity/persistent",
     visibility = ["//visibility:public"],
@@ -36,7 +37,7 @@ go_test(
     name = "persistent_test",
     srcs = [
         "box_rich_struct_test.go",
-        "change_history_test.go",
+        "change_test.go",
         "controller_test.go",
         "filter_test.go",
     ],

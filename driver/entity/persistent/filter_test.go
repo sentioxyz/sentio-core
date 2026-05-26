@@ -103,7 +103,7 @@ func prepareTestBox() EntityBox {
 }
 
 func Test_checkFilter(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	entityType := sch.GetEntity("EntityD")
@@ -548,7 +548,7 @@ func Test_checkFilter(t *testing.T) {
 }
 
 func Test_checkFilterWithNullValue(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	entityType := sch.GetEntity("EntityD")
@@ -729,7 +729,7 @@ func Test_checkFilterWithNullValue(t *testing.T) {
 }
 
 func Test_CheckFilters(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	entityType := sch.GetEntity("EntityD")

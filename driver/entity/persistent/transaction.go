@@ -2,52 +2,90 @@ package persistent
 
 import (
 	"context"
-	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/common/utils"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/utils"
 )
 
+// TxnReport holds statistics observed by a ReportMonitor during one commit
+// cycle (i.e. between two successive Controller.Commit calls).
 type TxnReport struct {
 	TxnUsed       time.Duration
 	TxnCommitUsed time.Duration
 
-	// about update entity
-	TotalSet          int
-	TotalSetNil       int
-	TotalSetPartly    int
-	TotalSetUsed      time.Duration
+	// set-entity statistics
+	TotalSet       int
+	TotalSetNil    int
+	TotalSetPartly int
+	TotalSetUsed   time.Duration
+
+	// commit statistics
 	TotalCommit       map[string]int
 	TotalCommitCreate map[string]int
 	TotalCommitType   int
 
-	// about get entity
+	// get-entity statistics
 	TotalGet                int
 	TotalGetInBlock         int
 	TotalGetUsed            time.Duration
 	TotalGetFrom            map[string]map[string]int
 	TotalGetFromUsed        map[string]map[string]time.Duration
+
+	// list-entity statistics
 	TotalList               int
 	TotalListForLoadRelated int
 	TotalListUsed           time.Duration
 	TotalListFrom           map[string]map[string]int
 	TotalListFromUsed       map[string]map[string]time.Duration
-	TotalCacheEvicted       int
+
+	TotalCacheEvicted int
 }
 
-type Txn struct {
+func newTxnReport() TxnReport {
+	return TxnReport{
+		TotalCommit:       make(map[string]int),
+		TotalCommitCreate: make(map[string]int),
+		TotalGetFrom:      make(map[string]map[string]int),
+		TotalGetFromUsed:  make(map[string]map[string]time.Duration),
+		TotalListFrom:     make(map[string]map[string]int),
+		TotalListFromUsed: make(map[string]map[string]time.Duration),
+	}
+}
+
+// ReportMonitor is a Monitor implementation that accumulates per-commit
+// statistics in its Report field and logs a summary on each OnCommit call.
+// It also delegates metric recording to an embedded MetricsMonitor.
+//
+// After OnCommit returns, Report is reset so the next commit cycle starts
+// with a clean slate.  Callers may read Report at any point during a cycle
+// to observe in-progress statistics.
+type ReportMonitor struct {
+	// Report holds the statistics accumulated since the last OnCommit (or since
+	// construction).  It is reset automatically after each OnCommit.
+	Report TxnReport
+
 	start             time.Time
 	storeCacheEvicted int
-	report            TxnReport
-
-	recordMetric SimpleNoticeController
-
-	*Controller
+	store             Store // used only for CacheEvicted()
+	metrics           MetricsMonitor
 }
 
-func (t *Txn) NoticeGet(
+// NewReportMonitor creates a ReportMonitor bound to the given store.
+// usedMetric may be nil if latency recording is not required.
+func NewReportMonitor(store Store, usedMetric metric.Float64Histogram) *ReportMonitor {
+	return &ReportMonitor{
+		start:             time.Now(),
+		storeCacheEvicted: store.CacheEvicted(),
+		store:             store,
+		metrics:           MetricsMonitor{UsedMetric: usedMetric},
+		Report:            newTxnReport(),
+	}
+}
+
+func (m *ReportMonitor) OnGet(
 	ctx context.Context,
 	entity string,
 	id string,
@@ -56,19 +94,19 @@ func (t *Txn) NoticeGet(
 	from string,
 	used time.Duration,
 ) {
-	t.report.TotalGet++
+	m.Report.TotalGet++
 	if inBlock {
-		t.report.TotalGetInBlock++
+		m.Report.TotalGetInBlock++
 	}
-	t.report.TotalGetUsed += used
-	utils.UpdateK2Map(t.report.TotalGetFrom, from, entity,
+	m.Report.TotalGetUsed += used
+	utils.UpdateK2Map(m.Report.TotalGetFrom, from, entity,
 		func(v int) int { return v + 1 })
-	utils.UpdateK2Map(t.report.TotalGetFromUsed, from, entity,
+	utils.UpdateK2Map(m.Report.TotalGetFromUsed, from, entity,
 		func(v time.Duration) time.Duration { return v + used })
-	t.recordMetric.NoticeGet(ctx, entity, id, blockNumber, inBlock, from, used)
+	m.metrics.OnGet(ctx, entity, id, blockNumber, inBlock, from, used)
 }
 
-func (t *Txn) NoticeList(
+func (m *ReportMonitor) OnList(
 	ctx context.Context,
 	entity string,
 	blockNumber uint64,
@@ -78,19 +116,19 @@ func (t *Txn) NoticeList(
 	resultPersistentLen int,
 	used time.Duration,
 ) {
-	t.report.TotalList++
+	m.Report.TotalList++
 	if loadRelated {
-		t.report.TotalListForLoadRelated++
+		m.Report.TotalListForLoadRelated++
 	}
-	t.report.TotalListUsed += used
-	utils.UpdateK2Map(t.report.TotalListFrom, from, entity,
+	m.Report.TotalListUsed += used
+	utils.UpdateK2Map(m.Report.TotalListFrom, from, entity,
 		func(v int) int { return v + 1 })
-	utils.UpdateK2Map(t.report.TotalListFromUsed, from, entity,
+	utils.UpdateK2Map(m.Report.TotalListFromUsed, from, entity,
 		func(v time.Duration) time.Duration { return v + used })
-	t.recordMetric.NoticeList(ctx, entity, blockNumber, loadRelated, from, resultLen, resultPersistentLen, used)
+	m.metrics.OnList(ctx, entity, blockNumber, loadRelated, from, resultLen, resultPersistentLen, used)
 }
 
-func (t *Txn) NoticeSet(
+func (m *ReportMonitor) OnSet(
 	ctx context.Context,
 	entity string,
 	id string,
@@ -99,18 +137,20 @@ func (t *Txn) NoticeSet(
 	hasOperator bool,
 	used time.Duration,
 ) {
-	t.report.TotalSet++
-	t.report.TotalSetUsed += used
+	m.Report.TotalSet++
+	m.Report.TotalSetUsed += used
 	if remove {
-		t.report.TotalSetNil++
+		m.Report.TotalSetNil++
 	}
 	if hasOperator {
-		t.report.TotalSetPartly++
+		m.Report.TotalSetPartly++
 	}
-	t.recordMetric.NoticeSet(ctx, entity, id, blockNumber, remove, hasOperator, used)
+	m.metrics.OnSet(ctx, entity, id, blockNumber, remove, hasOperator, used)
 }
 
-func (t *Txn) NoticeCommit(
+// OnCommit finalises the current cycle's Report (logging it), then resets
+// Report so the next cycle begins with a clean slate.
+func (m *ReportMonitor) OnCommit(
 	ctx context.Context,
 	blockNumber uint64,
 	created map[string]int,
@@ -118,37 +158,21 @@ func (t *Txn) NoticeCommit(
 	used time.Duration,
 ) {
 	_, logger := log.FromContext(ctx)
-	t.report.TotalCommit = utils.MergeMapSum(created, updated)
-	t.report.TotalCommitCreate = created
-	t.report.TotalCommitType = len(t.report.TotalCommit)
-	t.report.TotalCacheEvicted = t.store.CacheEvicted() - t.storeCacheEvicted
-	t.report.TxnUsed = time.Since(t.start)
-	t.report.TxnCommitUsed = used
-	if utils.SumMap(t.report.TotalCommit) == 0 {
-		logger.Debugw("commit changes of all entities succeed", "report", t.report)
+	m.Report.TotalCommit = utils.MergeMapSum(created, updated)
+	m.Report.TotalCommitCreate = created
+	m.Report.TotalCommitType = len(m.Report.TotalCommit)
+	m.Report.TotalCacheEvicted = m.store.CacheEvicted() - m.storeCacheEvicted
+	m.Report.TxnUsed = time.Since(m.start)
+	m.Report.TxnCommitUsed = used
+	if utils.SumMap(m.Report.TotalCommit) == 0 {
+		logger.Debugw("commit changes of all entities succeed", "report", m.Report)
 	} else {
-		logger.Infow("commit changes of all entities succeed", "report", t.report)
+		logger.Infow("commit changes of all entities succeed", "report", m.Report)
 	}
-}
-
-// NewTxn creates a new Txn backed by the given chain-bound Store.
-// usedMetric may be nil if latency recording is not required.
-func NewTxn(store Store, usedMetric metric.Float64Histogram) *Txn {
-	txn := &Txn{
-		start: time.Now(),
-		report: TxnReport{
-			TotalCommit:       make(map[string]int),
-			TotalCommitCreate: make(map[string]int),
-			TotalGetFrom:      make(map[string]map[string]int),
-			TotalGetFromUsed:  make(map[string]map[string]time.Duration),
-			TotalListFrom:     make(map[string]map[string]int),
-			TotalListFromUsed: make(map[string]map[string]time.Duration),
-		},
-		storeCacheEvicted: store.CacheEvicted(),
-		recordMetric:      SimpleNoticeController{UsedMetric: usedMetric},
-	}
-	txn.Controller = NewController(store, txn)
-	return txn
+	// Reset for the next commit cycle.
+	m.start = time.Now()
+	m.storeCacheEvicted = m.store.CacheEvicted()
+	m.Report = newTxnReport()
 }
 
 type keyMetricAttrs struct{}

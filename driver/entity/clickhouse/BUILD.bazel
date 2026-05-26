@@ -33,7 +33,6 @@ go_library(
         "@com_github_sentioxyz_golang_lru//:golang-lru",
         "@com_github_sentioxyz_golang_lru//simplelru",
         "@com_github_shopspring_decimal//:decimal",
-        "@io_opentelemetry_go_otel_metric//:metric",
     ],
 )
 

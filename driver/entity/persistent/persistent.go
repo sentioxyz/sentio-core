@@ -48,8 +48,6 @@ type Store interface {
 	CacheEvicted() int
 	// Snapshot returns a snapshot of cache and store state for debugging/monitoring.
 	Snapshot() any
-	// NewTxn creates and returns a new Txn backed by this store.
-	NewTxn() *Txn
 }
 
 type EntityFilterOp int

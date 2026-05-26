@@ -273,8 +273,6 @@ func (s *mockChainStore) CacheEvicted() int { return 0 }
 
 func (s *mockChainStore) Snapshot() any { return nil }
 
-func (s *mockChainStore) NewTxn() *Txn { return NewTxn(s, nil) }
-
 func prepareTestStore(sch *schema.Schema, chain string) (*mockChainStore, Store) {
 	s := &mockChainStore{
 		chain:      chain,
@@ -414,23 +412,24 @@ func Test_loadRelated(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	txn := s.NewTxn()
+	monitor := NewReportMonitor(s, nil)
+	ctrl := NewController(s, monitor)
 	a0 := update(ra0, ra0.GenBlockNumber)
 	a1 := update(ra1, ra1.GenBlockNumber)
 	b0 := update(rb0, rb0.GenBlockNumber)
 	b1 := update(rb1, rb1.GenBlockNumber)
 
-	boxies, _, err = txn.ListEntity(ctx, eaType, nil, "", 100, 11)
+	boxies, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{a0, a1}, boxies)
 
 	// update a0.foreignA : 0x0b00 => 0x0b01
 	a0 = update(a0, 11, "foreignA", "0x0b01")
-	assert.NoError(t, txn.SetEntity(ctx, eaType, *a0))
+	assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a0))
 	// now EntityA loaded full cache
-	assert.Equal(t, 1, txn.report.TotalSet)
-	assert.Equal(t, 0, txn.report.TotalSetNil)
-	assert.Equal(t, 0, txn.report.TotalSetPartly)
+	assert.Equal(t, 1, monitor.Report.TotalSet)
+	assert.Equal(t, 0, monitor.Report.TotalSetNil)
+	assert.Equal(t, 0, monitor.Report.TotalSetPartly)
 
 	// change one-to-one relation
 	// update:
@@ -441,36 +440,37 @@ func Test_loadRelated(t *testing.T) {
 	//   b1.foreignD : 0x0a01 => 0x0a00
 	a0_ := update(a0, 12, "foreignD", utils.WrapPointer("0x0b01"))
 	a1_ := update(a1, 12, "foreignD", utils.WrapPointer("0x0b00"))
-	assert.NoError(t, txn.SetEntity(ctx, eaType, *a0_))
-	assert.NoError(t, txn.SetEntity(ctx, eaType, *a1_))
-	assert.Equal(t, 3, txn.report.TotalSet)
-	assert.Equal(t, 0, txn.report.TotalSetNil)
-	assert.Equal(t, 0, txn.report.TotalSetPartly)
-	boxies, _, err = txn.ListRelated(ctx, ebType, b0.ID, "foreignD", 11) // ignore the changes in block 12
+	assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a0_))
+	assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a1_))
+	assert.Equal(t, 3, monitor.Report.TotalSet)
+	assert.Equal(t, 0, monitor.Report.TotalSetNil)
+	assert.Equal(t, 0, monitor.Report.TotalSetPartly)
+	boxies, _, err = ctrl.ListRelated(ctx, ebType, b0.ID, "foreignD", 11) // ignore the changes in block 12
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{a0}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, ebType, b1.ID, "foreignD", 11) // ignore the changes in block 12
+	boxies, _, err = ctrl.ListRelated(ctx, ebType, b1.ID, "foreignD", 11) // ignore the changes in block 12
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{a1}, boxies)
 	a0, a1 = a0_, a1_
-	boxies, _, err = txn.ListRelated(ctx, ebType, b0.ID, "foreignD", 12)
+	boxies, _, err = ctrl.ListRelated(ctx, ebType, b0.ID, "foreignD", 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{a1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, ebType, b1.ID, "foreignD", 12)
+	boxies, _, err = ctrl.ListRelated(ctx, ebType, b1.ID, "foreignD", 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{a0}, boxies)
-	assert.Equal(t, 5, txn.report.TotalList)
-	assert.Equal(t, 4, txn.report.TotalListForLoadRelated)
+	assert.Equal(t, 5, monitor.Report.TotalList)
+	assert.Equal(t, 4, monitor.Report.TotalListForLoadRelated)
 	assert.Equal(t,
 		map[string]map[string]int{
 			"persistent": {eaType.GetName(): 1},
 			"cache":      {eaType.GetName(): 4},
 		},
-		txn.report.TotalListFrom)
+		monitor.Report.TotalListFrom)
 
 	// ================================================================================
 	// reset data
-	txn = s.NewTxn()
+	monitor = NewReportMonitor(s, nil)
+	ctrl = NewController(s, monitor)
 
 	// change many-to-one relation
 	// update:
@@ -481,18 +481,19 @@ func Test_loadRelated(t *testing.T) {
 	//   a1.foreignB :               [] => [0x0b00, 0x0b01]
 	b0 = update(b0, 11, "foreignB", "0x0a01")
 	b1 = update(b1, 11, "foreignB", "0x0a01")
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b0))
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b1))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignB", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignB", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox(nil), boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignB", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignB", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0, b1}, boxies)
 
 	// ================================================================================
 	// reset data
-	txn = s.NewTxn()
+	monitor = NewReportMonitor(s, nil)
+	ctrl = NewController(s, monitor)
 	a0 = update(ra0, ra0.GenBlockNumber)
 	a1 = update(ra1, ra1.GenBlockNumber)
 	b0 = update(rb0, rb0.GenBlockNumber)
@@ -506,11 +507,11 @@ func Test_loadRelated(t *testing.T) {
 	//   a0.foreignE : [0x0b00, 0x0b01] => [        0x0b01]
 	//   a1.foreignE : [        0x0b01] => [        0x0b01]
 	b0 = update(b0, 11, "foreignE", []string(nil))
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b0))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
 
@@ -522,11 +523,11 @@ func Test_loadRelated(t *testing.T) {
 	//   a0.foreignE : [        0x0b01] => [        0x0b01]
 	//   a1.foreignE : [        0x0b01] => [              ]
 	b1 = update(b1, 11, "foreignE", []string{"0x0a00"})
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b1))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox(nil), boxies)
 
@@ -538,11 +539,11 @@ func Test_loadRelated(t *testing.T) {
 	//   a0.foreignE : [        0x0b01] => [0x0b00, 0x0b01]
 	//   a1.foreignE : [        0x0b01] => [0x0b00        ]
 	b0 = update(b0, 11, "foreignE", []string{"0x0a00", "0x0a01"})
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b0))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0, b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0}, boxies)
 
@@ -554,17 +555,18 @@ func Test_loadRelated(t *testing.T) {
 	//   a0.foreignE : [0x0b00, 0x0b01] => [0x0b00        ]
 	//   a1.foreignE : [0x0b00        ] => [0x0b00, 0x0b01]
 	b1 = update(b1, 11, "foreignE", []string{"0x0a01"})
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b1))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0, b1}, boxies)
 
 	// ================================================================================
 	// reset data
-	txn = s.NewTxn()
+	monitor = NewReportMonitor(s, nil)
+	ctrl = NewController(s, monitor)
 	a0 = update(ra0, ra0.GenBlockNumber)
 	a1 = update(ra1, ra1.GenBlockNumber)
 	b0 = update(rb0, rb0.GenBlockNumber)
@@ -578,11 +580,11 @@ func Test_loadRelated(t *testing.T) {
 	//   a0.foreignF : 0x0b01           =>
 	//   a1.foreignF : 0x0b01           => 0x0b01
 	b1 = update(b1, 11, "foreignF", []string{"0x0a01"})
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b1))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox(nil), boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
 
@@ -594,11 +596,11 @@ func Test_loadRelated(t *testing.T) {
 	//   a0.foreignF :                  => 0x0b00
 	//   a1.foreignF : 0x0b01           => 0x0b01
 	b0 = update(b0, 11, "foreignF", []string{"0x0a00"})
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b0))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
 
@@ -610,11 +612,11 @@ func Test_loadRelated(t *testing.T) {
 	//   a0.foreignF : 0x0b00           => 0x0b00
 	//   a1.foreignF : 0x0b01           =>
 	b1 = update(b1, 11, "foreignF", []string(nil))
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b1))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox(nil), boxies)
 
@@ -626,11 +628,11 @@ func Test_loadRelated(t *testing.T) {
 	//   a0.foreignF : 0x0b00           => 0x0b00
 	//   a1.foreignF :                  => 0x0b00
 	b0 = update(b0, 11, "foreignF", []string{"0x0a00", "0x0a01"})
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b0))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0}, boxies)
 
@@ -669,7 +671,8 @@ func Test_loadRelated2(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	txn := s.NewTxn()
+	monitor := NewReportMonitor(s, nil)
+	ctrl := NewController(s, monitor)
 	a0 := update(ra0, ra0.GenBlockNumber)
 	a1 := update(ra1, ra1.GenBlockNumber)
 	b0 := update(rb0, rb0.GenBlockNumber)
@@ -685,22 +688,22 @@ func Test_loadRelated2(t *testing.T) {
 	// foreignF
 	//   b0->
 	//   b1->a0,a1
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignB", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignB", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0, b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignB", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignB", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox(nil), boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0, b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
 
@@ -716,29 +719,30 @@ func Test_loadRelated2(t *testing.T) {
 	//   b0->            b0->
 	//   b1->a0,a1       b1->a0,a1
 	b0 = update(b0, 11, "foreignB", "0x0a01")
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b0))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignB", 11)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignB", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignB", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignB", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0, b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignE", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignF", 11)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
 
-	_, _, err = txn.Commit(ctx, math.MaxUint64, time.Time{})
+	_, _, err = ctrl.Commit(ctx, math.MaxUint64, time.Time{})
 	assert.NoError(t, err)
-	txn = s.NewTxn()
+	monitor = NewReportMonitor(s, nil)
+	ctrl = NewController(s, monitor)
 
 	// change reserve relation
 	// =init=            =new=            =new=
@@ -754,23 +758,23 @@ func Test_loadRelated2(t *testing.T) {
 	b0 = update(b0, 12,
 		"foreignE", []*string{utils.WrapPointer("0x0a01")},
 		"foreignF", []string{"0x0a00"})
-	assert.NoError(t, txn.SetEntity(ctx, ebType, *b0))
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignB", 12)
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignB", 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignB", 12)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignB", 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignE", 12)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignE", 12)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignE", 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0, b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a0.ID, "foreignF", 12)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b0, b1}, boxies)
-	boxies, _, err = txn.ListRelated(ctx, eaType, a1.ID, "foreignF", 12)
+	boxies, _, err = ctrl.ListRelated(ctx, eaType, a1.ID, "foreignF", 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{b1}, boxies)
 }
@@ -801,45 +805,46 @@ func Test_list1(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	txn := s.NewTxn()
+	monitor := NewReportMonitor(s, nil)
+	ctrl := NewController(s, monitor)
 
 	// init
-	boxies, _, err = txn.ListEntity(ctx, eaType, nil, "", 100, 12)
+	boxies, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{a0, a1}, boxies)
 	// insert a2
-	assert.NoError(t, txn.SetEntity(ctx, eaType, *a2))
-	boxies, _, err = txn.ListEntity(ctx, eaType, nil, "", 100, 12)
+	assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a2))
+	boxies, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{a2, a0, a1}, boxies)
 	// delete a1
-	assert.NoError(t, txn.SetEntity(ctx, eaType, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, eaType, EntityBox{
 		ID:             "0x0a01",
 		GenBlockNumber: 12,
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
 	}))
-	boxies, _, err = txn.ListEntity(ctx, eaType, nil, "", 100, 12)
+	boxies, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 12)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{a2, a0}, boxies)
 	// delete a0
-	assert.NoError(t, txn.SetEntity(ctx, eaType, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, eaType, EntityBox{
 		ID:             "0x0a00",
 		GenBlockNumber: 13,
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
 	}))
-	boxies, _, err = txn.ListEntity(ctx, eaType, nil, "", 100, 13)
+	boxies, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 13)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{a2}, boxies)
 	// delete a2
-	assert.NoError(t, txn.SetEntity(ctx, eaType, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, eaType, EntityBox{
 		ID:             "0x0a02",
 		GenBlockNumber: 14,
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
 	}))
-	boxies, _, err = txn.ListEntity(ctx, eaType, nil, "", 100, 14)
+	boxies, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 14)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox(nil), boxies)
 }
@@ -884,73 +889,74 @@ func Test_list2(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	txn := s.NewTxn()
+	monitor := NewReportMonitor(s, nil)
+	ctrl := NewController(s, monitor)
 
 	// init
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 100, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 100, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c00, c01, c11}, boxies)
 	assert.Nil(t, cursor)
 
 	// insert c10, uncommitted: c10, persistent: c00, c01, c11
-	assert.NoError(t, txn.SetEntity(ctx, ecType, *c10))
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 2, 20)
+	assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c10))
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 2, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c10, c00}, boxies)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c01, c11}, boxies)
 	assert.Nil(t, cursor)
 
 	// update c01, uncommitted: c01, c10, persistent: c00, c11
-	assert.NoError(t, txn.SetEntity(ctx, ecType, *c01_))
+	assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c01_))
 	// list: c01 | c10, c00 | c11
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 1, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 1, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c01_}, boxies)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 2, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 2, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c10, c00}, boxies)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c11}, boxies)
 	assert.Nil(t, cursor)
 	// list: c01, c10 | c00, c11 |
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 2, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 2, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c01_, c10}, boxies)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 2, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 2, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c00, c11}, boxies)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 2, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 2, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox(nil), boxies)
 	assert.Nil(t, cursor)
 	// list: c01, c10, c00 | c11
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 3, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 3, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c01_, c10, c00}, boxies)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c11}, boxies)
 	assert.Nil(t, cursor)
 	// list: c01, c10, c00, c11 |
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 4, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 4, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c01_, c10, c00, c11}, boxies)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 4, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 4, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox(nil), boxies)
 	assert.Nil(t, cursor)
 	// list: c01, c10, c00, c11
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 5, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 5, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c01_, c10, c00, c11}, boxies)
 	assert.Nil(t, cursor)
@@ -960,39 +966,39 @@ func Test_list2(t *testing.T) {
 		Op:    EntityFilterOpGe,
 		Value: []any{"0x0a01"},
 	}}
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, filters, "", 1, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, filters, "", 1, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c10}, boxies)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, filters, *cursor, 1, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, filters, *cursor, 1, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c11}, boxies)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, filters, *cursor, 1, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, filters, *cursor, 1, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox(nil), boxies)
 	assert.Nil(t, cursor)
 
 	// delete c01, uncommitted: c10, persistent: c00, c11
-	assert.NoError(t, txn.SetEntity(ctx, ecType, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, ecType, EntityBox{
 		ID:             "0x0c0001",
 		GenBlockNumber: 13,
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
 	}))
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 5, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 5, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c10, c00, c11}, boxies)
 	assert.Nil(t, cursor)
 
 	// delete c10, uncommitted: <empty>, persistent: c00, c11
-	assert.NoError(t, txn.SetEntity(ctx, ecType, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, ecType, EntityBox{
 		ID:             "0x0c0100",
 		GenBlockNumber: 14,
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
 	}))
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 5, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 5, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c00, c11}, boxies)
 	assert.Nil(t, cursor)
@@ -1038,10 +1044,11 @@ func Test_listCache(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	txn := s.NewTxn()
+	monitor := NewReportMonitor(s, nil)
+	ctrl := NewController(s, monitor)
 
 	// init, will load all entity to list cache
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 100, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 100, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c00, c01, c11}, boxies)
 	assert.Nil(t, cursor)
@@ -1049,10 +1056,10 @@ func Test_listCache(t *testing.T) {
 		map[string]map[string]int{
 			"persistent": {ecType.GetName(): 1},
 		},
-		txn.report.TotalListFrom)
+		monitor.Report.TotalListFrom)
 
 	// list use list cache
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 100, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 100, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c00, c01, c11}, boxies)
 	assert.Nil(t, cursor)
@@ -1061,11 +1068,11 @@ func Test_listCache(t *testing.T) {
 			"persistent": {ecType.GetName(): 1},
 			"cache":      {ecType.GetName(): 1},
 		},
-		txn.report.TotalListFrom)
+		monitor.Report.TotalListFrom)
 
 	// insert c10, uncommitted: c10, persistent: c00, c01, c11
-	assert.NoError(t, txn.SetEntity(ctx, ecType, *c10))
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 2, 20)
+	assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c10))
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 2, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c10, c00}, boxies)
 	assert.Equal(t,
@@ -1073,9 +1080,9 @@ func Test_listCache(t *testing.T) {
 			"persistent": {ecType.GetName(): 1},
 			"cache":      {ecType.GetName(): 2},
 		},
-		txn.report.TotalListFrom)
+		monitor.Report.TotalListFrom)
 	assert.NotNil(t, cursor)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c01, c11}, boxies)
 	assert.Nil(t, cursor)
@@ -1084,12 +1091,12 @@ func Test_listCache(t *testing.T) {
 			"persistent": {ecType.GetName(): 1},
 			"cache":      {ecType.GetName(): 3},
 		},
-		txn.report.TotalListFrom)
+		monitor.Report.TotalListFrom)
 
 	// update c01, uncommitted: c01, c10, persistent: c00, c11
-	assert.NoError(t, txn.SetEntity(ctx, ecType, *c01_))
+	assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c01_))
 	// list: c01 | c10, c00 | c11
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 1, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 1, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c01_}, boxies)
 	assert.NotNil(t, cursor)
@@ -1099,8 +1106,8 @@ func Test_listCache(t *testing.T) {
 			"persistent":  {ecType.GetName(): 1},
 			"cache":       {ecType.GetName(): 3},
 		},
-		txn.report.TotalListFrom)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 2, 20)
+		monitor.Report.TotalListFrom)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 2, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c10, c00}, boxies)
 	assert.NotNil(t, cursor)
@@ -1110,8 +1117,8 @@ func Test_listCache(t *testing.T) {
 			"persistent":  {ecType.GetName(): 1},
 			"cache":       {ecType.GetName(): 4},
 		},
-		txn.report.TotalListFrom)
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
+		monitor.Report.TotalListFrom)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, *cursor, 3, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c11}, boxies)
 	assert.Nil(t, cursor)
@@ -1121,15 +1128,16 @@ func Test_listCache(t *testing.T) {
 			"persistent":  {ecType.GetName(): 1},
 			"cache":       {ecType.GetName(): 5},
 		},
-		txn.report.TotalListFrom)
+		monitor.Report.TotalListFrom)
 
 	// commit, list cache will be reset
-	_, _, err = txn.Commit(ctx, math.MaxUint64, time.Time{})
+	_, _, err = ctrl.Commit(ctx, math.MaxUint64, time.Time{})
 	assert.NoError(t, err)
-	txn = s.NewTxn()
+	monitor = NewReportMonitor(s, nil)
+	ctrl = NewController(s, monitor)
 
 	// will load entities from persistent
-	boxies, cursor, err = txn.ListEntity(ctx, ecType, nil, "", 100, 20)
+	boxies, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 100, 20)
 	assert.NoError(t, err)
 	assert.Equal(t, []*EntityBox{c00, c01_, c10, c11}, boxies)
 	assert.Nil(t, cursor)
@@ -1137,7 +1145,7 @@ func Test_listCache(t *testing.T) {
 		map[string]map[string]int{
 			"persistent": {ecType.GetName(): 1},
 		},
-		txn.report.TotalListFrom)
+		monitor.Report.TotalListFrom)
 }
 
 func Test_getInterface(t *testing.T) {
@@ -1154,15 +1162,16 @@ func Test_getInterface(t *testing.T) {
 	_, s := prepareTestStore(sch, chain)
 
 	ctx := context.Background()
-	txn := s.NewTxn()
+	monitor := NewReportMonitor(s, nil)
+	ctrl := NewController(s, monitor)
 
 	// no EntityE1 and EntityE2 object
-	box, err = txn.GetEntity(ctx, eType, "0x0e00", 20)
+	box, err = ctrl.GetEntity(ctx, eType, "0x0e00", 20)
 	assert.NoError(t, err)
 	assert.Nil(t, box)
 
 	// insert new EntityE1 object, and then we can get it by EntityE
-	assert.NoError(t, txn.SetEntity(ctx, e1Type, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, e1Type, EntityBox{
 		ID: "0x0e00",
 		Data: map[string]any{
 			"id":    "0x0e00",
@@ -1173,7 +1182,7 @@ func Test_getInterface(t *testing.T) {
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
 	}))
-	box, err = txn.GetEntity(ctx, eType, "0x0e00", 20)
+	box, err = ctrl.GetEntity(ctx, eType, "0x0e00", 20)
 	assert.NoError(t, err)
 	assert.Equal(t, &EntityBox{
 		ID: "0x0e00",
@@ -1189,7 +1198,7 @@ func Test_getInterface(t *testing.T) {
 	}, box)
 
 	// insert new EntityE2 object, get by EntityE will get the EntityE1 object
-	assert.NoError(t, txn.SetEntity(ctx, e2Type, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, e2Type, EntityBox{
 		ID: "0x0e00",
 		Data: map[string]any{
 			"id":    "0x0e00",
@@ -1200,7 +1209,7 @@ func Test_getInterface(t *testing.T) {
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
 	}))
-	box, err = txn.GetEntity(ctx, eType, "0x0e00", 20)
+	box, err = ctrl.GetEntity(ctx, eType, "0x0e00", 20)
 	assert.NoError(t, err)
 	assert.Equal(t, &EntityBox{
 		ID: "0x0e00",
@@ -1216,13 +1225,13 @@ func Test_getInterface(t *testing.T) {
 	}, box)
 
 	// delete EntityE1 object, get by EntityE will get the EntityE2 object
-	assert.NoError(t, txn.SetEntity(ctx, e1Type, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, e1Type, EntityBox{
 		ID:             "0x0e00",
 		GenBlockNumber: 13,
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
 	}))
-	box, err = txn.GetEntity(ctx, eType, "0x0e00", 20)
+	box, err = ctrl.GetEntity(ctx, eType, "0x0e00", 20)
 	assert.NoError(t, err)
 	assert.Equal(t, &EntityBox{
 		ID: "0x0e00",
@@ -1238,13 +1247,13 @@ func Test_getInterface(t *testing.T) {
 	}, box)
 
 	// delete EntityE2 object, get by EntityE will get the EntityE2 delete record
-	assert.NoError(t, txn.SetEntity(ctx, e2Type, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, e2Type, EntityBox{
 		ID:             "0x0e00",
 		GenBlockNumber: 14,
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
 	}))
-	box, err = txn.GetEntity(ctx, eType, "0x0e00", 20)
+	box, err = ctrl.GetEntity(ctx, eType, "0x0e00", 20)
 	assert.NoError(t, err)
 	assert.Equal(t, &EntityBox{
 		ID:             "0x0e00",

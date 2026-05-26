@@ -21,8 +21,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-type NoticeController interface {
-	NoticeGet(
+// Monitor is the observer interface through which Controller reports key
+// operations.  Implementations decide what to do with each notification
+// (record metrics, accumulate stats, log, etc.).
+type Monitor interface {
+	OnGet(
 		ctx context.Context,
 		entity string,
 		id string,
@@ -30,7 +33,7 @@ type NoticeController interface {
 		inBlock bool,
 		from string,
 		used time.Duration)
-	NoticeList(
+	OnList(
 		ctx context.Context,
 		entity string,
 		blockNumber uint64,
@@ -39,7 +42,7 @@ type NoticeController interface {
 		resultLen int,
 		resultPersistentLen int,
 		used time.Duration)
-	NoticeSet(
+	OnSet(
 		ctx context.Context,
 		entity string,
 		id string,
@@ -47,7 +50,7 @@ type NoticeController interface {
 		remove bool,
 		hasOperator bool,
 		used time.Duration)
-	NoticeCommit(
+	OnCommit(
 		ctx context.Context,
 		blockNumber uint64,
 		created map[string]int,
@@ -55,18 +58,20 @@ type NoticeController interface {
 		used time.Duration)
 }
 
-type SimpleNoticeController struct {
+// MetricsMonitor is a Monitor implementation that records operation latency
+// via an OpenTelemetry histogram.  When UsedMetric is nil it is a no-op.
+type MetricsMonitor struct {
 	UsedMetric metric.Float64Histogram
 }
 
-func (c SimpleNoticeController) recordMetric(ctx context.Context, used time.Duration, attrs ...attribute.KeyValue) {
+func (c MetricsMonitor) recordMetric(ctx context.Context, used time.Duration, attrs ...attribute.KeyValue) {
 	if c.UsedMetric == nil {
 		return
 	}
 	c.UsedMetric.Record(ctx, float64(used.Nanoseconds())/1e6, metric.WithAttributes(attrs...))
 }
 
-func (c SimpleNoticeController) NoticeGet(
+func (c MetricsMonitor) OnGet(
 	ctx context.Context,
 	entity string,
 	id string,
@@ -82,7 +87,7 @@ func (c SimpleNoticeController) NoticeGet(
 		attribute.Bool("in_block", inBlock))
 }
 
-func (c SimpleNoticeController) NoticeList(
+func (c MetricsMonitor) OnList(
 	ctx context.Context,
 	entity string,
 	blockNumber uint64,
@@ -99,7 +104,7 @@ func (c SimpleNoticeController) NoticeList(
 		attribute.Bool("load_related", loadRelated))
 }
 
-func (c SimpleNoticeController) NoticeSet(
+func (c MetricsMonitor) OnSet(
 	ctx context.Context,
 	entity string,
 	id string,
@@ -120,7 +125,7 @@ func (c SimpleNoticeController) NoticeSet(
 	}
 }
 
-func (c SimpleNoticeController) NoticeCommit(
+func (c MetricsMonitor) OnCommit(
 	ctx context.Context,
 	blockNumber uint64,
 	created map[string]int,
@@ -333,15 +338,15 @@ type Controller struct {
 
 	timeStat *timewin.TimeWindowsManager[*timeStatWindow]
 
-	noticeCtl NoticeController
+	monitor Monitor
 }
 
-func NewController(store Store, noticeCtl NoticeController) *Controller {
+func NewController(store Store, monitor Monitor) *Controller {
 	return &Controller{
-		store:     store,
-		changes:   make(changeSet),
-		timeStat:  timewin.NewTimeWindowsManager[*timeStatWindow](time.Minute),
-		noticeCtl: noticeCtl,
+		store:    store,
+		changes:  make(changeSet),
+		timeStat: timewin.NewTimeWindowsManager[*timeStatWindow](time.Minute),
+		monitor:  monitor,
 	}
 }
 
@@ -499,7 +504,7 @@ func (t *Controller) getEntity(
 
 	used := time.Since(start)
 	logger.Debugw("got entity", "box", box.String(), "from", from, "used", used)
-	t.noticeCtl.NoticeGet(ctx, entityType.GetName(), id, blockNumber, inBlock, from, used)
+	t.monitor.OnGet(ctx, entityType.GetName(), id, blockNumber, inBlock, from, used)
 	t.timeStat.Append(&timeStatWindow{
 		startAt: time.Now(),
 		entityStat: map[string]entityTimeStat{
@@ -618,7 +623,7 @@ func (t *Controller) listEntity(
 			return
 		}
 		used := time.Since(start)
-		t.noticeCtl.NoticeList(ctx, entityType.GetName(), blockNumber, loadRelated, from, len(boxes), len(persistentPart), used)
+		t.monitor.OnList(ctx, entityType.GetName(), blockNumber, loadRelated, from, len(boxes), len(persistentPart), used)
 		t.timeStat.Append(&timeStatWindow{
 			startAt: time.Now(),
 			entityStat: map[string]entityTimeStat{
@@ -778,7 +783,7 @@ func (t *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	}
 	used := time.Since(start)
 	logger.Debugw("set entity", "hasOperator", hasOperator, "remove", remove, "used", used)
-	t.noticeCtl.NoticeSet(ctx, entityType.GetName(), box.ID, box.GenBlockNumber, remove, hasOperator, used)
+	t.monitor.OnSet(ctx, entityType.GetName(), box.ID, box.GenBlockNumber, remove, hasOperator, used)
 	t.timeStat.Append(&timeStatWindow{
 		startAt: time.Now(),
 		entityStat: map[string]entityTimeStat{
@@ -884,7 +889,7 @@ func (t *Controller) Commit(
 
 	used := time.Since(start)
 	logger.Debugw("committed changes", "created", created, "updated", updated, "used", used)
-	t.noticeCtl.NoticeCommit(ctx, blockNumber, created, updated, used)
+	t.monitor.OnCommit(ctx, blockNumber, created, updated, used)
 	t.timeStat.Append(&timeStatWindow{startAt: time.Now(), commit: timehist.Histogram{}.Incr(used)})
 	return
 }

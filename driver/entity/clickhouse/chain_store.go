@@ -8,7 +8,6 @@ import (
 
 	lru "github.com/sentioxyz/golang-lru"
 	"github.com/sentioxyz/golang-lru/simplelru"
-	"go.opentelemetry.io/otel/metric"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/persistent"
@@ -21,9 +20,8 @@ import (
 // ChainStore is NOT thread-safe by itself; callers (e.g. Controller.mu) are
 // expected to serialise access.
 type ChainStore struct {
-	store      *Store
-	chain      string
-	usedMetric metric.Float64Histogram
+	store *Store
+	chain string
 
 	// lruCache caches individual entity lookups.  Key is "entityName/id".
 	lruCache   *simplelru.LRU[string, *persistent.EntityBox]
@@ -52,18 +50,15 @@ type ChainStore struct {
 // NewChainStore creates a ChainStore bound to the given chain.
 //   - lruCapacity: number of entity entries in the LRU cache.
 //   - fullCacheDataSizeLimit: max total byte size of the full-data cache.
-//   - usedMetric: optional histogram for recording operation latency (may be nil).
 func NewChainStore(
 	store *Store,
 	chain string,
 	lruCapacity int,
 	fullCacheDataSizeLimit int,
-	usedMetric metric.Float64Histogram,
 ) *ChainStore {
 	cs := &ChainStore{
 		store:              store,
 		chain:              chain,
-		usedMetric:         usedMetric,
 		fullCacheDataLimit: fullCacheDataSizeLimit,
 		fullIDCache:        make(map[string]map[string]bool),
 		fullIDCacheLoaded:  make(map[string]bool),
@@ -356,12 +351,6 @@ func (c *ChainStore) Snapshot() any {
 		"fullIDCache": fullIDCache,
 		"fullCache":   fullCache,
 	}
-}
-
-// NewTxn creates and returns a new Txn backed by this ChainStore.
-// This is a convenience method for callers that hold a *ChainStore directly.
-func (c *ChainStore) NewTxn() *persistent.Txn {
-	return persistent.NewTxn(c, c.usedMetric)
 }
 
 // ─── internal helpers ────────────────────────────────────────────────────────

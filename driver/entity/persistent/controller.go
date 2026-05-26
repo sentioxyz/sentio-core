@@ -25,6 +25,10 @@ import (
 // operations.  Implementations decide what to do with each notification
 // (record metrics, accumulate stats, log, etc.).
 type Monitor interface {
+	// OnStart marks the beginning of a new processing cycle (equivalent to
+	// the old NewTxn call).  Implementations should reset any per-cycle state
+	// and record the start time here.
+	OnStart()
 	OnGet(
 		ctx context.Context,
 		entity string,
@@ -63,6 +67,8 @@ type Monitor interface {
 type MetricsMonitor struct {
 	UsedMetric metric.Float64Histogram
 }
+
+func (c MetricsMonitor) OnStart() {}
 
 func (c MetricsMonitor) recordMetric(ctx context.Context, used time.Duration, attrs ...attribute.KeyValue) {
 	if c.UsedMetric == nil {

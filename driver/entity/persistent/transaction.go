@@ -57,12 +57,14 @@ func newTxnReport() TxnReport {
 // statistics in its Report field and logs a summary on each OnCommit call.
 // It also delegates metric recording to an embedded MetricsMonitor.
 //
-// After OnCommit returns, Report is reset so the next commit cycle starts
-// with a clean slate.  Callers may read Report at any point during a cycle
-// to observe in-progress statistics.
+// Lifecycle: call OnStart before each processing cycle begins (the equivalent
+// of the old NewTxn call).  OnStart resets Report and records the cycle start
+// time.  OnCommit then finalises the cycle by computing TxnUsed, logging the
+// report, and returning — it does NOT reset state.  Callers may read Report at
+// any point to observe in-progress statistics.
 type ReportMonitor struct {
-	// Report holds the statistics accumulated since the last OnCommit (or since
-	// construction).  It is reset automatically after each OnCommit.
+	// Report holds the statistics accumulated since the last OnStart.
+	// It is reset by OnStart, not by OnCommit.
 	Report TxnReport
 
 	start   time.Time
@@ -71,12 +73,20 @@ type ReportMonitor struct {
 
 // NewReportMonitor creates a ReportMonitor.
 // usedMetric may be nil if latency recording is not required.
+// Call OnStart before beginning the first processing cycle.
 func NewReportMonitor(usedMetric metric.Float64Histogram) *ReportMonitor {
 	return &ReportMonitor{
-		start:   time.Now(),
 		metrics: MetricsMonitor{UsedMetric: usedMetric},
 		Report:  newTxnReport(),
 	}
+}
+
+// OnStart marks the beginning of a new processing cycle.  It resets Report and
+// records the current time as the cycle start.  This is the equivalent of the
+// old NewTxn call and should be invoked once before each round of processing.
+func (m *ReportMonitor) OnStart() {
+	m.start = time.Now()
+	m.Report = newTxnReport()
 }
 
 func (m *ReportMonitor) OnGet(
@@ -142,8 +152,9 @@ func (m *ReportMonitor) OnSet(
 	m.metrics.OnSet(ctx, entity, id, blockNumber, remove, hasOperator, used)
 }
 
-// OnCommit finalises the current cycle's Report (logging it), then resets
-// Report so the next cycle begins with a clean slate.
+// OnCommit finalises the current cycle's Report by computing timing fields and
+// logging a summary.  It does NOT reset state — call OnStart to begin the next
+// cycle.
 func (m *ReportMonitor) OnCommit(
 	ctx context.Context,
 	blockNumber uint64,
@@ -162,9 +173,6 @@ func (m *ReportMonitor) OnCommit(
 	} else {
 		logger.Infow("commit changes of all entities succeed", "report", m.Report)
 	}
-	// Reset for the next commit cycle.
-	m.start = time.Now()
-	m.Report = newTxnReport()
 }
 
 type keyMetricAttrs struct{}

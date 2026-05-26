@@ -40,6 +40,7 @@ go_test(
         "change_test.go",
         "controller_test.go",
         "filter_test.go",
+        "operator_test.go",
     ],
     embed = [":persistent"],
     deps = [

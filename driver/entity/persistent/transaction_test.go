@@ -165,7 +165,7 @@ type EntityE2 implements EntityE @entity {
 
 `
 
-// mockChainStore is a simple in-memory implementation of Store used in tests.
+// mockChainStore is a simple in-memory implementation of ChainStore used in tests.
 // It does not implement caching (GetEntity/ListEntities always return fromCache=false)
 // except that ListEntities returns fromCache=true on subsequent calls for the same
 // entity type after the data has been fetched once, mimicking the full-cache path.
@@ -263,7 +263,7 @@ func (s *mockChainStore) CacheEvicted() int { return 0 }
 
 func (s *mockChainStore) Snapshot() any { return nil }
 
-func prepareTestStore(sch *schema.Schema, chain string) (*mockChainStore, Store) {
+func prepareTestStore(sch *schema.Schema, chain string) (*mockChainStore, ChainStore) {
 	s := &mockChainStore{
 		chain:      chain,
 		schema:     sch,

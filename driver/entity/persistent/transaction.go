@@ -69,13 +69,13 @@ type ReportMonitor struct {
 
 	start             time.Time
 	storeCacheEvicted int
-	store             Store // used only for CacheEvicted()
+	store             ChainStore // used only for CacheEvicted()
 	metrics           MetricsMonitor
 }
 
 // NewReportMonitor creates a ReportMonitor bound to the given store.
 // usedMetric may be nil if latency recording is not required.
-func NewReportMonitor(store Store, usedMetric metric.Float64Histogram) *ReportMonitor {
+func NewReportMonitor(store ChainStore, usedMetric metric.Float64Histogram) *ReportMonitor {
 	return &ReportMonitor{
 		start:             time.Now(),
 		storeCacheEvicted: store.CacheEvicted(),

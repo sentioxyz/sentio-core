@@ -332,7 +332,7 @@ func (w *timeStatWindow) Snapshot(endAt time.Time) any {
 type Controller struct {
 	mu sync.Mutex
 
-	store     Store     // persistent data (chain-bound)
+	store     ChainStore // persistent data (chain-bound)
 	changes   changeSet // uncommited data
 	committed *uint64
 
@@ -341,7 +341,7 @@ type Controller struct {
 	monitor Monitor
 }
 
-func NewController(store Store, monitor Monitor) *Controller {
+func NewController(store ChainStore, monitor Monitor) *Controller {
 	return &Controller{
 		store:    store,
 		changes:  make(changeSet),

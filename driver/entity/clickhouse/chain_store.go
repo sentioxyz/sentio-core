@@ -15,7 +15,7 @@ import (
 )
 
 // ChainStore wraps Store for a single chain, providing entity read/write caching.
-// It implements persistent.Store (chain-bound interface).
+// It implements persistent.ChainStore (chain-bound interface).
 //
 // ChainStore is NOT thread-safe by itself; callers (e.g. Controller.mu) are
 // expected to serialise access.
@@ -77,7 +77,7 @@ func NewChainStore(
 	return cs
 }
 
-// ─── persistent.Store implementation ────────────────────────────────────────
+// ─── persistent.ChainStore implementation ───────────────────────────────────
 
 // GetChain returns the chain this store is bound to.
 func (c *ChainStore) GetChain() string { return c.chain }

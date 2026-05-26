@@ -216,9 +216,6 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 	if d.config.HousegateDB != "" {
 		envs = append(envs, "SENTIO_NETWORK_HOUSEGATE_DB="+d.config.HousegateDB)
 	}
-	if d.config.HousegatePrivateKey != "" {
-		envs = append(envs, "SENTIO_NETWORK_HOUSEGATE_PRIVATE_KEY="+d.config.HousegatePrivateKey)
-	}
 
 	return swarm.ServiceSpec{
 		Annotations: swarm.Annotations{

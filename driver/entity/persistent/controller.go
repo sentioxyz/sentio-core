@@ -4,13 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.opentelemetry.io/otel/metric"
 	"math"
-	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/common/timehist"
-	"sentioxyz/sentio-core/common/timewin"
-	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio-core/driver/entity/schema"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,121 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
+	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/timehist"
+	"sentioxyz/sentio-core/common/timewin"
+	"sentioxyz/sentio-core/common/utils"
+	"sentioxyz/sentio-core/driver/entity/schema"
 )
-
-// Monitor is the observer interface through which Controller reports key
-// operations.  Implementations decide what to do with each notification
-// (record metrics, accumulate stats, log, etc.).
-type Monitor interface {
-	OnGet(
-		ctx context.Context,
-		entity string,
-		id string,
-		blockNumber uint64,
-		inBlock bool,
-		from string,
-		used time.Duration)
-	OnList(
-		ctx context.Context,
-		entity string,
-		blockNumber uint64,
-		loadRelated bool,
-		from string,
-		resultLen int,
-		resultPersistentLen int,
-		used time.Duration)
-	OnSet(
-		ctx context.Context,
-		entity string,
-		id string,
-		blockNumber uint64,
-		remove bool,
-		hasOperator bool,
-		used time.Duration)
-	OnCommit(
-		ctx context.Context,
-		blockNumber uint64,
-		created map[string]int,
-		updated map[string]int,
-		used time.Duration)
-}
-
-// MetricsMonitor is a Monitor implementation that records operation latency
-// via an OpenTelemetry histogram.  When UsedMetric is nil it is a no-op.
-type MetricsMonitor struct {
-	UsedMetric metric.Float64Histogram
-}
-
-func (c MetricsMonitor) recordMetric(ctx context.Context, used time.Duration, attrs ...attribute.KeyValue) {
-	if c.UsedMetric == nil {
-		return
-	}
-	c.UsedMetric.Record(ctx, float64(used.Nanoseconds())/1e6, metric.WithAttributes(attrs...))
-}
-
-func (c MetricsMonitor) OnGet(
-	ctx context.Context,
-	entity string,
-	id string,
-	blockNumber uint64,
-	inBlock bool,
-	from string,
-	used time.Duration,
-) {
-	c.recordMetric(ctx, used,
-		attribute.String("operation", "get"),
-		attribute.String("entity_type", entity),
-		attribute.String("from", from),
-		attribute.Bool("in_block", inBlock))
-}
-
-func (c MetricsMonitor) OnList(
-	ctx context.Context,
-	entity string,
-	blockNumber uint64,
-	loadRelated bool,
-	from string,
-	resultLen int,
-	resultPersistentLen int,
-	used time.Duration,
-) {
-	c.recordMetric(ctx, used,
-		attribute.String("operation", "list"),
-		attribute.String("entity_type", entity),
-		attribute.String("from", from),
-		attribute.Bool("load_related", loadRelated))
-}
-
-func (c MetricsMonitor) OnSet(
-	ctx context.Context,
-	entity string,
-	id string,
-	blockNumber uint64,
-	remove bool,
-	hasOperator bool,
-	used time.Duration,
-) {
-	if remove {
-		c.recordMetric(ctx, used,
-			attribute.String("operation", "delete"),
-			attribute.String("entity_type", entity))
-	} else {
-		c.recordMetric(ctx, used,
-			attribute.String("operation", "upsert"),
-			attribute.String("entity_type", entity),
-			attribute.Bool("partly_set", hasOperator))
-	}
-}
-
-func (c MetricsMonitor) OnCommit(
-	ctx context.Context,
-	blockNumber uint64,
-	created map[string]int,
-	updated map[string]int,
-	used time.Duration,
-) {
-}
 
 type changeHistory []*EntityBox
 type changeSet map[string]map[string]changeHistory // key is [entity][id]

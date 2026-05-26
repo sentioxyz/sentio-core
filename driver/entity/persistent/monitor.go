@@ -10,6 +10,123 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 )
 
+// Monitor is the observer interface through which Controller reports key
+// operations.  Implementations decide what to do with each notification
+// (record metrics, accumulate stats, log, etc.).
+type Monitor interface {
+	OnGet(
+		ctx context.Context,
+		entity string,
+		id string,
+		blockNumber uint64,
+		inBlock bool,
+		from string,
+		used time.Duration)
+	OnList(
+		ctx context.Context,
+		entity string,
+		blockNumber uint64,
+		loadRelated bool,
+		from string,
+		resultLen int,
+		resultPersistentLen int,
+		used time.Duration)
+	OnSet(
+		ctx context.Context,
+		entity string,
+		id string,
+		blockNumber uint64,
+		remove bool,
+		hasOperator bool,
+		used time.Duration)
+	OnCommit(
+		ctx context.Context,
+		blockNumber uint64,
+		created map[string]int,
+		updated map[string]int,
+		used time.Duration)
+}
+
+// ─── MetricsMonitor ──────────────────────────────────────────────────────────
+
+// MetricsMonitor is a Monitor implementation that records operation latency
+// via an OpenTelemetry histogram.  When UsedMetric is nil it is a no-op.
+type MetricsMonitor struct {
+	UsedMetric metric.Float64Histogram
+}
+
+func (c MetricsMonitor) recordMetric(ctx context.Context, used time.Duration, attrs ...attribute.KeyValue) {
+	if c.UsedMetric == nil {
+		return
+	}
+	c.UsedMetric.Record(ctx, float64(used.Nanoseconds())/1e6, metric.WithAttributes(attrs...))
+}
+
+func (c MetricsMonitor) OnGet(
+	ctx context.Context,
+	entity string,
+	id string,
+	blockNumber uint64,
+	inBlock bool,
+	from string,
+	used time.Duration,
+) {
+	c.recordMetric(ctx, used,
+		attribute.String("operation", "get"),
+		attribute.String("entity_type", entity),
+		attribute.String("from", from),
+		attribute.Bool("in_block", inBlock))
+}
+
+func (c MetricsMonitor) OnList(
+	ctx context.Context,
+	entity string,
+	blockNumber uint64,
+	loadRelated bool,
+	from string,
+	resultLen int,
+	resultPersistentLen int,
+	used time.Duration,
+) {
+	c.recordMetric(ctx, used,
+		attribute.String("operation", "list"),
+		attribute.String("entity_type", entity),
+		attribute.String("from", from),
+		attribute.Bool("load_related", loadRelated))
+}
+
+func (c MetricsMonitor) OnSet(
+	ctx context.Context,
+	entity string,
+	id string,
+	blockNumber uint64,
+	remove bool,
+	hasOperator bool,
+	used time.Duration,
+) {
+	if remove {
+		c.recordMetric(ctx, used,
+			attribute.String("operation", "delete"),
+			attribute.String("entity_type", entity))
+	} else {
+		c.recordMetric(ctx, used,
+			attribute.String("operation", "upsert"),
+			attribute.String("entity_type", entity),
+			attribute.Bool("partly_set", hasOperator))
+	}
+}
+
+func (c MetricsMonitor) OnCommit(
+	ctx context.Context,
+	blockNumber uint64,
+	created map[string]int,
+	updated map[string]int,
+	used time.Duration,
+) {
+}
+
+// ─── ReportMonitor ───────────────────────────────────────────────────────────
+
 // TxnReport holds statistics observed by a ReportMonitor during one commit
 // cycle (i.e. between two successive Controller.Commit calls).
 type TxnReport struct {
@@ -57,14 +174,14 @@ func newTxnReport() TxnReport {
 // statistics in its Report field and logs a summary on each OnCommit call.
 // It also delegates metric recording to an embedded MetricsMonitor.
 //
-// Lifecycle: call OnStart before each processing cycle begins (the equivalent
-// of the old NewTxn call).  OnStart resets Report and records the cycle start
-// time.  OnCommit then finalises the cycle by computing TxnUsed, logging the
-// report, and returning — it does NOT reset state.  Callers may read Report at
-// any point to observe in-progress statistics.
+// Lifecycle: call Reset before each processing cycle begins (equivalent to
+// the old NewTxn call).  Reset clears Report and records the cycle start time.
+// OnCommit then finalises the cycle by computing TxnUsed and logging the
+// report — it does NOT reset state.  Callers may read Report at any point to
+// observe in-progress statistics.
 type ReportMonitor struct {
-	// Report holds the statistics accumulated since the last OnStart.
-	// It is reset by OnStart, not by OnCommit.
+	// Report holds the statistics accumulated since the last Reset.
+	// It is reset by Reset, not by OnCommit.
 	Report TxnReport
 
 	start   time.Time
@@ -73,7 +190,7 @@ type ReportMonitor struct {
 
 // NewReportMonitor creates a ReportMonitor.
 // usedMetric may be nil if latency recording is not required.
-// Call OnStart before beginning the first processing cycle.
+// Call Reset before beginning the first processing cycle.
 func NewReportMonitor(usedMetric metric.Float64Histogram) *ReportMonitor {
 	return &ReportMonitor{
 		metrics: MetricsMonitor{UsedMetric: usedMetric},
@@ -81,7 +198,7 @@ func NewReportMonitor(usedMetric metric.Float64Histogram) *ReportMonitor {
 	}
 }
 
-// Reset resets Report and records the current time as the cycle start.
+// Reset clears Report and records the current time as the cycle start.
 // Call this before each round of processing (equivalent to the old NewTxn call).
 func (m *ReportMonitor) Reset() {
 	m.start = time.Now()
@@ -152,8 +269,7 @@ func (m *ReportMonitor) OnSet(
 }
 
 // OnCommit finalises the current cycle's Report by computing timing fields and
-// logging a summary.  It does NOT reset state — call OnStart to begin the next
-// cycle.
+// logging a summary.  It does NOT reset state — call Reset to begin the next cycle.
 func (m *ReportMonitor) OnCommit(
 	ctx context.Context,
 	blockNumber uint64,
@@ -173,6 +289,8 @@ func (m *ReportMonitor) OnCommit(
 		logger.Infow("commit changes of all entities succeed", "report", m.Report)
 	}
 }
+
+// ─── context helpers ─────────────────────────────────────────────────────────
 
 type keyMetricAttrs struct{}
 

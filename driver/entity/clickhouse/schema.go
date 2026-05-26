@@ -1194,14 +1194,14 @@ func (f NullableOneDimArrayField) FieldValueFromGet(dbValues map[string]any) any
 // Entity
 // ========================================
 
-type EntityBox struct {
+type entityRow struct {
 	persistent.EntityBox
 
 	Sign    int8
 	Version uint64
 }
 
-func (b *EntityBox) Get() *persistent.EntityBox {
+func (b *entityRow) get() *persistent.EntityBox {
 	if b == nil {
 		return nil
 	}
@@ -1218,7 +1218,7 @@ type Entity struct {
 
 func (s *Store) NewEntity(item schema.EntityOrInterface) (entity Entity) {
 	entity.Def = item
-	entity.UseVersionedCollapsingTable = s.UseVersionedCollapsingTable(item)
+	entity.UseVersionedCollapsingTable = s.useVersionedCollapsingTable(item)
 	for _, fieldDef := range item.ListFixedFields() {
 		simple := SimpleField{BaseField: NewBaseField(item, fieldDef)}
 		if simple.FieldTypeChain.CountListLayer() > 0 && !s.feaOpt.ArrayUseArray {
@@ -1324,7 +1324,7 @@ func (e Entity) FieldSlotsForSet() (slots []string) {
 	return slots
 }
 
-func (e Entity) FieldValuesForSet(box EntityBox, zeroData map[string]any) (values []any) {
+func (e Entity) FieldValuesForSet(box entityRow, zeroData map[string]any) (values []any) {
 	for _, field := range e.Fields {
 		if field.IsReverseForeignKeyField() {
 			continue
@@ -1353,13 +1353,13 @@ func (e Entity) FieldValuesForSet(box EntityBox, zeroData map[string]any) (value
 	return values
 }
 
-func (e Entity) ScanOne(rows clickhouselib.Rows) (*EntityBox, error) {
-	var box *EntityBox
+func (e Entity) ScanOne(rows clickhouselib.Rows) (*entityRow, error) {
+	var box *entityRow
 	dbValues, err := scanMap(rows, buildFieldBufferForScanMap(rows))
 	if err != nil {
 		return box, err
 	}
-	box = &EntityBox{}
+	box = &entityRow{}
 	var is bool
 	switch id := dbValues[schema.EntityPrimaryFieldName].(type) {
 	case string: // ID! String! Bytes!

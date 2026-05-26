@@ -84,12 +84,12 @@ func (c *ChainStore) GetChain() string { return c.chain }
 
 // GetEntityType returns the entity schema by name.
 func (c *ChainStore) GetEntityType(entity string) *schema.Entity {
-	return c.store.GetEntityType(entity)
+	return c.store.getEntityType(entity)
 }
 
 // GetEntityOrInterfaceType returns the entity or interface schema by name.
 func (c *ChainStore) GetEntityOrInterfaceType(name string) schema.EntityOrInterface {
-	return c.store.GetEntityOrInterfaceType(name)
+	return c.store.getEntityOrInterfaceType(name)
 }
 
 // GetEntity returns the entity with the given id, possibly from cache.
@@ -132,7 +132,7 @@ func (c *ChainStore) GetEntity(
 		return cached.Copy(), fromCache, nil
 	}
 	// Not in LRU — fetch from DB.
-	box, err = c.store.GetEntity(ctx, entityType, c.chain, id)
+	box, err = c.store.getEntity(ctx, entityType, c.chain, id)
 	if err == nil {
 		c.lruCache.Add(key, box)
 	}
@@ -175,7 +175,14 @@ func (c *ChainStore) ListEntities(
 		return
 	} else if !has {
 		// No full cache — query the DB.
-		boxes, err = c.store.ListEntities(ctx, entityType, c.chain, filters, limit)
+		rows, listErr := c.store.listEntities(ctx, entityType, c.chain, filters, true, limit)
+		if listErr != nil {
+			err = listErr
+			return
+		}
+		for _, row := range rows {
+			boxes = append(boxes, row.get())
+		}
 		return
 	}
 	// Serve from full cache.
@@ -200,12 +207,12 @@ func (c *ChainStore) ListEntities(
 
 // GetTimeSeriesEntityMaxID returns the maximum numeric ID for a time-series entity.
 func (c *ChainStore) GetTimeSeriesEntityMaxID(ctx context.Context, entityType *schema.Entity) (int64, error) {
-	return c.store.GetMaxID(ctx, entityType, c.chain)
+	return c.store.getMaxID(ctx, entityType, c.chain)
 }
 
 // CountEntity returns the count of entities in persistent storage.
 func (c *ChainStore) CountEntity(ctx context.Context, entityType *schema.Entity) (uint64, error) {
-	return c.store.CountEntity(ctx, entityType, c.chain)
+	return c.store.countEntity(ctx, entityType, c.chain)
 }
 
 // SetEntities writes entities to persistent storage and updates the local cache.
@@ -216,7 +223,7 @@ func (c *ChainStore) SetEntities(
 ) (int, error) {
 	dataSize := entityType.DataSize()
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "dataSize", dataSize, "chainID", c.chain)
-	created, err := c.store.SetEntities(ctx, entityType, boxes)
+	created, err := c.store.setEntities(ctx, entityType, c.chain, boxes)
 	if err != nil {
 		return created, err
 	}
@@ -276,7 +283,7 @@ func (c *ChainStore) SetEntities(
 
 // GrowthAggregation runs growth aggregation for the chain.
 func (c *ChainStore) GrowthAggregation(ctx context.Context, curBlockTime time.Time) error {
-	return c.store.GrowthAggregation(ctx, c.chain, curBlockTime)
+	return c.store.growthAggregation(ctx, c.chain, curBlockTime)
 }
 
 // Reorg purges caches and delegates to the underlying Store.
@@ -290,12 +297,12 @@ func (c *ChainStore) Reorg(ctx context.Context, blockNumber int64) error {
 			}
 		}
 	}
-	return c.store.Reorg(ctx, blockNumber, c.chain)
+	return c.store.reorg(ctx, blockNumber, c.chain)
 }
 
 // CheckValue validates entity field values using the underlying store.
 func (c *ChainStore) CheckValue(entityType *schema.Entity, data map[string]any) error {
-	return c.store.CheckValue(entityType, data)
+	return c.store.checkValue(entityType, data)
 }
 
 // Snapshot returns a map describing the current cache state (for debugging/monitoring).
@@ -380,7 +387,7 @@ func (c *ChainStore) tryLoadFullCache(
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "dataSize", dataSize, "chainID", c.chain)
 	logger.Debugf("will load all entities from persistent for full cache")
 	var count uint64
-	count, err = c.store.CountEntity(ctx, entityType, c.chain)
+	count, err = c.store.countEntity(ctx, entityType, c.chain)
 	if err != nil {
 		logger.Errore(err, "load entities from persistent for full cache failed: count exists failed")
 		return
@@ -390,19 +397,20 @@ func (c *ChainStore) tryLoadFullCache(
 		c.fullCacheRefused[entityType.Name] = true
 		return false, false, nil
 	}
-	var data []*persistent.EntityBox
-	data, err = c.store.ListEntities(ctx, entityType, c.chain, nil, math.MaxInt)
+	rows, listErr := c.store.listEntities(ctx, entityType, c.chain, nil, true, math.MaxInt)
 	logger = logger.With("used", time.Since(start).String())
-	if err != nil {
+	if listErr != nil {
+		err = listErr
 		logger.Errore(err, "load entities from persistent for full cache failed")
 		return false, false, err
 	}
 	c.fullCache[entityType.Name] = make(map[string]*persistent.EntityBox)
-	for _, box := range data {
+	for _, row := range rows {
+		box := row.get()
 		c.fullCache[entityType.Name][box.ID] = box
 	}
 	c.fullCacheLoaded[entityType.Name] = true
-	logger.Infow("loaded all entities from persistent into full cache", "count", len(data))
+	logger.Infow("loaded all entities from persistent into full cache", "count", len(rows))
 	return true, false, nil
 }
 
@@ -420,7 +428,7 @@ func (c *ChainStore) tryLoadFullIDCache(
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chainID", c.chain)
 	logger.Debugf("will load all entity ids from persistent for full id cache")
 	var ids []string
-	ids, err = c.store.GetAllID(ctx, entityType, c.chain)
+	ids, err = c.store.getAllID(ctx, entityType, c.chain)
 	logger = logger.With("used", time.Since(start).String())
 	if err != nil {
 		logger.Errore(err, "load all entity ids from persistent for full cache failed")

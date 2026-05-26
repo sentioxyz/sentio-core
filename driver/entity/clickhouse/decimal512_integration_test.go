@@ -92,7 +92,7 @@ func TestDecimal512_E2E_UserWorkflow(t *testing.T) {
 	t.Log("ClickHouse tables created successfully")
 
 	// Verify table schema - check if BigDecimal fields use Decimal512
-	poolTableName := store.TableName(poolEntity)
+	poolTableName := store.tableName(poolEntity)
 	t.Logf("Pool table name: %s", poolTableName)
 
 	var createTableSQL string
@@ -164,7 +164,7 @@ func TestDecimal512_E2E_UserWorkflow(t *testing.T) {
 			Entity: "Pool",
 		}
 
-		_, err = store.SetEntities(ctx, poolEntity, []persistent.EntityBox{poolData})
+		_, err = store.setEntities(ctx, poolEntity, chainID, []persistent.EntityBox{poolData})
 		require.NoError(t, err, "Pool data write should succeed: %s", tc.name)
 	}
 
@@ -174,7 +174,7 @@ func TestDecimal512_E2E_UserWorkflow(t *testing.T) {
 	t.Log("Step 6: Query single Pool entity")
 
 	targetPoolID := poolIDs[1]
-	result, err := store.GetEntity(ctx, poolEntity, chainID, targetPoolID)
+	result, err := store.getEntity(ctx, poolEntity, chainID, targetPoolID)
 	require.NoError(t, err, "GetEntity should succeed")
 	require.NotNil(t, result, "Should retrieve data")
 
@@ -198,13 +198,7 @@ func TestDecimal512_E2E_UserWorkflow(t *testing.T) {
 	// Step 7: User list query (ListEntities)
 	t.Log("Step 7: List query all Pools")
 
-	listResult, err := store.ListEntities(
-		ctx,
-		poolEntity,
-		chainID,
-		[]persistent.EntityFilter{},
-		100,
-	)
+	listResult, err := storeListEntities(ctx, store, poolEntity, chainID, []persistent.EntityFilter{}, 100)
 	require.NoError(t, err, "ListEntities should succeed")
 	assert.GreaterOrEqual(t, len(listResult), len(testCases), "Should retrieve all written Pools")
 

@@ -38,7 +38,7 @@ func Test_Decimal256_Flow_Basic(t *testing.T) {
 	// Insert value wiring: values flow through as decimal.Decimal
 	now := time.UnixMicro(1234567890).UTC()
 	val := decimal.RequireFromString("123.456")
-	box := EntityBox{EntityBox: persistent.EntityBox{
+	box := entityRow{EntityBox: persistent.EntityBox{
 		ID:             "e-1",
 		GenBlockNumber: 42,
 		GenBlockTime:   now,

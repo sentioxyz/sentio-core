@@ -167,11 +167,11 @@ func NewStore(
 	}
 }
 
-func (s *Store) GetEntityType(entity string) *schema.Entity {
+func (s *Store) getEntityType(entity string) *schema.Entity {
 	return s.sch.GetEntity(entity)
 }
 
-func (s *Store) GetEntityOrInterfaceType(name string) schema.EntityOrInterface {
+func (s *Store) getEntityOrInterfaceType(name string) schema.EntityOrInterface {
 	return s.sch.GetEntityOrInterface(name)
 }
 
@@ -188,19 +188,19 @@ func (s *Store) fullName(name string) string {
 	return s.ctrl.FullLogicName(name)
 }
 
-func (s *Store) VersionedTableName(item schema.EntityOrInterface) string {
+func (s *Store) versionedTableName(item schema.EntityOrInterface) string {
 	return s.buildName("versionedEntity", item.GetName())
 }
 
-func (s *Store) VersionedLatestTableName(item schema.EntityOrInterface) string {
+func (s *Store) versionedLatestTableName(item schema.EntityOrInterface) string {
 	return s.buildName("versionedLatestEntity", item.GetName())
 }
 
-func (s *Store) VersionedLatestTableMaterializedViewName(item schema.EntityOrInterface) string {
+func (s *Store) versionedLatestTableMaterializedViewName(item schema.EntityOrInterface) string {
 	return s.buildName("versionedLatestEntityMV", item.GetName())
 }
 
-func (s *Store) TableName(item schema.EntityOrInterface) string {
+func (s *Store) tableName(item schema.EntityOrInterface) string {
 	var category string
 	switch item.(type) {
 	case *schema.Entity:
@@ -215,20 +215,20 @@ func (s *Store) TableName(item schema.EntityOrInterface) string {
 	return s.buildName(category, item.GetName())
 }
 
-func (s *Store) ViewName(item schema.EntityOrInterface) string {
+func (s *Store) viewName(item schema.EntityOrInterface) string {
 	return s.buildName("view", item.GetName())
 }
 
-func (s *Store) LatestViewName(item schema.EntityOrInterface) string {
+func (s *Store) latestViewName(item schema.EntityOrInterface) string {
 	return s.buildName("latestView", item.GetName())
 }
 
 func (s *Store) ViewFullName(item schema.EntityOrInterface) string {
-	return s.fullName(s.ViewName(item))
+	return s.fullName(s.viewName(item))
 }
 
 func (s *Store) LatestViewFullName(item schema.EntityOrInterface) string {
-	return s.fullName(s.LatestViewName(item))
+	return s.fullName(s.latestViewName(item))
 }
 
 func quote(cnt string) string {

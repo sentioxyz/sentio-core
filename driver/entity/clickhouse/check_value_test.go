@@ -29,7 +29,7 @@ type EntityX @entity {
 	etype := sch.GetEntity("EntityX")
 
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "noSuchField": 1}),
+		s.checkValue(etype, map[string]any{"id": "a", "noSuchField": 1}),
 		"EntityX.noSuchField is not exist")
 }
 
@@ -47,9 +47,9 @@ type EntityX @entity {
 	s := newDefaultStore()
 	etype := sch.GetEntity("EntityX")
 
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": "A"}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": "A"}))
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": "AA"}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": "AA"}),
 		"EntityX.prop has unexpected enum value AA for RoleType")
 }
 
@@ -66,12 +66,12 @@ type EntityX @entity {
 	etype := sch.GetEntity("EntityX")
 
 	// nullable: valid pointer, bare string, nil pointer all OK
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": utils.WrapPointer("A")}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": "A"}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": (*string)(nil)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": utils.WrapPointer("A")}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": "A"}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": (*string)(nil)}))
 	// invalid enum value
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": utils.WrapPointer("AA")}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": utils.WrapPointer("AA")}),
 		"EntityX.prop has unexpected enum value AA for RoleType")
 }
 
@@ -87,14 +87,14 @@ type EntityX @entity {
 	s := newDefaultStore()
 	etype := sch.GetEntity("EntityX")
 
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": []string{"A"}}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": []string{"A"}}))
 	// not a slice
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": "A"}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": "A"}),
 		"EntityX.prop must be slice")
 	// invalid element
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": []string{"A", "AA", "BB"}}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": []string{"A", "AA", "BB"}}),
 		"EntityX.prop[1] has unexpected enum value AA for RoleType")
 }
 
@@ -111,7 +111,7 @@ type EntityX @entity {
 	etype := sch.GetEntity("EntityX")
 
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": 123}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": 123}),
 		"EntityX.prop must be string")
 }
 
@@ -131,11 +131,11 @@ type EntityX @entity {
 	var one big.Int
 	one.SetInt64(1)
 
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": big.NewInt(1)}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": one}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": big.NewInt(1)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": one}))
 	// null for non-null field
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": (*big.Int)(nil)}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": (*big.Int)(nil)}),
 		"EntityX.prop cannot be null")
 }
 
@@ -153,11 +153,11 @@ type EntityX @entity {
 	var one big.Int
 	one.SetInt64(1)
 
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": big.NewInt(1)}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": one}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": big.NewInt(1)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": one}))
 	// nil is fine for nullable
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": (*big.Int)(nil)}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": nil}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": (*big.Int)(nil)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": nil}))
 }
 
 func Test_checkBigIntBounds_tupleMode(t *testing.T) {
@@ -172,23 +172,23 @@ type EntityX @entity {
 	etype := sch.GetEntity("EntityX")
 
 	// exactly at tuple max: 2^256-1
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(tupleMax)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(tupleMax)}))
 	// exactly at tuple min: -2^256
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(tupleMin)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(tupleMin)}))
 	// Int256 max (2^255-1) is valid in tuple mode
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(int256Max)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(int256Max)}))
 	// Int256 max + 1 (2^255) is also valid in tuple mode
 	beyondInt256 := new(big.Int).Add(int256Max, big.NewInt(1))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": beyondInt256}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": beyondInt256}))
 	// overflow: 2^256
 	overflow := new(big.Int).Add(tupleMax, big.NewInt(1))
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": overflow}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": overflow}),
 		"out of range [-2^256, 2^256-1]")
 	// underflow: -2^256-1
 	underflow := new(big.Int).Sub(tupleMin, big.NewInt(1))
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": underflow}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": underflow}),
 		"out of range [-2^256, 2^256-1]")
 }
 
@@ -204,18 +204,18 @@ type EntityX @entity {
 	etype := sch.GetEntity("EntityX")
 
 	// exactly at Int256 max: 2^255-1
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(int256Max)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(int256Max)}))
 	// exactly at Int256 min: -2^255
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(int256Min)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": new(big.Int).Set(int256Min)}))
 	// overflow: 2^255
 	overflow := new(big.Int).Add(int256Max, big.NewInt(1))
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": overflow}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": overflow}),
 		"out of Int256 range [-2^255, 2^255-1]")
 	// underflow: -2^255-1
 	underflow := new(big.Int).Sub(int256Min, big.NewInt(1))
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": underflow}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": underflow}),
 		"out of Int256 range [-2^255, 2^255-1]")
 }
 
@@ -233,20 +233,20 @@ type EntityX @entity {
 	var one big.Int
 	one.SetInt64(1)
 
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": []*big.Int{big.NewInt(1)}}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": []big.Int{one}}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": []*big.Int{}}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": []*big.Int{big.NewInt(1)}}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": []big.Int{one}}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": []*big.Int{}}))
 	// null for non-null list
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": nil}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": nil}),
 		"EntityX.prop cannot be null")
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": []*big.Int(nil)}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": []*big.Int(nil)}),
 		"EntityX.prop cannot be null")
 	// overflow element in list (beyond 2^256-1)
 	overflow := new(big.Int).Add(tupleMax, big.NewInt(1))
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": []*big.Int{big.NewInt(0), overflow}}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": []*big.Int{big.NewInt(0), overflow}}),
 		"EntityX.prop[1]")
 }
 
@@ -264,14 +264,14 @@ type EntityX @entity {
 	var one big.Int
 	one.SetInt64(1)
 
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": [][]*big.Int{{big.NewInt(1)}}}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": [][]big.Int{{one}}}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": nil}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "prop": []any{nil}}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": [][]*big.Int{{big.NewInt(1)}}}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": [][]big.Int{{one}}}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": nil}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "prop": []any{nil}}))
 	// overflow in nested list (beyond 2^256-1)
 	overflow := new(big.Int).Add(tupleMax, big.NewInt(1))
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "prop": [][]*big.Int{{big.NewInt(0), overflow}}}),
+		s.checkValue(etype, map[string]any{"id": "a", "prop": [][]*big.Int{{big.NewInt(0), overflow}}}),
 		"EntityX.prop[0][1]")
 }
 
@@ -289,17 +289,17 @@ type EntityX @entity {
 	etype := sch.GetEntity("EntityX")
 
 	// within range
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": decimal.NewFromInt(0)}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": decimal256_30_max}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": decimal256_30_max.Neg()}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": decimal.NewFromInt(0)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": decimal256_30_max}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": decimal256_30_max.Neg()}))
 	// overflow
 	overflow := decimal256_30_max.Add(decimal.NewFromInt(1))
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "val": overflow}),
+		s.checkValue(etype, map[string]any{"id": "a", "val": overflow}),
 		"out of Decimal256(30) range")
 	// negative overflow
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "val": overflow.Neg()}),
+		s.checkValue(etype, map[string]any{"id": "a", "val": overflow.Neg()}),
 		"out of Decimal256(30) range")
 }
 
@@ -316,10 +316,10 @@ type EntityX @entity {
 
 	d := decimal.NewFromInt(42)
 	// *decimal.Decimal pointer
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": &d}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": &d}))
 	// nil pointer is fine for nullable
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": (*decimal.Decimal)(nil)}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": nil}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": (*decimal.Decimal)(nil)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": nil}))
 	// non-null required
 	sch2, _ := schema.ParseAndVerifySchema(`
 type EntityX @entity {
@@ -329,7 +329,7 @@ type EntityX @entity {
 `)
 	etype2 := sch2.GetEntity("EntityX")
 	assert.ErrorContains(t,
-		s.CheckValue(etype2, map[string]any{"id": "a", "val": (*decimal.Decimal)(nil)}),
+		s.checkValue(etype2, map[string]any{"id": "a", "val": (*decimal.Decimal)(nil)}),
 		"EntityX.val cannot be null")
 }
 
@@ -347,14 +347,14 @@ type EntityX @entity {
 	etype := sch.GetEntity("EntityX")
 
 	// within precision
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": decimal.NewFromInt(0)}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": decimal.NewFromFloat(1.23)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": decimal.NewFromInt(0)}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": decimal.NewFromFloat(1.23)}))
 
 	// overflow: 95 integer digits → total digits after rounding to scale 60 exceeds 154
 	bigStr := strings.Repeat("9", 95)
 	overflowVal, _ := decimal.NewFromString(bigStr)
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "val": overflowVal}),
+		s.checkValue(etype, map[string]any{"id": "a", "val": overflowVal}),
 		"exceeding Decimal512 precision")
 }
 
@@ -373,8 +373,8 @@ type EntityX @entity {
 
 	// any value is fine in string mode
 	huge, _ := decimal.NewFromString(strings.Repeat("9", 200))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": huge}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": huge.Neg()}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": huge}))
+	assert.NoError(t, s.checkValue(etype, map[string]any{"id": "a", "val": huge.Neg()}))
 }
 
 // ===================== BigDecimal in list =====================
@@ -391,11 +391,11 @@ type EntityX @entity {
 	etype := sch.GetEntity("EntityX")
 
 	overflow := decimal256_30_max.Add(decimal.NewFromInt(1))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{
+	assert.NoError(t, s.checkValue(etype, map[string]any{
 		"id": "a", "val": []decimal.Decimal{decimal.NewFromInt(1)},
 	}))
 	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{
+		s.checkValue(etype, map[string]any{
 			"id": "a", "val": []decimal.Decimal{decimal.NewFromInt(0), overflow},
 		}),
 		"EntityX.val[1]")

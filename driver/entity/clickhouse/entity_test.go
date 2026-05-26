@@ -158,24 +158,24 @@ func (es *EntitySuite) pushData(ctx context.Context, entities map[string]persist
 
 	// set
 	for id, entity := range entities {
-		_, err = es.s.SetEntities(ctx, es.getEntityTypeFromID(id), []persistent.EntityBox{entity})
+		_, err = es.s.setEntities(ctx, es.getEntityTypeFromID(id), entity.GenBlockChain, []persistent.EntityBox{entity})
 		assert.NoError(es.t, err)
 	}
 
 	// get
 	for id, entity := range entities {
-		data, err = es.s.GetEntity(ctx, es.getEntityTypeFromID(id), entity.GenBlockChain, id)
+		data, err = es.s.getEntity(ctx, es.getEntityTypeFromID(id), entity.GenBlockChain, id)
 		assert.NoError(es.t, err)
 		assert.Equal(es.t, entity, *data)
 	}
 
-	data, err = es.s.GetEntity(ctx, es.s.sch.GetEntity("EntityA"), "", "a-id-2")
+	data, err = es.s.getEntity(ctx, es.s.sch.GetEntity("EntityA"), "", "a-id-2")
 	assert.NoError(es.t, err)
 	assert.Nil(es.t, data)
-	data, err = es.s.GetEntity(ctx, es.s.sch.GetEntity("EntityB"), "", "b-id-2")
+	data, err = es.s.getEntity(ctx, es.s.sch.GetEntity("EntityB"), "", "b-id-2")
 	assert.NoError(es.t, err)
 	assert.Nil(es.t, data)
-	data, err = es.s.GetEntity(ctx, es.s.sch.GetEntity("EntityC"), "", "c-id-10")
+	data, err = es.s.getEntity(ctx, es.s.sch.GetEntity("EntityC"), "", "c-id-10")
 	assert.NoError(es.t, err)
 	assert.Nil(es.t, data)
 }
@@ -351,7 +351,7 @@ func Test_getSetDel(t *testing.T) {
 	var err error
 
 	// set 0x0b01 foreignE to nil
-	_, err = s.SetEntities(ctx, entityBType, []persistent.EntityBox{{
+	_, err = s.setEntities(ctx, entityBType, chain, []persistent.EntityBox{{
 		ID: "0x0b01",
 		Data: map[string]any{
 			"id":        "0x0b01",
@@ -368,7 +368,7 @@ func Test_getSetDel(t *testing.T) {
 	}})
 	assert.NoError(t, err)
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a00")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a00")
 	assert.NoError(t, err)
 	assert.Equal(t, &persistent.EntityBox{
 		ID: "0x0a00",
@@ -394,7 +394,7 @@ func Test_getSetDel(t *testing.T) {
 		GenBlockChain:  chain,
 	}, data)
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a01")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a01")
 	assert.NoError(t, err)
 	assert.Equal(t, &persistent.EntityBox{
 		ID: "0x0a01",
@@ -417,7 +417,7 @@ func Test_getSetDel(t *testing.T) {
 		GenBlockChain:  chain,
 	}, data)
 
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b01")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b01")
 	assert.NoError(t, err)
 	assert.Equal(t, &persistent.EntityBox{
 		ID: "0x0b01",
@@ -436,7 +436,7 @@ func Test_getSetDel(t *testing.T) {
 	}, data)
 
 	// del 0x0b01
-	_, err = s.SetEntities(ctx, entityBType, []persistent.EntityBox{{
+	_, err = s.setEntities(ctx, entityBType, chain, []persistent.EntityBox{{
 		ID:             "0x0b01",
 		Data:           nil,
 		Entity:         "EntityB",
@@ -447,7 +447,7 @@ func Test_getSetDel(t *testing.T) {
 	}})
 	assert.NoError(t, err)
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a00")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a00")
 	assert.NoError(t, err)
 	assert.Equal(t, &persistent.EntityBox{
 		ID: "0x0a00",
@@ -473,7 +473,7 @@ func Test_getSetDel(t *testing.T) {
 		GenBlockChain:  chain,
 	}, data)
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a01")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a01")
 	assert.NoError(t, err)
 	assert.Equal(t, &persistent.EntityBox{
 		ID: "0x0a01",
@@ -496,11 +496,11 @@ func Test_getSetDel(t *testing.T) {
 		GenBlockChain:  chain,
 	}, data)
 
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b00")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b00")
 	assert.NoError(t, err)
 	assert.Equal(t, entities["0x0b00"], *data)
 
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b01")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b01")
 	assert.NoError(t, err)
 	assert.Equal(t, &persistent.EntityBox{
 		ID:             "0x0b01",
@@ -514,11 +514,11 @@ func Test_getSetDel(t *testing.T) {
 
 	// === clean genBlockNumber > 100
 
-	err = s.Reorg(ctx, 100, chain)
+	err = s.reorg(ctx,100, chain)
 	assert.NoError(t, err)
 	// only 0x0a00 is remained
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a00")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a00")
 	assert.NoError(t, err)
 	assert.Equal(t, &persistent.EntityBox{
 		ID: "0x0a00",
@@ -544,7 +544,7 @@ func Test_getSetDel(t *testing.T) {
 		GenBlockChain:  chain,
 	}, data)
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a01")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a01")
 	assert.NoError(t, err)
 	assert.Nil(t, data)
 
@@ -672,31 +672,31 @@ func Test_getSetDel2(t *testing.T) {
 	entityD1Type := sch.GetEntity("EntityD1")
 	entityE1Type := sch.GetEntity("EntityE1")
 
-	data, err := s.GetEntity(ctx, entityD1Type, chain1, "0x0d0100")
+	data, err := s.getEntity(ctx, entityD1Type, chain1, "0x0d0100")
 	assert.NoError(t, err)
 	assert.Equal(t, "d1pa0c1", data.Data["propertyA"])
-	data, err = s.GetEntity(ctx, entityD1Type, chain1, "0x0d0101")
+	data, err = s.getEntity(ctx, entityD1Type, chain1, "0x0d0101")
 	assert.NoError(t, err)
 	assert.Equal(t, "d1pa1c1", data.Data["propertyA"])
 
-	data, err = s.GetEntity(ctx, entityD1Type, chain2, "0x0d0100")
+	data, err = s.getEntity(ctx, entityD1Type, chain2, "0x0d0100")
 	assert.NoError(t, err)
 	assert.Equal(t, "d1pa0c2", data.Data["propertyA"])
-	data, err = s.GetEntity(ctx, entityD1Type, chain2, "0x0d0101")
+	data, err = s.getEntity(ctx, entityD1Type, chain2, "0x0d0101")
 	assert.NoError(t, err)
 	assert.Equal(t, "d1pa1c2", data.Data["propertyA"])
 
-	data, err = s.GetEntity(ctx, entityE1Type, chain1, "0x0e0100")
+	data, err = s.getEntity(ctx, entityE1Type, chain1, "0x0e0100")
 	assert.NoError(t, err)
 	assert.Equal(t, "e1from0c1", data.Data["from"])
-	data, err = s.GetEntity(ctx, entityE1Type, chain1, "0x0e0101")
+	data, err = s.getEntity(ctx, entityE1Type, chain1, "0x0e0101")
 	assert.NoError(t, err)
 	assert.Equal(t, "e1from1c1", data.Data["from"])
 
-	data, err = s.GetEntity(ctx, entityE1Type, chain2, "0x0e0100")
+	data, err = s.getEntity(ctx, entityE1Type, chain2, "0x0e0100")
 	assert.NoError(t, err)
 	assert.Equal(t, "e1from0c2", data.Data["from"])
-	data, err = s.GetEntity(ctx, entityE1Type, chain2, "0x0e0101")
+	data, err = s.getEntity(ctx, entityE1Type, chain2, "0x0e0101")
 	assert.NoError(t, err)
 	assert.Equal(t, "e1from1c2", data.Data["from"])
 
@@ -716,7 +716,7 @@ func Test_getSetDel3(t *testing.T) {
 
 	entityIType := sch.GetEntity("EntityI")
 
-	box, err := s.GetEntity(ctx, entityIType, chain1, "I01")
+	box, err := s.getEntity(ctx, entityIType, chain1, "I01")
 	assert.NoError(t, err)
 	assert.Nil(t, box)
 
@@ -733,11 +733,11 @@ func Test_getSetDel3(t *testing.T) {
 		GenBlockChain:  chain1,
 	}
 
-	created, err := s.SetEntities(ctx, entityIType, []persistent.EntityBox{i01})
+	created, err := s.setEntities(ctx, entityIType, chain1, []persistent.EntityBox{i01})
 	assert.NoError(t, err)
 	assert.Equal(t, 1, created)
 
-	box, err = s.GetEntity(ctx, entityIType, chain1, "I01")
+	box, err = s.getEntity(ctx, entityIType, chain1, "I01")
 	assert.NoError(t, err)
 	assert.Equal(t, &i01, box)
 
@@ -827,22 +827,22 @@ func Test_batchSet1(t *testing.T) {
 
 	var err error
 
-	_, err = s.SetEntities(ctx, entityBType, entities)
+	_, err = s.setEntities(ctx, entityBType, chain, entities)
 	assert.NoError(t, err)
 
-	data, err := s.GetEntity(ctx, entityBType, chain, "0x0b00")
+	data, err := s.getEntity(ctx, entityBType, chain, "0x0b00")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a00", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b01")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b01")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a01", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b02")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b02")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a02", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b03")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b03")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a03", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b04")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b04")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a04", data.Data["foreignB"])
 
@@ -902,24 +902,24 @@ func Test_batchSet1(t *testing.T) {
 		},
 	}
 
-	_, err = s.SetEntities(ctx, entityBType, entities)
+	_, err = s.setEntities(ctx, entityBType, chain, entities)
 	assert.NoError(t, err)
 
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b00")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b00")
 	assert.NoError(t, err)
 	assert.Equal(t, entities[0], *data)
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b01")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b01")
 	assert.NoError(t, err)
 	assert.Equal(t, "paaaa1", data.Data["propertyA"])
 	assert.Equal(t, "0x0a01", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b02")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b02")
 	assert.NoError(t, err)
 	assert.Equal(t, "paaaa2", data.Data["propertyA"])
 	assert.Equal(t, "0x0a0202", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b03")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b03")
 	assert.NoError(t, err)
 	assert.Equal(t, entities[3], *data)
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b04")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b04")
 	assert.NoError(t, err)
 	assert.Equal(t, entities[4], *data)
 
@@ -972,28 +972,28 @@ func Test_batchSet2(t *testing.T) {
 	var boxes []*persistent.EntityBox
 
 	// init is empty
-	boxes, err = s.ListEntities(ctx, entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, []*persistent.EntityBox(nil), boxes)
 	// insert 0-9 entities
 	_, err = s.setEntities(ctx, entityD1Type, chain, entities1)
 	assert.NoError(t, err)
 	// all 10 entities exists
-	boxes, err = s.ListEntities(ctx, entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(entities1), boxes)
 	// update 0-9 entities
 	_, err = s.setEntities(ctx, entityD1Type, chain, entities2)
 	assert.NoError(t, err)
 	// all 10 entities updated to stage 2
-	boxes, err = s.ListEntities(ctx, entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(entities2), boxes)
 	// delete 5-7
 	_, err = s.setEntities(ctx, entityD1Type, chain, entities3)
 	assert.NoError(t, err)
 	// only have 0-4,8-9
-	boxes, err = s.ListEntities(ctx, entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(utils.MergeArr(entities2[:5], entities2[8:])), boxes)
 
@@ -1071,7 +1071,7 @@ func Test_list(t *testing.T) {
 		var boxes []*persistent.EntityBox
 
 		// init is empty
-		boxes, err = s.ListEntities(ctx, entityF, chain, nil, 3)
+		boxes, err = storeListEntities(ctx, s,entityF, chain, nil, 3)
 		assert.NoError(t, err)
 		assert.Equal(t, []*persistent.EntityBox(nil), boxes)
 
@@ -1080,17 +1080,17 @@ func Test_list(t *testing.T) {
 		assert.NoError(t, err)
 
 		// list all
-		boxes, err = s.ListEntities(ctx, entityF, chain, nil, 10)
+		boxes, err = storeListEntities(ctx, s,entityF, chain, nil, 10)
 		assert.NoError(t, err)
 		assert.Equal(t, full, boxes)
 
 		// list all
-		boxes, err = s.ListEntities(ctx, entityF, chain, nil, 11)
+		boxes, err = storeListEntities(ctx, s,entityF, chain, nil, 11)
 		assert.NoError(t, err)
 		assert.Equal(t, full, boxes)
 
 		// all 10 entities exists and list by two page
-		boxes, err = s.ListEntities(ctx, entityF, chain, nil, 8)
+		boxes, err = storeListEntities(ctx, s,entityF, chain, nil, 8)
 		assert.NoError(t, err)
 		assert.Equal(t, full[:8], boxes)
 
@@ -1289,7 +1289,7 @@ func Test_list(t *testing.T) {
 		}
 
 		for i, testcase := range testcases {
-			boxes, err = s.ListEntities(ctx, entityF, chain, []persistent.EntityFilter{
+			boxes, err = storeListEntities(ctx, s,entityF, chain, []persistent.EntityFilter{
 				{Field: entityF.GetFieldByName(testcase.F), Op: testcase.O, Value: testcase.V},
 			}, 10)
 			msg := fmt.Sprintf("testcase #%d-%d %#v", fx, i, testcase)
@@ -1300,21 +1300,21 @@ func Test_list(t *testing.T) {
 		// === with multi filter conditions
 
 		// propertyA = '0' AND propertyB = '0'
-		boxes, err = s.ListEntities(ctx, entityF, chain, []persistent.EntityFilter{
+		boxes, err = storeListEntities(ctx, s,entityF, chain, []persistent.EntityFilter{
 			{Field: entityF.GetFieldByName("propertyA"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 			{Field: entityF.GetFieldByName("propertyB"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 		}, 10)
 		assert.NoError(t, err)
 		assert.Equal(t, group0, boxes)
 		// propertyA = '0' AND propertyB = '1'
-		boxes, err = s.ListEntities(ctx, entityF, chain, []persistent.EntityFilter{
+		boxes, err = storeListEntities(ctx, s,entityF, chain, []persistent.EntityFilter{
 			{Field: entityF.GetFieldByName("propertyA"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 			{Field: entityF.GetFieldByName("propertyB"), Op: persistent.EntityFilterOpEq, Value: []any{"1"}},
 		}, 10)
 		assert.NoError(t, err)
 		assert.Equal(t, empty, boxes)
 		// propertyA = '0' AND propertyB != '1'
-		boxes, err = s.ListEntities(ctx, entityF, chain, []persistent.EntityFilter{
+		boxes, err = storeListEntities(ctx, s,entityF, chain, []persistent.EntityFilter{
 			{Field: entityF.GetFieldByName("propertyA"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 			{Field: entityF.GetFieldByName("propertyB"), Op: persistent.EntityFilterOpNe, Value: []any{"1"}},
 		}, 10)
@@ -1383,7 +1383,7 @@ func Test_filterWithNullValue(t *testing.T) {
 	var boxes []*persistent.EntityBox
 	var err error
 
-	_, err = s.SetEntities(ctx, entityG, entities)
+	_, err = s.setEntities(ctx, entityG, chain, entities)
 	assert.NoError(t, err)
 
 	full := utils.WrapPointerForArray(entities)
@@ -1544,7 +1544,7 @@ func Test_filterWithNullValue(t *testing.T) {
 	}
 
 	for i, testcase := range testcases {
-		boxes, err = s.ListEntities(ctx, entityG, chain, []persistent.EntityFilter{{
+		boxes, err = storeListEntities(ctx, s,entityG, chain, []persistent.EntityFilter{{
 			Field: entityG.GetFieldByName(testcase.F), Op: testcase.O, Value: testcase.V,
 		}}, 10)
 		msg := fmt.Sprintf("testcase #%d %#v", i, testcase)
@@ -1815,7 +1815,7 @@ func Test_viewTable(t *testing.T) {
 	entityCType := sch.GetEntity("EntityC")
 
 	sql := fmt.Sprintf("SELECT propertyB, propertyC, `meta.chain` FROM %s ORDER BY %s",
-		s.ViewName(entityCType), quote(schema.EntityPrimaryFieldName))
+		s.viewName(entityCType), quote(schema.EntityPrimaryFieldName))
 	rows, err := es.conn.Query(ctx, sql)
 	assert.NoError(t, err)
 	defer rows.Close()
@@ -1847,4 +1847,25 @@ func Test_viewTable(t *testing.T) {
 
 func Test_timeFormat(t *testing.T) {
 	assert.Equal(t, "20260107021606", time.Unix(1767752166, 0).Format(timeLayoutAllDigital))
+}
+
+// storeListEntities is a test helper that calls listEntities and maps entityRow results
+// to *persistent.EntityBox, matching the old public ListEntities signature.
+func storeListEntities(
+	ctx context.Context,
+	s *Store,
+	entityType *schema.Entity,
+	chain string,
+	filters []persistent.EntityFilter,
+	limit int,
+) ([]*persistent.EntityBox, error) {
+	rows, err := s.listEntities(ctx, entityType, chain, filters, true, limit)
+	if err != nil || rows == nil {
+		return nil, err
+	}
+	boxes := make([]*persistent.EntityBox, len(rows))
+	for i, row := range rows {
+		boxes[i] = row.get()
+	}
+	return boxes, nil
 }

@@ -76,21 +76,21 @@ export function ConfirmDialog({
               leaveFrom="opacity-100 translate-y-0 sm:scale-100"
               leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             >
-              <Dialog.Panel className="border border-main bg-default-bg relative transform overflow-hidden rounded-lg text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+              <Dialog.Panel className="border border-main bg-default-bg relative transform overflow-hidden rounded-lg text-left shadow-xs transition-all sm:my-8 sm:w-full sm:max-w-lg">
                 <div className="px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                   <div className="sm:flex sm:items-start">
                     {type == 'danger' && (
-                      <div className="mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-300 sm:mx-0 sm:h-10 sm:w-10">
+                      <div className="mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
                         <ExclamationIcon
-                          className="h-6 w-6 text-red-600 dark:text-red-800"
+                          className="h-6 w-6 text-red-600"
                           aria-hidden="true"
                         />
                       </div>
                     )}
                     {type == 'question' && (
-                      <div className="bg-primary-100 dark:bg-primary-500 mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full sm:mx-0 sm:h-10 sm:w-10">
+                      <div className="bg-primary-100 mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full sm:mx-0 sm:h-10 sm:w-10">
                         <QuestionMarkCircleIcon
-                          className="text-primary-600 dark:text-primary-800 h-6 w-6"
+                          className="text-primary-600 h-6 w-6"
                           aria-hidden="true"
                         />
                       </div>
@@ -98,20 +98,20 @@ export function ConfirmDialog({
                     <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                       <Dialog.Title
                         as="h3"
-                        className="text-text-foreground text-lg font-medium leading-6"
+                        className="text-text-foreground text-base font-medium leading-6"
                       >
                         {title}
                       </Dialog.Title>
                       <div className="mt-2">
                         {message && (
-                          <p className="text-sm text-text-foreground-secondary">{message}</p>
+                          <p className="text-icontent text-text-foreground-secondary">{message}</p>
                         )}
                         {children}
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2 bg-gray-50 px-4 py-3 sm:flex-row-reverse sm:px-6">
+                <div className="flex gap-2 px-4 py-3 sm:flex-row-reverse sm:px-6">
                   {buttons ? (
                     buttons
                   ) : (

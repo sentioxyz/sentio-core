@@ -158,7 +158,7 @@ func (es *EntitySuite) pushData(ctx context.Context, entities map[string]persist
 
 	// set
 	for id, entity := range entities {
-		_, err = es.s.setEntities(ctx, es.getEntityTypeFromID(id), entity.GenBlockChain, []persistent.EntityBox{entity})
+		_, err = es.s.setEntities(ctx, es.getEntityTypeFromID(id), entity.GenBlockChain, []persistent.EntityBox{entity}, nil, nil)
 		assert.NoError(es.t, err)
 	}
 
@@ -365,7 +365,7 @@ func Test_getSetDel(t *testing.T) {
 		GenBlockTime:   genBlockTime(170),
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
-	}})
+	}}, nil, nil)
 	assert.NoError(t, err)
 
 	data, err = s.getEntity(ctx, entityAType, chain, "0x0a00")
@@ -444,7 +444,7 @@ func Test_getSetDel(t *testing.T) {
 		GenBlockTime:   genBlockTime(180),
 		GenBlockHash:   "0x1234",
 		GenBlockChain:  chain,
-	}})
+	}}, nil, nil)
 	assert.NoError(t, err)
 
 	data, err = s.getEntity(ctx, entityAType, chain, "0x0a00")
@@ -733,7 +733,7 @@ func Test_getSetDel3(t *testing.T) {
 		GenBlockChain:  chain1,
 	}
 
-	created, err := s.setEntities(ctx, entityIType, chain1, []persistent.EntityBox{i01})
+	created, err := s.setEntities(ctx, entityIType, chain1, []persistent.EntityBox{i01}, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, created)
 
@@ -827,7 +827,7 @@ func Test_batchSet1(t *testing.T) {
 
 	var err error
 
-	_, err = s.setEntities(ctx, entityBType, chain, entities)
+	_, err = s.setEntities(ctx, entityBType, chain, entities, nil, nil)
 	assert.NoError(t, err)
 
 	data, err := s.getEntity(ctx, entityBType, chain, "0x0b00")
@@ -902,7 +902,7 @@ func Test_batchSet1(t *testing.T) {
 		},
 	}
 
-	_, err = s.setEntities(ctx, entityBType, chain, entities)
+	_, err = s.setEntities(ctx, entityBType, chain, entities, nil, nil)
 	assert.NoError(t, err)
 
 	data, err = s.getEntity(ctx, entityBType, chain, "0x0b00")
@@ -976,21 +976,21 @@ func Test_batchSet2(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []*persistent.EntityBox(nil), boxes)
 	// insert 0-9 entities
-	_, err = s.setEntities(ctx, entityD1Type, chain, entities1)
+	_, err = s.setEntities(ctx, entityD1Type, chain, entities1, nil, nil)
 	assert.NoError(t, err)
 	// all 10 entities exists
 	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(entities1), boxes)
 	// update 0-9 entities
-	_, err = s.setEntities(ctx, entityD1Type, chain, entities2)
+	_, err = s.setEntities(ctx, entityD1Type, chain, entities2, nil, nil)
 	assert.NoError(t, err)
 	// all 10 entities updated to stage 2
 	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(entities2), boxes)
 	// delete 5-7
-	_, err = s.setEntities(ctx, entityD1Type, chain, entities3)
+	_, err = s.setEntities(ctx, entityD1Type, chain, entities3, nil, nil)
 	assert.NoError(t, err)
 	// only have 0-4,8-9
 	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
@@ -1076,7 +1076,7 @@ func Test_list(t *testing.T) {
 		assert.Equal(t, []*persistent.EntityBox(nil), boxes)
 
 		// insert 0-9 entities
-		_, err = s.setEntities(ctx, entityF, chain, entities)
+		_, err = s.setEntities(ctx, entityF, chain, entities, nil, nil)
 		assert.NoError(t, err)
 
 		// list all
@@ -1383,7 +1383,7 @@ func Test_filterWithNullValue(t *testing.T) {
 	var boxes []*persistent.EntityBox
 	var err error
 
-	_, err = s.setEntities(ctx, entityG, chain, entities)
+	_, err = s.setEntities(ctx, entityG, chain, entities, nil, nil)
 	assert.NoError(t, err)
 
 	full := utils.WrapPointerForArray(entities)

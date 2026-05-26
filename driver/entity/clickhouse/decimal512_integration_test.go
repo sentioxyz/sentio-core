@@ -164,7 +164,7 @@ func TestDecimal512_E2E_UserWorkflow(t *testing.T) {
 			Entity: "Pool",
 		}
 
-		_, err = store.setEntities(ctx, poolEntity, chainID, []persistent.EntityBox{poolData})
+		_, err = store.setEntities(ctx, poolEntity, chainID, []persistent.EntityBox{poolData}, nil, nil)
 		require.NoError(t, err, "Pool data write should succeed: %s", tc.name)
 	}
 

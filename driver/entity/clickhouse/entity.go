@@ -142,6 +142,8 @@ func (s *Store) setEntities(
 	entityType *schema.Entity,
 	chain string,
 	entities []persistent.EntityBox,
+	knownExistingIDs map[string]bool,
+	knownPreBoxes map[string]*entityRow,
 ) (created int, err error) {
 	if entityType.IsCache() {
 		return 0, nil
@@ -213,31 +215,61 @@ func (s *Store) setEntities(
 		if useVersionedCollapsingTable {
 			insertSetting = enableVersionedCollapsingInsertSettings()
 			// select pre-values and update preBoxes
-			exists, queryErr := s.listEntities(ctx, entityType, chain, []persistent.EntityFilter{{
-				Field: entityType.GetPrimaryKeyField(),
-				Op:    persistent.EntityFilterOpIn,
-				Value: utils.ToAnyArray(utils.GetOrderedMapKeys(newIds)),
-			}}, false, math.MaxInt)
-			if queryErr != nil {
-				batchLogger.Errorfe(queryErr, "list pre-values for set entities failed")
-				return errors.Wrapf(queryErr, "set %s entities in chain %s failed: list pre-values failed",
-					entityType.Name, chain)
+			if knownPreBoxes != nil {
+				// Opportunity 2: use cached pre-values, skip DB query
+				existingCount := 0
+				for id := range newIds {
+					if _, has := preBoxes[id]; has {
+						// Already written in an earlier batch; pre-value already in preBoxes.
+						existingCount++
+					} else if pre, has := knownPreBoxes[id]; has {
+						// Pre-value comes from cache.
+						preBoxes[id] = pre
+						existingCount++
+					}
+				}
+				created += len(newIds) - existingCount
+			} else {
+				exists, queryErr := s.listEntities(ctx, entityType, chain, []persistent.EntityFilter{{
+					Field: entityType.GetPrimaryKeyField(),
+					Op:    persistent.EntityFilterOpIn,
+					Value: utils.ToAnyArray(utils.GetOrderedMapKeys(newIds)),
+				}}, false, math.MaxInt)
+				if queryErr != nil {
+					batchLogger.Errorfe(queryErr, "list pre-values for set entities failed")
+					return errors.Wrapf(queryErr, "set %s entities in chain %s failed: list pre-values failed",
+						entityType.Name, chain)
+				}
+				for _, box := range exists {
+					preBoxes[box.ID] = box
+				}
+				created += len(newIds) - len(exists)
 			}
-			for _, box := range exists {
-				preBoxes[box.ID] = box
-			}
-			created += len(newIds) - len(exists)
 		} else {
-			exists, queryErr := s.queryExistEntity(ctx, entityType, chain, utils.GetOrderedMapKeys(newIds)...)
-			if queryErr != nil {
-				batchLogger.Errorfe(queryErr, "query exists for set entities failed")
-				return errors.Wrapf(queryErr, "set %s entities in chain %s failed: query exists failed",
-					entityType.Name, chain)
+			if knownExistingIDs != nil {
+				// Opportunity 1: use cached ID set, skip DB query
+				var existingInBatch []string
+				for id := range newIds {
+					if knownExistingIDs[id] {
+						existingInBatch = append(existingInBatch, id)
+					}
+				}
+				if entityType.IsImmutable() && len(existingInBatch) > 0 {
+					return reportUpdateImmutable(utils.BuildSet(existingInBatch), batchLogger)
+				}
+				created += len(newIds) - len(existingInBatch)
+			} else {
+				exists, queryErr := s.queryExistEntity(ctx, entityType, chain, utils.GetOrderedMapKeys(newIds)...)
+				if queryErr != nil {
+					batchLogger.Errorfe(queryErr, "query exists for set entities failed")
+					return errors.Wrapf(queryErr, "set %s entities in chain %s failed: query exists failed",
+						entityType.Name, chain)
+				}
+				if entityType.IsImmutable() && len(exists) > 0 {
+					return reportUpdateImmutable(utils.BuildSet(exists), batchLogger)
+				}
+				created += len(newIds) - len(exists)
 			}
-			if entityType.IsImmutable() && len(exists) > 0 {
-				return reportUpdateImmutable(utils.BuildSet(exists), batchLogger)
-			}
-			created += len(newIds) - len(exists)
 		}
 		// actually insert rows
 		var slotValues []any

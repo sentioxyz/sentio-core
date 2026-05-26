@@ -51,7 +51,7 @@ func (e *EntityBox) Merge(entityType *schema.Entity, newOne *EntityBox) {
 		panic(fmt.Errorf("merge entity with different ID"))
 	}
 	if e.Entity != newOne.Entity {
-		panic(fmt.Errorf("merge entity with different entty type"))
+		panic(fmt.Errorf("merge entity with different entity type"))
 	}
 	if e.GenBlockChain != newOne.GenBlockChain {
 		panic(fmt.Errorf("merge entity with different genBlockChain"))

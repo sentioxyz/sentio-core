@@ -159,7 +159,7 @@ func calcOperator(typ types.Type, originVal any, operator Operator) any {
 		if nullable {
 			return result
 		}
-		return &result
+		return *result
 	case "Float":
 		var origin float64
 		if !utils.IsNil(originVal) {

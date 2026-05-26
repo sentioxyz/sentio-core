@@ -203,11 +203,6 @@ func (m *ReportMonitor) Reset() {
 	m.report = newTxnReport()
 }
 
-// Report returns a snapshot of the statistics accumulated since the last Reset.
-func (m *ReportMonitor) Report() TxnReport {
-	return m.report
-}
-
 func (m *ReportMonitor) OnGet(
 	ctx context.Context,
 	entity string,
@@ -287,9 +282,9 @@ func (m *ReportMonitor) OnCommit(
 	m.report.TxnUsed = time.Since(m.start)
 	m.report.TxnCommitUsed = used
 	if utils.SumMap(m.report.TotalCommit) == 0 {
-		logger.Debugw("commit changes of all entities succeed", "report", m.Report)
+		logger.Debugw("commit changes of all entities succeed", "report", m.report)
 	} else {
-		logger.Infow("commit changes of all entities succeed", "report", m.Report)
+		logger.Infow("commit changes of all entities succeed", "report", m.report)
 	}
 }
 

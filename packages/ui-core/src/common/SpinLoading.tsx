@@ -8,32 +8,18 @@ interface Props {
   className?: string
   size?: number
   showMask?: boolean
-  maskOpacity?: number // 0-100
+  maskOpacity?: number
 }
 
 export const SpinLoading = React.forwardRef<HTMLDivElement, Props>(
   function Spinner(args: Props, ref) {
-    const {
-      loading = false,
-      children,
-      className,
-      size = 48,
-      showMask,
-      maskOpacity = 80
-    } = args
+    const { loading = false, children, className, size = 48, showMask, maskOpacity = 80 } = args
     return (
       <div ref={ref} className={classNames('relative', className)}>
         {showMask && loading && (
-          <div
-            className={classNames(
-              'absolute bottom-0 left-0 right-0 top-0 z-1',
-              maskOpacity
-                ? `bg-white dark:bg-sentio-gray-100/${maskOpacity}`
-                : 'dark:bg-sentio-gray-100 bg-white'
-            )}
-          ></div>
+          <div className="z-1 bg-default-bg absolute bottom-0 left-0 right-0 top-0" style={{ opacity: maskOpacity / 100 }}></div>
         )}
-        <div className="absolute left-[50%] top-[50%] z-1 -translate-y-6">
+        <div className="z-1 absolute left-[50%] top-[50%] -translate-y-6">
           <ClipLoader
             loading={loading}
             color="#3B82F6"

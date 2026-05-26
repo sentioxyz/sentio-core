@@ -2,11 +2,13 @@ package persistent
 
 import (
 	"fmt"
-	"github.com/DmitriyVTitov/size"
-	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio-core/driver/entity/schema"
 	"sort"
 	"time"
+
+	"github.com/DmitriyVTitov/size"
+
+	"sentioxyz/sentio-core/common/utils"
+	"sentioxyz/sentio-core/driver/entity/schema"
 )
 
 type EntityBox struct {
@@ -66,7 +68,7 @@ func (e *EntityBox) Merge(entityType *schema.Entity, newOne *EntityBox) {
 	if e.Data == nil {
 		e.Data, e.Operator = newOne.Data, nil
 		for fieldName, op := range newOne.Operator {
-			field := entityType.Get(fieldName)
+			field := entityType.GetFieldByName(fieldName)
 			_, zeroVal := buildType(field.Type)
 			e.Data[fieldName] = calcOperator(field.Type, zeroVal, op)
 		}
@@ -90,7 +92,7 @@ func (e *EntityBox) Merge(entityType *schema.Entity, newOne *EntityBox) {
 	}
 	newOperators := make(map[string]Operator)
 	for fieldName, op := range newOne.Operator {
-		field := entityType.Get(fieldName)
+		field := entityType.GetFieldByName(fieldName)
 		if originVal, has := e.Data[fieldName]; has {
 			// (1)
 			e.Data[fieldName] = calcOperator(field.Type, originVal, op)

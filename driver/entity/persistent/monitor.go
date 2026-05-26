@@ -178,7 +178,7 @@ func newTxnReport() TxnReport {
 // Lifecycle: call Reset before each processing cycle begins (equivalent to
 // the old NewTxn call).  Reset clears accumulated stats and records the cycle
 // start time.  OnCommit finalises the cycle by computing TxnUsed and logging
-// the report — it does NOT reset state.  Use Report() to read current stats.
+// the report — it does NOT reset state.
 type ReportMonitor struct {
 	report TxnReport
 

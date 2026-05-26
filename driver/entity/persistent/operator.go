@@ -156,10 +156,8 @@ func calcOperator(typ types.Type, originVal any, operator Operator) any {
 			}
 		}
 		result := operator.NumCalc.Calc(decimal.NewFromBigInt(origin, 0)).Round(0).BigInt()
-		if nullable {
-			return result
-		}
-		return *result
+		// BigInt is special, always use *big.Int regardless of nonNull declaration
+		return result
 	case "Float":
 		var origin float64
 		if !utils.IsNil(originVal) {

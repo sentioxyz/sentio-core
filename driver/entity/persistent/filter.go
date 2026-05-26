@@ -94,7 +94,7 @@ const (
 	// [String!] [abc,def]        HAS_ANY  [xyz]       false
 	// [String!] [abc,def]        HAS_ANY  null        false (BE ATTENTION HERE!)
 	// [String!] null             HAS_ANY  [abc]       false (BE ATTENTION HERE!)
-	// [String!] null             HAS_ALL  []          false (BE ATTENTION HERE!)
+	// [String!] null             HAS_ANY  []          false (BE ATTENTION HERE!)
 	// [String!] null             HAS_ANY  null        false (BE ATTENTION HERE!)
 	// HAS_ANY means the size of intersection is greater than 0
 )

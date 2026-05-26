@@ -45,6 +45,7 @@ type ChainStore interface {
 	) ([]*EntityBox, bool, error)
 
 	GetTimeSeriesEntityMaxID(ctx context.Context, entityType *schema.Entity) (int64, error)
+
 	SetEntities(ctx context.Context, entityType *schema.Entity, boxes []EntityBox) (int, error)
 	GrowthAggregation(ctx context.Context, curBlockTime time.Time) error
 	Reorg(ctx context.Context, blockNumber int64) error
@@ -138,6 +139,9 @@ func (c *Controller) executeEntityOperator(
 		if box.GenBlockNumber > blockNumber {
 			break
 		}
+		if box.Data == nil {
+			continue
+		}
 		if len(box.Operator) == 0 {
 			continue
 		}
@@ -154,7 +158,7 @@ func (c *Controller) executeEntityOperator(
 			preBox = history[i-1]
 		}
 		var preData map[string]any
-		if preBox != nil {
+		if preBox != nil && preBox.Data != nil {
 			preData = preBox.Data
 		} else {
 			preData = make(map[string]any)
@@ -501,7 +505,15 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	}
 
 	// put into c.changes
-	history.Push(entityType, &box)
+	if merged, mergedBox := history.Push(entityType, &box); merged && mergedBox.Data != nil {
+		if err := c.store.CheckValue(entityType, mergedBox.Data); err != nil {
+			return fmt.Errorf(
+				"%w: set entity %s/%s in chain %s failed: %v",
+				ErrInvalidFieldValue, entityType.Name,
+				box.ID, box.GenBlockChain, err,
+			)
+		}
+	}
 	utils.PutIntoK2Map(c.changes, entityType.Name, box.ID, history)
 
 	remove := box.Data == nil

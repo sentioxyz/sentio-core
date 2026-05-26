@@ -2,18 +2,20 @@ package persistent
 
 import (
 	"fmt"
+	"math/big"
+	"reflect"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/graph-gophers/graphql-go/types"
 	"github.com/shopspring/decimal"
-	"math/big"
-	"reflect"
+
 	"sentioxyz/sentio-core/common/anyutil"
 	rsh "sentioxyz/sentio-core/common/richstructhelper"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/schema"
 	entityProtos "sentioxyz/sentio-core/processor/protos"
 	"sentioxyz/sentio-core/service/common/protos"
-	"time"
 )
 
 func buildType(typ types.Type) (reflect.Type, any) {

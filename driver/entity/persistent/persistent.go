@@ -43,8 +43,6 @@ type ChainStore interface {
 	// CheckValue checks whether values in data are valid for the storage backend.
 	CheckValue(entityType *schema.Entity, data map[string]any) error
 
-	// CacheEvicted returns the count of LRU cache evictions since creation.
-	CacheEvicted() int
 	// Snapshot returns a snapshot of cache and store state for debugging/monitoring.
 	Snapshot() any
 }

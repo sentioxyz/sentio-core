@@ -298,9 +298,6 @@ func (c *ChainStore) CheckValue(entityType *schema.Entity, data map[string]any) 
 	return c.store.CheckValue(entityType, data)
 }
 
-// CacheEvicted returns the number of LRU evictions since this ChainStore was created.
-func (c *ChainStore) CacheEvicted() int { return c.lruEvicted }
-
 // Snapshot returns a map describing the current cache state (for debugging/monitoring).
 func (c *ChainStore) Snapshot() any {
 	fullIDCache := make(map[string]int)

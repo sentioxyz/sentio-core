@@ -259,8 +259,6 @@ func (s *mockChainStore) CheckValue(_ *schema.Entity, _ map[string]any) error { 
 
 func (s *mockChainStore) Reorg(_ context.Context, _ int64) error { panic("not implemented") }
 
-func (s *mockChainStore) CacheEvicted() int { return 0 }
-
 func (s *mockChainStore) Snapshot() any { return nil }
 
 func prepareTestStore(sch *schema.Schema, chain string) (*mockChainStore, ChainStore) {
@@ -402,7 +400,7 @@ func Test_loadRelated(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	monitor := NewReportMonitor(s, nil)
+	monitor := NewReportMonitor(nil)
 	ctrl := NewController(s, monitor)
 	a0 := update(ra0, ra0.GenBlockNumber)
 	a1 := update(ra1, ra1.GenBlockNumber)
@@ -459,7 +457,7 @@ func Test_loadRelated(t *testing.T) {
 
 	// ================================================================================
 	// reset data
-	monitor = NewReportMonitor(s, nil)
+	monitor = NewReportMonitor(nil)
 	ctrl = NewController(s, monitor)
 
 	// change many-to-one relation
@@ -482,7 +480,7 @@ func Test_loadRelated(t *testing.T) {
 
 	// ================================================================================
 	// reset data
-	monitor = NewReportMonitor(s, nil)
+	monitor = NewReportMonitor(nil)
 	ctrl = NewController(s, monitor)
 	a0 = update(ra0, ra0.GenBlockNumber)
 	a1 = update(ra1, ra1.GenBlockNumber)
@@ -555,7 +553,7 @@ func Test_loadRelated(t *testing.T) {
 
 	// ================================================================================
 	// reset data
-	monitor = NewReportMonitor(s, nil)
+	monitor = NewReportMonitor(nil)
 	ctrl = NewController(s, monitor)
 	a0 = update(ra0, ra0.GenBlockNumber)
 	a1 = update(ra1, ra1.GenBlockNumber)
@@ -661,7 +659,7 @@ func Test_loadRelated2(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	monitor := NewReportMonitor(s, nil)
+	monitor := NewReportMonitor(nil)
 	ctrl := NewController(s, monitor)
 	a0 := update(ra0, ra0.GenBlockNumber)
 	a1 := update(ra1, ra1.GenBlockNumber)
@@ -731,7 +729,7 @@ func Test_loadRelated2(t *testing.T) {
 
 	_, _, err = ctrl.Commit(ctx, math.MaxUint64, time.Time{})
 	assert.NoError(t, err)
-	monitor = NewReportMonitor(s, nil)
+	monitor = NewReportMonitor(nil)
 	ctrl = NewController(s, monitor)
 
 	// change reserve relation
@@ -795,7 +793,7 @@ func Test_list1(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	monitor := NewReportMonitor(s, nil)
+	monitor := NewReportMonitor(nil)
 	ctrl := NewController(s, monitor)
 
 	// init
@@ -879,7 +877,7 @@ func Test_list2(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	monitor := NewReportMonitor(s, nil)
+	monitor := NewReportMonitor(nil)
 	ctrl := NewController(s, monitor)
 
 	// init
@@ -1034,7 +1032,7 @@ func Test_listCache(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	monitor := NewReportMonitor(s, nil)
+	monitor := NewReportMonitor(nil)
 	ctrl := NewController(s, monitor)
 
 	// init, will load all entity to list cache
@@ -1123,7 +1121,7 @@ func Test_listCache(t *testing.T) {
 	// commit, list cache will be reset
 	_, _, err = ctrl.Commit(ctx, math.MaxUint64, time.Time{})
 	assert.NoError(t, err)
-	monitor = NewReportMonitor(s, nil)
+	monitor = NewReportMonitor(nil)
 	ctrl = NewController(s, monitor)
 
 	// will load entities from persistent
@@ -1152,7 +1150,7 @@ func Test_getInterface(t *testing.T) {
 	_, s := prepareTestStore(sch, chain)
 
 	ctx := context.Background()
-	monitor := NewReportMonitor(s, nil)
+	monitor := NewReportMonitor(nil)
 	ctrl := NewController(s, monitor)
 
 	// no EntityE1 and EntityE2 object

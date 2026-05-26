@@ -28,11 +28,11 @@ type TxnReport struct {
 	TotalCommitType   int
 
 	// get-entity statistics
-	TotalGet                int
-	TotalGetInBlock         int
-	TotalGetUsed            time.Duration
-	TotalGetFrom            map[string]map[string]int
-	TotalGetFromUsed        map[string]map[string]time.Duration
+	TotalGet         int
+	TotalGetInBlock  int
+	TotalGetUsed     time.Duration
+	TotalGetFrom     map[string]map[string]int
+	TotalGetFromUsed map[string]map[string]time.Duration
 
 	// list-entity statistics
 	TotalList               int
@@ -40,8 +40,6 @@ type TxnReport struct {
 	TotalListUsed           time.Duration
 	TotalListFrom           map[string]map[string]int
 	TotalListFromUsed       map[string]map[string]time.Duration
-
-	TotalCacheEvicted int
 }
 
 func newTxnReport() TxnReport {
@@ -67,21 +65,17 @@ type ReportMonitor struct {
 	// construction).  It is reset automatically after each OnCommit.
 	Report TxnReport
 
-	start             time.Time
-	storeCacheEvicted int
-	store             ChainStore // used only for CacheEvicted()
-	metrics           MetricsMonitor
+	start   time.Time
+	metrics MetricsMonitor
 }
 
-// NewReportMonitor creates a ReportMonitor bound to the given store.
+// NewReportMonitor creates a ReportMonitor.
 // usedMetric may be nil if latency recording is not required.
-func NewReportMonitor(store ChainStore, usedMetric metric.Float64Histogram) *ReportMonitor {
+func NewReportMonitor(usedMetric metric.Float64Histogram) *ReportMonitor {
 	return &ReportMonitor{
-		start:             time.Now(),
-		storeCacheEvicted: store.CacheEvicted(),
-		store:             store,
-		metrics:           MetricsMonitor{UsedMetric: usedMetric},
-		Report:            newTxnReport(),
+		start:   time.Now(),
+		metrics: MetricsMonitor{UsedMetric: usedMetric},
+		Report:  newTxnReport(),
 	}
 }
 
@@ -161,7 +155,6 @@ func (m *ReportMonitor) OnCommit(
 	m.Report.TotalCommit = utils.MergeMapSum(created, updated)
 	m.Report.TotalCommitCreate = created
 	m.Report.TotalCommitType = len(m.Report.TotalCommit)
-	m.Report.TotalCacheEvicted = m.store.CacheEvicted() - m.storeCacheEvicted
 	m.Report.TxnUsed = time.Since(m.start)
 	m.Report.TxnCommitUsed = used
 	if utils.SumMap(m.Report.TotalCommit) == 0 {
@@ -171,7 +164,6 @@ func (m *ReportMonitor) OnCommit(
 	}
 	// Reset for the next commit cycle.
 	m.start = time.Now()
-	m.storeCacheEvicted = m.store.CacheEvicted()
 	m.Report = newTxnReport()
 }
 

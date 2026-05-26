@@ -458,6 +458,10 @@ func (t *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 		// unreachable
 		panic(fmt.Errorf("GenBlockChain %s not match the store chain %s", box.GenBlockChain, t.store.GetChain()))
 	}
+	if t.committed != nil && box.GenBlockNumber <= *t.committed {
+		// unreachable
+		panic(fmt.Errorf("GenBlockNumber %d must be greater than last committed block %d", box.GenBlockNumber, *t.committed))
+	}
 	box.Entity = entityType.Name
 
 	if box.Data != nil {

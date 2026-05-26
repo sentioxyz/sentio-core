@@ -226,7 +226,7 @@ func (s *mockChainStore) ListEntities(
 	return list, fromCache, nil
 }
 
-func (s *mockChainStore) GetMaxID(_ context.Context, _ *schema.Entity) (int64, error) {
+func (s *mockChainStore) GetTimeSeriesEntityMaxID(_ context.Context, _ *schema.Entity) (int64, error) {
 	panic("not implemented")
 }
 

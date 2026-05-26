@@ -198,8 +198,8 @@ func (c *ChainStore) ListEntities(
 	return
 }
 
-// GetMaxID returns the maximum numeric ID for a time-series entity.
-func (c *ChainStore) GetMaxID(ctx context.Context, entityType *schema.Entity) (int64, error) {
+// GetTimeSeriesEntityMaxID returns the maximum numeric ID for a time-series entity.
+func (c *ChainStore) GetTimeSeriesEntityMaxID(ctx context.Context, entityType *schema.Entity) (int64, error) {
 	return c.store.GetMaxID(ctx, entityType, c.chain)
 }
 

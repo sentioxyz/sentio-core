@@ -831,7 +831,7 @@ func (t *Controller) Commit(
 		if entityType.IsTimeSeries() {
 			// set timestamp and reset id for all boxes
 			var maxID int64
-			maxID, err = t.store.GetMaxID(ctx, entityType)
+			maxID, err = t.store.GetTimeSeriesEntityMaxID(ctx, entityType)
 			if err != nil {
 				entityLogger.Errorfe(err, "commit changes of entity failed: get count of time series entity %q failed", entity)
 				return

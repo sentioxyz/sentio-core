@@ -184,7 +184,11 @@ type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 	statDowngrade *timewin.TimeWindowsManager[*downgradeStatWindow]
 	statEntryUsed *timewin.TimeWindowsManager[*usedStatWindow]
 
-	// protect all properties below
+	// protect all properties below.
+	// Lock ordering: never call pool methods while holding mu.
+	// pool.mu can call back into ClientPool (e.g. via poolStatusBuilder, Enable's status goroutine),
+	// which will attempt to acquire mu — so acquiring mu and then calling any pool method that
+	// acquires pool.mu creates a deadlock cycle. Always release mu before calling any pool methods.
 	mu sync.Mutex
 
 	config           PoolConfig[CONFIG]
@@ -739,13 +743,13 @@ func (p *ClientPool[CONFIG, CLIENT]) clientActive(ctx context.Context, name stri
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) enablePriority() {
+	logger := log.With("pool", p.pool.Name())
 	p.mu.Lock()
 	var current uint32 = math.MaxUint32
 	if len(p.configPriorities) > 0 {
 		current = p.configPriorities[p.priorityCursor]
 	}
 	var enableList, disableList []string
-	logger := log.With("pool", p.pool.Name())
 	for name, cc := range p.configEntries {
 		if cc.Priority <= current {
 			enableList = append(enableList, name)
@@ -777,10 +781,11 @@ func (p *ClientPool[CONFIG, CLIENT]) enablePriority() {
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) updateConfig(c PoolConfig[CONFIG]) {
+	poolName := p.pool.Name()
 	p.mu.Lock()
 	p.configVersion++
 	p.configUpdateAt = time.Now()
-	logger := log.With("pool", p.pool.Name(), "configVersion", p.configVersion)
+	logger := log.With("pool", poolName, "configVersion", p.configVersion)
 	logger.Infow("pool got new config", "config", c)
 	exists := p.configEntries
 	p.configEntries = make(map[string]ClientConfig[CONFIG])

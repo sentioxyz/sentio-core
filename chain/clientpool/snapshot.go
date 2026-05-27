@@ -54,12 +54,13 @@ func (p *ClientPool[CONFIG, CLIENT]) _clientState(
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) Snapshot() any {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	// pool.Fetch must be called before acquiring mu (see lock ordering on mu field)
 	entries, ps, psIndex := p.pool.Fetch(
 		func(_ string, _ pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]], _ poolStatus) bool {
 			return true
 		})
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	type client struct {
 		ent        pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]]
 		name       string

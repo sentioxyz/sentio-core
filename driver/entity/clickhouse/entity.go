@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 
 	"sentioxyz/sentio-core/common/chx"
+	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/format"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
@@ -154,7 +155,7 @@ func (s *Store) setEntities(
 		batchSize = DefaultCreateTableOption.BatchInsertSizeLimit
 	}
 	useVersionedCollapsingTable := s.useVersionedCollapsingTable(entityType)
-	ctx, logger := log.FromContext(ctx,
+	ctx, _ = log.FromContext(ctx,
 		"entity", entityType.Name,
 		"chain", chain,
 		"count", len(entities),
@@ -180,9 +181,10 @@ func (s *Store) setEntities(
 	preBoxes := make(map[string]*entityRow)
 	zeroDataBox := persistent.EntityBox{Data: make(map[string]any)}
 	zeroDataBox.FillLostFields(make(map[string]any), entityType)
-	tableName := utils.Select(useVersionedCollapsingTable, s.VersionedTableName(entityType), s.TableName(entityType))
-	fields := joinWithQuote(kit.fieldNamesForSet(), ",")
-	slots := "(" + strings.Join(kit.fieldSlotsForSet(), ",") + ")"
+	sql := fmt.Sprintf("INSERT INTO %s (%s)",
+		s.fullName(utils.Select(useVersionedCollapsingTable, s.VersionedTableName(entityType), s.TableName(entityType))),
+		joinWithQuote(kit.fieldNamesForSet(), ","),
+	)
 
 	reportUpdateImmutable := func(ids map[string]bool, logger *log.SentioLogger) error {
 		var sample persistent.EntityBox
@@ -202,8 +204,7 @@ func (s *Store) setEntities(
 		if len(queue) == 0 {
 			return nil
 		}
-		start := time.Now()
-		batchLogger := logger.With("batchIndex", batchIndex)
+		batchCtx, batchLogger := log.FromContext(ctx, "batchIndex", batchIndex)
 		batchIndex++
 		ids := fetchIDSet(queue)
 		newIds := utils.SetSub(ids, doneIds)
@@ -211,17 +212,17 @@ func (s *Store) setEntities(
 		if len(newIds) != len(ids) && entityType.IsImmutable() {
 			return reportUpdateImmutable(utils.SetSub(ids, newIds), batchLogger)
 		}
-		var insertSetting map[string]any
 		if useVersionedCollapsingTable {
-			insertSetting = enableVersionedCollapsingInsertSettings()
-			// select pre-values and update preBoxes
+			// prepare preBoxes
 			if knownPreBoxGetter != nil {
 				// Opportunity 2: use cached pre-values, skip DB query
 				existingCount := 0
 				for id := range newIds {
-					if _, has := preBoxes[id]; has {
+					if pre, has := preBoxes[id]; has {
 						// Already written in an earlier batch; pre-value already in preBoxes.
-						existingCount++
+						if pre.Data != nil {
+							existingCount++
+						}
 					} else if pre, has := knownPreBoxGetter(id); has {
 						// Pre-value comes from cache.
 						preBoxes[id] = &entityRow{EntityBox: pre.EntityBox, GenBlockChain: chain, Sign: 1, Version: pre.Version}
@@ -232,7 +233,7 @@ func (s *Store) setEntities(
 				}
 				created += len(newIds) - existingCount
 			} else {
-				exists, queryErr := s.listEntities(ctx, entityType, chain, []persistent.EntityFilter{{
+				exists, queryErr := s.listEntities(batchCtx, entityType, chain, []persistent.EntityFilter{{
 					Field: entityType.GetPrimaryKeyField(),
 					Op:    persistent.EntityFilterOpIn,
 					Value: utils.ToAnyArray(utils.GetOrderedMapKeys(newIds)),
@@ -247,6 +248,7 @@ func (s *Store) setEntities(
 				}
 				created += len(newIds) - len(exists)
 			}
+			batchCtx = ckhmanager.ContextMergeSettings(batchCtx, enableVersionedCollapsingInsertSettings())
 		} else {
 			if knownExistingIDChecker != nil {
 				// Opportunity 1: use cached ID set, skip DB query
@@ -261,7 +263,7 @@ func (s *Store) setEntities(
 				}
 				created += len(newIds) - len(existingInBatch)
 			} else {
-				exists, queryErr := s.queryExistEntity(ctx, entityType, chain, utils.GetOrderedMapKeys(newIds)...)
+				exists, queryErr := s.queryExistEntity(batchCtx, entityType, chain, utils.GetOrderedMapKeys(newIds)...)
 				if queryErr != nil {
 					batchLogger.Errorfe(queryErr, "query exists for set entities failed")
 					return errors.Wrapf(queryErr, "set %s entities in chain %s failed: query exists failed",
@@ -274,8 +276,7 @@ func (s *Store) setEntities(
 			}
 		}
 		// actually insert rows
-		var slotValues []any
-		var rows int
+		var rows [][]any
 		for _, box := range queue {
 			cur := entityRow{EntityBox: box, Sign: 1, Version: 1}
 			if pre, has := preBoxes[box.ID]; useVersionedCollapsingTable && has {
@@ -285,17 +286,16 @@ func (s *Store) setEntities(
 				pre.GenBlockNumber = cur.GenBlockNumber
 				pre.GenBlockTime = cur.GenBlockTime
 				pre.GenBlockHash = cur.GenBlockHash
-				slotValues, rows = append(slotValues, kit.fieldValuesForSet(*pre, zeroDataBox.Data)...), rows+1
+				rows = append(rows, kit.fieldValuesForSet(*pre, zeroDataBox.Data))
 			}
-			slotValues, rows = append(slotValues, kit.fieldValuesForSet(cur, zeroDataBox.Data)...), rows+1
+			rows = append(rows, kit.fieldValuesForSet(cur, zeroDataBox.Data))
 			if useVersionedCollapsingTable {
 				preBoxes[box.ID] = &cur
 			}
 		}
-		sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s", s.fullName(tableName), fields, utils.Dup(slots, ",", rows))
-		uniqToken := strconv.FormatUint(rand.Uint64(), 16)
-		insertErr := s.ctrl.Exec(chx.InsertCtx(ctx, uniqToken, insertSetting), sql, slotValues...)
-		batchLogger = batchLogger.With("uniqToken", uniqToken, "rows", rows, "used", time.Since(start).String())
+		insertErr := s.ctrl.BatchInsert(batchCtx, sql, math.MaxInt, chx.NewGetter(rows, func(row []any) []any {
+			return row
+		}))
 		if insertErr != nil {
 			batchLogger.Errore(insertErr, "batch insert failed")
 			return insertErr

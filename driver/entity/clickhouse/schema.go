@@ -1305,20 +1305,6 @@ func (e Entity) fieldNamesForSet() (names []string) {
 	return append(e.fieldNames(true), sysFields...)
 }
 
-func (e Entity) fieldSlotsForSet() (slots []string) {
-	for _, field := range e.Fields {
-		if field.IsReverseForeignKeyField() {
-			continue
-		}
-		slots = append(slots, field.FieldSlotsForSet()...)
-	}
-	slots = append(slots, "?", "?", "?", "?", "?")
-	if e.UseVersionedCollapsingTable {
-		slots = append(slots, "?", "?")
-	}
-	return slots
-}
-
 func (e Entity) fieldValuesForSet(box entityRow, zeroData map[string]any) (values []any) {
 	for _, field := range e.Fields {
 		if field.IsReverseForeignKeyField() {

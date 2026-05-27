@@ -30,6 +30,10 @@ import (
 // Implementations are not required to be thread-safe; the caller (e.g.
 // Controller) is responsible for serialising concurrent access.
 type ChainStore interface {
+	// InitEntitySchema creates or updates ClickHouse tables to match the current
+	// entity schema.  Must be called once before any read/write operations.
+	InitEntitySchema(ctx context.Context) error
+
 	GetChain() string
 	GetEntityType(entity string) *schema.Entity
 	GetEntityOrInterfaceType(name string) schema.EntityOrInterface

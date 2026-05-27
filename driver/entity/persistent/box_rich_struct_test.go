@@ -346,7 +346,7 @@ func Test_convertRichStruct_normal(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, data, d)
 
-	var e EntityBox
+	var e UncommittedEntityBox
 	assert.NoError(t, e.FromRichStruct(edType, d))
 	assert.Equal(t, box.Data, e.Data)
 
@@ -572,7 +572,7 @@ func Test_convertRichStruct_zero(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, data, d)
 
-	var e EntityBox
+	var e UncommittedEntityBox
 	assert.NoError(t, e.FromRichStruct(edType, d))
 	assert.Equal(t, box.Data, e.Data)
 }
@@ -740,7 +740,7 @@ func Test_convertRichStruct_zero2(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, data, d)
 
-	var e EntityBox
+	var e UncommittedEntityBox
 	assert.NoError(t, e.FromRichStruct(edType, d))
 	assert.Equal(t, box2.Data, e.Data)
 }
@@ -1002,7 +1002,7 @@ func Test_convertRichStruct_missFields(t *testing.T) {
 	d, err = box.ToRichStruct(edType)
 	assert.NoError(t, err)
 	assert.Equal(t, data, d)
-	var e EntityBox
+	var e UncommittedEntityBox
 	assert.NoError(t, e.FromRichStruct(edType, d))
 	assert.Equal(t, boxFull.Data, e.Data)
 
@@ -1142,7 +1142,7 @@ func Test_FromRichStruct_emptyArray(t *testing.T) {
 		"id":     rsh.NewStringValue("id"),
 		"propA6": rsh.NewListValue(),
 	}}
-	var a EntityBox
+	var a UncommittedEntityBox
 	assert.NoError(t, a.FromRichStruct(edType, data))
 	assert.Equal(t, []string{}, a.Data["propA6"]) // not []string(nil), it is important
 

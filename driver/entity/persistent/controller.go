@@ -26,6 +26,9 @@ import (
 // interface: it is a one-time setup operation that belongs to the storage
 // backend (e.g. clickhouse.Store) and must be called once before any ChainStore
 // is created, not once per chain.
+//
+// Implementations are not required to be thread-safe; the caller (e.g.
+// Controller) is responsible for serialising concurrent access.
 type ChainStore interface {
 	GetChain() string
 	GetEntityType(entity string) *schema.Entity
@@ -33,6 +36,7 @@ type ChainStore interface {
 
 	// GetEntity returns the entity with the given id.
 	// fromCache is true when the result came entirely from in-memory cache.
+	// Will got nil if entity not exists or deleted before.
 	GetEntity(ctx context.Context, entityType *schema.Entity, id string) (*EntityBox, bool, error)
 
 	// ListEntities returns entities matching the given filters.
@@ -46,6 +50,16 @@ type ChainStore interface {
 
 	GetTimeSeriesEntityMaxID(ctx context.Context, entityType *schema.Entity) (int64, error)
 
+	// SetEntities writes a batch of entity boxes to persistent storage.
+	//
+	// Ordering contract: within boxes, entries that share the same ID are
+	// ordered by ascending GenBlockNumber — later writes for the same ID always
+	// appear after earlier ones in the slice.
+	//
+	// TimeSeries ID contract: for TimeSeries entity types, every box ID is
+	// guaranteed to be greater than the value returned by GetTimeSeriesEntityMaxID
+	// at the time of the call, so implementations need not perform a duplicate-ID
+	// check for TimeSeries entities.
 	SetEntities(ctx context.Context, entityType *schema.Entity, boxes []EntityBox) (int, error)
 	GrowthAggregation(ctx context.Context, curBlockTime time.Time) error
 	Reorg(ctx context.Context, blockNumber int64) error
@@ -155,7 +169,7 @@ func (c *Controller) executeEntityOperator(
 					entityType.GetFullName(), id, err)
 			}
 		} else {
-			preBox = history[i-1]
+			preBox = &history[i-1].EntityBox // always no Operator
 		}
 		var preData map[string]any
 		if preBox != nil && preBox.Data != nil {
@@ -210,18 +224,21 @@ func (c *Controller) getEntity(
 	// get from s.changes
 	from := "uncommitted"
 	history, _ := utils.GetFromK2Map(c.changes, entityType.Name, id)
-	box = history.Latest(blockNumber)
-	if box != nil { // has uncommitted change
-		if inBlock && box.GenBlockNumber < blockNumber {
-			box = nil
+	uctBox := history.Latest(blockNumber)
+	if uctBox != nil { // has uncommitted change
+		if inBlock && uctBox.GenBlockNumber < blockNumber {
+			uctBox = nil
 		}
-		if box != nil && len(box.Operator) > 0 {
+		if uctBox != nil && len(uctBox.Operator) > 0 {
 			// calculate operators
-			// box will be changed,  box.Operator will be set to nil and box.Data will be filled
+			// uctBox will be changed,  uctBox.Operator will be set to nil and uctBox.Data will be filled
 			if from, err = c.executeEntityOperator(ctx, entityType, id, blockNumber); err != nil {
 				logger.Errorfe(err, "execute operator failed")
 				return
 			}
+		}
+		if uctBox != nil {
+			box = &uctBox.EntityBox
 		}
 	} else if !inBlock {
 		var fromCache bool
@@ -385,32 +402,32 @@ func (c *Controller) listEntity(
 	cp, cid := splitListCursor(cursor)
 	checked := make(map[string]bool)
 	for _, change := range c.changes[entityType.Name] {
-		box := change.Latest(blockNumber)
-		if box == nil {
+		uctBox := change.Latest(blockNumber)
+		if uctBox == nil {
 			continue
 		}
-		checked[box.ID] = true
-		if cp || box.ID <= cid {
+		checked[uctBox.ID] = true
+		if cp || uctBox.ID <= cid {
 			continue // before the cursor
 		}
-		if box.Data == nil {
+		if uctBox.Data == nil {
 			continue // deleted
 		}
-		if len(box.Operator) > 0 {
+		if len(uctBox.Operator) > 0 {
 			// calculate operators
-			// box will be changed,  box.Operator will be set to nil and box.Data will be filled
-			if _, err = c.executeEntityOperator(ctx, entityType, box.ID, blockNumber); err != nil {
+			// uctBox will be changed, uctBox.Operator will be set to nil and uctBox.Data will be filled
+			if _, err = c.executeEntityOperator(ctx, entityType, uctBox.ID, blockNumber); err != nil {
 				logger.Errorfe(err, "execute operator failed")
 				return
 			}
 		}
-		if pass, cke := CheckFilters(filters, *box); cke != nil {
+		if pass, cke := CheckFilters(filters, uctBox.EntityBox); cke != nil {
 			logger.With("used", time.Since(start).String()).Errore(err, "check filters failed")
 			return nil, nil, cke
 		} else if !pass {
 			continue // not match the filter
 		}
-		boxes = append(boxes, box)
+		boxes = append(boxes, &uctBox.EntityBox)
 	}
 	SortEntityBoxes(boxes)
 	if len(boxes) >= limit {
@@ -454,14 +471,10 @@ var uniqTimeSeriesID atomic.Int64
 
 // SetEntity stores an entity into the uncommitted change set.
 // May return ErrInvalidFieldValue or ErrUpdateImmutable.
-func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, box EntityBox) error {
+func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, box UncommittedEntityBox) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if box.GenBlockChain != c.store.GetChain() {
-		// unreachable
-		panic(fmt.Errorf("GenBlockChain %s not match the store chain %s", box.GenBlockChain, c.store.GetChain()))
-	}
 	if c.committed != nil && box.GenBlockNumber <= *c.committed {
 		// unreachable
 		panic(fmt.Errorf("GenBlockNumber %d must be greater than last committed block %d", box.GenBlockNumber, *c.committed))
@@ -473,7 +486,7 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 			return fmt.Errorf(
 				"%w: set entity %s/%s in chain %s failed: %v",
 				ErrInvalidFieldValue, entityType.Name,
-				box.ID, box.GenBlockChain, err,
+				box.ID, c.store.GetChain(), err,
 			)
 		}
 	}
@@ -484,7 +497,7 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	if entityType.IsTimeSeries() {
 		if box.Data == nil {
 			return fmt.Errorf("%w: delete timeseries entity %s in chain %s",
-				ErrUpdateImmutable, entityType.Name, box.GenBlockChain)
+				ErrUpdateImmutable, entityType.Name, c.store.GetChain())
 		}
 		// id of time series entity can be auto-incremented
 		// sea: https://thegraph.com/docs/en/subgraphs/best-practices/timeseries/#defining-timeseries-entities
@@ -501,7 +514,7 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	if latest := history.Latest(math.MaxUint64); latest != nil && entityType.IsImmutable() {
 		logger.Errorw("update immutable entity", "latest", latest.String())
 		return fmt.Errorf("invalid update for %s/%s in chain %s, latest is %s: %w",
-			entityType.Name, box.ID, box.GenBlockChain, latest.String(), ErrUpdateImmutable)
+			entityType.Name, box.ID, c.store.GetChain(), latest.String(), ErrUpdateImmutable)
 	}
 
 	// put into c.changes
@@ -510,7 +523,7 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 			return fmt.Errorf(
 				"%w: set entity %s/%s in chain %s failed: %v",
 				ErrInvalidFieldValue, entityType.Name,
-				box.ID, box.GenBlockChain, err,
+				box.ID, c.store.GetChain(), err,
 			)
 		}
 	}
@@ -584,9 +597,16 @@ func (c *Controller) Commit(
 			for id, history := range set {
 				if !strings.HasPrefix(id, "@") {
 					manualIDSet[id] = true
+					if manualID, _ := strconv.ParseInt(id, 10, 64); manualID <= maxID {
+						entityLogger.Errorf("manual id %s for time series entity %q is too small, less than max id in store %d",
+							id, entity, maxID)
+						err = fmt.Errorf("%w: manual id %s for time series entity %q is too small, less than max id in store %d",
+							ErrUpdateImmutable, id, entity, maxID)
+						return
+					}
 				}
 				for _, box := range history {
-					tmp = append(tmp, *box)
+					tmp = append(tmp, box.EntityBox)
 				}
 			}
 
@@ -609,7 +629,7 @@ func (c *Controller) Commit(
 		} else {
 			for _, history := range set {
 				for _, box := range history {
-					entities = append(entities, *box)
+					entities = append(entities, box.EntityBox)
 				}
 			}
 		}

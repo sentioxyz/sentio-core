@@ -8,8 +8,9 @@ import (
 
 	lru "github.com/sentioxyz/golang-lru"
 	"github.com/sentioxyz/golang-lru/simplelru"
+
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/common/utils"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
 )
@@ -19,8 +20,9 @@ import (
 // which is needed to generate correct undo rows on the next write.
 // version is 0 for entities that do not use VersionedCollapsing tables.
 type cachedEntityBox struct {
-	entity  *persistent.EntityBox // nil means the entity was deleted
-	version uint64
+	persistent.EntityBox
+
+	Version uint64
 }
 
 // ChainStore wraps Store for a single chain, providing entity read/write caching.
@@ -33,16 +35,21 @@ type ChainStore struct {
 	chain string
 
 	// lruCache caches individual entity lookups.  Key is "entityName/id".
+	// The deleted items will not in the set.
 	lruCache   *simplelru.LRU[string, *persistent.EntityBox]
 	lruEvicted int
 
 	// fullIDCache holds the complete set of known IDs for entities that are
 	// too large to fully cache.  Key is entity name.
-	fullIDCache       map[string]map[string]bool
+	// The deleted items will not in the set.
+	fullIDCache       map[string]set.Set[string]
 	fullIDCacheLoaded map[string]bool
 
 	// fullCache holds all entity data for sparse (small) entities.
 	// Key is entity name.
+	// For the entity using versioned collapsing table, even the item was deleted, the *cachedEntityBox object
+	// will also exist with a nil Data and a valid Version.
+	// Or the deleted items will not in the set.
 	fullCache        map[string]map[string]*cachedEntityBox
 	fullCacheLoaded  map[string]bool
 	fullCacheRefused map[string]bool
@@ -69,7 +76,7 @@ func NewChainStore(
 		store:              store,
 		chain:              chain,
 		fullCacheDataLimit: fullCacheDataSizeLimit,
-		fullIDCache:        make(map[string]map[string]bool),
+		fullIDCache:        make(map[string]set.Set[string]),
 		fullIDCacheLoaded:  make(map[string]bool),
 		fullCache:          make(map[string]map[string]*cachedEntityBox),
 		fullCacheLoaded:    make(map[string]bool),
@@ -93,12 +100,20 @@ func (c *ChainStore) GetChain() string { return c.chain }
 
 // GetEntityType returns the entity schema by name.
 func (c *ChainStore) GetEntityType(entity string) *schema.Entity {
-	return c.store.getEntityType(entity)
+	return c.store.GetEntityType(entity)
 }
 
 // GetEntityOrInterfaceType returns the entity or interface schema by name.
 func (c *ChainStore) GetEntityOrInterfaceType(name string) schema.EntityOrInterface {
-	return c.store.getEntityOrInterfaceType(name)
+	return c.store.GetEntityOrInterfaceType(name)
+}
+
+func (c *ChainStore) tryLoadCache(ctx context.Context, entityType *schema.Entity) (bool, error) {
+	has, loaded, err := c.tryLoadFullCache(ctx, entityType)
+	if has || err != nil {
+		return loaded, err
+	}
+	return c.tryLoadFullIDCache(ctx, entityType)
 }
 
 // GetEntity returns the entity with the given id, possibly from cache.
@@ -120,34 +135,39 @@ func (c *ChainStore) GetEntity(
 		return box, true, nil
 	}
 
-	// Attempt to serve from the full-data cache.
-	var has bool
-	if has, fromCache, err = c.tryLoadFullCache(ctx, entityType); err != nil {
-		return
-	} else if has {
-		if cached := c.fullCache[entityType.Name][id]; cached != nil {
-			box = cached.entity.Copy()
-		}
-		return
+	if fromCache, err = c.tryLoadCache(ctx, entityType); err != nil {
+		return nil, false, err
 	}
 
-	// Full-data cache unavailable; use LRU + fullIDCache.
-	if fromCache, err = c.tryLoadFullIDCache(ctx, entityType); err != nil {
-		return
+	if c.fullCacheLoaded[entityType.Name] {
+		// use fullCache.
+		if cached := c.fullCache[entityType.Name][id]; cached != nil && cached.Data != nil {
+			box = cached.Copy()
+		}
+		return box, fromCache, nil
+	} else {
+		// use LRU + fullIDCache.
+		if !c.fullIDCache[entityType.Name].Contains(id) {
+			return nil, fromCache, nil // ID not in persistent storage
+		}
+		key := chainStoreCacheKey(entityType.Name, id)
+		if cached, ok := c.lruCache.Get(key); ok {
+			return cached.Copy(), fromCache, nil
+		}
+		// Not in LRU — fetch from DB.
+		var row *entityRow
+		row, err = c.store.getEntity(ctx, entityType, c.chain, id)
+		if err != nil {
+			return nil, false, err
+		}
+		if row != nil && row.Data != nil {
+			box = &row.EntityBox
+		}
+		if box != nil {
+			c.lruCache.Add(key, box)
+		}
+		return box, false, nil
 	}
-	if !c.fullIDCache[entityType.Name][id] {
-		return // ID not in persistent storage
-	}
-	key := chainStoreCacheKey(entityType.Name, id)
-	if cached, ok := c.lruCache.Get(key); ok {
-		return cached.Copy(), fromCache, nil
-	}
-	// Not in LRU — fetch from DB.
-	box, err = c.store.getEntity(ctx, entityType, c.chain, id)
-	if err == nil {
-		c.lruCache.Add(key, box)
-	}
-	return box, false, err
 }
 
 // ListEntities returns entities matching the filters, possibly from cache.
@@ -192,25 +212,32 @@ func (c *ChainStore) ListEntities(
 			return
 		}
 		for _, row := range rows {
-			boxes = append(boxes, row.get())
+			boxes = append(boxes, &row.EntityBox)
 		}
 		return
 	}
 	// Serve from full cache.
-	cacheSlice := make([]*persistent.EntityBox, 0, len(c.fullCache[entityType.Name]))
+	cacheSlice := make([]string, 0, len(c.fullCache[entityType.Name]))
 	for _, cached := range c.fullCache[entityType.Name] {
-		cacheSlice = append(cacheSlice, cached.entity)
+		if cached.Data == nil {
+			continue
+		}
+		cacheSlice = append(cacheSlice, cached.ID)
 	}
-	sort.Slice(cacheSlice, func(i, j int) bool { return cacheSlice[i].ID < cacheSlice[j].ID })
-	for _, box := range cacheSlice {
+	sort.Strings(cacheSlice)
+	for _, id := range cacheSlice {
 		if len(boxes) >= limit {
 			break
 		}
+		box := c.fullCache[entityType.Name][id]
+		if box.Data == nil {
+			continue
+		}
 		var pass bool
-		if pass, err = persistent.CheckFilters(filters, *box); err != nil {
+		if pass, err = persistent.CheckFilters(filters, box.EntityBox); err != nil {
 			return nil, false, err
 		} else if pass {
-			boxes = append(boxes, box)
+			boxes = append(boxes, box.Copy())
 		}
 	}
 	return
@@ -229,38 +256,39 @@ func (c *ChainStore) SetEntities(
 ) (int, error) {
 	dataSize := entityType.DataSize()
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "dataSize", dataSize, "chainID", c.chain)
-	idWriteCount := make(map[string]int)
-	for i := range boxes {
-		idWriteCount[boxes[i].ID]++
-	}
-	var knownExistingIDs map[string]bool
-	var knownPreBoxes map[string]*entityRow
-	if !entityType.IsTimeSeries() && !entityType.IsCache() {
-		vc := c.store.useVersionedCollapsingTable(entityType)
-		if !vc {
-			// Opportunity 1: pass existing IDs to skip queryExistEntity
-			if c.fullCacheLoaded[entityType.Name] {
-				knownExistingIDs = make(map[string]bool)
-				for id, cached := range c.fullCache[entityType.Name] {
-					if cached.entity != nil && cached.entity.Data != nil {
-						knownExistingIDs[id] = true
+	var knownExistingIDChecker func(id string) bool
+	var knownPreBoxGetter func(id string) (*cachedEntityBox, bool)
+	if !entityType.IsCache() {
+		if entityType.IsTimeSeries() {
+			knownExistingIDChecker = func(id string) bool {
+				return false
+			}
+		} else {
+			if _, err := c.tryLoadCache(ctx, entityType); err != nil {
+				return 0, err
+			}
+			if !c.store.useVersionedCollapsingTable(entityType) {
+				// Opportunity 1: pass existing IDs to skip queryExistEntity
+				if c.fullCacheLoaded[entityType.Name] {
+					knownExistingIDChecker = func(id string) bool {
+						ent, has := c.fullCache[entityType.Name][id]
+						return has && ent.Data != nil
+					}
+				} else if c.fullIDCacheLoaded[entityType.Name] {
+					knownExistingIDChecker = func(id string) bool {
+						return c.fullIDCache[entityType.Name].Contains(id)
 					}
 				}
-			} else if c.fullIDCacheLoaded[entityType.Name] {
-				knownExistingIDs = c.fullIDCache[entityType.Name]
-			}
-		} else if c.fullCacheLoaded[entityType.Name] {
-			// Opportunity 2: pass pre-values to skip listEntities for VC tables
-			knownPreBoxes = make(map[string]*entityRow)
-			for id, cached := range c.fullCache[entityType.Name] {
-				if cached.entity != nil && cached.entity.Data != nil {
-					entityCopy := *cached.entity
-					knownPreBoxes[id] = &entityRow{EntityBox: entityCopy, Version: cached.version}
+			} else if c.fullCacheLoaded[entityType.Name] {
+				// Opportunity 2: pass pre-values to skip listEntities for VC tables
+				knownPreBoxGetter = func(id string) (*cachedEntityBox, bool) {
+					er, has := c.fullCache[entityType.Name][id]
+					return er, has
 				}
 			}
 		}
 	}
-	created, err := c.store.setEntities(ctx, entityType, c.chain, boxes, knownExistingIDs, knownPreBoxes)
+	created, err := c.store.setEntities(ctx, entityType, c.chain, boxes, knownExistingIDChecker, knownPreBoxGetter)
 	if err != nil {
 		return created, err
 	}
@@ -281,33 +309,51 @@ func (c *ChainStore) SetEntities(
 			c.cacheEntity[entityType.GetName()] = cache
 		}
 		for id, box := range latest {
-			cache.Add(id, box)
+			if box.Data != nil {
+				cache.Add(id, box)
+			} else {
+				cache.Remove(id)
+			}
 		}
 	} else if c.fullCacheRefused[entityType.Name] || !entityType.IsSparse() {
 		// LRU-cache + fullIDCache path.
 		if c.fullIDCacheLoaded[entityType.Name] {
 			for id, box := range latest {
-				c.lruCache.Add(chainStoreCacheKey(entityType.Name, id), box)
+				key := chainStoreCacheKey(entityType.Name, id)
 				if box.Data == nil {
-					delete(c.fullIDCache[entityType.Name], id)
+					c.fullIDCache[entityType.Name].Remove(id)
+					c.lruCache.Remove(key)
 				} else {
-					c.fullIDCache[entityType.Name][id] = true
+					c.lruCache.Add(key, box)
+					c.fullIDCache[entityType.Name].Add(id)
 				}
 			}
 		}
 	} else if c.fullCacheLoaded[entityType.Name] {
 		// Full-data cache path.
-		for id, box := range latest {
-			if box.Data == nil {
-				delete(c.fullCache[entityType.Name], id)
-			} else {
+		if c.store.useVersionedCollapsingTable(entityType) {
+			// need deleted items and version in fullCache
+			idWriteCount := make(map[string]int)
+			for i := range boxes {
+				idWriteCount[boxes[i].ID]++
+			}
+			for id, box := range latest {
 				initialVersion := uint64(0)
 				if existing, has := c.fullCache[entityType.Name][id]; has {
-					initialVersion = existing.version
+					initialVersion = existing.Version
 				}
 				c.fullCache[entityType.Name][id] = &cachedEntityBox{
-					entity:  box,
-					version: initialVersion + uint64(idWriteCount[id]),
+					EntityBox: *box,
+					Version:   initialVersion + uint64(idWriteCount[id]),
+				}
+			}
+		} else {
+			// full cache do not need deleted items and version is also useless
+			for id, box := range latest {
+				if box.Data == nil {
+					delete(c.fullCache[entityType.Name], id)
+				} else {
+					c.fullCache[entityType.Name][id] = &cachedEntityBox{EntityBox: *box}
 				}
 			}
 		}
@@ -354,7 +400,7 @@ func (c *ChainStore) Snapshot() any {
 	fullIDCache := make(map[string]int)
 	for entity, loaded := range c.fullIDCacheLoaded {
 		if loaded {
-			fullIDCache[entity] = len(c.fullIDCache[entity])
+			fullIDCache[entity] = c.fullIDCache[entity].Size()
 		}
 	}
 	fullCache := make(map[string]map[string]any)
@@ -401,7 +447,7 @@ func (c *ChainStore) Snapshot() any {
 // purgeCache resets all cache state (except cacheEntity, which is trimmed by Reorg).
 func (c *ChainStore) purgeCache() {
 	c.lruCache.Purge()
-	c.fullIDCache = make(map[string]map[string]bool)
+	c.fullIDCache = make(map[string]set.Set[string])
 	c.fullIDCacheLoaded = make(map[string]bool)
 	c.fullCache = make(map[string]map[string]*cachedEntityBox)
 	c.fullCacheLoaded = make(map[string]bool)
@@ -430,8 +476,11 @@ func (c *ChainStore) tryLoadFullCache(
 	dataSize := entityType.DataSize()
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "dataSize", dataSize, "chainID", c.chain)
 	logger.Debugf("will load all entities from persistent for full cache")
+	// for the entity using versioned collapsing table, full cache should include deleted items,
+	// because version is always needed
+	excludeDeleted := !c.store.useVersionedCollapsingTable(entityType)
 	var count uint64
-	count, err = c.store.countEntity(ctx, entityType, c.chain)
+	count, err = c.store.countEntity(ctx, entityType, c.chain, excludeDeleted)
 	if err != nil {
 		logger.Errore(err, "load entities from persistent for full cache failed: count exists failed")
 		return
@@ -441,7 +490,7 @@ func (c *ChainStore) tryLoadFullCache(
 		c.fullCacheRefused[entityType.Name] = true
 		return false, false, nil
 	}
-	rows, listErr := c.store.listEntities(ctx, entityType, c.chain, nil, true, math.MaxInt)
+	rows, listErr := c.store.listEntities(ctx, entityType, c.chain, nil, excludeDeleted, math.MaxInt)
 	logger = logger.With("used", time.Since(start).String())
 	if listErr != nil {
 		err = listErr
@@ -450,12 +499,9 @@ func (c *ChainStore) tryLoadFullCache(
 	}
 	c.fullCache[entityType.Name] = make(map[string]*cachedEntityBox)
 	for _, row := range rows {
-		box := row.get()
-		if box != nil {
-			c.fullCache[entityType.Name][box.ID] = &cachedEntityBox{
-				entity:  box,
-				version: row.Version,
-			}
+		c.fullCache[entityType.Name][row.ID] = &cachedEntityBox{
+			EntityBox: row.EntityBox,
+			Version:   row.Version,
 		}
 	}
 	c.fullCacheLoaded[entityType.Name] = true
@@ -483,7 +529,7 @@ func (c *ChainStore) tryLoadFullIDCache(
 		logger.Errore(err, "load all entity ids from persistent for full cache failed")
 		return
 	}
-	c.fullIDCache[entityType.Name] = utils.BuildSet(ids)
+	c.fullIDCache[entityType.Name] = set.New(ids...)
 	c.fullIDCacheLoaded[entityType.Name] = true
 	logger.Infow("loaded all entity ids from persistent into full id cache", "count", len(ids))
 	return

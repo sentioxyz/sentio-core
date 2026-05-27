@@ -268,11 +268,9 @@ func newTestStore(sch *schema.Schema, chain string) (*mockChainStore, ChainStore
 						"foreignA": "0x0b00",
 						"foreignD": utils.WrapPointer("0x0b00"),
 					},
-					Operator:       make(map[string]Operator),
 					Entity:         "EntityA",
 					GenBlockNumber: 10,
 					GenBlockHash:   "0x1234",
-					GenBlockChain:  chain,
 				},
 				"0x0a01": {
 					ID: "0x0a01",
@@ -281,11 +279,9 @@ func newTestStore(sch *schema.Schema, chain string) (*mockChainStore, ChainStore
 						"foreignA": "0x0b01",
 						"foreignD": utils.WrapPointer("0x0b01"),
 					},
-					Operator:       make(map[string]Operator),
 					Entity:         "EntityA",
 					GenBlockNumber: 10,
 					GenBlockHash:   "0x1234",
-					GenBlockChain:  chain,
 				},
 			},
 			"EntityB": {
@@ -297,11 +293,9 @@ func newTestStore(sch *schema.Schema, chain string) (*mockChainStore, ChainStore
 						"foreignE": []*string{utils.WrapPointer("0x0a00")},
 						"foreignF": []string{},
 					},
-					Operator:       make(map[string]Operator),
 					Entity:         "EntityB",
 					GenBlockNumber: 10,
 					GenBlockHash:   "0x1234",
-					GenBlockChain:  chain,
 				},
 				"0x0b01": {
 					ID: "0x0b01",
@@ -311,11 +305,9 @@ func newTestStore(sch *schema.Schema, chain string) (*mockChainStore, ChainStore
 						"foreignE": []*string{utils.WrapPointer("0x0a00"), utils.WrapPointer("0x0a01")},
 						"foreignF": []string{"0x0a00", "0x0a01"},
 					},
-					Operator:       make(map[string]Operator),
 					Entity:         "EntityB",
 					GenBlockNumber: 10,
 					GenBlockHash:   "0x1234",
-					GenBlockChain:  chain,
 				},
 			},
 			"EntityC": {
@@ -326,11 +318,9 @@ func newTestStore(sch *schema.Schema, chain string) (*mockChainStore, ChainStore
 						"foreignCA": "0x0a00",
 						"foreignCB": "0x0b00",
 					},
-					Operator:       make(map[string]Operator),
 					Entity:         "EntityC",
 					GenBlockNumber: 10,
 					GenBlockHash:   "0x1234",
-					GenBlockChain:  chain,
 				},
 				"0x0c0001": {
 					ID: "0x0c0001",
@@ -339,11 +329,9 @@ func newTestStore(sch *schema.Schema, chain string) (*mockChainStore, ChainStore
 						"foreignCA": "0x0a00",
 						"foreignCB": "0x0b01",
 					},
-					Operator:       make(map[string]Operator),
 					Entity:         "EntityC",
 					GenBlockNumber: 10,
 					GenBlockHash:   "0x1234",
-					GenBlockChain:  chain,
 				},
 				"0x0c0101": {
 					ID: "0x0c0101",
@@ -352,11 +340,9 @@ func newTestStore(sch *schema.Schema, chain string) (*mockChainStore, ChainStore
 						"foreignCA": "0x0a01",
 						"foreignCB": "0x0b01",
 					},
-					Operator:       make(map[string]Operator),
 					Entity:         "EntityC",
 					GenBlockNumber: 10,
 					GenBlockHash:   "0x1234",
-					GenBlockChain:  chain,
 				},
 			},
 		},
@@ -413,7 +399,6 @@ func TestController_ListEntity(t *testing.T) {
 			Entity:         "EntityA",
 			GenBlockNumber: 11,
 			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
 		}
 
 		// init: [a0, a1]
@@ -422,31 +407,31 @@ func TestController_ListEntity(t *testing.T) {
 		assert.Equal(t, []*EntityBox{a0, a1}, boxes)
 
 		// insert a2 → [a2, a0, a1]
-		assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a2))
+		assert.NoError(t, ctrl.SetEntity(ctx, eaType, UncommittedEntityBox{EntityBox: *a2}))
 		boxes, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 12)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{a2, a0, a1}, boxes)
 
 		// delete a1 → [a2, a0]
-		assert.NoError(t, ctrl.SetEntity(ctx, eaType, EntityBox{
-			ID: "0x0a01", GenBlockNumber: 12, GenBlockHash: "0x1234", GenBlockChain: chain,
-		}))
+		assert.NoError(t, ctrl.SetEntity(ctx, eaType, UncommittedEntityBox{EntityBox: EntityBox{
+			ID: "0x0a01", GenBlockNumber: 12, GenBlockHash: "0x1234",
+		}}))
 		boxes, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 12)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{a2, a0}, boxes)
 
 		// delete a0 → [a2]
-		assert.NoError(t, ctrl.SetEntity(ctx, eaType, EntityBox{
-			ID: "0x0a00", GenBlockNumber: 13, GenBlockHash: "0x1234", GenBlockChain: chain,
-		}))
+		assert.NoError(t, ctrl.SetEntity(ctx, eaType, UncommittedEntityBox{EntityBox: EntityBox{
+			ID: "0x0a00", GenBlockNumber: 13, GenBlockHash: "0x1234",
+		}}))
 		boxes, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 13)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{a2}, boxes)
 
 		// delete a2 → []
-		assert.NoError(t, ctrl.SetEntity(ctx, eaType, EntityBox{
-			ID: "0x0a02", GenBlockNumber: 14, GenBlockHash: "0x1234", GenBlockChain: chain,
-		}))
+		assert.NoError(t, ctrl.SetEntity(ctx, eaType, UncommittedEntityBox{EntityBox: EntityBox{
+			ID: "0x0a02", GenBlockNumber: 14, GenBlockHash: "0x1234",
+		}}))
 		boxes, _, err = ctrl.ListEntity(ctx, eaType, nil, "", 100, 14)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox(nil), boxes)
@@ -469,7 +454,6 @@ func TestController_ListEntity(t *testing.T) {
 			Entity:         "EntityC",
 			GenBlockNumber: 11,
 			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
 		}
 		c01_ := &EntityBox{
 			ID: "0x0c0001",
@@ -479,7 +463,6 @@ func TestController_ListEntity(t *testing.T) {
 			Entity:         "EntityC",
 			GenBlockNumber: 12,
 			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
 		}
 
 		// init: [c00, c01, c11]
@@ -489,7 +472,7 @@ func TestController_ListEntity(t *testing.T) {
 		assert.Nil(t, cursor)
 
 		// insert c10: uncommitted=[c10], persistent=[c00, c01, c11]
-		assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c10))
+		assert.NoError(t, ctrl.SetEntity(ctx, ecType, UncommittedEntityBox{EntityBox: *c10}))
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 2, 20)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{c10, c00}, boxes)
@@ -500,7 +483,7 @@ func TestController_ListEntity(t *testing.T) {
 		assert.Nil(t, cursor)
 
 		// update c01: uncommitted=[c01_, c10], persistent=[c00, c11]
-		assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c01_))
+		assert.NoError(t, ctrl.SetEntity(ctx, ecType, UncommittedEntityBox{EntityBox: *c01_}))
 		// page size 1 → [c01_]
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 1, 20)
 		assert.NoError(t, err)
@@ -577,18 +560,18 @@ func TestController_ListEntity(t *testing.T) {
 		assert.Nil(t, cursor)
 
 		// delete c01: uncommitted=[c10], persistent=[c00, c11]
-		assert.NoError(t, ctrl.SetEntity(ctx, ecType, EntityBox{
-			ID: "0x0c0001", GenBlockNumber: 13, GenBlockHash: "0x1234", GenBlockChain: chain,
-		}))
+		assert.NoError(t, ctrl.SetEntity(ctx, ecType, UncommittedEntityBox{EntityBox: EntityBox{
+			ID: "0x0c0001", GenBlockNumber: 13, GenBlockHash: "0x1234",
+		}}))
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 5, 20)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{c10, c00, c11}, boxes)
 		assert.Nil(t, cursor)
 
 		// delete c10: uncommitted=[], persistent=[c00, c11]
-		assert.NoError(t, ctrl.SetEntity(ctx, ecType, EntityBox{
-			ID: "0x0c0100", GenBlockNumber: 14, GenBlockHash: "0x1234", GenBlockChain: chain,
-		}))
+		assert.NoError(t, ctrl.SetEntity(ctx, ecType, UncommittedEntityBox{EntityBox: EntityBox{
+			ID: "0x0c0100", GenBlockNumber: 14, GenBlockHash: "0x1234",
+		}}))
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 5, 20)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{c00, c11}, boxes)
@@ -612,7 +595,6 @@ func TestController_ListEntity(t *testing.T) {
 			Entity:         "EntityC",
 			GenBlockNumber: 11,
 			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
 		}
 		c01_ := &EntityBox{
 			ID: "0x0c0001",
@@ -622,7 +604,6 @@ func TestController_ListEntity(t *testing.T) {
 			Entity:         "EntityC",
 			GenBlockNumber: 12,
 			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
 		}
 
 		// first list: hits persistent store
@@ -647,7 +628,7 @@ func TestController_ListEntity(t *testing.T) {
 			monitor.report.TotalListFrom)
 
 		// insert c10, list partial (2): uncommitted=[c10], cache=[c00, c01, c11]
-		assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c10))
+		assert.NoError(t, ctrl.SetEntity(ctx, ecType, UncommittedEntityBox{EntityBox: *c10}))
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 2, 20)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{c10, c00}, boxes)
@@ -670,7 +651,7 @@ func TestController_ListEntity(t *testing.T) {
 			monitor.report.TotalListFrom)
 
 		// update c01: uncommitted=[c01_, c10], cache=[c00, c11]
-		assert.NoError(t, ctrl.SetEntity(ctx, ecType, *c01_))
+		assert.NoError(t, ctrl.SetEntity(ctx, ecType, UncommittedEntityBox{EntityBox: *c01_}))
 		boxes, cursor, err = ctrl.ListEntity(ctx, ecType, nil, "", 1, 20)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{c01_}, boxes)
@@ -756,7 +737,7 @@ func TestController_ListRelated(t *testing.T) {
 	t.Run("many-to-one (foreignA)", func(t *testing.T) {
 		// update a0.foreignA: 0x0b00 → 0x0b01
 		a0 = copyWith(a0, 11, "foreignA", "0x0b01")
-		assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a0))
+		assert.NoError(t, ctrl.SetEntity(ctx, eaType, UncommittedEntityBox{EntityBox: *a0}))
 		assert.Equal(t, 1, monitor.report.TotalSet)
 		assert.Equal(t, 0, monitor.report.TotalSetNil)
 		assert.Equal(t, 0, monitor.report.TotalSetPartly)
@@ -768,8 +749,8 @@ func TestController_ListRelated(t *testing.T) {
 		// effect: b0.foreignD → a1, b1.foreignD → a0
 		a0_ := copyWith(a0, 12, "foreignD", utils.WrapPointer("0x0b01"))
 		a1_ := copyWith(a1, 12, "foreignD", utils.WrapPointer("0x0b00"))
-		assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a0_))
-		assert.NoError(t, ctrl.SetEntity(ctx, eaType, *a1_))
+		assert.NoError(t, ctrl.SetEntity(ctx, eaType, UncommittedEntityBox{EntityBox: *a0_}))
+		assert.NoError(t, ctrl.SetEntity(ctx, eaType, UncommittedEntityBox{EntityBox: *a1_}))
 		assert.Equal(t, 3, monitor.report.TotalSet)
 
 		// at block 11: a0 still has foreignD→b0 and a1 still has foreignD→b1
@@ -807,8 +788,8 @@ func TestController_ListRelated(t *testing.T) {
 		// effect: a0.foreignB → [], a1.foreignB → [b0, b1]
 		b0 = copyWith(b0, 11, "foreignB", "0x0a01")
 		b1 = copyWith(b1, 11, "foreignB", "0x0a01")
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b0}))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b1}))
 
 		boxesA, _, err := ctrl.ListRelated(ctx, eaType, a0.ID, "foreignB", 11)
 		assert.NoError(t, err)
@@ -828,7 +809,7 @@ func TestController_ListRelated(t *testing.T) {
 
 		// b0.foreignE: [a0] → []
 		b0 = copyWith(b0, 11, "foreignE", []string(nil))
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b0}))
 		boxesA, _, err := ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{b1}, boxesA)
@@ -838,7 +819,7 @@ func TestController_ListRelated(t *testing.T) {
 
 		// b1.foreignE: [a0, a1] → [a0]
 		b1 = copyWith(b1, 11, "foreignE", []string{"0x0a00"})
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b1}))
 		boxesA, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{b1}, boxesA)
@@ -848,7 +829,7 @@ func TestController_ListRelated(t *testing.T) {
 
 		// b0.foreignE: [] → [a0, a1]
 		b0 = copyWith(b0, 11, "foreignE", []string{"0x0a00", "0x0a01"})
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b0}))
 		boxesA, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{b0, b1}, boxesA)
@@ -858,7 +839,7 @@ func TestController_ListRelated(t *testing.T) {
 
 		// b1.foreignE: [a0] → [a1]
 		b1 = copyWith(b1, 11, "foreignE", []string{"0x0a01"})
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b1}))
 		boxesA, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignE", 11)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{b0}, boxesA)
@@ -877,7 +858,7 @@ func TestController_ListRelated(t *testing.T) {
 
 		// b1.foreignF: [a0, a1] → [a1]
 		b1 = copyWith(b1, 11, "foreignF", []string{"0x0a01"})
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b1}))
 		boxesA, _, err := ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox(nil), boxesA)
@@ -887,7 +868,7 @@ func TestController_ListRelated(t *testing.T) {
 
 		// b0.foreignF: [] → [a0]
 		b0 = copyWith(b0, 11, "foreignF", []string{"0x0a00"})
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b0}))
 		boxesA, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{b0}, boxesA)
@@ -897,7 +878,7 @@ func TestController_ListRelated(t *testing.T) {
 
 		// b1.foreignF: [a1] → []
 		b1 = copyWith(b1, 11, "foreignF", []string(nil))
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b1))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b1}))
 		boxesA, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{b0}, boxesA)
@@ -907,7 +888,7 @@ func TestController_ListRelated(t *testing.T) {
 
 		// b0.foreignF: [a0] → [a0, a1]
 		b0 = copyWith(b0, 11, "foreignF", []string{"0x0a00", "0x0a01"})
-		assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+		assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b0}))
 		boxesA, _, err = ctrl.ListRelated(ctx, eaType, a0.ID, "foreignF", 11)
 		assert.NoError(t, err)
 		assert.Equal(t, []*EntityBox{b0}, boxesA)
@@ -961,7 +942,7 @@ func TestController_ListRelatedAfterCommit(t *testing.T) {
 
 	// Commit: b0.foreignB → a1 (all other fields unchanged).
 	b0 = copyWith(b0, 11, "foreignB", "0x0a01")
-	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b0}))
 	assertRelated(eaType, a0.ID, "foreignB", 11, []*EntityBox{b1})
 	assertRelated(eaType, a1.ID, "foreignB", 11, []*EntityBox{b0})
 	assertRelated(eaType, a0.ID, "foreignE", 11, []*EntityBox{b0, b1})
@@ -977,7 +958,7 @@ func TestController_ListRelatedAfterCommit(t *testing.T) {
 	b0 = copyWith(b0, 12,
 		"foreignE", []*string{utils.WrapPointer("0x0a01")},
 		"foreignF", []string{"0x0a00"})
-	assert.NoError(t, ctrl.SetEntity(ctx, ebType, *b0))
+	assert.NoError(t, ctrl.SetEntity(ctx, ebType, UncommittedEntityBox{EntityBox: *b0}))
 
 	assertRelated(eaType, a0.ID, "foreignB", 12, []*EntityBox{b1})
 	assertRelated(eaType, a1.ID, "foreignB", 12, []*EntityBox{b0})
@@ -1011,13 +992,12 @@ func TestController_GetEntityByInterface(t *testing.T) {
 	assert.Nil(t, box)
 
 	// set EntityE1 → GetEntity via interface returns E1
-	assert.NoError(t, ctrl.SetEntity(ctx, e1Type, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, e1Type, UncommittedEntityBox{EntityBox: EntityBox{
 		ID:             "0x0e00",
 		Data:           map[string]any{"id": "0x0e00", "propA": "aaa", "propB": int32(123)},
 		GenBlockNumber: 11,
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
-	}))
+	}}))
 	box, err = ctrl.GetEntity(ctx, eType, "0x0e00", 20)
 	assert.NoError(t, err)
 	assert.Equal(t, &EntityBox{
@@ -1026,17 +1006,15 @@ func TestController_GetEntityByInterface(t *testing.T) {
 		Entity:         e1Type.Name,
 		GenBlockNumber: 11,
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
 	}, box)
 
 	// set EntityE2 → still returns E1 (earlier block number wins in this block range)
-	assert.NoError(t, ctrl.SetEntity(ctx, e2Type, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, e2Type, UncommittedEntityBox{EntityBox: EntityBox{
 		ID:             "0x0e00",
 		Data:           map[string]any{"id": "0x0e00", "propA": "aaa", "propB": "456"},
 		GenBlockNumber: 12,
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
-	}))
+	}}))
 	box, err = ctrl.GetEntity(ctx, eType, "0x0e00", 20)
 	assert.NoError(t, err)
 	assert.Equal(t, &EntityBox{
@@ -1045,16 +1023,14 @@ func TestController_GetEntityByInterface(t *testing.T) {
 		Entity:         e1Type.Name,
 		GenBlockNumber: 11,
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
 	}, box)
 
 	// delete EntityE1 → returns E2
-	assert.NoError(t, ctrl.SetEntity(ctx, e1Type, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, e1Type, UncommittedEntityBox{EntityBox: EntityBox{
 		ID:             "0x0e00",
 		GenBlockNumber: 13,
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
-	}))
+	}}))
 	box, err = ctrl.GetEntity(ctx, eType, "0x0e00", 20)
 	assert.NoError(t, err)
 	assert.Equal(t, &EntityBox{
@@ -1063,16 +1039,14 @@ func TestController_GetEntityByInterface(t *testing.T) {
 		Entity:         e2Type.Name,
 		GenBlockNumber: 12,
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
 	}, box)
 
 	// delete EntityE2 → returns the E2 delete record (nil Data)
-	assert.NoError(t, ctrl.SetEntity(ctx, e2Type, EntityBox{
+	assert.NoError(t, ctrl.SetEntity(ctx, e2Type, UncommittedEntityBox{EntityBox: EntityBox{
 		ID:             "0x0e00",
 		GenBlockNumber: 14,
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
-	}))
+	}}))
 	box, err = ctrl.GetEntity(ctx, eType, "0x0e00", 20)
 	assert.NoError(t, err)
 	assert.Equal(t, &EntityBox{
@@ -1080,6 +1054,5 @@ func TestController_GetEntityByInterface(t *testing.T) {
 		Entity:         e2Type.Name,
 		GenBlockNumber: 14,
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
 	}, box)
 }

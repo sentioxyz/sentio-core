@@ -27,7 +27,7 @@ func (s *Store) getEntity(
 	entityType *schema.Entity,
 	chain string,
 	id string,
-) (box *persistent.EntityBox, err error) {
+) (box *entityRow, err error) {
 	if entityType.IsCache() {
 		return nil, nil
 	}
@@ -57,8 +57,8 @@ func (s *Store) getEntity(
 
 	// execute query and get the response
 	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
-		box_, scanErr := kit.ScanOne(rows)
-		box = box_.get()
+		b, scanErr := kit.scanOne(rows)
+		box = &b
 		return scanErr
 	}, sql, id, chain)
 	_, logger := log.FromContext(ctx,
@@ -142,8 +142,8 @@ func (s *Store) setEntities(
 	entityType *schema.Entity,
 	chain string,
 	entities []persistent.EntityBox,
-	knownExistingIDs map[string]bool,
-	knownPreBoxes map[string]*entityRow,
+	knownExistingIDChecker func(string) bool,
+	knownPreBoxGetter func(string) (*cachedEntityBox, bool),
 ) (created int, err error) {
 	if entityType.IsCache() {
 		return 0, nil
@@ -215,17 +215,19 @@ func (s *Store) setEntities(
 		if useVersionedCollapsingTable {
 			insertSetting = enableVersionedCollapsingInsertSettings()
 			// select pre-values and update preBoxes
-			if knownPreBoxes != nil {
+			if knownPreBoxGetter != nil {
 				// Opportunity 2: use cached pre-values, skip DB query
 				existingCount := 0
 				for id := range newIds {
 					if _, has := preBoxes[id]; has {
 						// Already written in an earlier batch; pre-value already in preBoxes.
 						existingCount++
-					} else if pre, has := knownPreBoxes[id]; has {
+					} else if pre, has := knownPreBoxGetter(id); has {
 						// Pre-value comes from cache.
-						preBoxes[id] = pre
-						existingCount++
+						preBoxes[id] = &entityRow{EntityBox: pre.EntityBox, GenBlockChain: chain, Sign: 1, Version: pre.Version}
+						if pre.Data != nil {
+							existingCount++
+						}
 					}
 				}
 				created += len(newIds) - existingCount
@@ -246,11 +248,11 @@ func (s *Store) setEntities(
 				created += len(newIds) - len(exists)
 			}
 		} else {
-			if knownExistingIDs != nil {
+			if knownExistingIDChecker != nil {
 				// Opportunity 1: use cached ID set, skip DB query
 				var existingInBatch []string
 				for id := range newIds {
-					if knownExistingIDs[id] {
+					if knownExistingIDChecker(id) {
 						existingInBatch = append(existingInBatch, id)
 					}
 				}

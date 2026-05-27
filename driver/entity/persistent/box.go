@@ -12,22 +12,24 @@ import (
 )
 
 type EntityBox struct {
-	ID             string
-	Data           map[string]any // here always do not include reverse foreign key fields
-	Operator       map[string]Operator
-	Entity         string
+	Entity string
+	ID     string
+
+	// here always do not include reverse foreign key fields
+	// nil means it is deleted
+	Data map[string]any
+
 	GenBlockNumber uint64
 	GenBlockTime   time.Time
 	GenBlockHash   string
-	GenBlockChain  string
 }
 
 func (e *EntityBox) String() string {
 	if e == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("[%s,%d,%s][%s]%s",
-		e.GenBlockChain, e.GenBlockNumber, e.GenBlockHash, e.ID, utils.MustJSONMarshal(e.Data))
+	return fmt.Sprintf("[%d,%s][%s]%s",
+		e.GenBlockNumber, e.GenBlockHash, e.ID, utils.MustJSONMarshal(e.Data))
 }
 
 func (e *EntityBox) MemSize() uint64 {
@@ -41,22 +43,62 @@ func (e *EntityBox) Copy() *EntityBox {
 	box := *e
 	if e.Data != nil {
 		box.Data = utils.CopyMap(e.Data)
-		if e.Operator != nil {
-			box.Operator = utils.CopyMap(e.Operator)
-		}
 	}
 	return &box
 }
 
-func (e *EntityBox) Merge(entityType *schema.Entity, newOne *EntityBox) {
+func (e *EntityBox) IsComplete(entityType *schema.Entity) bool {
+	lostFields := utils.BuildSet(entityType.ListFieldNames(true, true, false))
+	for name := range e.Data {
+		delete(lostFields, name)
+	}
+	return len(lostFields) == 0
+}
+
+func (e *EntityBox) FillLostFields(origin map[string]any, entityType *schema.Entity) {
+	lostFields := utils.BuildSet(entityType.ListFieldNames(true, true, false))
+	for name := range e.Data {
+		delete(lostFields, name)
+	}
+	if len(lostFields) == 0 {
+		// no lost fields
+		return
+	}
+	for name := range lostFields {
+		v, has := origin[name]
+		if !has {
+			// may be origin also miss the field, then build the zero value from field type
+			_, v = buildType(entityType.GetFieldByName(name).Type)
+		}
+		e.Data[name] = v
+	}
+}
+
+func (e *EntityBox) NewUncommittedEntityBox() *UncommittedEntityBox {
+	if e == nil {
+		return nil
+	}
+	return &UncommittedEntityBox{EntityBox: *e}
+}
+
+func SortEntityBoxes(list []*EntityBox) {
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].ID < list[j].ID
+	})
+}
+
+type UncommittedEntityBox struct {
+	EntityBox
+
+	Operator map[string]Operator
+}
+
+func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *UncommittedEntityBox) {
 	if e.ID != newOne.ID {
 		panic(fmt.Errorf("merge entity with different ID"))
 	}
 	if e.Entity != newOne.Entity {
 		panic(fmt.Errorf("merge entity with different entity type"))
-	}
-	if e.GenBlockChain != newOne.GenBlockChain {
-		panic(fmt.Errorf("merge entity with different genBlockChain"))
 	}
 	e.GenBlockNumber = newOne.GenBlockNumber
 	e.GenBlockTime = newOne.GenBlockTime
@@ -103,37 +145,4 @@ func (e *EntityBox) Merge(entityType *schema.Entity, newOne *EntityBox) {
 		}
 	}
 	e.Operator = newOperators
-}
-
-func (e *EntityBox) IsComplete(entityType *schema.Entity) bool {
-	lostFields := utils.BuildSet(entityType.ListFieldNames(true, true, false))
-	for name := range e.Data {
-		delete(lostFields, name)
-	}
-	return len(lostFields) == 0
-}
-
-func (e *EntityBox) FillLostFields(origin map[string]any, entityType *schema.Entity) {
-	lostFields := utils.BuildSet(entityType.ListFieldNames(true, true, false))
-	for name := range e.Data {
-		delete(lostFields, name)
-	}
-	if len(lostFields) == 0 {
-		// no lost fields
-		return
-	}
-	for name := range lostFields {
-		v, has := origin[name]
-		if !has {
-			// may be origin also miss the field, then build the zero value from field type
-			_, v = buildType(entityType.GetFieldByName(name).Type)
-		}
-		e.Data[name] = v
-	}
-}
-
-func SortEntityBoxes(list []*EntityBox) {
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].ID < list[j].ID
-	})
 }

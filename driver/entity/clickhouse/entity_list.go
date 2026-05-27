@@ -496,12 +496,12 @@ func (s *Store) _listEntities(
 	// execute query and get the response
 	// may be used temporary table, so here do not use SelectCtx(ctx) instead of ctx
 	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
-		box, scanErr := kit.ScanOne(rows)
+		row, scanErr := kit.scanOne(rows)
 		if scanErr != nil {
 			return scanErr
 		}
-		box.Entity = entityType.Name
-		result = append(result, box)
+		row.Entity = entityType.Name
+		result = append(result, &row)
 		return nil
 	}, sql, sqlArgs...)
 	_, logger := log.FromContext(ctx,
@@ -520,8 +520,13 @@ func (s *Store) _listEntities(
 	return
 }
 
-func (s *Store) countEntity(ctx context.Context, entityType *schema.Entity, chain string) (count uint64, err error) {
-	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
+func (s *Store) countEntity(
+	ctx context.Context,
+	entityType *schema.Entity,
+	chain string,
+	excludeDeleted bool,
+) (count uint64, err error) {
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "excludeDeleted", excludeDeleted)
 	var sql string
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?",
@@ -529,20 +534,24 @@ func (s *Store) countEntity(ctx context.Context, entityType *schema.Entity, chai
 			quote(genBlockChainFieldName),
 		)
 	} else {
-		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
-			s.fullName(s.tableName(entityType)),
-			quote(genBlockChainFieldName),
-			quote(deletedFieldName),
-		)
-		startAt := time.Now()
-		count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
-		if err != nil {
-			logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted failed")
-			return 0, err
+		if excludeDeleted {
+			sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
+				s.fullName(s.tableName(entityType)),
+				quote(genBlockChainFieldName),
+				quote(deletedFieldName),
+			)
+			startAt := time.Now()
+			count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
+			if err != nil {
+				logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted failed")
+				return 0, err
+			}
 		}
-		if count == 0 {
-			// No delete operation, can use simple query.
+		if !excludeDeleted || count == 0 {
+			// No delete operation, or do not exclude deleted items, can use simple query.
 			// Most of the time there is no deletion behavior, and this is enough.
+			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
+			// (sign=-1 rows excluded), so COUNT(DISTINCT id) correctly reflects live entity count.
 			sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?",
 				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.tableName(entityType)),
@@ -618,7 +627,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?",
 			quote(schema.EntityPrimaryFieldName),
-			s.tableName(entityType),
+			s.fullName(s.tableName(entityType)),
 			quote(genBlockChainFieldName),
 		)
 	} else {
@@ -630,12 +639,15 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 		startAt := time.Now()
 		count, countErr := s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
 		if countErr != nil {
-			logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted when list ids failed")
-			return nil, err
+			logger.With("sql", sql, "used", time.Since(startAt).String()).
+				Errore(countErr, "count deleted when list ids failed")
+			return nil, countErr
 		}
 		if count == 0 {
 			// No delete operation, can use simple query.
 			// Most of the time there is no deletion behavior, and this is enough.
+			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
+			// (sign=-1 rows excluded), so DISTINCT id correctly returns only live entity IDs.
 			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?",
 				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.tableName(entityType)),
@@ -705,7 +717,7 @@ func (s *Store) getMaxID(ctx context.Context, entityType *schema.Entity, chain s
 	start := time.Now()
 	sql := fmt.Sprintf("SELECT max(%s) FROM %s WHERE %s = ?",
 		quote(schema.EntityPrimaryFieldName),
-		s.tableName(entityType),
+		s.fullName(s.tableName(entityType)),
 		quote(genBlockChainFieldName))
 	var maxID int64
 	err := s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {

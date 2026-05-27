@@ -1197,15 +1197,10 @@ func (f NullableOneDimArrayField) FieldValueFromGet(dbValues map[string]any) any
 type entityRow struct {
 	persistent.EntityBox
 
+	GenBlockChain string
+
 	Sign    int8
 	Version uint64
-}
-
-func (b *entityRow) get() *persistent.EntityBox {
-	if b == nil {
-		return nil
-	}
-	return &b.EntityBox
 }
 
 type Entity struct {
@@ -1353,13 +1348,12 @@ func (e Entity) FieldValuesForSet(box entityRow, zeroData map[string]any) (value
 	return values
 }
 
-func (e Entity) ScanOne(rows clickhouselib.Rows) (*entityRow, error) {
-	var box *entityRow
+func (e Entity) scanOne(rows clickhouselib.Rows) (entityRow, error) {
+	var box entityRow
 	dbValues, err := scanMap(rows, buildFieldBufferForScanMap(rows))
 	if err != nil {
 		return box, err
 	}
-	box = &entityRow{}
 	var is bool
 	switch id := dbValues[schema.EntityPrimaryFieldName].(type) {
 	case string: // ID! String! Bytes!

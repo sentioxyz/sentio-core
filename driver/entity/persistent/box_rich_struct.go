@@ -320,7 +320,7 @@ func buildRichValue(origin reflect.Value, typ types.Type) (r *protos.RichValue, 
 	return nil, fmt.Errorf("type not match")
 }
 
-func (e *EntityBox) FromRichStruct(entityType *schema.Entity, data *protos.RichStruct) (err error) {
+func (e *UncommittedEntityBox) FromRichStruct(entityType *schema.Entity, data *protos.RichStruct) (err error) {
 	if data == nil {
 		e.Data, e.Operator = nil, nil
 		return
@@ -347,7 +347,10 @@ func (e *EntityBox) FromRichStruct(entityType *schema.Entity, data *protos.RichS
 	return
 }
 
-func (e *EntityBox) FromEntityUpdateData(entityType *schema.Entity, data *entityProtos.EntityUpdateData) (err error) {
+func (e *UncommittedEntityBox) FromEntityUpdateData(
+	entityType *schema.Entity,
+	data *entityProtos.EntityUpdateData,
+) (err error) {
 	if data == nil {
 		e.Data, e.Operator = nil, nil
 		return

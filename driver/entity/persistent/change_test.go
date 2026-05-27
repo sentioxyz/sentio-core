@@ -19,11 +19,13 @@ func TestChangeHistory_Push(t *testing.T) {
 	eType := sch.GetEntity("EntityE1")
 
 	var his changeHistory
-	his.Push(eType, &EntityBox{GenBlockNumber: 3, GenBlockHash: "3-1", Data: map[string]any{"propB": int32(1)}})
-	his.Push(eType, &EntityBox{
-		GenBlockNumber: 3,
-		GenBlockHash:   "3-2",
-		Data:           map[string]any{},
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3, GenBlockHash: "3-1", Data: map[string]any{"propB": int32(1)}}})
+	his.Push(eType, &UncommittedEntityBox{
+		EntityBox: EntityBox{
+			GenBlockNumber: 3,
+			GenBlockHash:   "3-2",
+			Data:           map[string]any{},
+		},
 		Operator: map[string]Operator{
 			"propB": {
 				NumCalc: &OperatorNumCalc{
@@ -33,19 +35,19 @@ func TestChangeHistory_Push(t *testing.T) {
 			},
 		},
 	})
-	his.Push(eType, &EntityBox{GenBlockNumber: 5, GenBlockHash: "5-1", Data: map[string]any{"propB": int32(3)}})
-	his.Push(eType, &EntityBox{GenBlockNumber: 5, GenBlockHash: "5-2", Data: map[string]any{"propB": int32(4)}})
-	his.Push(eType, &EntityBox{GenBlockNumber: 1, GenBlockHash: "1-1", Data: map[string]any{"propB": int32(5)}})
-	his.Push(eType, &EntityBox{GenBlockNumber: 1, GenBlockHash: "1-2", Data: map[string]any{"propB": int32(6)}})
-	his.Push(eType, &EntityBox{GenBlockNumber: 4, GenBlockHash: "4-1", Data: map[string]any{"propB": int32(7)}})
-	his.Push(eType, &EntityBox{GenBlockNumber: 4, GenBlockHash: "4-2", Data: map[string]any{"propB": int32(8)}})
-	his.Push(eType, &EntityBox{GenBlockNumber: 2, GenBlockHash: "2-1", Data: map[string]any{"propB": int32(9)}})
-	his.Push(eType, &EntityBox{GenBlockNumber: 2, GenBlockHash: "2-2", Data: map[string]any{"propB": int32(10)}})
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-1", Data: map[string]any{"propB": int32(3)}}})
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-2", Data: map[string]any{"propB": int32(4)}}})
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1, GenBlockHash: "1-1", Data: map[string]any{"propB": int32(5)}}})
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1, GenBlockHash: "1-2", Data: map[string]any{"propB": int32(6)}}})
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4, GenBlockHash: "4-1", Data: map[string]any{"propB": int32(7)}}})
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4, GenBlockHash: "4-2", Data: map[string]any{"propB": int32(8)}}})
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2, GenBlockHash: "2-1", Data: map[string]any{"propB": int32(9)}}})
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2, GenBlockHash: "2-2", Data: map[string]any{"propB": int32(10)}}})
 
 	// One entry per block, keyed by the last hash for that block.
 	assert.Equal(t,
 		[]string{"1-2", "2-2", "3-2", "4-2", "5-2"},
-		utils.MapSliceNoError(his, func(b *EntityBox) string { return b.GenBlockHash }))
+		utils.MapSliceNoError(his, func(b *UncommittedEntityBox) string { return b.GenBlockHash }))
 
 	// Block 3's operator (Add 1234) was applied against propB=1 → 1235.
 	assert.Equal(t,
@@ -56,7 +58,7 @@ func TestChangeHistory_Push(t *testing.T) {
 			{"propB": int32(8)},
 			{"propB": int32(4)},
 		},
-		utils.MapSliceNoError(his, func(b *EntityBox) map[string]any { return b.Data }))
+		utils.MapSliceNoError(his, func(b *UncommittedEntityBox) map[string]any { return b.Data }))
 }
 
 // TestChangeHistory_Push_ReturnValues verifies the (merged, mergedBox) return values:
@@ -68,24 +70,24 @@ func TestChangeHistory_Push_ReturnValues(t *testing.T) {
 	eType := sch.GetEntity("EntityE1")
 
 	var his changeHistory
-	box1 := &EntityBox{GenBlockNumber: 5, GenBlockHash: "5-1", Data: map[string]any{"propB": int32(1)}}
+	box1 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-1", Data: map[string]any{"propB": int32(1)}}}
 	merged, mergedBox := his.Push(eType, box1)
 	assert.False(t, merged, "first push to an empty history must not be a merge")
 	assert.Same(t, box1, mergedBox, "mergedBox must point to the pushed entry")
 
-	box2 := &EntityBox{GenBlockNumber: 5, GenBlockHash: "5-2", Data: map[string]any{"propB": int32(2)}}
+	box2 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-2", Data: map[string]any{"propB": int32(2)}}}
 	merged, mergedBox = his.Push(eType, box2)
 	assert.True(t, merged, "second push with the same block number must be a merge")
 	assert.Same(t, his[0], mergedBox, "mergedBox must point to the in-history entry, not the argument")
 
 	// Push at a different (earlier) block: not a merge.
-	box3 := &EntityBox{GenBlockNumber: 3, GenBlockHash: "3-1", Data: map[string]any{"propB": int32(3)}}
+	box3 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3, GenBlockHash: "3-1", Data: map[string]any{"propB": int32(3)}}}
 	merged, mergedBox = his.Push(eType, box3)
 	assert.False(t, merged)
 	assert.Same(t, his[0], mergedBox, "mergedBox must be the newly inserted entry (his[0])")
 
 	// Merge into the earlier block.
-	box4 := &EntityBox{GenBlockNumber: 3, GenBlockHash: "3-2", Data: map[string]any{"propB": int32(4)}}
+	box4 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3, GenBlockHash: "3-2", Data: map[string]any{"propB": int32(4)}}}
 	merged, mergedBox = his.Push(eType, box4)
 	assert.True(t, merged)
 	assert.Same(t, his[0], mergedBox)
@@ -96,11 +98,11 @@ func TestChangeHistory_Push_ReturnValues(t *testing.T) {
 func TestChangeHistory_Split(t *testing.T) {
 	make5 := func() changeHistory {
 		return changeHistory{
-			&EntityBox{GenBlockNumber: 1},
-			&EntityBox{GenBlockNumber: 2},
-			&EntityBox{GenBlockNumber: 3},
-			&EntityBox{GenBlockNumber: 4},
-			&EntityBox{GenBlockNumber: 5},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5}},
 		}
 	}
 
@@ -115,13 +117,13 @@ func TestChangeHistory_Split(t *testing.T) {
 		his := make5()
 		after := his.Split(1)
 		assert.Equal(t, changeHistory{
-			&EntityBox{GenBlockNumber: 2},
-			&EntityBox{GenBlockNumber: 3},
-			&EntityBox{GenBlockNumber: 4},
-			&EntityBox{GenBlockNumber: 5},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5}},
 		}, after)
 		assert.Equal(t, changeHistory{
-			&EntityBox{GenBlockNumber: 1},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1}},
 		}, his)
 	})
 
@@ -129,13 +131,13 @@ func TestChangeHistory_Split(t *testing.T) {
 		his := make5()
 		after := his.Split(4)
 		assert.Equal(t, changeHistory{
-			&EntityBox{GenBlockNumber: 5},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5}},
 		}, after)
 		assert.Equal(t, changeHistory{
-			&EntityBox{GenBlockNumber: 1},
-			&EntityBox{GenBlockNumber: 2},
-			&EntityBox{GenBlockNumber: 3},
-			&EntityBox{GenBlockNumber: 4},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
+			&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
 		}, his)
 	})
 
@@ -153,38 +155,38 @@ func TestChangeSet_Split(t *testing.T) {
 	cs := changeSet{
 		"entityA": map[string]changeHistory{
 			"1": {
-				&EntityBox{GenBlockNumber: 1},
-				&EntityBox{GenBlockNumber: 2},
-				&EntityBox{GenBlockNumber: 3},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
 			},
 			"2": {
-				&EntityBox{GenBlockNumber: 2},
-				&EntityBox{GenBlockNumber: 3},
-				&EntityBox{GenBlockNumber: 4},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
 			},
 			"3": {
-				&EntityBox{GenBlockNumber: 3},
-				&EntityBox{GenBlockNumber: 4},
-				&EntityBox{GenBlockNumber: 5},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5}},
 			},
 			"4": {
-				&EntityBox{GenBlockNumber: 4},
-				&EntityBox{GenBlockNumber: 5},
-				&EntityBox{GenBlockNumber: 6},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 6}},
 			},
 		},
 		"entityB": map[string]changeHistory{
 			"1": {
-				&EntityBox{GenBlockNumber: 1},
-				&EntityBox{GenBlockNumber: 2},
-				&EntityBox{GenBlockNumber: 3},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
 			},
 		},
 		"entityC": map[string]changeHistory{
 			"1": {
-				&EntityBox{GenBlockNumber: 4},
-				&EntityBox{GenBlockNumber: 5},
-				&EntityBox{GenBlockNumber: 6},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 6}},
 			},
 		},
 	}
@@ -195,23 +197,23 @@ func TestChangeSet_Split(t *testing.T) {
 	assert.Equal(t, changeSet{
 		"entityA": map[string]changeHistory{
 			"2": {
-				&EntityBox{GenBlockNumber: 4},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
 			},
 			"3": {
-				&EntityBox{GenBlockNumber: 4},
-				&EntityBox{GenBlockNumber: 5},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5}},
 			},
 			"4": {
-				&EntityBox{GenBlockNumber: 4},
-				&EntityBox{GenBlockNumber: 5},
-				&EntityBox{GenBlockNumber: 6},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 6}},
 			},
 		},
 		"entityC": map[string]changeHistory{
 			"1": {
-				&EntityBox{GenBlockNumber: 4},
-				&EntityBox{GenBlockNumber: 5},
-				&EntityBox{GenBlockNumber: 6},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 6}},
 			},
 		},
 	}, after)
@@ -220,23 +222,23 @@ func TestChangeSet_Split(t *testing.T) {
 	assert.Equal(t, changeSet{
 		"entityA": map[string]changeHistory{
 			"1": {
-				&EntityBox{GenBlockNumber: 1},
-				&EntityBox{GenBlockNumber: 2},
-				&EntityBox{GenBlockNumber: 3},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
 			},
 			"2": {
-				&EntityBox{GenBlockNumber: 2},
-				&EntityBox{GenBlockNumber: 3},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
 			},
 			"3": {
-				&EntityBox{GenBlockNumber: 3},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
 			},
 		},
 		"entityB": map[string]changeHistory{
 			"1": {
-				&EntityBox{GenBlockNumber: 1},
-				&EntityBox{GenBlockNumber: 2},
-				&EntityBox{GenBlockNumber: 3},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2}},
+				&UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3}},
 			},
 		},
 	}, cs)

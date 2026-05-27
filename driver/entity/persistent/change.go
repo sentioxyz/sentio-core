@@ -6,7 +6,7 @@ import (
 	"sentioxyz/sentio-core/driver/entity/schema"
 )
 
-type changeHistory []*EntityBox
+type changeHistory []*UncommittedEntityBox
 type changeSet map[string]map[string]changeHistory // key is [entity][id]
 
 func (cs changeSet) Count(blockNumberLE uint64) (total int) {
@@ -77,7 +77,7 @@ func (ch *changeHistory) Count(blockNumberLE uint64) int {
 	})
 }
 
-func (ch *changeHistory) Latest(blockNumber uint64) *EntityBox {
+func (ch *changeHistory) Latest(blockNumber uint64) *UncommittedEntityBox {
 	if p := ch.Count(blockNumber); p > 0 {
 		return (*ch)[p-1]
 	}
@@ -95,7 +95,10 @@ func (ch *changeHistory) Split(blockNumber uint64) changeHistory {
 	return ret
 }
 
-func (ch *changeHistory) Push(entityType *schema.Entity, nw *EntityBox) (merged bool, mergedBox *EntityBox) {
+func (ch *changeHistory) Push(
+	entityType *schema.Entity,
+	nw *UncommittedEntityBox,
+) (merged bool, mergedBox *UncommittedEntityBox) {
 	i := ch.Count(nw.GenBlockNumber)
 	if i > 0 && (*ch)[i-1].GenBlockNumber == nw.GenBlockNumber {
 		// just override (*ch)[i-1]

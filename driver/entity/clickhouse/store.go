@@ -167,11 +167,11 @@ func NewStore(
 	}
 }
 
-func (s *Store) getEntityType(entity string) *schema.Entity {
+func (s *Store) GetEntityType(entity string) *schema.Entity {
 	return s.sch.GetEntity(entity)
 }
 
-func (s *Store) getEntityOrInterfaceType(name string) schema.EntityOrInterface {
+func (s *Store) GetEntityOrInterfaceType(name string) schema.EntityOrInterface {
 	return s.sch.GetEntityOrInterface(name)
 }
 

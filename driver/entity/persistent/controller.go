@@ -84,6 +84,9 @@ type Controller struct {
 }
 
 func NewController(store ChainStore, monitor Monitor) *Controller {
+	if monitor == nil {
+		monitor = emptyMonitor{}
+	}
 	return &Controller{
 		store:    store,
 		changes:  make(changeSet),

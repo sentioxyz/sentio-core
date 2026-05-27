@@ -164,7 +164,7 @@ func (c *ChainStore) GetEntity(
 			box = &row.EntityBox
 		}
 		if box != nil {
-			c.lruCache.Add(key, box)
+			c.lruCache.Add(key, box.Copy())
 		}
 		return box, false, nil
 	}

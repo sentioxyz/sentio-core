@@ -288,6 +288,23 @@ func (m *ReportMonitor) OnCommit(
 	}
 }
 
+// ─── emptyMonitor ────────────────────────────────────────────────────────────
+
+// emptyMonitor is a no-op Monitor used when nil is passed to NewController.
+type emptyMonitor struct{}
+
+func (emptyMonitor) OnGet(_ context.Context, _ string, _ string, _ uint64, _ bool, _ string, _ time.Duration) {
+}
+
+func (emptyMonitor) OnList(_ context.Context, _ string, _ uint64, _ bool, _ string, _ int, _ int, _ time.Duration) {
+}
+
+func (emptyMonitor) OnSet(_ context.Context, _ string, _ string, _ uint64, _ bool, _ bool, _ time.Duration) {
+}
+
+func (emptyMonitor) OnCommit(_ context.Context, _ uint64, _ map[string]int, _ map[string]int, _ time.Duration) {
+}
+
 // ─── context helpers ─────────────────────────────────────────────────────────
 
 type keyMetricAttrs struct{}

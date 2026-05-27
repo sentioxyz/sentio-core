@@ -95,11 +95,6 @@ func NewChainStore(
 
 // ─── persistent.ChainStore implementation ───────────────────────────────────
 
-// InitEntitySchema delegates schema initialisation to the underlying Store.
-func (c *ChainStore) InitEntitySchema(ctx context.Context) error {
-	return c.store.InitEntitySchema(ctx)
-}
-
 // GetChain returns the chain this store is bound to.
 func (c *ChainStore) GetChain() string { return c.chain }
 

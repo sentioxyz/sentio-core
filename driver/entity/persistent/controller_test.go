@@ -178,8 +178,6 @@ type mockChainStore struct {
 	fullLoaded map[string]bool // tracks which entity types have been "cached"
 }
 
-func (s *mockChainStore) InitEntitySchema(_ context.Context) error { return nil }
-
 func (s *mockChainStore) GetChain() string { return s.chain }
 
 func (s *mockChainStore) GetEntityType(entity string) *schema.Entity {

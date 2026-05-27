@@ -27,7 +27,7 @@ var (
 		new(big.Int).Sub(new(big.Int).Exp(big.NewInt(10), big.NewInt(76), nil), big.NewInt(1)), -30)
 )
 
-func (s *Store) checkValue(entityType *schema.Entity, data map[string]any) error {
+func (s *Store) CheckValue(entityType *schema.Entity, data map[string]any) error {
 	for fieldName, val := range data {
 		field := entityType.GetFieldByName(fieldName)
 		if field == nil {

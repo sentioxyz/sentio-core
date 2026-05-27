@@ -392,7 +392,7 @@ func (c *ChainStore) Reorg(ctx context.Context, blockNumber int64) error {
 
 // CheckValue validates entity field values using the underlying store.
 func (c *ChainStore) CheckValue(entityType *schema.Entity, data map[string]any) error {
-	return c.store.checkValue(entityType, data)
+	return c.store.CheckValue(entityType, data)
 }
 
 // Snapshot returns a map describing the current cache state (for debugging/monitoring).

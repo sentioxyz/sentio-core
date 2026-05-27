@@ -15,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common/chx",
+        "//common/clickhousemanager",
         "//common/cmstr",
         "//common/envconf",
         "//common/format",

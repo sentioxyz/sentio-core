@@ -364,7 +364,7 @@ func (s *Store) _listEntities(
 		//   ORDER BY id
 		//   LIMIT ?
 		// )
-		selects := utils.FilterArr(kit.FieldNamesForGet(), func(fn string) bool {
+		selects := utils.FilterArr(kit.fieldNamesForGet(), func(fn string) bool {
 			return fn != schema.EntityPrimaryFieldName && fn != genBlockChainFieldName && fn != versionFieldName
 		})
 		innerSelects := make([]string, len(selects))
@@ -399,7 +399,7 @@ func (s *Store) _listEntities(
 				"gbc":          quote(genBlockChainFieldName),
 				"version":      quote(versionFieldName),
 				"sign":         quote(signFieldName),
-				"table":        s.fullName(s.versionedTableName(entityType)),
+				"table":        s.fullName(s.VersionedTableName(entityType)),
 				"edc":          excludeDeletedConditions,
 				"otc":          filterConditions,
 			})
@@ -422,8 +422,8 @@ func (s *Store) _listEntities(
 			excludeDeletedConditions = fmt.Sprintf(" AND NOT %s", quote(deletedFieldName))
 		}
 		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ? %s %s ORDER BY %s LIMIT ?",
-			joinWithQuote(kit.FieldNamesForGet(), ","),
-			s.fullName(s.tableName(entityType)),
+			joinWithQuote(kit.fieldNamesForGet(), ","),
+			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 			excludeDeletedConditions,
 			filterConditions,
@@ -442,7 +442,7 @@ func (s *Store) _listEntities(
 		// WHERE NOT __last__.2 AND propA > ?
 		// ORDER BY id
 		// LIMIT ?
-		lastFields := utils.Prepend(utils.FilterArr(kit.FieldNamesForGet(), func(fn string) bool {
+		lastFields := utils.Prepend(utils.FilterArr(kit.fieldNamesForGet(), func(fn string) bool {
 			return fn != schema.EntityPrimaryFieldName &&
 				fn != genBlockChainFieldName &&
 				fn != genBlockNumberFieldName &&
@@ -481,7 +481,7 @@ func (s *Store) _listEntities(
 				"pk":     quote(schema.EntityPrimaryFieldName),
 				"gbn":    quote(genBlockNumberFieldName),
 				"gbc":    quote(genBlockChainFieldName),
-				"ft":     s.fullName(s.tableName(entityType)),
+				"ft":     s.fullName(s.TableName(entityType)),
 				"pkc":    primaryKeyConditions,
 				"edc":    excludeDeletedConditions,
 				"otc":    otherConditions,
@@ -530,13 +530,13 @@ func (s *Store) countEntity(
 	var sql string
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?",
-			s.fullName(s.tableName(entityType)),
+			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 		)
 	} else {
 		if excludeDeleted {
 			sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
-				s.fullName(s.tableName(entityType)),
+				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
 				quote(deletedFieldName),
 			)
@@ -554,7 +554,7 @@ func (s *Store) countEntity(
 			// (sign=-1 rows excluded), so COUNT(DISTINCT id) correctly reflects live entity count.
 			sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?",
 				quote(schema.EntityPrimaryFieldName),
-				s.fullName(s.tableName(entityType)),
+				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
 			)
 		} else if s.useVersionedCollapsingTable(entityType) {
@@ -580,7 +580,7 @@ func (s *Store) countEntity(
 					"ded":  quote(deletedFieldName),
 					"ver":  quote(versionFieldName),
 					"sign": quote(signFieldName),
-					"ft":   s.fullName(s.versionedLatestTableName(entityType)),
+					"ft":   s.fullName(s.VersionedLatestTableName(entityType)),
 				})
 		} else {
 			// this query is slower but much less memory requirement
@@ -606,7 +606,7 @@ func (s *Store) countEntity(
 					"gbn": quote(genBlockNumberFieldName),
 					"gbc": quote(genBlockChainFieldName),
 					"ded": quote(deletedFieldName),
-					"ft":  s.fullName(s.tableName(entityType)),
+					"ft":  s.fullName(s.TableName(entityType)),
 				})
 		}
 	}
@@ -627,12 +627,12 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?",
 			quote(schema.EntityPrimaryFieldName),
-			s.fullName(s.tableName(entityType)),
+			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 		)
 	} else {
 		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
-			s.fullName(s.tableName(entityType)),
+			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 			quote(deletedFieldName),
 		)
@@ -650,7 +650,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 			// (sign=-1 rows excluded), so DISTINCT id correctly returns only live entity IDs.
 			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?",
 				quote(schema.EntityPrimaryFieldName),
-				s.fullName(s.tableName(entityType)),
+				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
 			)
 		} else if s.useVersionedCollapsingTable(entityType) {
@@ -670,7 +670,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 					"ded":  quote(deletedFieldName),
 					"ver":  quote(versionFieldName),
 					"sign": quote(signFieldName),
-					"ft":   s.fullName(s.versionedLatestTableName(entityType)),
+					"ft":   s.fullName(s.VersionedLatestTableName(entityType)),
 				})
 		} else {
 			// SELECT id
@@ -688,7 +688,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 					"gbn": quote(genBlockNumberFieldName),
 					"gbc": quote(genBlockChainFieldName),
 					"ded": quote(deletedFieldName),
-					"ft":  s.fullName(s.tableName(entityType)),
+					"ft":  s.fullName(s.TableName(entityType)),
 				})
 		}
 	}
@@ -717,7 +717,7 @@ func (s *Store) getMaxID(ctx context.Context, entityType *schema.Entity, chain s
 	start := time.Now()
 	sql := fmt.Sprintf("SELECT max(%s) FROM %s WHERE %s = ?",
 		quote(schema.EntityPrimaryFieldName),
-		s.fullName(s.tableName(entityType)),
+		s.fullName(s.TableName(entityType)),
 		quote(genBlockChainFieldName))
 	var maxID int64
 	err := s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {

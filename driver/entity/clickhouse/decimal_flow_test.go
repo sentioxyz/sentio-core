@@ -53,8 +53,8 @@ func Test_Decimal256_Flow_Basic(t *testing.T) {
 	}
 
 	// Names and values for insert
-	names := et.FieldNamesForSet()
-	values := et.FieldValuesForSet(box, map[string]any{})
+	names := et.fieldNamesForSet()
+	values := et.fieldValuesForSet(box, map[string]any{})
 
 	// id, d0, d1 + 5 system fields
 	assert.Equal(t, 3+5, len(names))

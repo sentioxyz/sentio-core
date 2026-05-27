@@ -92,7 +92,7 @@ func TestDecimal512_E2E_UserWorkflow(t *testing.T) {
 	t.Log("ClickHouse tables created successfully")
 
 	// Verify table schema - check if BigDecimal fields use Decimal512
-	poolTableName := store.tableName(poolEntity)
+	poolTableName := store.TableName(poolEntity)
 	t.Logf("Pool table name: %s", poolTableName)
 
 	var createTableSQL string

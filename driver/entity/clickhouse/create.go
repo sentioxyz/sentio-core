@@ -391,7 +391,7 @@ func (s *Store) tableOrViewComment(entityType schema.EntityOrInterface) string {
 // <ProcessorID>_versionedEntity_<EntityName>
 func (s *Store) buildVersionedEntityTable(entityType *schema.Entity) chx.Table {
 	return chx.Table{
-		Name: s.versionedTableName(entityType),
+		Name: s.VersionedTableName(entityType),
 		Config: chx.TableConfig{
 			Engine:      s.ctrl.NewDefaultMergeTreeEngine(),
 			PartitionBy: genBlockChainFieldName,
@@ -422,7 +422,7 @@ func (s *Store) buildVersionedEntityTable(entityType *schema.Entity) chx.Table {
 // <ProcessorID>_versionedLatestEntity_<EntityName>
 func (s *Store) buildVersionedLatestEntityTable(entityType *schema.Entity) chx.Table {
 	return chx.Table{
-		Name: s.versionedLatestTableName(entityType),
+		Name: s.VersionedLatestTableName(entityType),
 		Config: chx.TableConfig{
 			Engine:      s.ctrl.NewDefaultVersionedCollapsingMergeTreeEngine(signFieldName, versionFieldName),
 			PartitionBy: genBlockChainFieldName,
@@ -450,7 +450,7 @@ func (s *Store) buildVersionedLatestEntityTable(entityType *schema.Entity) chx.T
 func (s *Store) buildVersionedLatestEntityMaterializedView(entityType *schema.Entity) chx.MaterializedView {
 	return chx.MaterializedView{
 		View: chx.View{
-			Name: s.versionedLatestTableMaterializedViewName(entityType),
+			Name: s.VersionedLatestTableMaterializedViewName(entityType),
 			Fields: append(s.getClickhouseFields(entityType),
 				chx.Field{Name: genBlockNumberFieldName, Type: genBlockNumberFieldType},
 				chx.Field{Name: genBlockTimeFieldName, Type: genBlockTimeFieldType},
@@ -461,10 +461,10 @@ func (s *Store) buildVersionedLatestEntityMaterializedView(entityType *schema.En
 				chx.Field{Name: signFieldName, Type: signFieldType},
 				chx.Field{Name: versionFieldName, Type: versionFieldType},
 			),
-			Select:  "SELECT * FROM " + s.fullName(s.versionedTableName(entityType)),
+			Select:  "SELECT * FROM " + s.fullName(s.VersionedTableName(entityType)),
 			Comment: s.tableOrViewComment(entityType),
 		},
-		To: s.versionedLatestTableName(entityType),
+		To: s.VersionedLatestTableName(entityType),
 	}
 }
 
@@ -472,7 +472,7 @@ func (s *Store) buildVersionedLatestEntityMaterializedView(entityType *schema.En
 // view of <ProcessorID>_versionedEntity_<EntityName> that ignored all opposite rows
 func (s *Store) buildEntityView(entityType *schema.Entity) chx.View {
 	return chx.View{
-		Name: s.tableName(entityType),
+		Name: s.TableName(entityType),
 		Fields: append(s.getClickhouseFields(entityType),
 			chx.Field{Name: genBlockNumberFieldName, Type: genBlockNumberFieldType},
 			chx.Field{Name: genBlockTimeFieldName, Type: genBlockTimeFieldType},
@@ -489,7 +489,7 @@ func (s *Store) buildEntityView(entityType *schema.Entity) chx.View {
 				genBlockChainFieldName,
 				deletedFieldName,
 				timestampFieldName), ", "),
-			s.fullName(s.versionedTableName(entityType)),
+			s.fullName(s.VersionedTableName(entityType)),
 			signFieldName,
 		),
 		Comment: s.tableOrViewComment(entityType),
@@ -516,7 +516,7 @@ func (s *Store) buildEntityTable(entityType schema.EntityOrInterface) chx.Table 
 		orderBy = []string{genBlockChainFieldName, aggIntervalFieldName, schema.EntityTimestampFieldName}
 	}
 	return chx.Table{
-		Name: s.tableName(entityType),
+		Name: s.TableName(entityType),
 		Config: chx.TableConfig{
 			Engine:      s.ctrl.NewDefaultMergeTreeEngine(),
 			PartitionBy: genBlockChainFieldName,
@@ -544,11 +544,11 @@ func (s *Store) buildInterfaceView(ifaceType *schema.Interface) chx.View {
 		entitySelects = append(entitySelects, fmt.Sprintf("SELECT %s, %s FROM %s",
 			joinWithQuote(selectFields, ", "),
 			fmt.Sprintf("'%s' AS %s", entityType.Name, quote(implEntityFieldName)),
-			s.fullName(s.tableName(entityType)),
+			s.fullName(s.TableName(entityType)),
 		))
 	}
 	return chx.View{
-		Name: s.tableName(ifaceType),
+		Name: s.TableName(ifaceType),
 		Fields: append(s.getClickhouseFields(ifaceType),
 			chx.Field{Name: genBlockNumberFieldName, Type: genBlockNumberFieldType},
 			chx.Field{Name: genBlockTimeFieldName, Type: genBlockTimeFieldType},
@@ -569,9 +569,9 @@ func (s *Store) buildView(item schema.EntityOrInterface) chx.View {
 	viewFields := s.GetViewFields(item)
 	selects := utils.MapSliceNoError(viewFields, ViewField.GetSelectSQL)
 	return chx.View{
-		Name:    s.viewName(item),
+		Name:    s.ViewName(item),
 		Fields:  utils.MapSliceNoError(viewFields, ViewField.GetField),
-		Select:  fmt.Sprintf("SELECT %s FROM %s", strings.Join(selects, ", "), s.fullName(s.tableName(item))),
+		Select:  fmt.Sprintf("SELECT %s FROM %s", strings.Join(selects, ", "), s.fullName(s.TableName(item))),
 		Comment: s.tableOrViewComment(item),
 	}
 }
@@ -580,7 +580,7 @@ func (s *Store) buildView(item schema.EntityOrInterface) chx.View {
 func (s *Store) buildLatestView(entityType *schema.Entity) chx.View {
 	viewFields := s.GetLatestViewFields(entityType)
 	view := chx.View{
-		Name:    s.latestViewName(entityType),
+		Name:    s.LatestViewName(entityType),
 		Fields:  utils.MapSliceNoError(viewFields, ViewField.GetField),
 		Comment: s.tableOrViewComment(entityType),
 	}
@@ -610,7 +610,7 @@ func (s *Store) buildLatestView(entityType *schema.Entity) chx.View {
 				"deleted":      quote(deletedFieldName),
 				"sign":         quote(signFieldName),
 				"version":      quote(versionFieldName),
-				"vtable":       s.fullName(s.versionedLatestTableName(entityType)),
+				"vtable":       s.fullName(s.VersionedLatestTableName(entityType)),
 				"selectFields": strings.Join(selectFields, ", "),
 			})
 		// should transform field type
@@ -623,7 +623,7 @@ func (s *Store) buildLatestView(entityType *schema.Entity) chx.View {
 		// SELECT id, propA, __genBlockChain__ FROM entity
 		view.Select = fmt.Sprintf("SELECT %s FROM %s",
 			joinWithQuote(utils.MapSliceNoError(viewFields, ViewField.GetFieldName), ", "),
-			s.fullName(s.viewName(entityType)))
+			s.fullName(s.ViewName(entityType)))
 	} else {
 		// Build Select SQL
 		// ----------------------------------------
@@ -656,7 +656,7 @@ func (s *Store) buildLatestView(entityType *schema.Entity) chx.View {
 				"pk":     quote(schema.EntityPrimaryFieldName),
 				"gbc":    quote(genBlockChainViewFieldName),
 				"gbcRaw": quote(genBlockChainFieldName),
-				"ft":     s.fullName(s.viewName(entityType)),
+				"ft":     s.fullName(s.ViewName(entityType)),
 				"last":   joinWithQuote(lastFields, ", "),
 				"lastAs": lastAs.String(), // ignore last.1 and last.2
 			})
@@ -675,11 +675,11 @@ func (s *Store) buildInterfaceLatestView(ifaceType *schema.Interface) chx.View {
 			joinWithQuote(selectFields, ", "),
 			fmt.Sprintf("'%s' AS %s", entityType.Name, quote(implEntityViewFieldName)),
 			fmt.Sprintf("'%s' AS %s", entityType.Name, quote(implEntityFieldName)),
-			s.fullName(s.latestViewName(entityType)),
+			s.fullName(s.LatestViewName(entityType)),
 		))
 	}
 	return chx.View{
-		Name:    s.latestViewName(ifaceType),
+		Name:    s.LatestViewName(ifaceType),
 		Fields:  utils.MapSliceNoError(s.GetLatestViewFields(ifaceType), ViewField.GetField),
 		Select:  strings.Join(entitySelects, " UNION ALL "),
 		Comment: s.tableOrViewComment(ifaceType),
@@ -692,9 +692,9 @@ func (s *Store) buildAggregationLatestView(agg *schema.Aggregation) chx.View {
 	viewFields := s.GetLatestViewFields(agg)
 	selects := utils.MapSliceNoError(viewFields, ViewField.GetFieldName)
 	return chx.View{
-		Name:    s.latestViewName(agg),
+		Name:    s.LatestViewName(agg),
 		Fields:  utils.MapSliceNoError(viewFields, ViewField.GetField),
-		Select:  fmt.Sprintf("SELECT %s FROM %s", joinWithQuote(selects, ", "), s.fullName(s.viewName(agg))),
+		Select:  fmt.Sprintf("SELECT %s FROM %s", joinWithQuote(selects, ", "), s.fullName(s.ViewName(agg))),
 		Comment: s.tableOrViewComment(agg),
 	}
 }

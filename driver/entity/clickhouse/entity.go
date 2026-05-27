@@ -38,16 +38,16 @@ func (s *Store) getEntity(
 	var sql string
 	if s.useVersionedCollapsingTable(entityType) {
 		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ? AND %s = ? AND %s > 0 ORDER BY %s DESC LIMIT 1",
-			joinWithQuote(kit.FieldNamesForGet(), ","),
-			s.fullName(s.versionedTableName(entityType)),
+			joinWithQuote(kit.fieldNamesForGet(), ","),
+			s.fullName(s.VersionedTableName(entityType)),
 			quote(schema.EntityPrimaryFieldName),
 			quote(genBlockChainFieldName),
 			quote(signFieldName),
 			quote(genBlockNumberFieldName))
 	} else {
 		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ? AND %s = ?",
-			joinWithQuote(kit.FieldNamesForGet(), ","),
-			s.fullName(s.tableName(entityType)),
+			joinWithQuote(kit.fieldNamesForGet(), ","),
+			s.fullName(s.TableName(entityType)),
 			quote(schema.EntityPrimaryFieldName),
 			quote(genBlockChainFieldName))
 		if !entityType.IsImmutable() {
@@ -97,7 +97,7 @@ func (s *Store) queryExistEntity(
 			"WHERE %primaryField#s = ? AND %gbc#s = ?",
 			map[string]any{
 				"primaryField": quote(schema.EntityPrimaryFieldName),
-				"tableName":    s.fullName(s.tableName(entityType)),
+				"tableName":    s.fullName(s.TableName(entityType)),
 				"gbc":          quote(genBlockChainFieldName),
 			})
 		args = []any{ids[0], chain}
@@ -107,7 +107,7 @@ func (s *Store) queryExistEntity(
 			"WHERE %primaryField#s IN ? AND %gbc#s = ?",
 			map[string]any{
 				"primaryField": quote(schema.EntityPrimaryFieldName),
-				"tableName":    s.fullName(s.tableName(entityType)),
+				"tableName":    s.fullName(s.TableName(entityType)),
 				"gbc":          quote(genBlockChainFieldName),
 			})
 		args = []any{ids, chain}
@@ -180,9 +180,9 @@ func (s *Store) setEntities(
 	preBoxes := make(map[string]*entityRow)
 	zeroDataBox := persistent.EntityBox{Data: make(map[string]any)}
 	zeroDataBox.FillLostFields(make(map[string]any), entityType)
-	tableName := utils.Select(useVersionedCollapsingTable, s.versionedTableName(entityType), s.tableName(entityType))
-	fields := joinWithQuote(kit.FieldNamesForSet(), ",")
-	slots := "(" + strings.Join(kit.FieldSlotsForSet(), ",") + ")"
+	tableName := utils.Select(useVersionedCollapsingTable, s.VersionedTableName(entityType), s.TableName(entityType))
+	fields := joinWithQuote(kit.fieldNamesForSet(), ",")
+	slots := "(" + strings.Join(kit.fieldSlotsForSet(), ",") + ")"
 
 	reportUpdateImmutable := func(ids map[string]bool, logger *log.SentioLogger) error {
 		var sample persistent.EntityBox
@@ -285,9 +285,9 @@ func (s *Store) setEntities(
 				pre.GenBlockNumber = cur.GenBlockNumber
 				pre.GenBlockTime = cur.GenBlockTime
 				pre.GenBlockHash = cur.GenBlockHash
-				slotValues, rows = append(slotValues, kit.FieldValuesForSet(*pre, zeroDataBox.Data)...), rows+1
+				slotValues, rows = append(slotValues, kit.fieldValuesForSet(*pre, zeroDataBox.Data)...), rows+1
 			}
-			slotValues, rows = append(slotValues, kit.FieldValuesForSet(cur, zeroDataBox.Data)...), rows+1
+			slotValues, rows = append(slotValues, kit.fieldValuesForSet(cur, zeroDataBox.Data)...), rows+1
 			if useVersionedCollapsingTable {
 				preBoxes[box.ID] = &cur
 			}
@@ -371,7 +371,7 @@ func (s *Store) growthAggregation(ctx context.Context, chain string, curBlockTim
 				return fmt.Errorf("unknown agg fn %q for %s.%s", fn, agg.GetName(), f.Name)
 			}
 		}
-		srcTable := s.fullName(s.tableName(s.sch.GetEntity(agg.GetSource())))
+		srcTable := s.fullName(s.TableName(s.sch.GetEntity(agg.GetSource())))
 		for _, interval := range agg.GetIntervals() {
 			uniqToken := strconv.FormatUint(rand.Uint64(), 16)
 			var twField string         // time window of the timestamp, type is equal to the timestamp field
@@ -424,7 +424,7 @@ func (s *Store) growthAggregation(ctx context.Context, chain string, curBlockTim
 				" %gbc#s = '%chain#s' "+
 				"GROUP BY __timeWin__, %dimFieldNames#s, %gbc#s",
 				map[string]any{
-					"aggTableName":    s.fullName(s.tableName(agg)),
+					"aggTableName":    s.fullName(s.TableName(agg)),
 					"srcTable":        srcTable,
 					"primaryField":    quote(schema.EntityPrimaryFieldName),
 					"timestampField":  quote(schema.EntityTimestampFieldName),
@@ -579,9 +579,9 @@ func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) erro
 	for _, entityType := range s.sch.ListEntities(false) {
 		failMsg := fmt.Sprintf("delete %q entities created after block %d in chain %q failed",
 			entityType.Name, blockNumber, chain)
-		tableName := s.tableName(entityType)
+		tableName := s.TableName(entityType)
 		if s.useVersionedCollapsingTable(entityType) {
-			tableName = s.versionedTableName(entityType)
+			tableName = s.VersionedTableName(entityType)
 		}
 		start := time.Now()
 		deleted, err := s.reorgInTable(ctx, blockNumber, chain, tableName)
@@ -598,7 +598,7 @@ func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) erro
 
 		if s.useVersionedCollapsingTable(entityType) {
 			// delete in versionedLatestEntity table
-			latestTableName := s.versionedLatestTableName(entityType)
+			latestTableName := s.VersionedLatestTableName(entityType)
 			var rebuilt bool
 			deleted, rebuilt, err = s.reorgInVersionedLatestTable(ctx, blockNumber, chain, latestTableName, tableName)
 			if err != nil {
@@ -615,7 +615,7 @@ func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) erro
 	for _, agg := range s.sch.ListAggregations() {
 		failMsg := fmt.Sprintf("delete %q aggregation created after block %d in chain %q failed",
 			agg.Name, blockNumber, chain)
-		tableName := s.tableName(agg)
+		tableName := s.TableName(agg)
 		start := time.Now()
 		deleted, err := s.reorgInTable(ctx, blockNumber, chain, tableName)
 		entityLogger := logger.With(

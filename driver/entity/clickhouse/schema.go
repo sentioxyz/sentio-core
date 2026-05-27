@@ -1277,7 +1277,7 @@ func (e Entity) fieldNames(ignoreReverseForeignKeyFields bool) (names []string) 
 	return names
 }
 
-func (e Entity) FieldNamesForGet() (names []string) {
+func (e Entity) fieldNamesForGet() (names []string) {
 	sysFields := []string{
 		genBlockNumberFieldName,
 		genBlockTimeFieldName,
@@ -1291,7 +1291,7 @@ func (e Entity) FieldNamesForGet() (names []string) {
 	return append(e.fieldNames(true), sysFields...)
 }
 
-func (e Entity) FieldNamesForSet() (names []string) {
+func (e Entity) fieldNamesForSet() (names []string) {
 	sysFields := []string{
 		genBlockNumberFieldName,
 		genBlockTimeFieldName,
@@ -1305,7 +1305,7 @@ func (e Entity) FieldNamesForSet() (names []string) {
 	return append(e.fieldNames(true), sysFields...)
 }
 
-func (e Entity) FieldSlotsForSet() (slots []string) {
+func (e Entity) fieldSlotsForSet() (slots []string) {
 	for _, field := range e.Fields {
 		if field.IsReverseForeignKeyField() {
 			continue
@@ -1319,7 +1319,7 @@ func (e Entity) FieldSlotsForSet() (slots []string) {
 	return slots
 }
 
-func (e Entity) FieldValuesForSet(box entityRow, zeroData map[string]any) (values []any) {
+func (e Entity) fieldValuesForSet(box entityRow, zeroData map[string]any) (values []any) {
 	for _, field := range e.Fields {
 		if field.IsReverseForeignKeyField() {
 			continue

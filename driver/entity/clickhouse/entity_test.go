@@ -1002,28 +1002,28 @@ func Test_batchSet2(t *testing.T) {
 	var boxes []*persistent.EntityBox
 
 	// init is empty
-	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s, entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, []*persistent.EntityBox(nil), boxes)
 	// insert 0-9 entities
 	_, err = s.setEntities(ctx, entityD1Type, chain, entities1, nil, nil)
 	assert.NoError(t, err)
 	// all 10 entities exists
-	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s, entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(entities1), boxes)
 	// update 0-9 entities
 	_, err = s.setEntities(ctx, entityD1Type, chain, entities2, nil, nil)
 	assert.NoError(t, err)
 	// all 10 entities updated to stage 2
-	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s, entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(entities2), boxes)
 	// delete 5-7
 	_, err = s.setEntities(ctx, entityD1Type, chain, entities3, nil, nil)
 	assert.NoError(t, err)
 	// only have 0-4,8-9
-	boxes, err = storeListEntities(ctx, s,entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s, entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(utils.MergeArr(entities2[:5], entities2[8:])), boxes)
 
@@ -1100,7 +1100,7 @@ func Test_list(t *testing.T) {
 		var boxes []*persistent.EntityBox
 
 		// init is empty
-		boxes, err = storeListEntities(ctx, s,entityF, chain, nil, 3)
+		boxes, err = storeListEntities(ctx, s, entityF, chain, nil, 3)
 		assert.NoError(t, err)
 		assert.Equal(t, []*persistent.EntityBox(nil), boxes)
 
@@ -1109,17 +1109,17 @@ func Test_list(t *testing.T) {
 		assert.NoError(t, err)
 
 		// list all
-		boxes, err = storeListEntities(ctx, s,entityF, chain, nil, 10)
+		boxes, err = storeListEntities(ctx, s, entityF, chain, nil, 10)
 		assert.NoError(t, err)
 		assert.Equal(t, full, boxes)
 
 		// list all
-		boxes, err = storeListEntities(ctx, s,entityF, chain, nil, 11)
+		boxes, err = storeListEntities(ctx, s, entityF, chain, nil, 11)
 		assert.NoError(t, err)
 		assert.Equal(t, full, boxes)
 
 		// all 10 entities exists and list by two page
-		boxes, err = storeListEntities(ctx, s,entityF, chain, nil, 8)
+		boxes, err = storeListEntities(ctx, s, entityF, chain, nil, 8)
 		assert.NoError(t, err)
 		assert.Equal(t, full[:8], boxes)
 
@@ -1318,7 +1318,7 @@ func Test_list(t *testing.T) {
 		}
 
 		for i, testcase := range testcases {
-			boxes, err = storeListEntities(ctx, s,entityF, chain, []persistent.EntityFilter{
+			boxes, err = storeListEntities(ctx, s, entityF, chain, []persistent.EntityFilter{
 				{Field: entityF.GetFieldByName(testcase.F), Op: testcase.O, Value: testcase.V},
 			}, 10)
 			msg := fmt.Sprintf("testcase #%d-%d %#v", fx, i, testcase)
@@ -1329,21 +1329,21 @@ func Test_list(t *testing.T) {
 		// === with multi filter conditions
 
 		// propertyA = '0' AND propertyB = '0'
-		boxes, err = storeListEntities(ctx, s,entityF, chain, []persistent.EntityFilter{
+		boxes, err = storeListEntities(ctx, s, entityF, chain, []persistent.EntityFilter{
 			{Field: entityF.GetFieldByName("propertyA"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 			{Field: entityF.GetFieldByName("propertyB"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 		}, 10)
 		assert.NoError(t, err)
 		assert.Equal(t, group0, boxes)
 		// propertyA = '0' AND propertyB = '1'
-		boxes, err = storeListEntities(ctx, s,entityF, chain, []persistent.EntityFilter{
+		boxes, err = storeListEntities(ctx, s, entityF, chain, []persistent.EntityFilter{
 			{Field: entityF.GetFieldByName("propertyA"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 			{Field: entityF.GetFieldByName("propertyB"), Op: persistent.EntityFilterOpEq, Value: []any{"1"}},
 		}, 10)
 		assert.NoError(t, err)
 		assert.Equal(t, empty, boxes)
 		// propertyA = '0' AND propertyB != '1'
-		boxes, err = storeListEntities(ctx, s,entityF, chain, []persistent.EntityFilter{
+		boxes, err = storeListEntities(ctx, s, entityF, chain, []persistent.EntityFilter{
 			{Field: entityF.GetFieldByName("propertyA"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 			{Field: entityF.GetFieldByName("propertyB"), Op: persistent.EntityFilterOpNe, Value: []any{"1"}},
 		}, 10)
@@ -1571,7 +1571,7 @@ func Test_filterWithNullValue(t *testing.T) {
 	}
 
 	for i, testcase := range testcases {
-		boxes, err = storeListEntities(ctx, s,entityG, chain, []persistent.EntityFilter{{
+		boxes, err = storeListEntities(ctx, s, entityG, chain, []persistent.EntityFilter{{
 			Field: entityG.GetFieldByName(testcase.F), Op: testcase.O, Value: testcase.V,
 		}}, 10)
 		msg := fmt.Sprintf("testcase #%d %#v", i, testcase)
@@ -1874,7 +1874,7 @@ func Test_viewTable(t *testing.T) {
 	entityCType := sch.GetEntity("EntityC")
 
 	sql := fmt.Sprintf("SELECT propertyB, propertyC, `meta.chain` FROM %s ORDER BY %s",
-		s.viewName(entityCType), quote(schema.EntityPrimaryFieldName))
+		s.ViewName(entityCType), quote(schema.EntityPrimaryFieldName))
 	rows, err := es.conn.Query(ctx, sql)
 	assert.NoError(t, err)
 	defer rows.Close()

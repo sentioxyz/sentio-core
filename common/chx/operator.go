@@ -314,7 +314,7 @@ func (c Controller) buildCreateTableSQL(table Table) string {
 	}
 	sql.WriteString("TABLE ")
 	if table.IsTemporary {
-		sql.WriteString(c.FullLogicName(table.Name))
+		sql.WriteString(c.LogicName(table.Name))
 	} else {
 		sql.WriteString(c.FullLogicNameWithOnCluster(table.Name))
 	}

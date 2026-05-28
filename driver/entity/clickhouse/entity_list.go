@@ -527,89 +527,134 @@ func (s *Store) countEntity(
 	chain string,
 	excludeDeleted bool,
 ) (count uint64, err error) {
-	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "excludeDeleted", excludeDeleted)
+	queryCtx, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "excludeDeleted", excludeDeleted)
+	// Determine deletion state once globally so bucket queries don't re-check per bucket.
+	hasDeletions := false
+	if excludeDeleted && !entityType.IsImmutable() {
+		deletionSQL := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
+			s.fullName(s.TableName(entityType)),
+			quote(genBlockChainFieldName),
+			quote(deletedFieldName),
+		)
+		startAt := time.Now()
+		var deletionCount uint64
+		deletionCount, err = s.ctrl.QueryCount(SelectCtx(queryCtx), deletionSQL, chain)
+		if err != nil {
+			logger.With("sql", deletionSQL, "used", time.Since(startAt).String()).Errore(err, "count deleted failed")
+			return 0, err
+		}
+		hasDeletions = deletionCount > 0
+	}
+	count, err = s._countEntity(queryCtx, entityType, chain, excludeDeleted, hasDeletions, "")
+	if err == nil {
+		return count, nil
+	}
+	if !isQueryMemoryLimitExceededError(err) {
+		return 0, err
+	}
+	// memory limit exceeded, too many entities, should bucket query
+	const (
+		minBuckets = 10
+		maxBuckets = 1000
+		multi      = 10
+	)
+	for buckets := minBuckets; err != nil && buckets <= maxBuckets; buckets *= multi {
+		logger.Warnfe(err, "result too large, will count in %d bucket", buckets)
+		count, err = 0, nil
+		for bi := 0; bi < buckets; bi++ {
+			condition := fmt.Sprintf(" AND cityHash64(%s) %% %d = %d", quote(schema.EntityPrimaryFieldName), buckets, bi)
+			bucketIndex := fmt.Sprintf("%d/%d", bi, buckets)
+			queryCtx, _ = log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "excludeDeleted", excludeDeleted, "bucket", bucketIndex)
+			bucketCount, bucketErr := s._countEntity(queryCtx, entityType, chain, excludeDeleted, hasDeletions, condition)
+			if bucketErr != nil {
+				if !isQueryMemoryLimitExceededError(bucketErr) {
+					return 0, bucketErr
+				}
+				err = bucketErr
+				break
+			}
+			count += bucketCount
+		}
+	}
+	return count, err
+}
+
+func (s *Store) _countEntity(
+	ctx context.Context,
+	entityType *schema.Entity,
+	chain string,
+	excludeDeleted bool,
+	hasDeletions bool,
+	extraCondition string,
+) (count uint64, err error) {
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
 	var sql string
 	if entityType.IsImmutable() {
-		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?",
+		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?"+extraCondition,
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 		)
+	} else if !excludeDeleted || !hasDeletions {
+		// No delete operation, or do not exclude deleted items, can use simple query.
+		// Most of the time there is no deletion behavior, and this is enough.
+		// Note: for versioned collapsing entities, tableName refers to the deduplicated view
+		// (sign=-1 rows excluded), so COUNT(DISTINCT id) correctly reflects live entity count.
+		sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?"+extraCondition,
+			quote(schema.EntityPrimaryFieldName),
+			s.fullName(s.TableName(entityType)),
+			quote(genBlockChainFieldName),
+		)
+	} else if s.useVersionedCollapsingTable(entityType) {
+		// SELECT COUNT(*)
+		// FROM (
+		//  SELECT id
+		//  FROM versionedLatestEntity
+		//  WHERE __genBlockChain__ = ? AND NOT __deleted__
+		//  GROUP BY id, __version__
+		//  HAVING sum(__sign__) > 0
+		// )
+		sql = format.Format("SELECT COUNT(*) "+
+			"FROM ("+
+			" SELECT %pk#s"+
+			" FROM %ft#s"+
+			" WHERE %gbc#s = ? AND NOT %ded#s"+extraCondition+
+			" GROUP BY %pk#s, %ver#s"+
+			" HAVING SUM(%sign#s) > 0"+
+			")",
+			map[string]any{
+				"pk":   quote(schema.EntityPrimaryFieldName),
+				"gbc":  quote(genBlockChainFieldName),
+				"ded":  quote(deletedFieldName),
+				"ver":  quote(versionFieldName),
+				"sign": quote(signFieldName),
+				"ft":   s.fullName(s.VersionedLatestTableName(entityType)),
+			})
 	} else {
-		if excludeDeleted {
-			sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
-				s.fullName(s.TableName(entityType)),
-				quote(genBlockChainFieldName),
-				quote(deletedFieldName),
-			)
-			startAt := time.Now()
-			count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
-			if err != nil {
-				logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted failed")
-				return 0, err
-			}
-		}
-		if !excludeDeleted || count == 0 {
-			// No delete operation, or do not exclude deleted items, can use simple query.
-			// Most of the time there is no deletion behavior, and this is enough.
-			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
-			// (sign=-1 rows excluded), so COUNT(DISTINCT id) correctly reflects live entity count.
-			sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?",
-				quote(schema.EntityPrimaryFieldName),
-				s.fullName(s.TableName(entityType)),
-				quote(genBlockChainFieldName),
-			)
-		} else if s.useVersionedCollapsingTable(entityType) {
-			// SELECT COUNT(*)
-			// FROM (
-			//  SELECT id
-			//  FROM versionedLatestEntity
-			//  WHERE __genBlockChain__ = ? AND NOT __deleted__
-			//  GROUP BY id, __version__
-			//  HAVING sum(__sign__) > 0
-			// )
-			sql = format.Format("SELECT COUNT(*) "+
-				"FROM ("+
-				" SELECT %pk#s"+
-				" FROM %ft#s"+
-				" WHERE %gbc#s = ? AND NOT %ded#s"+
-				" GROUP BY %pk#s, %ver#s"+
-				" HAVING SUM(%sign#s) > 0"+
-				")",
-				map[string]any{
-					"pk":   quote(schema.EntityPrimaryFieldName),
-					"gbc":  quote(genBlockChainFieldName),
-					"ded":  quote(deletedFieldName),
-					"ver":  quote(versionFieldName),
-					"sign": quote(signFieldName),
-					"ft":   s.fullName(s.VersionedLatestTableName(entityType)),
-				})
-		} else {
-			// this query is slower but much less memory requirement
-			// -------------
-			// SELECT COUNT(*)
-			// FROM (
-			//   SELECT id
-			//   FROM entity
-			//   WHERE __genBlockChain__ = ?
-			//   GROUP BY id
-			//   HAVING NOT argMax(__deleted__,__genBlockNumber__)
-			// )
-			sql = format.Format("SELECT COUNT(*) "+
-				"FROM ("+
-				" SELECT %pk#s"+
-				" FROM %ft#s"+
-				" WHERE %gbc#s = ?"+
-				" GROUP BY %pk#s"+
-				" HAVING NOT argMax(%ded#s,%gbn#s)"+
-				")",
-				map[string]any{
-					"pk":  quote(schema.EntityPrimaryFieldName),
-					"gbn": quote(genBlockNumberFieldName),
-					"gbc": quote(genBlockChainFieldName),
-					"ded": quote(deletedFieldName),
-					"ft":  s.fullName(s.TableName(entityType)),
-				})
-		}
+		// this query is slower but much less memory requirement
+		// -------------
+		// SELECT COUNT(*)
+		// FROM (
+		//   SELECT id
+		//   FROM entity
+		//   WHERE __genBlockChain__ = ?
+		//   GROUP BY id
+		//   HAVING NOT argMax(__deleted__,__genBlockNumber__)
+		// )
+		sql = format.Format("SELECT COUNT(*) "+
+			"FROM ("+
+			" SELECT %pk#s"+
+			" FROM %ft#s"+
+			" WHERE %gbc#s = ?"+extraCondition+
+			" GROUP BY %pk#s"+
+			" HAVING NOT argMax(%ded#s,%gbn#s)"+
+			")",
+			map[string]any{
+				"pk":  quote(schema.EntityPrimaryFieldName),
+				"gbn": quote(genBlockNumberFieldName),
+				"gbc": quote(genBlockChainFieldName),
+				"ded": quote(deletedFieldName),
+				"ft":  s.fullName(s.TableName(entityType)),
+			})
 	}
 	startAt := time.Now()
 	count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)

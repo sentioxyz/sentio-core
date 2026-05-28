@@ -558,8 +558,8 @@ func Test_createTableSQL(t *testing.T) {
 			"CREATE TABLE `db`.`processor0_entity_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propertyB` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyC` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
@@ -1107,7 +1107,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` String COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
-				"`left__` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`left__` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
 				"`__genBlockNumber__` UInt64, " +
 				"`__genBlockTime__` DateTime64(6, 'UTC'), " +
@@ -1197,7 +1197,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyE` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
@@ -1369,7 +1369,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyE` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
@@ -1567,7 +1567,7 @@ func Test_createTableSQL(t *testing.T) {
 			"CREATE TABLE `db`.`processor0_entity_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propB1` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
@@ -2252,8 +2252,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propertyB` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyC` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
@@ -2274,8 +2274,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 			"CREATE TABLE `db`.`processor0_versionedLatestEntity_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propertyB` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyC` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
@@ -2296,8 +2296,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 			"CREATE MATERIALIZED VIEW `db`.`processor0_versionedLatestEntityMV_EntityC` TO `db`.`processor0_versionedLatestEntity_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propertyB` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyC` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
@@ -2313,8 +2313,8 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 			"CREATE VIEW `db`.`processor0_entity_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyB` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
-				"`propertyC` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propertyB` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyC` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propertyD` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`foreignCA` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
@@ -3049,7 +3049,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` String COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
-				"`left__` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`left__` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
 				"`__genBlockNumber__` UInt64, " +
 				"`__genBlockTime__` DateTime64(6, 'UTC'), " +
@@ -3069,7 +3069,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` String COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
-				"`left__` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`left__` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
 				"`__genBlockNumber__` UInt64, " +
 				"`__genBlockTime__` DateTime64(6, 'UTC'), " +
@@ -3089,7 +3089,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` String COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
-				"`left__` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`left__` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
 				"`__genBlockNumber__` UInt64, " +
 				"`__genBlockTime__` DateTime64(6, 'UTC'), " +
@@ -3104,7 +3104,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` String COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
-				"`left__` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`left__` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
 				"`__genBlockNumber__` UInt64, " +
 				"`__genBlockTime__` DateTime64(6, 'UTC'), " +
@@ -3203,7 +3203,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyE` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
@@ -3375,7 +3375,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyE` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
@@ -3423,7 +3423,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyE` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
@@ -3471,7 +3471,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyE` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
@@ -3503,7 +3503,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyC` Bool COMMENT 'SCALAR(Boolean) SCHEMA(Boolean!)', " +
 				"`propertyD` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
-				"`propertyE` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
+				"`propertyE` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
 				"`propertyF` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`propertyG` Enum('AAA', 'BBB', 'CCC') COMMENT 'ENUM(EnumA(AAA,BBB,CCC)) SCHEMA(EnumA!)', " +
 				"`propertyH` String COMMENT 'SCALAR(Bytes) SCHEMA([Bytes!])', " +
@@ -3716,7 +3716,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propB1` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
@@ -3741,7 +3741,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 			"CREATE TABLE `db`.`processor0_versionedLatestEntity_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propB1` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
@@ -3766,7 +3766,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 			"CREATE MATERIALIZED VIEW `db`.`processor0_versionedLatestEntityMV_EntityG` TO `db`.`processor0_versionedLatestEntity_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propB1` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +
@@ -3786,7 +3786,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 			"CREATE VIEW `db`.`processor0_entity_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
-				"`propB1` Tuple(has Bool,sign Int8,val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
+				"`propB1` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
 				"`propC1` Nullable(Decimal(76, 30)) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal)', " +
 				"`propA2` String COMMENT 'SCALAR(String) SCHEMA([String])', " +
 				"`propB2` String COMMENT 'SCALAR(BigInt) SCHEMA([BigInt])', " +

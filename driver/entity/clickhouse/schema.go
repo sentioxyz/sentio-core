@@ -54,9 +54,8 @@ type Field interface {
 
 	FieldMainName() string
 	FieldNames() []string
-	FieldSlotsForSet() []string
 	FieldValuesForSet(goValue any) []any
-	FieldValuesForSetMain(goValue any) []any
+	FieldValuesForWhereArg(goValue any) ([]any, string)
 	FieldValueFromGet(dbValues map[string]any) any
 
 	Name() string
@@ -339,21 +338,20 @@ func (f SimpleField) FieldNames() []string {
 	return []string{f.FieldMainName()}
 }
 
-func (f SimpleField) FieldSlotsForSet() []string {
-	return []string{"?"}
-}
-
 func (f SimpleField) FieldValuesForSet(goValue any) []any {
 	// goValue may be (*decimal.Decimal)(nil), need to put a no type nil instead of it,
 	// otherwise client of clickhouse will panic.
 	if _isNil(goValue) {
+		if f.FieldTypeChain.CountListLayer() > 0 {
+			return []any{make([]any, 0)} // should be an empty array at least
+		}
 		return []any{nil}
 	}
 	return []any{goValue}
 }
 
-func (f SimpleField) FieldValuesForSetMain(goValue any) []any {
-	return f.FieldValuesForSet(goValue)
+func (f SimpleField) FieldValuesForWhereArg(goValue any) ([]any, string) {
+	return f.FieldValuesForSet(goValue), "?"
 }
 
 func (f SimpleField) FieldValueFromGet(dbValues map[string]any) any {
@@ -618,8 +616,8 @@ func (f JSONTextField) FieldValuesForSet(goValue any) []any {
 	return []any{string(jsonText)}
 }
 
-func (f JSONTextField) FieldValuesForSetMain(goValue any) []any {
-	return f.FieldValuesForSet(goValue)
+func (f JSONTextField) FieldValuesForWhereArg(goValue any) ([]any, string) {
+	return f.FieldValuesForSet(goValue), "?"
 }
 
 func (f JSONTextField) FieldValueFromGet(dbValues map[string]any) any {
@@ -658,8 +656,17 @@ func (f TupleField) GetClickhouseFields() []chx.Field {
 		//  - sign: -1 for negative integer, 0 for zero, 1 for positive integer
 		//  - val: ORIGINAL_VALUE for positive integer and ((1<<256) + ORIGINAL_VALUE) for negative integer
 		return []chx.Field{{
-			Name:    f.FieldMainName(),
-			Type:    chx.FieldTypeNormal("Tuple(has Bool,sign Int8,val UInt256)"),
+			Name: f.FieldMainName(),
+			Type: chx.FieldTypeTuple{Parts: []chx.TuplePart{{
+				Name: "has",
+				Type: chx.FieldTypeBool,
+			}, {
+				Name: "sign",
+				Type: chx.FieldTypeInt8,
+			}, {
+				Name: "val",
+				Type: chx.FieldTypeUInt256,
+			}}},
 			Comment: f.FieldComment(),
 		}}
 	default:
@@ -694,23 +701,20 @@ func (f TupleField) GetViewClickhouseFields() []ViewField {
 	}}
 }
 
-func (f TupleField) FieldSlotsForSet() []string {
-	return []string{"(?,?,?)"}
-}
-
 func (f TupleField) NullCondition(is bool) string {
 	return f.FieldMainName() + utils.Select(is, " = (false,0,0)", " != (false,0,0)")
 }
 
 var num2e256 = new(big.Int).Lsh(big.NewInt(1), 256) // 1 << 256
 
-func (f TupleField) FieldValuesForSetMain(goValue any) []any {
-	return f.FieldValuesForSet(goValue)
+func (f TupleField) FieldValuesForSet(goValue any) []any {
+	values, _ := f.FieldValuesForWhereArg(goValue)
+	return []any{values}
 }
 
-func (f TupleField) FieldValuesForSet(goValue any) []any {
+func (f TupleField) FieldValuesForWhereArg(goValue any) ([]any, string) {
 	if goValue == nil {
-		return []any{false, 0, 0}
+		return []any{false, 0, big.NewInt(0)}, "(?,?,?)"
 	}
 	val, is := goValue.(*big.Int)
 	if !is {
@@ -722,13 +726,13 @@ func (f TupleField) FieldValuesForSet(goValue any) []any {
 		panic(fmt.Errorf("goValue for %s should be *big.Int or big.Int, but is %T", f.FullName(), goValue))
 	}
 	if val == nil {
-		return []any{false, 0, 0}
+		return []any{false, 0, big.NewInt(0)}, "(?,?,?)"
 	}
 	sign := val.Sign()
 	if sign >= 0 {
-		return []any{true, sign, val}
+		return []any{true, sign, val}, "(?,?,?)"
 	}
-	return []any{true, sign, new(big.Int).Add(val, num2e256)}
+	return []any{true, sign, new(big.Int).Add(val, num2e256)}, "(?,?,?)"
 }
 
 func (f TupleField) FieldValueFromGet(dbValues map[string]any) any {
@@ -794,8 +798,8 @@ func (f StringDecimalField) GetViewClickhouseFields() []ViewField {
 	}}
 }
 
-func (f StringDecimalField) FieldValuesForSetMain(goValue any) []any {
-	return f.FieldValuesForSet(goValue)
+func (f StringDecimalField) FieldValuesForWhereArg(goValue any) ([]any, string) {
+	return f.FieldValuesForSet(goValue), "?"
 }
 
 func (f StringDecimalField) FieldValuesForSet(goValue any) []any {
@@ -894,12 +898,8 @@ func (f Decimal512Field) GetViewClickhouseFields() []ViewField {
 	}}
 }
 
-func (f Decimal512Field) FieldSlotsForSet() []string {
-	return []string{"?"}
-}
-
-func (f Decimal512Field) FieldValuesForSetMain(goValue any) []any {
-	return f.FieldValuesForSet(goValue)
+func (f Decimal512Field) FieldValuesForWhereArg(goValue any) ([]any, string) {
+	return f.FieldValuesForSet(goValue), "?"
 }
 
 func (f Decimal512Field) FieldValuesForSet(goValue any) []any {
@@ -1017,8 +1017,8 @@ func (f TimestampField) GetViewClickhouseFields() []ViewField {
 	}}
 }
 
-func (f TimestampField) FieldValuesForSetMain(goValue any) []any {
-	return f.FieldValuesForSet(goValue)
+func (f TimestampField) FieldValuesForWhereArg(goValue any) ([]any, string) {
+	return f.FieldValuesForSet(goValue), "?"
 }
 
 const timestampLayout = "2006-01-02 15:04:05.999999"
@@ -1168,16 +1168,18 @@ func (f NullableOneDimArrayField) FieldNames() []string {
 	return append(f.SimpleField.FieldNames(), f.extraIsNullFieldName())
 }
 
-func (f NullableOneDimArrayField) FieldSlotsForSet() []string {
-	return []string{"?", "?"}
-}
-
 func (f NullableOneDimArrayField) FieldValuesForSet(goValue any) []any {
-	return []any{goValue, _isNil(goValue)}
+	if _isNil(goValue) {
+		return []any{make([]any, 0), true}
+	}
+	return []any{goValue, false}
 }
 
-func (f NullableOneDimArrayField) FieldValuesForSetMain(goValue any) []any {
-	return []any{goValue}
+func (f NullableOneDimArrayField) FieldValuesForWhereArg(goValue any) ([]any, string) {
+	if _isNil(goValue) {
+		return []any{make([]any, 0)}, "?"
+	}
+	return []any{goValue}, "?"
 }
 
 func (f NullableOneDimArrayField) FieldValueFromGet(dbValues map[string]any) any {
@@ -1324,7 +1326,7 @@ func (e Entity) fieldValuesForSet(box entityRow, zeroData map[string]any) (value
 	}
 	values = append(values,
 		box.GenBlockNumber,
-		box.GenBlockTime.UnixMicro(),
+		box.GenBlockTime,
 		box.GenBlockHash,
 		box.GenBlockChain,
 		box.Data == nil)

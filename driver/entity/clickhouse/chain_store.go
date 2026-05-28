@@ -531,6 +531,6 @@ func (c *ChainStore) tryLoadFullIDCache(
 	}
 	c.fullIDCache[entityType.Name] = ids
 	c.fullIDCacheLoaded[entityType.Name] = true
-	logger.Infow("loaded all entity ids from persistent into full id cache", "count", len(ids))
+	logger.Infow("loaded all entity ids from persistent into full id cache", "count", ids.Size())
 	return
 }

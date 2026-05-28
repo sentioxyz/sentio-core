@@ -581,10 +581,12 @@ func (s *Store) _countEntity(
 	} else {
 		hasDeletions := false
 		if excludeDeleted {
-			deletionSQL := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s"+extraCondition,
+			deletionSQL := fmt.Sprintf("SELECT COUNT(*) FROM (SELECT %s FROM %s WHERE %s = ? AND %s%s LIMIT 1)",
+				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
 				quote(deletedFieldName),
+				extraCondition,
 			)
 			var deletionCount uint64
 			deletionCount, err = s.ctrl.QueryCount(SelectCtx(ctx), deletionSQL, chain)
@@ -721,16 +723,19 @@ func (s *Store) _getAllID(
 			quote(genBlockChainFieldName),
 		)
 	} else {
-		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s"+extraCondition,
+		deletionSQL := fmt.Sprintf("SELECT COUNT(*) FROM (SELECT %s FROM %s WHERE %s = ? AND %s%s LIMIT 1)",
+			quote(schema.EntityPrimaryFieldName),
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 			quote(deletedFieldName),
+			extraCondition,
 		)
-		count, countErr := s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
-		if countErr != nil {
-			return nil, countErr
+		var deletionCount uint64
+		deletionCount, err = s.ctrl.QueryCount(SelectCtx(ctx), deletionSQL, chain)
+		if err != nil {
+			return nil, err
 		}
-		if count == 0 {
+		if deletionCount == 0 {
 			// No delete operation, can use simple query.
 			// Most of the time there is no deletion behavior, and this is enough.
 			// Note: for versioned collapsing entities, tableName refers to the deduplicated view

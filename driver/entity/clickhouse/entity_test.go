@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	localClickhouseDSN = "clickhouse://default:password@127.0.0.1:9000/lzxtestdb"
-	testClickhouseDB   = "lzxtestdb"
+	localClickhouseDSN = "clickhouse://default:password@127.0.0.1:9000/my_database"
+	testClickhouseDB   = "my_database"
 	skip               = true
 	//skip = false
 )

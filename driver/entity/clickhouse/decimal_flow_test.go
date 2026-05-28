@@ -108,11 +108,9 @@ func Test_Decimal512_Flow_Native_Write(t *testing.T) {
 
 	d0 := et.GetFieldByName("d0")
 	require.NotNil(t, d0)
-	require.Equal(t, []string{"?"}, d0.FieldSlotsForSet())
 
 	d1 := et.GetFieldByName("d1")
 	require.NotNil(t, d1)
-	require.Equal(t, []string{"?"}, d1.FieldSlotsForSet())
 
 	intPart := strings.Repeat("9", 94) // 154 - 60 = 94 max integer digits
 	fracPart := strings.Repeat("1", 60)

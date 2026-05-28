@@ -127,7 +127,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 			return
 		}
 		param = field.FieldValuesForSetMain(raw)
-		slot = field.FieldSlotsForSet()[0]
+		slot = "?"
 	case
 		persistent.EntityFilterOpGt,
 		persistent.EntityFilterOpGe,
@@ -148,7 +148,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 			return
 		}
 		param = field.FieldValuesForSetMain(raw)
-		slot = field.FieldSlotsForSet()[0]
+		slot = "?"
 		// AND field not null
 		// to make sure exclude null value
 		extra = "AND " + field.NullCondition(false)
@@ -186,7 +186,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 				return
 			}
 			// hasNormal is true
-			slot = "(" + utils.Dup(field.FieldSlotsForSet()[0], ",", setSize) + ")"
+			slot = "(" + utils.Dup("?", ",", setSize) + ")"
 			if hasNil {
 				if filter.Op == persistent.EntityFilterOpIn {
 					extra = "OR " + field.NullCondition(true)
@@ -219,7 +219,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 			return
 		}
 		param = field.FieldValuesForSetMain(filter.Value[0])
-		slot = field.FieldSlotsForSet()[0]
+		slot = "?"
 	case persistent.EntityFilterOpHasAll, persistent.EntityFilterOpHasAny:
 		if fieldTypeChain.CountListLayer() != 1 {
 			err = invalidErr("only one-dimension array can use this operation")

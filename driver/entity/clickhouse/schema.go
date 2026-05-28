@@ -54,7 +54,6 @@ type Field interface {
 
 	FieldMainName() string
 	FieldNames() []string
-	FieldSlotsForSet() []string
 	FieldValuesForSet(goValue any) []any
 	FieldValuesForSetMain(goValue any) []any
 	FieldValueFromGet(dbValues map[string]any) any
@@ -337,10 +336,6 @@ func (f SimpleField) GetClickhouseIndexes() []chx.Index {
 
 func (f SimpleField) FieldNames() []string {
 	return []string{f.FieldMainName()}
-}
-
-func (f SimpleField) FieldSlotsForSet() []string {
-	return []string{"?"}
 }
 
 func (f SimpleField) FieldValuesForSet(goValue any) []any {
@@ -658,8 +653,17 @@ func (f TupleField) GetClickhouseFields() []chx.Field {
 		//  - sign: -1 for negative integer, 0 for zero, 1 for positive integer
 		//  - val: ORIGINAL_VALUE for positive integer and ((1<<256) + ORIGINAL_VALUE) for negative integer
 		return []chx.Field{{
-			Name:    f.FieldMainName(),
-			Type:    chx.FieldTypeNormal("Tuple(has Bool,sign Int8,val UInt256)"),
+			Name: f.FieldMainName(),
+			Type: chx.FieldTypeTuple{Parts: []chx.TuplePart{{
+				Name: "has",
+				Type: chx.FieldTypeBool,
+			}, {
+				Name: "sign",
+				Type: chx.FieldTypeInt8,
+			}, {
+				Name: "val",
+				Type: chx.FieldTypeUInt256,
+			}}},
 			Comment: f.FieldComment(),
 		}}
 	default:
@@ -694,10 +698,6 @@ func (f TupleField) GetViewClickhouseFields() []ViewField {
 	}}
 }
 
-func (f TupleField) FieldSlotsForSet() []string {
-	return []string{"(?,?,?)"}
-}
-
 func (f TupleField) NullCondition(is bool) string {
 	return f.FieldMainName() + utils.Select(is, " = (false,0,0)", " != (false,0,0)")
 }
@@ -710,7 +710,7 @@ func (f TupleField) FieldValuesForSetMain(goValue any) []any {
 
 func (f TupleField) FieldValuesForSet(goValue any) []any {
 	if goValue == nil {
-		return []any{false, 0, 0}
+		return []any{[]any{false, 0, 0}}
 	}
 	val, is := goValue.(*big.Int)
 	if !is {
@@ -722,13 +722,13 @@ func (f TupleField) FieldValuesForSet(goValue any) []any {
 		panic(fmt.Errorf("goValue for %s should be *big.Int or big.Int, but is %T", f.FullName(), goValue))
 	}
 	if val == nil {
-		return []any{false, 0, 0}
+		return []any{[]any{false, 0, 0}}
 	}
 	sign := val.Sign()
 	if sign >= 0 {
-		return []any{true, sign, val}
+		return []any{[]any{true, sign, val}}
 	}
-	return []any{true, sign, new(big.Int).Add(val, num2e256)}
+	return []any{[]any{true, sign, new(big.Int).Add(val, num2e256)}}
 }
 
 func (f TupleField) FieldValueFromGet(dbValues map[string]any) any {
@@ -892,10 +892,6 @@ func (f Decimal512Field) GetViewClickhouseFields() []ViewField {
 		},
 		SelectSQL: quote(f.FieldMainName()),
 	}}
-}
-
-func (f Decimal512Field) FieldSlotsForSet() []string {
-	return []string{"?"}
 }
 
 func (f Decimal512Field) FieldValuesForSetMain(goValue any) []any {
@@ -1166,10 +1162,6 @@ func (f NullableOneDimArrayField) NullCondition(is bool) string {
 
 func (f NullableOneDimArrayField) FieldNames() []string {
 	return append(f.SimpleField.FieldNames(), f.extraIsNullFieldName())
-}
-
-func (f NullableOneDimArrayField) FieldSlotsForSet() []string {
-	return []string{"?", "?"}
 }
 
 func (f NullableOneDimArrayField) FieldValuesForSet(goValue any) []any {

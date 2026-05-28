@@ -327,10 +327,6 @@ type EntityA @entity {
 	assert.Equal(t, []string{"propA"}, et.Fields[1].FieldNames())
 	assert.Equal(t, []string{"propB"}, et.Fields[2].FieldNames())
 
-	assert.Equal(t, []string{"?"}, et.Fields[0].FieldSlotsForSet())
-	assert.Equal(t, []string{"?"}, et.Fields[1].FieldSlotsForSet())
-	assert.Equal(t, []string{"?"}, et.Fields[2].FieldSlotsForSet())
-
 	assert.Equal(t, []any{"aaa"}, et.Fields[0].FieldValuesForSet("aaa"))
 	assert.Equal(t,
 		[]any{utils.WrapPointer("1.234")},
@@ -474,12 +470,6 @@ type EntityA @entity {
 	assert.Equal(t, []string{"propB"}, et.Fields[2].FieldNames())
 	assert.Equal(t, []string{"propC"}, et.Fields[3].FieldNames())
 	assert.Equal(t, []string{"propD"}, et.Fields[4].FieldNames())
-
-	assert.Equal(t, []string{"?"}, et.Fields[0].FieldSlotsForSet())
-	assert.Equal(t, []string{"?"}, et.Fields[1].FieldSlotsForSet())
-	assert.Equal(t, []string{"?"}, et.Fields[2].FieldSlotsForSet())
-	assert.Equal(t, []string{"?"}, et.Fields[3].FieldSlotsForSet())
-	assert.Equal(t, []string{"?"}, et.Fields[4].FieldSlotsForSet())
 
 	assert.Equal(t, []any{"aaa"}, et.Fields[0].FieldValuesForSet("aaa"))
 	assert.Equal(t,

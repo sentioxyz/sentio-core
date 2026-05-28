@@ -38,21 +38,23 @@ func Test_Decimal256_Flow_Basic(t *testing.T) {
 	// Insert value wiring: values flow through as decimal.Decimal
 	now := time.UnixMicro(1234567890).UTC()
 	val := decimal.RequireFromString("123.456")
-	box := EntityBox{EntityBox: persistent.EntityBox{
-		ID:             "e-1",
-		GenBlockNumber: 42,
-		GenBlockTime:   now,
-		GenBlockHash:   "0xhash",
-		GenBlockChain:  "1",
-		Data: map[string]any{
-			"d0": (*decimal.Decimal)(nil), // nullable -> NULL
-			"d1": val,                     // non-nullable
+	box := entityRow{
+		EntityBox: persistent.EntityBox{
+			ID:             "e-1",
+			GenBlockNumber: 42,
+			GenBlockTime:   now,
+			GenBlockHash:   "0xhash",
+			Data: map[string]any{
+				"d0": (*decimal.Decimal)(nil), // nullable -> NULL
+				"d1": val,                     // non-nullable
+			},
 		},
-	}}
+		GenBlockChain: "1",
+	}
 
 	// Names and values for insert
-	names := et.FieldNamesForSet()
-	values := et.FieldValuesForSet(box, map[string]any{})
+	names := et.fieldNamesForSet()
+	values := et.fieldValuesForSet(box, map[string]any{})
 
 	// id, d0, d1 + 5 system fields
 	assert.Equal(t, 3+5, len(names))

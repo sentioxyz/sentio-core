@@ -2,18 +2,20 @@ package persistent
 
 import (
 	"fmt"
+	"math/big"
+	"reflect"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/graph-gophers/graphql-go/types"
 	"github.com/shopspring/decimal"
-	"math/big"
-	"reflect"
+
 	"sentioxyz/sentio-core/common/anyutil"
 	rsh "sentioxyz/sentio-core/common/richstructhelper"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/schema"
 	entityProtos "sentioxyz/sentio-core/processor/protos"
 	"sentioxyz/sentio-core/service/common/protos"
-	"time"
 )
 
 func buildType(typ types.Type) (reflect.Type, any) {
@@ -318,7 +320,7 @@ func buildRichValue(origin reflect.Value, typ types.Type) (r *protos.RichValue, 
 	return nil, fmt.Errorf("type not match")
 }
 
-func (e *EntityBox) FromRichStruct(entityType *schema.Entity, data *protos.RichStruct) (err error) {
+func (e *UncommittedEntityBox) FromRichStruct(entityType *schema.Entity, data *protos.RichStruct) (err error) {
 	if data == nil {
 		e.Data, e.Operator = nil, nil
 		return
@@ -345,7 +347,10 @@ func (e *EntityBox) FromRichStruct(entityType *schema.Entity, data *protos.RichS
 	return
 }
 
-func (e *EntityBox) FromEntityUpdateData(entityType *schema.Entity, data *entityProtos.EntityUpdateData) (err error) {
+func (e *UncommittedEntityBox) FromEntityUpdateData(
+	entityType *schema.Entity,
+	data *entityProtos.EntityUpdateData,
+) (err error) {
 	if data == nil {
 		e.Data, e.Operator = nil, nil
 		return

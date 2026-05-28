@@ -103,7 +103,7 @@ func prepareTestBox() EntityBox {
 }
 
 func Test_checkFilter(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	entityType := sch.GetEntity("EntityD")
@@ -548,7 +548,7 @@ func Test_checkFilter(t *testing.T) {
 }
 
 func Test_checkFilterWithNullValue(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	entityType := sch.GetEntity("EntityD")
@@ -728,8 +728,8 @@ func Test_checkFilterWithNullValue(t *testing.T) {
 	}
 }
 
-func Test_checkFilters(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+func Test_CheckFilters(t *testing.T) {
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	entityType := sch.GetEntity("EntityD")
@@ -745,7 +745,7 @@ func Test_checkFilters(t *testing.T) {
 	}
 
 	// propA1 == "pa" && propB1 == "pb"
-	cr, err = checkFilters([]EntityFilter{
+	cr, err = CheckFilters([]EntityFilter{
 		{
 			Field: entityType.GetFieldByName("propA1"),
 			Op:    EntityFilterOpEq,
@@ -760,7 +760,7 @@ func Test_checkFilters(t *testing.T) {
 	assert.True(t, cr)
 	assert.NoError(t, err)
 	// propA1 == "pa" && propB1 != "pb"
-	cr, err = checkFilters([]EntityFilter{
+	cr, err = CheckFilters([]EntityFilter{
 		{
 			Field: entityType.GetFieldByName("propA1"),
 			Op:    EntityFilterOpEq,
@@ -775,7 +775,7 @@ func Test_checkFilters(t *testing.T) {
 	assert.False(t, cr)
 	assert.NoError(t, err)
 	// propA1 != "pa" && propB1 != "pb"
-	cr, err = checkFilters([]EntityFilter{
+	cr, err = CheckFilters([]EntityFilter{
 		{
 			Field: entityType.GetFieldByName("propA1"),
 			Op:    EntityFilterOpNe,
@@ -790,7 +790,7 @@ func Test_checkFilters(t *testing.T) {
 	assert.False(t, cr)
 	assert.NoError(t, err)
 	// propA1 != "pa" && propB1 == "pb"
-	cr, err = checkFilters([]EntityFilter{
+	cr, err = CheckFilters([]EntityFilter{
 		{
 			Field: entityType.GetFieldByName("propA1"),
 			Op:    EntityFilterOpNe,

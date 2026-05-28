@@ -280,7 +280,7 @@ func (s *Store) GetLatestViewFields(item schema.EntityOrInterface) []ViewField {
 //    aggregation ---> view ---> latestView
 //
 
-func (s *Store) UseVersionedCollapsingTable(item schema.EntityOrInterface) bool {
+func (s *Store) useVersionedCollapsingTable(item schema.EntityOrInterface) bool {
 	entityType, is := item.(*schema.Entity)
 	return s.feaOpt.VersionedCollapsing && is && !entityType.IsImmutable()
 }
@@ -295,7 +295,7 @@ func (s *Store) buildTablesAndViews(viewOnly bool) (result map[string][]chx.Tabl
 				if itemType.IsCache() {
 					continue
 				}
-				if s.UseVersionedCollapsingTable(itemType) {
+				if s.useVersionedCollapsingTable(itemType) {
 					result[item.GetName()] = append(result[item.GetName()],
 						// [TABLE] versionedEntity
 						s.buildVersionedEntityTable(itemType),
@@ -374,7 +374,7 @@ func wrapAnyAs(fields []string) []string {
 	})
 }
 
-func (s *Store) TableOrViewComment(entityType schema.EntityOrInterface) string {
+func (s *Store) tableOrViewComment(entityType schema.EntityOrInterface) string {
 	var comments cmstr.KVS
 	switch typ := entityType.(type) {
 	case *schema.Entity:
@@ -403,7 +403,7 @@ func (s *Store) buildVersionedEntityTable(entityType *schema.Entity) chx.Table {
 			},
 			Settings: s.tableOpt.TableSettings,
 		},
-		Comment: s.TableOrViewComment(entityType),
+		Comment: s.tableOrViewComment(entityType),
 		Fields: append(
 			s.getClickhouseFields(entityType),
 			chx.Field{Name: genBlockNumberFieldName, Type: genBlockNumberFieldType},
@@ -429,7 +429,7 @@ func (s *Store) buildVersionedLatestEntityTable(entityType *schema.Entity) chx.T
 			OrderBy:     []string{genBlockChainFieldName, schema.EntityPrimaryFieldName},
 			Settings:    s.tableOpt.TableSettings,
 		},
-		Comment: s.TableOrViewComment(entityType),
+		Comment: s.tableOrViewComment(entityType),
 		Fields: append(
 			s.getClickhouseFields(entityType),
 			chx.Field{Name: genBlockNumberFieldName, Type: genBlockNumberFieldType},
@@ -462,7 +462,7 @@ func (s *Store) buildVersionedLatestEntityMaterializedView(entityType *schema.En
 				chx.Field{Name: versionFieldName, Type: versionFieldType},
 			),
 			Select:  "SELECT * FROM " + s.fullName(s.VersionedTableName(entityType)),
-			Comment: s.TableOrViewComment(entityType),
+			Comment: s.tableOrViewComment(entityType),
 		},
 		To: s.VersionedLatestTableName(entityType),
 	}
@@ -492,7 +492,7 @@ func (s *Store) buildEntityView(entityType *schema.Entity) chx.View {
 			s.fullName(s.VersionedTableName(entityType)),
 			signFieldName,
 		),
-		Comment: s.TableOrViewComment(entityType),
+		Comment: s.tableOrViewComment(entityType),
 	}
 }
 
@@ -523,7 +523,7 @@ func (s *Store) buildEntityTable(entityType schema.EntityOrInterface) chx.Table 
 			OrderBy:     orderBy,
 			Settings:    s.tableOpt.TableSettings,
 		},
-		Comment: s.TableOrViewComment(entityType),
+		Comment: s.tableOrViewComment(entityType),
 		Fields:  append(s.getClickhouseFields(entityType), systemFields...),
 		Indexes: s.getClickhouseIndexes(entityType),
 	}
@@ -559,7 +559,7 @@ func (s *Store) buildInterfaceView(ifaceType *schema.Interface) chx.View {
 			chx.Field{Name: implEntityFieldName, Type: implEntityFieldType},
 		),
 		Select:  strings.Join(entitySelects, " UNION ALL "),
-		Comment: s.TableOrViewComment(ifaceType),
+		Comment: s.tableOrViewComment(ifaceType),
 	}
 }
 
@@ -572,7 +572,7 @@ func (s *Store) buildView(item schema.EntityOrInterface) chx.View {
 		Name:    s.ViewName(item),
 		Fields:  utils.MapSliceNoError(viewFields, ViewField.GetField),
 		Select:  fmt.Sprintf("SELECT %s FROM %s", strings.Join(selects, ", "), s.fullName(s.TableName(item))),
-		Comment: s.TableOrViewComment(item),
+		Comment: s.tableOrViewComment(item),
 	}
 }
 
@@ -582,9 +582,9 @@ func (s *Store) buildLatestView(entityType *schema.Entity) chx.View {
 	view := chx.View{
 		Name:    s.LatestViewName(entityType),
 		Fields:  utils.MapSliceNoError(viewFields, ViewField.GetField),
-		Comment: s.TableOrViewComment(entityType),
+		Comment: s.tableOrViewComment(entityType),
 	}
-	if s.UseVersionedCollapsingTable(entityType) {
+	if s.useVersionedCollapsingTable(entityType) {
 		// Build Select SQL
 		// ----------------------------------------
 		// SELECT id, __genBlockChain__, any_respect_nulls(propA) AS propA
@@ -682,7 +682,7 @@ func (s *Store) buildInterfaceLatestView(ifaceType *schema.Interface) chx.View {
 		Name:    s.LatestViewName(ifaceType),
 		Fields:  utils.MapSliceNoError(s.GetLatestViewFields(ifaceType), ViewField.GetField),
 		Select:  strings.Join(entitySelects, " UNION ALL "),
-		Comment: s.TableOrViewComment(ifaceType),
+		Comment: s.tableOrViewComment(ifaceType),
 	}
 }
 
@@ -695,6 +695,6 @@ func (s *Store) buildAggregationLatestView(agg *schema.Aggregation) chx.View {
 		Name:    s.LatestViewName(agg),
 		Fields:  utils.MapSliceNoError(viewFields, ViewField.GetField),
 		Select:  fmt.Sprintf("SELECT %s FROM %s", joinWithQuote(selects, ", "), s.fullName(s.ViewName(agg))),
-		Comment: s.TableOrViewComment(agg),
+		Comment: s.tableOrViewComment(agg),
 	}
 }

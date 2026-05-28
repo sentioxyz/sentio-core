@@ -310,10 +310,8 @@ func (e *Exp) String() string {
 
 func (e *Exp) Verify(opProvider OperatorProvider, varProvider VarProvider) error {
 	if e.Value != nil {
-		if e.Value != nil {
-			if err := varProvider.Check(e.Value.Cnt); err != nil {
-				return e.Value.BuildError("invalid variable", ", "+err.Error())
-			}
+		if err := varProvider.Check(e.Value.Cnt); err != nil {
+			return e.Value.BuildError("invalid variable", ", "+err.Error())
 		}
 	} else {
 		if !opProvider.Check(e.Operator.Cnt, len(e.Arguments)) {

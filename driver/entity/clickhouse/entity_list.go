@@ -287,7 +287,7 @@ func (s *Store) buildConditions(
 	return conditionPrefix + strings.Join(conditions, " AND "), params, mergeFunc(epilogues), nil
 }
 
-func SplitFilters(filters []persistent.EntityFilter) (primaryKeyFilters, otherFilters []persistent.EntityFilter) {
+func splitFilters(filters []persistent.EntityFilter) (primaryKeyFilters, otherFilters []persistent.EntityFilter) {
 	for _, filter := range filters {
 		if filter.Field.Name == schema.EntityPrimaryFieldName {
 			primaryKeyFilters = append(primaryKeyFilters, filter)
@@ -305,7 +305,7 @@ func (s *Store) listEntities(
 	filters []persistent.EntityFilter,
 	excludeDeleted bool,
 	limit int,
-) ([]*EntityBox, error) {
+) ([]*entityRow, error) {
 	const maxRetry = 10
 	const retryInterval = time.Second
 	// List entity may use temporary table.
@@ -335,7 +335,7 @@ func (s *Store) _listEntities(
 	filters []persistent.EntityFilter,
 	excludeDeleted bool,
 	limit int,
-) (result []*EntityBox, err error) {
+) (result []*entityRow, err error) {
 	if entityType.IsCache() {
 		return nil, nil
 	}
@@ -344,7 +344,7 @@ func (s *Store) _listEntities(
 	kit := s.NewEntity(entityType)
 	var sql string
 	var sqlArgs []any
-	if s.UseVersionedCollapsingTable(entityType) {
+	if s.useVersionedCollapsingTable(entityType) {
 		// The select field name needs to be converted, otherwise the aggregated field will be referenced
 		// in the where clause, it will cause error
 		// --------------------
@@ -364,7 +364,7 @@ func (s *Store) _listEntities(
 		//   ORDER BY id
 		//   LIMIT ?
 		// )
-		selects := utils.FilterArr(kit.FieldNamesForGet(), func(fn string) bool {
+		selects := utils.FilterArr(kit.fieldNamesForGet(), func(fn string) bool {
 			return fn != schema.EntityPrimaryFieldName && fn != genBlockChainFieldName && fn != versionFieldName
 		})
 		innerSelects := make([]string, len(selects))
@@ -422,7 +422,7 @@ func (s *Store) _listEntities(
 			excludeDeletedConditions = fmt.Sprintf(" AND NOT %s", quote(deletedFieldName))
 		}
 		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ? %s %s ORDER BY %s LIMIT ?",
-			joinWithQuote(kit.FieldNamesForGet(), ","),
+			joinWithQuote(kit.fieldNamesForGet(), ","),
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 			excludeDeletedConditions,
@@ -442,7 +442,7 @@ func (s *Store) _listEntities(
 		// WHERE NOT __last__.2 AND propA > ?
 		// ORDER BY id
 		// LIMIT ?
-		lastFields := utils.Prepend(utils.FilterArr(kit.FieldNamesForGet(), func(fn string) bool {
+		lastFields := utils.Prepend(utils.FilterArr(kit.fieldNamesForGet(), func(fn string) bool {
 			return fn != schema.EntityPrimaryFieldName &&
 				fn != genBlockChainFieldName &&
 				fn != genBlockNumberFieldName &&
@@ -452,7 +452,7 @@ func (s *Store) _listEntities(
 		for i, fieldName := range lastFields {
 			lastAs[i] = fmt.Sprintf("__last__.%d AS %s", i+1, quote(fieldName))
 		}
-		primaryKeyFilters, otherFilters := SplitFilters(filters)
+		primaryKeyFilters, otherFilters := splitFilters(filters)
 		primaryKeyConditions, primaryKeyParams, primaryEpi, err := s.buildConditions(ctx, kit, primaryKeyFilters, "AND ")
 		defer primaryEpi()
 		if err != nil {
@@ -496,12 +496,12 @@ func (s *Store) _listEntities(
 	// execute query and get the response
 	// may be used temporary table, so here do not use SelectCtx(ctx) instead of ctx
 	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
-		box, scanErr := kit.ScanOne(rows)
+		row, scanErr := kit.scanOne(rows)
 		if scanErr != nil {
 			return scanErr
 		}
-		box.Entity = entityType.Name
-		result = append(result, box)
+		row.Entity = entityType.Name
+		result = append(result, &row)
 		return nil
 	}, sql, sqlArgs...)
 	_, logger := log.FromContext(ctx,
@@ -520,27 +520,13 @@ func (s *Store) _listEntities(
 	return
 }
 
-func (s *Store) ListEntities(
+func (s *Store) countEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
 	chain string,
-	filters []persistent.EntityFilter,
-	limit int,
-) ([]*persistent.EntityBox, error) {
-	result, err := s.listEntities(ctx, entityType, chain, filters, true, limit)
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		return nil, nil
-	}
-	return utils.MapSliceNoError(result, func(box *EntityBox) *persistent.EntityBox {
-		return box.Get()
-	}), nil
-}
-
-func (s *Store) CountEntity(ctx context.Context, entityType *schema.Entity, chain string) (count uint64, err error) {
-	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
+	excludeDeleted bool,
+) (count uint64, err error) {
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "excludeDeleted", excludeDeleted)
 	var sql string
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?",
@@ -548,26 +534,30 @@ func (s *Store) CountEntity(ctx context.Context, entityType *schema.Entity, chai
 			quote(genBlockChainFieldName),
 		)
 	} else {
-		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
-			s.fullName(s.TableName(entityType)),
-			quote(genBlockChainFieldName),
-			quote(deletedFieldName),
-		)
-		startAt := time.Now()
-		count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
-		if err != nil {
-			logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted failed")
-			return 0, err
+		if excludeDeleted {
+			sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
+				s.fullName(s.TableName(entityType)),
+				quote(genBlockChainFieldName),
+				quote(deletedFieldName),
+			)
+			startAt := time.Now()
+			count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
+			if err != nil {
+				logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted failed")
+				return 0, err
+			}
 		}
-		if count == 0 {
-			// No delete operation, can use simple query.
+		if !excludeDeleted || count == 0 {
+			// No delete operation, or do not exclude deleted items, can use simple query.
 			// Most of the time there is no deletion behavior, and this is enough.
+			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
+			// (sign=-1 rows excluded), so COUNT(DISTINCT id) correctly reflects live entity count.
 			sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?",
 				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
 			)
-		} else if s.UseVersionedCollapsingTable(entityType) {
+		} else if s.useVersionedCollapsingTable(entityType) {
 			// SELECT COUNT(*)
 			// FROM (
 			//  SELECT id
@@ -631,13 +621,13 @@ func (s *Store) CountEntity(ctx context.Context, entityType *schema.Entity, chai
 	return
 }
 
-func (s *Store) GetAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids []string, err error) {
+func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids []string, err error) {
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
 	var sql string
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?",
 			quote(schema.EntityPrimaryFieldName),
-			s.TableName(entityType),
+			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 		)
 	} else {
@@ -649,18 +639,21 @@ func (s *Store) GetAllID(ctx context.Context, entityType *schema.Entity, chain s
 		startAt := time.Now()
 		count, countErr := s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
 		if countErr != nil {
-			logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted when list ids failed")
-			return nil, err
+			logger.With("sql", sql, "used", time.Since(startAt).String()).
+				Errore(countErr, "count deleted when list ids failed")
+			return nil, countErr
 		}
 		if count == 0 {
 			// No delete operation, can use simple query.
 			// Most of the time there is no deletion behavior, and this is enough.
+			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
+			// (sign=-1 rows excluded), so DISTINCT id correctly returns only live entity IDs.
 			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?",
 				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
 			)
-		} else if s.UseVersionedCollapsingTable(entityType) {
+		} else if s.useVersionedCollapsingTable(entityType) {
 			// SELECT id
 			// FROM versionedLatestEntity
 			// WHERE __genBlockChain__ = ? AND NOT __deleted__
@@ -717,14 +710,14 @@ func (s *Store) GetAllID(ctx context.Context, entityType *schema.Entity, chain s
 	return
 }
 
-func (s *Store) GetMaxID(ctx context.Context, entityType *schema.Entity, chain string) (int64, error) {
+func (s *Store) getMaxID(ctx context.Context, entityType *schema.Entity, chain string) (int64, error) {
 	if !entityType.IsTimeSeries() {
 		return 0, fmt.Errorf("%q is not timeseries entity", entityType.Name)
 	}
 	start := time.Now()
 	sql := fmt.Sprintf("SELECT max(%s) FROM %s WHERE %s = ?",
 		quote(schema.EntityPrimaryFieldName),
-		s.TableName(entityType),
+		s.fullName(s.TableName(entityType)),
 		quote(genBlockChainFieldName))
 	var maxID int64
 	err := s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {

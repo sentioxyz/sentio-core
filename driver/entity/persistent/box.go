@@ -2,30 +2,34 @@ package persistent
 
 import (
 	"fmt"
-	"github.com/DmitriyVTitov/size"
-	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio-core/driver/entity/schema"
 	"sort"
 	"time"
+
+	"github.com/DmitriyVTitov/size"
+
+	"sentioxyz/sentio-core/common/utils"
+	"sentioxyz/sentio-core/driver/entity/schema"
 )
 
 type EntityBox struct {
-	ID             string
-	Data           map[string]any // here always do not include reverse foreign key fields
-	Operator       map[string]Operator
-	Entity         string
+	Entity string
+	ID     string
+
+	// here always do not include reverse foreign key fields
+	// nil means it is deleted
+	Data map[string]any
+
 	GenBlockNumber uint64
 	GenBlockTime   time.Time
 	GenBlockHash   string
-	GenBlockChain  string
 }
 
 func (e *EntityBox) String() string {
 	if e == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("[%s,%d,%s][%s]%s",
-		e.GenBlockChain, e.GenBlockNumber, e.GenBlockHash, e.ID, utils.MustJSONMarshal(e.Data))
+	return fmt.Sprintf("[%d,%s][%s]%s",
+		e.GenBlockNumber, e.GenBlockHash, e.ID, utils.MustJSONMarshal(e.Data))
 }
 
 func (e *EntityBox) MemSize() uint64 {
@@ -39,66 +43,8 @@ func (e *EntityBox) Copy() *EntityBox {
 	box := *e
 	if e.Data != nil {
 		box.Data = utils.CopyMap(e.Data)
-		box.Operator = utils.CopyMap(e.Operator)
 	}
 	return &box
-}
-
-func (e *EntityBox) Merge(entityType *schema.Entity, newOne *EntityBox) {
-	if e.ID != newOne.ID {
-		panic(fmt.Errorf("merge entity with different ID"))
-	}
-	if e.Entity != newOne.Entity {
-		panic(fmt.Errorf("merge entity with different entty type"))
-	}
-	if e.GenBlockChain != newOne.GenBlockChain {
-		panic(fmt.Errorf("merge entity with different genBlockChain"))
-	}
-	e.GenBlockNumber = newOne.GenBlockNumber
-	e.GenBlockTime = newOne.GenBlockTime
-	e.GenBlockHash = newOne.GenBlockHash
-	if newOne.Data == nil {
-		e.Data, e.Operator = nil, nil
-		return
-	}
-	if e.Data == nil {
-		e.Data, e.Operator = newOne.Data, nil
-		for fieldName, op := range newOne.Operator {
-			field := entityType.Get(fieldName)
-			_, zeroVal := buildType(field.Type)
-			e.Data[fieldName] = calcOperator(field.Type, zeroVal, op)
-		}
-		return
-	}
-	// ===: has value
-	// +++: has operator
-	//
-	// old === === +++ +++
-	// new +++ === === +++
-	// ret === === === +++
-	//     (1) (2) (3) (4)
-	//
-	// (1) Calc Operator
-	// (2) Cover
-	// (3) Cover
-	// (4) Merge Operator
-	for fieldName, val := range newOne.Data {
-		// (2) & (3)
-		e.Data[fieldName] = val
-	}
-	newOperators := make(map[string]Operator)
-	for fieldName, op := range newOne.Operator {
-		field := entityType.Get(fieldName)
-		if originVal, has := e.Data[fieldName]; has {
-			// (1)
-			e.Data[fieldName] = calcOperator(field.Type, originVal, op)
-		} else {
-			// (4)
-			preOp := e.Operator[fieldName]
-			newOperators[fieldName] = mergeOperator(field.Type, preOp, op)
-		}
-	}
-	e.Operator = newOperators
 }
 
 func (e *EntityBox) IsComplete(entityType *schema.Entity) bool {
@@ -128,8 +74,75 @@ func (e *EntityBox) FillLostFields(origin map[string]any, entityType *schema.Ent
 	}
 }
 
+func (e *EntityBox) NewUncommittedEntityBox() *UncommittedEntityBox {
+	if e == nil {
+		return nil
+	}
+	return &UncommittedEntityBox{EntityBox: *e}
+}
+
 func SortEntityBoxes(list []*EntityBox) {
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].ID < list[j].ID
 	})
+}
+
+type UncommittedEntityBox struct {
+	EntityBox
+
+	Operator map[string]Operator
+}
+
+func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *UncommittedEntityBox) {
+	if e.ID != newOne.ID {
+		panic(fmt.Errorf("merge entity with different ID"))
+	}
+	if e.Entity != newOne.Entity {
+		panic(fmt.Errorf("merge entity with different entity type"))
+	}
+	e.GenBlockNumber = newOne.GenBlockNumber
+	e.GenBlockTime = newOne.GenBlockTime
+	e.GenBlockHash = newOne.GenBlockHash
+	if newOne.Data == nil {
+		e.Data, e.Operator = nil, nil
+		return
+	}
+	if e.Data == nil {
+		e.Data, e.Operator = newOne.Data, nil
+		for fieldName, op := range newOne.Operator {
+			field := entityType.GetFieldByName(fieldName)
+			_, zeroVal := buildType(field.Type)
+			e.Data[fieldName] = calcOperator(field.Type, zeroVal, op)
+		}
+		return
+	}
+	// ===: has value
+	// +++: has operator
+	//
+	// old === === +++ +++
+	// new +++ === === +++
+	// ret === === === +++
+	//     (1) (2) (3) (4)
+	//
+	// (1) Calc Operator
+	// (2) Cover
+	// (3) Cover
+	// (4) Merge Operator
+	for fieldName, val := range newOne.Data {
+		// (2) & (3)
+		e.Data[fieldName] = val
+	}
+	newOperators := make(map[string]Operator)
+	for fieldName, op := range newOne.Operator {
+		field := entityType.GetFieldByName(fieldName)
+		if originVal, has := e.Data[fieldName]; has {
+			// (1)
+			e.Data[fieldName] = calcOperator(field.Type, originVal, op)
+		} else {
+			// (4)
+			preOp := e.Operator[fieldName]
+			newOperators[fieldName] = mergeOperator(field.Type, preOp, op)
+		}
+	}
+	e.Operator = newOperators
 }

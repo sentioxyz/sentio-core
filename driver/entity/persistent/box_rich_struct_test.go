@@ -13,7 +13,7 @@ import (
 )
 
 func Test_convertRichStruct_normal(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	var bigNum big.Int
@@ -346,7 +346,7 @@ func Test_convertRichStruct_normal(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, data, d)
 
-	var e EntityBox
+	var e UncommittedEntityBox
 	assert.NoError(t, e.FromRichStruct(edType, d))
 	assert.Equal(t, box.Data, e.Data)
 
@@ -354,7 +354,7 @@ func Test_convertRichStruct_normal(t *testing.T) {
 }
 
 func Test_convertRichStruct_zero(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	edType := sch.GetEntity("EntityD")
@@ -572,13 +572,13 @@ func Test_convertRichStruct_zero(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, data, d)
 
-	var e EntityBox
+	var e UncommittedEntityBox
 	assert.NoError(t, e.FromRichStruct(edType, d))
 	assert.Equal(t, box.Data, e.Data)
 }
 
 func Test_convertRichStruct_zero2(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	edType := sch.GetEntity("EntityD")
@@ -740,13 +740,13 @@ func Test_convertRichStruct_zero2(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, data, d)
 
-	var e EntityBox
+	var e UncommittedEntityBox
 	assert.NoError(t, e.FromRichStruct(edType, d))
 	assert.Equal(t, box2.Data, e.Data)
 }
 
 func Test_convertRichStruct_missFields(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	var bigNum big.Int
@@ -1002,7 +1002,7 @@ func Test_convertRichStruct_missFields(t *testing.T) {
 	d, err = box.ToRichStruct(edType)
 	assert.NoError(t, err)
 	assert.Equal(t, data, d)
-	var e EntityBox
+	var e UncommittedEntityBox
 	assert.NoError(t, e.FromRichStruct(edType, d))
 	assert.Equal(t, boxFull.Data, e.Data)
 
@@ -1015,7 +1015,7 @@ func Test_convertRichStruct_missFields(t *testing.T) {
 }
 
 func Test_convertRichStruct_missFields2(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	edType := sch.GetEntity("EntityD")
@@ -1133,7 +1133,7 @@ func Test_convertRichStruct_missFields2(t *testing.T) {
 }
 
 func Test_FromRichStruct_emptyArray(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(testSchemaCnt)
+	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 
 	edType := sch.GetEntity("EntityD")
@@ -1142,7 +1142,7 @@ func Test_FromRichStruct_emptyArray(t *testing.T) {
 		"id":     rsh.NewStringValue("id"),
 		"propA6": rsh.NewListValue(),
 	}}
-	var a EntityBox
+	var a UncommittedEntityBox
 	assert.NoError(t, a.FromRichStruct(edType, data))
 	assert.Equal(t, []string{}, a.Data["propA6"]) // not []string(nil), it is important
 

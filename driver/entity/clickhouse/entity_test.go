@@ -152,30 +152,30 @@ func (es *EntitySuite) getEntityTypeFromID(id string) *schema.Entity {
 	return nil
 }
 
-func (es *EntitySuite) pushData(ctx context.Context, entities map[string]persistent.EntityBox) {
+func (es *EntitySuite) pushData(ctx context.Context, entities map[string]entityRow) {
 	var err error
-	var data *persistent.EntityBox
+	var data *entityRow
 
 	// set
 	for id, entity := range entities {
-		_, err = es.s.SetEntities(ctx, es.getEntityTypeFromID(id), []persistent.EntityBox{entity})
+		_, err = es.s.setEntities(ctx, es.getEntityTypeFromID(id), entity.GenBlockChain, []persistent.EntityBox{entity.EntityBox}, nil, nil)
 		assert.NoError(es.t, err)
 	}
 
 	// get
 	for id, entity := range entities {
-		data, err = es.s.GetEntity(ctx, es.getEntityTypeFromID(id), entity.GenBlockChain, id)
+		data, err = es.s.getEntity(ctx, es.getEntityTypeFromID(id), entity.GenBlockChain, id)
 		assert.NoError(es.t, err)
-		assert.Equal(es.t, entity, *data)
+		assert.Equal(es.t, entity.EntityBox, data.EntityBox)
 	}
 
-	data, err = es.s.GetEntity(ctx, es.s.sch.GetEntity("EntityA"), "", "a-id-2")
+	data, err = es.s.getEntity(ctx, es.s.sch.GetEntity("EntityA"), "", "a-id-2")
 	assert.NoError(es.t, err)
 	assert.Nil(es.t, data)
-	data, err = es.s.GetEntity(ctx, es.s.sch.GetEntity("EntityB"), "", "b-id-2")
+	data, err = es.s.getEntity(ctx, es.s.sch.GetEntity("EntityB"), "", "b-id-2")
 	assert.NoError(es.t, err)
 	assert.Nil(es.t, data)
-	data, err = es.s.GetEntity(ctx, es.s.sch.GetEntity("EntityC"), "", "c-id-10")
+	data, err = es.s.getEntity(ctx, es.s.sch.GetEntity("EntityC"), "", "c-id-10")
 	assert.NoError(es.t, err)
 	assert.Nil(es.t, data)
 }
@@ -210,8 +210,181 @@ func Test_getSetDel(t *testing.T) {
 
 	maxBigInt := new(big.Int).Sub(num2e256, big.NewInt(1))
 
-	entities := map[string]persistent.EntityBox{
+	entities := map[string]entityRow{
 		"0x0a00": {
+			EntityBox: persistent.EntityBox{
+				ID: "0x0a00",
+				Data: map[string]any{
+					"id":        "0x0a00",
+					"propertyA": utils.WrapPointer("pa"),
+					"propertyB": utils.WrapPointer(true),
+					"propertyC": utils.WrapPointer(int32(123)),
+					"propertyD": []any{big.NewInt(234), big.NewInt(345)},
+					"propertyE": []any{
+						[]any{decimal.New(111111, -30), decimal.New(222222, -10)},
+						[]any{decimal.New(3, -30), decimal.New(400000004, -30)},
+					},
+					"propertyF": utils.WrapPointer("AAA"),
+					"propertyG": []any{"AAA", "AAA", "CCC"},
+					"foreignA":  "0x0b00",
+					"foreignD":  utils.WrapPointer("0x0b00"),
+				},
+				Entity:         "EntityA",
+				GenBlockNumber: 100,
+				GenBlockTime:   genBlockTime(100),
+				GenBlockHash:   "0x1234",
+			},
+			GenBlockChain: chain,
+		},
+		"0x0a01": {
+			EntityBox: persistent.EntityBox{
+				ID: "0x0a01",
+				Data: map[string]any{
+					"id":        "0x0a01",
+					"propertyA": (*string)(nil),
+					"propertyB": (*bool)(nil),
+					"propertyC": (*int32)(nil),
+					"propertyD": []any{big.NewInt(234222), big.NewInt(3453333)},
+					"propertyE": nil,
+					"propertyF": (*string)(nil),
+					"propertyG": []any{"BBB", "CCC", nil},
+					"foreignA":  "0x0b01",
+					"foreignD":  utils.WrapPointer("0x0b01"),
+				},
+				Entity:         "EntityA",
+				GenBlockNumber: 110,
+				GenBlockTime:   genBlockTime(110),
+				GenBlockHash:   "0x1234",
+			},
+			GenBlockChain: chain,
+		},
+		"0x0b00": {
+			EntityBox: persistent.EntityBox{
+				ID: "0x0b00",
+				Data: map[string]any{
+					"id":        "0x0b00",
+					"propertyA": "pb",
+					"foreignB":  "0x0a00",
+					"foreignE":  []*string{utils.WrapPointer("0x0a00")},
+					"foreignF":  []string{}, // empty
+				},
+				Entity:         "EntityB",
+				GenBlockNumber: 120,
+				GenBlockTime:   genBlockTime(120),
+				GenBlockHash:   "0x1234",
+			},
+			GenBlockChain: chain,
+		},
+		"0x0b01": {
+			EntityBox: persistent.EntityBox{
+				ID: "0x0b01",
+				Data: map[string]any{
+					"id":        "0x0b01",
+					"propertyA": "pbbbbb",
+					"foreignB":  "0x0a00",
+					"foreignE":  []*string{utils.WrapPointer("0x0a01"), utils.WrapPointer("0x0a00")},
+					"foreignF":  []string{"0x0a01", "0x0a00"},
+				},
+				Entity:         "EntityB",
+				GenBlockNumber: 130,
+				GenBlockTime:   genBlockTime(130),
+				GenBlockHash:   "0x1234",
+			},
+			GenBlockChain: chain,
+		},
+		"0x0c0000": {
+			EntityBox: persistent.EntityBox{
+				ID: "0x0c0000",
+				Data: map[string]any{
+					"id":        "0x0c0000",
+					"propertyA": int32(100),
+					"propertyB": maxBigInt,
+					"propertyC": maxBigInt,
+					"propertyD": decimal.New(1, -30),
+					"foreignCA": "0x0a00",
+					"foreignCB": "0x0b00",
+				},
+				Entity:         "EntityC",
+				GenBlockNumber: 140,
+				GenBlockTime:   genBlockTime(140),
+				GenBlockHash:   "0x1234",
+			},
+			GenBlockChain: chain,
+		},
+		"0x0c0001": {
+			EntityBox: persistent.EntityBox{
+				ID: "0x0c0001",
+				Data: map[string]any{
+					"id":        "0x0c0001",
+					"propertyA": int32(101),
+					"propertyB": big.NewInt(1),
+					"propertyC": nil,
+					"propertyD": decimal.New(123456789, -30),
+					"foreignCA": "0x0a00",
+					"foreignCB": "0x0b01",
+				},
+				Entity:         "EntityC",
+				GenBlockNumber: 150,
+				GenBlockTime:   genBlockTime(150),
+				GenBlockHash:   "0x1234",
+			},
+			GenBlockChain: chain,
+		},
+		"0x0c0101": {
+			EntityBox: persistent.EntityBox{
+				ID: "0x0c0101",
+				Data: map[string]any{
+					"id":        "0x0c0101",
+					"propertyA": int32(111),
+					"propertyB": big.NewInt(-100),
+					"propertyC": new(big.Int).Neg(maxBigInt),
+					"propertyD": decimal.New(123456789, -30),
+					"foreignCA": "0x0a01",
+					"foreignCB": "0x0b01",
+				},
+				Entity:         "EntityC",
+				GenBlockNumber: 160,
+				GenBlockTime:   genBlockTime(160),
+				GenBlockHash:   "0x1234",
+			},
+			GenBlockChain: chain,
+		},
+	}
+
+	entityAType := sch.GetEntity("EntityA")
+	entityBType := sch.GetEntity("EntityB")
+
+	es.pushData(ctx, entities)
+
+	// === remove entity
+	if skipDelete {
+		return
+	}
+
+	var data *entityRow
+	var err error
+
+	// set 0x0b01 foreignE to nil
+	_, err = s.setEntities(ctx, entityBType, chain, []persistent.EntityBox{{
+		ID: "0x0b01",
+		Data: map[string]any{
+			"id":        "0x0b01",
+			"propertyA": "pbbbbbx",
+			"foreignB":  "0x0a00",
+			"foreignE":  nil,
+			"foreignF":  []string{"0x0a01", "0x0a00"},
+		},
+		Entity:         "EntityB",
+		GenBlockNumber: 170,
+		GenBlockTime:   genBlockTime(170),
+		GenBlockHash:   "0x1234",
+	}}, nil, nil)
+	assert.NoError(t, err)
+
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a00")
+	assert.NoError(t, err)
+	assert.Equal(t, &entityRow{
+		EntityBox: persistent.EntityBox{
 			ID: "0x0a00",
 			Data: map[string]any{
 				"id":        "0x0a00",
@@ -232,9 +405,14 @@ func Test_getSetDel(t *testing.T) {
 			GenBlockNumber: 100,
 			GenBlockTime:   genBlockTime(100),
 			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
 		},
-		"0x0a01": {
+		GenBlockChain: chain,
+	}, data)
+
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a01")
+	assert.NoError(t, err)
+	assert.Equal(t, &entityRow{
+		EntityBox: persistent.EntityBox{
 			ID: "0x0a01",
 			Data: map[string]any{
 				"id":        "0x0a01",
@@ -252,299 +430,147 @@ func Test_getSetDel(t *testing.T) {
 			GenBlockNumber: 110,
 			GenBlockTime:   genBlockTime(110),
 			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
 		},
-		"0x0b00": {
-			ID: "0x0b00",
-			Data: map[string]any{
-				"id":        "0x0b00",
-				"propertyA": "pb",
-				"foreignB":  "0x0a00",
-				"foreignE":  []*string{utils.WrapPointer("0x0a00")},
-				"foreignF":  []string{}, // empty
-			},
-			Entity:         "EntityB",
-			GenBlockNumber: 120,
-			GenBlockTime:   genBlockTime(120),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
-		},
-		"0x0b01": {
+		GenBlockChain: chain,
+	}, data)
+
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b01")
+	assert.NoError(t, err)
+	assert.Equal(t, &entityRow{
+		EntityBox: persistent.EntityBox{
 			ID: "0x0b01",
 			Data: map[string]any{
 				"id":        "0x0b01",
-				"propertyA": "pbbbbb",
+				"propertyA": "pbbbbbx",
 				"foreignB":  "0x0a00",
-				"foreignE":  []*string{utils.WrapPointer("0x0a01"), utils.WrapPointer("0x0a00")},
+				"foreignE":  nil,
 				"foreignF":  []string{"0x0a01", "0x0a00"},
 			},
 			Entity:         "EntityB",
-			GenBlockNumber: 130,
-			GenBlockTime:   genBlockTime(130),
+			GenBlockNumber: 170,
+			GenBlockTime:   genBlockTime(170),
 			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
 		},
-		"0x0c0000": {
-			ID: "0x0c0000",
-			Data: map[string]any{
-				"id":        "0x0c0000",
-				"propertyA": int32(100),
-				"propertyB": maxBigInt,
-				"propertyC": maxBigInt,
-				"propertyD": decimal.New(1, -30),
-				"foreignCA": "0x0a00",
-				"foreignCB": "0x0b00",
-			},
-			Entity:         "EntityC",
-			GenBlockNumber: 140,
-			GenBlockTime:   genBlockTime(140),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
-		},
-		"0x0c0001": {
-			ID: "0x0c0001",
-			Data: map[string]any{
-				"id":        "0x0c0001",
-				"propertyA": int32(101),
-				"propertyB": big.NewInt(1),
-				"propertyC": nil,
-				"propertyD": decimal.New(123456789, -30),
-				"foreignCA": "0x0a00",
-				"foreignCB": "0x0b01",
-			},
-			Entity:         "EntityC",
-			GenBlockNumber: 150,
-			GenBlockTime:   genBlockTime(150),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
-		},
-		"0x0c0101": {
-			ID: "0x0c0101",
-			Data: map[string]any{
-				"id":        "0x0c0101",
-				"propertyA": int32(111),
-				"propertyB": big.NewInt(-100),
-				"propertyC": new(big.Int).Neg(maxBigInt),
-				"propertyD": decimal.New(123456789, -30),
-				"foreignCA": "0x0a01",
-				"foreignCB": "0x0b01",
-			},
-			Entity:         "EntityC",
-			GenBlockNumber: 160,
-			GenBlockTime:   genBlockTime(160),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
-		},
-	}
-
-	entityAType := sch.GetEntity("EntityA")
-	entityBType := sch.GetEntity("EntityB")
-
-	es.pushData(ctx, entities)
-
-	// === remove entity
-	if skipDelete {
-		return
-	}
-
-	var data *persistent.EntityBox
-	var err error
-
-	// set 0x0b01 foreignE to nil
-	_, err = s.SetEntities(ctx, entityBType, []persistent.EntityBox{{
-		ID: "0x0b01",
-		Data: map[string]any{
-			"id":        "0x0b01",
-			"propertyA": "pbbbbbx",
-			"foreignB":  "0x0a00",
-			"foreignE":  nil,
-			"foreignF":  []string{"0x0a01", "0x0a00"},
-		},
-		Entity:         "EntityB",
-		GenBlockNumber: 170,
-		GenBlockTime:   genBlockTime(170),
-		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
-	}})
-	assert.NoError(t, err)
-
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a00")
-	assert.NoError(t, err)
-	assert.Equal(t, &persistent.EntityBox{
-		ID: "0x0a00",
-		Data: map[string]any{
-			"id":        "0x0a00",
-			"propertyA": utils.WrapPointer("pa"),
-			"propertyB": utils.WrapPointer(true),
-			"propertyC": utils.WrapPointer(int32(123)),
-			"propertyD": []any{big.NewInt(234), big.NewInt(345)},
-			"propertyE": []any{
-				[]any{decimal.New(111111, -30), decimal.New(222222, -10)},
-				[]any{decimal.New(3, -30), decimal.New(400000004, -30)},
-			},
-			"propertyF": utils.WrapPointer("AAA"),
-			"propertyG": []any{"AAA", "AAA", "CCC"},
-			"foreignA":  "0x0b00",
-			"foreignD":  utils.WrapPointer("0x0b00"),
-		},
-		Entity:         "EntityA",
-		GenBlockNumber: 100,
-		GenBlockTime:   genBlockTime(100),
-		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
-	}, data)
-
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a01")
-	assert.NoError(t, err)
-	assert.Equal(t, &persistent.EntityBox{
-		ID: "0x0a01",
-		Data: map[string]any{
-			"id":        "0x0a01",
-			"propertyA": (*string)(nil),
-			"propertyB": (*bool)(nil),
-			"propertyC": (*int32)(nil),
-			"propertyD": []any{big.NewInt(234222), big.NewInt(3453333)},
-			"propertyE": nil,
-			"propertyF": (*string)(nil),
-			"propertyG": []any{"BBB", "CCC", nil},
-			"foreignA":  "0x0b01",
-			"foreignD":  utils.WrapPointer("0x0b01"),
-		},
-		Entity:         "EntityA",
-		GenBlockNumber: 110,
-		GenBlockTime:   genBlockTime(110),
-		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
-	}, data)
-
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b01")
-	assert.NoError(t, err)
-	assert.Equal(t, &persistent.EntityBox{
-		ID: "0x0b01",
-		Data: map[string]any{
-			"id":        "0x0b01",
-			"propertyA": "pbbbbbx",
-			"foreignB":  "0x0a00",
-			"foreignE":  nil,
-			"foreignF":  []string{"0x0a01", "0x0a00"},
-		},
-		Entity:         "EntityB",
-		GenBlockNumber: 170,
-		GenBlockTime:   genBlockTime(170),
-		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
+		GenBlockChain: chain,
 	}, data)
 
 	// del 0x0b01
-	_, err = s.SetEntities(ctx, entityBType, []persistent.EntityBox{{
+	_, err = s.setEntities(ctx, entityBType, chain, []persistent.EntityBox{{
 		ID:             "0x0b01",
 		Data:           nil,
 		Entity:         "EntityB",
 		GenBlockNumber: 180,
 		GenBlockTime:   genBlockTime(180),
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
-	}})
+	}}, nil, nil)
 	assert.NoError(t, err)
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a00")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a00")
 	assert.NoError(t, err)
-	assert.Equal(t, &persistent.EntityBox{
-		ID: "0x0a00",
-		Data: map[string]any{
-			"id":        "0x0a00",
-			"propertyA": utils.WrapPointer("pa"),
-			"propertyB": utils.WrapPointer(true),
-			"propertyC": utils.WrapPointer(int32(123)),
-			"propertyD": []any{big.NewInt(234), big.NewInt(345)},
-			"propertyE": []any{
-				[]any{decimal.New(111111, -30), decimal.New(222222, -10)},
-				[]any{decimal.New(3, -30), decimal.New(400000004, -30)},
+	assert.Equal(t, &entityRow{
+		EntityBox: persistent.EntityBox{
+			ID: "0x0a00",
+			Data: map[string]any{
+				"id":        "0x0a00",
+				"propertyA": utils.WrapPointer("pa"),
+				"propertyB": utils.WrapPointer(true),
+				"propertyC": utils.WrapPointer(int32(123)),
+				"propertyD": []any{big.NewInt(234), big.NewInt(345)},
+				"propertyE": []any{
+					[]any{decimal.New(111111, -30), decimal.New(222222, -10)},
+					[]any{decimal.New(3, -30), decimal.New(400000004, -30)},
+				},
+				"propertyF": utils.WrapPointer("AAA"),
+				"propertyG": []any{"AAA", "AAA", "CCC"},
+				"foreignA":  "0x0b00",
+				"foreignD":  utils.WrapPointer("0x0b00"),
 			},
-			"propertyF": utils.WrapPointer("AAA"),
-			"propertyG": []any{"AAA", "AAA", "CCC"},
-			"foreignA":  "0x0b00",
-			"foreignD":  utils.WrapPointer("0x0b00"),
+			Entity:         "EntityA",
+			GenBlockNumber: 100,
+			GenBlockTime:   genBlockTime(100),
+			GenBlockHash:   "0x1234",
 		},
-		Entity:         "EntityA",
-		GenBlockNumber: 100,
-		GenBlockTime:   genBlockTime(100),
-		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
+		GenBlockChain: chain,
 	}, data)
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a01")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a01")
 	assert.NoError(t, err)
-	assert.Equal(t, &persistent.EntityBox{
-		ID: "0x0a01",
-		Data: map[string]any{
-			"id":        "0x0a01",
-			"propertyA": (*string)(nil),
-			"propertyB": (*bool)(nil),
-			"propertyC": (*int32)(nil),
-			"propertyD": []any{big.NewInt(234222), big.NewInt(3453333)},
-			"propertyE": nil,
-			"propertyF": (*string)(nil),
-			"propertyG": []any{"BBB", "CCC", nil},
-			"foreignA":  "0x0b01",
-			"foreignD":  utils.WrapPointer("0x0b01"),
+	assert.Equal(t, &entityRow{
+		EntityBox: persistent.EntityBox{
+			ID: "0x0a01",
+			Data: map[string]any{
+				"id":        "0x0a01",
+				"propertyA": (*string)(nil),
+				"propertyB": (*bool)(nil),
+				"propertyC": (*int32)(nil),
+				"propertyD": []any{big.NewInt(234222), big.NewInt(3453333)},
+				"propertyE": nil,
+				"propertyF": (*string)(nil),
+				"propertyG": []any{"BBB", "CCC", nil},
+				"foreignA":  "0x0b01",
+				"foreignD":  utils.WrapPointer("0x0b01"),
+			},
+			Entity:         "EntityA",
+			GenBlockNumber: 110,
+			GenBlockTime:   genBlockTime(110),
+			GenBlockHash:   "0x1234",
 		},
-		Entity:         "EntityA",
-		GenBlockNumber: 110,
-		GenBlockTime:   genBlockTime(110),
-		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
+		GenBlockChain: chain,
 	}, data)
 
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b00")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b00")
 	assert.NoError(t, err)
-	assert.Equal(t, entities["0x0b00"], *data)
+	assert.Equal(t, entities["0x0b00"].EntityBox, data.EntityBox)
 
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b01")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b01")
 	assert.NoError(t, err)
-	assert.Equal(t, &persistent.EntityBox{
-		ID:             "0x0b01",
-		Data:           nil,
-		Entity:         "EntityB",
-		GenBlockNumber: 180,
-		GenBlockTime:   genBlockTime(180),
-		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
+	assert.Equal(t, &entityRow{
+		EntityBox: persistent.EntityBox{
+			ID:             "0x0b01",
+			Data:           nil,
+			Entity:         "EntityB",
+			GenBlockNumber: 180,
+			GenBlockTime:   genBlockTime(180),
+			GenBlockHash:   "0x1234",
+		},
+		GenBlockChain: chain,
 	}, data)
 
 	// === clean genBlockNumber > 100
 
-	err = s.Reorg(ctx, 100, chain)
+	err = s.reorg(ctx, 100, chain)
 	assert.NoError(t, err)
 	// only 0x0a00 is remained
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a00")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a00")
 	assert.NoError(t, err)
-	assert.Equal(t, &persistent.EntityBox{
-		ID: "0x0a00",
-		Data: map[string]any{
-			"id":        "0x0a00",
-			"propertyA": utils.WrapPointer("pa"),
-			"propertyB": utils.WrapPointer(true),
-			"propertyC": utils.WrapPointer(int32(123)),
-			"propertyD": []any{big.NewInt(234), big.NewInt(345)},
-			"propertyE": []any{
-				[]any{decimal.New(111111, -30), decimal.New(222222, -10)},
-				[]any{decimal.New(3, -30), decimal.New(400000004, -30)},
+	assert.Equal(t, &entityRow{
+		EntityBox: persistent.EntityBox{
+			ID: "0x0a00",
+			Data: map[string]any{
+				"id":        "0x0a00",
+				"propertyA": utils.WrapPointer("pa"),
+				"propertyB": utils.WrapPointer(true),
+				"propertyC": utils.WrapPointer(int32(123)),
+				"propertyD": []any{big.NewInt(234), big.NewInt(345)},
+				"propertyE": []any{
+					[]any{decimal.New(111111, -30), decimal.New(222222, -10)},
+					[]any{decimal.New(3, -30), decimal.New(400000004, -30)},
+				},
+				"propertyF": utils.WrapPointer("AAA"),
+				"propertyG": []any{"AAA", "AAA", "CCC"},
+				"foreignA":  "0x0b00",
+				"foreignD":  utils.WrapPointer("0x0b00"),
 			},
-			"propertyF": utils.WrapPointer("AAA"),
-			"propertyG": []any{"AAA", "AAA", "CCC"},
-			"foreignA":  "0x0b00",
-			"foreignD":  utils.WrapPointer("0x0b00"),
+			Entity:         "EntityA",
+			GenBlockNumber: 100,
+			GenBlockTime:   genBlockTime(100),
+			GenBlockHash:   "0x1234",
 		},
-		Entity:         "EntityA",
-		GenBlockNumber: 100,
-		GenBlockTime:   genBlockTime(100),
-		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain,
+		GenBlockChain: chain,
 	}, data)
 
-	data, err = s.GetEntity(ctx, entityAType, chain, "0x0a01")
+	data, err = s.getEntity(ctx, entityAType, chain, "0x0a01")
 	assert.NoError(t, err)
 	assert.Nil(t, data)
 
@@ -563,140 +589,156 @@ func Test_getSetDel2(t *testing.T) {
 	es.init(ctx)
 	sch, s := es.s.sch, es.s
 
-	es.pushData(ctx, map[string]persistent.EntityBox{
+	es.pushData(ctx, map[string]entityRow{
 		"0x0d0100": {
-			ID: "0x0d0100",
-			Data: map[string]any{
-				"id":        "0x0d0100",
-				"propertyA": "d1pa0c1",
-				"on":        []string{"0x0e0100"},
+			EntityBox: persistent.EntityBox{
+				ID: "0x0d0100",
+				Data: map[string]any{
+					"id":        "0x0d0100",
+					"propertyA": "d1pa0c1",
+					"on":        []string{"0x0e0100"},
+				},
+				Entity:         "EntityD1",
+				GenBlockNumber: 101,
+				GenBlockTime:   genBlockTime(101),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityD1",
-			GenBlockNumber: 101,
-			GenBlockTime:   genBlockTime(101),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain1,
+			GenBlockChain: chain1,
 		},
 		"0x0d0101": {
-			ID: "0x0d0101",
-			Data: map[string]any{
-				"id":        "0x0d0101",
-				"propertyA": "d1pa1c1",
-				"on":        []string{"0x0e0101"},
+			EntityBox: persistent.EntityBox{
+				ID: "0x0d0101",
+				Data: map[string]any{
+					"id":        "0x0d0101",
+					"propertyA": "d1pa1c1",
+					"on":        []string{"0x0e0101"},
+				},
+				Entity:         "EntityD1",
+				GenBlockNumber: 102,
+				GenBlockTime:   genBlockTime(102),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityD1",
-			GenBlockNumber: 102,
-			GenBlockTime:   genBlockTime(102),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain1,
+			GenBlockChain: chain1,
 		},
 		"0x0e0100": {
-			ID: "0x0e0100",
-			Data: map[string]any{
-				"id":   "0x0e0100",
-				"from": "e1from0c1",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0100",
+				Data: map[string]any{
+					"id":   "0x0e0100",
+					"from": "e1from0c1",
+				},
+				Entity:         "EntityE1",
+				GenBlockNumber: 105,
+				GenBlockTime:   genBlockTime(105),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE1",
-			GenBlockNumber: 105,
-			GenBlockTime:   genBlockTime(105),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain1,
+			GenBlockChain: chain1,
 		},
 		"0x0e0101": {
-			ID: "0x0e0101",
-			Data: map[string]any{
-				"id":   "0x0e0101",
-				"from": "e1from1c1",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0101",
+				Data: map[string]any{
+					"id":   "0x0e0101",
+					"from": "e1from1c1",
+				},
+				Entity:         "EntityE1",
+				GenBlockNumber: 106,
+				GenBlockTime:   genBlockTime(106),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE1",
-			GenBlockNumber: 106,
-			GenBlockTime:   genBlockTime(106),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain1,
+			GenBlockChain: chain1,
 		},
 	})
 
-	es.pushData(ctx, map[string]persistent.EntityBox{
+	es.pushData(ctx, map[string]entityRow{
 		"0x0d0100": {
-			ID: "0x0d0100",
-			Data: map[string]any{
-				"id":        "0x0d0100",
-				"propertyA": "d1pa0c2",
-				"on":        []string{"0x0e0101"},
+			EntityBox: persistent.EntityBox{
+				ID: "0x0d0100",
+				Data: map[string]any{
+					"id":        "0x0d0100",
+					"propertyA": "d1pa0c2",
+					"on":        []string{"0x0e0101"},
+				},
+				Entity:         "EntityD1",
+				GenBlockNumber: 1010,
+				GenBlockTime:   genBlockTime(1010),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityD1",
-			GenBlockNumber: 1010,
-			GenBlockTime:   genBlockTime(1010),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain2,
+			GenBlockChain: chain2,
 		},
 		"0x0d0101": {
-			ID: "0x0d0101",
-			Data: map[string]any{
-				"id":        "0x0d0101",
-				"propertyA": "d1pa1c2",
-				"on":        []string{"0x0e0100"},
+			EntityBox: persistent.EntityBox{
+				ID: "0x0d0101",
+				Data: map[string]any{
+					"id":        "0x0d0101",
+					"propertyA": "d1pa1c2",
+					"on":        []string{"0x0e0100"},
+				},
+				Entity:         "EntityD1",
+				GenBlockNumber: 1020,
+				GenBlockTime:   genBlockTime(1020),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityD1",
-			GenBlockNumber: 1020,
-			GenBlockTime:   genBlockTime(1020),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain2,
+			GenBlockChain: chain2,
 		},
 		"0x0e0100": {
-			ID: "0x0e0100",
-			Data: map[string]any{
-				"id":   "0x0e0100",
-				"from": "e1from0c2",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0100",
+				Data: map[string]any{
+					"id":   "0x0e0100",
+					"from": "e1from0c2",
+				},
+				Entity:         "EntityE1",
+				GenBlockNumber: 1050,
+				GenBlockTime:   genBlockTime(1050),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE1",
-			GenBlockNumber: 1050,
-			GenBlockTime:   genBlockTime(1050),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain2,
+			GenBlockChain: chain2,
 		},
 		"0x0e0101": {
-			ID: "0x0e0101",
-			Data: map[string]any{
-				"id":   "0x0e0101",
-				"from": "e1from1c2",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0101",
+				Data: map[string]any{
+					"id":   "0x0e0101",
+					"from": "e1from1c2",
+				},
+				Entity:         "EntityE1",
+				GenBlockNumber: 1060,
+				GenBlockTime:   genBlockTime(1060),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE1",
-			GenBlockNumber: 1060,
-			GenBlockTime:   genBlockTime(1060),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain2,
+			GenBlockChain: chain2,
 		},
 	})
 
 	entityD1Type := sch.GetEntity("EntityD1")
 	entityE1Type := sch.GetEntity("EntityE1")
 
-	data, err := s.GetEntity(ctx, entityD1Type, chain1, "0x0d0100")
+	data, err := s.getEntity(ctx, entityD1Type, chain1, "0x0d0100")
 	assert.NoError(t, err)
 	assert.Equal(t, "d1pa0c1", data.Data["propertyA"])
-	data, err = s.GetEntity(ctx, entityD1Type, chain1, "0x0d0101")
+	data, err = s.getEntity(ctx, entityD1Type, chain1, "0x0d0101")
 	assert.NoError(t, err)
 	assert.Equal(t, "d1pa1c1", data.Data["propertyA"])
 
-	data, err = s.GetEntity(ctx, entityD1Type, chain2, "0x0d0100")
+	data, err = s.getEntity(ctx, entityD1Type, chain2, "0x0d0100")
 	assert.NoError(t, err)
 	assert.Equal(t, "d1pa0c2", data.Data["propertyA"])
-	data, err = s.GetEntity(ctx, entityD1Type, chain2, "0x0d0101")
+	data, err = s.getEntity(ctx, entityD1Type, chain2, "0x0d0101")
 	assert.NoError(t, err)
 	assert.Equal(t, "d1pa1c2", data.Data["propertyA"])
 
-	data, err = s.GetEntity(ctx, entityE1Type, chain1, "0x0e0100")
+	data, err = s.getEntity(ctx, entityE1Type, chain1, "0x0e0100")
 	assert.NoError(t, err)
 	assert.Equal(t, "e1from0c1", data.Data["from"])
-	data, err = s.GetEntity(ctx, entityE1Type, chain1, "0x0e0101")
+	data, err = s.getEntity(ctx, entityE1Type, chain1, "0x0e0101")
 	assert.NoError(t, err)
 	assert.Equal(t, "e1from1c1", data.Data["from"])
 
-	data, err = s.GetEntity(ctx, entityE1Type, chain2, "0x0e0100")
+	data, err = s.getEntity(ctx, entityE1Type, chain2, "0x0e0100")
 	assert.NoError(t, err)
 	assert.Equal(t, "e1from0c2", data.Data["from"])
-	data, err = s.GetEntity(ctx, entityE1Type, chain2, "0x0e0101")
+	data, err = s.getEntity(ctx, entityE1Type, chain2, "0x0e0101")
 	assert.NoError(t, err)
 	assert.Equal(t, "e1from1c2", data.Data["from"])
 
@@ -716,7 +758,7 @@ func Test_getSetDel3(t *testing.T) {
 
 	entityIType := sch.GetEntity("EntityI")
 
-	box, err := s.GetEntity(ctx, entityIType, chain1, "I01")
+	box, err := s.getEntity(ctx, entityIType, chain1, "I01")
 	assert.NoError(t, err)
 	assert.Nil(t, box)
 
@@ -730,16 +772,15 @@ func Test_getSetDel3(t *testing.T) {
 		GenBlockNumber: 101,
 		GenBlockTime:   genBlockTime(101),
 		GenBlockHash:   "0x1234",
-		GenBlockChain:  chain1,
 	}
 
-	created, err := s.SetEntities(ctx, entityIType, []persistent.EntityBox{i01})
+	created, err := s.setEntities(ctx, entityIType, chain1, []persistent.EntityBox{i01}, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, created)
 
-	box, err = s.GetEntity(ctx, entityIType, chain1, "I01")
+	box, err = s.getEntity(ctx, entityIType, chain1, "I01")
 	assert.NoError(t, err)
-	assert.Equal(t, &i01, box)
+	assert.Equal(t, i01, box.EntityBox)
 
 }
 
@@ -766,7 +807,6 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 100,
 			GenBlockTime:   genBlockTime(100),
 			GenBlockHash:   "0x000000",
-			GenBlockChain:  chain,
 		},
 		{
 			ID: "0x0b01",
@@ -779,7 +819,6 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 101,
 			GenBlockTime:   genBlockTime(101),
 			GenBlockHash:   "0x000001",
-			GenBlockChain:  chain,
 		},
 		{
 			ID: "0x0b02",
@@ -792,7 +831,6 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 102,
 			GenBlockTime:   genBlockTime(102),
 			GenBlockHash:   "0x000002",
-			GenBlockChain:  chain,
 		},
 		{
 			ID: "0x0b03",
@@ -805,7 +843,6 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 103,
 			GenBlockTime:   genBlockTime(103),
 			GenBlockHash:   "0x000003",
-			GenBlockChain:  chain,
 		},
 		{
 			ID: "0x0b04",
@@ -818,7 +855,6 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 104,
 			GenBlockTime:   genBlockTime(104),
 			GenBlockHash:   "0x000004",
-			GenBlockChain:  chain,
 		},
 	}
 
@@ -827,22 +863,22 @@ func Test_batchSet1(t *testing.T) {
 
 	var err error
 
-	_, err = s.SetEntities(ctx, entityBType, entities)
+	_, err = s.setEntities(ctx, entityBType, chain, entities, nil, nil)
 	assert.NoError(t, err)
 
-	data, err := s.GetEntity(ctx, entityBType, chain, "0x0b00")
+	data, err := s.getEntity(ctx, entityBType, chain, "0x0b00")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a00", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b01")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b01")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a01", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b02")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b02")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a02", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b03")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b03")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a03", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b04")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b04")
 	assert.NoError(t, err)
 	assert.Equal(t, "0x0a04", data.Data["foreignB"])
 
@@ -854,7 +890,6 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 200,
 			GenBlockTime:   genBlockTime(200),
 			GenBlockHash:   "0x000000",
-			GenBlockChain:  chain,
 		},
 		{
 			ID: "0x0b01",
@@ -867,7 +902,6 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 201,
 			GenBlockTime:   genBlockTime(201),
 			GenBlockHash:   "0x000001",
-			GenBlockChain:  chain,
 		},
 		{
 			ID: "0x0b02",
@@ -880,7 +914,6 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 202,
 			GenBlockTime:   genBlockTime(202),
 			GenBlockHash:   "0x000002",
-			GenBlockChain:  chain,
 		},
 		{
 			ID:             "0x0b03",
@@ -889,7 +922,6 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 203,
 			GenBlockTime:   genBlockTime(203),
 			GenBlockHash:   "0x000003",
-			GenBlockChain:  chain,
 		},
 		{
 			ID:             "0x0b04",
@@ -898,30 +930,29 @@ func Test_batchSet1(t *testing.T) {
 			GenBlockNumber: 204,
 			GenBlockTime:   genBlockTime(204),
 			GenBlockHash:   "0x000004",
-			GenBlockChain:  chain,
 		},
 	}
 
-	_, err = s.SetEntities(ctx, entityBType, entities)
+	_, err = s.setEntities(ctx, entityBType, chain, entities, nil, nil)
 	assert.NoError(t, err)
 
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b00")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b00")
 	assert.NoError(t, err)
-	assert.Equal(t, entities[0], *data)
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b01")
+	assert.Equal(t, entities[0], data.EntityBox)
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b01")
 	assert.NoError(t, err)
 	assert.Equal(t, "paaaa1", data.Data["propertyA"])
 	assert.Equal(t, "0x0a01", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b02")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b02")
 	assert.NoError(t, err)
 	assert.Equal(t, "paaaa2", data.Data["propertyA"])
 	assert.Equal(t, "0x0a0202", data.Data["foreignB"])
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b03")
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b03")
 	assert.NoError(t, err)
-	assert.Equal(t, entities[3], *data)
-	data, err = s.GetEntity(ctx, entityBType, chain, "0x0b04")
+	assert.Equal(t, entities[3], data.EntityBox)
+	data, err = s.getEntity(ctx, entityBType, chain, "0x0b04")
 	assert.NoError(t, err)
-	assert.Equal(t, entities[4], *data)
+	assert.Equal(t, entities[4], data.EntityBox)
 
 }
 
@@ -955,7 +986,6 @@ func Test_batchSet2(t *testing.T) {
 				GenBlockNumber: uint64(stage),
 				GenBlockTime:   genBlockTime(uint64(stage)),
 				GenBlockHash:   "0x000000",
-				GenBlockChain:  chain,
 			})
 		}
 		return entities
@@ -972,28 +1002,28 @@ func Test_batchSet2(t *testing.T) {
 	var boxes []*persistent.EntityBox
 
 	// init is empty
-	boxes, err = s.ListEntities(ctx, entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s, entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, []*persistent.EntityBox(nil), boxes)
 	// insert 0-9 entities
-	_, err = s.setEntities(ctx, entityD1Type, chain, entities1)
+	_, err = s.setEntities(ctx, entityD1Type, chain, entities1, nil, nil)
 	assert.NoError(t, err)
 	// all 10 entities exists
-	boxes, err = s.ListEntities(ctx, entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s, entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(entities1), boxes)
 	// update 0-9 entities
-	_, err = s.setEntities(ctx, entityD1Type, chain, entities2)
+	_, err = s.setEntities(ctx, entityD1Type, chain, entities2, nil, nil)
 	assert.NoError(t, err)
 	// all 10 entities updated to stage 2
-	boxes, err = s.ListEntities(ctx, entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s, entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(entities2), boxes)
 	// delete 5-7
-	_, err = s.setEntities(ctx, entityD1Type, chain, entities3)
+	_, err = s.setEntities(ctx, entityD1Type, chain, entities3, nil, nil)
 	assert.NoError(t, err)
 	// only have 0-4,8-9
-	boxes, err = s.ListEntities(ctx, entityD1Type, chain, nil, 10)
+	boxes, err = storeListEntities(ctx, s, entityD1Type, chain, nil, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, utils.WrapPointerForArray(utils.MergeArr(entities2[:5], entities2[8:])), boxes)
 
@@ -1050,7 +1080,6 @@ func Test_list(t *testing.T) {
 				GenBlockNumber: uint64(stage),
 				GenBlockTime:   genBlockTime(uint64(stage)),
 				GenBlockHash:   "0x000000",
-				GenBlockChain:  chain,
 			})
 		}
 		return entities
@@ -1071,26 +1100,26 @@ func Test_list(t *testing.T) {
 		var boxes []*persistent.EntityBox
 
 		// init is empty
-		boxes, err = s.ListEntities(ctx, entityF, chain, nil, 3)
+		boxes, err = storeListEntities(ctx, s, entityF, chain, nil, 3)
 		assert.NoError(t, err)
 		assert.Equal(t, []*persistent.EntityBox(nil), boxes)
 
 		// insert 0-9 entities
-		_, err = s.setEntities(ctx, entityF, chain, entities)
+		_, err = s.setEntities(ctx, entityF, chain, entities, nil, nil)
 		assert.NoError(t, err)
 
 		// list all
-		boxes, err = s.ListEntities(ctx, entityF, chain, nil, 10)
+		boxes, err = storeListEntities(ctx, s, entityF, chain, nil, 10)
 		assert.NoError(t, err)
 		assert.Equal(t, full, boxes)
 
 		// list all
-		boxes, err = s.ListEntities(ctx, entityF, chain, nil, 11)
+		boxes, err = storeListEntities(ctx, s, entityF, chain, nil, 11)
 		assert.NoError(t, err)
 		assert.Equal(t, full, boxes)
 
 		// all 10 entities exists and list by two page
-		boxes, err = s.ListEntities(ctx, entityF, chain, nil, 8)
+		boxes, err = storeListEntities(ctx, s, entityF, chain, nil, 8)
 		assert.NoError(t, err)
 		assert.Equal(t, full[:8], boxes)
 
@@ -1289,7 +1318,7 @@ func Test_list(t *testing.T) {
 		}
 
 		for i, testcase := range testcases {
-			boxes, err = s.ListEntities(ctx, entityF, chain, []persistent.EntityFilter{
+			boxes, err = storeListEntities(ctx, s, entityF, chain, []persistent.EntityFilter{
 				{Field: entityF.GetFieldByName(testcase.F), Op: testcase.O, Value: testcase.V},
 			}, 10)
 			msg := fmt.Sprintf("testcase #%d-%d %#v", fx, i, testcase)
@@ -1300,21 +1329,21 @@ func Test_list(t *testing.T) {
 		// === with multi filter conditions
 
 		// propertyA = '0' AND propertyB = '0'
-		boxes, err = s.ListEntities(ctx, entityF, chain, []persistent.EntityFilter{
+		boxes, err = storeListEntities(ctx, s, entityF, chain, []persistent.EntityFilter{
 			{Field: entityF.GetFieldByName("propertyA"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 			{Field: entityF.GetFieldByName("propertyB"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 		}, 10)
 		assert.NoError(t, err)
 		assert.Equal(t, group0, boxes)
 		// propertyA = '0' AND propertyB = '1'
-		boxes, err = s.ListEntities(ctx, entityF, chain, []persistent.EntityFilter{
+		boxes, err = storeListEntities(ctx, s, entityF, chain, []persistent.EntityFilter{
 			{Field: entityF.GetFieldByName("propertyA"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 			{Field: entityF.GetFieldByName("propertyB"), Op: persistent.EntityFilterOpEq, Value: []any{"1"}},
 		}, 10)
 		assert.NoError(t, err)
 		assert.Equal(t, empty, boxes)
 		// propertyA = '0' AND propertyB != '1'
-		boxes, err = s.ListEntities(ctx, entityF, chain, []persistent.EntityFilter{
+		boxes, err = storeListEntities(ctx, s, entityF, chain, []persistent.EntityFilter{
 			{Field: entityF.GetFieldByName("propertyA"), Op: persistent.EntityFilterOpEq, Value: []any{"0"}},
 			{Field: entityF.GetFieldByName("propertyB"), Op: persistent.EntityFilterOpNe, Value: []any{"1"}},
 		}, 10)
@@ -1356,7 +1385,6 @@ func Test_filterWithNullValue(t *testing.T) {
 			GenBlockNumber: 10,
 			GenBlockTime:   genBlockTime(10),
 			GenBlockHash:   "0x000000",
-			GenBlockChain:  chain,
 		},
 		{
 			ID: "0x1001",
@@ -1375,7 +1403,6 @@ func Test_filterWithNullValue(t *testing.T) {
 			GenBlockNumber: 10,
 			GenBlockTime:   genBlockTime(10),
 			GenBlockHash:   "0x000000",
-			GenBlockChain:  chain,
 		},
 	}
 
@@ -1383,7 +1410,7 @@ func Test_filterWithNullValue(t *testing.T) {
 	var boxes []*persistent.EntityBox
 	var err error
 
-	_, err = s.SetEntities(ctx, entityG, entities)
+	_, err = s.setEntities(ctx, entityG, chain, entities, nil, nil)
 	assert.NoError(t, err)
 
 	full := utils.WrapPointerForArray(entities)
@@ -1544,7 +1571,7 @@ func Test_filterWithNullValue(t *testing.T) {
 	}
 
 	for i, testcase := range testcases {
-		boxes, err = s.ListEntities(ctx, entityG, chain, []persistent.EntityFilter{{
+		boxes, err = storeListEntities(ctx, s, entityG, chain, []persistent.EntityFilter{{
 			Field: entityG.GetFieldByName(testcase.F), Op: testcase.O, Value: testcase.V,
 		}}, 10)
 		msg := fmt.Sprintf("testcase #%d %#v", i, testcase)
@@ -1565,178 +1592,204 @@ func Test_interfaceForeignKeyField(t *testing.T) {
 	es.init(ctx)
 	//sch, s := es.s.sch, es.s
 
-	es.pushData(ctx, map[string]persistent.EntityBox{
+	es.pushData(ctx, map[string]entityRow{
 		"0x0d0100": {
-			ID: "0x0d0100",
-			Data: map[string]any{
-				"id":        "0x0d0100",
-				"propertyA": "d1pa0",
-				"on":        []string{"0x0e0100"},
+			EntityBox: persistent.EntityBox{
+				ID: "0x0d0100",
+				Data: map[string]any{
+					"id":        "0x0d0100",
+					"propertyA": "d1pa0",
+					"on":        []string{"0x0e0100"},
+				},
+				Entity:         "EntityD1",
+				GenBlockNumber: 101,
+				GenBlockTime:   genBlockTime(101),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityD1",
-			GenBlockNumber: 101,
-			GenBlockTime:   genBlockTime(101),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0d0101": {
-			ID: "0x0d0101",
-			Data: map[string]any{
-				"id":        "0x0d0101",
-				"propertyA": "d1pa1",
-				"on":        []string{"0x0e0101"},
+			EntityBox: persistent.EntityBox{
+				ID: "0x0d0101",
+				Data: map[string]any{
+					"id":        "0x0d0101",
+					"propertyA": "d1pa1",
+					"on":        []string{"0x0e0101"},
+				},
+				Entity:         "EntityD1",
+				GenBlockNumber: 102,
+				GenBlockTime:   genBlockTime(102),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityD1",
-			GenBlockNumber: 102,
-			GenBlockTime:   genBlockTime(102),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0d0200": {
-			ID: "0x0d0200",
-			Data: map[string]any{
-				"id":        "0x0d0200",
-				"propertyA": int32(11),
-				"on":        []string{"0x0e0200"},
+			EntityBox: persistent.EntityBox{
+				ID: "0x0d0200",
+				Data: map[string]any{
+					"id":        "0x0d0200",
+					"propertyA": int32(11),
+					"on":        []string{"0x0e0200"},
+				},
+				Entity:         "EntityD2",
+				GenBlockNumber: 103,
+				GenBlockTime:   genBlockTime(103),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityD2",
-			GenBlockNumber: 103,
-			GenBlockTime:   genBlockTime(103),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0d0201": {
-			ID: "0x0d0201",
-			Data: map[string]any{
-				"id":        "0x0d0201",
-				"propertyA": int32(22),
-				"on":        []string{"0x0e0201"},
+			EntityBox: persistent.EntityBox{
+				ID: "0x0d0201",
+				Data: map[string]any{
+					"id":        "0x0d0201",
+					"propertyA": int32(22),
+					"on":        []string{"0x0e0201"},
+				},
+				Entity:         "EntityD2",
+				GenBlockNumber: 104,
+				GenBlockTime:   genBlockTime(104),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityD2",
-			GenBlockNumber: 104,
-			GenBlockTime:   genBlockTime(104),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0e0100": {
-			ID: "0x0e0100",
-			Data: map[string]any{
-				"id":   "0x0e0100",
-				"from": "e1from0",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0100",
+				Data: map[string]any{
+					"id":   "0x0e0100",
+					"from": "e1from0",
+				},
+				Entity:         "EntityE1",
+				GenBlockNumber: 105,
+				GenBlockTime:   genBlockTime(105),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE1",
-			GenBlockNumber: 105,
-			GenBlockTime:   genBlockTime(105),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0e0101": {
-			ID: "0x0e0101",
-			Data: map[string]any{
-				"id":   "0x0e0101",
-				"from": "e1from1",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0101",
+				Data: map[string]any{
+					"id":   "0x0e0101",
+					"from": "e1from1",
+				},
+				Entity:         "EntityE1",
+				GenBlockNumber: 106,
+				GenBlockTime:   genBlockTime(106),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE1",
-			GenBlockNumber: 106,
-			GenBlockTime:   genBlockTime(106),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0e0200": {
-			ID: "0x0e0200",
-			Data: map[string]any{
-				"id":   "0x0e0200",
-				"from": "e2from0",
-				"by":   []any{int32(1), int32(2), int32(3)},
-				"left": big.NewInt(1111),
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0200",
+				Data: map[string]any{
+					"id":   "0x0e0200",
+					"from": "e2from0",
+					"by":   []any{int32(1), int32(2), int32(3)},
+					"left": big.NewInt(1111),
+				},
+				Entity:         "EntityE2",
+				GenBlockNumber: 107,
+				GenBlockTime:   genBlockTime(107),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE2",
-			GenBlockNumber: 107,
-			GenBlockTime:   genBlockTime(107),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0e0201": {
-			ID: "0x0e0201",
-			Data: map[string]any{
-				"id":   "0x0e0201",
-				"from": "e2from1",
-				"by":   nil,
-				"left": nil,
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0201",
+				Data: map[string]any{
+					"id":   "0x0e0201",
+					"from": "e2from1",
+					"by":   nil,
+					"left": nil,
+				},
+				Entity:         "EntityE2",
+				GenBlockNumber: 108,
+				GenBlockTime:   genBlockTime(108),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE2",
-			GenBlockNumber: 108,
-			GenBlockTime:   genBlockTime(108),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 	})
 
-	es.pushData(ctx, map[string]persistent.EntityBox{
+	es.pushData(ctx, map[string]entityRow{
 		"0x0d0100": {
-			ID: "0x0d0100",
-			Data: map[string]any{
-				"id":        "0x0d0100",
-				"propertyA": "d1pa0",
-				"on":        []string{"0x0e0101", "0x0e0201"},
+			EntityBox: persistent.EntityBox{
+				ID: "0x0d0100",
+				Data: map[string]any{
+					"id":        "0x0d0100",
+					"propertyA": "d1pa0",
+					"on":        []string{"0x0e0101", "0x0e0201"},
+				},
+				Entity:         "EntityD1",
+				GenBlockNumber: 201,
+				GenBlockTime:   genBlockTime(201),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityD1",
-			GenBlockNumber: 201,
-			GenBlockTime:   genBlockTime(201),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0e0100": {
-			ID: "0x0e0100",
-			Data: map[string]any{
-				"id":   "0x0e0100",
-				"from": "e1from0-2",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0100",
+				Data: map[string]any{
+					"id":   "0x0e0100",
+					"from": "e1from0-2",
+				},
+				Entity:         "EntityE1",
+				GenBlockNumber: 202,
+				GenBlockTime:   genBlockTime(202),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE1",
-			GenBlockNumber: 202,
-			GenBlockTime:   genBlockTime(202),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0e0101": {
-			ID: "0x0e0101",
-			Data: map[string]any{
-				"id":   "0x0e0101",
-				"from": "e1from1-2",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0101",
+				Data: map[string]any{
+					"id":   "0x0e0101",
+					"from": "e1from1-2",
+				},
+				Entity:         "EntityE1",
+				GenBlockNumber: 203,
+				GenBlockTime:   genBlockTime(203),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE1",
-			GenBlockNumber: 203,
-			GenBlockTime:   genBlockTime(203),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0e0200": {
-			ID: "0x0e0200",
-			Data: map[string]any{
-				"id":   "0x0e0200",
-				"from": "e2from0-2",
-				"by":   []any{int32(1), int32(2), int32(3)},
-				"left": big.NewInt(1111),
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0200",
+				Data: map[string]any{
+					"id":   "0x0e0200",
+					"from": "e2from0-2",
+					"by":   []any{int32(1), int32(2), int32(3)},
+					"left": big.NewInt(1111),
+				},
+				Entity:         "EntityE2",
+				GenBlockNumber: 204,
+				GenBlockTime:   genBlockTime(204),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE2",
-			GenBlockNumber: 204,
-			GenBlockTime:   genBlockTime(204),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0e0201": {
-			ID: "0x0e0201",
-			Data: map[string]any{
-				"id":   "0x0e0201",
-				"from": "e2from1-2",
-				"by":   nil,
-				"left": nil,
+			EntityBox: persistent.EntityBox{
+				ID: "0x0e0201",
+				Data: map[string]any{
+					"id":   "0x0e0201",
+					"from": "e2from1-2",
+					"by":   nil,
+					"left": nil,
+				},
+				Entity:         "EntityE2",
+				GenBlockNumber: 205,
+				GenBlockTime:   genBlockTime(205),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityE2",
-			GenBlockNumber: 205,
-			GenBlockTime:   genBlockTime(205),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 	})
 
@@ -1756,57 +1809,63 @@ func Test_viewTable(t *testing.T) {
 	maxBigInt := new(big.Int).Sub(num2e256, big.NewInt(1))
 	maxBigIntAsFloat64, _ := new(big.Float).SetInt(maxBigInt).Float64()
 
-	entities := map[string]persistent.EntityBox{
+	entities := map[string]entityRow{
 		"0x0c0000": {
-			ID: "0x0c0000",
-			Data: map[string]any{
-				"id":        "0x0c0000",
-				"propertyA": int32(100),
-				"propertyB": maxBigInt,
-				"propertyC": maxBigInt,
-				"propertyD": decimal.New(1, -30),
-				"foreignCA": "0x0a00",
-				"foreignCB": "0x0b00",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0c0000",
+				Data: map[string]any{
+					"id":        "0x0c0000",
+					"propertyA": int32(100),
+					"propertyB": maxBigInt,
+					"propertyC": maxBigInt,
+					"propertyD": decimal.New(1, -30),
+					"foreignCA": "0x0a00",
+					"foreignCB": "0x0b00",
+				},
+				Entity:         "EntityC",
+				GenBlockNumber: 140,
+				GenBlockTime:   genBlockTime(140),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityC",
-			GenBlockNumber: 140,
-			GenBlockTime:   genBlockTime(140),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0c0001": {
-			ID: "0x0c0001",
-			Data: map[string]any{
-				"id":        "0x0c0001",
-				"propertyA": int32(101),
-				"propertyB": big.NewInt(1),
-				"propertyC": nil,
-				"propertyD": decimal.New(123456789, -30),
-				"foreignCA": "0x0a00",
-				"foreignCB": "0x0b01",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0c0001",
+				Data: map[string]any{
+					"id":        "0x0c0001",
+					"propertyA": int32(101),
+					"propertyB": big.NewInt(1),
+					"propertyC": nil,
+					"propertyD": decimal.New(123456789, -30),
+					"foreignCA": "0x0a00",
+					"foreignCB": "0x0b01",
+				},
+				Entity:         "EntityC",
+				GenBlockNumber: 150,
+				GenBlockTime:   genBlockTime(150),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityC",
-			GenBlockNumber: 150,
-			GenBlockTime:   genBlockTime(150),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 		"0x0c0101": {
-			ID: "0x0c0101",
-			Data: map[string]any{
-				"id":        "0x0c0101",
-				"propertyA": int32(111),
-				"propertyB": big.NewInt(-100),
-				"propertyC": new(big.Int).Neg(maxBigInt),
-				"propertyD": decimal.New(123456789, -30),
-				"foreignCA": "0x0a01",
-				"foreignCB": "0x0b01",
+			EntityBox: persistent.EntityBox{
+				ID: "0x0c0101",
+				Data: map[string]any{
+					"id":        "0x0c0101",
+					"propertyA": int32(111),
+					"propertyB": big.NewInt(-100),
+					"propertyC": new(big.Int).Neg(maxBigInt),
+					"propertyD": decimal.New(123456789, -30),
+					"foreignCA": "0x0a01",
+					"foreignCB": "0x0b01",
+				},
+				Entity:         "EntityC",
+				GenBlockNumber: 160,
+				GenBlockTime:   genBlockTime(160),
+				GenBlockHash:   "0x1234",
 			},
-			Entity:         "EntityC",
-			GenBlockNumber: 160,
-			GenBlockTime:   genBlockTime(160),
-			GenBlockHash:   "0x1234",
-			GenBlockChain:  chain,
+			GenBlockChain: chain,
 		},
 	}
 
@@ -1847,4 +1906,26 @@ func Test_viewTable(t *testing.T) {
 
 func Test_timeFormat(t *testing.T) {
 	assert.Equal(t, "20260107021606", time.Unix(1767752166, 0).Format(timeLayoutAllDigital))
+}
+
+// storeListEntities is a test helper that calls listEntities and maps entityRow results
+// to *persistent.EntityBox, matching the old public ListEntities signature.
+func storeListEntities(
+	ctx context.Context,
+	s *Store,
+	entityType *schema.Entity,
+	chain string,
+	filters []persistent.EntityFilter,
+	limit int,
+) ([]*persistent.EntityBox, error) {
+	rows, err := s.listEntities(ctx, entityType, chain, filters, true, limit)
+	if err != nil || rows == nil {
+		return nil, err
+	}
+	boxes := make([]*persistent.EntityBox, len(rows))
+	for i, row := range rows {
+		box := row.EntityBox
+		boxes[i] = &box
+	}
+	return boxes, nil
 }

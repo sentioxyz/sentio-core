@@ -1194,18 +1194,13 @@ func (f NullableOneDimArrayField) FieldValueFromGet(dbValues map[string]any) any
 // Entity
 // ========================================
 
-type EntityBox struct {
+type entityRow struct {
 	persistent.EntityBox
+
+	GenBlockChain string
 
 	Sign    int8
 	Version uint64
-}
-
-func (b *EntityBox) Get() *persistent.EntityBox {
-	if b == nil {
-		return nil
-	}
-	return &b.EntityBox
 }
 
 type Entity struct {
@@ -1218,7 +1213,7 @@ type Entity struct {
 
 func (s *Store) NewEntity(item schema.EntityOrInterface) (entity Entity) {
 	entity.Def = item
-	entity.UseVersionedCollapsingTable = s.UseVersionedCollapsingTable(item)
+	entity.UseVersionedCollapsingTable = s.useVersionedCollapsingTable(item)
 	for _, fieldDef := range item.ListFixedFields() {
 		simple := SimpleField{BaseField: NewBaseField(item, fieldDef)}
 		if simple.FieldTypeChain.CountListLayer() > 0 && !s.feaOpt.ArrayUseArray {
@@ -1282,7 +1277,7 @@ func (e Entity) fieldNames(ignoreReverseForeignKeyFields bool) (names []string) 
 	return names
 }
 
-func (e Entity) FieldNamesForGet() (names []string) {
+func (e Entity) fieldNamesForGet() (names []string) {
 	sysFields := []string{
 		genBlockNumberFieldName,
 		genBlockTimeFieldName,
@@ -1296,7 +1291,7 @@ func (e Entity) FieldNamesForGet() (names []string) {
 	return append(e.fieldNames(true), sysFields...)
 }
 
-func (e Entity) FieldNamesForSet() (names []string) {
+func (e Entity) fieldNamesForSet() (names []string) {
 	sysFields := []string{
 		genBlockNumberFieldName,
 		genBlockTimeFieldName,
@@ -1310,21 +1305,7 @@ func (e Entity) FieldNamesForSet() (names []string) {
 	return append(e.fieldNames(true), sysFields...)
 }
 
-func (e Entity) FieldSlotsForSet() (slots []string) {
-	for _, field := range e.Fields {
-		if field.IsReverseForeignKeyField() {
-			continue
-		}
-		slots = append(slots, field.FieldSlotsForSet()...)
-	}
-	slots = append(slots, "?", "?", "?", "?", "?")
-	if e.UseVersionedCollapsingTable {
-		slots = append(slots, "?", "?")
-	}
-	return slots
-}
-
-func (e Entity) FieldValuesForSet(box EntityBox, zeroData map[string]any) (values []any) {
+func (e Entity) fieldValuesForSet(box entityRow, zeroData map[string]any) (values []any) {
 	for _, field := range e.Fields {
 		if field.IsReverseForeignKeyField() {
 			continue
@@ -1353,13 +1334,12 @@ func (e Entity) FieldValuesForSet(box EntityBox, zeroData map[string]any) (value
 	return values
 }
 
-func (e Entity) ScanOne(rows clickhouselib.Rows) (*EntityBox, error) {
-	var box *EntityBox
+func (e Entity) scanOne(rows clickhouselib.Rows) (entityRow, error) {
+	var box entityRow
 	dbValues, err := scanMap(rows, buildFieldBufferForScanMap(rows))
 	if err != nil {
 		return box, err
 	}
-	box = &EntityBox{}
 	var is bool
 	switch id := dbValues[schema.EntityPrimaryFieldName].(type) {
 	case string: // ID! String! Bytes!

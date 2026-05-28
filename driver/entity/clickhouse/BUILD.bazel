@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "clickhouse",
     srcs = [
+        "chain_store.go",
         "check_value.go",
         "create.go",
         "entity.go",
@@ -14,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common/chx",
+        "//common/clickhousemanager",
         "//common/cmstr",
         "//common/envconf",
         "//common/format",
@@ -29,6 +31,8 @@ go_library(
         "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
         "@com_github_graph_gophers_graphql_go//types",
         "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_golang_lru//:golang-lru",
+        "@com_github_sentioxyz_golang_lru//simplelru",
         "@com_github_shopspring_decimal//:decimal",
     ],
 )

@@ -696,7 +696,7 @@ func (c Controller) drop(ctx context.Context, tableOrView TableOrView) error {
 	var sql string
 	switch tv := tableOrView.(type) {
 	case Table:
-		name := utils.Select(tv.IsTemporary, c.FullLogicName(tv.Name), c.FullLogicNameWithOnCluster(tv.Name))
+		name := utils.Select(tv.IsTemporary, c.LogicName(tv.Name), c.FullLogicNameWithOnCluster(tv.Name))
 		sql = fmt.Sprintf("DROP TABLE %s", name)
 	case View:
 		sql = fmt.Sprintf("DROP VIEW %s", c.FullLogicNameWithOnCluster(tv.Name))

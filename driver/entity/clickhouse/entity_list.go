@@ -70,7 +70,7 @@ func (s *Store) buildTemporaryTable(ctx context.Context, filter persistent.Entit
 		}
 	}
 	start = time.Now()
-	sql := fmt.Sprintf("INSERT INTO %s (%s)", s.ctrl.FullLogicName(table.Name), tempTableFieldName)
+	sql := fmt.Sprintf("INSERT INTO %s (%s)", s.ctrl.LogicName(table.Name), tempTableFieldName)
 	getter := chx.NewGetter(filter.Value, func(v any) []any {
 		return []any{v}
 	})
@@ -167,7 +167,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 			if err != nil {
 				return
 			}
-			slot = fmt.Sprintf("(SELECT %s FROM %s)", tempTableFieldName, s.ctrl.FullLogicName(tempTable))
+			slot = fmt.Sprintf("(SELECT %s FROM %s)", tempTableFieldName, s.ctrl.LogicName(tempTable))
 		} else {
 			var hasNil bool
 			var setSize int

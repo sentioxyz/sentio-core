@@ -1,245 +1,276 @@
-# driver/entity 设计文档
+# driver/entity Design Document
 
-## 概览
+## Overview
 
-`driver/entity` 是 Sentio 平台中负责实体（Entity）数据持久化与查询的核心驱动层。它以 ClickHouse 为存储后端，提供以下能力：
+`driver/entity` is the core entity persistence and query layer in the Sentio platform.
+It uses ClickHouse as the storage backend and provides:
 
-- GraphQL Schema 驱动的动态表结构创建与变更
-- 面向区块链场景的多链（multi-chain）数据隔离
-- 区块重组（Reorg）安全的写入与回滚
-- 多层读缓存（内存全量缓存 / ID 集合缓存 / LRU 缓存）
-- 基于区块号（blockNumber）的"时间旅行"查询与事务语义
-- 时序实体（TimeSeries）、稀疏实体（Sparse）、缓存实体（Cache）等扩展实体类型
+- Dynamic table creation and schema migration driven by a GraphQL schema
+- Multi-chain data isolation within a single ClickHouse cluster
+- Reorg-safe writes and rollbacks keyed by block number
+- Three-tier in-memory read cache (full-data / full-ID-set / LRU)
+- "Time-travel" queries by block number and transactional write semantics
+- Extended entity types: TimeSeries, Sparse, Cache, Aggregation
 
 ---
 
-## 目录结构
+## Directory Structure
 
 ```
 driver/entity/
-├── schema/          # Schema 解析与实体类型定义
-├── persistent/      # 存储无关的接口层、控制器、事务
-│   ├── persistent.go    # Store 接口（多链版）
-│   ├── cache.go         # CachedStore：单链绑定的缓存封装
-│   ├── controller.go    # Controller：事务读写控制器
-│   ├── transaction.go   # Txn：事务报告 + 指标上报
-│   ├── box.go           # EntityBox：实体数据载体
-│   ├── filter.go        # 过滤器定义与内存过滤逻辑
-│   └── operator.go      # 数值型字段的原子操作（NumCalc）
-└── clickhouse/      # ClickHouse 存储实现
-    ├── store.go         # Store：多链 ClickHouse 后端
-    ├── entity.go        # GetEntity / SetEntities / Reorg / GrowthAggregation
-    ├── entity_list.go   # ListEntities / CountEntity / GetAllID / GetMaxID
-    ├── create.go        # InitEntitySchema：建表 / 建视图 / 字段映射
-    ├── schema.go        # Entity 实体的字段扫描与构建辅助
-    └── check_value.go   # CheckValue：写入前数据校验
+├── DESIGN.md            # this document
+├── schema/              # GraphQL schema parsing and entity type definitions
+├── persistent/          # Storage-agnostic interface layer and controller
+│   ├── controller.go    # ChainStore interface + Controller (read/write/commit)
+│   ├── monitor.go       # Monitor interface + MetricsMonitor / ReportMonitor / emptyMonitor
+│   ├── box.go           # EntityBox (read/committed) + UncommittedEntityBox (write)
+│   ├── box_rich_struct.go  # FromRichStruct / FromEntityUpdateData helpers
+│   ├── change.go        # changeSet / changeHistory (per-block uncommitted state)
+│   ├── filter.go        # EntityFilter definitions and in-memory evaluation
+│   ├── operator.go      # Numeric atomic field operators (NumCalc)
+│   └── stat.go          # Per-commit time-window statistics
+└── clickhouse/          # ClickHouse storage implementation
+    ├── store.go         # Store: multi-chain ClickHouse backend (no per-chain cache)
+    ├── chain_store.go   # ChainStore: chain-bound wrapper with 3-tier cache
+    ├── entity.go        # getEntity / setEntities / reorg / growthAggregation
+    ├── entity_list.go   # listEntities / countEntity / getAllID / getMaxID
+    ├── create.go        # InitEntitySchema: create/alter tables and views
+    ├── schema.go        # Field scanning and type-build helpers
+    └── check_value.go   # CheckValue: pre-write data validation
 ```
 
 ---
 
-## 核心概念
+## Core Concepts
 
-### 实体类型（Entity 分类）
+### Entity Types
 
-实体类型通过 GraphQL Schema 中的指令（Directive）声明，共有以下几类：
+Entity types are declared via directives in the GraphQL schema:
 
-| 分类 | 指令 | 特性 |
-|------|------|------|
-| **普通实体** | `@entity` | 默认类型，支持 CRUD，按 blockNumber 保存历史版本 |
-| **稀疏实体** | `@entity(sparse: true)` | 数据量少，可全量加载到内存缓存 |
-| **不可变实体** | `@entity(immutable: true)` | 只允许 Insert，不允许 Update/Delete |
-| **时序实体** | `@entity(timeseries: true)` | 只允许 Insert，自动递增 ID，含 timestamp 字段；隐含 immutable |
-| **缓存实体** | `@cache(sizeMB: N)` | 数据**仅存内存**，不写 ClickHouse；重启后清空 |
-| **聚合实体** | `@aggregation` | 由时序实体按时间窗口聚合生成，定期以 INSERT-SELECT 写入 |
+| Type | Directive | Characteristics |
+|------|-----------|-----------------|
+| **Regular** | `@entity` | Default; supports CRUD; historical versions keyed by blockNumber |
+| **Sparse** | `@entity(sparse: true)` | Small data set; can be fully loaded into the full-data cache |
+| **Immutable** | `@entity(immutable: true)` | Insert only; Update and Delete are rejected |
+| **TimeSeries** | `@entity(timeseries: true)` | Insert only; auto-incrementing IDs; required `timestamp` field; implies Immutable |
+| **Cache** | `@cache(sizeMB: N)` | In-memory only; nothing is written to ClickHouse; cleared on restart |
+| **Aggregation** | `@aggregation` | Derived from TimeSeries entities via time-windowed INSERT-SELECT |
 
-### EntityBox — 实体数据载体
+### EntityBox — Committed Entity Carrier
+
+`EntityBox` represents the committed, read-side view of an entity:
 
 ```go
 type EntityBox struct {
+    Entity         string         // entity type name
     ID             string
-    Data           map[string]any          // 字段名 → 值（nil 表示删除）
-    Operator       map[string]Operator     // 字段名 → 原子操作（可选）
-    Entity         string                  // 实体类型名
-    GenBlockNumber uint64                  // 产生该版本的区块号
+    Data           map[string]any // nil means deleted
+    GenBlockNumber uint64         // block number that produced this version
     GenBlockTime   time.Time
     GenBlockHash   string
-    GenBlockChain  string                  // 产生该版本的链 ID
 }
 ```
 
-- `Data == nil`：代表删除操作
-- `Operator`：数值型字段的原子增量操作，见 [Operator 机制](#operator-机制)
-- `Copy()`：深拷贝，拷贝后修改不影响原始数据（nil Operator 保持 nil）
+- `Data == nil` indicates a deletion.
+- `Copy()` performs a deep copy so callers can modify the result without affecting the cache.
+- The chain ID is not stored here; it is implicit in the `ChainStore` that produced the box.
+
+### UncommittedEntityBox — Write-Path Entity Carrier
+
+`UncommittedEntityBox` is used exclusively on the write path (passed to `Controller.SetEntity`):
+
+```go
+type UncommittedEntityBox struct {
+    EntityBox                       // embedded committed view
+    Operator map[string]Operator    // optional atomic numeric operations
+}
+```
+
+- `Operator` enables increment-style writes on numeric fields without a prior read.
+- Callers construct `UncommittedEntityBox` from structured data via `FromRichStruct`
+  (upsert/full-replace) or `FromEntityUpdateData` (partial update with operators).
 
 ---
 
-## 层级架构
+## Layer Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                  调用方（sentio/driver）               │
-│  startup/entity.go   processor_indexer.go            │
-└──────────────┬───────────────────────────────────────┘
-               │ NewTxn()
-               ▼
-┌─────────────────────────────────────────┐
-│            persistent.Txn               │
-│  嵌入 Controller；收集操作指标报告       │
-└──────────────┬──────────────────────────┘
-               │ 持有
-               ▼
-┌─────────────────────────────────────────┐
-│          persistent.Controller          │
-│  uncommitted changeSet（区块号索引）    │
-│  GetEntity / ListEntity / SetEntity     │
-│  Commit / Reorg                         │
-└──────────────┬──────────────────────────┘
-               │ 持有
-               ▼
-┌─────────────────────────────────────────┐
-│         persistent.CachedStore          │  ← 单链绑定
-│  三层读缓存：                           │
-│    fullCache（稀疏实体全量数据）         │
-│    fullIDCache（全量 ID 集合）           │
-│    lruCache（LRU 个体实体）             │
-│    cacheEntity（Cache 实体内存存储）     │
-└──────────────┬──────────────────────────┘
-               │ 持有（多链接口）
-               ▼
-┌─────────────────────────────────────────┐
-│          clickhouse.Store               │  ← 多链，无缓存
-│  GetEntity / ListEntities / SetEntities │
-│  CountEntity / GetAllID / GetMaxID      │
-│  Reorg / GrowthAggregation             │
-│  InitEntitySchema                       │
-└─────────────────────────────────────────┘
-               │
-               ▼
-          ClickHouse DB
+┌─────────────────────────────────────────────────────────────┐
+│                  Caller (sentio/driver)                      │
+│  startup/entity.go    processor_indexer.go                   │
+│                                                              │
+│  1. Call clickhouse.Store.InitEntitySchema(ctx) once         │
+│  2. Create clickhouse.NewChainStore(store, chainID, ...)     │
+│  3. Create persistent.NewController(chainStore, monitor)     │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  persistent.Controller                       │
+│  Maintains an uncommitted changeSet indexed by block number  │
+│  GetEntity / GetEntityInBlock / ListEntity / ListRelated     │
+│  SetEntity (write to changeSet)                              │
+│  Commit (flush changeSet to ChainStore)                      │
+│  Reorg (discard future changes + delegate to ChainStore)     │
+│  Reports operations via Monitor interface                    │
+└────────────────────────┬────────────────────────────────────┘
+                         │ implements persistent.ChainStore
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│               clickhouse.ChainStore                         │
+│  Chain-bound wrapper; implements persistent.ChainStore       │
+│  Three-tier read cache:                                      │
+│    fullCache     — complete entity data for sparse entities  │
+│    fullIDCache   — full set of known IDs                     │
+│    lruCache      — individual entity LRU (bounded count)     │
+│    cacheEntity   — in-memory-only @cache entity storage      │
+│  Cache is invalidated/updated on SetEntities and Reorg       │
+└────────────────────────┬────────────────────────────────────┘
+                         │ holds *Store
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  clickhouse.Store                            │
+│  Multi-chain ClickHouse backend; no per-chain cache          │
+│  All methods accept a chain string argument internally       │
+│  InitEntitySchema — one-time schema setup (NOT on ChainStore)│
+│  getEntity / listEntities / setEntities                      │
+│  countEntity / getAllID / getMaxID                           │
+│  reorg / growthAggregation                                   │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+                    ClickHouse DB
 ```
 
-### persistent.Store（多链接口）
+### Design Principles
+
+**`InitEntitySchema` lives only on `clickhouse.Store`.** It is a one-time setup operation
+that creates or alters ClickHouse tables to match the current entity schema.  It must be
+called once before any `ChainStore` is created, not once per chain.  It is intentionally
+excluded from the `persistent.ChainStore` interface so that chain-bound code cannot depend
+on it.
+
+**`clickhouse.Store` is multi-chain, `clickhouse.ChainStore` is chain-bound.**
+`clickhouse.Store` contains no per-chain cache; all caching lives in `clickhouse.ChainStore`.
+Multiple `ChainStore` instances can share a single `Store` (and thus a single ClickHouse
+connection pool and schema registry).
+
+**`persistent.Controller` is the single transactional facade.**
+The previous design split responsibility across `CachedStore`, `Controller`, and `Txn`.
+The current design collapses these three into `Controller`, which holds the `ChainStore`
+and the `Monitor` and is the only object callers need to keep for a processing cycle.
+
+---
+
+## persistent.ChainStore Interface
 
 ```go
-type Store interface {
-    InitEntitySchema(ctx context.Context) error
+type ChainStore interface {
     GetChain() string
     GetEntityType(entity string) *schema.Entity
     GetEntityOrInterfaceType(name string) schema.EntityOrInterface
 
-    GetEntity(ctx, entityType, chain, id string) (*EntityBox, error)
-    ListEntities(ctx, entityType, chain, filters, limit) ([]*EntityBox, error)
-    SetEntities(ctx, entityType, boxes) (created int, error)
-    GetAllID(ctx, entityType, chain) ([]string, error)
-    GetMaxID(ctx, entityType, chain) (int64, error)
-    CountEntity(ctx, entityType, chain) (uint64, error)
-    GrowthAggregation(ctx, chain, curBlockTime) error
-    Reorg(ctx, blockNumber, chain) error
-    CheckValue(entityType, data) error
+    // GetEntity returns the entity with the given id.
+    // fromCache == true when the result was served entirely from in-memory cache.
+    // Returns nil if the entity does not exist or has been deleted.
+    GetEntity(ctx context.Context, entityType *schema.Entity, id string) (*EntityBox, bool, error)
+
+    // ListEntities returns entities matching the given filters.
+    // fromCache == true when all results were served entirely from in-memory cache.
+    ListEntities(ctx context.Context, entityType *schema.Entity,
+        filters []EntityFilter, limit int) ([]*EntityBox, bool, error)
+
+    GetTimeSeriesEntityMaxID(ctx context.Context, entityType *schema.Entity) (int64, error)
+
+    // SetEntities writes a batch of entity boxes to persistent storage.
+    // Ordering contract: within boxes, entries sharing the same ID are ordered
+    // by ascending GenBlockNumber.
+    // TimeSeries ID contract: all IDs exceed the value from GetTimeSeriesEntityMaxID.
+    SetEntities(ctx context.Context, entityType *schema.Entity, boxes []EntityBox) (int, error)
+
+    GrowthAggregation(ctx context.Context, curBlockTime time.Time) error
+    Reorg(ctx context.Context, blockNumber int64) error
+    CheckValue(entityType *schema.Entity, data map[string]any) error
+
+    // Snapshot returns cache state for debugging/monitoring.
+    Snapshot() any
 }
 ```
 
-所有方法携带 `chain string` 参数，适合多链共享同一 ClickHouse 实例的场景。
-
-### persistent.CachedStore（单链缓存封装）
-
-`CachedStore` 将 `persistent.Store`（多链）包装为单链绑定视图，并在读路径上增加三层内存缓存：
-
-```go
-type CachedStore struct {
-    store    Store        // 底层多链存储
-    chain    string       // 绑定的链
-
-    // 三层缓存
-    cache        *simplelru.LRU[string, *EntityBox]        // LRU 缓存，key = "entityName/id"
-    cacheEvicted int
-    fullIDCache       map[string]map[string]bool            // 全量 ID 集合，key = entityName
-    fullIDCacheLoaded map[string]bool
-    fullCache        map[string]map[string]*EntityBox       // 全量数据，key = entityName
-    fullCacheLoaded  map[string]bool
-    fullCacheRefused map[string]bool                        // 超出大小限制，拒绝全量缓存
-
-    // Cache 类型实体的专属存储（按内存大小限制的 LRU）
-    cacheEntity map[string]*lru.Cache[string, *EntityBox]
-}
-```
-
-提供 `NewTxn()` 方法用于创建绑定该链的事务对象。
-
-### persistent.Controller（事务读写控制器）
-
-Controller 是事务的核心，维护一个"已提交 → 未提交"的双层视图：
-
-```go
-type Controller struct {
-    store     *CachedStore
-    changes   changeSet  // map[entityName][id] → changeHistory（按区块号排序）
-    committed *uint64
-    timeStat  *timewin.TimeWindowsManager[*timeStatWindow]
-    noticeCtl NoticeController
-}
-```
-
-**读取语义**：对于给定 `blockNumber`，优先从 `changes` 中取该区块号及之前的最新版本，若无则从 `CachedStore`（进而 ClickHouse）读取。
-
-**写入语义**：`SetEntity` 仅写入内存 `changes`，`Commit` 时批量写入 ClickHouse。
-
-### persistent.Txn（事务 + 指标）
-
-`Txn` 嵌入 `Controller` 并实现 `NoticeController` 接口：
-
-```go
-type Txn struct {
-    start             time.Time
-    storeCacheEvicted int
-    report            TxnReport
-    recordMetric      SimpleNoticeController
-    *Controller
-}
-```
-
-`TxnReport` 汇总整个事务周期内的所有 get/list/set/commit 操作统计，在 `NoticeCommit` 时打印到日志。
+All methods are chain-bound: no `chain string` parameter appears in the interface.
 
 ---
 
-## 三层读缓存详解
+## Monitor Interface
 
-`CachedStore` 为非 Cache 类型实体提供三层读缓存，命中策略按以下顺序尝试：
+`Monitor` is the observer through which `Controller` reports key operations to its caller.
+Pass `nil` to `NewController` to use the built-in no-op monitor.
+
+```go
+type Monitor interface {
+    OnGet(ctx, entity, id string, blockNumber uint64, inBlock bool, from string, used time.Duration)
+    OnList(ctx, entity string, blockNumber uint64, loadRelated bool, from string,
+        resultLen, resultPersistentLen int, used time.Duration)
+    OnSet(ctx, entity, id string, blockNumber uint64, remove, hasOperator bool, used time.Duration)
+    OnCommit(ctx, blockNumber uint64, created, updated map[string]int, used time.Duration)
+}
+```
+
+Three built-in implementations:
+
+| Type | Purpose |
+|------|---------|
+| `MetricsMonitor` | Records operation latency via an OpenTelemetry `Float64Histogram` |
+| `ReportMonitor` | Accumulates per-cycle statistics and logs a summary on each `OnCommit`; also delegates to `MetricsMonitor` |
+| `emptyMonitor` | No-op (used when `nil` is passed to `NewController`) |
+
+**`ReportMonitor` lifecycle**: call `Reset()` before each processing cycle to clear
+accumulated stats and record the cycle start time.  `OnCommit` finalises the cycle report
+but does not reset state.
+
+---
+
+## Three-Tier Read Cache (clickhouse.ChainStore)
+
+For non-`@cache` entities, `ChainStore` attempts the following lookup sequence:
 
 ```
 GetEntity(entityType, id)
   │
-  ├─ 1. IsCache 实体？→ 直接查 cacheEntity（LRU，按内存大小限制）
+  ├─ @cache entity? → look up cacheEntity LRU (weight-limited by sizeMB)
   │
-  ├─ 2. 尝试全量数据缓存（fullCache）
-  │     ├─ 已拒绝（fullCacheRefused）或非稀疏（!IsSparse）→ 跳过
-  │     ├─ 已加载（fullCacheLoaded）→ 命中，返回 fullCache[entity][id].Copy()
-  │     └─ 未加载 → CountEntity() 检查数量
-  │           ├─ 超出 fullCacheDataSizeLimit / dataSize → 拒绝，设 fullCacheRefused
-  │           └─ 在限额内 → ListEntities() 全量加载到 fullCache
+  ├─ 1. Try full-data cache (fullCache) — only for sparse entities
+  │     ├─ fullCacheRefused or !IsSparse → skip
+  │     ├─ fullCacheLoaded → hit: return fullCache[entity][id].Copy()
+  │     └─ not loaded → countEntity() to size-check
+  │           ├─ count > fullCacheDataLimit/dataSize → refuse, set fullCacheRefused
+  │           └─ within limit → listEntities() and populate fullCache
   │
-  ├─ 3. 全量 ID 缓存（fullIDCache）
-  │     ├─ 未加载 → GetAllID() 加载所有 ID
-  │     ├─ ID 不存在 → 返回 nil（无需 DB 查询）
-  │     └─ ID 存在 → 尝试 lruCache
-  │           ├─ 命中 lruCache → 返回副本
-  │           └─ 未命中 → GetEntity() 从 DB 读取，写入 lruCache
+  ├─ 2. Full-ID cache (fullIDCache) — loaded via getAllID() on first miss
+  │     ├─ ID not in set → return nil (no DB roundtrip)
+  │     └─ ID in set → try lruCache
+  │           ├─ lruCache hit → return copy
+  │           └─ lruCache miss → getEntity() from DB, add to lruCache
   │
-  └─ fromCache 标志：true=全程命中缓存，false=产生了 DB 访问
+  └─ fromCache == true only when no DB I/O was performed
 ```
 
-**缓存失效**：
-- `SetEntities` 成功后同步更新对应缓存层（fullCache / fullIDCache / lruCache）
-- `Reorg` 和 `InitEntitySchema` 时清空所有缓存（`purgeCache()`）
-- fullCache 写入后实体数超限 → 删除 fullCache，设置 fullCacheRefused
+**Cache invalidation:**
+- `SetEntities`: updates fullCache / fullIDCache / lruCache in-place after a successful write.
+- `Reorg`: calls `purgeCache()` to reset all cache structures; also removes `@cache` entity
+  entries whose `GenBlockNumber` exceeds the reorg target.
+- After `SetEntities`, if `fullCache` grows beyond `fullCacheDataLimit/dataSize`, it is
+  discarded and `fullCacheRefused` is set — subsequent reads use the LRU + fullIDCache path.
 
-**Cache 实体（`@cache`）** 的存储完全在内存中，`SetEntities` 不写 ClickHouse，数据不持久化。
+**`@cache` entities** are stored entirely in a per-entity weight-limited LRU (`cacheEntity`).
+`SetEntities` for these types is a no-op at the ClickHouse level.
 
 ---
 
-## Operator 机制（原子数值操作）
+## Operator Mechanism (Atomic Numeric Operations)
 
-`SetEntity` 支持传入 `Operator` 而非直接覆盖值，用于对数值字段做增量操作，无需先读后写：
+`SetEntity` supports passing an `Operator` instead of a concrete value for numeric fields,
+enabling increment-style writes without a read-before-write:
 
 ```go
 type Operator struct {
@@ -247,199 +278,216 @@ type Operator struct {
 }
 ```
 
-**执行时机**：`Commit` 前的 `executeAllEntityOperator` 阶段。对同一字段的多个 Operator 可以合并：
+**Execution**: operators are resolved during `Commit` → `executeAllEntityOperator`.
+For the first write to an ID in a block, the pre-value is fetched from the `ChainStore`;
+subsequent writes within the same block use the previously resolved value.
+
+**Merging**: two operators on the same (entity, id, blockNumber) triplet are merged
+mathematically inside `changeHistory.Push`:
 
 ```
-(x * m1 + a1) * m2 + a2 = x * (m1*m2) + (a1*m2 + a2)
+(x * m1 + a1) * m2 + a2 = x * (m1 * m2) + (a1 * m2 + a2)
 ```
 
-**合并**：同一区块号、同一 ID 的两次 `SetEntity`，通过 `changeHistory.Push` → `EntityBox.Merge` 合并：
-- 旧有数据（`===`）+ 新来 Operator（`+++`）→ 执行 Operator，字段变为数据（`===`）
-- 旧有 Operator + 新来 Operator → 数学合并为一个 Operator
+A data write following an operator write applies the operator to produce a concrete value,
+which is then stored as plain data (Operator is set to nil).
 
 ---
 
-## ClickHouse 表设计
+## ClickHouse Table Design
 
-### 内置元字段
+### Built-in Meta-fields
 
-每张实体表都包含以下元字段（用户字段之外）：
+Every entity table contains the following reserved columns in addition to user-defined fields:
 
-| 字段名 | 类型 | 含义 |
-|--------|------|------|
-| `__genBlockNumber__` | UInt64 | 产生该行的区块号 |
-| `__genBlockTime__` | Int64/DateTime64 | 产生该行的区块时间 |
-| `__genBlockHash__` | String | 产生该行的区块哈希 |
-| `__genBlockChain__` | String | 链 ID（多链隔离的主键之一） |
-| `__deleted__` | Bool | 标记删除 |
-| `__timestamp__` | DateTime64 | 行写入时间（非区块时间） |
-| `__sign__` | Int8 | 仅 VersionedCollapsing 表使用（+1/-1） |
-| `__version__` | UInt64 | 仅 VersionedCollapsing 表使用 |
+| Column | ClickHouse Type | Description |
+|--------|-----------------|-------------|
+| `__genBlockNumber__` | `UInt64` | Block number that produced this row |
+| `__genBlockTime__` | `Int64` / `DateTime64` | Block timestamp |
+| `__genBlockHash__` | `String` | Block hash |
+| `__genBlockChain__` | `String` | Chain ID (primary key component for multi-chain isolation) |
+| `__deleted__` | `Bool` | Logical delete marker |
+| `__timestamp__` | `DateTime64` | Wall-clock write time (not block time) |
+| `__sign__` | `Int8` | VersionedCollapsing only (+1 / -1) |
+| `__version__` | `UInt64` | VersionedCollapsing only |
 
-### 表类型
+### Table Engines
 
-根据实体特性，ClickHouse 侧会创建不同类型的表：
+| Condition | Engine | Notes |
+|-----------|--------|-------|
+| Regular entity | `ReplacingMergeTree` | Sorted by `(chain, id, blockNumber)`; latest version via `argMax` |
+| Immutable entity | `MergeTree` | No `__deleted__`; INSERT only |
+| VersionedCollapsing | `VersionedCollapsingMergeTree` | Writes sign=-1 old-value row + sign=+1 new-value row; `HAVING SUM(sign) > 0` selects live rows |
+| TimeSeries entity | `MergeTree` | No update; IDs are auto-incremented |
+| Aggregation entity | `SummingMergeTree` (or similar) | Populated by periodic `INSERT-SELECT` from the TimeSeries source |
 
-| 条件 | 主表引擎 | 特点 |
-|------|----------|------|
-| 普通实体 | `ReplacingMergeTree` | 以 `(chain, id, blockNumber)` 排序，通过 argMax 取最新版 |
-| 不可变实体 | `MergeTree` | 无 `__deleted__`，无更新，直接 INSERT |
-| VersionedCollapsing | `VersionedCollapsingMergeTree` | 写入时附带 sign=-1 的旧值行，HAVING SUM(sign)>0 取有效行 |
-| 时序实体 | `MergeTree` | 不可更新，id 自动递增，含 timestamp |
-| 聚合实体 | `SummingMergeTree`/等 | 按时间窗口聚合，定期 INSERT-SELECT 填充 |
+VersionedCollapsing entities additionally create:
+- `versionedLatestEntity_{Name}`: a `VersionedCollapsingMergeTree` holding the latest version.
+- `versionedLatestEntityMV_{Name}`: a materialized view that keeps the latest table in sync.
 
-VersionedCollapsing 实体还会额外创建：
-- `versionedLatestEntity_{Name}`：VersionedCollapsingMergeTree，存最新版本
-- `versionedLatestEntityMV_{Name}`：物化视图，从原始表同步到 latest 表
+### Field Type Mapping
 
-### 数据类型映射
-
-| Schema 类型 | ClickHouse 类型（默认） | 备注 |
-|-------------|------------------------|------|
-| `ID` / `String` / `Bytes` | `String` | Bytes 存储 hex 字符串 |
+| Schema Type | ClickHouse Type (default) | Notes |
+|-------------|--------------------------|-------|
+| `ID` / `String` / `Bytes` | `String` | Bytes stored as hex |
 | `Boolean` | `Bool` | |
 | `Int` | `Int32` | |
 | `Int8` | `Int64` | |
-| `Timestamp` | `Int64`（微秒）或 `DateTime64(6)` | 由 schemaVersion bit 控制 |
+| `Timestamp` | `Int64` (µs) or `DateTime64(6)` | Controlled by `Features.TimestampUseDateTime64` |
 | `Float` | `Float64` | |
-| `BigInt` | `Tuple(Bool,Int8,UInt256)` 或 `Int256` | 由 schemaVersion bit 控制 |
-| `BigDecimal` | `Decimal256(30)` / `String` / `Decimal512(60)` | 由 schemaVersion bit 控制 |
+| `BigInt` | `Tuple(Bool,Int8,UInt256)` or `Int256` | Controlled by `Features.BigIntUseInt256` |
+| `BigDecimal` | `Decimal256(30)` / `String` / `Decimal512(60)` | Controlled by `Features` flags |
 | `Enum` | `Enum(...)` | |
-| `[T]` / `[T!]` | `String`（JSON）或 `Array(T)` | 由 schemaVersion bit 控制 |
+| `[T]` / `[T!]` | `String` (JSON) or `Array(T)` | Controlled by `Features.ArrayUseNativeType` |
 
-`Features`（由 schemaVersion 编码）控制具体的类型选择，详见 `clickhouse/store.go`。
+`Features` (encoded in `schemaVersion`) selects the concrete type variant; see
+`clickhouse/store.go` for details.
 
 ---
 
-## 写入流程（Commit）
+## Write Flow (Commit)
 
 ```
 Controller.Commit(ctx, blockNumber, blockTime)
   │
-  ├─ executeAllEntityOperator()   # 展开所有 Operator，计算出最终 Data
+  ├─ executeAllEntityOperator()
+  │     Resolves all Operator fields; fetches pre-values from ChainStore as needed.
   │
-  ├─ changes.Split(blockNumber)   # 分离出 >blockNumber 的变更（留待下次）
+  ├─ changes.Split(blockNumber)
+  │     Splits out entries with blockNumber > commit target; they remain in the Controller
+  │     for the next commit cycle.
   │
-  ├─ 对每种实体类型：
-  │   ├─ 若时序实体：GetMaxID() 获取当前最大 ID，为 @ 前缀 ID 分配真实 ID
-  │   ├─ SetEntities(ctx, entityType, entities)
-  │   │   ├─ 按 batchSize 分批
-  │   │   ├─ 检查新旧 ID（queryExistEntity / listEntities for versioned）
-  │   │   ├─ 对 VersionedCollapsing：写入 sign=-1 旧值行 + sign=+1 新值行
-  │   │   └─ 更新 CachedStore 缓存
-  │   └─ 统计 created / updated
+  ├─ For each entity type with pending changes:
+  │   ├─ TimeSeries: GetTimeSeriesEntityMaxID() → assign real IDs to "@"-prefixed entries
+  │   ├─ ChainStore.SetEntities(ctx, entityType, boxes)
+  │   │     ├─ Batch by BatchInsertSizeLimit
+  │   │     ├─ Check existing IDs (skipped when fullCache/fullIDCache is warm)
+  │   │     ├─ VersionedCollapsing: write sign=-1 old row + sign=+1 new row
+  │   │     └─ Update in-memory caches
+  │   └─ Accumulate created / updated counts
   │
-  └─ GrowthAggregation()         # 驱动聚合实体 INSERT-SELECT
+  ├─ ChainStore.GrowthAggregation()
+  │     Triggers INSERT-SELECT to populate aggregation entity time-windows.
+  │
+  └─ monitor.OnCommit(ctx, blockNumber, created, updated, elapsed)
 ```
 
 ---
 
-## 读取流程（GetEntity / ListEntity）
+## Read Flow (GetEntity / ListEntity)
 
 ```
 Controller.GetEntity(ctx, entityType, id, blockNumber)
   │
-  ├─ 1. 查 changes[entity][id].Latest(blockNumber) → 若命中，展开 Operator 返回
+  ├─ 1. Check changes[entity][id].Latest(blockNumber)
+  │       If found and has Operator → execute operator (may need ChainStore for pre-value)
+  │       Return result.
   │
-  └─ 2. 查 CachedStore.GetEntity(ctx, entityType, id)
-        └─ 见"三层读缓存详解"
+  └─ 2. ChainStore.GetEntity(ctx, entityType, id)
+            └─ see Three-Tier Read Cache above
 ```
 
 ```
 Controller.ListEntity(ctx, entityType, filters, cursor, limit, blockNumber)
   │
-  ├─ 从 changes[entity] 中收集满足 filters 且未过 cursor 的 uncommitted 数据
+  ├─ Collect uncommitted entries from changes[entity] that satisfy filters and cursor.
   │
-  ├─ 拼接 "id NOT IN <已检查 ID 集合>" 过滤条件
+  ├─ Append "id NOT IN <already-seen IDs>" to filters.
   │
-  └─ CachedStore.ListEntities(ctx, entityType, filters+notIn, limit)
-        └─ 见"三层读缓存详解"（命中 fullCache 则内存过滤）
+  └─ ChainStore.ListEntities(ctx, entityType, filters+notIn, limit)
+            └─ fullCache path → in-memory filter; DB path → SQL WHERE clause
 ```
 
 ---
 
-## Reorg 流程
-
-当区块发生重组时，需回滚到某个区块号之前的状态：
+## Reorg Flow
 
 ```
 Controller.Reorg(ctx, blockNumberGT)
   │
-  ├─ changes.Split(blockNumberGT) 丢弃区块号 > blockNumberGT 的未提交变更
+  ├─ changes.Split(blockNumberGT)
+  │     Discards uncommitted entries with blockNumber > blockNumberGT.
   │
-  └─ CachedStore.Reorg(ctx, blockNumberGT)
-        ├─ purgeCache()           # 清空所有读缓存
-        ├─ 修剪 cacheEntity LRU（移除 genBlockNumber > blockNumberGT 的 Cache 实体）
-        └─ clickhouse.Store.Reorg(ctx, blockNumberGT, chain)
-              ├─ 对普通实体：DELETE WHERE __genBlockNumber__ > blockNumberGT
-              └─ 对 VersionedCollapsing 实体：
-                    ├─ DELETE 原始表中 > blockNumberGT 的行
-                    └─ 检查并重建 versionedLatestEntity（防止 collapsing 后数据丢失）
+  └─ ChainStore.Reorg(ctx, blockNumberGT)
+        ├─ purgeCache()
+        │     Resets fullCache / fullIDCache / lruCache.
+        ├─ Trim cacheEntity LRUs
+        │     Remove entries where GenBlockNumber > blockNumberGT.
+        └─ clickhouse.Store.reorg(ctx, blockNumberGT, chain)
+              ├─ Regular entities: DELETE WHERE __genBlockNumber__ > blockNumberGT
+              └─ VersionedCollapsing entities:
+                    ├─ DELETE rows with blockNumber > blockNumberGT from both tables
+                    └─ Rebuild versionedLatestEntity to repair any collapsed rows
 ```
 
 ---
 
-## 过滤器系统
+## Filter System
 
 ### EntityFilter
 
 ```go
 type EntityFilter struct {
     Field *types.FieldDefinition
-    Op    EntityFilterOp       // Eq, Ne, Gt, Ge, Lt, Le, In, NotIn, Like, NotLike, HasAll, HasAny
+    Op    EntityFilterOp   // Eq, Ne, Gt, Ge, Lt, Le, In, NotIn, Like, NotLike, HasAll, HasAny
     Value []any
-    idSet map[string]bool      // 仅 id IN/NOT IN 使用，预构建的 id 集合
 }
 ```
 
-支持操作符：`=`、`!=`、`>`、`>=`、`<`、`<=`、`IN`、`NOT IN`、`LIKE`、`NOT LIKE`、`HAS_ALL`（数组包含全部）、`HAS_ANY`（数组包含任意）。
+Supported operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `IN`, `NOT IN`, `LIKE`, `NOT LIKE`,
+`HAS_ALL` (array contains all), `HAS_ANY` (array contains any).
 
-### 双路过滤
+### Dual-path Evaluation
 
-- **内存过滤**（`checkFilter`）：当 `CachedStore` 从 fullCache 提供数据时，在内存中执行过滤
-- **SQL 过滤**（`buildCondition`）：当需要访问 ClickHouse 时，转换为 WHERE 条件
-  - 超大 IN 集合（超过 `HugeIDSetSize`）时使用临时内存表避免 SQL 参数过长
+- **In-memory** (`CheckFilters`): used when `fullCache` is warm; no SQL generated.
+- **SQL** (`buildCondition`): used when querying ClickHouse directly; converted to WHERE clauses.
+  - Oversized `IN` sets (> `HugeIDSetSize`) use a temporary in-memory table to avoid
+    parameter length limits.
 
-### NULL 语义
+### NULL Semantics
 
-过滤器对 NULL 值有明确语义（与 SQL 不同）：
-
-- `field = null` → field IS NULL
-- `field != null` → field IS NOT NULL（**注意**：null != null 返回 false）
-- `field > null` / `< null` → 始终 false
-- `field IN [a, null]` → field = a OR field IS NULL
-- `LIKE null` / `NOT LIKE null` → 始终 false
-- `HAS_ALL []` / `HAS_ALL null` → 始终 true
-- `HAS_ANY []` / `HAS_ANY null` → 始终 false
-
----
-
-## 时序实体与聚合
-
-### 时序实体（`@entity(timeseries: true)`）
-
-- 每次写入都是一条新记录，ID 自动递增（或手动指定）
-- 含必填 `timestamp` 字段，记录区块时间（微秒）
-- 不支持 Update / Delete
-- `Commit` 时：`GetMaxID()` 获取当前最大 ID，为 `@` 前缀的自动 ID 分配真实递增 ID
-
-### 聚合实体（`@aggregation`）
-
-- 以时序实体为数据源，定义维度字段（dim）和聚合字段（agg）
-- 支持聚合函数：`sum`、`min`、`max`、`count`、`first`（最早区块）、`last`（最新区块）
-- 支持多个时间窗口（interval），如 `1h`、`1d`
-- `GrowthAggregation()` 在每次 Commit 后触发，以 INSERT-SELECT 增量追加新时间窗口的数据
+| Expression | Result |
+|------------|--------|
+| `field = null` | `field IS NULL` |
+| `field != null` | `field IS NOT NULL` (note: `null != null` → false) |
+| `field > null` / `< null` | always false |
+| `field IN [a, null]` | `field = a OR field IS NULL` |
+| `LIKE null` / `NOT LIKE null` | always false |
+| `HAS_ALL []` / `HAS_ALL null` | always true |
+| `HAS_ANY []` / `HAS_ANY null` | always false |
 
 ---
 
-## 配置参数
+## TimeSeries Entities and Aggregation
 
-| 参数 | 来源 | 含义 |
-|------|------|------|
-| `capacity`（lruCapacity） | `NewCachedStore` | LRU 缓存容量（实体个数） |
-| `fullCacheDataSizeLimit` | `NewCachedStore` | 全量数据缓存的总大小上限（字节），超过则退化到 LRU + ID 缓存 |
-| `schemaVersion` | `BuildFeatures` | 控制 BigDecimal/BigInt/Timestamp/Array 在 ClickHouse 中的存储类型 |
-| `BatchInsertSizeLimit` | `TableOption` | 每批写入的实体数上限（默认 1000） |
-| `HugeIDSetSize` | `TableOption` | IN 条件超过此数量时改用临时表（默认 1000） |
-| `SENTIO_ENABLE_CLICKHOUSE_LIGHT_DELETE` | env | 是否使用 ClickHouse Light Delete（默认 true） |
-| `SENTIO_VERSIONED_COLLAPSING_INSERT_QUORUM` | env | VersionedCollapsing 写入一致性级别（默认 1） |
+### TimeSeries (`@entity(timeseries: true)`)
+
+- Every write creates a new row; IDs auto-increment (or may be explicitly supplied).
+- The required `timestamp` field records block time in microseconds.
+- Update and Delete are not supported.
+- At `Commit` time: `GetTimeSeriesEntityMaxID()` retrieves the current maximum numeric ID,
+  and `@`-prefixed auto-IDs are assigned sequentially starting from `maxID + 1`.
+
+### Aggregation (`@aggregation`)
+
+- Derives from a TimeSeries source; declares dimension fields (dim) and aggregate fields (agg).
+- Supported aggregation functions: `sum`, `min`, `max`, `count`, `first` (earliest block), `last` (latest block).
+- Supports multiple time intervals (e.g. `1h`, `1d`).
+- `GrowthAggregation()` fires after each `Commit`; it appends new time-window rows via
+  an incremental `INSERT-SELECT` from the source TimeSeries table.
+
+---
+
+## Configuration
+
+| Parameter | Source | Description |
+|-----------|--------|-------------|
+| `lruCapacity` | `clickhouse.NewChainStore` | Number of entity entries in the LRU cache |
+| `fullCacheDataSizeLimit` | `clickhouse.NewChainStore` | Max total bytes kept in the full-data cache; exceeding this falls back to LRU + fullIDCache |
+| `schemaVersion` / `Features` | `clickhouse.BuildFeatures` | Controls ClickHouse type variants for BigDecimal, BigInt, Timestamp, and Array fields |
+| `BatchInsertSizeLimit` | `clickhouse.TableOption` | Max entities per INSERT batch (default: 1000) |
+| `HugeIDSetSize` | `clickhouse.TableOption` | Switch to temp-table for IN filters larger than this (default: 1000) |
+| `SENTIO_ENABLE_CLICKHOUSE_LIGHT_DELETE` | env | Use ClickHouse Light Delete for reorg (default: true) |
+| `SENTIO_VERSIONED_COLLAPSING_INSERT_QUORUM` | env | Write quorum for VersionedCollapsing tables (default: 1) |
+| `SENTIO_DEFAULT_ENTITY_BATCH_INSERT_SIZE` | env | Default batch insert size (default: 1000) |
+| `SENTIO_DEFAULT_ENTITY_HUGE_ID_SET_SIZE` | env | Default huge-ID-set threshold (default: 1000) |

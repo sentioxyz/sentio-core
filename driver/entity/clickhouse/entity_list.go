@@ -531,7 +531,8 @@ func (s *Store) countEntity(
 	// Determine deletion state once globally so bucket queries don't re-check per bucket.
 	hasDeletions := false
 	if excludeDeleted && !entityType.IsImmutable() {
-		deletionSQL := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
+		deletionSQL := fmt.Sprintf("SELECT COUNT(*) FROM (SELECT %s FROM %s WHERE %s = ? AND %s LIMIT 1)",
+			quote(schema.EntityPrimaryFieldName),
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 			quote(deletedFieldName),
@@ -587,7 +588,6 @@ func (s *Store) _countEntity(
 	hasDeletions bool,
 	extraCondition string,
 ) (count uint64, err error) {
-	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
 	var sql string
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?"+extraCondition,
@@ -656,15 +656,7 @@ func (s *Store) _countEntity(
 				"ft":  s.fullName(s.TableName(entityType)),
 			})
 	}
-	startAt := time.Now()
-	count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
-	logger = logger.With("sql", sql, "used", time.Since(startAt).String())
-	if err != nil {
-		logger.Errore(err, "count failed")
-	} else {
-		logger.Debugw("count succeed", "count", count)
-	}
-	return
+	return s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
 }
 
 func isQueryMemoryLimitExceededError(err error) bool {

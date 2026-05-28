@@ -490,6 +490,7 @@ func (c *ChainStore) tryLoadFullCache(
 		c.fullCacheRefused[entityType.Name] = true
 		return false, false, nil
 	}
+	logger.Debugf("will really load all %d entities from persistent for full cache", count)
 	rows, listErr := c.store.listEntities(ctx, entityType, c.chain, nil, excludeDeleted, math.MaxInt)
 	logger = logger.With("used", time.Since(start).String())
 	if listErr != nil {

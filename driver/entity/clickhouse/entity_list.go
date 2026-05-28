@@ -567,10 +567,10 @@ func (s *Store) countEntity(
 
 // extraCondition is appended verbatim to SQL WHERE clauses with no parameterization.
 // Callers MUST ensure:
-//   1. It starts with a space (or is empty ""), e.g. " AND cityHash64(id)%N=bi".
-//      Omitting the leading space produces a SQL syntax error at runtime.
-//   2. It is constructed solely from internal integer literals — never from user-supplied input.
-//      Passing user-derived strings would allow SQL injection.
+//  1. It starts with a space (or is empty ""), e.g. " AND cityHash64(id)%N=bi".
+//     Omitting the leading space produces a SQL syntax error at runtime.
+//  2. It is constructed solely from internal integer literals — never from user-supplied input.
+//     Passing user-derived strings would allow SQL injection.
 func (s *Store) _countEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -580,9 +580,10 @@ func (s *Store) _countEntity(
 ) (count uint64, err error) {
 	var sql string
 	if entityType.IsImmutable() {
-		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?"+extraCondition,
+		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?%s",
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
+			extraCondition,
 		)
 	} else {
 		hasDeletions := false
@@ -606,10 +607,11 @@ func (s *Store) _countEntity(
 			// Most of the time there is no deletion behavior, and this is enough.
 			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
 			// (sign=-1 rows excluded), so COUNT(DISTINCT id) correctly reflects live entity count.
-			sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?"+extraCondition,
+			sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?%s",
 				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
+				extraCondition,
 			)
 		} else if s.useVersionedCollapsingTable(entityType) {
 			// SELECT COUNT(*)
@@ -624,7 +626,7 @@ func (s *Store) _countEntity(
 				"FROM ("+
 				" SELECT %pk#s"+
 				" FROM %ft#s"+
-				" WHERE %gbc#s = ? AND NOT %ded#s"+extraCondition+
+				" WHERE %gbc#s = ? AND NOT %ded#s%ec#s"+
 				" GROUP BY %pk#s, %ver#s"+
 				" HAVING SUM(%sign#s) > 0"+
 				")",
@@ -635,6 +637,7 @@ func (s *Store) _countEntity(
 					"ver":  quote(versionFieldName),
 					"sign": quote(signFieldName),
 					"ft":   s.fullName(s.VersionedLatestTableName(entityType)),
+					"ec":   extraCondition,
 				})
 		} else {
 			// this query is slower but much less memory requirement
@@ -651,7 +654,7 @@ func (s *Store) _countEntity(
 				"FROM ("+
 				" SELECT %pk#s"+
 				" FROM %ft#s"+
-				" WHERE %gbc#s = ?"+extraCondition+
+				" WHERE %gbc#s = ?%ec#s"+
 				" GROUP BY %pk#s"+
 				" HAVING NOT argMax(%ded#s,%gbn#s)"+
 				")",
@@ -661,6 +664,7 @@ func (s *Store) _countEntity(
 					"gbc": quote(genBlockChainFieldName),
 					"ded": quote(deletedFieldName),
 					"ft":  s.fullName(s.TableName(entityType)),
+					"ec":  extraCondition,
 				})
 		}
 	}
@@ -716,10 +720,10 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 
 // extraCondition is appended verbatim to SQL WHERE clauses with no parameterization.
 // Callers MUST ensure:
-//   1. It starts with a space (or is empty ""), e.g. " AND cityHash64(id)%N=bi".
-//      Omitting the leading space produces a SQL syntax error at runtime.
-//   2. It is constructed solely from internal integer literals — never from user-supplied input.
-//      Passing user-derived strings would allow SQL injection.
+//  1. It starts with a space (or is empty ""), e.g. " AND cityHash64(id)%N=bi".
+//     Omitting the leading space produces a SQL syntax error at runtime.
+//  2. It is constructed solely from internal integer literals — never from user-supplied input.
+//     Passing user-derived strings would allow SQL injection.
 func (s *Store) _getAllID(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -728,10 +732,11 @@ func (s *Store) _getAllID(
 ) (ids set.Set[string], err error) {
 	var sql string
 	if entityType.IsImmutable() {
-		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?"+extraCondition,
+		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?%s",
 			quote(schema.EntityPrimaryFieldName),
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
+			extraCondition,
 		)
 	} else {
 		deletionSQL := fmt.Sprintf("SELECT COUNT(*) FROM (SELECT %s FROM %s WHERE %s = ? AND %s%s LIMIT 1)",
@@ -751,10 +756,11 @@ func (s *Store) _getAllID(
 			// Most of the time there is no deletion behavior, and this is enough.
 			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
 			// (sign=-1 rows excluded), so DISTINCT id correctly returns only live entity IDs.
-			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?"+extraCondition,
+			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?%s",
 				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
+				extraCondition,
 			)
 		} else if s.useVersionedCollapsingTable(entityType) {
 			// SELECT id
@@ -764,7 +770,7 @@ func (s *Store) _getAllID(
 			// HAVING sum(__sign__) > 0
 			sql = format.Format("SELECT %pk#s "+
 				"FROM %ft#s "+
-				"WHERE %gbc#s = ? AND NOT %ded#s"+extraCondition+" "+
+				"WHERE %gbc#s = ? AND NOT %ded#s%ec#s "+
 				"GROUP BY %pk#s, %ver#s "+
 				"HAVING SUM(%sign#s) > 0",
 				map[string]any{
@@ -774,6 +780,7 @@ func (s *Store) _getAllID(
 					"ver":  quote(versionFieldName),
 					"sign": quote(signFieldName),
 					"ft":   s.fullName(s.VersionedLatestTableName(entityType)),
+					"ec":   extraCondition,
 				})
 		} else {
 			// SELECT id
@@ -783,7 +790,7 @@ func (s *Store) _getAllID(
 			// HAVING NOT argMax(__deleted__,__genBlockNumber__)
 			sql = format.Format("SELECT %pk#s "+
 				"FROM %ft#s "+
-				"WHERE %gbc#s = ?"+extraCondition+" "+
+				"WHERE %gbc#s = ?%ec#s "+
 				"GROUP BY %pk#s "+
 				"HAVING NOT argMax(%ded#s,%gbn#s)",
 				map[string]any{
@@ -792,6 +799,7 @@ func (s *Store) _getAllID(
 					"gbc": quote(genBlockChainFieldName),
 					"ded": quote(deletedFieldName),
 					"ft":  s.fullName(s.TableName(entityType)),
+					"ec":  extraCondition,
 				})
 		}
 	}

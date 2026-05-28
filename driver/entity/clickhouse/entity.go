@@ -278,7 +278,7 @@ func (s *Store) setEntities(
 		// actually insert rows
 		var rows [][]any
 		for _, box := range queue {
-			cur := entityRow{EntityBox: box, Sign: 1, Version: 1}
+			cur := entityRow{EntityBox: box, GenBlockChain: chain, Sign: 1, Version: 1}
 			if pre, has := preBoxes[box.ID]; useVersionedCollapsingTable && has {
 				// insert the opposite row for pre-value, and set the new version for current row
 				cur.Version = pre.Version + 1

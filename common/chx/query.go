@@ -27,7 +27,7 @@ func (c Controller) Query(
 		used := time.Since(startAt)
 		_, logger := log.FromContext(ctx, "sql", sql, "rows", rowsNum, "used", used.String())
 		if e != nil {
-			logger.Warnfe(e, "clickhouse query failed")
+			logger.With("sqlArgs", sqlArgs).Warnfe(e, "clickhouse query failed")
 		} else if used >= slowQueryLimit {
 			logger.Warnf("clickhouse query succeed, but used > %s", slowQueryLimit)
 		} else {

@@ -11,8 +11,11 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap/zapcore"
+
 	"sentioxyz/sentio-core/common/chx"
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
+	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
@@ -198,6 +201,8 @@ func Test_getSetDel(t *testing.T) {
 	if skip {
 		t.Skip("use local db, will only be executed manually locally")
 	}
+	log.ManuallySetLevel(zapcore.DebugLevel)
+	log.BindFlag()
 
 	const chain = "1"
 	const skipDelete = false
@@ -452,6 +457,7 @@ func Test_getSetDel(t *testing.T) {
 			GenBlockHash:   "0x1234",
 		},
 		GenBlockChain: chain,
+		Version:       2,
 	}, data)
 
 	// del 0x0b01
@@ -534,6 +540,7 @@ func Test_getSetDel(t *testing.T) {
 			GenBlockHash:   "0x1234",
 		},
 		GenBlockChain: chain,
+		Version:       3,
 	}, data)
 
 	// === clean genBlockNumber > 100
@@ -766,7 +773,7 @@ func Test_getSetDel3(t *testing.T) {
 		ID: "I01",
 		Data: map[string]any{
 			"id":    "I01",
-			"propA": `{"a":123}`,
+			"propA": `{"a":"abc"}`,
 		},
 		Entity:         "EntityI",
 		GenBlockNumber: 101,
@@ -1874,7 +1881,7 @@ func Test_viewTable(t *testing.T) {
 	entityCType := sch.GetEntity("EntityC")
 
 	sql := fmt.Sprintf("SELECT propertyB, propertyC, `meta.chain` FROM %s ORDER BY %s",
-		s.ViewName(entityCType), quote(schema.EntityPrimaryFieldName))
+		s.fullName(s.ViewName(entityCType)), quote(schema.EntityPrimaryFieldName))
 	rows, err := es.conn.Query(ctx, sql)
 	assert.NoError(t, err)
 	defer rows.Close()

@@ -126,8 +126,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 			condition = field.NullCondition(filter.Op == persistent.EntityFilterOpEq)
 			return
 		}
-		param = field.FieldValuesForSetMain(raw)
-		slot = "?"
+		param, slot = field.FieldValuesForWhereArg(raw)
 	case
 		persistent.EntityFilterOpGt,
 		persistent.EntityFilterOpGe,
@@ -147,8 +146,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 			condition = "false"
 			return
 		}
-		param = field.FieldValuesForSetMain(raw)
-		slot = "?"
+		param, slot = field.FieldValuesForWhereArg(raw)
 		// AND field not null
 		// to make sure exclude null value
 		extra = "AND " + field.NullCondition(false)
@@ -177,7 +175,12 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 					hasNil = true
 				} else {
 					setSize++
-					param = append(param, field.FieldValuesForSetMain(v)...)
+					itemParam, itemSlot := field.FieldValuesForWhereArg(v)
+					param = append(param, itemParam...)
+					if slot != "" {
+						slot += ","
+					}
+					slot += itemSlot
 				}
 			}
 			if setSize == 0 {
@@ -186,7 +189,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 				return
 			}
 			// hasNormal is true
-			slot = "(" + utils.Dup("?", ",", setSize) + ")"
+			slot = "(" + slot + ")"
 			if hasNil {
 				if filter.Op == persistent.EntityFilterOpIn {
 					extra = "OR " + field.NullCondition(true)
@@ -218,8 +221,7 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 			condition = "false"
 			return
 		}
-		param = field.FieldValuesForSetMain(filter.Value[0])
-		slot = "?"
+		param, slot = field.FieldValuesForWhereArg(filter.Value[0])
 	case persistent.EntityFilterOpHasAll, persistent.EntityFilterOpHasAny:
 		if fieldTypeChain.CountListLayer() != 1 {
 			err = invalidErr("only one-dimension array can use this operation")

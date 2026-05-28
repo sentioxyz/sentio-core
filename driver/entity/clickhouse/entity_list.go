@@ -565,6 +565,12 @@ func (s *Store) countEntity(
 	return count, nil
 }
 
+// extraCondition is appended verbatim to SQL WHERE clauses with no parameterization.
+// Callers MUST ensure:
+//   1. It starts with a space (or is empty ""), e.g. " AND cityHash64(id)%N=bi".
+//      Omitting the leading space produces a SQL syntax error at runtime.
+//   2. It is constructed solely from internal integer literals — never from user-supplied input.
+//      Passing user-derived strings would allow SQL injection.
 func (s *Store) _countEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -708,7 +714,12 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 	return ids, nil
 }
 
-// Query memory limit exceeded
+// extraCondition is appended verbatim to SQL WHERE clauses with no parameterization.
+// Callers MUST ensure:
+//   1. It starts with a space (or is empty ""), e.g. " AND cityHash64(id)%N=bi".
+//      Omitting the leading space produces a SQL syntax error at runtime.
+//   2. It is constructed solely from internal integer literals — never from user-supplied input.
+//      Passing user-derived strings would allow SQL injection.
 func (s *Store) _getAllID(
 	ctx context.Context,
 	entityType *schema.Entity,

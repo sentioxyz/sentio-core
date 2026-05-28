@@ -49,6 +49,13 @@ func (s *safeSet[V]) DumpValues() []V {
 	return s.data.DumpValues()
 }
 
+// Traverse holds RLock while calling f. f must NOT call Add/Remove/Truncate on this same Set; doing so deadlocks.
+func (s *safeSet[V]) Traverse(f func(v V)) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	s.data.Traverse(f)
+}
+
 func (s *safeSet[V]) Size() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

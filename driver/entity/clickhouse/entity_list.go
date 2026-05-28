@@ -9,6 +9,7 @@ import (
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/format"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
@@ -526,33 +527,86 @@ func (s *Store) countEntity(
 	chain string,
 	excludeDeleted bool,
 ) (count uint64, err error) {
-	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "excludeDeleted", excludeDeleted)
+	queryCtx, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "excludeDeleted", excludeDeleted)
+	count, err = s._countEntity(queryCtx, entityType, chain, excludeDeleted, "")
+	if err == nil {
+		return count, nil
+	}
+	if !isQueryMemoryLimitExceededError(err) {
+		return 0, err
+	}
+	// memory limit exceeded, too many entities, should bucket query
+	const (
+		minBuckets = 10
+		maxBuckets = 1000
+		multi      = 10
+	)
+	for buckets := minBuckets; err != nil && buckets <= maxBuckets; buckets *= multi {
+		logger.Warnfe(err, "result too large, will count in %d bucket", buckets)
+		count, err = 0, nil
+		for bi := 0; bi < buckets; bi++ {
+			condition := fmt.Sprintf(" AND cityHash64(%s) %% %d = %d", quote(schema.EntityPrimaryFieldName), buckets, bi)
+			bucketIndex := fmt.Sprintf("%d/%d", bi, buckets)
+			queryCtx, _ = log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "excludeDeleted", excludeDeleted, "bucket", bucketIndex)
+			bucketCount, bucketErr := s._countEntity(queryCtx, entityType, chain, excludeDeleted, condition)
+			if bucketErr != nil {
+				if !isQueryMemoryLimitExceededError(bucketErr) {
+					return 0, bucketErr
+				}
+				err = bucketErr
+				break
+			}
+			count += bucketCount
+		}
+	}
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// extraCondition is appended verbatim to SQL WHERE clauses with no parameterization.
+// Callers MUST ensure:
+//   1. It starts with a space (or is empty ""), e.g. " AND cityHash64(id)%N=bi".
+//      Omitting the leading space produces a SQL syntax error at runtime.
+//   2. It is constructed solely from internal integer literals — never from user-supplied input.
+//      Passing user-derived strings would allow SQL injection.
+func (s *Store) _countEntity(
+	ctx context.Context,
+	entityType *schema.Entity,
+	chain string,
+	excludeDeleted bool,
+	extraCondition string,
+) (count uint64, err error) {
 	var sql string
 	if entityType.IsImmutable() {
-		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?",
+		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?"+extraCondition,
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 		)
 	} else {
+		hasDeletions := false
 		if excludeDeleted {
-			sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
+			deletionSQL := fmt.Sprintf("SELECT COUNT(*) FROM (SELECT %s FROM %s WHERE %s = ? AND %s%s LIMIT 1)",
+				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
 				quote(deletedFieldName),
+				extraCondition,
 			)
-			startAt := time.Now()
-			count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
+			var deletionCount uint64
+			deletionCount, err = s.ctrl.QueryCount(SelectCtx(ctx), deletionSQL, chain)
 			if err != nil {
-				logger.With("sql", sql, "used", time.Since(startAt).String()).Errore(err, "count deleted failed")
 				return 0, err
 			}
+			hasDeletions = deletionCount > 0
 		}
-		if !excludeDeleted || count == 0 {
+		if !hasDeletions {
 			// No delete operation, or do not exclude deleted items, can use simple query.
 			// Most of the time there is no deletion behavior, and this is enough.
 			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
 			// (sign=-1 rows excluded), so COUNT(DISTINCT id) correctly reflects live entity count.
-			sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?",
+			sql = fmt.Sprintf("SELECT COUNT(DISTINCT %s) FROM %s WHERE %s = ?"+extraCondition,
 				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
@@ -570,7 +624,7 @@ func (s *Store) countEntity(
 				"FROM ("+
 				" SELECT %pk#s"+
 				" FROM %ft#s"+
-				" WHERE %gbc#s = ? AND NOT %ded#s"+
+				" WHERE %gbc#s = ? AND NOT %ded#s"+extraCondition+
 				" GROUP BY %pk#s, %ver#s"+
 				" HAVING SUM(%sign#s) > 0"+
 				")",
@@ -597,7 +651,7 @@ func (s *Store) countEntity(
 				"FROM ("+
 				" SELECT %pk#s"+
 				" FROM %ft#s"+
-				" WHERE %gbc#s = ?"+
+				" WHERE %gbc#s = ?"+extraCondition+
 				" GROUP BY %pk#s"+
 				" HAVING NOT argMax(%ded#s,%gbn#s)"+
 				")",
@@ -610,45 +664,94 @@ func (s *Store) countEntity(
 				})
 		}
 	}
-	startAt := time.Now()
-	count, err = s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
-	logger = logger.With("sql", sql, "used", time.Since(startAt).String())
-	if err != nil {
-		logger.Errore(err, "count failed")
-	} else {
-		logger.Debugw("count succeed", "count", count)
-	}
-	return
+	return s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
 }
 
-func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids []string, err error) {
-	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
+func isQueryMemoryLimitExceededError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Query memory limit exceeded")
+}
+
+func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids set.Set[string], err error) {
+	queryCtx, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
+	ids, err = s._getAllID(queryCtx, entityType, chain, "")
+	if err == nil {
+		return ids, nil
+	}
+	if !isQueryMemoryLimitExceededError(err) {
+		return nil, err
+	}
+	// memory limit exceeded, too many ids, should bucket query
+	const (
+		minBuckets = 10
+		maxBuckets = 1000
+		multi      = 10
+	)
+	for buckets := minBuckets; err != nil && buckets <= maxBuckets; buckets *= multi {
+		logger.Warnfe(err, "result too large, will query in %d bucket", buckets)
+		ids, err = set.New[string](), nil
+		for bi := 0; bi < buckets; bi++ {
+			condition := fmt.Sprintf(" AND cityHash64(%s) %% %d = %d", quote(schema.EntityPrimaryFieldName), buckets, bi)
+			bucketIndex := fmt.Sprintf("%d/%d", bi, buckets)
+			queryCtx, _ = log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "bucket", bucketIndex)
+			bucketResult, bucketErr := s._getAllID(queryCtx, entityType, chain, condition)
+			if bucketErr != nil {
+				if !isQueryMemoryLimitExceededError(bucketErr) {
+					return nil, bucketErr
+				} else {
+					// still memory limit exceeded, retry with bigger buckets
+					err = bucketErr
+					break
+				}
+			}
+			bucketResult.Traverse(func(id string) {
+				ids.Add(id)
+			})
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// extraCondition is appended verbatim to SQL WHERE clauses with no parameterization.
+// Callers MUST ensure:
+//   1. It starts with a space (or is empty ""), e.g. " AND cityHash64(id)%N=bi".
+//      Omitting the leading space produces a SQL syntax error at runtime.
+//   2. It is constructed solely from internal integer literals — never from user-supplied input.
+//      Passing user-derived strings would allow SQL injection.
+func (s *Store) _getAllID(
+	ctx context.Context,
+	entityType *schema.Entity,
+	chain string,
+	extraCondition string,
+) (ids set.Set[string], err error) {
 	var sql string
 	if entityType.IsImmutable() {
-		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?",
+		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?"+extraCondition,
 			quote(schema.EntityPrimaryFieldName),
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 		)
 	} else {
-		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
+		deletionSQL := fmt.Sprintf("SELECT COUNT(*) FROM (SELECT %s FROM %s WHERE %s = ? AND %s%s LIMIT 1)",
+			quote(schema.EntityPrimaryFieldName),
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 			quote(deletedFieldName),
+			extraCondition,
 		)
-		startAt := time.Now()
-		count, countErr := s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
-		if countErr != nil {
-			logger.With("sql", sql, "used", time.Since(startAt).String()).
-				Errore(countErr, "count deleted when list ids failed")
-			return nil, countErr
+		var deletionCount uint64
+		deletionCount, err = s.ctrl.QueryCount(SelectCtx(ctx), deletionSQL, chain)
+		if err != nil {
+			return nil, err
 		}
-		if count == 0 {
+		if deletionCount == 0 {
 			// No delete operation, can use simple query.
 			// Most of the time there is no deletion behavior, and this is enough.
 			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
 			// (sign=-1 rows excluded), so DISTINCT id correctly returns only live entity IDs.
-			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?",
+			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?"+extraCondition,
 				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
@@ -661,7 +764,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 			// HAVING sum(__sign__) > 0
 			sql = format.Format("SELECT %pk#s "+
 				"FROM %ft#s "+
-				"WHERE %gbc#s = ? AND NOT %ded#s "+
+				"WHERE %gbc#s = ? AND NOT %ded#s"+extraCondition+" "+
 				"GROUP BY %pk#s, %ver#s "+
 				"HAVING SUM(%sign#s) > 0",
 				map[string]any{
@@ -680,7 +783,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 			// HAVING NOT argMax(__deleted__,__genBlockNumber__)
 			sql = format.Format("SELECT %pk#s "+
 				"FROM %ft#s "+
-				"WHERE %gbc#s = ? "+
+				"WHERE %gbc#s = ?"+extraCondition+" "+
 				"GROUP BY %pk#s "+
 				"HAVING NOT argMax(%ded#s,%gbn#s)",
 				map[string]any{
@@ -692,22 +795,16 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 				})
 		}
 	}
-	startAt := time.Now()
+	ids = set.New[string]()
 	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
 		var id string
 		if scanErr := rows.Scan(&id); scanErr != nil {
 			return scanErr
 		}
-		ids = append(ids, id)
+		ids.Add(id)
 		return nil
 	}, sql, chain)
-	logger = logger.With("sql", sql, "used", time.Since(startAt).String())
-	if err != nil {
-		logger.Errore(err, "list ids failed")
-	} else {
-		logger.Debugw("list ids succeed", "count", len(ids))
-	}
-	return
+	return ids, err
 }
 
 func (s *Store) getMaxID(ctx context.Context, entityType *schema.Entity, chain string) (int64, error) {

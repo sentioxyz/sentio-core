@@ -7,6 +7,7 @@ type Set[V comparable] interface {
 
 	Contains(v V) bool
 	DumpValues() []V
+	Traverse(f func(v V))
 	Size() int
 	Empty() bool
 }

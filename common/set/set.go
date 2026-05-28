@@ -60,6 +60,12 @@ func (s set[V]) DumpValues() []V {
 	return ret
 }
 
+func (s set[V]) Traverse(f func(v V)) {
+	for k := range s {
+		f(k)
+	}
+}
+
 func (s set[V]) Size() int {
 	return len(s)
 }

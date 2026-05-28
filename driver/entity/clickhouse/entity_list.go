@@ -9,6 +9,7 @@ import (
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/format"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
@@ -621,26 +622,72 @@ func (s *Store) countEntity(
 	return
 }
 
-func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids []string, err error) {
-	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
+func isQueryMemoryLimitExceededError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Query memory limit exceeded")
+}
+
+func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids set.Set[string], err error) {
+	queryCtx, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
+	ids, err = s._getAllID(queryCtx, entityType, chain, "")
+	if err == nil {
+		return ids, nil
+	}
+	if !isQueryMemoryLimitExceededError(err) {
+		return nil, err
+	}
+	// memory limit exceeded, too many ids, should bucket query
+	const (
+		minBuckets = 10
+		maxBuckets = 1000
+		multi      = 10
+	)
+	for buckets := minBuckets; err != nil && buckets <= maxBuckets; buckets *= multi {
+		logger.Warnfe(err, "result too large, will query in %d bucket", buckets)
+		ids, err = set.New[string](), nil
+		for bi := 0; bi < buckets; bi++ {
+			condition := fmt.Sprintf(" AND cityHash64(%s) %% %d = %d", quote(schema.EntityPrimaryFieldName), buckets, bi)
+			bucketIndex := fmt.Sprintf("%d/%d", bi, buckets)
+			queryCtx, _ = log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "bucket", bucketIndex)
+			bucketResult, bucketErr := s._getAllID(queryCtx, entityType, chain, condition)
+			if bucketErr != nil {
+				if !isQueryMemoryLimitExceededError(bucketErr) {
+					return nil, bucketErr
+				} else {
+					// still memory limit exceeded, retry with bigger buckets
+					err = bucketErr
+					break
+				}
+			}
+			bucketResult.Traverse(func(id string) {
+				ids.Add(id)
+			})
+		}
+	}
+	return ids, err
+}
+
+// Query memory limit exceeded
+func (s *Store) _getAllID(
+	ctx context.Context,
+	entityType *schema.Entity,
+	chain string,
+	extraCondition string,
+) (ids set.Set[string], err error) {
 	var sql string
 	if entityType.IsImmutable() {
-		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?",
+		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?"+extraCondition,
 			quote(schema.EntityPrimaryFieldName),
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 		)
 	} else {
-		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s",
+		sql = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ? AND %s"+extraCondition,
 			s.fullName(s.TableName(entityType)),
 			quote(genBlockChainFieldName),
 			quote(deletedFieldName),
 		)
-		startAt := time.Now()
 		count, countErr := s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
 		if countErr != nil {
-			logger.With("sql", sql, "used", time.Since(startAt).String()).
-				Errore(countErr, "count deleted when list ids failed")
 			return nil, countErr
 		}
 		if count == 0 {
@@ -648,7 +695,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 			// Most of the time there is no deletion behavior, and this is enough.
 			// Note: for versioned collapsing entities, tableName refers to the deduplicated view
 			// (sign=-1 rows excluded), so DISTINCT id correctly returns only live entity IDs.
-			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?",
+			sql = fmt.Sprintf("SELECT DISTINCT %s FROM %s WHERE %s = ?"+extraCondition,
 				quote(schema.EntityPrimaryFieldName),
 				s.fullName(s.TableName(entityType)),
 				quote(genBlockChainFieldName),
@@ -661,7 +708,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 			// HAVING sum(__sign__) > 0
 			sql = format.Format("SELECT %pk#s "+
 				"FROM %ft#s "+
-				"WHERE %gbc#s = ? AND NOT %ded#s "+
+				"WHERE %gbc#s = ? AND NOT %ded#s"+extraCondition+" "+
 				"GROUP BY %pk#s, %ver#s "+
 				"HAVING SUM(%sign#s) > 0",
 				map[string]any{
@@ -680,7 +727,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 			// HAVING NOT argMax(__deleted__,__genBlockNumber__)
 			sql = format.Format("SELECT %pk#s "+
 				"FROM %ft#s "+
-				"WHERE %gbc#s = ? "+
+				"WHERE %gbc#s = ?"+extraCondition+" "+
 				"GROUP BY %pk#s "+
 				"HAVING NOT argMax(%ded#s,%gbn#s)",
 				map[string]any{
@@ -692,22 +739,16 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 				})
 		}
 	}
-	startAt := time.Now()
+	ids = set.New[string]()
 	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
 		var id string
 		if scanErr := rows.Scan(&id); scanErr != nil {
 			return scanErr
 		}
-		ids = append(ids, id)
+		ids.Add(id)
 		return nil
 	}, sql, chain)
-	logger = logger.With("sql", sql, "used", time.Since(startAt).String())
-	if err != nil {
-		logger.Errore(err, "list ids failed")
-	} else {
-		logger.Debugw("list ids succeed", "count", len(ids))
-	}
-	return
+	return ids, err
 }
 
 func (s *Store) getMaxID(ctx context.Context, entityType *schema.Entity, chain string) (int64, error) {

@@ -522,14 +522,14 @@ func (c *ChainStore) tryLoadFullIDCache(
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chainID", c.chain)
 	logger.Debugf("will load all entity ids from persistent for full id cache")
-	var ids []string
+	var ids set.Set[string]
 	ids, err = c.store.getAllID(ctx, entityType, c.chain)
 	logger = logger.With("used", time.Since(start).String())
 	if err != nil {
 		logger.Errore(err, "load all entity ids from persistent for full cache failed")
 		return
 	}
-	c.fullIDCache[entityType.Name] = set.New(ids...)
+	c.fullIDCache[entityType.Name] = ids
 	c.fullIDCacheLoaded[entityType.Name] = true
 	logger.Infow("loaded all entity ids from persistent into full id cache", "count", len(ids))
 	return

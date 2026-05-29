@@ -32,9 +32,13 @@ var missDataErrorMatcher = []*regexp.Regexp{
 	regexp.MustCompile("transaction sent to quarantine by sls"), // more: https://ar5iv.labs.arxiv.org/html/2405.01819
 }
 
-func isOneOf(err error, matchers []*regexp.Regexp) bool {
+var brokenMsgErrorMatcher = []*regexp.Regexp{
+	regexp.MustCompile("rate limit exceeded"),
+}
+
+func isOneOf(err string, matchers []*regexp.Regexp) bool {
 	for _, r := range matchers {
-		if r.FindString(strings.ToLower(err.Error())) != "" {
+		if r.FindString(strings.ToLower(err)) != "" {
 			return true
 		}
 	}
@@ -82,7 +86,7 @@ func isInvalidMethodError(err error) bool {
 		case -32601:
 			return true
 		case -32000:
-			return isOneOf(err, invalidEVMMethodErrorMatcher)
+			return isOneOf(err.Error(), invalidEVMMethodErrorMatcher)
 		default:
 			return false
 		}
@@ -110,7 +114,7 @@ func isMissDataError(err error) bool {
 		if rpcErr.ErrorCode() > -32000 {
 			return false
 		}
-		return isOneOf(err, missDataErrorMatcher)
+		return isOneOf(err.Error(), missDataErrorMatcher)
 	}
 	return false
 }
@@ -137,7 +141,10 @@ func isBrokenError(err error) bool {
 	if errors.As(err, &httpErr) {
 		var msg jsonrpcMessage
 		if json.Unmarshal(httpErr.Body, &msg) == nil && msg.Error != nil && msg.Error.Code != nil {
-			return false // jsonrpc message with error code
+			if isOneOf(msg.Error.Message, brokenMsgErrorMatcher) {
+				return true
+			}
+			return false // jsonrpc message with error code, no keyword
 		}
 		return true // http error without error code in jsonrpc message
 	}

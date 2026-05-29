@@ -46,17 +46,26 @@ func Test_isBrokenError_normalJsonrpcError_notBroken(t *testing.T) {
 }
 
 func Test_isBrokenError_httpErrorWithoutJsonrpcBody_isBroken(t *testing.T) {
-	// Non-jsonrpc body (gateway/plain text) → broken.
-	assert.True(t, isBrokenError(httpErr(502, "Bad Gateway")))
+	// 4xx with a non-jsonrpc body (e.g. plain text) → broken.
+	assert.True(t, isBrokenError(httpErr(403, "Forbidden")))
 }
 
-func Test_isBrokenError_serverErrors_isBroken(t *testing.T) {
-	// 5xx means the endpoint is unhealthy even when it returns a valid jsonrpc
-	// error body — the status code takes precedence over the body.
+func Test_serverErrors_notBroken_butBrokenForTask(t *testing.T) {
+	// 5xx is usually request-specific, not an unhealthy endpoint: it must NOT
+	// be a broken endpoint, but it IS a per-request failure (retry elsewhere).
 	jsonrpcBody := `{"jsonrpc":"2.0","error":{"code":-32000,"message":"server error"},"id":1}`
 	for _, status := range []int{500, 502, 503, 504} {
-		assert.True(t, isBrokenError(httpErr(status, jsonrpcBody)), "status %d should be broken", status)
+		assert.False(t, isBrokenError(httpErr(status, jsonrpcBody)), "status %d should not be broken", status)
+		assert.False(t, isBrokenError(httpErr(status, "Bad Gateway")), "status %d (plain body) should not be broken", status)
+		assert.True(t, isServerError(httpErr(status, jsonrpcBody)), "status %d should be a server error", status)
 	}
+}
+
+func Test_isServerError_non5xx_false(t *testing.T) {
+	assert.False(t, isServerError(httpErr(429, rateLimitBody)))
+	assert.False(t, isServerError(httpErr(400, "bad request")))
+	assert.False(t, isServerError(nil))
+	assert.False(t, isServerError(fakeRPCErr{code: -32000, msg: "execution reverted"}))
 }
 
 func Test_isBrokenError_429WithJsonrpcBody_isBroken(t *testing.T) {

@@ -32,9 +32,13 @@ var missDataErrorMatcher = []*regexp.Regexp{
 	regexp.MustCompile("transaction sent to quarantine by sls"), // more: https://ar5iv.labs.arxiv.org/html/2405.01819
 }
 
-func isOneOf(err error, matchers []*regexp.Regexp) bool {
+var brokenMsgErrorMatcher = []*regexp.Regexp{
+	regexp.MustCompile("rate limit exceeded"),
+}
+
+func isOneOf(err string, matchers []*regexp.Regexp) bool {
 	for _, r := range matchers {
-		if r.FindString(strings.ToLower(err.Error())) != "" {
+		if r.FindString(strings.ToLower(err)) != "" {
 			return true
 		}
 	}
@@ -82,7 +86,7 @@ func isInvalidMethodError(err error) bool {
 		case -32601:
 			return true
 		case -32000:
-			return isOneOf(err, invalidEVMMethodErrorMatcher)
+			return isOneOf(err.Error(), invalidEVMMethodErrorMatcher)
 		default:
 			return false
 		}
@@ -110,7 +114,7 @@ func isMissDataError(err error) bool {
 		if rpcErr.ErrorCode() > -32000 {
 			return false
 		}
-		return isOneOf(err, missDataErrorMatcher)
+		return isOneOf(err.Error(), missDataErrorMatcher)
 	}
 	return false
 }
@@ -135,13 +139,41 @@ func isBrokenError(err error) bool {
 	}
 	var httpErr rpc.HTTPError
 	if errors.As(err, &httpErr) {
+		// 5xx is usually triggered by this particular request rather than the
+		// endpoint being globally unhealthy, so it is not a broken endpoint.
+		// It is handled as BrokenForTask instead (retry on another endpoint).
+		if httpErr.StatusCode >= 500 {
+			return false
+		}
+		// 429 means the endpoint is rejecting us due to rate limiting,
+		// independent of the request — back off the whole endpoint.
+		if httpErr.StatusCode == 429 {
+			return true
+		}
 		var msg jsonrpcMessage
 		if json.Unmarshal(httpErr.Body, &msg) == nil && msg.Error != nil && msg.Error.Code != nil {
-			return false // jsonrpc message with error code
+			if isOneOf(msg.Error.Message, brokenMsgErrorMatcher) {
+				return true // e.g. a rate-limit reported with a non-429 status
+			}
+			return false // jsonrpc message with error code, no keyword
 		}
 		return true // http error without error code in jsonrpc message
 	}
 	return true // It can only be a TCP error.
+}
+
+// isServerError reports whether err is an HTTP 5xx response. A 5xx is treated
+// as a per-request failure (BrokenForTask): the request is retried on another
+// endpoint, but the endpoint is not banned for all requests.
+func isServerError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var httpErr rpc.HTTPError
+	if errors.As(err, &httpErr) {
+		return httpErr.StatusCode >= 500
+	}
+	return false
 }
 
 func CallContext(
@@ -153,7 +185,7 @@ func CallContext(
 ) (r Result) {
 	r.Err = client.CallContext(ctx, result, method, args...)
 	r.Broken = isBrokenError(r.Err)
-	r.BrokenForTask = errors.Is(r.Err, context.DeadlineExceeded) || isMissDataError(r.Err)
+	r.BrokenForTask = errors.Is(r.Err, context.DeadlineExceeded) || isMissDataError(r.Err) || isServerError(r.Err)
 	if isInvalidMethodError(r.Err) {
 		r.AddTags = []string{MethodNotSupportedTag(method)}
 	}

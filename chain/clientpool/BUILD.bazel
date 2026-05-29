@@ -34,6 +34,7 @@ go_test(
     srcs = [
         "client_pool_test.go",
         "config_test.go",
+        "utils_json_rpc_test.go",
         "utils_subscribe_test.go",
         "utils_test.go",
     ],
@@ -42,6 +43,7 @@ go_test(
         "//common/log",
         "//common/pool",
         "//common/utils",
+        "@com_github_ethereum_go_ethereum//rpc",
         "@com_github_pkg_errors//:errors",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

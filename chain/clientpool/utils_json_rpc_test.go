@@ -50,6 +50,33 @@ func Test_isBrokenError_httpErrorWithoutJsonrpcBody_isBroken(t *testing.T) {
 	assert.True(t, isBrokenError(httpErr(502, "Bad Gateway")))
 }
 
+func Test_isBrokenError_serverErrors_isBroken(t *testing.T) {
+	// 5xx means the endpoint is unhealthy even when it returns a valid jsonrpc
+	// error body — the status code takes precedence over the body.
+	jsonrpcBody := `{"jsonrpc":"2.0","error":{"code":-32000,"message":"server error"},"id":1}`
+	for _, status := range []int{500, 502, 503, 504} {
+		assert.True(t, isBrokenError(httpErr(status, jsonrpcBody)), "status %d should be broken", status)
+	}
+}
+
+func Test_isBrokenError_429WithJsonrpcBody_isBroken(t *testing.T) {
+	// 429 is broken purely by status code, independent of the body keyword.
+	assert.True(t, isBrokenError(httpErr(429, `{"jsonrpc":"2.0","error":{"code":-32000,"message":"slow down"},"id":1}`)))
+}
+
+func Test_isBrokenError_non429RateLimitByMessage_isBroken(t *testing.T) {
+	// Some providers report rate limiting with a non-429 status; the message
+	// matcher still catches it.
+	assert.True(t, isBrokenError(httpErr(403, rateLimitBody)))
+}
+
+func Test_isBrokenError_4xxNonRateLimit_notBroken(t *testing.T) {
+	// A normal 4xx with a valid jsonrpc error (e.g. invalid params) is a valid
+	// response, not a broken endpoint.
+	body := `{"jsonrpc":"2.0","error":{"code":-32602,"message":"invalid argument"},"id":1}`
+	assert.False(t, isBrokenError(httpErr(400, body)))
+}
+
 func Test_isBrokenError_rpcError_notBroken(t *testing.T) {
 	assert.False(t, isBrokenError(fakeRPCErr{code: -32000, msg: "execution reverted"}))
 }

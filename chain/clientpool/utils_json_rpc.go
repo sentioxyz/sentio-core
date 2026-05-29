@@ -139,10 +139,15 @@ func isBrokenError(err error) bool {
 	}
 	var httpErr rpc.HTTPError
 	if errors.As(err, &httpErr) {
+		// 429 (rate limited) and 5xx (server-side error) mean the endpoint
+		// itself is unhealthy, regardless of the response body — back off.
+		if httpErr.StatusCode == 429 || httpErr.StatusCode >= 500 {
+			return true
+		}
 		var msg jsonrpcMessage
 		if json.Unmarshal(httpErr.Body, &msg) == nil && msg.Error != nil && msg.Error.Code != nil {
 			if isOneOf(msg.Error.Message, brokenMsgErrorMatcher) {
-				return true
+				return true // e.g. a rate-limit reported with a non-429 status
 			}
 			return false // jsonrpc message with error code, no keyword
 		}

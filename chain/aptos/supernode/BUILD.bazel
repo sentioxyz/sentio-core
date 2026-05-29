@@ -28,6 +28,9 @@ go_test(
     name = "supernode_test",
     srcs = ["rpc_test.go"],
     embed = [":supernode"],
+    # Hits external public mainnet RPC endpoints; excluded from `bazel test //...`
+    # and CI. Run explicitly: `bazel test //chain/aptos/supernode:supernode_test`.
+    tags = ["manual"],
     deps = [
         "//chain/aptos",
         "//chain/chain",

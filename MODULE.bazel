@@ -41,7 +41,7 @@ bazel_dep(name = "rules_proto_grpc_cpp", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_go", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_python", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_grpc_gateway", version = "5.8.0")
-bazel_dep(name = "grpc_ecosystem_grpc_gateway", version = "2.27.6")
+bazel_dep(name = "grpc_ecosystem_grpc_gateway", version = "2.29.0.bcr.3")
 bazel_dep(name = "apple_support", version = "2.5.4", repo_name = "build_bazel_apple_support")
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")

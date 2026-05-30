@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "buffer.go",
         "catcher.go",
+        "consumer.go",
         "encoder.go",
         "handler.go",
         "handler_grpc.go",
@@ -51,6 +52,7 @@ go_test(
     name = "jsonrpc_test",
     srcs = [
         "buffer_test.go",
+        "consumer_test.go",
         "handler_grpc_test.go",
         "helper_test.go",
         "json_test.go",

@@ -47,6 +47,9 @@ type Handler struct {
 	bigQueries    queue.Circular[bigRequest]
 	failedQueries queue.Circular[failedRequest]
 
+	// tracks in-flight requests so Snapshot can report what is being processed
+	consumers *consumerManager
+
 	middleware MiddlewareChain
 }
 
@@ -67,6 +70,7 @@ func NewHandler(
 		slowQueries:   queue.NewSafeCircular[slowRequest](100),
 		bigQueries:    queue.NewSafeCircular[bigRequest](100),
 		failedQueries: queue.NewSafeCircular[failedRequest](100),
+		consumers:     newConsumerManager(),
 	}
 	if acceptWebsocket {
 		h.websocketSvr = newWebsocketService(h, time.Second*20, time.Minute, time.Second*20)
@@ -144,6 +148,8 @@ func (s *Handler) newEncoder(r *http.Request) Encoder {
 
 func (s *Handler) callMethod(ctx context.Context, ctxData *CtxData, encoder Encoder) (any, error) {
 	startAt := time.Now()
+	cid := s.consumers.come(ctxData.ReqID, ctxData.ReqSubID, ctxData.Method, ctxData.ReqSrc)
+	defer s.consumers.leave(cid)
 	result, err := s.middleware.CallMethod(setCtxData(ctx, ctxData), ctxData.Method, ctxData.Params)
 	var ret any
 	var retLen int
@@ -470,6 +476,7 @@ func (s *Handler) Snapshot() any {
 			"query": utils.MapSliceNoError(s.failedQueries.Dump(true), failedRequest.Snapshot),
 			"total": s.failedQueries.Total(),
 		},
+		"consumers": s.consumers.Snapshot(),
 	}
 	if s.websocketSvr != nil {
 		sn["websocket"] = s.websocketSvr.Snapshot()

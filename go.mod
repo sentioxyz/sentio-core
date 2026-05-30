@@ -1,6 +1,6 @@
 module sentioxyz/sentio-core
 
-go 1.24.13
+go 1.26.3
 
 require (
 	github.com/BurntSushi/toml v1.5.0
@@ -9,7 +9,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/aptos-labs/aptos-go-sdk v0.7.0
 	github.com/blevesearch/bleve v1.0.14
-	github.com/bytedance/sonic v1.14.0
+	github.com/bytedance/sonic v1.15.1
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/docker/docker v28.5.2+incompatible
@@ -96,6 +96,7 @@ require (
 	github.com/blevesearch/zap/v13 v13.0.6 // indirect
 	github.com/blevesearch/zap/v14 v14.0.5 // indirect
 	github.com/blevesearch/zap/v15 v15.0.3 // indirect
+	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/cactus/tai64 v1.0.2 // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
 	github.com/cockroachdb/fifo v0.0.0-20240606204812-0bbfbd93a7ce // indirect
@@ -150,7 +151,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/bytedance/sonic/loader v0.3.0 // indirect
+	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect

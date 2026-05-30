@@ -140,7 +140,10 @@ func Test_BuildBigIntFromHex(t *testing.T) {
 	check := func(hex string, exp *BigInt, caseNum int) {
 		v, err := BuildBigInt(hex)
 		assert.NoError(t, err)
-		assert.Equal(t, exp, v, fmt.Sprintf("case #%d: %s", caseNum, hex))
+		// Compare numerically: a zero big.Int's internal abs slice may be nil or
+		// empty depending on construction path (Go 1.26 changed this for SetString),
+		// which trips assert.Equal's deep comparison even though the values are equal.
+		assert.Zerof(t, exp.Cmp(v), "case #%d: %s (expected %s, got %s)", caseNum, hex, exp.String(), v.String())
 	}
 
 	for i, testcase := range testcases {

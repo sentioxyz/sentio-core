@@ -1,6 +1,6 @@
 module tools
 
-go 1.24.7
+go 1.26.3
 
 require github.com/grpc-ecosystem/protoc-gen-grpc-gateway-ts v1.1.2
 

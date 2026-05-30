@@ -537,6 +537,7 @@ func (p *ClientPool[CONFIG, CLIENT]) consumerExecuted(id uint64, used time.Durat
 	c := p.consumer[id]
 	c.executed += 1
 	c.executedDuration += used
+	c.executedLast = result
 	p.consumer[id] = c
 }
 

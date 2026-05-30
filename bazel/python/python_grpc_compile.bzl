@@ -4,7 +4,7 @@ This ensures Python builds use the precompiled protoc without affecting other la
 """
 
 load("@rules_proto_grpc//:defs.bzl", "proto_compile_attrs", "proto_compile_toolchains")
-load("@rules_proto//proto:defs.bzl", "ProtoInfo")
+load("@protobuf//bazel/common:proto_info.bzl", "ProtoInfo")
 
 def _python_grpc_compile_impl(ctx):
     """Custom implementation that uses grpcio_tools protoc binary directly."""

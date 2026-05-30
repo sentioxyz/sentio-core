@@ -24,7 +24,7 @@ go_library(
         "//common/log",
         "//common/utils",
         "@com_github_pkg_errors//:errors",
-        "@com_github_wasmerio_wasmer_go//wasmer",
+        "@wasmer_go//wasmer",
     ],
 )
 
@@ -44,6 +44,6 @@ go_test(
     deps = [
         "//common/log",
         "@com_github_stretchr_testify//assert",
-        "@com_github_wasmerio_wasmer_go//wasmer",
+        "@wasmer_go//wasmer",
     ],
 )

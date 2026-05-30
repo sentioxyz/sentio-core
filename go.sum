@@ -521,8 +521,8 @@ github.com/sentioxyz/qs v0.0.0-20250901053804-ecf034c91d44 h1:1eYtfxCw+INqKfzBOt
 github.com/sentioxyz/qs v0.0.0-20250901053804-ecf034c91d44/go.mod h1:uRR/31AqKz+bqPK54NyQavCaUQtqDs9qbTAIGLsPXcM=
 github.com/sentioxyz/sui-apis v0.0.0-20260130063639-b30aa79134d1 h1:+qEXL0jDFEhVTyD7ZCIOFmGUGmCHoMS9q6Fj4EpuQqI=
 github.com/sentioxyz/sui-apis v0.0.0-20260130063639-b30aa79134d1/go.mod h1:viEFfgDm5wIAI56AiFYIA4WqHyWb159aEsz9/2uBdYk=
-github.com/sentioxyz/wasmer-go v1.0.5-0.20250206064014-c65a8b154145 h1:rcq7RhXZ8VKWMsny5uHJEPYyQx+g4jbew4xFTu+W7UQ=
-github.com/sentioxyz/wasmer-go v1.0.5-0.20250206064014-c65a8b154145/go.mod h1:0gzVdSfg6pysA6QVp6iVRPTagC6Wq9pOE8J86WKb2Fk=
+github.com/sentioxyz/wasmer-go v1.0.5-0.20260530143627-477807e83310 h1:mhGWb+O2Ld5+AidGs43cWvTlQ33bdpVn4Fj0yuv7kPA=
+github.com/sentioxyz/wasmer-go v1.0.5-0.20260530143627-477807e83310/go.mod h1:SNz0kSlXON2kkfLZbdtMt721+M0fBSXjSon7rIuHf7Q=
 github.com/shirou/gopsutil v3.21.11+incompatible h1:+1+c1VGhc88SSonWP6foOcLhvnKlUeu/erjjvaPEYiI=
 github.com/shirou/gopsutil v3.21.11+incompatible/go.mod h1:5b4v6he4MtMOwMlS0TUMTu2PcXUg8+E1lC7eC3UO/RA=
 github.com/shopspring/decimal v1.3.1/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=

@@ -250,6 +250,6 @@ replace github.com/ClickHouse/clickhouse-go/v2 => github.com/sentioxyz/clickhous
 
 replace github.com/ClickHouse/ch-go => github.com/sentioxyz/ch-go v0.71.0-sentioxyz-20260225
 
-replace github.com/wasmerio/wasmer-go => github.com/sentioxyz/wasmer-go v1.0.5-0.20250206064014-c65a8b154145
+replace github.com/wasmerio/wasmer-go => github.com/sentioxyz/wasmer-go v1.0.5-0.20260530143627-477807e83310
 
 replace github.com/aptos-labs/aptos-go-sdk => github.com/sentioxyz/aptos-labs-aptos-go-sdk v0.0.0-20250224074350-5a879cddea03

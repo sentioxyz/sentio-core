@@ -1,8 +1,14 @@
-# https://github.com/aalyria/api/blob/main/MODULE.bazel
-
 module(
     name = "sentio-core",
     version = "1.0",
+)
+
+# wasmer-go: sentioxyz fork consumed as a Bazel module (Bazel-9-ready), not go_deps
+bazel_dep(name = "wasmer_go", version = "1.0.4")
+git_override(
+    module_name = "wasmer_go",
+    commit = "477807e833107d0b0aa0203721c6c55cdf32fa6c",
+    remote = "https://github.com/sentioxyz/wasmer-go",
 )
 
 PROTOBUF_VERSION = "35.0"
@@ -35,6 +41,11 @@ bazel_dep(name = "aspect_rules_py", version = "1.11.5")
 bazel_dep(name = "rules_oci", version = "2.3.0")
 bazel_dep(name = "rules_multirun", version = "0.13.0")
 bazel_dep(name = "hermetic_cc_toolchain", version = "4.1.0")
+
+# Direct dep to override the transitive rules_foreign_cc 0.10.1 (pulled via
+# grpc -> opencensus-cpp -> google_benchmark -> libpfm), which is incompatible
+# with Bazel 9 (uses the removed rule() arg incompatible_use_toolchain_transition).
+bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 bazel_dep(name = "rules_proto_grpc", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_cpp", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_go", version = "5.8.0")
@@ -85,10 +96,6 @@ go_deps.module_override(
     patch_strip = 1,
     patches = ["//third_party:com_github_consensys_gnark_crypto.patch"],
     path = "github.com/consensys/gnark-crypto",
-)
-go_deps.gazelle_override(
-    build_file_generation = "off",
-    path = "github.com/wasmerio/wasmer-go",
 )
 go_deps.gazelle_default_attributes(
     directives = ["gazelle:proto disable"],

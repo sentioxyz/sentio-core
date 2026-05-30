@@ -148,7 +148,7 @@ func (s *Handler) newEncoder(r *http.Request) Encoder {
 
 func (s *Handler) callMethod(ctx context.Context, ctxData *CtxData, encoder Encoder) (any, error) {
 	startAt := time.Now()
-	cid := s.consumers.come(ctxData.ReqID, ctxData.ReqSubID, ctxData.Method, ctxData.ReqSrc)
+	cid := s.consumers.come(ctxData)
 	defer s.consumers.leave(cid)
 	result, err := s.middleware.CallMethod(setCtxData(ctx, ctxData), ctxData.Method, ctxData.Params)
 	var ret any

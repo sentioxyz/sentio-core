@@ -3,6 +3,8 @@ package jsonrpc
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,8 +17,8 @@ func Test_consumerManager(t *testing.T) {
 	assert.Equal(t, 0, sn["currentCount"])
 	assert.Equal(t, uint64(0), sn["total"])
 
-	id1 := m.come(1, 0, "eth_call", RequestSource{Name: "a"})
-	id2 := m.come(2, 0, "eth_getLogs", RequestSource{Name: "b"})
+	id1 := m.come(&CtxData{ReqID: 1, Method: "eth_call", ReqSrc: RequestSource{Name: "a"}})
+	id2 := m.come(&CtxData{ReqID: 2, Method: "eth_getLogs", ReqSrc: RequestSource{Name: "b"}})
 
 	sn = m.Snapshot().(map[string]any)
 	assert.Equal(t, 2, sn["currentCount"])
@@ -60,14 +62,19 @@ func Test_Handler_consumersInflight(t *testing.T) {
 	cs := consumersSnapshot(h)
 	assert.Equal(t, 0, cs["currentCount"])
 
+	rawReq := httptest.NewRequest(http.MethodPost, "/", nil)
+	rawReq.Header.Set("X-Debug-Header", "debug-value")
+
 	done := make(chan struct{})
 	var callErr error
 	go func() {
 		defer close(done)
 		_, callErr = h.callMethod(context.Background(), &CtxData{
-			ReqID:  42,
-			Method: "block",
-			ReqSrc: RequestSource{Name: "tester"},
+			ReqID:      42,
+			Method:     "block",
+			ReqSrc:     RequestSource{Name: "tester"},
+			RawReq:     rawReq,
+			RawReqBody: []byte(`{"method":"block","params":[1,2,3]}`),
 		}, nil)
 	}()
 
@@ -83,6 +90,9 @@ func Test_Handler_consumersInflight(t *testing.T) {
 		assert.Equal(t, "block", m["method"])
 		assert.Equal(t, "tester", m["source"])
 		assert.Equal(t, uint64(42), m["requestId"])
+		assert.Equal(t, `{"method":"block","params":[1,2,3]}`, m["requestBody"])
+		headers := m["requestHeaders"].(http.Header)
+		assert.Equal(t, "debug-value", headers.Get("X-Debug-Header"))
 	}
 
 	// after completion the consumer must be removed, total preserved

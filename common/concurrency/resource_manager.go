@@ -53,6 +53,7 @@ func (q *ResourceManager) release(num int) {
 	// the queue leader will got the resource and leave the queue
 	// notice the queue leader
 	close(w.ch)
+	q.curResource -= w.num
 	// adjust the queue
 	tail := len(q.waiters) - 1
 	q.waiters[0] = q.waiters[tail]

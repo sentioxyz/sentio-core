@@ -5,7 +5,7 @@ module(
     version = "1.0",
 )
 
-PROTOBUF_VERSION = "33.5"
+PROTOBUF_VERSION = "35.0"
 
 PTYHON_VERSION = "3.11"
 

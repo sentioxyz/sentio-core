@@ -14,6 +14,10 @@ ts_project(
     resolve_json_module = True,
     source_map = True,
     tsconfig = ":tsconfig",
+    # aspect_rules_ts >=3.8.10 validates that tsconfig rootDir matches the
+    # ts_project root_dir attr; this package intentionally keeps the dist/src
+    # output layout (consumed by :pkg and :test), so skip that validation.
+    validate = False,
     deps = [
         ":node_modules",
     ],

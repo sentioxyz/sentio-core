@@ -75,6 +75,8 @@ multirun(
 )
 
 # gazelle:prefix sentioxyz/sentio-core
+# wasmer-go: sentioxyz fork is consumed as a Bazel module, not go_deps
+# gazelle:resolve go github.com/wasmerio/wasmer-go/wasmer @wasmer_go//wasmer
 # gazelle:resolve proto protoc-gen-openapiv2/options/openapiv2.proto      @grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options:options_proto
 # gazelle:resolve proto protoc-gen-openapiv2/options/annotations.proto    @grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options:options_proto
 # gazelle:resolve proto go protoc-gen-openapiv2/options/annotations.proto @grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options

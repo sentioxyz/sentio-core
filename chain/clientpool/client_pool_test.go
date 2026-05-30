@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/pool"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 )
 
@@ -898,10 +899,16 @@ func Test_adjustPriority_upgradesWhenValidHigherPriorityExists(t *testing.T) {
 	p.mu.Unlock()
 	p.enablePriority()
 
-	// Wait until c1 (priority 1) is ready.
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer waitCancel()
-	require.NoError(t, p.WaitReady(waitCtx))
+	// Wait until c1 (priority 1) is initialized and valid.
+	// Pool readiness alone is not sufficient: with both c1 and c2 enabled they
+	// initialize concurrently, and c2 (priority 3) can become ready first,
+	// satisfying WaitReady while c1 is not yet a valid higher-priority entry —
+	// which would make adjustPriority skip the upgrade.
+	maxPriority := uint32(2)
+	require.Eventually(t, func() bool {
+		entries, _, _ := p.findEntries(set.New[string](), option[testClientConfig]{maxPriority: &maxPriority})
+		return len(entries) > 0
+	}, 5*time.Second, 5*time.Millisecond)
 
 	// No waiters, no recent activity at priority-3, c1 is valid at priority < 3 → upgrade.
 	p.adjustPriority()

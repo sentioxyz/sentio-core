@@ -42,10 +42,14 @@ bazel_dep(name = "rules_oci", version = "2.3.0")
 bazel_dep(name = "rules_multirun", version = "0.13.0")
 bazel_dep(name = "hermetic_cc_toolchain", version = "4.1.0")
 
-# Direct dep to override the transitive rules_foreign_cc 0.10.1 (pulled via
-# grpc -> opencensus-cpp -> google_benchmark -> libpfm), which is incompatible
-# with Bazel 9 (uses the removed rule() arg incompatible_use_toolchain_transition).
-bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
+# Force google_benchmark >= 1.9.2: it drops the rules_foreign_cc dependency and
+# pulls the foreign_cc-free libpfm@4.11.0.bcr.1 (rules_cc instead). Without this,
+# the chain grpc -> opencensus-cpp -> google_benchmark@1.8.4 -> {rules_foreign_cc,
+# libpfm} drags in rules_foreign_cc, whose old versions are incompatible with
+# Bazel 9. Pinning google_benchmark high enough removes rules_foreign_cc from the
+# graph entirely, so no rules_foreign_cc bazel_dep is needed.
+# TODO When new grpc is released, remove this  
+bazel_dep(name = "google_benchmark", version = "1.9.5")
 bazel_dep(name = "rules_proto_grpc", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_cpp", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_go", version = "5.8.0")

@@ -221,7 +221,7 @@ When working with on-chain state that needs Redis caching, use the `statemirror`
 ### Known Compatibility Issues
 
 - **Bazel 9**: Not yet supported due to `rules_foreign_cc` incompatibility (pulled in via grpc → opencensus-cpp → google_benchmark → libpfm)
-- **OCI Images**: Container image builds require Linux platform. OCI targets (in `service/launcher/BUILD.bazel`) are marked as `manual` and must be built explicitly with `bazel build //service/launcher:launcher_image`
+- **OCI Images**: Container image builds use `rules_img`. Launcher image targets (in `service/launcher/BUILD.bazel`) are pinned to `//:linux_amd64`, marked as `manual`, and must be built explicitly with `bazel build //service/launcher:launcher_image`
 - **gRPC Python**: Latest grpc versions may require Python versions not yet in rules_python
 
 ## Notes

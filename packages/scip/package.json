@@ -1,0 +1,24 @@
+{
+  "name": "@sentio/scip",
+  "version": "1.0.1",
+  "description": "Common utils",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "files": [
+    "{dist,src}",
+    "!**/*.test.{js,ts}",
+    "!{dist,src}/tests"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "preinstall": "npx only-allow pnpm",
+    "lint": "eslint .",
+    "package": "pnpm build",
+    "prepublishOnly": "pnpm package",
+    "test": "glob -c 'tsx --test' '**/*.test.ts'"
+  },
+  "types": "./dist/index.d.ts",
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  }
+}

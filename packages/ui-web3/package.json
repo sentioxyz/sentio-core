@@ -27,7 +27,7 @@
     "@sentio/chain": "*",
     "@sentio/debugger": "^1.16.25",
     "@sentio/debugger-common": "^1.16.25",
-    "@sentio/scip": "^1.0.1",
+    "@sentio/scip": "workspace:*",
     "@sentio/ui-core": "workspace:*",
     "@uiw/react-json-view": "2.0.0-alpha.39",
     "@viz-js/viz": "^3.24.0",

@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
-load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@rules_img//img:image.bzl", "image_manifest")
+load("@rules_img//img:layer.bzl", "image_layer")
+load("@rules_img//img:load.bzl", "image_load")
+load("@rules_img//img:push.bzl", "image_push")
 
 go_library(
     name = "launcher_lib",
@@ -40,37 +42,42 @@ go_library(
 go_binary(
     name = "launcher",
     srcs = ["cmd/main.go"],
+    visibility = ["//visibility:public"],
     deps = [
         ":launcher_lib",
         "//common/flags",
         "//common/log",
     ],
-    visibility = ["//visibility:public"],
 )
 
-pkg_tar(
-    name = "launcher_tar",
-    srcs = [":launcher"],
+image_layer(
+    name = "launcher_layer",
+    srcs = {
+        "/launcher": ":launcher",
+    },
 )
 
-oci_image(
+image_manifest(
     name = "launcher_image",
     base = "@distroless_cc_debian12",
     entrypoint = ["/launcher"],
-    tars = [":launcher_tar"],
+    layers = [":launcher_layer"],
+    platform = "//:linux_amd64",
     tags = ["manual"],
 )
 
-oci_load(
+image_load(
     name = "launcher_load",
     image = ":launcher_image",
-    repo_tags = ["ghcr.io/sentioxyz/sentio-core/service-launcher:latest"],
+    tag = "ghcr.io/sentioxyz/sentio-core/service-launcher:latest",
     tags = ["manual"],
 )
 
-oci_push(
+image_push(
     name = "launcher_push",
     image = ":launcher_image",
-    repository = "ghcr.io/sentioxyz/sentio-core/service-launcher",
+    registry = "ghcr.io",
+    repository = "sentioxyz/sentio-core/service-launcher",
+    tag = "latest",
     tags = ["manual"],
 )

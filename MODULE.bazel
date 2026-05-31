@@ -29,7 +29,6 @@ PTYHON_VERSION = "3.11"
 ### Basic
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_license", version = "1.0.0")
-bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
 
@@ -49,7 +48,7 @@ bazel_dep(name = "rules_uv", version = "0.89.2")
 bazel_dep(name = "aspect_rules_js", version = "3.1.2")
 bazel_dep(name = "aspect_rules_ts", version = "3.8.10")
 bazel_dep(name = "aspect_rules_py", version = "1.11.5")
-bazel_dep(name = "rules_oci", version = "2.3.0")
+bazel_dep(name = "rules_img", version = "0.3.11")
 bazel_dep(name = "rules_multirun", version = "0.13.0")
 bazel_dep(name = "hermetic_cc_toolchain", version = "4.1.0")
 
@@ -59,7 +58,7 @@ bazel_dep(name = "hermetic_cc_toolchain", version = "4.1.0")
 # libpfm} drags in rules_foreign_cc, whose old versions are incompatible with
 # Bazel 9. Pinning google_benchmark high enough removes rules_foreign_cc from the
 # graph entirely, so no rules_foreign_cc bazel_dep is needed.
-# TODO When new grpc is released, remove this  
+# TODO When new grpc is released, remove this
 bazel_dep(name = "google_benchmark", version = "1.9.5")
 bazel_dep(name = "rules_proto_grpc", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_cpp", version = "5.8.0")
@@ -272,16 +271,11 @@ register_toolchains(
 )
 
 ### OCI Image plugin
-PLATFORMS = [
-    "linux/amd64",
-    #        "linux/arm64",
-]
+pull = use_repo_rule("@rules_img//img:pull.bzl", "pull")
 
-oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
-oci.pull(
+pull(
     name = "distroless_cc_debian12",
     digest = "sha256:72344f7f909a8bf003c67f55687e6d51a441b49661af8f660aa7b285f00e57df",
-    image = "gcr.io/distroless/cc-debian12",
-    platforms = PLATFORMS,
+    registry = "gcr.io",
+    repository = "distroless/cc-debian12",
 )
-use_repo(oci, "distroless_cc_debian12", "distroless_cc_debian12_linux_amd64")

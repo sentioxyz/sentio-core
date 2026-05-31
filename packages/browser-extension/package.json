@@ -20,7 +20,7 @@
     "@sentio/bigdecimal": "9.1.1-patch.3",
     "@sentio/chain": "*",
     "@sentio/debugger": "^1.16.25",
-    "@sentio/scip": "^1.0.1",
+    "@sentio/scip": "workspace:*",
     "@sentio/ui-core": "workspace:*",
     "@sentio/ui-web3": "workspace:*",
     "dayjs": "^1.11.2",

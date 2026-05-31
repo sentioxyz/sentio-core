@@ -144,8 +144,8 @@ importers:
         specifier: ^1.16.25
         version: 1.16.25(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@sentio/scip':
-        specifier: ^1.0.1
-        version: 1.0.1
+        specifier: workspace:*
+        version: link:../scip
       '@sentio/ui-core':
         specifier: workspace:*
         version: link:../ui-core
@@ -353,6 +353,12 @@ importers:
         specifier: ^8.50.0
         version: 8.50.0(eslint@9.37.0(jiti@2.7.0))(typescript@5.9.2)
 
+  packages/scip:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.10.13
+
   packages/ui-core:
     dependencies:
       '@floating-ui/core':
@@ -477,8 +483,8 @@ importers:
         specifier: ^1.16.25
         version: 1.16.25
       '@sentio/scip':
-        specifier: ^1.0.1
-        version: 1.0.1
+        specifier: workspace:*
+        version: link:../scip
       '@sentio/ui-core':
         specifier: workspace:*
         version: link:../ui-core
@@ -2707,9 +2713,6 @@ packages:
 
   '@sentio/reselect-tree@1.0.3':
     resolution: {integrity: sha512-tFpYVacCDSxPS/vmgs2J3SIXoUdEpEtJBrN8+sFLV5hl2THtwaTIGxq40ApA8GXul1bVsCY0xvudwz7YoDeYAA==}
-
-  '@sentio/scip@1.0.1':
-    resolution: {integrity: sha512-Aglmtq0X0hSktqoyt/KLVUymVRjixoClkvT9+n8dMKK2Nh5Hc/NsgpqsVe3qy2ZI+x9fRIDUoM5LZH5W3P4qqQ==}
 
   '@sentio/truffle-codec@0.2.3':
     resolution: {integrity: sha512-UlhIQA+HZXYwJDTzU3Wz2pFVsEg0OOqMJPILjnm8XpmPGzH1xFB5oWuW3Z2dkd9N5pAUSNt4DiljwbIsiSq3Lw==}
@@ -11430,8 +11433,6 @@ snapshots:
     dependencies:
       json-pointer: 0.6.2
       reselect: 4.1.8
-
-  '@sentio/scip@1.0.1': {}
 
   '@sentio/truffle-codec@0.2.3':
     dependencies:

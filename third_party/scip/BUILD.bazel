@@ -1,0 +1,23 @@
+# gazelle:ignore
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("//bazel:ts-rules.bzl", "ts_grpcgateway")
+
+genrule(
+    name = "scip_proto_fixed",
+    srcs = ["@scip_proto_download//file"],
+    outs = ["scip.proto"],
+    cmd = "sed 's|go_package = \"github.com/scip-code/scip/bindings/go/scip/\"|go_package = \"github.com/scip-code/scip/bindings/go/scip\"|' $(location @scip_proto_download//file) > $@",
+)
+
+proto_library(
+    name = "scip_proto",
+    srcs = ["scip.proto"],
+    strip_import_prefix = "/third_party/scip",
+    visibility = ["//visibility:public"],
+)
+
+ts_grpcgateway(
+    name = "scip_ts_gateway_proto",
+    protos = [":scip_proto"],
+    visibility = ["//visibility:public"],
+)

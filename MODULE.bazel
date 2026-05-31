@@ -11,6 +11,17 @@ git_override(
     remote = "https://github.com/sentioxyz/wasmer-go",
 )
 
+# scip.proto is published in the root scip-code/scip repository, while this
+# package only needs the single proto file for TypeScript generation.
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+http_file(
+    name = "scip_proto_download",
+    downloaded_file_path = "scip.proto",
+    sha256 = "387f91bea3357a6ab72ae6214c569bf33fddcd3c726a8eacfa1435d65ac347e8",
+    urls = ["https://raw.githubusercontent.com/scip-code/scip/v0.7.1/scip.proto"],
+)
+
 PROTOBUF_VERSION = "35.0"
 
 PTYHON_VERSION = "3.11"
@@ -219,6 +230,7 @@ npm.npm_translate_lock(
     data = [
         "//:package.json",
         "//:packages/chain/package.json",
+        "//:packages/scip/package.json",
         "//:pnpm-workspace.yaml",
     ],
     npmrc = "//:.npmrc",

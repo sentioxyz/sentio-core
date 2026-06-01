@@ -51,23 +51,22 @@ func (w IntervalWindow) Key(slot uint64, blockTime *solana.UnixTimeSeconds) uint
 }
 
 // GetBlocksByIntervalParam is the param of sol_getBlocksByInterval: return the first non-skipped
-// block of each window within [From, To], at most Limit blocks, in ascending slot order. The window
-// straddling From's left edge is attributed to the page that holds its first block, so it is not
-// reported here when its first block lies before From.
+// block of each window within [From, To], in ascending slot order. The window straddling From's left
+// edge is attributed to the page that holds its first block, so it is not reported here when its
+// first block lies before From. The super node caps the number of blocks and errors when exceeded.
 type GetBlocksByIntervalParam struct {
 	From   uint64         `json:"from"`
 	To     uint64         `json:"to"`
 	Window IntervalWindow `json:"window"`
-	Limit  int            `json:"limit"`
 }
 
 // FindTransactionsParam is the param of sol_findTransactions: return, per block in [From, To], the
-// full transactions that invoke any program in ProgramIDs, at most Limit transactions in total.
+// full transactions that invoke any program in ProgramIDs. The super node caps the total number of
+// transactions and errors when exceeded (except for a single-block range).
 type FindTransactionsParam struct {
 	From       uint64             `json:"from"`
 	To         uint64             `json:"to"`
 	ProgramIDs []solana.PublicKey `json:"programIds"`
-	Limit      int                `json:"limit"`
 }
 
 func (p FindTransactionsParam) ProgramSet() map[string]struct{} {

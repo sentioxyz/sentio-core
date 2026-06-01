@@ -3,6 +3,7 @@ package supernode
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"sort"
 
 	"github.com/gagliardetto/solana-go"
@@ -18,19 +19,26 @@ import (
 // cache and ClickHouse. Unrecognized methods fall through to the JSON-RPC proxy so the super node
 // still answers raw Solana requests from other callers. The HTTP proxy fallback is appended by the
 // launcher (BuildSolMiddlewares), matching the evm/sui super nodes.
+// Per-query result caps. When a query in [from, to] would exceed its cap the super node returns an
+// error, which the driver treats like any fetch error: it halves the request range and retries. The
+// single exception is sol_findTransactions on a single block (from == to), where the range cannot
+// be shrunk further, so all matching transactions are returned regardless of the cap.
+const (
+	maxIntervalBlocks   = 500
+	maxFindTransactions = 1000
+)
+
 func NewSuperNode(
 	client *sol.ClientPool,
 	slotCache chain.LatestSlotCache[*sol.Slot],
 	rangeStore chain.RangeStore,
 	store Storage,
-	maxLimit int,
 ) []jsonrpc.Middleware {
 	svc := &RPCService{
 		client:     client,
 		slotCache:  slotCache,
 		rangeStore: rangeStore,
 		store:      store,
-		maxLimit:   maxLimit,
 	}
 	return []jsonrpc.Middleware{
 		func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
@@ -60,15 +68,6 @@ type RPCService struct {
 	slotCache  chain.LatestSlotCache[*sol.Slot]
 	rangeStore chain.RangeStore
 	store      Storage
-	maxLimit   int
-}
-
-// checkLimit validates the caller-supplied page size against the server-configured maximum.
-func (s *RPCService) checkLimit(limit int) error {
-	if limit <= 0 || limit > s.maxLimit {
-		return errors.Errorf("limit %d must be in (0, %d]", limit, s.maxLimit)
-	}
-	return nil
 }
 
 func (s *RPCService) GetLatestBlockNumber(ctx context.Context) (uint64, error) {
@@ -129,9 +128,6 @@ func (s *RPCService) GetBlocksByInterval(
 	if param.Window.BlockWindow == 0 && param.Window.TimeWindow == 0 {
 		return nil, errors.Errorf("interval window is empty")
 	}
-	if err := s.checkLimit(param.Limit); err != nil {
-		return nil, err
-	}
 
 	scanFrom := param.From
 	if param.Window.IsBlockWindow() {
@@ -157,9 +153,9 @@ func (s *RPCService) GetBlocksByInterval(
 			return []sol.Block{st.ToBlock(true)}, nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
-			// Limit+1: the boundary window (first result) may be dropped below, so fetch one extra to
-			// avoid coming up one short after truncation.
-			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, param.Limit+1)
+			// maxIntervalBlocks+1 lets the merge detect an over-cap range even after the boundary
+			// window (first result) is dropped below.
+			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, maxIntervalBlocks+1)
 		}),
 	)
 	if err != nil {
@@ -205,9 +201,11 @@ func (s *RPCService) GetBlocksByInterval(
 		}
 	}
 
-	// Return only the first Limit blocks; the caller pages by advancing From.
-	if len(result) > param.Limit {
-		result = result[:param.Limit]
+	// Too many interval blocks: signal the caller to shrink the range (the minimum fetch range is
+	// maxIntervalBlocks, where at most one block per slot can be a target, so this is reachable).
+	if len(result) > maxIntervalBlocks {
+		return nil, errors.Errorf("too many interval blocks (> %d) in slot range [%d, %d]",
+			maxIntervalBlocks, param.From, param.To)
 	}
 	return result, nil
 }
@@ -258,8 +256,12 @@ func (s *RPCService) FindTransactions(
 	if param.To < param.From {
 		return nil, errors.Errorf("to %d cannot be less than from %d", param.To, param.From)
 	}
-	if err := s.checkLimit(param.Limit); err != nil {
-		return nil, err
+	// A single-block range cannot be shrunk further, so it returns all matching transactions even
+	// beyond the cap; otherwise cap the store query so an over-cap range can be detected.
+	singleBlock := param.From == param.To
+	storeLimit := maxFindTransactions + 1
+	if singleBlock {
+		storeLimit = math.MaxInt32
 	}
 	programSet := param.ProgramSet()
 	result, err := chain.QueryRangeWithCache[*sol.Slot, sol.BlockTransactions](
@@ -280,24 +282,23 @@ func (s *RPCService) FindTransactions(
 			}}, nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.BlockTransactions, error) {
-			return s.store.FindTransactions(ctx, queryRange.Start, *queryRange.End, param.ProgramIDs, param.Limit)
+			return s.store.FindTransactions(ctx, queryRange.Start, *queryRange.End, param.ProgramIDs, storeLimit)
 		}),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	// Return only the first Limit transactions, in ascending block order; the caller pages by
-	// advancing From.
-	sort.Slice(result, func(i, j int) bool { return result[i].Slot < result[j].Slot })
-	total := 0
-	for i := range result {
-		if total+len(result[i].Transactions) > param.Limit {
-			result[i].Transactions = result[i].Transactions[:param.Limit-total]
-			result = result[:i+1]
-			return result, nil
+	if !singleBlock {
+		total := 0
+		for _, b := range result {
+			total += len(b.Transactions)
 		}
-		total += len(result[i].Transactions)
+		// Too many transactions: signal the caller to shrink the range.
+		if total > maxFindTransactions {
+			return nil, errors.Errorf("too many transactions (> %d) in slot range [%d, %d]",
+				maxFindTransactions, param.From, param.To)
+		}
 	}
 	return result, nil
 }

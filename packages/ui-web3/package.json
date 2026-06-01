@@ -72,6 +72,6 @@
     "swr": "^2.3.8",
     "tailwindcss": "^4.3.0",
     "tsup": "^8.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^6.0.3"
   }
 }

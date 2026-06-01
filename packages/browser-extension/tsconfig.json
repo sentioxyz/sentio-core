@@ -22,7 +22,9 @@
       "@sentio/ui-web3": ["../ui-web3/src/index.ts"],
       "@sentio/ui-web3/*": ["../ui-web3/src/*"],
       "~/*": ["src/*"]
-    }
+    },
+    "ignoreDeprecations": "6.0",
+    "types": ["chrome", "node"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "out"]

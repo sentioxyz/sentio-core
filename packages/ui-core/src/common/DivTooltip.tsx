@@ -56,7 +56,7 @@ export const PopoverTooltip: FC<Props> = ({
   const arrowRef = useRef(null)
   const [open, setOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const {
     x,

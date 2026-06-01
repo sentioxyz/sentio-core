@@ -157,7 +157,9 @@ func (s *RPCService) GetBlocksByInterval(
 			return []sol.Block{st.ToBlock(true)}, nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
-			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, param.Limit)
+			// Limit+1: the boundary window (first result) may be dropped below, so fetch one extra to
+			// avoid coming up one short after truncation.
+			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, param.Limit+1)
 		}),
 	)
 	if err != nil {
@@ -194,12 +196,11 @@ func (s *RPCService) GetBlocksByInterval(
 	} else if len(result) > 0 && param.From > 0 && result[0].GetBlockResult != nil {
 		// Time window: the first window straddles From's left edge iff the nearest non-skipped block
 		// before From is in the same window; if so it belongs to an earlier page.
-		firstKey := param.Window.Key(result[0].Slot, result[0].BlockTime)
-		prevKey, found, prevErr := s.previousUnskippedWindowKey(ctx, param.Window, param.From)
+		prevSlot, prevTime, found, prevErr := s.previousUnskippedBlock(ctx, param.From)
 		if prevErr != nil {
 			return nil, prevErr
 		}
-		if found && prevKey == firstKey {
+		if found && param.Window.Key(prevSlot, prevTime) == param.Window.Key(result[0].Slot, result[0].BlockTime) {
 			result = result[1:]
 		}
 	}
@@ -211,57 +212,41 @@ func (s *RPCService) GetBlocksByInterval(
 	return result, nil
 }
 
-// previousUnskippedWindowKey returns the interval-window key of the nearest non-skipped block with
-// slot < from, looking in the latest-slot cache (the recent suffix) first and then ClickHouse.
-func (s *RPCService) previousUnskippedWindowKey(
+// previousUnskippedBlock returns the nearest non-skipped block (slot and time) with slot < from,
+// looking in the latest-slot cache first and then ClickHouse. A single cache traversal is used (and
+// its returned range reused) so the cache window cannot slide between reading its range and its
+// blocks.
+func (s *RPCService) previousUnskippedBlock(
 	ctx context.Context,
-	window sol.IntervalWindow,
 	from uint64,
-) (key uint64, found bool, err error) {
+) (slot uint64, blockTime *solana.UnixTimeSeconds, found bool, err error) {
 	if from == 0 {
-		return 0, false, nil
+		return 0, nil, false, nil
 	}
-	cacheRange, err := s.slotCache.GetRange(ctx)
+	var cacheSlot uint64
+	var cacheTime *solana.UnixTimeSeconds
+	var cacheFound bool
+	// Traverse clamps [0, from-1] to the cached suffix; ascending order means the last non-skipped
+	// block seen is the nearest one before from.
+	cachedRange, err := s.slotCache.Traverse(ctx, rg.NewRange(0, from-1),
+		func(ctx context.Context, st *sol.Slot) error {
+			if !st.Skipped {
+				cacheSlot, cacheTime, cacheFound = st.SlotNumber, st.BlockTime, true
+			}
+			return nil
+		})
 	if err != nil {
-		return 0, false, err
+		return 0, nil, false, err
 	}
-	if !cacheRange.IsEmpty() && cacheRange.Start < from {
-		upper := from - 1
-		if cacheRange.End != nil && *cacheRange.End < upper {
-			upper = *cacheRange.End
-		}
-		var slot uint64
-		var blockTime *solana.UnixTimeSeconds
-		var cacheFound bool
-		// Traverse is ascending, so the last non-skipped block seen is the nearest one before from.
-		if _, err = s.slotCache.Traverse(ctx, rg.NewRange(cacheRange.Start, upper),
-			func(ctx context.Context, st *sol.Slot) error {
-				if !st.Skipped {
-					slot, blockTime, cacheFound = st.SlotNumber, st.BlockTime, true
-				}
-				return nil
-			}); err != nil {
-			return 0, false, err
-		}
-		if cacheFound {
-			return window.Key(slot, blockTime), true, nil
-		}
-		// Everything below from is skipped in the cache; look in ClickHouse below the cache.
-		return s.previousUnskippedWindowKeyFromStore(ctx, window, cacheRange.Start)
+	if cacheFound {
+		return cacheSlot, cacheTime, true, nil
 	}
-	return s.previousUnskippedWindowKeyFromStore(ctx, window, from)
-}
-
-func (s *RPCService) previousUnskippedWindowKeyFromStore(
-	ctx context.Context,
-	window sol.IntervalWindow,
-	before uint64,
-) (uint64, bool, error) {
-	slot, blockTime, found, err := s.store.QueryPreviousUnskipped(ctx, before)
-	if err != nil || !found {
-		return 0, false, err
+	// The cache has no non-skipped block before from; look in ClickHouse below the cached range.
+	before := from
+	if !cachedRange.IsEmpty() {
+		before = cachedRange.Start
 	}
-	return window.Key(slot, blockTime), true, nil
+	return s.store.QueryPreviousUnskipped(ctx, before)
 }
 
 // FindTransactions returns, grouped by block, the transactions in [From, To] that invoke any of the

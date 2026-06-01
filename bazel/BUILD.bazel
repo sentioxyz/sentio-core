@@ -32,3 +32,18 @@ proto_plugin(
     tool = "@com_github_grpc_ecosystem_protoc_gen_grpc_gateway_ts//:protoc-gen-grpc-gateway-ts",
     visibility = ["//visibility:public"],
 )
+
+# protobuf-es codegen (protoc-gen-es) with an optional remove_deprecated pass. The
+# tool wraps stock @bufbuild/protoc-gen-es; see //bazel/protoc-gen-es-nodeprecated.
+# Options (target=ts, import_extension=js, keep_empty_files=true, and optional
+# remove_deprecated=true) are supplied dynamically by the `es_proto` rule.
+proto_plugin(
+    name = "es-proto-plugin",
+    env = {
+        "BAZEL_BINDIR": "{bindir}",
+    },
+    outputs = ["{protopath}_pb.ts"],
+    tool = "//bazel/protoc-gen-es-nodeprecated:protoc_gen_es_nodeprecated",
+    use_built_in_shell_environment = False,
+    visibility = ["//visibility:public"],
+)

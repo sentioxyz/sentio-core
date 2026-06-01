@@ -26,6 +26,10 @@ import (
 const (
 	maxIntervalBlocks   = 500
 	maxFindTransactions = 1000
+	// maxQuerySpan caps the slot span (To - From) of a single range query, independent of how many
+	// blocks/transactions it returns: a very wide range forces ClickHouse to scan many granules even
+	// when the result is small, so the super node rejects it and the driver shrinks the range.
+	maxQuerySpan = 100000
 )
 
 func NewSuperNode(
@@ -171,6 +175,10 @@ func (s *RPCService) GetBlocksByInterval(
 	if param.To < param.From {
 		return nil, errors.Errorf("to %d cannot be less than from %d", param.To, param.From)
 	}
+	if param.To-param.From > maxQuerySpan {
+		return nil, errors.Errorf("slot span %d (> %d) is too large in range [%d, %d]",
+			param.To-param.From, maxQuerySpan, param.From, param.To)
+	}
 	if param.Window.BlockWindow == 0 && param.Window.TimeWindow == 0 {
 		return nil, errors.Errorf("interval window is empty")
 	}
@@ -315,6 +323,10 @@ func (s *RPCService) FindTransactions(
 ) ([]sol.BlockTransactions, error) {
 	if param.To < param.From {
 		return nil, errors.Errorf("to %d cannot be less than from %d", param.To, param.From)
+	}
+	if param.To-param.From > maxQuerySpan {
+		return nil, errors.Errorf("slot span %d (> %d) is too large in range [%d, %d]",
+			param.To-param.From, maxQuerySpan, param.From, param.To)
 	}
 	// A single-block range cannot be shrunk further, so it returns all matching transactions even
 	// beyond the cap; otherwise cap the store query so an over-cap range can be detected.

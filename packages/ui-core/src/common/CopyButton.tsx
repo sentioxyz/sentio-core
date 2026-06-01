@@ -70,7 +70,7 @@ export const CopyButton: FC<Props> = ({
   const [copied, setCopied] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const iconContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

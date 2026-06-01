@@ -12,16 +12,15 @@ import (
 type Storage interface {
 	// QueryBlock returns the header (without signatures) of a slot.
 	QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error)
-	// QueryIntervalTargetSlots returns the first non-skipped slot of each window within [from, to].
-	QueryIntervalTargetSlots(
+	// QueryBlocksByInterval returns the first non-skipped block (with signatures) of each window
+	// within [from, to].
+	QueryBlocksByInterval(
 		ctx context.Context,
 		from uint64,
 		to uint64,
 		window sol.IntervalWindow,
 		limit int,
-	) ([]uint64, error)
-	// QueryBlocks returns the headers with signatures of the given slots.
-	QueryBlocks(ctx context.Context, slots []uint64) ([]sol.Block, error)
+	) ([]sol.Block, error)
 	// FindTransactions returns, grouped by block, the transactions in [from, to] invoking any program.
 	FindTransactions(
 		ctx context.Context,

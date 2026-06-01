@@ -97,8 +97,10 @@ func (s *RPCService) GetBlock(ctx context.Context, slot uint64) (sol.Block, erro
 }
 
 // GetBlocksByInterval returns the first non-skipped block (with signatures) of each window within
-// [From, To]. It merges the ClickHouse part (older slots) and the latest-slot cache (recent slots);
-// for a window straddling the boundary the earlier (ClickHouse) block wins.
+// [From, To]. A single QueryRangeWithCache traversal picks the first block per window from the
+// latest-slot cache and queries ClickHouse for the range below the cache; results are then
+// deduplicated by window keeping the earliest slot, which drops the "fake" cache block of a window
+// that straddles the cache/ClickHouse boundary (its real first block lives in ClickHouse).
 func (s *RPCService) GetBlocksByInterval(
 	ctx context.Context,
 	param sol.GetBlocksByIntervalParam,
@@ -109,68 +111,50 @@ func (s *RPCService) GetBlocksByInterval(
 	if param.Window.BlockWindow == 0 && param.Window.TimeWindow == 0 {
 		return nil, errors.Errorf("interval window is empty")
 	}
-	cacheRange, err := s.slotCache.GetRange(ctx)
+
+	// seen dedups within the cache traversal (best effort; correctness comes from the final
+	// min-slot dedup below).
+	seen := make(map[uint64]struct{})
+	blocks, err := chain.QueryRangeWithCache[*sol.Slot, sol.Block](
+		ctx,
+		rg.NewRange(param.From, param.To),
+		s.slotCache,
+		func(st *sol.Slot) ([]sol.Block, error) {
+			if st.Skipped {
+				return nil, nil
+			}
+			key := param.Window.Key(st.SlotNumber, st.BlockTime)
+			if _, has := seen[key]; has {
+				return nil, nil
+			}
+			seen[key] = struct{}{}
+			return []sol.Block{st.ToBlock(true)}, nil
+		},
+		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
+			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, param.Limit+1)
+		}),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	// The cache covers [cacheStart, To]; below cacheStart is served from ClickHouse.
-	cacheStart := param.To + 1
-	if !cacheRange.IsEmpty() && cacheRange.Start <= param.To {
-		cacheStart = max(cacheRange.Start, param.From)
-	}
-
-	targetByWindow := make(map[uint64]uint64) // window key -> target slot
-	blockBySlot := make(map[uint64]sol.Block)
-
-	// ClickHouse part: [From, cacheStart-1]
-	if cacheStart > param.From {
-		targets, chErr := chain.CheckRange(s.rangeStore, func(ctx context.Context, qr rg.Range) ([]uint64, error) {
-			return s.store.QueryIntervalTargetSlots(ctx, qr.Start, *qr.End, param.Window, param.Limit+1)
-		})(ctx, rg.NewRange(param.From, cacheStart-1))
-		if chErr != nil {
-			return nil, chErr
+	// Keep the earliest block per window: a straddling window has a ClickHouse block (earlier) and a
+	// cache block (later, the fake); the earlier one wins.
+	blockByWindow := make(map[uint64]sol.Block)
+	for _, b := range blocks {
+		if b.GetBlockResult == nil {
+			continue
 		}
-		blocks, qErr := s.store.QueryBlocks(ctx, targets)
-		if qErr != nil {
-			return nil, qErr
-		}
-		for _, b := range blocks {
-			key := param.Window.Key(b.Slot, b.BlockTime)
-			if _, has := targetByWindow[key]; !has {
-				targetByWindow[key] = b.Slot
-				blockBySlot[b.Slot] = b
-			}
+		key := param.Window.Key(b.Slot, b.BlockTime)
+		if cur, has := blockByWindow[key]; !has || b.Slot < cur.Slot {
+			blockByWindow[key] = b
 		}
 	}
-
-	// Cache part: [cacheStart, To]
-	if cacheStart <= param.To {
-		if _, err = s.slotCache.Traverse(ctx, rg.NewRange(cacheStart, param.To),
-			func(ctx context.Context, st *sol.Slot) error {
-				if st.Skipped {
-					return nil
-				}
-				key := param.Window.Key(st.SlotNumber, st.BlockTime)
-				if cur, has := targetByWindow[key]; !has || st.SlotNumber < cur {
-					targetByWindow[key] = st.SlotNumber
-					blockBySlot[st.SlotNumber] = st.ToBlock(true)
-				}
-				return nil
-			}); err != nil {
-			return nil, err
-		}
+	result := make([]sol.Block, 0, len(blockByWindow))
+	for _, b := range blockByWindow {
+		result = append(result, b)
 	}
-
-	slots := make([]uint64, 0, len(targetByWindow))
-	for _, slot := range targetByWindow {
-		slots = append(slots, slot)
-	}
-	sort.Slice(slots, func(i, j int) bool { return slots[i] < slots[j] })
-	result := make([]sol.Block, 0, len(slots))
-	for _, slot := range slots {
-		result = append(result, blockBySlot[slot])
-	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Slot < result[j].Slot })
 	if param.Limit > 0 && len(result) > param.Limit {
 		return nil, errors.Errorf("too many interval blocks (> %d) in slot range [%d, %d]",
 			param.Limit, param.From, param.To)

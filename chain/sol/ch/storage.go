@@ -79,15 +79,20 @@ func (s *Store) queryBlockRow(ctx context.Context, slot uint64) (*ClickhouseBloc
 	return found, err
 }
 
-// QueryIntervalTargetSlots returns the first non-skipped slot of each window within [from, to],
-// ascending, capped at limit.
-func (s *Store) QueryIntervalTargetSlots(
+// QueryBlocksByInterval returns the first non-skipped block (with transaction signatures) of each
+// window within [from, to], ascending, capped at limit. The header of each window's first block is
+// fetched with argMin in a single query, then its signatures are loaded.
+func (s *Store) QueryBlocksByInterval(
 	ctx context.Context,
 	from uint64,
 	to uint64,
 	window sol.IntervalWindow,
 	limit int,
-) ([]uint64, error) {
+) ([]sol.Block, error) {
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "queryBlocksByInterval", time.Since(start), count) }()
+
 	var groupExpr string
 	var args []any
 	if window.IsBlockWindow() {
@@ -97,57 +102,50 @@ func (s *Store) QueryIntervalTargetSlots(
 		groupExpr = "intDiv(toUInt64(toUnixTimestamp(block_time)), ?)"
 		args = []any{from, to, window.TimeWindowSeconds(), limit}
 	}
+	// All rows match NOT skipped, so the argMin'd header is that of a real (non-skipped) block.
 	sql := fmt.Sprintf(
-		"SELECT min(slot) AS s FROM %s WHERE slot >= ? AND slot <= ? AND NOT skipped "+
-			"GROUP BY %s ORDER BY s LIMIT ?",
+		"SELECT min(slot) AS s, argMin(blockhash, slot), argMin(previous_blockhash, slot), "+
+			"argMin(parent_slot, slot), argMin(block_height, slot), argMin(block_time, slot) "+
+			"FROM %s WHERE slot >= ? AND slot <= ? AND NOT skipped GROUP BY %s ORDER BY s LIMIT ?",
 		s.blocksTable(), groupExpr)
-	var slots []uint64
+
+	var rowsData []ClickhouseBlock
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
-		var slot uint64
-		if scanErr := rows.Scan(&slot); scanErr != nil {
+		var cb ClickhouseBlock
+		if scanErr := rows.Scan(
+			&cb.Slot, &cb.Blockhash, &cb.PreviousBlockhash,
+			&cb.ParentSlot, &cb.BlockHeight, &cb.BlockTime,
+		); scanErr != nil {
 			return scanErr
 		}
-		slots = append(slots, slot)
+		rowsData = append(rowsData, cb)
 		return nil
 	}, sql, args...)
-	return slots, err
-}
-
-// QueryBlocks returns the headers (with transaction signatures) of the given slots, ascending.
-func (s *Store) QueryBlocks(ctx context.Context, slots []uint64) ([]sol.Block, error) {
-	if len(slots) == 0 {
+	if err != nil {
+		return nil, err
+	}
+	if len(rowsData) == 0 {
 		return nil, nil
+	}
+
+	slots := make([]uint64, len(rowsData))
+	for i, cb := range rowsData {
+		slots[i] = cb.Slot
 	}
 	signatures, err := s.querySignatures(ctx, slots)
 	if err != nil {
 		return nil, err
 	}
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(slots)), ",")
-	sql := fmt.Sprintf(
-		"SELECT slot, skipped, blockhash, previous_blockhash, parent_slot, block_height, block_time "+
-			"FROM %s WHERE slot IN (%s) ORDER BY slot",
-		s.blocksTable(), placeholders)
-	args := make([]any, len(slots))
-	for i, slot := range slots {
-		args[i] = slot
-	}
-	var result []sol.Block
-	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
-		var cb ClickhouseBlock
-		if scanErr := rows.Scan(
-			&cb.Slot, &cb.Skipped, &cb.Blockhash, &cb.PreviousBlockhash,
-			&cb.ParentSlot, &cb.BlockHeight, &cb.BlockTime,
-		); scanErr != nil {
-			return scanErr
-		}
-		block, convErr := cb.toBlock(signatures[cb.Slot])
+	result := make([]sol.Block, 0, len(rowsData))
+	for i := range rowsData {
+		block, convErr := rowsData[i].toBlock(signatures[rowsData[i].Slot])
 		if convErr != nil {
-			return convErr
+			return nil, convErr
 		}
 		result = append(result, block)
-		return nil
-	}, sql, args...)
-	return result, err
+	}
+	count = len(result)
+	return result, nil
 }
 
 func (s *Store) querySignatures(ctx context.Context, slots []uint64) (map[uint64][]solana.Signature, error) {

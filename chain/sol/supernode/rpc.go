@@ -153,9 +153,9 @@ func (s *RPCService) GetBlocksByInterval(
 			return []sol.Block{st.ToBlock(true)}, nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
-			// maxIntervalBlocks+1 lets the merge detect an over-cap range even after the boundary
-			// window (first result) is dropped below.
-			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, maxIntervalBlocks+1)
+			// maxIntervalBlocks+2: one extra so an over-cap range yields > maxIntervalBlocks results,
+			// plus one more because the boundary window (first result) may be dropped below.
+			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, maxIntervalBlocks+2)
 		}),
 	)
 	if err != nil {

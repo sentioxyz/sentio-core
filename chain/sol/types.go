@@ -113,6 +113,14 @@ type BlockTransactions struct {
 	Transactions      []WrappedTransaction    `json:"transactions"`
 }
 
+// PreviousUnskippedBlock is the response of sol_getPreviousUnskippedBlock: the nearest non-skipped
+// block with slot strictly less than the requested slot (Found is false when there is none).
+type PreviousUnskippedBlock struct {
+	Slot      uint64                  `json:"slot"`
+	BlockTime *solana.UnixTimeSeconds `json:"blockTime"`
+	Found     bool                    `json:"found"`
+}
+
 // GetContractStartBlockResult is the response of sol_getContractStartBlock. Slot is the earliest
 // block (in the available data) at which the address is invoked as a program; Found is false when
 // the address never appears. The caller maps this against its own start/latest range.

@@ -54,6 +54,8 @@ func NewSuperNode(
 					return jsonrpc.CallMethod(svc.FindTransactions, ctx, params)
 				case "sol_getContractStartBlock":
 					return jsonrpc.CallMethod(svc.GetContractStartBlock, ctx, params)
+				case "sol_getPreviousUnskippedBlock":
+					return jsonrpc.CallMethod(svc.GetPreviousUnskippedBlock, ctx, params)
 				default:
 					return next(ctx, method, params)
 				}
@@ -208,6 +210,20 @@ func (s *RPCService) GetBlocksByInterval(
 			maxIntervalBlocks, param.From, param.To)
 	}
 	return result, nil
+}
+
+// GetPreviousUnskippedBlock returns the nearest non-skipped block (slot and time) with slot < slot.
+// Callers use it to learn the chain time "as of" a slot even when that slot itself is skipped (pass
+// slot+1 to include the slot itself).
+func (s *RPCService) GetPreviousUnskippedBlock(
+	ctx context.Context,
+	slot uint64,
+) (sol.PreviousUnskippedBlock, error) {
+	prevSlot, blockTime, found, err := s.previousUnskippedBlock(ctx, slot)
+	if err != nil {
+		return sol.PreviousUnskippedBlock{}, err
+	}
+	return sol.PreviousUnskippedBlock{Slot: prevSlot, BlockTime: blockTime, Found: found}, nil
 }
 
 // previousUnskippedBlock returns the nearest non-skipped block (slot and time) with slot < from,

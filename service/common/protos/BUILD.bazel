@@ -1,5 +1,6 @@
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel:ts-rules.bzl", "ts_proto")
 load("//bazel/golang:go_proto_library.bzl", "go_proto_library")
 
 proto_library(
@@ -40,4 +41,14 @@ go_library(
         "@org_golang_google_protobuf//types/known/structpb",
         "@org_golang_google_protobuf//types/known/timestamppb",
     ],
+)
+
+# TypeScript (ts-proto) codegen of the common protos for the sentio-sdk. Moved
+# here from sentio's //app:common_protos_ts_proto so SDK proto generation lives
+# next to the proto definitions. Consumed by the sentio-sdk //sentio-sdk:write_gen.
+ts_proto(
+    name = "common_protos_ts_proto",
+    esm = True,
+    protos = [":protos_proto"],
+    visibility = ["//visibility:public"],
 )

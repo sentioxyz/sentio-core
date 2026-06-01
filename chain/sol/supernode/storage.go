@@ -34,10 +34,9 @@ type Storage interface {
 		programIDs []solana.PublicKey,
 		limit int,
 	) ([]sol.BlockTransactions, error)
-	// EarliestProgramSlot returns the earliest slot at or before latest at which address is invoked.
+	// EarliestProgramSlot returns the earliest slot in the retained history at which address is invoked.
 	EarliestProgramSlot(
 		ctx context.Context,
 		address solana.PublicKey,
-		latest uint64,
 	) (uint64, bool, error)
 }

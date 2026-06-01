@@ -312,24 +312,23 @@ func (s *Store) QueryPreviousUnskipped(
 	return slot, blockTime, found, nil
 }
 
-// EarliestProgramSlot returns the earliest slot at or before latest at which address is invoked as a
-// program, searching the whole retained history (no start lower bound). It backs the contract-start
-// lookup, where the caller compares the result with the requirement start.
+// EarliestProgramSlot returns the earliest slot in the whole retained history at which address is
+// invoked as a program. It backs the contract-start lookup; the caller maps the result against its
+// own start/latest range.
 func (s *Store) EarliestProgramSlot(
 	ctx context.Context,
 	address solana.PublicKey,
-	latest uint64,
 ) (uint64, bool, error) {
 	startAt := time.Now()
 	defer func() { s.record(ctx, "earliestProgramSlot", time.Since(startAt), 1) }()
 
 	sql := fmt.Sprintf(
-		"SELECT min(slot), count() FROM %s WHERE slot <= ? AND has(program_ids, ?)",
+		"SELECT min(slot), count() FROM %s WHERE has(program_ids, ?)",
 		s.transactionsTable())
 	var minSlot, cnt uint64
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		return rows.Scan(&minSlot, &cnt)
-	}, sql, latest, address.String())
+	}, sql, address.String())
 	if err != nil {
 		return 0, false, err
 	}

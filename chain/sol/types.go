@@ -114,15 +114,9 @@ type BlockTransactions struct {
 	Transactions      []WrappedTransaction    `json:"transactions"`
 }
 
-// GetContractStartBlockParam is the param of sol_getContractStartBlock.
-type GetContractStartBlockParam struct {
-	Address solana.PublicKey `json:"address"`
-	Start   uint64           `json:"start"`
-	Latest  uint64           `json:"latest"`
-}
-
-// GetContractStartBlockResult is the response of sol_getContractStartBlock. Slot is the first slot
-// in [Start, Latest] that invokes Address; Found is false when Address never appears.
+// GetContractStartBlockResult is the response of sol_getContractStartBlock. Slot is the earliest
+// block (in the available data) at which the address is invoked as a program; Found is false when
+// the address never appears. The caller maps this against its own start/latest range.
 type GetContractStartBlockResult struct {
 	Slot  uint64 `json:"slot"`
 	Found bool   `json:"found"`

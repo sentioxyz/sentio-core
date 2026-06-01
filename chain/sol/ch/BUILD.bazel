@@ -1,35 +1,37 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "sol",
+    name = "ch",
     srcs = [
-        "client.go",
-        "extserver.go",
-        "slot.go",
-        "types.go",
+        "data.go",
+        "schema_mgr.go",
+        "storage.go",
     ],
-    importpath = "sentioxyz/sentio-core/chain/sol",
+    importpath = "sentioxyz/sentio-core/chain/sol/ch",
     visibility = ["//visibility:public"],
     deps = [
         "//chain/chain",
-        "//chain/clientpool",
-        "//common/https",
+        "//chain/clickhouse",
+        "//chain/sol",
+        "//common/chx",
+        "//common/objectx",
         "//common/range",
-        "//common/utils",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
         "@com_github_gagliardetto_solana_go//:solana-go",
         "@com_github_gagliardetto_solana_go//rpc",
-        "@com_github_gagliardetto_solana_go//rpc/jsonrpc",
         "@com_github_pkg_errors//:errors",
     ],
 )
 
 go_test(
-    name = "sol_test",
-    srcs = ["sol_test.go"],
-    embed = [":sol"],
+    name = "ch_test",
+    srcs = ["data_test.go"],
+    embed = [":ch"],
     deps = [
+        "//chain/sol",
         "@com_github_gagliardetto_solana_go//:solana-go",
         "@com_github_gagliardetto_solana_go//rpc",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

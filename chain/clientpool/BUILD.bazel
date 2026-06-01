@@ -42,6 +42,7 @@ go_test(
     deps = [
         "//common/log",
         "//common/pool",
+        "//common/set",
         "//common/utils",
         "@com_github_ethereum_go_ethereum//rpc",
         "@com_github_pkg_errors//:errors",

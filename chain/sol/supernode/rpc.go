@@ -46,6 +46,8 @@ func NewSuperNode(
 				switch method {
 				case "sol_getLatestBlockNumber":
 					return svc.GetLatestBlockNumber(ctx)
+				case "sol_getLatestHeader":
+					return jsonrpc.CallMethod(svc.GetLatestHeader, ctx, params)
 				case "sol_getBlock":
 					return jsonrpc.CallMethod(svc.GetBlock, ctx, params)
 				case "sol_getBlocksByInterval":
@@ -81,6 +83,48 @@ func (s *RPCService) GetLatestBlockNumber(ctx context.Context) (uint64, error) {
 		return 0, errors.Errorf("latest slot is not ready")
 	}
 	return *r.End, nil
+}
+
+// GetLatestHeader blocks until the latest-slot cache holds a non-skipped block with slot strictly
+// greater than slotGt, then returns its header (without signatures). This long-poll lets the driver
+// subscribe by waiting instead of polling (data.SubscribeUsingWaiting). The head slot may itself be
+// skipped, so the latest non-skipped block at or below the cache head is returned; when the newest
+// slots are all skipped (or none is yet beyond slotGt) it waits for the cache to advance before
+// re-checking, so it never busy-loops.
+func (s *RPCService) GetLatestHeader(ctx context.Context, slotGt uint64) (sol.Block, error) {
+	jsonrpc.GetCtxData(ctx).NotSlowRequest = true
+	waitGt := slotGt
+	for {
+		latest, err := s.slotCache.Wait(ctx, waitGt)
+		if err != nil {
+			return sol.Block{}, err
+		}
+		head, err := s.latestUnskipped(ctx)
+		if err != nil {
+			return sol.Block{}, err
+		}
+		if head != nil && head.SlotNumber > slotGt {
+			return head.ToBlock(false), nil
+		}
+		waitGt = latest
+	}
+}
+
+// latestUnskipped returns the newest non-skipped slot in the latest-slot cache (nil when the cache
+// is empty or holds only skipped slots). The cache is dense and ascending, so the last non-skipped
+// slot seen during a traversal is the newest one.
+func (s *RPCService) latestUnskipped(ctx context.Context) (*sol.Slot, error) {
+	var head *sol.Slot
+	_, err := s.slotCache.Traverse(ctx, rg.Range{}, func(ctx context.Context, st *sol.Slot) error {
+		if !st.Skipped {
+			head = st
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return head, nil
 }
 
 // GetBlock returns the header (without signatures) of a slot, from the cache then ClickHouse.

@@ -225,7 +225,63 @@ func (s *Store) FindTransactions(
 		count++
 		return nil
 	}, sql, startBlock, endBlock, programArgs)
-	return result, err
+	if err != nil {
+		return nil, err
+	}
+	if err = s.fillBlockHeaders(ctx, result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// fillBlockHeaders sets the block hash / parent hash of each result block from the blocks table.
+func (s *Store) fillBlockHeaders(ctx context.Context, blocks []sol.BlockTransactions) error {
+	if len(blocks) == 0 {
+		return nil
+	}
+	slots := make([]uint64, len(blocks))
+	for i, b := range blocks {
+		slots[i] = b.Slot
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(slots)), ",")
+	sql := fmt.Sprintf(
+		"SELECT slot, blockhash, previous_blockhash FROM %s WHERE slot IN (%s)",
+		s.blocksTable(), placeholders)
+	args := make([]any, len(slots))
+	for i, slot := range slots {
+		args[i] = slot
+	}
+	type header struct {
+		blockhash, previousBlockhash solana.Hash
+	}
+	headers := make(map[uint64]header, len(slots))
+	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		var slot uint64
+		var bh, pbh string
+		if scanErr := rows.Scan(&slot, &bh, &pbh); scanErr != nil {
+			return scanErr
+		}
+		blockhash, parseErr := solana.HashFromBase58(bh)
+		if parseErr != nil {
+			return parseErr
+		}
+		previousBlockhash, parseErr := solana.HashFromBase58(pbh)
+		if parseErr != nil {
+			return parseErr
+		}
+		headers[slot] = header{blockhash, previousBlockhash}
+		return nil
+	}, sql, args...)
+	if err != nil {
+		return err
+	}
+	for i := range blocks {
+		if h, has := headers[blocks[i].Slot]; has {
+			blocks[i].Blockhash = h.blockhash
+			blocks[i].PreviousBlockhash = h.previousBlockhash
+		}
+	}
+	return nil
 }
 
 // GetContractStartBlock returns the first slot in [start, latest] that invokes address.

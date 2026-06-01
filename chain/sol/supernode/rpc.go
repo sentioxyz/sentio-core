@@ -198,9 +198,11 @@ func (s *RPCService) FindTransactions(
 				return nil, nil
 			}
 			return []sol.BlockTransactions{{
-				Slot:         st.SlotNumber,
-				BlockTime:    st.BlockTime,
-				Transactions: matching,
+				Slot:              st.SlotNumber,
+				Blockhash:         st.Blockhash,
+				PreviousBlockhash: st.PreviousBlockhash,
+				BlockTime:         st.BlockTime,
+				Transactions:      matching,
 			}}, nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.BlockTransactions, error) {

@@ -102,10 +102,14 @@ func (t WrappedTransaction) ToParsedTransactionResult(
 }
 
 // BlockTransactions groups the matching transactions of one block, returned by sol_findTransactions.
+// The block header (hash/parentHash/time) is included so the driver can build the block data
+// without a separate getBlock call.
 type BlockTransactions struct {
-	Slot         uint64                  `json:"slot"`
-	BlockTime    *solana.UnixTimeSeconds `json:"blockTime"`
-	Transactions []WrappedTransaction    `json:"transactions"`
+	Slot              uint64                  `json:"slot"`
+	Blockhash         solana.Hash             `json:"blockhash"`
+	PreviousBlockhash solana.Hash             `json:"previousBlockhash"`
+	BlockTime         *solana.UnixTimeSeconds `json:"blockTime"`
+	Transactions      []WrappedTransaction    `json:"transactions"`
 }
 
 // GetContractStartBlockParam is the param of sol_getContractStartBlock.

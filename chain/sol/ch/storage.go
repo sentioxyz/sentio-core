@@ -282,41 +282,34 @@ func (s *Store) fillBlockHeaders(ctx context.Context, blocks []sol.BlockTransact
 	return nil
 }
 
-// HasUnskippedInWindow reports whether any non-skipped block in [lo, hi] belongs to the given
-// window. It is used to attribute a window straddling a page's left boundary to the correct page.
-func (s *Store) HasUnskippedInWindow(
+// QueryPreviousUnskipped returns the nearest non-skipped block with slot < before (the blocks table
+// is ordered by slot). found is false when there is none. Only the slot and block time are returned,
+// which is enough to compute the block's interval window.
+func (s *Store) QueryPreviousUnskipped(
 	ctx context.Context,
-	lo uint64,
-	hi uint64,
-	window sol.IntervalWindow,
-	windowKey uint64,
-) (bool, error) {
-	if hi < lo {
-		return false, nil
+	before uint64,
+) (slot uint64, blockTime *solana.UnixTimeSeconds, found bool, err error) {
+	if before == 0 {
+		return 0, nil, false, nil
 	}
-	var sql string
-	var args []any
-	if window.IsBlockWindow() {
-		sql = fmt.Sprintf(
-			"SELECT count() FROM %s WHERE NOT skipped AND slot >= ? AND slot <= ? AND intDiv(slot, ?) = ?",
-			s.blocksTable())
-		args = []any{lo, hi, window.BlockWindow, windowKey}
-	} else {
-		secs := window.TimeWindowSeconds()
-		// Bound by block_time so ClickHouse can skip granules via the per-granule min/max.
-		bucketStart := time.Unix(int64(windowKey*secs), 0).UTC()
-		bucketEnd := time.Unix(int64((windowKey+1)*secs), 0).UTC()
-		sql = fmt.Sprintf(
-			"SELECT count() FROM %s WHERE NOT skipped AND slot >= ? AND slot <= ? "+
-				"AND block_time >= ? AND block_time < ?",
-			s.blocksTable())
-		args = []any{lo, hi, bucketStart, bucketEnd}
+	sql := fmt.Sprintf(
+		"SELECT slot, block_time FROM %s WHERE slot < ? AND NOT skipped ORDER BY slot DESC LIMIT 1",
+		s.blocksTable())
+	var bt time.Time
+	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		if scanErr := rows.Scan(&slot, &bt); scanErr != nil {
+			return scanErr
+		}
+		found = true
+		return nil
+	}, sql, before)
+	if err != nil {
+		return 0, nil, false, err
 	}
-	var cnt uint64
-	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
-		return rows.Scan(&cnt)
-	}, sql, args...)
-	return cnt > 0, err
+	if found {
+		blockTime = blockTimePtr(bt)
+	}
+	return slot, blockTime, found, nil
 }
 
 // GetContractStartBlock returns the first slot in [start, latest] that invokes address.

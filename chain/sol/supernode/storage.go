@@ -21,14 +21,11 @@ type Storage interface {
 		window sol.IntervalWindow,
 		limit int,
 	) ([]sol.Block, error)
-	// HasUnskippedInWindow reports whether any non-skipped block in [lo, hi] belongs to the window.
-	HasUnskippedInWindow(
+	// QueryPreviousUnskipped returns the nearest non-skipped block (slot and time) with slot < before.
+	QueryPreviousUnskipped(
 		ctx context.Context,
-		lo uint64,
-		hi uint64,
-		window sol.IntervalWindow,
-		windowKey uint64,
-	) (bool, error)
+		before uint64,
+	) (slot uint64, blockTime *solana.UnixTimeSeconds, found bool, err error)
 	// FindTransactions returns, grouped by block, the transactions in [from, to] invoking any program.
 	FindTransactions(
 		ctx context.Context,

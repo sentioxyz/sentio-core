@@ -23,12 +23,14 @@ func NewSuperNode(
 	slotCache chain.LatestSlotCache[*sol.Slot],
 	rangeStore chain.RangeStore,
 	store Storage,
+	maxLimit int,
 ) []jsonrpc.Middleware {
 	svc := &RPCService{
 		client:     client,
 		slotCache:  slotCache,
 		rangeStore: rangeStore,
 		store:      store,
+		maxLimit:   maxLimit,
 	}
 	return []jsonrpc.Middleware{
 		func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
@@ -58,6 +60,15 @@ type RPCService struct {
 	slotCache  chain.LatestSlotCache[*sol.Slot]
 	rangeStore chain.RangeStore
 	store      Storage
+	maxLimit   int
+}
+
+// checkLimit validates the caller-supplied page size against the server-configured maximum.
+func (s *RPCService) checkLimit(limit int) error {
+	if limit <= 0 || limit > s.maxLimit {
+		return errors.Errorf("limit %d must be in (0, %d]", limit, s.maxLimit)
+	}
+	return nil
 }
 
 func (s *RPCService) GetLatestBlockNumber(ctx context.Context) (uint64, error) {
@@ -98,10 +109,16 @@ func (s *RPCService) GetBlock(ctx context.Context, slot uint64) (sol.Block, erro
 }
 
 // GetBlocksByInterval returns the first non-skipped block (with signatures) of each window within
-// [From, To]. A single QueryRangeWithCache traversal picks the first block per window from the
-// latest-slot cache and queries ClickHouse for the range below the cache; results are then
-// deduplicated by window keeping the earliest slot, which drops the "fake" cache block of a window
-// that straddles the cache/ClickHouse boundary (its real first block lives in ClickHouse).
+// [From, To], at most Limit blocks. A single QueryRangeWithCache traversal picks the first block per
+// window from the latest-slot cache and queries ClickHouse for the range below the cache; results
+// are deduplicated by window keeping the earliest slot. The window straddling From's left boundary
+// is dropped when its first block lies before From (it belongs to an earlier page); this is decided
+// after the cache/ClickHouse merge because that window's first block may live in either layer.
+//
+// For a block window the scan is left-extended to the window start so the boundary window's true
+// first block is found in the same scan and dropped by the From filter — no extra query. For a time
+// window the window start is not a slot, so the boundary is decided by comparing the first result
+// with the nearest non-skipped block before From.
 func (s *RPCService) GetBlocksByInterval(
 	ctx context.Context,
 	param sol.GetBlocksByIntervalParam,
@@ -112,13 +129,21 @@ func (s *RPCService) GetBlocksByInterval(
 	if param.Window.BlockWindow == 0 && param.Window.TimeWindow == 0 {
 		return nil, errors.Errorf("interval window is empty")
 	}
+	if err := s.checkLimit(param.Limit); err != nil {
+		return nil, err
+	}
+
+	scanFrom := param.From
+	if param.Window.IsBlockWindow() {
+		scanFrom = param.From / param.Window.BlockWindow * param.Window.BlockWindow
+	}
 
 	// seen dedups within the cache traversal (best effort; correctness comes from the final
 	// min-slot dedup below).
 	seen := make(map[uint64]struct{})
 	blocks, err := chain.QueryRangeWithCache[*sol.Slot, sol.Block](
 		ctx,
-		rg.NewRange(param.From, param.To),
+		rg.NewRange(scanFrom, param.To),
 		s.slotCache,
 		func(st *sol.Slot) ([]sol.Block, error) {
 			if st.Skipped {
@@ -132,15 +157,14 @@ func (s *RPCService) GetBlocksByInterval(
 			return []sol.Block{st.ToBlock(true)}, nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
-			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, param.Limit+1)
+			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, param.Limit)
 		}),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	// Keep the earliest block per window: a straddling window has a ClickHouse block (earlier) and a
-	// cache block (later, the fake); the earlier one wins.
+	// Keep the earliest block per window across the cache/ClickHouse merge.
 	blockByWindow := make(map[uint64]sol.Block)
 	for _, b := range blocks {
 		if b.GetBlockResult == nil {
@@ -157,11 +181,19 @@ func (s *RPCService) GetBlocksByInterval(
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Slot < result[j].Slot })
 
-	// Only the first (smallest-slot) window can straddle From's left boundary. The nearest
-	// non-skipped block before From lies in that window iff the window's first block is before From
-	// (i.e. it belongs to an earlier page); in that case the first result is a duplicate "fake"
-	// block and must be dropped so each window is reported by exactly one page.
-	if len(result) > 0 && param.From > 0 && result[0].GetBlockResult != nil {
+	if param.Window.IsBlockWindow() {
+		// The left-extended scan computed the boundary window's true first block; drop it (and any
+		// other extended block) when it precedes From — it belongs to an earlier page.
+		filtered := result[:0]
+		for _, b := range result {
+			if b.Slot >= param.From {
+				filtered = append(filtered, b)
+			}
+		}
+		result = filtered
+	} else if len(result) > 0 && param.From > 0 && result[0].GetBlockResult != nil {
+		// Time window: the first window straddles From's left edge iff the nearest non-skipped block
+		// before From is in the same window; if so it belongs to an earlier page.
 		firstKey := param.Window.Key(result[0].Slot, result[0].BlockTime)
 		prevKey, found, prevErr := s.previousUnskippedWindowKey(ctx, param.Window, param.From)
 		if prevErr != nil {
@@ -172,9 +204,9 @@ func (s *RPCService) GetBlocksByInterval(
 		}
 	}
 
-	if param.Limit > 0 && len(result) > param.Limit {
-		return nil, errors.Errorf("too many interval blocks (> %d) in slot range [%d, %d]",
-			param.Limit, param.From, param.To)
+	// Return only the first Limit blocks; the caller pages by advancing From.
+	if len(result) > param.Limit {
+		result = result[:param.Limit]
 	}
 	return result, nil
 }
@@ -241,6 +273,9 @@ func (s *RPCService) FindTransactions(
 	if param.To < param.From {
 		return nil, errors.Errorf("to %d cannot be less than from %d", param.To, param.From)
 	}
+	if err := s.checkLimit(param.Limit); err != nil {
+		return nil, err
+	}
 	programSet := param.ProgramSet()
 	result, err := chain.QueryRangeWithCache[*sol.Slot, sol.BlockTransactions](
 		ctx,
@@ -260,21 +295,24 @@ func (s *RPCService) FindTransactions(
 			}}, nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.BlockTransactions, error) {
-			return s.store.FindTransactions(ctx, queryRange.Start, *queryRange.End, param.ProgramIDs, param.Limit+1)
+			return s.store.FindTransactions(ctx, queryRange.Start, *queryRange.End, param.ProgramIDs, param.Limit)
 		}),
 	)
 	if err != nil {
 		return nil, err
 	}
-	if param.Limit > 0 {
-		var total int
-		for _, b := range result {
-			total += len(b.Transactions)
+
+	// Return only the first Limit transactions, in ascending block order; the caller pages by
+	// advancing From.
+	sort.Slice(result, func(i, j int) bool { return result[i].Slot < result[j].Slot })
+	total := 0
+	for i := range result {
+		if total+len(result[i].Transactions) > param.Limit {
+			result[i].Transactions = result[i].Transactions[:param.Limit-total]
+			result = result[:i+1]
+			return result, nil
 		}
-		if total > param.Limit {
-			return nil, errors.Errorf("too many transactions (> %d) for programs in slot range [%d, %d]",
-				param.Limit, param.From, param.To)
-		}
+		total += len(result[i].Transactions)
 	}
 	return result, nil
 }

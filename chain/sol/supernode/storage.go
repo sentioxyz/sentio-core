@@ -34,11 +34,10 @@ type Storage interface {
 		programIDs []solana.PublicKey,
 		limit int,
 	) ([]sol.BlockTransactions, error)
-	// GetContractStartBlock returns the first slot in [start, latest] that invokes address.
-	GetContractStartBlock(
+	// EarliestProgramSlot returns the earliest slot at or before latest at which address is invoked.
+	EarliestProgramSlot(
 		ctx context.Context,
 		address solana.PublicKey,
-		start uint64,
 		latest uint64,
 	) (uint64, bool, error)
 }

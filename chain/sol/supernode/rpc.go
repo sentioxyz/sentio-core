@@ -302,6 +302,10 @@ func (s *RPCService) FindTransactions(
 	return result, nil
 }
 
+// GetContractStartBlock finds the earliest block at which address (a program) appears and maps it
+// to the requirement: an appearance before Start clamps to Start; an appearance in [Start, Latest]
+// returns itself; no appearance at or before Latest reports Found=false (the contract is not yet
+// active in range, so the caller skips it).
 func (s *RPCService) GetContractStartBlock(
 	ctx context.Context,
 	param sol.GetContractStartBlockParam,
@@ -310,39 +314,46 @@ func (s *RPCService) GetContractStartBlock(
 		return sol.GetContractStartBlockResult{}, errors.Errorf(
 			"latest %d cannot be less than start %d", param.Latest, param.Start)
 	}
-	programSet := map[string]struct{}{param.Address.String(): {}}
-	slots, err := chain.QueryRangeWithCache[*sol.Slot, uint64](
-		ctx,
-		rg.NewRange(param.Start, param.Latest),
-		s.slotCache,
-		func(st *sol.Slot) ([]uint64, error) {
-			if st.InvokesAnyProgram(programSet) {
-				return []uint64{st.SlotNumber}, nil
-			}
-			return nil, nil
-		},
-		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]uint64, error) {
-			slot, found, queryErr := s.store.GetContractStartBlock(ctx, param.Address, queryRange.Start, *queryRange.End)
-			if queryErr != nil {
-				return nil, queryErr
-			}
-			if !found {
-				return nil, nil
-			}
-			return []uint64{slot}, nil
-		}),
-	)
+	earliest, found, err := s.earliestProgramSlot(ctx, param.Address, param.Latest)
 	if err != nil {
 		return sol.GetContractStartBlockResult{}, err
 	}
-	if len(slots) == 0 {
+	if !found {
 		return sol.GetContractStartBlockResult{Found: false}, nil
 	}
-	minSlot := slots[0]
-	for _, sn := range slots[1:] {
-		if sn < minSlot {
-			minSlot = sn
-		}
+	if earliest < param.Start {
+		return sol.GetContractStartBlockResult{Slot: param.Start, Found: true}, nil
 	}
-	return sol.GetContractStartBlockResult{Slot: minSlot, Found: true}, nil
+	return sol.GetContractStartBlockResult{Slot: earliest, Found: true}, nil
+}
+
+// earliestProgramSlot returns the earliest slot <= latest at which address is invoked, over all
+// available data. ClickHouse holds the older history, so its earliest is the global earliest when
+// present; the cache is consulted only when the program is absent from ClickHouse (a brand-new
+// program not yet synced).
+func (s *RPCService) earliestProgramSlot(
+	ctx context.Context,
+	address solana.PublicKey,
+	latest uint64,
+) (uint64, bool, error) {
+	chMin, chFound, err := s.store.EarliestProgramSlot(ctx, address, latest)
+	if err != nil {
+		return 0, false, err
+	}
+	if chFound {
+		return chMin, true, nil
+	}
+	programSet := map[string]struct{}{address.String(): {}}
+	var cacheMin uint64
+	var cacheFound bool
+	if _, err = s.slotCache.Traverse(ctx, rg.NewRange(0, latest),
+		func(ctx context.Context, st *sol.Slot) error {
+			if !cacheFound && !st.Skipped && st.InvokesAnyProgram(programSet) {
+				cacheMin, cacheFound = st.SlotNumber, true
+			}
+			return nil
+		}); err != nil {
+		return 0, false, err
+	}
+	return cacheMin, cacheFound, nil
 }

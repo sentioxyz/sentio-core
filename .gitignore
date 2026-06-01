@@ -5,6 +5,9 @@ bazel-*
 .clwb
 .aspect
 
+# sentio-sdk checkout used for SDK proto codegen (scripts/sdk-sync.sh -> bazel run //sentio-sdk:write_gen)
+sentio-sdk
+
 ### For Go
 
 # Binaries for programs and plugins

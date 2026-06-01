@@ -1,4 +1,5 @@
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("//bazel:ts-rules.bzl", "ts_proto")
 load("//bazel/golang:gateway_go_library.bzl", "gateway_grpc_compile_and_go_library")
 
 filegroup(
@@ -28,4 +29,52 @@ gateway_grpc_compile_and_go_library(
     deps = [
         "//service/common/protos",
     ],
+)
+
+# TypeScript (ts-proto) codegen for the sentio-sdk. Moved here from sentio so
+# the SDK proto generation lives next to the proto definitions it consumes.
+# Consumed by the sentio-sdk repo's //sentio-sdk:write_gen target.
+ts_proto(
+    name = "processor_ts_proto",
+    esm = True,
+    grpc = True,
+    protos = [":protos_proto"],
+    visibility = ["//visibility:public"],
+)
+
+ts_proto(
+    name = "processor_ts_proto_no_deprecate",
+    esm = True,
+    grpc = True,
+    protos = [":protos_proto"],
+    remove_deprecated = True,
+    visibility = ["//visibility:public"],
+)
+
+ts_proto(
+    name = "empty_ts_proto",
+    esm = True,
+    protos = ["@protobuf//:empty_proto"],
+    visibility = ["//visibility:public"],
+)
+
+ts_proto(
+    name = "struct_ts_proto",
+    esm = True,
+    protos = ["@protobuf//:struct_proto"],
+    visibility = ["//visibility:public"],
+)
+
+ts_proto(
+    name = "timestamp_ts_proto",
+    esm = True,
+    protos = ["@protobuf//:timestamp_proto"],
+    visibility = ["//visibility:public"],
+)
+
+ts_proto(
+    name = "money_ts_proto",
+    esm = True,
+    protos = ["@googleapis//google/type:money_proto"],
+    visibility = ["//visibility:public"],
 )

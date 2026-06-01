@@ -28,6 +28,7 @@ ignore:
   - node_modules
   - '*/node_modules/'
   - '*/*/node_modules/'
+  - sentio-sdk
   - .ijwb
   - .clwb
   - .idea

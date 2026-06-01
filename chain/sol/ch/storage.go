@@ -282,6 +282,43 @@ func (s *Store) fillBlockHeaders(ctx context.Context, blocks []sol.BlockTransact
 	return nil
 }
 
+// HasUnskippedInWindow reports whether any non-skipped block in [lo, hi] belongs to the given
+// window. It is used to attribute a window straddling a page's left boundary to the correct page.
+func (s *Store) HasUnskippedInWindow(
+	ctx context.Context,
+	lo uint64,
+	hi uint64,
+	window sol.IntervalWindow,
+	windowKey uint64,
+) (bool, error) {
+	if hi < lo {
+		return false, nil
+	}
+	var sql string
+	var args []any
+	if window.IsBlockWindow() {
+		sql = fmt.Sprintf(
+			"SELECT count() FROM %s WHERE NOT skipped AND slot >= ? AND slot <= ? AND intDiv(slot, ?) = ?",
+			s.blocksTable())
+		args = []any{lo, hi, window.BlockWindow, windowKey}
+	} else {
+		secs := window.TimeWindowSeconds()
+		// Bound by block_time so ClickHouse can skip granules via the per-granule min/max.
+		bucketStart := time.Unix(int64(windowKey*secs), 0).UTC()
+		bucketEnd := time.Unix(int64((windowKey+1)*secs), 0).UTC()
+		sql = fmt.Sprintf(
+			"SELECT count() FROM %s WHERE NOT skipped AND slot >= ? AND slot <= ? "+
+				"AND block_time >= ? AND block_time < ?",
+			s.blocksTable())
+		args = []any{lo, hi, bucketStart, bucketEnd}
+	}
+	var cnt uint64
+	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		return rows.Scan(&cnt)
+	}, sql, args...)
+	return cnt > 0, err
+}
+
 // GetContractStartBlock returns the first slot in [start, latest] that invokes address.
 func (s *Store) GetContractStartBlock(
 	ctx context.Context,

@@ -155,11 +155,79 @@ func (s *RPCService) GetBlocksByInterval(
 		result = append(result, b)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Slot < result[j].Slot })
+
+	// Only the first (smallest-slot) window can straddle From's left boundary. Drop it when its
+	// first block actually lies in an earlier page (an earlier non-skipped block of the same window
+	// exists in [GlobalFrom, From-1]); otherwise it would be a duplicate "fake" block.
+	if len(result) > 0 && param.From > param.GlobalFrom && result[0].GetBlockResult != nil {
+		first := result[0]
+		key := param.Window.Key(first.Slot, first.BlockTime)
+		lo := param.GlobalFrom
+		if param.Window.IsBlockWindow() {
+			if floor := first.Slot / param.Window.BlockWindow * param.Window.BlockWindow; floor > lo {
+				lo = floor
+			}
+		}
+		earlier, earlierErr := s.windowHasEarlierUnskipped(ctx, param.Window, key, lo, param.From-1)
+		if earlierErr != nil {
+			return nil, earlierErr
+		}
+		if earlier {
+			result = result[1:]
+		}
+	}
+
 	if param.Limit > 0 && len(result) > param.Limit {
 		return nil, errors.Errorf("too many interval blocks (> %d) in slot range [%d, %d]",
 			param.Limit, param.From, param.To)
 	}
 	return result, nil
+}
+
+// windowHasEarlierUnskipped reports whether the window with the given key has a non-skipped block in
+// [lo, hi], checking the latest-slot cache and ClickHouse.
+func (s *RPCService) windowHasEarlierUnskipped(
+	ctx context.Context,
+	window sol.IntervalWindow,
+	windowKey uint64,
+	lo uint64,
+	hi uint64,
+) (bool, error) {
+	if hi < lo {
+		return false, nil
+	}
+	cacheRange, err := s.slotCache.GetRange(ctx)
+	if err != nil {
+		return false, err
+	}
+	chHi := hi
+	if !cacheRange.IsEmpty() && cacheRange.Start <= hi {
+		cacheLo := lo
+		if cacheRange.Start > cacheLo {
+			cacheLo = cacheRange.Start
+		}
+		found := false
+		if _, err = s.slotCache.Traverse(ctx, rg.NewRange(cacheLo, hi),
+			func(ctx context.Context, st *sol.Slot) error {
+				if !st.Skipped && window.Key(st.SlotNumber, st.BlockTime) == windowKey {
+					found = true
+				}
+				return nil
+			}); err != nil {
+			return false, err
+		}
+		if found {
+			return true, nil
+		}
+		if cacheRange.Start == 0 {
+			return false, nil
+		}
+		chHi = cacheRange.Start - 1
+	}
+	if lo > chHi {
+		return false, nil
+	}
+	return s.store.HasUnskippedInWindow(ctx, lo, chHi, window, windowKey)
 }
 
 // FindTransactions returns, grouped by block, the transactions in [From, To] that invoke any of the

@@ -52,11 +52,17 @@ func (w IntervalWindow) Key(slot uint64, blockTime *solana.UnixTimeSeconds) uint
 
 // GetBlocksByIntervalParam is the param of sol_getBlocksByInterval: return the first non-skipped
 // block of each window within [From, To], at most Limit blocks, in ascending slot order.
+//
+// GlobalFrom is the lower bound of the whole interval requirement (not just this paged sub-range).
+// It lets the super node attribute the window straddling From to the correct page: that window is
+// reported here only when it has no earlier non-skipped block in [GlobalFrom, From-1] — otherwise
+// its first block lies in an earlier page and reporting it here would duplicate a "fake" block.
 type GetBlocksByIntervalParam struct {
-	From   uint64         `json:"from"`
-	To     uint64         `json:"to"`
-	Window IntervalWindow `json:"window"`
-	Limit  int            `json:"limit"`
+	From       uint64         `json:"from"`
+	To         uint64         `json:"to"`
+	GlobalFrom uint64         `json:"globalFrom"`
+	Window     IntervalWindow `json:"window"`
+	Limit      int            `json:"limit"`
 }
 
 // FindTransactionsParam is the param of sol_findTransactions: return, per block in [From, To], the

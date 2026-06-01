@@ -44,7 +44,7 @@ func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error)
 	start := time.Now()
 	defer func() { s.record(ctx, "queryBlock", time.Since(start), count) }()
 	sql := fmt.Sprintf(
-		"SELECT slot, skipped, blockhash, previous_blockhash, parent_slot, block_height, block_time_ms, block_time "+
+		"SELECT slot, skipped, blockhash, previous_blockhash, parent_slot, block_height, block_time "+
 			"FROM %s WHERE slot = ? LIMIT 1",
 		s.blocksTable())
 	var found *ClickhouseBlock
@@ -52,7 +52,7 @@ func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error)
 		var cb ClickhouseBlock
 		if scanErr := rows.Scan(
 			&cb.Slot, &cb.Skipped, &cb.Blockhash, &cb.PreviousBlockhash,
-			&cb.ParentSlot, &cb.BlockHeight, &cb.BlockTimeMs, &cb.BlockTime,
+			&cb.ParentSlot, &cb.BlockHeight, &cb.BlockTime,
 		); scanErr != nil {
 			return scanErr
 		}
@@ -79,13 +79,13 @@ func (s *Store) QueryBlockTransactions(ctx context.Context, slot uint64) (sol.Pa
 	start := time.Now()
 	defer func() { s.record(ctx, "queryBlockTransactions", time.Since(start), count) }()
 	sql := fmt.Sprintf(
-		"SELECT slot, block_time_ms, block_time, signature, transaction_json "+
+		"SELECT slot, block_time, signature, version, transaction_json "+
 			"FROM %s WHERE slot = ? ORDER BY transaction_index",
 		s.transactionsTable())
 	result := sol.ParsedBlock{}
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var ct ClickhouseTransaction
-		if scanErr := rows.Scan(&ct.Slot, &ct.BlockTimeMs, &ct.BlockTime, &ct.Signature, &ct.TransactionJSON); scanErr != nil {
+		if scanErr := rows.Scan(&ct.Slot, &ct.BlockTime, &ct.Signature, &ct.Version, &ct.TransactionJSON); scanErr != nil {
 			return scanErr
 		}
 		tx, parseErr := ct.toParsedTransaction()
@@ -93,11 +93,7 @@ func (s *Store) QueryBlockTransactions(ctx context.Context, slot uint64) (sol.Pa
 			return parseErr
 		}
 		if result.BlockTime == nil {
-			res, convErr := ct.toGetParsedTransactionResult()
-			if convErr != nil {
-				return convErr
-			}
-			result.BlockTime = res.BlockTime
+			result.BlockTime = blockTimePtr(ct.BlockTime)
 		}
 		result.Transactions = append(result.Transactions, tx)
 		return nil
@@ -115,13 +111,13 @@ func (s *Store) QueryTransaction(ctx context.Context, sig solana.Signature) (*rp
 	start := time.Now()
 	defer func() { s.record(ctx, "queryTransaction", time.Since(start), count) }()
 	sql := fmt.Sprintf(
-		"SELECT slot, block_time_ms, block_time, signature, transaction_json "+
+		"SELECT slot, block_time, signature, version, transaction_json "+
 			"FROM %s WHERE signature = ? LIMIT 1",
 		s.transactionsTable())
 	var found *ClickhouseTransaction
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var ct ClickhouseTransaction
-		if scanErr := rows.Scan(&ct.Slot, &ct.BlockTimeMs, &ct.BlockTime, &ct.Signature, &ct.TransactionJSON); scanErr != nil {
+		if scanErr := rows.Scan(&ct.Slot, &ct.BlockTime, &ct.Signature, &ct.Version, &ct.TransactionJSON); scanErr != nil {
 			return scanErr
 		}
 		found = &ct
@@ -150,14 +146,14 @@ func (s *Store) FindTransactions(
 	start := time.Now()
 	defer func() { s.record(ctx, "findTransactions", time.Since(start), count) }()
 	sql := fmt.Sprintf(
-		"SELECT slot, block_time_ms, block_time, signature, err "+
+		"SELECT slot, block_time, signature, err "+
 			"FROM %s WHERE slot >= ? AND slot <= ? AND has(account_keys, ?) "+
 			"ORDER BY slot DESC, transaction_index DESC LIMIT %d",
 		s.transactionsTable(), limit+1)
 	var result []*rpc.TransactionSignature
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var ct ClickhouseTransaction
-		if scanErr := rows.Scan(&ct.Slot, &ct.BlockTimeMs, &ct.BlockTime, &ct.Signature, &ct.Err); scanErr != nil {
+		if scanErr := rows.Scan(&ct.Slot, &ct.BlockTime, &ct.Signature, &ct.Err); scanErr != nil {
 			return scanErr
 		}
 		ts, parseErr := ct.toTransactionSignature()

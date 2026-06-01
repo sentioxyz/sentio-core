@@ -32,10 +32,10 @@ func buildTxRow(t *testing.T, slot uint64, failed bool) ClickhouseTransaction {
 	require.NoError(t, err)
 	return ClickhouseTransaction{
 		Slot:             slot,
-		BlockTimeMs:      1700000000000,
 		BlockTime:        time.Unix(1700000000, 0),
 		TransactionIndex: 0,
 		Signature:        testSig.String(),
+		Version:          int32(rpc.LegacyTransactionVersion),
 		Err:              failed,
 		TransactionJSON:  string(raw),
 	}
@@ -59,6 +59,7 @@ func TestTransactionRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint64(100), res.Slot)
 	assert.Equal(t, []solana.Signature{testSig}, res.Transaction.Signatures)
+	assert.Equal(t, rpc.LegacyTransactionVersion, res.Version)
 }
 
 func TestBlockRoundTrip(t *testing.T) {
@@ -69,7 +70,6 @@ func TestBlockRoundTrip(t *testing.T) {
 		PreviousBlockhash: "11111111111111111111111111111111",
 		ParentSlot:        99,
 		BlockHeight:       123,
-		BlockTimeMs:       1700000000000,
 		BlockTime:         time.Unix(1700000000, 0),
 	}
 	block, err := cb.toBlock()

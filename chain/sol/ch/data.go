@@ -21,20 +21,29 @@ type ClickhouseBlock struct {
 	PreviousBlockhash string    `clickhouse:"previous_blockhash" required:"true"`
 	ParentSlot        uint64    `clickhouse:"parent_slot" required:"true"`
 	BlockHeight       uint64    `clickhouse:"block_height" required:"true"`
-	BlockTimeMs       uint64    `clickhouse:"block_time_ms"`
-	BlockTime         time.Time `clickhouse:"block_time"`
+	BlockTime         time.Time `clickhouse:"block_time" required:"true"`
 }
 
 // ClickhouseTransaction is one row of the transactions table.
 type ClickhouseTransaction struct {
 	Slot             uint64    `clickhouse:"slot" required:"true" number_field:"true"`
-	BlockTimeMs      uint64    `clickhouse:"block_time_ms" required:"true"`
-	BlockTime        time.Time `clickhouse:"block_time"`
+	BlockTime        time.Time `clickhouse:"block_time" required:"true"`
 	TransactionIndex uint32    `clickhouse:"transaction_index" required:"true"`
 	Signature        string    `clickhouse:"signature"     required:"true" index:"bloom_filter GRANULARITY 1"`
 	AccountKeys      []string  `clickhouse:"account_keys"  index:"bloom_filter GRANULARITY 1"`
+	Version          int32     `clickhouse:"version"       required:"true"`
 	Err              bool      `clickhouse:"err"           required:"true"`
 	TransactionJSON  string    `clickhouse:"transaction_json" compression:"CODEC(ZSTD(1))" required:"true"`
+}
+
+// blockTimePtr converts a stored block time back to the optional Unix-seconds timestamp; a zero
+// time (skipped/unknown) reconstructs to nil.
+func blockTimePtr(t time.Time) *solana.UnixTimeSeconds {
+	if t.IsZero() {
+		return nil
+	}
+	ut := solana.UnixTimeSeconds(t.Unix())
+	return &ut
 }
 
 func (cb *ClickhouseBlock) toBlock() (sol.Block, error) {
@@ -49,11 +58,6 @@ func (cb *ClickhouseBlock) toBlock() (sol.Block, error) {
 	if err != nil {
 		return sol.Block{}, errors.Wrapf(err, "parse previous blockhash of slot %d failed", cb.Slot)
 	}
-	var blockTime *solana.UnixTimeSeconds
-	if cb.BlockTimeMs > 0 {
-		t := solana.UnixTimeSeconds(cb.BlockTime.Unix())
-		blockTime = &t
-	}
 	blockHeight := cb.BlockHeight
 	return sol.Block{
 		Slot: cb.Slot,
@@ -61,7 +65,7 @@ func (cb *ClickhouseBlock) toBlock() (sol.Block, error) {
 			Blockhash:         blockhash,
 			PreviousBlockhash: previousBlockhash,
 			ParentSlot:        cb.ParentSlot,
-			BlockTime:         blockTime,
+			BlockTime:         blockTimePtr(cb.BlockTime),
 			BlockHeight:       &blockHeight,
 		},
 	}, nil
@@ -80,11 +84,6 @@ func (ct *ClickhouseTransaction) toTransactionSignature() (*rpc.TransactionSigna
 	if err != nil {
 		return nil, errors.Wrapf(err, "parse signature %d/%s failed", ct.Slot, ct.Signature)
 	}
-	var blockTime *solana.UnixTimeSeconds
-	if ct.BlockTimeMs > 0 {
-		t := solana.UnixTimeSeconds(ct.BlockTime.Unix())
-		blockTime = &t
-	}
 	var errVal any
 	if ct.Err {
 		errVal = "error"
@@ -92,7 +91,7 @@ func (ct *ClickhouseTransaction) toTransactionSignature() (*rpc.TransactionSigna
 	return &rpc.TransactionSignature{
 		Signature: sig,
 		Slot:      ct.Slot,
-		BlockTime: blockTime,
+		BlockTime: blockTimePtr(ct.BlockTime),
 		Err:       errVal,
 	}, nil
 }
@@ -102,16 +101,12 @@ func (ct *ClickhouseTransaction) toGetParsedTransactionResult() (*rpc.GetParsedT
 	if err != nil {
 		return nil, err
 	}
-	var blockTime *solana.UnixTimeSeconds
-	if ct.BlockTimeMs > 0 {
-		t := solana.UnixTimeSeconds(ct.BlockTime.Unix())
-		blockTime = &t
-	}
 	return &rpc.GetParsedTransactionResult{
 		Slot:        ct.Slot,
-		BlockTime:   blockTime,
+		BlockTime:   blockTimePtr(ct.BlockTime),
 		Transaction: tx.Transaction,
 		Meta:        tx.Meta,
+		Version:     rpc.TransactionVersion(ct.Version),
 	}, nil
 }
 

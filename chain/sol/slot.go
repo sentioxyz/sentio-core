@@ -7,10 +7,12 @@ import (
 )
 
 // ParsedTransactionWithMeta is one transaction inside a parsed block, as returned by the
-// jsonParsed/full form of the getBlock RPC.
+// jsonParsed/full form of the getBlock RPC. Version distinguishes legacy from versioned (v0)
+// transactions and is required to fully reconstruct the transaction.
 type ParsedTransactionWithMeta struct {
 	Transaction *rpc.ParsedTransaction     `json:"transaction"`
 	Meta        *rpc.ParsedTransactionMeta `json:"meta"`
+	Version     rpc.TransactionVersion     `json:"version"`
 }
 
 // Slot is the sentio-core representation of a Solana slot (block) carrying the full parsed

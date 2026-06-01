@@ -75,10 +75,8 @@ func (m *ClickhouseSchemaMgr) GetTablesMeta() clickhouse.TablesMeta {
 
 func (m *ClickhouseSchemaMgr) Convert(_ context.Context, st *sol.Slot) (clickhouse.Chunk, error) {
 	var blockTime time.Time
-	var blockTimeMs uint64
 	if st.BlockTime != nil {
 		blockTime = st.BlockTime.Time()
-		blockTimeMs = uint64(blockTime.UnixMilli())
 	}
 	var blockHeight uint64
 	if st.BlockHeight != nil {
@@ -92,7 +90,6 @@ func (m *ClickhouseSchemaMgr) Convert(_ context.Context, st *sol.Slot) (clickhou
 		PreviousBlockhash: st.PreviousBlockhash.String(),
 		ParentSlot:        st.ParentSlot,
 		BlockHeight:       blockHeight,
-		BlockTimeMs:       blockTimeMs,
 		BlockTime:         blockTime,
 	}
 
@@ -107,11 +104,11 @@ func (m *ClickhouseSchemaMgr) Convert(_ context.Context, st *sol.Slot) (clickhou
 		}
 		txRows = append(txRows, transactionValues(ClickhouseTransaction{
 			Slot:             st.SlotNumber,
-			BlockTimeMs:      blockTimeMs,
 			BlockTime:        blockTime,
 			TransactionIndex: uint32(i),
 			Signature:        tx.Transaction.Signatures[0].String(),
 			AccountKeys:      sol.CollectAccountKeys(tx.Transaction, tx.Meta),
+			Version:          int32(tx.Version),
 			Err:              tx.Meta != nil && tx.Meta.Err != nil,
 			TransactionJSON:  string(txnJSON),
 		}))

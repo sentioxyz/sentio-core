@@ -98,19 +98,23 @@ func (m *ClickhouseSchemaMgr) Convert(_ context.Context, st *sol.Slot) (clickhou
 		if tx.Transaction == nil || len(tx.Transaction.Signatures) == 0 {
 			continue
 		}
-		txnJSON, err := json.Marshal(tx)
+		txnJSON, err := json.Marshal(tx.Transaction)
 		if err != nil {
 			return clickhouse.Chunk{}, errors.Wrapf(err, "marshal transaction %d of slot %d failed", i, st.SlotNumber)
+		}
+		metaJSON, err := json.Marshal(tx.Meta)
+		if err != nil {
+			return clickhouse.Chunk{}, errors.Wrapf(err, "marshal meta of transaction %d of slot %d failed", i, st.SlotNumber)
 		}
 		txRows = append(txRows, transactionValues(ClickhouseTransaction{
 			Slot:             st.SlotNumber,
 			BlockTime:        blockTime,
 			TransactionIndex: uint32(i),
 			Signature:        tx.Transaction.Signatures[0].String(),
-			AccountKeys:      sol.CollectAccountKeys(tx.Transaction, tx.Meta),
+			ProgramIDs:       sol.CollectProgramIDs(tx.Transaction, tx.Meta),
 			Version:          int32(tx.Version),
-			Err:              tx.Meta != nil && tx.Meta.Err != nil,
 			TransactionJSON:  string(txnJSON),
+			MetaJSON:         string(metaJSON),
 		}))
 	}
 

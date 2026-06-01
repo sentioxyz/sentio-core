@@ -33,7 +33,6 @@ go_test(
     srcs = ["data_test.go"],
     embed = [":ch"],
     deps = [
-        "//chain/sol",
         "@com_github_gagliardetto_solana_go//:solana-go",
         "@com_github_gagliardetto_solana_go//rpc",
         "@com_github_stretchr_testify//assert",

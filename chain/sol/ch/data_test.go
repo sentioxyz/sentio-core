@@ -9,57 +9,49 @@ import (
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"sentioxyz/sentio-core/chain/sol"
 )
 
 var testSig = solana.MustSignatureFromBase58(
 	"4kAc2ytFEn5m45c9tzNzpP6uY4NEoAmExoEs5FzUV4yygVL2LofQog8AdSjFJ3wNHb4Gg2oQJNxjPhy9Zkbwo6kB")
 
-func buildTxRow(t *testing.T, slot uint64, failed bool) ClickhouseTransaction {
+func buildTxRow(t *testing.T, slot uint64) ClickhouseTransaction {
 	t.Helper()
-	twm := sol.ParsedTransactionWithMeta{
-		Transaction: &rpc.ParsedTransaction{
-			Signatures: []solana.Signature{testSig},
-			Message:    rpc.ParsedMessage{},
-		},
-		Meta: &rpc.ParsedTransactionMeta{},
-	}
-	if failed {
-		twm.Meta.Err = "InstructionError"
-	}
-	raw, err := json.Marshal(twm)
+	transaction := &rpc.ParsedTransaction{Signatures: []solana.Signature{testSig}}
+	meta := &rpc.ParsedTransactionMeta{Fee: 5000}
+	txJSON, err := json.Marshal(transaction)
+	require.NoError(t, err)
+	metaJSON, err := json.Marshal(meta)
 	require.NoError(t, err)
 	return ClickhouseTransaction{
 		Slot:             slot,
 		BlockTime:        time.Unix(1700000000, 0),
-		TransactionIndex: 0,
+		TransactionIndex: 7,
 		Signature:        testSig.String(),
+		ProgramIDs:       []string{solana.SystemProgramID.String()},
 		Version:          int32(rpc.LegacyTransactionVersion),
-		Err:              failed,
-		TransactionJSON:  string(raw),
+		TransactionJSON:  string(txJSON),
+		MetaJSON:         string(metaJSON),
 	}
 }
 
 func TestTransactionRoundTrip(t *testing.T) {
-	row := buildTxRow(t, 100, true)
+	row := buildTxRow(t, 100)
 
-	twm, err := row.toParsedTransaction()
+	wt, err := row.toWrappedTransaction()
 	require.NoError(t, err)
-	assert.Equal(t, []solana.Signature{testSig}, twm.Transaction.Signatures)
+	assert.Equal(t, uint32(7), wt.TransactionIndex)
+	assert.Equal(t, testSig, wt.Signature)
+	assert.Equal(t, rpc.LegacyTransactionVersion, wt.Version)
+	require.NotNil(t, wt.Transaction)
+	assert.Equal(t, []solana.Signature{testSig}, wt.Transaction.Signatures)
+	require.NotNil(t, wt.Meta)
+	assert.Equal(t, uint64(5000), wt.Meta.Fee)
 
-	sig, err := row.toTransactionSignature()
-	require.NoError(t, err)
-	assert.Equal(t, testSig, sig.Signature)
-	assert.Equal(t, uint64(100), sig.Slot)
-	assert.NotNil(t, sig.Err, "failed tx must carry a non-nil Err")
-	require.NotNil(t, sig.BlockTime)
-
-	res, err := row.toGetParsedTransactionResult()
-	require.NoError(t, err)
+	blockTime := solana.UnixTimeSeconds(time.Unix(1700000000, 0).Unix())
+	res := wt.ToParsedTransactionResult(100, &blockTime)
 	assert.Equal(t, uint64(100), res.Slot)
-	assert.Equal(t, []solana.Signature{testSig}, res.Transaction.Signatures)
 	assert.Equal(t, rpc.LegacyTransactionVersion, res.Version)
+	assert.Equal(t, []solana.Signature{testSig}, res.Transaction.Signatures)
 }
 
 func TestBlockRoundTrip(t *testing.T) {
@@ -72,15 +64,16 @@ func TestBlockRoundTrip(t *testing.T) {
 		BlockHeight:       123,
 		BlockTime:         time.Unix(1700000000, 0),
 	}
-	block, err := cb.toBlock()
+	block, err := cb.toBlock([]solana.Signature{testSig})
 	require.NoError(t, err)
 	require.NotNil(t, block.GetBlockResult)
 	assert.Equal(t, uint64(99), block.ParentSlot)
+	assert.Equal(t, []solana.Signature{testSig}, block.Signatures)
 	require.NotNil(t, block.BlockHeight)
 	assert.Equal(t, uint64(123), *block.BlockHeight)
 
 	skipped := ClickhouseBlock{Slot: 101, Skipped: true}
-	skippedBlock, err := skipped.toBlock()
+	skippedBlock, err := skipped.toBlock(nil)
 	require.NoError(t, err)
 	assert.Nil(t, skippedBlock.GetBlockResult, "skipped slot must reconstruct to a nil block result")
 	assert.Equal(t, uint64(101), skippedBlock.Slot)

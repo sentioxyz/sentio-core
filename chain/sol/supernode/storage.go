@@ -4,23 +4,33 @@ import (
 	"context"
 
 	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
 
 	"sentioxyz/sentio-core/chain/sol"
 )
 
 // Storage is the ClickHouse read interface backing the super node, implemented by sol/ch.Store.
 type Storage interface {
+	// QueryBlock returns the header (without signatures) of a slot.
 	QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error)
-	QueryBlockTransactions(ctx context.Context, slot uint64) (sol.ParsedBlock, error)
-	QueryTransaction(ctx context.Context, sig solana.Signature) (*rpc.GetParsedTransactionResult, error)
+	// QueryIntervalTargetSlots returns the first non-skipped slot of each window within [from, to].
+	QueryIntervalTargetSlots(
+		ctx context.Context,
+		from uint64,
+		to uint64,
+		window sol.IntervalWindow,
+		limit int,
+	) ([]uint64, error)
+	// QueryBlocks returns the headers with signatures of the given slots.
+	QueryBlocks(ctx context.Context, slots []uint64) ([]sol.Block, error)
+	// FindTransactions returns, grouped by block, the transactions in [from, to] invoking any program.
 	FindTransactions(
 		ctx context.Context,
-		startBlock uint64,
-		endBlock uint64,
-		address solana.PublicKey,
+		from uint64,
+		to uint64,
+		programIDs []solana.PublicKey,
 		limit int,
-	) ([]*rpc.TransactionSignature, error)
+	) ([]sol.BlockTransactions, error)
+	// GetContractStartBlock returns the first slot in [start, latest] that invokes address.
 	GetContractStartBlock(
 		ctx context.Context,
 		address solana.PublicKey,

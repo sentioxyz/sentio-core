@@ -59,31 +59,23 @@ func (s *Slot) Linked() bool {
 	return false
 }
 
-// ToBlock builds the sol_getBlock response (block header + transaction signatures) for this slot.
-// A skipped slot yields a Block with a nil GetBlockResult, matching the driver's Block.Skipped().
-func (s *Slot) ToBlock() Block {
+// ToBlock builds the Block (header, plus transaction signatures when withSignatures is set) for
+// this slot. A skipped slot yields a Block with a nil GetBlockResult, matching Block.Skipped().
+func (s *Slot) ToBlock(withSignatures bool) Block {
 	if s.Skipped {
 		return Block{Slot: s.SlotNumber}
 	}
-	return Block{
-		Slot: s.SlotNumber,
-		GetBlockResult: &rpc.GetBlockResult{
-			Blockhash:         s.Blockhash,
-			PreviousBlockhash: s.PreviousBlockhash,
-			ParentSlot:        s.ParentSlot,
-			BlockTime:         s.BlockTime,
-			BlockHeight:       s.BlockHeight,
-			Signatures:        s.Signatures(),
-		},
+	result := &rpc.GetBlockResult{
+		Blockhash:         s.Blockhash,
+		PreviousBlockhash: s.PreviousBlockhash,
+		ParentSlot:        s.ParentSlot,
+		BlockTime:         s.BlockTime,
+		BlockHeight:       s.BlockHeight,
 	}
-}
-
-// ToParsedBlock builds the sol_getBlockTransactions response for this slot.
-func (s *Slot) ToParsedBlock() ParsedBlock {
-	return ParsedBlock{
-		BlockTime:    s.BlockTime,
-		Transactions: s.Transactions,
+	if withSignatures {
+		result.Signatures = s.Signatures()
 	}
+	return Block{Slot: s.SlotNumber, GetBlockResult: result}
 }
 
 // Signatures returns the first signature of every transaction in slot order.
@@ -95,4 +87,36 @@ func (s *Slot) Signatures() []solana.Signature {
 		}
 	}
 	return sigs
+}
+
+// InvokesAnyProgram reports whether any transaction in this slot invokes any of the given programs.
+func (s *Slot) InvokesAnyProgram(programs map[string]struct{}) bool {
+	for _, tx := range s.Transactions {
+		if txInvokesAnyProgram(tx, programs) {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchingTransactions returns the transactions of this slot that invoke any of the given programs,
+// wrapped with their in-block index. programs is the set of program ids in base58.
+func (s *Slot) MatchingTransactions(programs map[string]struct{}) []WrappedTransaction {
+	var result []WrappedTransaction
+	for i, tx := range s.Transactions {
+		if tx.Transaction == nil || len(tx.Transaction.Signatures) == 0 {
+			continue
+		}
+		if !txInvokesAnyProgram(tx, programs) {
+			continue
+		}
+		result = append(result, WrappedTransaction{
+			TransactionIndex: uint32(i),
+			Signature:        tx.Transaction.Signatures[0],
+			Version:          tx.Version,
+			Transaction:      tx.Transaction,
+			Meta:             tx.Meta,
+		})
+	}
+	return result
 }

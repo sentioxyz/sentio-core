@@ -14,7 +14,6 @@ go_library(
         "//common/jsonrpc",
         "//common/range",
         "@com_github_gagliardetto_solana_go//:solana-go",
-        "@com_github_gagliardetto_solana_go//rpc",
         "@com_github_pkg_errors//:errors",
     ],
 )

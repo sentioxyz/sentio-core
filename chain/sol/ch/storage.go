@@ -3,6 +3,7 @@ package ch
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/gagliardetto/solana-go"
@@ -18,10 +19,14 @@ import (
 // query with the range store, so out-of-window requests fail rather than read partial data.
 type Store struct {
 	ctrl chx.Controller
+
+	statistic
 }
 
 func NewStore(ctrl chx.Controller) *Store {
-	return &Store{ctrl: ctrl}
+	s := &Store{ctrl: ctrl}
+	s.init()
+	return s
 }
 
 func (s *Store) blocksTable() string {
@@ -35,6 +40,9 @@ func (s *Store) transactionsTable() string {
 // QueryBlock returns the block header of the given slot (a skipped slot yields a Block whose
 // embedded GetBlockResult is nil). It returns chain.ErrSlotNotFound when the slot is absent.
 func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error) {
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "queryBlock", time.Since(start), count) }()
 	sql := fmt.Sprintf(
 		"SELECT slot, skipped, blockhash, previous_blockhash, parent_slot, block_height, block_time_ms, block_time "+
 			"FROM %s WHERE slot = ? LIMIT 1",
@@ -61,11 +69,15 @@ func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error)
 	if err != nil {
 		return nil, err
 	}
+	count = 1
 	return &block, nil
 }
 
 // QueryBlockTransactions returns the parsed transactions of the given slot in transaction order.
 func (s *Store) QueryBlockTransactions(ctx context.Context, slot uint64) (sol.ParsedBlock, error) {
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "queryBlockTransactions", time.Since(start), count) }()
 	sql := fmt.Sprintf(
 		"SELECT slot, block_time_ms, block_time, signature, transaction_json "+
 			"FROM %s WHERE slot = ? ORDER BY transaction_index",
@@ -93,11 +105,15 @@ func (s *Store) QueryBlockTransactions(ctx context.Context, slot uint64) (sol.Pa
 	if err != nil {
 		return sol.ParsedBlock{}, err
 	}
+	count = len(result.Transactions)
 	return result, nil
 }
 
 // QueryTransaction returns the parsed detail of a single transaction by signature, or nil when absent.
 func (s *Store) QueryTransaction(ctx context.Context, sig solana.Signature) (*rpc.GetParsedTransactionResult, error) {
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "queryTransaction", time.Since(start), count) }()
 	sql := fmt.Sprintf(
 		"SELECT slot, block_time_ms, block_time, signature, transaction_json "+
 			"FROM %s WHERE signature = ? LIMIT 1",
@@ -117,6 +133,7 @@ func (s *Store) QueryTransaction(ctx context.Context, sig solana.Signature) (*rp
 	if found == nil {
 		return nil, nil
 	}
+	count = 1
 	return found.toGetParsedTransactionResult()
 }
 
@@ -129,6 +146,9 @@ func (s *Store) FindTransactions(
 	address solana.PublicKey,
 	limit int,
 ) ([]*rpc.TransactionSignature, error) {
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "findTransactions", time.Since(start), count) }()
 	sql := fmt.Sprintf(
 		"SELECT slot, block_time_ms, block_time, signature, err "+
 			"FROM %s WHERE slot >= ? AND slot <= ? AND has(account_keys, ?) "+
@@ -150,6 +170,7 @@ func (s *Store) FindTransactions(
 	if err != nil {
 		return nil, err
 	}
+	count = len(result)
 	return result, nil
 }
 
@@ -160,6 +181,8 @@ func (s *Store) GetContractStartBlock(
 	start uint64,
 	latest uint64,
 ) (uint64, bool, error) {
+	startAt := time.Now()
+	defer func() { s.record(ctx, "getContractStartBlock", time.Since(startAt), 1) }()
 	sql := fmt.Sprintf(
 		"SELECT min(slot), count() FROM %s WHERE slot >= ? AND slot <= ? AND has(account_keys, ?)",
 		s.transactionsTable())

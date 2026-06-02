@@ -7637,6 +7637,7 @@ func (x *Data_EthLog) GetRawBlock() string {
 type Data_EthBlock struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Block         *structpb.Struct       `protobuf:"bytes,2,opt,name=block,proto3" json:"block,omitempty"`
+	RawBlock      string                 `protobuf:"bytes,1,opt,name=raw_block,json=rawBlock,proto3" json:"raw_block,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7676,6 +7677,13 @@ func (x *Data_EthBlock) GetBlock() *structpb.Struct {
 		return x.Block
 	}
 	return nil
+}
+
+func (x *Data_EthBlock) GetRawBlock() string {
+	if x != nil {
+		return x.RawBlock
+	}
+	return ""
 }
 
 type Data_EthTransaction struct {
@@ -7787,14 +7795,18 @@ func (x *Data_EthTransaction) GetRawTrace() string {
 }
 
 type Data_EthTrace struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Trace              *structpb.Struct       `protobuf:"bytes,4,opt,name=trace,proto3" json:"trace,omitempty"`
-	Timestamp          *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Transaction        *structpb.Struct       `protobuf:"bytes,2,opt,name=transaction,proto3,oneof" json:"transaction,omitempty"`
-	TransactionReceipt *structpb.Struct       `protobuf:"bytes,3,opt,name=transaction_receipt,json=transactionReceipt,proto3,oneof" json:"transaction_receipt,omitempty"`
-	Block              *structpb.Struct       `protobuf:"bytes,6,opt,name=block,proto3,oneof" json:"block,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Trace                 *structpb.Struct       `protobuf:"bytes,4,opt,name=trace,proto3" json:"trace,omitempty"`
+	Timestamp             *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Transaction           *structpb.Struct       `protobuf:"bytes,2,opt,name=transaction,proto3,oneof" json:"transaction,omitempty"`
+	TransactionReceipt    *structpb.Struct       `protobuf:"bytes,3,opt,name=transaction_receipt,json=transactionReceipt,proto3,oneof" json:"transaction_receipt,omitempty"`
+	Block                 *structpb.Struct       `protobuf:"bytes,6,opt,name=block,proto3,oneof" json:"block,omitempty"`
+	RawTrace              string                 `protobuf:"bytes,7,opt,name=raw_trace,json=rawTrace,proto3" json:"raw_trace,omitempty"`
+	RawTransaction        *string                `protobuf:"bytes,8,opt,name=raw_transaction,json=rawTransaction,proto3,oneof" json:"raw_transaction,omitempty"`
+	RawTransactionReceipt *string                `protobuf:"bytes,9,opt,name=raw_transaction_receipt,json=rawTransactionReceipt,proto3,oneof" json:"raw_transaction_receipt,omitempty"`
+	RawBlock              *string                `protobuf:"bytes,10,opt,name=raw_block,json=rawBlock,proto3,oneof" json:"raw_block,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *Data_EthTrace) Reset() {
@@ -7860,6 +7872,34 @@ func (x *Data_EthTrace) GetBlock() *structpb.Struct {
 		return x.Block
 	}
 	return nil
+}
+
+func (x *Data_EthTrace) GetRawTrace() string {
+	if x != nil {
+		return x.RawTrace
+	}
+	return ""
+}
+
+func (x *Data_EthTrace) GetRawTransaction() string {
+	if x != nil && x.RawTransaction != nil {
+		return *x.RawTransaction
+	}
+	return ""
+}
+
+func (x *Data_EthTrace) GetRawTransactionReceipt() string {
+	if x != nil && x.RawTransactionReceipt != nil {
+		return *x.RawTransactionReceipt
+	}
+	return ""
+}
+
+func (x *Data_EthTrace) GetRawBlock() string {
+	if x != nil && x.RawBlock != nil {
+		return *x.RawBlock
+	}
+	return ""
 }
 
 type Data_SolInstruction struct {
@@ -9341,7 +9381,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\aHAS_ALL\x10\n" +
 	"\x12\v\n" +
 	"\aHAS_ANY\x10\vB\x04\n" +
-	"\x02op\"\x95+\n" +
+	"\x02op\"\x9a-\n" +
 	"\x04Data\x121\n" +
 	"\aeth_log\x18\x02 \x01(\v2\x16.processor.Data.EthLogH\x00R\x06ethLog\x127\n" +
 	"\teth_block\x18\x03 \x01(\v2\x18.processor.Data.EthBlockH\x00R\bethBlock\x12I\n" +
@@ -9383,9 +9423,10 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x10_raw_transactionB\x1a\n" +
 	"\x18_raw_transaction_receiptB\f\n" +
 	"\n" +
-	"_raw_block\x1a9\n" +
+	"_raw_block\x1aV\n" +
 	"\bEthBlock\x12-\n" +
-	"\x05block\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x05block\x1a\xca\x04\n" +
+	"\x05block\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x05block\x12\x1b\n" +
+	"\traw_block\x18\x01 \x01(\tR\brawBlock\x1a\xca\x04\n" +
 	"\x0eEthTransaction\x129\n" +
 	"\vtransaction\x18\x04 \x01(\v2\x17.google.protobuf.StructR\vtransaction\x128\n" +
 	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12M\n" +
@@ -9404,16 +9445,25 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\n" +
 	"_raw_blockB\f\n" +
 	"\n" +
-	"_raw_trace\x1a\xe8\x02\n" +
+	"_raw_trace\x1a\xd0\x04\n" +
 	"\bEthTrace\x12-\n" +
 	"\x05trace\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x05trace\x128\n" +
 	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12>\n" +
 	"\vtransaction\x18\x02 \x01(\v2\x17.google.protobuf.StructH\x00R\vtransaction\x88\x01\x01\x12M\n" +
 	"\x13transaction_receipt\x18\x03 \x01(\v2\x17.google.protobuf.StructH\x01R\x12transactionReceipt\x88\x01\x01\x122\n" +
-	"\x05block\x18\x06 \x01(\v2\x17.google.protobuf.StructH\x02R\x05block\x88\x01\x01B\x0e\n" +
+	"\x05block\x18\x06 \x01(\v2\x17.google.protobuf.StructH\x02R\x05block\x88\x01\x01\x12\x1b\n" +
+	"\traw_trace\x18\a \x01(\tR\brawTrace\x12,\n" +
+	"\x0fraw_transaction\x18\b \x01(\tH\x03R\x0erawTransaction\x88\x01\x01\x12;\n" +
+	"\x17raw_transaction_receipt\x18\t \x01(\tH\x04R\x15rawTransactionReceipt\x88\x01\x01\x12 \n" +
+	"\traw_block\x18\n" +
+	" \x01(\tH\x05R\brawBlock\x88\x01\x01B\x0e\n" +
 	"\f_transactionB\x16\n" +
 	"\x14_transaction_receiptB\b\n" +
-	"\x06_block\x1a\x9c\x02\n" +
+	"\x06_blockB\x12\n" +
+	"\x10_raw_transactionB\x1a\n" +
+	"\x18_raw_transaction_receiptB\f\n" +
+	"\n" +
+	"_raw_block\x1a\x9c\x02\n" +
 	"\x0eSolInstruction\x12)\n" +
 	"\x10instruction_data\x18\x01 \x01(\tR\x0finstructionData\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\x04R\x04slot\x12,\n" +

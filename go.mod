@@ -17,9 +17,9 @@ require (
 	github.com/fardream/go-bcs v0.7.0
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/fergusstrange/embedded-postgres v1.32.0
-	github.com/gagliardetto/solana-go v1.18.0
+	github.com/gagliardetto/solana-go v1.20.0
 	github.com/go-faster/errors v0.7.1
-	github.com/goccy/go-json v0.10.4
+	github.com/goccy/go-json v0.10.6
 	github.com/golang/protobuf v1.5.4
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/websocket v1.5.3
@@ -124,6 +124,7 @@ require (
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/mostynb/zstdpool-freelist v0.0.0-20201229113212-927304c0c3b1 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
+	github.com/oasisprotocol/curve25519-voi v0.0.0-20251114093237-2ab5a27a1729 // indirect
 	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect

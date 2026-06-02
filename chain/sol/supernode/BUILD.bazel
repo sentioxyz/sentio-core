@@ -2,12 +2,19 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "supernode",
-    srcs = ["rpc.go"],
+    srcs = [
+        "rpc.go",
+        "storage.go",
+    ],
     importpath = "sentioxyz/sentio-core/chain/sol/supernode",
     visibility = ["//visibility:public"],
     deps = [
+        "//chain/chain",
         "//chain/sol",
         "//common/jsonrpc",
+        "//common/range",
+        "@com_github_gagliardetto_solana_go//:solana-go",
+        "@com_github_pkg_errors//:errors",
     ],
 )
 

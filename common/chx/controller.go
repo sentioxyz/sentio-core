@@ -3,6 +3,7 @@ package chx
 import (
 	"fmt"
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
+	"sentioxyz/sentio-core/common/log"
 )
 
 type Conn ckhmanager.Conn
@@ -80,6 +81,13 @@ func New(conn ckhmanager.Conn, opts ...Option) Controller {
 	for _, opt := range opts {
 		opt(&c)
 	}
+	log.Infow("new clickhouse controller",
+		"cluster", c.cluster,
+		"rawDatabase", c.database,
+		"rawTableNamePrefix", c.tableNamePrefix,
+		"logicDatabase", c.logicDatabase,
+		"logicTableNamePrefix", c.logicTableNamePrefix,
+	)
 	return Controller{conn: conn, config: c}
 }
 

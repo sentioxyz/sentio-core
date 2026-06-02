@@ -1,5 +1,5 @@
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
-load("//bazel:ts-rules.bzl", "ts_proto")
+load("//bazel:ts-rules.bzl", "es_proto", "ts_proto")
 load("//bazel/golang:gateway_go_library.bzl", "gateway_grpc_compile_and_go_library")
 
 filegroup(
@@ -76,5 +76,22 @@ ts_proto(
     name = "money_ts_proto",
     esm = True,
     protos = ["@googleapis//google/type:money_proto"],
+    visibility = ["//visibility:public"],
+)
+
+# protobuf-es (protoc-gen-es) drop-in for ts_proto — evaluates a protobuf-es
+# migration. `processor_es_proto` mirrors `processor_ts_proto` (keeps deprecated);
+# `processor_es_no_deprecate` mirrors `processor_ts_proto_no_deprecate` via
+# `remove_deprecated = True`.
+es_proto(
+    name = "processor_es_proto",
+    protos = [":protos_proto"],
+    visibility = ["//visibility:public"],
+)
+
+es_proto(
+    name = "processor_es_no_deprecate",
+    protos = [":protos_proto"],
+    remove_deprecated = True,
     visibility = ["//visibility:public"],
 )

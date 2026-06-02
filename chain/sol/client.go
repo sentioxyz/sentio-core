@@ -2,10 +2,6 @@ package sol
 
 import (
 	"context"
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
-	"github.com/gagliardetto/solana-go/rpc/jsonrpc"
-	"github.com/pkg/errors"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -14,6 +10,11 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 	"strings"
 	"time"
+
+	"github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/gagliardetto/solana-go/rpc/jsonrpc"
+	"github.com/pkg/errors"
 )
 
 type ClientConfig struct {
@@ -31,7 +32,7 @@ type ClientConfig struct {
 func (c ClientConfig) Trim() ClientConfig {
 	methodTimeout := utils.CopyMap(c.MethodTimeout)
 	utils.PutIfNotExist(methodTimeout, "getSlot", time.Second*3)
-	utils.PutIfNotExist(methodTimeout, "getBlock", time.Second*3)
+	utils.PutIfNotExist(methodTimeout, "getBlock", time.Second*10)
 	utils.PutIfNotExist(methodTimeout, "getLatestBlockhash", time.Second*3)
 	utils.PutIfNotExist(methodTimeout, "getBlockTime", time.Second*3)
 	return ClientConfig{

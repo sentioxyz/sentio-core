@@ -60,6 +60,11 @@ bazel_dep(name = "hermetic_cc_toolchain", version = "4.1.0")
 # graph entirely, so no rules_foreign_cc bazel_dep is needed.
 # TODO When new grpc is released, remove this
 bazel_dep(name = "google_benchmark", version = "1.9.5")
+bazel_dep(name = "grpc", version = "1.81.0")
+# grpc 1.81.0 pins envoy_api@20251216, which still imports the removed
+# com_google_googleapis_imports repo and is incompatible with our pinned
+# googleapis@20260525. Bump envoy_api to a version that dropped that reference.
+bazel_dep(name = "envoy_api", version = "0.0.0-20260130-84e8436")
 bazel_dep(name = "rules_proto_grpc", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_cpp", version = "5.8.0")
 bazel_dep(name = "rules_proto_grpc_go", version = "5.8.0")

@@ -1,9 +1,10 @@
 package sol
 
 import (
+	"sentioxyz/sentio-core/chain/chain"
+
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
-	"sentioxyz/sentio-core/chain/chain"
 )
 
 // ParsedTransactionWithMeta is one transaction inside a parsed block, as returned by the
@@ -49,7 +50,12 @@ func (s *Slot) GetParentHash() string {
 	return s.PreviousBlockhash.String()
 }
 
+const feaSkipped = "Skipped"
+
 func (s *Slot) Features() []string {
+	if s.Skipped {
+		return []string{feaSkipped}
+	}
 	return nil
 }
 

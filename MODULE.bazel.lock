@@ -528,11 +528,11 @@
     "@@aspect_rules_ts+//ts:extensions.bzl%ext%<root>+rules_ts_ext": {
       "general": {
         "bzlTransitiveDigest": "XQyG/pNDNTKYobWyPdbo1p8twKShTk51G5mVUm9v4/4=",
-        "usagesDigest": "IgLvkMuTknh70kl5lH/eRxUeCYO1ZrbgP2W/qAj8OaA=",
+        "usagesDigest": "LucA2emG04XAkVKcwpp8cGW4Rg5svJdDBIU9RJilWXs=",
         "recordedInputs": [
           "REPO_MAPPING:aspect_rules_ts+,aspect_rules_ts aspect_rules_ts+",
           "REPO_MAPPING:aspect_rules_ts+,bazel_tools bazel_tools",
-          "FILE:@@//package.json a7a9809e9a7ddd60c15269f56d117b5bb31b4c9e21ff8614576d68077488a957"
+          "FILE:@@//package.json 4f1a3fb3a68f2cccbdd447fa04896315d00fba8ddfec4d7522e20e17e75fae69"
         ],
         "generatedRepoSpecs": {
           "npm_typescript": {
@@ -540,7 +540,7 @@
             "attributes": {
               "version": "",
               "version_from": "@@//:package.json",
-              "integrity": "sha512-CWBzXQrc/qOkhidw1OzBTQuYRbfyxDXJMVJ1XNwUHGROVmuaeiEm3OslpZ1RV96d7SKKjZKrSJu3+t/xlw3R9A==",
+              "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
               "urls": [
                 "https://registry.npmjs.org/typescript/-/typescript-{}.tgz"
               ]
@@ -1349,7 +1349,7 @@
     },
     "@@rules_rust+//crate_universe:extension.bzl%crate": {
       "general": {
-        "bzlTransitiveDigest": "4ZxdDHM5dGVbcpGNyPxSWkXiz1DTw/ldJgFC1a5SPOI=",
+        "bzlTransitiveDigest": "h/9BKmAIuEtGMLbvpAeC69POcqgLRrdwLJ5UPdep81U=",
         "usagesDigest": "EuFUqVKVHF263jHTWOHXs4tFACdRNVOhwpoytdk19bs=",
         "recordedInputs": [
           "ENV:CARGO_BAZEL_DEBUG \\0",
@@ -1611,7 +1611,7 @@
     },
     "@@rules_rust+//crate_universe/private:internal_extensions.bzl%cu_nr": {
       "general": {
-        "bzlTransitiveDigest": "2RrHa9GqLSgJmFPwKD1wONow/2x/PGTGakiYDTBQJ88=",
+        "bzlTransitiveDigest": "q4EYnmFADRGUPZwOtrAhVk0Lx9+ia9NzDRshYfapXfU=",
         "usagesDigest": "tG3p3Nb5XxC7vWY/bcKdb//g0HoAxpxxH3F5/jBVlk4=",
         "recordedInputs": [
           "REPO_MAPPING:bazel_features+,bazel_features_globals bazel_features++version_extension+bazel_features_globals",

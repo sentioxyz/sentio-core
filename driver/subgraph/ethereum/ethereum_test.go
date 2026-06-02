@@ -6,12 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"sentioxyz/sentio-core/common/wasm"
 	"sentioxyz/sentio-core/driver/subgraph/common"
-	"sentioxyz/sentio-core/processor/protos"
 	"testing"
 )
 
 func Test_listValue(t *testing.T) {
-	var st protos.Data_EthLog
+	var m map[string]any
 	err := json.Unmarshal([]byte(`
 {
 	"transaction_receipt": {
@@ -24,11 +23,11 @@ func Test_listValue(t *testing.T) {
 		]
 	}
 }
-`), &st)
+`), &m)
 	assert.NoError(t, err)
 
 	// nil value will not panic
-	r := MustBuildTransactionReceipt(st.TransactionReceipt)
+	r := MustBuildTransactionReceipt(m["transaction_receipt"].(map[string]any))
 	assert.Nil(t, r.TransactionHash)
 	assert.Nil(t, r.TransactionIndex)
 	assert.Nil(t, r.BlockHash)
@@ -42,18 +41,18 @@ func Test_listValue(t *testing.T) {
 }
 
 func Test_missLogs(t *testing.T) {
-	var st protos.Data_EthLog
-	err := json.Unmarshal([]byte(`{"transaction_receipt": {}}`), &st)
+	var m map[string]any
+	err := json.Unmarshal([]byte(`{"transaction_receipt": {}}`), &m)
 	assert.NoError(t, err)
 
 	// miss logs will panic
 	assert.Panics(t, func() {
-		_ = MustBuildTransactionReceipt(st.TransactionReceipt)
+		_ = MustBuildTransactionReceipt(m["transaction_receipt"].(map[string]any))
 	})
 }
 
 func Test_missTopics(t *testing.T) {
-	var st protos.Data_EthLog
+	var m map[string]any
 	err := json.Unmarshal([]byte(`
 {
 	"transaction_receipt": {
@@ -63,15 +62,15 @@ func Test_missTopics(t *testing.T) {
 		]
 	}
 }
-`), &st)
+`), &m)
 	assert.NoError(t, err)
 
-	re := MustBuildTransactionReceipt(st.TransactionReceipt)
+	re := MustBuildTransactionReceipt(m["transaction_receipt"].(map[string]any))
 	assert.Equal(t, 0, len(re.Logs.Data[0].Topics.Data))
 }
 
 func Test_normal(t *testing.T) {
-	var st protos.Data_EthLog
+	var m map[string]any
 	err := json.Unmarshal([]byte(`
 {
   "log": {
@@ -176,10 +175,10 @@ func Test_normal(t *testing.T) {
     "transactionsRoot": "0xb160b0cd9ee265ff3e0c5f7d2da752befaca47ee997cddd08d40695886d8c398"
   }
 }
-`), &st)
+`), &m)
 	assert.NoError(t, err)
 	assert.NotPanics(t, func() {
-		_ = MustBuildTransactionReceipt(st.TransactionReceipt)
+		_ = MustBuildTransactionReceipt(m["transaction_receipt"].(map[string]any))
 	})
 }
 

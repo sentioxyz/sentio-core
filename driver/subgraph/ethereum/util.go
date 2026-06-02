@@ -1,36 +1,34 @@
 package ethereum
 
 import (
-	"google.golang.org/protobuf/types/known/structpb"
 	"sentioxyz/sentio-core/common/wasm"
 	"sentioxyz/sentio-core/driver/subgraph/common"
 )
 
-func isNullValue(value *structpb.Value) bool {
-	if value == nil {
-		return true
-	}
-	_, is := value.GetKind().(*structpb.Value_NullValue)
-	return is
-}
+// The extractors below take a JSON-decoded value (from a map[string]any parsed out
+// of the raw_* fields). A present hex string is built; an absent/null/non-string
+// value yields nil.
 
-func MustBuildByteArrayFromHex(value *structpb.Value) *wasm.ByteArray {
-	if isNullValue(value) {
+func MustBuildByteArrayFromHex(value any) *wasm.ByteArray {
+	s, ok := value.(string)
+	if !ok {
 		return nil
 	}
-	return wasm.MustBuildByteArrayFromHex(value.GetStringValue())
+	return wasm.MustBuildByteArrayFromHex(s)
 }
 
-func MustBuildAddressFromString(value *structpb.Value) *common.Address {
-	if isNullValue(value) {
+func MustBuildAddressFromString(value any) *common.Address {
+	s, ok := value.(string)
+	if !ok {
 		return nil
 	}
-	return common.MustBuildAddressFromString(value.GetStringValue())
+	return common.MustBuildAddressFromString(s)
 }
 
-func MustBuildBigIntFromHex(value *structpb.Value) *common.BigInt {
-	if isNullValue(value) {
+func MustBuildBigIntFromHex(value any) *common.BigInt {
+	s, ok := value.(string)
+	if !ok {
 		return nil
 	}
-	return common.MustBuildBigInt(value.GetStringValue())
+	return common.MustBuildBigInt(s)
 }

@@ -252,7 +252,6 @@ const (
 	HandlerType_SUI_CALL          HandlerType = 9
 	HandlerType_SUI_OBJECT        HandlerType = 10
 	HandlerType_SUI_OBJECT_CHANGE HandlerType = 12
-	HandlerType_FUEL_CALL         HandlerType = 13
 	HandlerType_FUEL_RECEIPT      HandlerType = 19
 	HandlerType_FUEL_TRANSACTION  HandlerType = 20
 	HandlerType_FUEL_BLOCK        HandlerType = 17
@@ -277,7 +276,6 @@ var (
 		9:  "SUI_CALL",
 		10: "SUI_OBJECT",
 		12: "SUI_OBJECT_CHANGE",
-		13: "FUEL_CALL",
 		19: "FUEL_RECEIPT",
 		20: "FUEL_TRANSACTION",
 		17: "FUEL_BLOCK",
@@ -299,7 +297,6 @@ var (
 		"SUI_CALL":          9,
 		"SUI_OBJECT":        10,
 		"SUI_OBJECT_CHANGE": 12,
-		"FUEL_CALL":         13,
 		"FUEL_RECEIPT":      19,
 		"FUEL_TRANSACTION":  20,
 		"FUEL_BLOCK":        17,
@@ -437,52 +434,6 @@ func (ExecutionConfig_HandlerOrderInsideTransaction) EnumDescriptor() ([]byte, [
 	return file_processor_protos_processor_proto_rawDescGZIP(), []int{1, 0}
 }
 
-type TotalPerEntityAggregation_Type int32
-
-const (
-	TotalPerEntityAggregation_AVG    TotalPerEntityAggregation_Type = 0
-	TotalPerEntityAggregation_MEDIAN TotalPerEntityAggregation_Type = 1
-)
-
-// Enum value maps for TotalPerEntityAggregation_Type.
-var (
-	TotalPerEntityAggregation_Type_name = map[int32]string{
-		0: "AVG",
-		1: "MEDIAN",
-	}
-	TotalPerEntityAggregation_Type_value = map[string]int32{
-		"AVG":    0,
-		"MEDIAN": 1,
-	}
-)
-
-func (x TotalPerEntityAggregation_Type) Enum() *TotalPerEntityAggregation_Type {
-	p := new(TotalPerEntityAggregation_Type)
-	*p = x
-	return p
-}
-
-func (x TotalPerEntityAggregation_Type) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (TotalPerEntityAggregation_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_processor_protos_processor_proto_enumTypes[7].Descriptor()
-}
-
-func (TotalPerEntityAggregation_Type) Type() protoreflect.EnumType {
-	return &file_processor_protos_processor_proto_enumTypes[7]
-}
-
-func (x TotalPerEntityAggregation_Type) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use TotalPerEntityAggregation_Type.Descriptor instead.
-func (TotalPerEntityAggregation_Type) EnumDescriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{7, 0}
-}
-
 type EventLogConfig_BasicFieldType int32
 
 const (
@@ -525,11 +476,11 @@ func (x EventLogConfig_BasicFieldType) String() string {
 }
 
 func (EventLogConfig_BasicFieldType) Descriptor() protoreflect.EnumDescriptor {
-	return file_processor_protos_processor_proto_enumTypes[8].Descriptor()
+	return file_processor_protos_processor_proto_enumTypes[7].Descriptor()
 }
 
 func (EventLogConfig_BasicFieldType) Type() protoreflect.EnumType {
-	return &file_processor_protos_processor_proto_enumTypes[8]
+	return &file_processor_protos_processor_proto_enumTypes[7]
 }
 
 func (x EventLogConfig_BasicFieldType) Number() protoreflect.EnumNumber {
@@ -538,7 +489,7 @@ func (x EventLogConfig_BasicFieldType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use EventLogConfig_BasicFieldType.Descriptor instead.
 func (EventLogConfig_BasicFieldType) EnumDescriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{11, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{8, 0}
 }
 
 type ProcessStreamResponse_Partitions_Partition_SysValue int32
@@ -574,11 +525,11 @@ func (x ProcessStreamResponse_Partitions_Partition_SysValue) String() string {
 }
 
 func (ProcessStreamResponse_Partitions_Partition_SysValue) Descriptor() protoreflect.EnumDescriptor {
-	return file_processor_protos_processor_proto_enumTypes[9].Descriptor()
+	return file_processor_protos_processor_proto_enumTypes[8].Descriptor()
 }
 
 func (ProcessStreamResponse_Partitions_Partition_SysValue) Type() protoreflect.EnumType {
-	return &file_processor_protos_processor_proto_enumTypes[9]
+	return &file_processor_protos_processor_proto_enumTypes[8]
 }
 
 func (x ProcessStreamResponse_Partitions_Partition_SysValue) Number() protoreflect.EnumNumber {
@@ -587,7 +538,7 @@ func (x ProcessStreamResponse_Partitions_Partition_SysValue) Number() protorefle
 
 // Deprecated: Use ProcessStreamResponse_Partitions_Partition_SysValue.Descriptor instead.
 func (ProcessStreamResponse_Partitions_Partition_SysValue) EnumDescriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{51, 0, 0, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{43, 0, 0, 0}
 }
 
 type EntityUpdateData_Operator int32
@@ -623,11 +574,11 @@ func (x EntityUpdateData_Operator) String() string {
 }
 
 func (EntityUpdateData_Operator) Descriptor() protoreflect.EnumDescriptor {
-	return file_processor_protos_processor_proto_enumTypes[10].Descriptor()
+	return file_processor_protos_processor_proto_enumTypes[9].Descriptor()
 }
 
 func (EntityUpdateData_Operator) Type() protoreflect.EnumType {
-	return &file_processor_protos_processor_proto_enumTypes[10]
+	return &file_processor_protos_processor_proto_enumTypes[9]
 }
 
 func (x EntityUpdateData_Operator) Number() protoreflect.EnumNumber {
@@ -636,7 +587,7 @@ func (x EntityUpdateData_Operator) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use EntityUpdateData_Operator.Descriptor instead.
 func (EntityUpdateData_Operator) EnumDescriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{58, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{50, 0}
 }
 
 type DBRequest_DBOperator int32
@@ -699,11 +650,11 @@ func (x DBRequest_DBOperator) String() string {
 }
 
 func (DBRequest_DBOperator) Descriptor() protoreflect.EnumDescriptor {
-	return file_processor_protos_processor_proto_enumTypes[11].Descriptor()
+	return file_processor_protos_processor_proto_enumTypes[10].Descriptor()
 }
 
 func (DBRequest_DBOperator) Type() protoreflect.EnumType {
-	return &file_processor_protos_processor_proto_enumTypes[11]
+	return &file_processor_protos_processor_proto_enumTypes[10]
 }
 
 func (x DBRequest_DBOperator) Number() protoreflect.EnumNumber {
@@ -712,7 +663,7 @@ func (x DBRequest_DBOperator) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DBRequest_DBOperator.Descriptor instead.
 func (DBRequest_DBOperator) EnumDescriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{61, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53, 0}
 }
 
 type TimeseriesResult_TimeseriesType int32
@@ -748,11 +699,11 @@ func (x TimeseriesResult_TimeseriesType) String() string {
 }
 
 func (TimeseriesResult_TimeseriesType) Descriptor() protoreflect.EnumDescriptor {
-	return file_processor_protos_processor_proto_enumTypes[12].Descriptor()
+	return file_processor_protos_processor_proto_enumTypes[11].Descriptor()
 }
 
 func (TimeseriesResult_TimeseriesType) Type() protoreflect.EnumType {
-	return &file_processor_protos_processor_proto_enumTypes[12]
+	return &file_processor_protos_processor_proto_enumTypes[11]
 }
 
 func (x TimeseriesResult_TimeseriesType) Number() protoreflect.EnumNumber {
@@ -761,7 +712,7 @@ func (x TimeseriesResult_TimeseriesType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TimeseriesResult_TimeseriesType.Descriptor instead.
 func (TimeseriesResult_TimeseriesType) EnumDescriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{76, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{68, 0}
 }
 
 type ProjectConfig struct {
@@ -1052,89 +1003,33 @@ func (x *ProcessConfigResponse) GetDbSchema() *DataBaseSchema {
 	return nil
 }
 
-type ConfigureHandlersResponse struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	ContractConfigs []*ContractConfig      `protobuf:"bytes,2,rep,name=contract_configs,json=contractConfigs,proto3" json:"contract_configs,omitempty"`
-	AccountConfigs  []*AccountConfig       `protobuf:"bytes,4,rep,name=account_configs,json=accountConfigs,proto3" json:"account_configs,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *ConfigureHandlersResponse) Reset() {
-	*x = ConfigureHandlersResponse{}
-	mi := &file_processor_protos_processor_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ConfigureHandlersResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ConfigureHandlersResponse) ProtoMessage() {}
-
-func (x *ConfigureHandlersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ConfigureHandlersResponse.ProtoReflect.Descriptor instead.
-func (*ConfigureHandlersResponse) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *ConfigureHandlersResponse) GetContractConfigs() []*ContractConfig {
-	if x != nil {
-		return x.ContractConfigs
-	}
-	return nil
-}
-
-func (x *ConfigureHandlersResponse) GetAccountConfigs() []*AccountConfig {
-	if x != nil {
-		return x.AccountConfigs
-	}
-	return nil
-}
-
 type ContractConfig struct {
-	state                     protoimpl.MessageState      `protogen:"open.v1"`
-	Contract                  *ContractInfo               `protobuf:"bytes,1,opt,name=contract,proto3" json:"contract,omitempty"`
-	IntervalConfigs           []*OnIntervalConfig         `protobuf:"bytes,11,rep,name=interval_configs,json=intervalConfigs,proto3" json:"interval_configs,omitempty"`
-	MoveIntervalConfigs       []*MoveOnIntervalConfig     `protobuf:"bytes,19,rep,name=move_interval_configs,json=moveIntervalConfigs,proto3" json:"move_interval_configs,omitempty"`
-	LogConfigs                []*LogHandlerConfig         `protobuf:"bytes,3,rep,name=log_configs,json=logConfigs,proto3" json:"log_configs,omitempty"`
-	TraceConfigs              []*TraceHandlerConfig       `protobuf:"bytes,2,rep,name=trace_configs,json=traceConfigs,proto3" json:"trace_configs,omitempty"`
-	TransactionConfig         []*TransactionHandlerConfig `protobuf:"bytes,7,rep,name=transaction_config,json=transactionConfig,proto3" json:"transaction_config,omitempty"`
-	MoveEventConfigs          []*MoveEventHandlerConfig   `protobuf:"bytes,9,rep,name=move_event_configs,json=moveEventConfigs,proto3" json:"move_event_configs,omitempty"`
-	MoveCallConfigs           []*MoveCallHandlerConfig    `protobuf:"bytes,10,rep,name=move_call_configs,json=moveCallConfigs,proto3" json:"move_call_configs,omitempty"`
-	MoveResourceChangeConfigs []*MoveResourceChangeConfig `protobuf:"bytes,12,rep,name=move_resource_change_configs,json=moveResourceChangeConfigs,proto3" json:"move_resource_change_configs,omitempty"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	FuelCallConfigs        []*FuelCallHandlerConfig        `protobuf:"bytes,13,rep,name=fuel_call_configs,json=fuelCallConfigs,proto3" json:"fuel_call_configs,omitempty"`
-	FuelTransactionConfigs []*FuelTransactionHandlerConfig `protobuf:"bytes,20,rep,name=fuel_transaction_configs,json=fuelTransactionConfigs,proto3" json:"fuel_transaction_configs,omitempty"`
-	AssetConfigs           []*FuelAssetHandlerConfig       `protobuf:"bytes,14,rep,name=asset_configs,json=assetConfigs,proto3" json:"asset_configs,omitempty"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	FuelLogConfigs       []*FuelLogHandlerConfig       `protobuf:"bytes,15,rep,name=fuel_log_configs,json=fuelLogConfigs,proto3" json:"fuel_log_configs,omitempty"`
-	FuelReceiptConfigs   []*FuelReceiptHandlerConfig   `protobuf:"bytes,21,rep,name=fuel_receipt_configs,json=fuelReceiptConfigs,proto3" json:"fuel_receipt_configs,omitempty"`
-	CosmosLogConfigs     []*CosmosLogHandlerConfig     `protobuf:"bytes,16,rep,name=cosmos_log_configs,json=cosmosLogConfigs,proto3" json:"cosmos_log_configs,omitempty"`
-	StarknetEventConfigs []*StarknetEventHandlerConfig `protobuf:"bytes,17,rep,name=starknet_event_configs,json=starknetEventConfigs,proto3" json:"starknet_event_configs,omitempty"`
-	InstructionConfig    *InstructionHandlerConfig     `protobuf:"bytes,6,opt,name=instruction_config,json=instructionConfig,proto3" json:"instruction_config,omitempty"`
-	StartBlock           uint64                        `protobuf:"varint,4,opt,name=start_block,json=startBlock,proto3" json:"start_block,omitempty"`
-	EndBlock             uint64                        `protobuf:"varint,5,opt,name=end_block,json=endBlock,proto3" json:"end_block,omitempty"`
-	ProcessorType        string                        `protobuf:"bytes,8,opt,name=processor_type,json=processorType,proto3" json:"processor_type,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state                     protoimpl.MessageState          `protogen:"open.v1"`
+	Contract                  *ContractInfo                   `protobuf:"bytes,1,opt,name=contract,proto3" json:"contract,omitempty"`
+	IntervalConfigs           []*OnIntervalConfig             `protobuf:"bytes,11,rep,name=interval_configs,json=intervalConfigs,proto3" json:"interval_configs,omitempty"`
+	MoveIntervalConfigs       []*MoveOnIntervalConfig         `protobuf:"bytes,19,rep,name=move_interval_configs,json=moveIntervalConfigs,proto3" json:"move_interval_configs,omitempty"`
+	LogConfigs                []*LogHandlerConfig             `protobuf:"bytes,3,rep,name=log_configs,json=logConfigs,proto3" json:"log_configs,omitempty"`
+	TraceConfigs              []*TraceHandlerConfig           `protobuf:"bytes,2,rep,name=trace_configs,json=traceConfigs,proto3" json:"trace_configs,omitempty"`
+	TransactionConfig         []*TransactionHandlerConfig     `protobuf:"bytes,7,rep,name=transaction_config,json=transactionConfig,proto3" json:"transaction_config,omitempty"`
+	MoveEventConfigs          []*MoveEventHandlerConfig       `protobuf:"bytes,9,rep,name=move_event_configs,json=moveEventConfigs,proto3" json:"move_event_configs,omitempty"`
+	MoveCallConfigs           []*MoveCallHandlerConfig        `protobuf:"bytes,10,rep,name=move_call_configs,json=moveCallConfigs,proto3" json:"move_call_configs,omitempty"`
+	MoveResourceChangeConfigs []*MoveResourceChangeConfig     `protobuf:"bytes,12,rep,name=move_resource_change_configs,json=moveResourceChangeConfigs,proto3" json:"move_resource_change_configs,omitempty"`
+	FuelTransactionConfigs    []*FuelTransactionHandlerConfig `protobuf:"bytes,20,rep,name=fuel_transaction_configs,json=fuelTransactionConfigs,proto3" json:"fuel_transaction_configs,omitempty"`
+	AssetConfigs              []*FuelAssetHandlerConfig       `protobuf:"bytes,14,rep,name=asset_configs,json=assetConfigs,proto3" json:"asset_configs,omitempty"`
+	FuelReceiptConfigs        []*FuelReceiptHandlerConfig     `protobuf:"bytes,21,rep,name=fuel_receipt_configs,json=fuelReceiptConfigs,proto3" json:"fuel_receipt_configs,omitempty"`
+	CosmosLogConfigs          []*CosmosLogHandlerConfig       `protobuf:"bytes,16,rep,name=cosmos_log_configs,json=cosmosLogConfigs,proto3" json:"cosmos_log_configs,omitempty"`
+	StarknetEventConfigs      []*StarknetEventHandlerConfig   `protobuf:"bytes,17,rep,name=starknet_event_configs,json=starknetEventConfigs,proto3" json:"starknet_event_configs,omitempty"`
+	InstructionConfig         *InstructionHandlerConfig       `protobuf:"bytes,6,opt,name=instruction_config,json=instructionConfig,proto3" json:"instruction_config,omitempty"`
+	StartBlock                uint64                          `protobuf:"varint,4,opt,name=start_block,json=startBlock,proto3" json:"start_block,omitempty"`
+	EndBlock                  uint64                          `protobuf:"varint,5,opt,name=end_block,json=endBlock,proto3" json:"end_block,omitempty"`
+	ProcessorType             string                          `protobuf:"bytes,8,opt,name=processor_type,json=processorType,proto3" json:"processor_type,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *ContractConfig) Reset() {
 	*x = ContractConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[5]
+	mi := &file_processor_protos_processor_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1146,7 +1041,7 @@ func (x *ContractConfig) String() string {
 func (*ContractConfig) ProtoMessage() {}
 
 func (x *ContractConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[5]
+	mi := &file_processor_protos_processor_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1159,7 +1054,7 @@ func (x *ContractConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContractConfig.ProtoReflect.Descriptor instead.
 func (*ContractConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{5}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ContractConfig) GetContract() *ContractInfo {
@@ -1225,14 +1120,6 @@ func (x *ContractConfig) GetMoveResourceChangeConfigs() []*MoveResourceChangeCon
 	return nil
 }
 
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *ContractConfig) GetFuelCallConfigs() []*FuelCallHandlerConfig {
-	if x != nil {
-		return x.FuelCallConfigs
-	}
-	return nil
-}
-
 func (x *ContractConfig) GetFuelTransactionConfigs() []*FuelTransactionHandlerConfig {
 	if x != nil {
 		return x.FuelTransactionConfigs
@@ -1243,14 +1130,6 @@ func (x *ContractConfig) GetFuelTransactionConfigs() []*FuelTransactionHandlerCo
 func (x *ContractConfig) GetAssetConfigs() []*FuelAssetHandlerConfig {
 	if x != nil {
 		return x.AssetConfigs
-	}
-	return nil
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *ContractConfig) GetFuelLogConfigs() []*FuelLogHandlerConfig {
-	if x != nil {
-		return x.FuelLogConfigs
 	}
 	return nil
 }
@@ -1313,7 +1192,7 @@ type DataBaseSchema struct {
 
 func (x *DataBaseSchema) Reset() {
 	*x = DataBaseSchema{}
-	mi := &file_processor_protos_processor_proto_msgTypes[6]
+	mi := &file_processor_protos_processor_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1325,7 +1204,7 @@ func (x *DataBaseSchema) String() string {
 func (*DataBaseSchema) ProtoMessage() {}
 
 func (x *DataBaseSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[6]
+	mi := &file_processor_protos_processor_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1338,7 +1217,7 @@ func (x *DataBaseSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataBaseSchema.ProtoReflect.Descriptor instead.
 func (*DataBaseSchema) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{6}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DataBaseSchema) GetGqlSchema() string {
@@ -1346,94 +1225,6 @@ func (x *DataBaseSchema) GetGqlSchema() string {
 		return x.GqlSchema
 	}
 	return ""
-}
-
-type TotalPerEntityAggregation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TotalPerEntityAggregation) Reset() {
-	*x = TotalPerEntityAggregation{}
-	mi := &file_processor_protos_processor_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TotalPerEntityAggregation) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TotalPerEntityAggregation) ProtoMessage() {}
-
-func (x *TotalPerEntityAggregation) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TotalPerEntityAggregation.ProtoReflect.Descriptor instead.
-func (*TotalPerEntityAggregation) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{7}
-}
-
-type RetentionConfig struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	RetentionEventName string                 `protobuf:"bytes,2,opt,name=retention_event_name,json=retentionEventName,proto3" json:"retention_event_name,omitempty"`
-	Days               int32                  `protobuf:"varint,3,opt,name=days,proto3" json:"days,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
-}
-
-func (x *RetentionConfig) Reset() {
-	*x = RetentionConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RetentionConfig) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RetentionConfig) ProtoMessage() {}
-
-func (x *RetentionConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RetentionConfig.ProtoReflect.Descriptor instead.
-func (*RetentionConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *RetentionConfig) GetRetentionEventName() string {
-	if x != nil {
-		return x.RetentionEventName
-	}
-	return ""
-}
-
-func (x *RetentionConfig) GetDays() int32 {
-	if x != nil {
-		return x.Days
-	}
-	return 0
 }
 
 type ExportConfig struct {
@@ -1446,7 +1237,7 @@ type ExportConfig struct {
 
 func (x *ExportConfig) Reset() {
 	*x = ExportConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[9]
+	mi := &file_processor_protos_processor_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1458,7 +1249,7 @@ func (x *ExportConfig) String() string {
 func (*ExportConfig) ProtoMessage() {}
 
 func (x *ExportConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[9]
+	mi := &file_processor_protos_processor_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1471,7 +1262,7 @@ func (x *ExportConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportConfig.ProtoReflect.Descriptor instead.
 func (*ExportConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{9}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ExportConfig) GetName() string {
@@ -1503,7 +1294,7 @@ type MetricConfig struct {
 
 func (x *MetricConfig) Reset() {
 	*x = MetricConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[10]
+	mi := &file_processor_protos_processor_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1515,7 +1306,7 @@ func (x *MetricConfig) String() string {
 func (*MetricConfig) ProtoMessage() {}
 
 func (x *MetricConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[10]
+	mi := &file_processor_protos_processor_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1528,7 +1319,7 @@ func (x *MetricConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricConfig.ProtoReflect.Descriptor instead.
 func (*MetricConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{10}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *MetricConfig) GetName() string {
@@ -1590,7 +1381,7 @@ type EventLogConfig struct {
 
 func (x *EventLogConfig) Reset() {
 	*x = EventLogConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[11]
+	mi := &file_processor_protos_processor_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1602,7 +1393,7 @@ func (x *EventLogConfig) String() string {
 func (*EventLogConfig) ProtoMessage() {}
 
 func (x *EventLogConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[11]
+	mi := &file_processor_protos_processor_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1615,7 +1406,7 @@ func (x *EventLogConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventLogConfig.ProtoReflect.Descriptor instead.
 func (*EventLogConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{11}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *EventLogConfig) GetName() string {
@@ -1643,7 +1434,7 @@ type AggregationConfig struct {
 
 func (x *AggregationConfig) Reset() {
 	*x = AggregationConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[12]
+	mi := &file_processor_protos_processor_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1655,7 +1446,7 @@ func (x *AggregationConfig) String() string {
 func (*AggregationConfig) ProtoMessage() {}
 
 func (x *AggregationConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[12]
+	mi := &file_processor_protos_processor_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1668,7 +1459,7 @@ func (x *AggregationConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AggregationConfig.ProtoReflect.Descriptor instead.
 func (*AggregationConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{12}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *AggregationConfig) GetIntervalInMinutes() []int32 {
@@ -1693,14 +1484,12 @@ func (x *AggregationConfig) GetDiscardOrigin() bool {
 }
 
 type AccountConfig struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	ChainId         string                 `protobuf:"bytes,1,opt,name=chain_id,json=chainId,proto3" json:"chain_id,omitempty"`
-	Address         string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
-	StartBlock      uint64                 `protobuf:"varint,3,opt,name=start_block,json=startBlock,proto3" json:"start_block,omitempty"`
-	EndBlock        uint64                 `protobuf:"varint,10,opt,name=end_block,json=endBlock,proto3" json:"end_block,omitempty"`
-	IntervalConfigs []*OnIntervalConfig    `protobuf:"bytes,4,rep,name=interval_configs,json=intervalConfigs,proto3" json:"interval_configs,omitempty"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	AptosIntervalConfigs      []*AptosOnIntervalConfig    `protobuf:"bytes,5,rep,name=aptos_interval_configs,json=aptosIntervalConfigs,proto3" json:"aptos_interval_configs,omitempty"`
+	state                     protoimpl.MessageState      `protogen:"open.v1"`
+	ChainId                   string                      `protobuf:"bytes,1,opt,name=chain_id,json=chainId,proto3" json:"chain_id,omitempty"`
+	Address                   string                      `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	StartBlock                uint64                      `protobuf:"varint,3,opt,name=start_block,json=startBlock,proto3" json:"start_block,omitempty"`
+	EndBlock                  uint64                      `protobuf:"varint,10,opt,name=end_block,json=endBlock,proto3" json:"end_block,omitempty"`
+	IntervalConfigs           []*OnIntervalConfig         `protobuf:"bytes,4,rep,name=interval_configs,json=intervalConfigs,proto3" json:"interval_configs,omitempty"`
 	MoveIntervalConfigs       []*MoveOnIntervalConfig     `protobuf:"bytes,7,rep,name=move_interval_configs,json=moveIntervalConfigs,proto3" json:"move_interval_configs,omitempty"`
 	MoveCallConfigs           []*MoveCallHandlerConfig    `protobuf:"bytes,8,rep,name=move_call_configs,json=moveCallConfigs,proto3" json:"move_call_configs,omitempty"`
 	MoveResourceChangeConfigs []*MoveResourceChangeConfig `protobuf:"bytes,9,rep,name=move_resource_change_configs,json=moveResourceChangeConfigs,proto3" json:"move_resource_change_configs,omitempty"`
@@ -1711,7 +1500,7 @@ type AccountConfig struct {
 
 func (x *AccountConfig) Reset() {
 	*x = AccountConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[13]
+	mi := &file_processor_protos_processor_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1723,7 +1512,7 @@ func (x *AccountConfig) String() string {
 func (*AccountConfig) ProtoMessage() {}
 
 func (x *AccountConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[13]
+	mi := &file_processor_protos_processor_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1736,7 +1525,7 @@ func (x *AccountConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountConfig.ProtoReflect.Descriptor instead.
 func (*AccountConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{13}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AccountConfig) GetChainId() string {
@@ -1770,14 +1559,6 @@ func (x *AccountConfig) GetEndBlock() uint64 {
 func (x *AccountConfig) GetIntervalConfigs() []*OnIntervalConfig {
 	if x != nil {
 		return x.IntervalConfigs
-	}
-	return nil
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *AccountConfig) GetAptosIntervalConfigs() []*AptosOnIntervalConfig {
-	if x != nil {
-		return x.AptosIntervalConfigs
 	}
 	return nil
 }
@@ -1820,7 +1601,7 @@ type HandleInterval struct {
 
 func (x *HandleInterval) Reset() {
 	*x = HandleInterval{}
-	mi := &file_processor_protos_processor_proto_msgTypes[14]
+	mi := &file_processor_protos_processor_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1832,7 +1613,7 @@ func (x *HandleInterval) String() string {
 func (*HandleInterval) ProtoMessage() {}
 
 func (x *HandleInterval) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[14]
+	mi := &file_processor_protos_processor_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1845,7 +1626,7 @@ func (x *HandleInterval) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandleInterval.ProtoReflect.Descriptor instead.
 func (*HandleInterval) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{14}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *HandleInterval) GetRecentInterval() int32 {
@@ -1877,7 +1658,7 @@ type OnIntervalConfig struct {
 
 func (x *OnIntervalConfig) Reset() {
 	*x = OnIntervalConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[15]
+	mi := &file_processor_protos_processor_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1889,7 +1670,7 @@ func (x *OnIntervalConfig) String() string {
 func (*OnIntervalConfig) ProtoMessage() {}
 
 func (x *OnIntervalConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[15]
+	mi := &file_processor_protos_processor_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1902,7 +1683,7 @@ func (x *OnIntervalConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnIntervalConfig.ProtoReflect.Descriptor instead.
 func (*OnIntervalConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{15}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *OnIntervalConfig) GetHandlerId() int32 {
@@ -1954,58 +1735,6 @@ func (x *OnIntervalConfig) GetHandlerName() string {
 	return ""
 }
 
-type AptosOnIntervalConfig struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	IntervalConfig *OnIntervalConfig      `protobuf:"bytes,1,opt,name=interval_config,json=intervalConfig,proto3" json:"interval_config,omitempty"`
-	Type           string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *AptosOnIntervalConfig) Reset() {
-	*x = AptosOnIntervalConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[16]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AptosOnIntervalConfig) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AptosOnIntervalConfig) ProtoMessage() {}
-
-func (x *AptosOnIntervalConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[16]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AptosOnIntervalConfig.ProtoReflect.Descriptor instead.
-func (*AptosOnIntervalConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *AptosOnIntervalConfig) GetIntervalConfig() *OnIntervalConfig {
-	if x != nil {
-		return x.IntervalConfig
-	}
-	return nil
-}
-
-func (x *AptosOnIntervalConfig) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
 type MoveOnIntervalConfig struct {
 	state               protoimpl.MessageState  `protogen:"open.v1"`
 	IntervalConfig      *OnIntervalConfig       `protobuf:"bytes,1,opt,name=interval_config,json=intervalConfig,proto3" json:"interval_config,omitempty"`
@@ -2019,7 +1748,7 @@ type MoveOnIntervalConfig struct {
 
 func (x *MoveOnIntervalConfig) Reset() {
 	*x = MoveOnIntervalConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[17]
+	mi := &file_processor_protos_processor_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2031,7 +1760,7 @@ func (x *MoveOnIntervalConfig) String() string {
 func (*MoveOnIntervalConfig) ProtoMessage() {}
 
 func (x *MoveOnIntervalConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[17]
+	mi := &file_processor_protos_processor_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2044,7 +1773,7 @@ func (x *MoveOnIntervalConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveOnIntervalConfig.ProtoReflect.Descriptor instead.
 func (*MoveOnIntervalConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{17}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *MoveOnIntervalConfig) GetIntervalConfig() *OnIntervalConfig {
@@ -2094,7 +1823,7 @@ type ContractInfo struct {
 
 func (x *ContractInfo) Reset() {
 	*x = ContractInfo{}
-	mi := &file_processor_protos_processor_proto_msgTypes[18]
+	mi := &file_processor_protos_processor_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2106,7 +1835,7 @@ func (x *ContractInfo) String() string {
 func (*ContractInfo) ProtoMessage() {}
 
 func (x *ContractInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[18]
+	mi := &file_processor_protos_processor_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2119,7 +1848,7 @@ func (x *ContractInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContractInfo.ProtoReflect.Descriptor instead.
 func (*ContractInfo) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{18}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ContractInfo) GetName() string {
@@ -2163,7 +1892,7 @@ type TemplateInstance struct {
 
 func (x *TemplateInstance) Reset() {
 	*x = TemplateInstance{}
-	mi := &file_processor_protos_processor_proto_msgTypes[19]
+	mi := &file_processor_protos_processor_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2175,7 +1904,7 @@ func (x *TemplateInstance) String() string {
 func (*TemplateInstance) ProtoMessage() {}
 
 func (x *TemplateInstance) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[19]
+	mi := &file_processor_protos_processor_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2188,7 +1917,7 @@ func (x *TemplateInstance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TemplateInstance.ProtoReflect.Descriptor instead.
 func (*TemplateInstance) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{19}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TemplateInstance) GetContract() *ContractInfo {
@@ -2241,7 +1970,7 @@ type InitResponse struct {
 
 func (x *InitResponse) Reset() {
 	*x = InitResponse{}
-	mi := &file_processor_protos_processor_proto_msgTypes[20]
+	mi := &file_processor_protos_processor_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2253,7 +1982,7 @@ func (x *InitResponse) String() string {
 func (*InitResponse) ProtoMessage() {}
 
 func (x *InitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[20]
+	mi := &file_processor_protos_processor_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2266,7 +1995,7 @@ func (x *InitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitResponse.ProtoReflect.Descriptor instead.
 func (*InitResponse) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{20}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *InitResponse) GetChainIds() []string {
@@ -2328,7 +2057,7 @@ type UpdateTemplatesRequest struct {
 
 func (x *UpdateTemplatesRequest) Reset() {
 	*x = UpdateTemplatesRequest{}
-	mi := &file_processor_protos_processor_proto_msgTypes[21]
+	mi := &file_processor_protos_processor_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2340,7 +2069,7 @@ func (x *UpdateTemplatesRequest) String() string {
 func (*UpdateTemplatesRequest) ProtoMessage() {}
 
 func (x *UpdateTemplatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[21]
+	mi := &file_processor_protos_processor_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2353,7 +2082,7 @@ func (x *UpdateTemplatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateTemplatesRequest.ProtoReflect.Descriptor instead.
 func (*UpdateTemplatesRequest) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{21}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *UpdateTemplatesRequest) GetChainId() string {
@@ -2379,7 +2108,7 @@ type StartRequest struct {
 
 func (x *StartRequest) Reset() {
 	*x = StartRequest{}
-	mi := &file_processor_protos_processor_proto_msgTypes[22]
+	mi := &file_processor_protos_processor_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2391,7 +2120,7 @@ func (x *StartRequest) String() string {
 func (*StartRequest) ProtoMessage() {}
 
 func (x *StartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[22]
+	mi := &file_processor_protos_processor_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2404,7 +2133,7 @@ func (x *StartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartRequest.ProtoReflect.Descriptor instead.
 func (*StartRequest) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{22}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *StartRequest) GetTemplateInstances() []*TemplateInstance {
@@ -2412,50 +2141,6 @@ func (x *StartRequest) GetTemplateInstances() []*TemplateInstance {
 		return x.TemplateInstances
 	}
 	return nil
-}
-
-type BlockHandlerConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	HandlerId     int32                  `protobuf:"varint,1,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BlockHandlerConfig) Reset() {
-	*x = BlockHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[23]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BlockHandlerConfig) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BlockHandlerConfig) ProtoMessage() {}
-
-func (x *BlockHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[23]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BlockHandlerConfig.ProtoReflect.Descriptor instead.
-func (*BlockHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{23}
-}
-
-func (x *BlockHandlerConfig) GetHandlerId() int32 {
-	if x != nil {
-		return x.HandlerId
-	}
-	return 0
 }
 
 type EthFetchConfig struct {
@@ -2471,7 +2156,7 @@ type EthFetchConfig struct {
 
 func (x *EthFetchConfig) Reset() {
 	*x = EthFetchConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[24]
+	mi := &file_processor_protos_processor_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2483,7 +2168,7 @@ func (x *EthFetchConfig) String() string {
 func (*EthFetchConfig) ProtoMessage() {}
 
 func (x *EthFetchConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[24]
+	mi := &file_processor_protos_processor_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2496,7 +2181,7 @@ func (x *EthFetchConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EthFetchConfig.ProtoReflect.Descriptor instead.
 func (*EthFetchConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{24}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *EthFetchConfig) GetTransaction() bool {
@@ -2546,7 +2231,7 @@ type TraceHandlerConfig struct {
 
 func (x *TraceHandlerConfig) Reset() {
 	*x = TraceHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[25]
+	mi := &file_processor_protos_processor_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2558,7 +2243,7 @@ func (x *TraceHandlerConfig) String() string {
 func (*TraceHandlerConfig) ProtoMessage() {}
 
 func (x *TraceHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[25]
+	mi := &file_processor_protos_processor_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2571,7 +2256,7 @@ func (x *TraceHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TraceHandlerConfig.ProtoReflect.Descriptor instead.
 func (*TraceHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{25}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *TraceHandlerConfig) GetSignature() string {
@@ -2613,7 +2298,7 @@ type TransactionHandlerConfig struct {
 
 func (x *TransactionHandlerConfig) Reset() {
 	*x = TransactionHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[26]
+	mi := &file_processor_protos_processor_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2625,7 +2310,7 @@ func (x *TransactionHandlerConfig) String() string {
 func (*TransactionHandlerConfig) ProtoMessage() {}
 
 func (x *TransactionHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[26]
+	mi := &file_processor_protos_processor_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2638,7 +2323,7 @@ func (x *TransactionHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransactionHandlerConfig.ProtoReflect.Descriptor instead.
 func (*TransactionHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{26}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *TransactionHandlerConfig) GetHandlerId() int32 {
@@ -2674,7 +2359,7 @@ type LogHandlerConfig struct {
 
 func (x *LogHandlerConfig) Reset() {
 	*x = LogHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[27]
+	mi := &file_processor_protos_processor_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2686,7 +2371,7 @@ func (x *LogHandlerConfig) String() string {
 func (*LogHandlerConfig) ProtoMessage() {}
 
 func (x *LogHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[27]
+	mi := &file_processor_protos_processor_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2699,7 +2384,7 @@ func (x *LogHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogHandlerConfig.ProtoReflect.Descriptor instead.
 func (*LogHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{27}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *LogHandlerConfig) GetFilters() []*LogFilter {
@@ -2741,7 +2426,7 @@ type FuelAssetHandlerConfig struct {
 
 func (x *FuelAssetHandlerConfig) Reset() {
 	*x = FuelAssetHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[28]
+	mi := &file_processor_protos_processor_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2753,7 +2438,7 @@ func (x *FuelAssetHandlerConfig) String() string {
 func (*FuelAssetHandlerConfig) ProtoMessage() {}
 
 func (x *FuelAssetHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[28]
+	mi := &file_processor_protos_processor_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2766,7 +2451,7 @@ func (x *FuelAssetHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FuelAssetHandlerConfig.ProtoReflect.Descriptor instead.
 func (*FuelAssetHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{28}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *FuelAssetHandlerConfig) GetFilters() []*FuelAssetHandlerConfig_AssetFilter {
@@ -2790,66 +2475,6 @@ func (x *FuelAssetHandlerConfig) GetHandlerName() string {
 	return ""
 }
 
-type FuelLogHandlerConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	LogIds        []string               `protobuf:"bytes,1,rep,name=log_ids,json=logIds,proto3" json:"log_ids,omitempty"`
-	HandlerId     int32                  `protobuf:"varint,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
-	HandlerName   string                 `protobuf:"bytes,3,opt,name=handler_name,json=handlerName,proto3" json:"handler_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *FuelLogHandlerConfig) Reset() {
-	*x = FuelLogHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[29]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *FuelLogHandlerConfig) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FuelLogHandlerConfig) ProtoMessage() {}
-
-func (x *FuelLogHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[29]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FuelLogHandlerConfig.ProtoReflect.Descriptor instead.
-func (*FuelLogHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{29}
-}
-
-func (x *FuelLogHandlerConfig) GetLogIds() []string {
-	if x != nil {
-		return x.LogIds
-	}
-	return nil
-}
-
-func (x *FuelLogHandlerConfig) GetHandlerId() int32 {
-	if x != nil {
-		return x.HandlerId
-	}
-	return 0
-}
-
-func (x *FuelLogHandlerConfig) GetHandlerName() string {
-	if x != nil {
-		return x.HandlerName
-	}
-	return ""
-}
-
 type FuelReceiptHandlerConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to ReceiptFilter:
@@ -2865,7 +2490,7 @@ type FuelReceiptHandlerConfig struct {
 
 func (x *FuelReceiptHandlerConfig) Reset() {
 	*x = FuelReceiptHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[30]
+	mi := &file_processor_protos_processor_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2877,7 +2502,7 @@ func (x *FuelReceiptHandlerConfig) String() string {
 func (*FuelReceiptHandlerConfig) ProtoMessage() {}
 
 func (x *FuelReceiptHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[30]
+	mi := &file_processor_protos_processor_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2890,7 +2515,7 @@ func (x *FuelReceiptHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FuelReceiptHandlerConfig.ProtoReflect.Descriptor instead.
 func (*FuelReceiptHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{30}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *FuelReceiptHandlerConfig) GetReceiptFilter() isFuelReceiptHandlerConfig_ReceiptFilter {
@@ -2959,7 +2584,7 @@ type CosmosLogHandlerConfig struct {
 
 func (x *CosmosLogHandlerConfig) Reset() {
 	*x = CosmosLogHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[31]
+	mi := &file_processor_protos_processor_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2971,7 +2596,7 @@ func (x *CosmosLogHandlerConfig) String() string {
 func (*CosmosLogHandlerConfig) ProtoMessage() {}
 
 func (x *CosmosLogHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[31]
+	mi := &file_processor_protos_processor_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2984,7 +2609,7 @@ func (x *CosmosLogHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CosmosLogHandlerConfig.ProtoReflect.Descriptor instead.
 func (*CosmosLogHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{31}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *CosmosLogHandlerConfig) GetLogFilters() []string {
@@ -3022,7 +2647,7 @@ type LogFilter struct {
 
 func (x *LogFilter) Reset() {
 	*x = LogFilter{}
-	mi := &file_processor_protos_processor_proto_msgTypes[32]
+	mi := &file_processor_protos_processor_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3034,7 +2659,7 @@ func (x *LogFilter) String() string {
 func (*LogFilter) ProtoMessage() {}
 
 func (x *LogFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[32]
+	mi := &file_processor_protos_processor_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3047,7 +2672,7 @@ func (x *LogFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogFilter.ProtoReflect.Descriptor instead.
 func (*LogFilter) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{32}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *LogFilter) GetTopics() []*Topic {
@@ -3110,7 +2735,7 @@ type InstructionHandlerConfig struct {
 
 func (x *InstructionHandlerConfig) Reset() {
 	*x = InstructionHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[33]
+	mi := &file_processor_protos_processor_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3122,7 +2747,7 @@ func (x *InstructionHandlerConfig) String() string {
 func (*InstructionHandlerConfig) ProtoMessage() {}
 
 func (x *InstructionHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[33]
+	mi := &file_processor_protos_processor_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3135,7 +2760,7 @@ func (x *InstructionHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstructionHandlerConfig.ProtoReflect.Descriptor instead.
 func (*InstructionHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{33}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *InstructionHandlerConfig) GetInnerInstruction() bool {
@@ -3175,7 +2800,7 @@ type ResourceConfig struct {
 
 func (x *ResourceConfig) Reset() {
 	*x = ResourceConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[34]
+	mi := &file_processor_protos_processor_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3187,7 +2812,7 @@ func (x *ResourceConfig) String() string {
 func (*ResourceConfig) ProtoMessage() {}
 
 func (x *ResourceConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[34]
+	mi := &file_processor_protos_processor_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3200,7 +2825,7 @@ func (x *ResourceConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceConfig.ProtoReflect.Descriptor instead.
 func (*ResourceConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{34}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ResourceConfig) GetMoveTypePrefix() string {
@@ -3224,7 +2849,7 @@ type MoveFetchConfig struct {
 
 func (x *MoveFetchConfig) Reset() {
 	*x = MoveFetchConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[35]
+	mi := &file_processor_protos_processor_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3236,7 +2861,7 @@ func (x *MoveFetchConfig) String() string {
 func (*MoveFetchConfig) ProtoMessage() {}
 
 func (x *MoveFetchConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[35]
+	mi := &file_processor_protos_processor_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3249,7 +2874,7 @@ func (x *MoveFetchConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveFetchConfig.ProtoReflect.Descriptor instead.
 func (*MoveFetchConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{35}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *MoveFetchConfig) GetResourceChanges() bool {
@@ -3303,7 +2928,7 @@ type MoveAccountFetchConfig struct {
 
 func (x *MoveAccountFetchConfig) Reset() {
 	*x = MoveAccountFetchConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[36]
+	mi := &file_processor_protos_processor_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3315,7 +2940,7 @@ func (x *MoveAccountFetchConfig) String() string {
 func (*MoveAccountFetchConfig) ProtoMessage() {}
 
 func (x *MoveAccountFetchConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[36]
+	mi := &file_processor_protos_processor_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3328,7 +2953,7 @@ func (x *MoveAccountFetchConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveAccountFetchConfig.ProtoReflect.Descriptor instead.
 func (*MoveAccountFetchConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{36}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *MoveAccountFetchConfig) GetOwned() bool {
@@ -3350,7 +2975,7 @@ type MoveEventHandlerConfig struct {
 
 func (x *MoveEventHandlerConfig) Reset() {
 	*x = MoveEventHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[37]
+	mi := &file_processor_protos_processor_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3362,7 +2987,7 @@ func (x *MoveEventHandlerConfig) String() string {
 func (*MoveEventHandlerConfig) ProtoMessage() {}
 
 func (x *MoveEventHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[37]
+	mi := &file_processor_protos_processor_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3375,7 +3000,7 @@ func (x *MoveEventHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveEventHandlerConfig.ProtoReflect.Descriptor instead.
 func (*MoveEventHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{37}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *MoveEventHandlerConfig) GetFilters() []*MoveEventFilter {
@@ -3417,7 +3042,7 @@ type MoveEventFilter struct {
 
 func (x *MoveEventFilter) Reset() {
 	*x = MoveEventFilter{}
-	mi := &file_processor_protos_processor_proto_msgTypes[38]
+	mi := &file_processor_protos_processor_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3429,7 +3054,7 @@ func (x *MoveEventFilter) String() string {
 func (*MoveEventFilter) ProtoMessage() {}
 
 func (x *MoveEventFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[38]
+	mi := &file_processor_protos_processor_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3442,7 +3067,7 @@ func (x *MoveEventFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveEventFilter.ProtoReflect.Descriptor instead.
 func (*MoveEventFilter) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{38}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *MoveEventFilter) GetType() string {
@@ -3478,7 +3103,7 @@ type MoveCallHandlerConfig struct {
 
 func (x *MoveCallHandlerConfig) Reset() {
 	*x = MoveCallHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[39]
+	mi := &file_processor_protos_processor_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3490,7 +3115,7 @@ func (x *MoveCallHandlerConfig) String() string {
 func (*MoveCallHandlerConfig) ProtoMessage() {}
 
 func (x *MoveCallHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[39]
+	mi := &file_processor_protos_processor_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3503,7 +3128,7 @@ func (x *MoveCallHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveCallHandlerConfig.ProtoReflect.Descriptor instead.
 func (*MoveCallHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{39}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *MoveCallHandlerConfig) GetFilters() []*MoveCallFilter {
@@ -3535,20 +3160,18 @@ func (x *MoveCallHandlerConfig) GetHandlerName() string {
 }
 
 type MoveResourceChangeConfig struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Type           string   `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	Types          []string `protobuf:"bytes,5,rep,name=types,proto3" json:"types,omitempty"`
-	IncludeDeleted bool     `protobuf:"varint,4,opt,name=include_deleted,json=includeDeleted,proto3" json:"include_deleted,omitempty"`
-	HandlerId      int32    `protobuf:"varint,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
-	HandlerName    string   `protobuf:"bytes,3,opt,name=handler_name,json=handlerName,proto3" json:"handler_name,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Types          []string               `protobuf:"bytes,5,rep,name=types,proto3" json:"types,omitempty"`
+	IncludeDeleted bool                   `protobuf:"varint,4,opt,name=include_deleted,json=includeDeleted,proto3" json:"include_deleted,omitempty"`
+	HandlerId      int32                  `protobuf:"varint,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
+	HandlerName    string                 `protobuf:"bytes,3,opt,name=handler_name,json=handlerName,proto3" json:"handler_name,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *MoveResourceChangeConfig) Reset() {
 	*x = MoveResourceChangeConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[40]
+	mi := &file_processor_protos_processor_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3560,7 +3183,7 @@ func (x *MoveResourceChangeConfig) String() string {
 func (*MoveResourceChangeConfig) ProtoMessage() {}
 
 func (x *MoveResourceChangeConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[40]
+	mi := &file_processor_protos_processor_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3573,15 +3196,7 @@ func (x *MoveResourceChangeConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveResourceChangeConfig.ProtoReflect.Descriptor instead.
 func (*MoveResourceChangeConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{40}
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *MoveResourceChangeConfig) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *MoveResourceChangeConfig) GetTypes() []string {
@@ -3626,7 +3241,7 @@ type MoveCallFilter struct {
 
 func (x *MoveCallFilter) Reset() {
 	*x = MoveCallFilter{}
-	mi := &file_processor_protos_processor_proto_msgTypes[41]
+	mi := &file_processor_protos_processor_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3638,7 +3253,7 @@ func (x *MoveCallFilter) String() string {
 func (*MoveCallFilter) ProtoMessage() {}
 
 func (x *MoveCallFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[41]
+	mi := &file_processor_protos_processor_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3651,7 +3266,7 @@ func (x *MoveCallFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveCallFilter.ProtoReflect.Descriptor instead.
 func (*MoveCallFilter) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{41}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *MoveCallFilter) GetFunction() string {
@@ -3707,7 +3322,7 @@ type StarknetEventHandlerConfig struct {
 
 func (x *StarknetEventHandlerConfig) Reset() {
 	*x = StarknetEventHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[42]
+	mi := &file_processor_protos_processor_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3719,7 +3334,7 @@ func (x *StarknetEventHandlerConfig) String() string {
 func (*StarknetEventHandlerConfig) ProtoMessage() {}
 
 func (x *StarknetEventHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[42]
+	mi := &file_processor_protos_processor_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3732,7 +3347,7 @@ func (x *StarknetEventHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StarknetEventHandlerConfig.ProtoReflect.Descriptor instead.
 func (*StarknetEventHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{42}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *StarknetEventHandlerConfig) GetFilters() []*StarknetEventFilter {
@@ -3766,7 +3381,7 @@ type StarknetEventFilter struct {
 
 func (x *StarknetEventFilter) Reset() {
 	*x = StarknetEventFilter{}
-	mi := &file_processor_protos_processor_proto_msgTypes[43]
+	mi := &file_processor_protos_processor_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3778,7 +3393,7 @@ func (x *StarknetEventFilter) String() string {
 func (*StarknetEventFilter) ProtoMessage() {}
 
 func (x *StarknetEventFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[43]
+	mi := &file_processor_protos_processor_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3791,7 +3406,7 @@ func (x *StarknetEventFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StarknetEventFilter.ProtoReflect.Descriptor instead.
 func (*StarknetEventFilter) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{43}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *StarknetEventFilter) GetAddress() string {
@@ -3808,118 +3423,6 @@ func (x *StarknetEventFilter) GetKeys() []string {
 	return nil
 }
 
-type FuelCallFilter struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Function      string                 `protobuf:"bytes,1,opt,name=function,proto3" json:"function,omitempty"`
-	IncludeFailed bool                   `protobuf:"varint,2,opt,name=include_failed,json=includeFailed,proto3" json:"include_failed,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *FuelCallFilter) Reset() {
-	*x = FuelCallFilter{}
-	mi := &file_processor_protos_processor_proto_msgTypes[44]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *FuelCallFilter) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FuelCallFilter) ProtoMessage() {}
-
-func (x *FuelCallFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[44]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FuelCallFilter.ProtoReflect.Descriptor instead.
-func (*FuelCallFilter) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{44}
-}
-
-func (x *FuelCallFilter) GetFunction() string {
-	if x != nil {
-		return x.Function
-	}
-	return ""
-}
-
-func (x *FuelCallFilter) GetIncludeFailed() bool {
-	if x != nil {
-		return x.IncludeFailed
-	}
-	return false
-}
-
-type FuelCallHandlerConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Filters       []*FuelCallFilter      `protobuf:"bytes,1,rep,name=filters,proto3" json:"filters,omitempty"`
-	HandlerId     int32                  `protobuf:"varint,2,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
-	HandlerName   string                 `protobuf:"bytes,3,opt,name=handler_name,json=handlerName,proto3" json:"handler_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *FuelCallHandlerConfig) Reset() {
-	*x = FuelCallHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[45]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *FuelCallHandlerConfig) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FuelCallHandlerConfig) ProtoMessage() {}
-
-func (x *FuelCallHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[45]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FuelCallHandlerConfig.ProtoReflect.Descriptor instead.
-func (*FuelCallHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{45}
-}
-
-func (x *FuelCallHandlerConfig) GetFilters() []*FuelCallFilter {
-	if x != nil {
-		return x.Filters
-	}
-	return nil
-}
-
-func (x *FuelCallHandlerConfig) GetHandlerId() int32 {
-	if x != nil {
-		return x.HandlerId
-	}
-	return 0
-}
-
-func (x *FuelCallHandlerConfig) GetHandlerName() string {
-	if x != nil {
-		return x.HandlerName
-	}
-	return ""
-}
-
 type FuelTransactionHandlerConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	HandlerId     int32                  `protobuf:"varint,1,opt,name=handler_id,json=handlerId,proto3" json:"handler_id,omitempty"`
@@ -3930,7 +3433,7 @@ type FuelTransactionHandlerConfig struct {
 
 func (x *FuelTransactionHandlerConfig) Reset() {
 	*x = FuelTransactionHandlerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[46]
+	mi := &file_processor_protos_processor_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3942,7 +3445,7 @@ func (x *FuelTransactionHandlerConfig) String() string {
 func (*FuelTransactionHandlerConfig) ProtoMessage() {}
 
 func (x *FuelTransactionHandlerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[46]
+	mi := &file_processor_protos_processor_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3955,7 +3458,7 @@ func (x *FuelTransactionHandlerConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FuelTransactionHandlerConfig.ProtoReflect.Descriptor instead.
 func (*FuelTransactionHandlerConfig) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{46}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *FuelTransactionHandlerConfig) GetHandlerId() int32 {
@@ -3981,7 +3484,7 @@ type Topic struct {
 
 func (x *Topic) Reset() {
 	*x = Topic{}
-	mi := &file_processor_protos_processor_proto_msgTypes[47]
+	mi := &file_processor_protos_processor_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3993,7 +3496,7 @@ func (x *Topic) String() string {
 func (*Topic) ProtoMessage() {}
 
 func (x *Topic) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[47]
+	mi := &file_processor_protos_processor_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4006,7 +3509,7 @@ func (x *Topic) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Topic.ProtoReflect.Descriptor instead.
 func (*Topic) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{47}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *Topic) GetHashes() []string {
@@ -4025,7 +3528,7 @@ type ProcessBindingsRequest struct {
 
 func (x *ProcessBindingsRequest) Reset() {
 	*x = ProcessBindingsRequest{}
-	mi := &file_processor_protos_processor_proto_msgTypes[48]
+	mi := &file_processor_protos_processor_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4037,7 +3540,7 @@ func (x *ProcessBindingsRequest) String() string {
 func (*ProcessBindingsRequest) ProtoMessage() {}
 
 func (x *ProcessBindingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[48]
+	mi := &file_processor_protos_processor_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4050,7 +3553,7 @@ func (x *ProcessBindingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessBindingsRequest.ProtoReflect.Descriptor instead.
 func (*ProcessBindingsRequest) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{48}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ProcessBindingsRequest) GetBindings() []*DataBinding {
@@ -4061,17 +3564,15 @@ func (x *ProcessBindingsRequest) GetBindings() []*DataBinding {
 }
 
 type ProcessBindingResponse struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Result *ProcessResult         `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	ConfigUpdated bool `protobuf:"varint,4,opt,name=config_updated,json=configUpdated,proto3" json:"config_updated,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        *ProcessResult         `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ProcessBindingResponse) Reset() {
 	*x = ProcessBindingResponse{}
-	mi := &file_processor_protos_processor_proto_msgTypes[49]
+	mi := &file_processor_protos_processor_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4083,7 +3584,7 @@ func (x *ProcessBindingResponse) String() string {
 func (*ProcessBindingResponse) ProtoMessage() {}
 
 func (x *ProcessBindingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[49]
+	mi := &file_processor_protos_processor_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4096,7 +3597,7 @@ func (x *ProcessBindingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessBindingResponse.ProtoReflect.Descriptor instead.
 func (*ProcessBindingResponse) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{49}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ProcessBindingResponse) GetResult() *ProcessResult {
@@ -4104,14 +3605,6 @@ func (x *ProcessBindingResponse) GetResult() *ProcessResult {
 		return x.Result
 	}
 	return nil
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *ProcessBindingResponse) GetConfigUpdated() bool {
-	if x != nil {
-		return x.ConfigUpdated
-	}
-	return false
 }
 
 type ProcessStreamRequest struct {
@@ -4129,7 +3622,7 @@ type ProcessStreamRequest struct {
 
 func (x *ProcessStreamRequest) Reset() {
 	*x = ProcessStreamRequest{}
-	mi := &file_processor_protos_processor_proto_msgTypes[50]
+	mi := &file_processor_protos_processor_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4141,7 +3634,7 @@ func (x *ProcessStreamRequest) String() string {
 func (*ProcessStreamRequest) ProtoMessage() {}
 
 func (x *ProcessStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[50]
+	mi := &file_processor_protos_processor_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4154,7 +3647,7 @@ func (x *ProcessStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessStreamRequest.ProtoReflect.Descriptor instead.
 func (*ProcessStreamRequest) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{50}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ProcessStreamRequest) GetProcessId() int32 {
@@ -4235,7 +3728,7 @@ type ProcessStreamResponse struct {
 
 func (x *ProcessStreamResponse) Reset() {
 	*x = ProcessStreamResponse{}
-	mi := &file_processor_protos_processor_proto_msgTypes[51]
+	mi := &file_processor_protos_processor_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4247,7 +3740,7 @@ func (x *ProcessStreamResponse) String() string {
 func (*ProcessStreamResponse) ProtoMessage() {}
 
 func (x *ProcessStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[51]
+	mi := &file_processor_protos_processor_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4260,7 +3753,7 @@ func (x *ProcessStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessStreamResponse.ProtoReflect.Descriptor instead.
 func (*ProcessStreamResponse) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{51}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ProcessStreamResponse) GetProcessId() int32 {
@@ -4343,7 +3836,7 @@ type ProcessStreamResponseV3 struct {
 
 func (x *ProcessStreamResponseV3) Reset() {
 	*x = ProcessStreamResponseV3{}
-	mi := &file_processor_protos_processor_proto_msgTypes[52]
+	mi := &file_processor_protos_processor_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4355,7 +3848,7 @@ func (x *ProcessStreamResponseV3) String() string {
 func (*ProcessStreamResponseV3) ProtoMessage() {}
 
 func (x *ProcessStreamResponseV3) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[52]
+	mi := &file_processor_protos_processor_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4368,7 +3861,7 @@ func (x *ProcessStreamResponseV3) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessStreamResponseV3.ProtoReflect.Descriptor instead.
 func (*ProcessStreamResponseV3) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{52}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ProcessStreamResponseV3) GetProcessId() int32 {
@@ -4478,7 +3971,7 @@ type PreprocessStreamRequest struct {
 
 func (x *PreprocessStreamRequest) Reset() {
 	*x = PreprocessStreamRequest{}
-	mi := &file_processor_protos_processor_proto_msgTypes[53]
+	mi := &file_processor_protos_processor_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4490,7 +3983,7 @@ func (x *PreprocessStreamRequest) String() string {
 func (*PreprocessStreamRequest) ProtoMessage() {}
 
 func (x *PreprocessStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[53]
+	mi := &file_processor_protos_processor_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4503,7 +3996,7 @@ func (x *PreprocessStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreprocessStreamRequest.ProtoReflect.Descriptor instead.
 func (*PreprocessStreamRequest) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *PreprocessStreamRequest) GetProcessId() int32 {
@@ -4564,7 +4057,7 @@ type PreprocessStreamResponse struct {
 
 func (x *PreprocessStreamResponse) Reset() {
 	*x = PreprocessStreamResponse{}
-	mi := &file_processor_protos_processor_proto_msgTypes[54]
+	mi := &file_processor_protos_processor_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4576,7 +4069,7 @@ func (x *PreprocessStreamResponse) String() string {
 func (*PreprocessStreamResponse) ProtoMessage() {}
 
 func (x *PreprocessStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[54]
+	mi := &file_processor_protos_processor_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4589,7 +4082,7 @@ func (x *PreprocessStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreprocessStreamResponse.ProtoReflect.Descriptor instead.
 func (*PreprocessStreamResponse) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *PreprocessStreamResponse) GetProcessId() int32 {
@@ -4624,7 +4117,7 @@ type DBResponse struct {
 
 func (x *DBResponse) Reset() {
 	*x = DBResponse{}
-	mi := &file_processor_protos_processor_proto_msgTypes[55]
+	mi := &file_processor_protos_processor_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4636,7 +4129,7 @@ func (x *DBResponse) String() string {
 func (*DBResponse) ProtoMessage() {}
 
 func (x *DBResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[55]
+	mi := &file_processor_protos_processor_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4649,7 +4142,7 @@ func (x *DBResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DBResponse.ProtoReflect.Descriptor instead.
 func (*DBResponse) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{55}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *DBResponse) GetOpId() uint64 {
@@ -4765,7 +4258,7 @@ type Entity struct {
 
 func (x *Entity) Reset() {
 	*x = Entity{}
-	mi := &file_processor_protos_processor_proto_msgTypes[56]
+	mi := &file_processor_protos_processor_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4777,7 +4270,7 @@ func (x *Entity) String() string {
 func (*Entity) ProtoMessage() {}
 
 func (x *Entity) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[56]
+	mi := &file_processor_protos_processor_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4790,7 +4283,7 @@ func (x *Entity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Entity.ProtoReflect.Descriptor instead.
 func (*Entity) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{56}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *Entity) GetEntity() string {
@@ -4837,7 +4330,7 @@ type EntityList struct {
 
 func (x *EntityList) Reset() {
 	*x = EntityList{}
-	mi := &file_processor_protos_processor_proto_msgTypes[57]
+	mi := &file_processor_protos_processor_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4849,7 +4342,7 @@ func (x *EntityList) String() string {
 func (*EntityList) ProtoMessage() {}
 
 func (x *EntityList) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[57]
+	mi := &file_processor_protos_processor_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4862,7 +4355,7 @@ func (x *EntityList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityList.ProtoReflect.Descriptor instead.
 func (*EntityList) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{57}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *EntityList) GetEntities() []*Entity {
@@ -4881,7 +4374,7 @@ type EntityUpdateData struct {
 
 func (x *EntityUpdateData) Reset() {
 	*x = EntityUpdateData{}
-	mi := &file_processor_protos_processor_proto_msgTypes[58]
+	mi := &file_processor_protos_processor_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4893,7 +4386,7 @@ func (x *EntityUpdateData) String() string {
 func (*EntityUpdateData) ProtoMessage() {}
 
 func (x *EntityUpdateData) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[58]
+	mi := &file_processor_protos_processor_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4906,7 +4399,7 @@ func (x *EntityUpdateData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityUpdateData.ProtoReflect.Descriptor instead.
 func (*EntityUpdateData) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{58}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *EntityUpdateData) GetFields() map[string]*EntityUpdateData_FieldValue {
@@ -4926,7 +4419,7 @@ type TPLRequest struct {
 
 func (x *TPLRequest) Reset() {
 	*x = TPLRequest{}
-	mi := &file_processor_protos_processor_proto_msgTypes[59]
+	mi := &file_processor_protos_processor_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4938,7 +4431,7 @@ func (x *TPLRequest) String() string {
 func (*TPLRequest) ProtoMessage() {}
 
 func (x *TPLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[59]
+	mi := &file_processor_protos_processor_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4951,7 +4444,7 @@ func (x *TPLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TPLRequest.ProtoReflect.Descriptor instead.
 func (*TPLRequest) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{59}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *TPLRequest) GetTemplates() []*TemplateInstance {
@@ -4977,7 +4470,7 @@ type TSRequest struct {
 
 func (x *TSRequest) Reset() {
 	*x = TSRequest{}
-	mi := &file_processor_protos_processor_proto_msgTypes[60]
+	mi := &file_processor_protos_processor_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4989,7 +4482,7 @@ func (x *TSRequest) String() string {
 func (*TSRequest) ProtoMessage() {}
 
 func (x *TSRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[60]
+	mi := &file_processor_protos_processor_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5002,7 +4495,7 @@ func (x *TSRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TSRequest.ProtoReflect.Descriptor instead.
 func (*TSRequest) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{60}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *TSRequest) GetData() []*TimeseriesResult {
@@ -5029,7 +4522,7 @@ type DBRequest struct {
 
 func (x *DBRequest) Reset() {
 	*x = DBRequest{}
-	mi := &file_processor_protos_processor_proto_msgTypes[61]
+	mi := &file_processor_protos_processor_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5041,7 +4534,7 @@ func (x *DBRequest) String() string {
 func (*DBRequest) ProtoMessage() {}
 
 func (x *DBRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[61]
+	mi := &file_processor_protos_processor_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5054,7 +4547,7 @@ func (x *DBRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DBRequest.ProtoReflect.Descriptor instead.
 func (*DBRequest) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{61}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *DBRequest) GetOpId() uint64 {
@@ -5167,7 +4660,6 @@ type Data struct {
 	//	*Data_SuiObject_
 	//	*Data_SuiObjectChange_
 	//	*Data_FuelLog
-	//	*Data_FuelCall_
 	//	*Data_FuelTransaction_
 	//	*Data_FuelBlock_
 	//	*Data_CosmosCall_
@@ -5180,7 +4672,7 @@ type Data struct {
 
 func (x *Data) Reset() {
 	*x = Data{}
-	mi := &file_processor_protos_processor_proto_msgTypes[62]
+	mi := &file_processor_protos_processor_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5192,7 +4684,7 @@ func (x *Data) String() string {
 func (*Data) ProtoMessage() {}
 
 func (x *Data) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[62]
+	mi := &file_processor_protos_processor_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5205,7 +4697,7 @@ func (x *Data) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data.ProtoReflect.Descriptor instead.
 func (*Data) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *Data) GetValue() isData_Value {
@@ -5332,16 +4824,6 @@ func (x *Data) GetFuelLog() *Data_FuelReceipt {
 	return nil
 }
 
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *Data) GetFuelCall() *Data_FuelCall {
-	if x != nil {
-		if x, ok := x.Value.(*Data_FuelCall_); ok {
-			return x.FuelCall
-		}
-	}
-	return nil
-}
-
 func (x *Data) GetFuelTransaction() *Data_FuelTransaction {
 	if x != nil {
 		if x, ok := x.Value.(*Data_FuelTransaction_); ok {
@@ -5443,11 +4925,6 @@ type Data_FuelLog struct {
 	FuelLog *Data_FuelReceipt `protobuf:"bytes,20,opt,name=fuel_log,json=fuelLog,proto3,oneof"`
 }
 
-type Data_FuelCall_ struct {
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	FuelCall *Data_FuelCall `protobuf:"bytes,14,opt,name=fuel_call,json=fuelCall,proto3,oneof"`
-}
-
 type Data_FuelTransaction_ struct {
 	FuelTransaction *Data_FuelTransaction `protobuf:"bytes,21,opt,name=fuel_transaction,json=fuelTransaction,proto3,oneof"`
 }
@@ -5494,8 +4971,6 @@ func (*Data_SuiObjectChange_) isData_Value() {}
 
 func (*Data_FuelLog) isData_Value() {}
 
-func (*Data_FuelCall_) isData_Value() {}
-
 func (*Data_FuelTransaction_) isData_Value() {}
 
 func (*Data_FuelBlock_) isData_Value() {}
@@ -5518,7 +4993,7 @@ type DataBinding struct {
 
 func (x *DataBinding) Reset() {
 	*x = DataBinding{}
-	mi := &file_processor_protos_processor_proto_msgTypes[63]
+	mi := &file_processor_protos_processor_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5530,7 +5005,7 @@ func (x *DataBinding) String() string {
 func (*DataBinding) ProtoMessage() {}
 
 func (x *DataBinding) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[63]
+	mi := &file_processor_protos_processor_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5543,7 +5018,7 @@ func (x *DataBinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataBinding.ProtoReflect.Descriptor instead.
 func (*DataBinding) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{63}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *DataBinding) GetData() *Data {
@@ -5584,7 +5059,7 @@ type StateResult struct {
 
 func (x *StateResult) Reset() {
 	*x = StateResult{}
-	mi := &file_processor_protos_processor_proto_msgTypes[64]
+	mi := &file_processor_protos_processor_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5596,7 +5071,7 @@ func (x *StateResult) String() string {
 func (*StateResult) ProtoMessage() {}
 
 func (x *StateResult) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[64]
+	mi := &file_processor_protos_processor_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5609,7 +5084,7 @@ func (x *StateResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateResult.ProtoReflect.Descriptor instead.
 func (*StateResult) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{64}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *StateResult) GetConfigUpdated() bool {
@@ -5640,7 +5115,7 @@ type ProcessResult struct {
 
 func (x *ProcessResult) Reset() {
 	*x = ProcessResult{}
-	mi := &file_processor_protos_processor_proto_msgTypes[65]
+	mi := &file_processor_protos_processor_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5652,7 +5127,7 @@ func (x *ProcessResult) String() string {
 func (*ProcessResult) ProtoMessage() {}
 
 func (x *ProcessResult) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[65]
+	mi := &file_processor_protos_processor_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5665,7 +5140,7 @@ func (x *ProcessResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessResult.ProtoReflect.Descriptor instead.
 func (*ProcessResult) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{65}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *ProcessResult) GetGauges() []*GaugeResult {
@@ -5720,7 +5195,7 @@ type EthCallParam struct {
 
 func (x *EthCallParam) Reset() {
 	*x = EthCallParam{}
-	mi := &file_processor_protos_processor_proto_msgTypes[66]
+	mi := &file_processor_protos_processor_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5732,7 +5207,7 @@ func (x *EthCallParam) String() string {
 func (*EthCallParam) ProtoMessage() {}
 
 func (x *EthCallParam) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[66]
+	mi := &file_processor_protos_processor_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5745,7 +5220,7 @@ func (x *EthCallParam) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EthCallParam.ProtoReflect.Descriptor instead.
 func (*EthCallParam) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{66}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *EthCallParam) GetContext() *EthCallContext {
@@ -5773,7 +5248,7 @@ type EthCallContext struct {
 
 func (x *EthCallContext) Reset() {
 	*x = EthCallContext{}
-	mi := &file_processor_protos_processor_proto_msgTypes[67]
+	mi := &file_processor_protos_processor_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5785,7 +5260,7 @@ func (x *EthCallContext) String() string {
 func (*EthCallContext) ProtoMessage() {}
 
 func (x *EthCallContext) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[67]
+	mi := &file_processor_protos_processor_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5798,7 +5273,7 @@ func (x *EthCallContext) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EthCallContext.ProtoReflect.Descriptor instead.
 func (*EthCallContext) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{67}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *EthCallContext) GetChainId() string {
@@ -5831,7 +5306,7 @@ type PreprocessResult struct {
 
 func (x *PreprocessResult) Reset() {
 	*x = PreprocessResult{}
-	mi := &file_processor_protos_processor_proto_msgTypes[68]
+	mi := &file_processor_protos_processor_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5843,7 +5318,7 @@ func (x *PreprocessResult) String() string {
 func (*PreprocessResult) ProtoMessage() {}
 
 func (x *PreprocessResult) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[68]
+	mi := &file_processor_protos_processor_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5856,7 +5331,7 @@ func (x *PreprocessResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreprocessResult.ProtoReflect.Descriptor instead.
 func (*PreprocessResult) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{68}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *PreprocessResult) GetEthCallParams() []*EthCallParam {
@@ -5875,7 +5350,7 @@ type PreparedData struct {
 
 func (x *PreparedData) Reset() {
 	*x = PreparedData{}
-	mi := &file_processor_protos_processor_proto_msgTypes[69]
+	mi := &file_processor_protos_processor_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5887,7 +5362,7 @@ func (x *PreparedData) String() string {
 func (*PreparedData) ProtoMessage() {}
 
 func (x *PreparedData) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[69]
+	mi := &file_processor_protos_processor_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5900,7 +5375,7 @@ func (x *PreparedData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreparedData.ProtoReflect.Descriptor instead.
 func (*PreparedData) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{69}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *PreparedData) GetEthCallResults() map[string]string {
@@ -5927,7 +5402,7 @@ type RecordMetaData struct {
 
 func (x *RecordMetaData) Reset() {
 	*x = RecordMetaData{}
-	mi := &file_processor_protos_processor_proto_msgTypes[70]
+	mi := &file_processor_protos_processor_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5939,7 +5414,7 @@ func (x *RecordMetaData) String() string {
 func (*RecordMetaData) ProtoMessage() {}
 
 func (x *RecordMetaData) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[70]
+	mi := &file_processor_protos_processor_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5952,7 +5427,7 @@ func (x *RecordMetaData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecordMetaData.ProtoReflect.Descriptor instead.
 func (*RecordMetaData) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{70}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *RecordMetaData) GetAddress() string {
@@ -6032,7 +5507,7 @@ type MetricValue struct {
 
 func (x *MetricValue) Reset() {
 	*x = MetricValue{}
-	mi := &file_processor_protos_processor_proto_msgTypes[71]
+	mi := &file_processor_protos_processor_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6044,7 +5519,7 @@ func (x *MetricValue) String() string {
 func (*MetricValue) ProtoMessage() {}
 
 func (x *MetricValue) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[71]
+	mi := &file_processor_protos_processor_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6057,7 +5532,7 @@ func (x *MetricValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricValue.ProtoReflect.Descriptor instead.
 func (*MetricValue) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{71}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *MetricValue) GetValue() isMetricValue_Value {
@@ -6125,7 +5600,7 @@ type RuntimeInfo struct {
 
 func (x *RuntimeInfo) Reset() {
 	*x = RuntimeInfo{}
-	mi := &file_processor_protos_processor_proto_msgTypes[72]
+	mi := &file_processor_protos_processor_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6137,7 +5612,7 @@ func (x *RuntimeInfo) String() string {
 func (*RuntimeInfo) ProtoMessage() {}
 
 func (x *RuntimeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[72]
+	mi := &file_processor_protos_processor_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6150,7 +5625,7 @@ func (x *RuntimeInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeInfo.ProtoReflect.Descriptor instead.
 func (*RuntimeInfo) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{72}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *RuntimeInfo) GetFrom() HandlerType {
@@ -6171,7 +5646,7 @@ type GaugeResult struct {
 
 func (x *GaugeResult) Reset() {
 	*x = GaugeResult{}
-	mi := &file_processor_protos_processor_proto_msgTypes[73]
+	mi := &file_processor_protos_processor_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6183,7 +5658,7 @@ func (x *GaugeResult) String() string {
 func (*GaugeResult) ProtoMessage() {}
 
 func (x *GaugeResult) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[73]
+	mi := &file_processor_protos_processor_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6196,7 +5671,7 @@ func (x *GaugeResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GaugeResult.ProtoReflect.Descriptor instead.
 func (*GaugeResult) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{73}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *GaugeResult) GetMetadata() *RecordMetaData {
@@ -6232,7 +5707,7 @@ type CounterResult struct {
 
 func (x *CounterResult) Reset() {
 	*x = CounterResult{}
-	mi := &file_processor_protos_processor_proto_msgTypes[74]
+	mi := &file_processor_protos_processor_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6244,7 +5719,7 @@ func (x *CounterResult) String() string {
 func (*CounterResult) ProtoMessage() {}
 
 func (x *CounterResult) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[74]
+	mi := &file_processor_protos_processor_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6257,7 +5732,7 @@ func (x *CounterResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CounterResult.ProtoReflect.Descriptor instead.
 func (*CounterResult) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{74}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *CounterResult) GetMetadata() *RecordMetaData {
@@ -6304,7 +5779,7 @@ type EventTrackingResult struct {
 
 func (x *EventTrackingResult) Reset() {
 	*x = EventTrackingResult{}
-	mi := &file_processor_protos_processor_proto_msgTypes[75]
+	mi := &file_processor_protos_processor_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6316,7 +5791,7 @@ func (x *EventTrackingResult) String() string {
 func (*EventTrackingResult) ProtoMessage() {}
 
 func (x *EventTrackingResult) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[75]
+	mi := &file_processor_protos_processor_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6329,7 +5804,7 @@ func (x *EventTrackingResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventTrackingResult.ProtoReflect.Descriptor instead.
 func (*EventTrackingResult) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{75}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *EventTrackingResult) GetMetadata() *RecordMetaData {
@@ -6400,7 +5875,7 @@ type TimeseriesResult struct {
 
 func (x *TimeseriesResult) Reset() {
 	*x = TimeseriesResult{}
-	mi := &file_processor_protos_processor_proto_msgTypes[76]
+	mi := &file_processor_protos_processor_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6412,7 +5887,7 @@ func (x *TimeseriesResult) String() string {
 func (*TimeseriesResult) ProtoMessage() {}
 
 func (x *TimeseriesResult) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[76]
+	mi := &file_processor_protos_processor_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6425,7 +5900,7 @@ func (x *TimeseriesResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimeseriesResult.ProtoReflect.Descriptor instead.
 func (*TimeseriesResult) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{76}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *TimeseriesResult) GetMetadata() *RecordMetaData {
@@ -6467,7 +5942,7 @@ type ExportResult struct {
 
 func (x *ExportResult) Reset() {
 	*x = ExportResult{}
-	mi := &file_processor_protos_processor_proto_msgTypes[77]
+	mi := &file_processor_protos_processor_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6479,7 +5954,7 @@ func (x *ExportResult) String() string {
 func (*ExportResult) ProtoMessage() {}
 
 func (x *ExportResult) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[77]
+	mi := &file_processor_protos_processor_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6492,7 +5967,7 @@ func (x *ExportResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportResult.ProtoReflect.Descriptor instead.
 func (*ExportResult) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{77}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ExportResult) GetMetadata() *RecordMetaData {
@@ -6527,7 +6002,7 @@ type ExecutionConfig_DecoderWorkerConfig struct {
 
 func (x *ExecutionConfig_DecoderWorkerConfig) Reset() {
 	*x = ExecutionConfig_DecoderWorkerConfig{}
-	mi := &file_processor_protos_processor_proto_msgTypes[78]
+	mi := &file_processor_protos_processor_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6539,7 +6014,7 @@ func (x *ExecutionConfig_DecoderWorkerConfig) String() string {
 func (*ExecutionConfig_DecoderWorkerConfig) ProtoMessage() {}
 
 func (x *ExecutionConfig_DecoderWorkerConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[78]
+	mi := &file_processor_protos_processor_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6585,7 +6060,7 @@ type EventLogConfig_StructFieldType struct {
 
 func (x *EventLogConfig_StructFieldType) Reset() {
 	*x = EventLogConfig_StructFieldType{}
-	mi := &file_processor_protos_processor_proto_msgTypes[79]
+	mi := &file_processor_protos_processor_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6597,7 +6072,7 @@ func (x *EventLogConfig_StructFieldType) String() string {
 func (*EventLogConfig_StructFieldType) ProtoMessage() {}
 
 func (x *EventLogConfig_StructFieldType) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[79]
+	mi := &file_processor_protos_processor_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6610,7 +6085,7 @@ func (x *EventLogConfig_StructFieldType) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventLogConfig_StructFieldType.ProtoReflect.Descriptor instead.
 func (*EventLogConfig_StructFieldType) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{11, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{8, 0}
 }
 
 func (x *EventLogConfig_StructFieldType) GetFields() []*EventLogConfig_Field {
@@ -6635,7 +6110,7 @@ type EventLogConfig_Field struct {
 
 func (x *EventLogConfig_Field) Reset() {
 	*x = EventLogConfig_Field{}
-	mi := &file_processor_protos_processor_proto_msgTypes[80]
+	mi := &file_processor_protos_processor_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6647,7 +6122,7 @@ func (x *EventLogConfig_Field) String() string {
 func (*EventLogConfig_Field) ProtoMessage() {}
 
 func (x *EventLogConfig_Field) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[80]
+	mi := &file_processor_protos_processor_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6660,7 +6135,7 @@ func (x *EventLogConfig_Field) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventLogConfig_Field.ProtoReflect.Descriptor instead.
 func (*EventLogConfig_Field) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{11, 1}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{8, 1}
 }
 
 func (x *EventLogConfig_Field) GetName() string {
@@ -6737,7 +6212,7 @@ type FuelAssetHandlerConfig_AssetFilter struct {
 
 func (x *FuelAssetHandlerConfig_AssetFilter) Reset() {
 	*x = FuelAssetHandlerConfig_AssetFilter{}
-	mi := &file_processor_protos_processor_proto_msgTypes[81]
+	mi := &file_processor_protos_processor_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6749,7 +6224,7 @@ func (x *FuelAssetHandlerConfig_AssetFilter) String() string {
 func (*FuelAssetHandlerConfig_AssetFilter) ProtoMessage() {}
 
 func (x *FuelAssetHandlerConfig_AssetFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[81]
+	mi := &file_processor_protos_processor_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6762,7 +6237,7 @@ func (x *FuelAssetHandlerConfig_AssetFilter) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use FuelAssetHandlerConfig_AssetFilter.ProtoReflect.Descriptor instead.
 func (*FuelAssetHandlerConfig_AssetFilter) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{28, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{23, 0}
 }
 
 func (x *FuelAssetHandlerConfig_AssetFilter) GetAssetId() string {
@@ -6797,7 +6272,7 @@ type FuelReceiptHandlerConfig_Transfer struct {
 
 func (x *FuelReceiptHandlerConfig_Transfer) Reset() {
 	*x = FuelReceiptHandlerConfig_Transfer{}
-	mi := &file_processor_protos_processor_proto_msgTypes[82]
+	mi := &file_processor_protos_processor_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6809,7 +6284,7 @@ func (x *FuelReceiptHandlerConfig_Transfer) String() string {
 func (*FuelReceiptHandlerConfig_Transfer) ProtoMessage() {}
 
 func (x *FuelReceiptHandlerConfig_Transfer) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[82]
+	mi := &file_processor_protos_processor_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6822,7 +6297,7 @@ func (x *FuelReceiptHandlerConfig_Transfer) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use FuelReceiptHandlerConfig_Transfer.ProtoReflect.Descriptor instead.
 func (*FuelReceiptHandlerConfig_Transfer) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{30, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{24, 0}
 }
 
 func (x *FuelReceiptHandlerConfig_Transfer) GetAssetId() string {
@@ -6855,7 +6330,7 @@ type FuelReceiptHandlerConfig_Log struct {
 
 func (x *FuelReceiptHandlerConfig_Log) Reset() {
 	*x = FuelReceiptHandlerConfig_Log{}
-	mi := &file_processor_protos_processor_proto_msgTypes[83]
+	mi := &file_processor_protos_processor_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6867,7 +6342,7 @@ func (x *FuelReceiptHandlerConfig_Log) String() string {
 func (*FuelReceiptHandlerConfig_Log) ProtoMessage() {}
 
 func (x *FuelReceiptHandlerConfig_Log) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[83]
+	mi := &file_processor_protos_processor_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6880,7 +6355,7 @@ func (x *FuelReceiptHandlerConfig_Log) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FuelReceiptHandlerConfig_Log.ProtoReflect.Descriptor instead.
 func (*FuelReceiptHandlerConfig_Log) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{30, 1}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{24, 1}
 }
 
 func (x *FuelReceiptHandlerConfig_Log) GetLogIds() []string {
@@ -6900,7 +6375,7 @@ type MoveCallFilter_FromAndToAddress struct {
 
 func (x *MoveCallFilter_FromAndToAddress) Reset() {
 	*x = MoveCallFilter_FromAndToAddress{}
-	mi := &file_processor_protos_processor_proto_msgTypes[84]
+	mi := &file_processor_protos_processor_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6912,7 +6387,7 @@ func (x *MoveCallFilter_FromAndToAddress) String() string {
 func (*MoveCallFilter_FromAndToAddress) ProtoMessage() {}
 
 func (x *MoveCallFilter_FromAndToAddress) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[84]
+	mi := &file_processor_protos_processor_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6925,7 +6400,7 @@ func (x *MoveCallFilter_FromAndToAddress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveCallFilter_FromAndToAddress.ProtoReflect.Descriptor instead.
 func (*MoveCallFilter_FromAndToAddress) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{41, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{35, 0}
 }
 
 func (x *MoveCallFilter_FromAndToAddress) GetFrom() string {
@@ -6951,7 +6426,7 @@ type ProcessStreamResponse_Partitions struct {
 
 func (x *ProcessStreamResponse_Partitions) Reset() {
 	*x = ProcessStreamResponse_Partitions{}
-	mi := &file_processor_protos_processor_proto_msgTypes[85]
+	mi := &file_processor_protos_processor_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6963,7 +6438,7 @@ func (x *ProcessStreamResponse_Partitions) String() string {
 func (*ProcessStreamResponse_Partitions) ProtoMessage() {}
 
 func (x *ProcessStreamResponse_Partitions) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[85]
+	mi := &file_processor_protos_processor_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6976,7 +6451,7 @@ func (x *ProcessStreamResponse_Partitions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessStreamResponse_Partitions.ProtoReflect.Descriptor instead.
 func (*ProcessStreamResponse_Partitions) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{51, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{43, 0}
 }
 
 func (x *ProcessStreamResponse_Partitions) GetPartitions() map[int32]*ProcessStreamResponse_Partitions_Partition {
@@ -6999,7 +6474,7 @@ type ProcessStreamResponse_Partitions_Partition struct {
 
 func (x *ProcessStreamResponse_Partitions_Partition) Reset() {
 	*x = ProcessStreamResponse_Partitions_Partition{}
-	mi := &file_processor_protos_processor_proto_msgTypes[86]
+	mi := &file_processor_protos_processor_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7011,7 +6486,7 @@ func (x *ProcessStreamResponse_Partitions_Partition) String() string {
 func (*ProcessStreamResponse_Partitions_Partition) ProtoMessage() {}
 
 func (x *ProcessStreamResponse_Partitions_Partition) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[86]
+	mi := &file_processor_protos_processor_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7024,7 +6499,7 @@ func (x *ProcessStreamResponse_Partitions_Partition) ProtoReflect() protoreflect
 
 // Deprecated: Use ProcessStreamResponse_Partitions_Partition.ProtoReflect.Descriptor instead.
 func (*ProcessStreamResponse_Partitions_Partition) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{51, 0, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{43, 0, 0}
 }
 
 func (x *ProcessStreamResponse_Partitions_Partition) GetValue() isProcessStreamResponse_Partitions_Partition_Value {
@@ -7079,7 +6554,7 @@ type PreprocessStreamRequest_DataBindings struct {
 
 func (x *PreprocessStreamRequest_DataBindings) Reset() {
 	*x = PreprocessStreamRequest_DataBindings{}
-	mi := &file_processor_protos_processor_proto_msgTypes[88]
+	mi := &file_processor_protos_processor_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7091,7 +6566,7 @@ func (x *PreprocessStreamRequest_DataBindings) String() string {
 func (*PreprocessStreamRequest_DataBindings) ProtoMessage() {}
 
 func (x *PreprocessStreamRequest_DataBindings) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[88]
+	mi := &file_processor_protos_processor_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7104,7 +6579,7 @@ func (x *PreprocessStreamRequest_DataBindings) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use PreprocessStreamRequest_DataBindings.ProtoReflect.Descriptor instead.
 func (*PreprocessStreamRequest_DataBindings) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{45, 0}
 }
 
 func (x *PreprocessStreamRequest_DataBindings) GetBindings() []*DataBinding {
@@ -7124,7 +6599,7 @@ type EntityUpdateData_FieldValue struct {
 
 func (x *EntityUpdateData_FieldValue) Reset() {
 	*x = EntityUpdateData_FieldValue{}
-	mi := &file_processor_protos_processor_proto_msgTypes[89]
+	mi := &file_processor_protos_processor_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7136,7 +6611,7 @@ func (x *EntityUpdateData_FieldValue) String() string {
 func (*EntityUpdateData_FieldValue) ProtoMessage() {}
 
 func (x *EntityUpdateData_FieldValue) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[89]
+	mi := &file_processor_protos_processor_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7149,7 +6624,7 @@ func (x *EntityUpdateData_FieldValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityUpdateData_FieldValue.ProtoReflect.Descriptor instead.
 func (*EntityUpdateData_FieldValue) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{58, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{50, 0}
 }
 
 func (x *EntityUpdateData_FieldValue) GetValue() *protos.RichValue {
@@ -7176,7 +6651,7 @@ type DBRequest_DBGet struct {
 
 func (x *DBRequest_DBGet) Reset() {
 	*x = DBRequest_DBGet{}
-	mi := &file_processor_protos_processor_proto_msgTypes[91]
+	mi := &file_processor_protos_processor_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7188,7 +6663,7 @@ func (x *DBRequest_DBGet) String() string {
 func (*DBRequest_DBGet) ProtoMessage() {}
 
 func (x *DBRequest_DBGet) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[91]
+	mi := &file_processor_protos_processor_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7201,7 +6676,7 @@ func (x *DBRequest_DBGet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DBRequest_DBGet.ProtoReflect.Descriptor instead.
 func (*DBRequest_DBGet) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{61, 0}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53, 0}
 }
 
 func (x *DBRequest_DBGet) GetEntity() string {
@@ -7230,7 +6705,7 @@ type DBRequest_DBList struct {
 
 func (x *DBRequest_DBList) Reset() {
 	*x = DBRequest_DBList{}
-	mi := &file_processor_protos_processor_proto_msgTypes[92]
+	mi := &file_processor_protos_processor_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7242,7 +6717,7 @@ func (x *DBRequest_DBList) String() string {
 func (*DBRequest_DBList) ProtoMessage() {}
 
 func (x *DBRequest_DBList) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[92]
+	mi := &file_processor_protos_processor_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7255,7 +6730,7 @@ func (x *DBRequest_DBList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DBRequest_DBList.ProtoReflect.Descriptor instead.
 func (*DBRequest_DBList) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{61, 1}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53, 1}
 }
 
 func (x *DBRequest_DBList) GetEntity() string {
@@ -7298,7 +6773,7 @@ type DBRequest_DBUpsert struct {
 
 func (x *DBRequest_DBUpsert) Reset() {
 	*x = DBRequest_DBUpsert{}
-	mi := &file_processor_protos_processor_proto_msgTypes[93]
+	mi := &file_processor_protos_processor_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7310,7 +6785,7 @@ func (x *DBRequest_DBUpsert) String() string {
 func (*DBRequest_DBUpsert) ProtoMessage() {}
 
 func (x *DBRequest_DBUpsert) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[93]
+	mi := &file_processor_protos_processor_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7323,7 +6798,7 @@ func (x *DBRequest_DBUpsert) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DBRequest_DBUpsert.ProtoReflect.Descriptor instead.
 func (*DBRequest_DBUpsert) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{61, 2}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53, 2}
 }
 
 func (x *DBRequest_DBUpsert) GetEntity() []string {
@@ -7365,7 +6840,7 @@ type DBRequest_DBUpdate struct {
 
 func (x *DBRequest_DBUpdate) Reset() {
 	*x = DBRequest_DBUpdate{}
-	mi := &file_processor_protos_processor_proto_msgTypes[94]
+	mi := &file_processor_protos_processor_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7377,7 +6852,7 @@ func (x *DBRequest_DBUpdate) String() string {
 func (*DBRequest_DBUpdate) ProtoMessage() {}
 
 func (x *DBRequest_DBUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[94]
+	mi := &file_processor_protos_processor_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7390,7 +6865,7 @@ func (x *DBRequest_DBUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DBRequest_DBUpdate.ProtoReflect.Descriptor instead.
 func (*DBRequest_DBUpdate) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{61, 3}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53, 3}
 }
 
 func (x *DBRequest_DBUpdate) GetEntity() []string {
@@ -7424,7 +6899,7 @@ type DBRequest_DBDelete struct {
 
 func (x *DBRequest_DBDelete) Reset() {
 	*x = DBRequest_DBDelete{}
-	mi := &file_processor_protos_processor_proto_msgTypes[95]
+	mi := &file_processor_protos_processor_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7436,7 +6911,7 @@ func (x *DBRequest_DBDelete) String() string {
 func (*DBRequest_DBDelete) ProtoMessage() {}
 
 func (x *DBRequest_DBDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[95]
+	mi := &file_processor_protos_processor_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7449,7 +6924,7 @@ func (x *DBRequest_DBDelete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DBRequest_DBDelete.ProtoReflect.Descriptor instead.
 func (*DBRequest_DBDelete) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{61, 4}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53, 4}
 }
 
 func (x *DBRequest_DBDelete) GetEntity() []string {
@@ -7477,7 +6952,7 @@ type DBRequest_DBFilter struct {
 
 func (x *DBRequest_DBFilter) Reset() {
 	*x = DBRequest_DBFilter{}
-	mi := &file_processor_protos_processor_proto_msgTypes[96]
+	mi := &file_processor_protos_processor_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7489,7 +6964,7 @@ func (x *DBRequest_DBFilter) String() string {
 func (*DBRequest_DBFilter) ProtoMessage() {}
 
 func (x *DBRequest_DBFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[96]
+	mi := &file_processor_protos_processor_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7502,7 +6977,7 @@ func (x *DBRequest_DBFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DBRequest_DBFilter.ProtoReflect.Descriptor instead.
 func (*DBRequest_DBFilter) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{61, 5}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{53, 5}
 }
 
 func (x *DBRequest_DBFilter) GetField() string {
@@ -7528,11 +7003,7 @@ func (x *DBRequest_DBFilter) GetValue() *protos.RichValueList {
 
 type Data_EthLog struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
-	Log                   *structpb.Struct       `protobuf:"bytes,3,opt,name=log,proto3" json:"log,omitempty"`
 	Timestamp             *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Transaction           *structpb.Struct       `protobuf:"bytes,2,opt,name=transaction,proto3,oneof" json:"transaction,omitempty"`
-	TransactionReceipt    *structpb.Struct       `protobuf:"bytes,5,opt,name=transaction_receipt,json=transactionReceipt,proto3,oneof" json:"transaction_receipt,omitempty"`
-	Block                 *structpb.Struct       `protobuf:"bytes,6,opt,name=block,proto3,oneof" json:"block,omitempty"`
 	RawLog                string                 `protobuf:"bytes,7,opt,name=raw_log,json=rawLog,proto3" json:"raw_log,omitempty"`
 	RawTransaction        *string                `protobuf:"bytes,8,opt,name=raw_transaction,json=rawTransaction,proto3,oneof" json:"raw_transaction,omitempty"`
 	RawTransactionReceipt *string                `protobuf:"bytes,9,opt,name=raw_transaction_receipt,json=rawTransactionReceipt,proto3,oneof" json:"raw_transaction_receipt,omitempty"`
@@ -7543,7 +7014,7 @@ type Data_EthLog struct {
 
 func (x *Data_EthLog) Reset() {
 	*x = Data_EthLog{}
-	mi := &file_processor_protos_processor_proto_msgTypes[97]
+	mi := &file_processor_protos_processor_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7555,7 +7026,7 @@ func (x *Data_EthLog) String() string {
 func (*Data_EthLog) ProtoMessage() {}
 
 func (x *Data_EthLog) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[97]
+	mi := &file_processor_protos_processor_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7568,40 +7039,12 @@ func (x *Data_EthLog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_EthLog.ProtoReflect.Descriptor instead.
 func (*Data_EthLog) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 0}
-}
-
-func (x *Data_EthLog) GetLog() *structpb.Struct {
-	if x != nil {
-		return x.Log
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 0}
 }
 
 func (x *Data_EthLog) GetTimestamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Timestamp
-	}
-	return nil
-}
-
-func (x *Data_EthLog) GetTransaction() *structpb.Struct {
-	if x != nil {
-		return x.Transaction
-	}
-	return nil
-}
-
-func (x *Data_EthLog) GetTransactionReceipt() *structpb.Struct {
-	if x != nil {
-		return x.TransactionReceipt
-	}
-	return nil
-}
-
-func (x *Data_EthLog) GetBlock() *structpb.Struct {
-	if x != nil {
-		return x.Block
 	}
 	return nil
 }
@@ -7636,7 +7079,6 @@ func (x *Data_EthLog) GetRawBlock() string {
 
 type Data_EthBlock struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Block         *structpb.Struct       `protobuf:"bytes,2,opt,name=block,proto3" json:"block,omitempty"`
 	RawBlock      string                 `protobuf:"bytes,1,opt,name=raw_block,json=rawBlock,proto3" json:"raw_block,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -7644,7 +7086,7 @@ type Data_EthBlock struct {
 
 func (x *Data_EthBlock) Reset() {
 	*x = Data_EthBlock{}
-	mi := &file_processor_protos_processor_proto_msgTypes[98]
+	mi := &file_processor_protos_processor_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7656,7 +7098,7 @@ func (x *Data_EthBlock) String() string {
 func (*Data_EthBlock) ProtoMessage() {}
 
 func (x *Data_EthBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[98]
+	mi := &file_processor_protos_processor_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7669,14 +7111,7 @@ func (x *Data_EthBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_EthBlock.ProtoReflect.Descriptor instead.
 func (*Data_EthBlock) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 1}
-}
-
-func (x *Data_EthBlock) GetBlock() *structpb.Struct {
-	if x != nil {
-		return x.Block
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 1}
 }
 
 func (x *Data_EthBlock) GetRawBlock() string {
@@ -7688,11 +7123,7 @@ func (x *Data_EthBlock) GetRawBlock() string {
 
 type Data_EthTransaction struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
-	Transaction           *structpb.Struct       `protobuf:"bytes,4,opt,name=transaction,proto3" json:"transaction,omitempty"`
 	Timestamp             *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	TransactionReceipt    *structpb.Struct       `protobuf:"bytes,3,opt,name=transaction_receipt,json=transactionReceipt,proto3,oneof" json:"transaction_receipt,omitempty"`
-	Block                 *structpb.Struct       `protobuf:"bytes,6,opt,name=block,proto3,oneof" json:"block,omitempty"`
-	Trace                 *structpb.Struct       `protobuf:"bytes,7,opt,name=trace,proto3,oneof" json:"trace,omitempty"`
 	RawTransaction        string                 `protobuf:"bytes,8,opt,name=raw_transaction,json=rawTransaction,proto3" json:"raw_transaction,omitempty"`
 	RawTransactionReceipt *string                `protobuf:"bytes,9,opt,name=raw_transaction_receipt,json=rawTransactionReceipt,proto3,oneof" json:"raw_transaction_receipt,omitempty"`
 	RawBlock              *string                `protobuf:"bytes,10,opt,name=raw_block,json=rawBlock,proto3,oneof" json:"raw_block,omitempty"`
@@ -7703,7 +7134,7 @@ type Data_EthTransaction struct {
 
 func (x *Data_EthTransaction) Reset() {
 	*x = Data_EthTransaction{}
-	mi := &file_processor_protos_processor_proto_msgTypes[99]
+	mi := &file_processor_protos_processor_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7715,7 +7146,7 @@ func (x *Data_EthTransaction) String() string {
 func (*Data_EthTransaction) ProtoMessage() {}
 
 func (x *Data_EthTransaction) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[99]
+	mi := &file_processor_protos_processor_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7728,40 +7159,12 @@ func (x *Data_EthTransaction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_EthTransaction.ProtoReflect.Descriptor instead.
 func (*Data_EthTransaction) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 2}
-}
-
-func (x *Data_EthTransaction) GetTransaction() *structpb.Struct {
-	if x != nil {
-		return x.Transaction
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 2}
 }
 
 func (x *Data_EthTransaction) GetTimestamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Timestamp
-	}
-	return nil
-}
-
-func (x *Data_EthTransaction) GetTransactionReceipt() *structpb.Struct {
-	if x != nil {
-		return x.TransactionReceipt
-	}
-	return nil
-}
-
-func (x *Data_EthTransaction) GetBlock() *structpb.Struct {
-	if x != nil {
-		return x.Block
-	}
-	return nil
-}
-
-func (x *Data_EthTransaction) GetTrace() *structpb.Struct {
-	if x != nil {
-		return x.Trace
 	}
 	return nil
 }
@@ -7796,11 +7199,7 @@ func (x *Data_EthTransaction) GetRawTrace() string {
 
 type Data_EthTrace struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
-	Trace                 *structpb.Struct       `protobuf:"bytes,4,opt,name=trace,proto3" json:"trace,omitempty"`
 	Timestamp             *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Transaction           *structpb.Struct       `protobuf:"bytes,2,opt,name=transaction,proto3,oneof" json:"transaction,omitempty"`
-	TransactionReceipt    *structpb.Struct       `protobuf:"bytes,3,opt,name=transaction_receipt,json=transactionReceipt,proto3,oneof" json:"transaction_receipt,omitempty"`
-	Block                 *structpb.Struct       `protobuf:"bytes,6,opt,name=block,proto3,oneof" json:"block,omitempty"`
 	RawTrace              string                 `protobuf:"bytes,7,opt,name=raw_trace,json=rawTrace,proto3" json:"raw_trace,omitempty"`
 	RawTransaction        *string                `protobuf:"bytes,8,opt,name=raw_transaction,json=rawTransaction,proto3,oneof" json:"raw_transaction,omitempty"`
 	RawTransactionReceipt *string                `protobuf:"bytes,9,opt,name=raw_transaction_receipt,json=rawTransactionReceipt,proto3,oneof" json:"raw_transaction_receipt,omitempty"`
@@ -7811,7 +7210,7 @@ type Data_EthTrace struct {
 
 func (x *Data_EthTrace) Reset() {
 	*x = Data_EthTrace{}
-	mi := &file_processor_protos_processor_proto_msgTypes[100]
+	mi := &file_processor_protos_processor_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7823,7 +7222,7 @@ func (x *Data_EthTrace) String() string {
 func (*Data_EthTrace) ProtoMessage() {}
 
 func (x *Data_EthTrace) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[100]
+	mi := &file_processor_protos_processor_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7836,40 +7235,12 @@ func (x *Data_EthTrace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_EthTrace.ProtoReflect.Descriptor instead.
 func (*Data_EthTrace) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 3}
-}
-
-func (x *Data_EthTrace) GetTrace() *structpb.Struct {
-	if x != nil {
-		return x.Trace
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 3}
 }
 
 func (x *Data_EthTrace) GetTimestamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Timestamp
-	}
-	return nil
-}
-
-func (x *Data_EthTrace) GetTransaction() *structpb.Struct {
-	if x != nil {
-		return x.Transaction
-	}
-	return nil
-}
-
-func (x *Data_EthTrace) GetTransactionReceipt() *structpb.Struct {
-	if x != nil {
-		return x.TransactionReceipt
-	}
-	return nil
-}
-
-func (x *Data_EthTrace) GetBlock() *structpb.Struct {
-	if x != nil {
-		return x.Block
 	}
 	return nil
 }
@@ -7916,7 +7287,7 @@ type Data_SolInstruction struct {
 
 func (x *Data_SolInstruction) Reset() {
 	*x = Data_SolInstruction{}
-	mi := &file_processor_protos_processor_proto_msgTypes[101]
+	mi := &file_processor_protos_processor_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7928,7 +7299,7 @@ func (x *Data_SolInstruction) String() string {
 func (*Data_SolInstruction) ProtoMessage() {}
 
 func (x *Data_SolInstruction) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[101]
+	mi := &file_processor_protos_processor_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7941,7 +7312,7 @@ func (x *Data_SolInstruction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_SolInstruction.ProtoReflect.Descriptor instead.
 func (*Data_SolInstruction) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 4}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 4}
 }
 
 func (x *Data_SolInstruction) GetInstructionData() string {
@@ -7997,7 +7368,7 @@ type Data_SolBlock struct {
 
 func (x *Data_SolBlock) Reset() {
 	*x = Data_SolBlock{}
-	mi := &file_processor_protos_processor_proto_msgTypes[102]
+	mi := &file_processor_protos_processor_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8009,7 +7380,7 @@ func (x *Data_SolBlock) String() string {
 func (*Data_SolBlock) ProtoMessage() {}
 
 func (x *Data_SolBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[102]
+	mi := &file_processor_protos_processor_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8022,7 +7393,7 @@ func (x *Data_SolBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_SolBlock.ProtoReflect.Descriptor instead.
 func (*Data_SolBlock) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 5}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 5}
 }
 
 func (x *Data_SolBlock) GetRawBlock() string {
@@ -8047,19 +7418,17 @@ func (x *Data_SolBlock) GetSlot() uint64 {
 }
 
 type Data_AptEvent struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
-	RawEvent   string                 `protobuf:"bytes,1,opt,name=raw_event,json=rawEvent,proto3" json:"raw_event,omitempty"`
-	EventIndex int32                  `protobuf:"varint,4,opt,name=event_index,json=eventIndex,proto3" json:"event_index,omitempty"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Transaction    *structpb.Struct `protobuf:"bytes,2,opt,name=transaction,proto3" json:"transaction,omitempty"`
-	RawTransaction string           `protobuf:"bytes,3,opt,name=raw_transaction,json=rawTransaction,proto3" json:"raw_transaction,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RawEvent       string                 `protobuf:"bytes,1,opt,name=raw_event,json=rawEvent,proto3" json:"raw_event,omitempty"`
+	EventIndex     int32                  `protobuf:"varint,4,opt,name=event_index,json=eventIndex,proto3" json:"event_index,omitempty"`
+	RawTransaction string                 `protobuf:"bytes,3,opt,name=raw_transaction,json=rawTransaction,proto3" json:"raw_transaction,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Data_AptEvent) Reset() {
 	*x = Data_AptEvent{}
-	mi := &file_processor_protos_processor_proto_msgTypes[103]
+	mi := &file_processor_protos_processor_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8071,7 +7440,7 @@ func (x *Data_AptEvent) String() string {
 func (*Data_AptEvent) ProtoMessage() {}
 
 func (x *Data_AptEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[103]
+	mi := &file_processor_protos_processor_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8084,7 +7453,7 @@ func (x *Data_AptEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_AptEvent.ProtoReflect.Descriptor instead.
 func (*Data_AptEvent) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 6}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 6}
 }
 
 func (x *Data_AptEvent) GetRawEvent() string {
@@ -8101,14 +7470,6 @@ func (x *Data_AptEvent) GetEventIndex() int32 {
 	return 0
 }
 
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *Data_AptEvent) GetTransaction() *structpb.Struct {
-	if x != nil {
-		return x.Transaction
-	}
-	return nil
-}
-
 func (x *Data_AptEvent) GetRawTransaction() string {
 	if x != nil {
 		return x.RawTransaction
@@ -8117,17 +7478,15 @@ func (x *Data_AptEvent) GetRawTransaction() string {
 }
 
 type Data_AptCall struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Transaction    *structpb.Struct `protobuf:"bytes,2,opt,name=transaction,proto3" json:"transaction,omitempty"`
-	RawTransaction string           `protobuf:"bytes,3,opt,name=raw_transaction,json=rawTransaction,proto3" json:"raw_transaction,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RawTransaction string                 `protobuf:"bytes,3,opt,name=raw_transaction,json=rawTransaction,proto3" json:"raw_transaction,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Data_AptCall) Reset() {
 	*x = Data_AptCall{}
-	mi := &file_processor_protos_processor_proto_msgTypes[104]
+	mi := &file_processor_protos_processor_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8139,7 +7498,7 @@ func (x *Data_AptCall) String() string {
 func (*Data_AptCall) ProtoMessage() {}
 
 func (x *Data_AptCall) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[104]
+	mi := &file_processor_protos_processor_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8152,15 +7511,7 @@ func (x *Data_AptCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_AptCall.ProtoReflect.Descriptor instead.
 func (*Data_AptCall) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 7}
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *Data_AptCall) GetTransaction() *structpb.Struct {
-	if x != nil {
-		return x.Transaction
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 7}
 }
 
 func (x *Data_AptCall) GetRawTransaction() string {
@@ -8171,19 +7522,17 @@ func (x *Data_AptCall) GetRawTransaction() string {
 }
 
 type Data_AptResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Resources       []*structpb.Struct `protobuf:"bytes,4,rep,name=resources,proto3" json:"resources,omitempty"`
-	Version         int64              `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
-	TimestampMicros int64              `protobuf:"varint,5,opt,name=timestampMicros,proto3" json:"timestampMicros,omitempty"`
-	RawResources    []string           `protobuf:"bytes,6,rep,name=raw_resources,json=rawResources,proto3" json:"raw_resources,omitempty"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Version         int64                  `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
+	TimestampMicros int64                  `protobuf:"varint,5,opt,name=timestampMicros,proto3" json:"timestampMicros,omitempty"`
+	RawResources    []string               `protobuf:"bytes,6,rep,name=raw_resources,json=rawResources,proto3" json:"raw_resources,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Data_AptResource) Reset() {
 	*x = Data_AptResource{}
-	mi := &file_processor_protos_processor_proto_msgTypes[105]
+	mi := &file_processor_protos_processor_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8195,7 +7544,7 @@ func (x *Data_AptResource) String() string {
 func (*Data_AptResource) ProtoMessage() {}
 
 func (x *Data_AptResource) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[105]
+	mi := &file_processor_protos_processor_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8208,15 +7557,7 @@ func (x *Data_AptResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_AptResource.ProtoReflect.Descriptor instead.
 func (*Data_AptResource) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 8}
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *Data_AptResource) GetResources() []*structpb.Struct {
-	if x != nil {
-		return x.Resources
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 8}
 }
 
 func (x *Data_AptResource) GetVersion() int64 {
@@ -8241,9 +7582,7 @@ func (x *Data_AptResource) GetRawResources() []string {
 }
 
 type Data_SuiEvent struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Transaction    *structpb.Struct       `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
 	RawEvent       string                 `protobuf:"bytes,4,opt,name=raw_event,json=rawEvent,proto3" json:"raw_event,omitempty"`
 	RawTransaction string                 `protobuf:"bytes,5,opt,name=raw_transaction,json=rawTransaction,proto3" json:"raw_transaction,omitempty"`
 	Timestamp      *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
@@ -8254,7 +7593,7 @@ type Data_SuiEvent struct {
 
 func (x *Data_SuiEvent) Reset() {
 	*x = Data_SuiEvent{}
-	mi := &file_processor_protos_processor_proto_msgTypes[106]
+	mi := &file_processor_protos_processor_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8266,7 +7605,7 @@ func (x *Data_SuiEvent) String() string {
 func (*Data_SuiEvent) ProtoMessage() {}
 
 func (x *Data_SuiEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[106]
+	mi := &file_processor_protos_processor_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8279,15 +7618,7 @@ func (x *Data_SuiEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_SuiEvent.ProtoReflect.Descriptor instead.
 func (*Data_SuiEvent) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 9}
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *Data_SuiEvent) GetTransaction() *structpb.Struct {
-	if x != nil {
-		return x.Transaction
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 9}
 }
 
 func (x *Data_SuiEvent) GetRawEvent() string {
@@ -8319,9 +7650,7 @@ func (x *Data_SuiEvent) GetSlot() uint64 {
 }
 
 type Data_SuiCall struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Transaction    *structpb.Struct       `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
 	RawTransaction string                 `protobuf:"bytes,4,opt,name=raw_transaction,json=rawTransaction,proto3" json:"raw_transaction,omitempty"`
 	Timestamp      *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	Slot           uint64                 `protobuf:"varint,3,opt,name=slot,proto3" json:"slot,omitempty"`
@@ -8331,7 +7660,7 @@ type Data_SuiCall struct {
 
 func (x *Data_SuiCall) Reset() {
 	*x = Data_SuiCall{}
-	mi := &file_processor_protos_processor_proto_msgTypes[107]
+	mi := &file_processor_protos_processor_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8343,7 +7672,7 @@ func (x *Data_SuiCall) String() string {
 func (*Data_SuiCall) ProtoMessage() {}
 
 func (x *Data_SuiCall) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[107]
+	mi := &file_processor_protos_processor_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8356,15 +7685,7 @@ func (x *Data_SuiCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_SuiCall.ProtoReflect.Descriptor instead.
 func (*Data_SuiCall) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 10}
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *Data_SuiCall) GetTransaction() *structpb.Struct {
-	if x != nil {
-		return x.Transaction
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 10}
 }
 
 func (x *Data_SuiCall) GetRawTransaction() string {
@@ -8389,11 +7710,7 @@ func (x *Data_SuiCall) GetSlot() uint64 {
 }
 
 type Data_SuiObject struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Objects []*structpb.Struct `protobuf:"bytes,1,rep,name=objects,proto3" json:"objects,omitempty"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Self          *structpb.Struct       `protobuf:"bytes,4,opt,name=self,proto3,oneof" json:"self,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	RawObjects    []string               `protobuf:"bytes,10,rep,name=raw_objects,json=rawObjects,proto3" json:"raw_objects,omitempty"`
 	RawSelf       *string                `protobuf:"bytes,9,opt,name=raw_self,json=rawSelf,proto3,oneof" json:"raw_self,omitempty"`
 	ObjectId      string                 `protobuf:"bytes,5,opt,name=object_id,json=objectId,proto3" json:"object_id,omitempty"`
@@ -8407,7 +7724,7 @@ type Data_SuiObject struct {
 
 func (x *Data_SuiObject) Reset() {
 	*x = Data_SuiObject{}
-	mi := &file_processor_protos_processor_proto_msgTypes[108]
+	mi := &file_processor_protos_processor_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8419,7 +7736,7 @@ func (x *Data_SuiObject) String() string {
 func (*Data_SuiObject) ProtoMessage() {}
 
 func (x *Data_SuiObject) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[108]
+	mi := &file_processor_protos_processor_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8432,23 +7749,7 @@ func (x *Data_SuiObject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_SuiObject.ProtoReflect.Descriptor instead.
 func (*Data_SuiObject) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 11}
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *Data_SuiObject) GetObjects() []*structpb.Struct {
-	if x != nil {
-		return x.Objects
-	}
-	return nil
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *Data_SuiObject) GetSelf() *structpb.Struct {
-	if x != nil {
-		return x.Self
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 11}
 }
 
 func (x *Data_SuiObject) GetRawObjects() []string {
@@ -8501,9 +7802,7 @@ func (x *Data_SuiObject) GetSlot() uint64 {
 }
 
 type Data_SuiObjectChange struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Changes       []*structpb.Struct     `protobuf:"bytes,1,rep,name=changes,proto3" json:"changes,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	RawChanges    []string               `protobuf:"bytes,5,rep,name=raw_changes,json=rawChanges,proto3" json:"raw_changes,omitempty"`
 	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	TxDigest      string                 `protobuf:"bytes,4,opt,name=tx_digest,json=txDigest,proto3" json:"tx_digest,omitempty"`
@@ -8514,7 +7813,7 @@ type Data_SuiObjectChange struct {
 
 func (x *Data_SuiObjectChange) Reset() {
 	*x = Data_SuiObjectChange{}
-	mi := &file_processor_protos_processor_proto_msgTypes[109]
+	mi := &file_processor_protos_processor_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8526,7 +7825,7 @@ func (x *Data_SuiObjectChange) String() string {
 func (*Data_SuiObjectChange) ProtoMessage() {}
 
 func (x *Data_SuiObjectChange) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[109]
+	mi := &file_processor_protos_processor_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8539,15 +7838,7 @@ func (x *Data_SuiObjectChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_SuiObjectChange.ProtoReflect.Descriptor instead.
 func (*Data_SuiObjectChange) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 12}
-}
-
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-func (x *Data_SuiObjectChange) GetChanges() []*structpb.Struct {
-	if x != nil {
-		return x.Changes
-	}
-	return nil
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 12}
 }
 
 func (x *Data_SuiObjectChange) GetRawChanges() []string {
@@ -8589,7 +7880,7 @@ type Data_FuelReceipt struct {
 
 func (x *Data_FuelReceipt) Reset() {
 	*x = Data_FuelReceipt{}
-	mi := &file_processor_protos_processor_proto_msgTypes[110]
+	mi := &file_processor_protos_processor_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8601,7 +7892,7 @@ func (x *Data_FuelReceipt) String() string {
 func (*Data_FuelReceipt) ProtoMessage() {}
 
 func (x *Data_FuelReceipt) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[110]
+	mi := &file_processor_protos_processor_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8614,7 +7905,7 @@ func (x *Data_FuelReceipt) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_FuelReceipt.ProtoReflect.Descriptor instead.
 func (*Data_FuelReceipt) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 13}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 13}
 }
 
 func (x *Data_FuelReceipt) GetTransaction() *structpb.Struct {
@@ -8648,7 +7939,7 @@ type Data_FuelTransaction struct {
 
 func (x *Data_FuelTransaction) Reset() {
 	*x = Data_FuelTransaction{}
-	mi := &file_processor_protos_processor_proto_msgTypes[111]
+	mi := &file_processor_protos_processor_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8660,7 +7951,7 @@ func (x *Data_FuelTransaction) String() string {
 func (*Data_FuelTransaction) ProtoMessage() {}
 
 func (x *Data_FuelTransaction) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[111]
+	mi := &file_processor_protos_processor_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8673,7 +7964,7 @@ func (x *Data_FuelTransaction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_FuelTransaction.ProtoReflect.Descriptor instead.
 func (*Data_FuelTransaction) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 14}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 14}
 }
 
 func (x *Data_FuelTransaction) GetTransaction() *structpb.Struct {
@@ -8690,59 +7981,6 @@ func (x *Data_FuelTransaction) GetTimestamp() *timestamppb.Timestamp {
 	return nil
 }
 
-// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-type Data_FuelCall struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Transaction   *structpb.Struct       `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
-	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Data_FuelCall) Reset() {
-	*x = Data_FuelCall{}
-	mi := &file_processor_protos_processor_proto_msgTypes[112]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Data_FuelCall) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Data_FuelCall) ProtoMessage() {}
-
-func (x *Data_FuelCall) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[112]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Data_FuelCall.ProtoReflect.Descriptor instead.
-func (*Data_FuelCall) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 15}
-}
-
-func (x *Data_FuelCall) GetTransaction() *structpb.Struct {
-	if x != nil {
-		return x.Transaction
-	}
-	return nil
-}
-
-func (x *Data_FuelCall) GetTimestamp() *timestamppb.Timestamp {
-	if x != nil {
-		return x.Timestamp
-	}
-	return nil
-}
-
 type Data_FuelBlock struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Block         *structpb.Struct       `protobuf:"bytes,1,opt,name=block,proto3" json:"block,omitempty"`
@@ -8753,7 +7991,7 @@ type Data_FuelBlock struct {
 
 func (x *Data_FuelBlock) Reset() {
 	*x = Data_FuelBlock{}
-	mi := &file_processor_protos_processor_proto_msgTypes[113]
+	mi := &file_processor_protos_processor_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8765,7 +8003,7 @@ func (x *Data_FuelBlock) String() string {
 func (*Data_FuelBlock) ProtoMessage() {}
 
 func (x *Data_FuelBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[113]
+	mi := &file_processor_protos_processor_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8778,7 +8016,7 @@ func (x *Data_FuelBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_FuelBlock.ProtoReflect.Descriptor instead.
 func (*Data_FuelBlock) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 16}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 15}
 }
 
 func (x *Data_FuelBlock) GetBlock() *structpb.Struct {
@@ -8805,7 +8043,7 @@ type Data_CosmosCall struct {
 
 func (x *Data_CosmosCall) Reset() {
 	*x = Data_CosmosCall{}
-	mi := &file_processor_protos_processor_proto_msgTypes[114]
+	mi := &file_processor_protos_processor_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8817,7 +8055,7 @@ func (x *Data_CosmosCall) String() string {
 func (*Data_CosmosCall) ProtoMessage() {}
 
 func (x *Data_CosmosCall) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[114]
+	mi := &file_processor_protos_processor_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8830,7 +8068,7 @@ func (x *Data_CosmosCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_CosmosCall.ProtoReflect.Descriptor instead.
 func (*Data_CosmosCall) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 17}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 16}
 }
 
 func (x *Data_CosmosCall) GetTransaction() *structpb.Struct {
@@ -8857,7 +8095,7 @@ type Data_StarknetEvent struct {
 
 func (x *Data_StarknetEvent) Reset() {
 	*x = Data_StarknetEvent{}
-	mi := &file_processor_protos_processor_proto_msgTypes[115]
+	mi := &file_processor_protos_processor_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8869,7 +8107,7 @@ func (x *Data_StarknetEvent) String() string {
 func (*Data_StarknetEvent) ProtoMessage() {}
 
 func (x *Data_StarknetEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_processor_protos_processor_proto_msgTypes[115]
+	mi := &file_processor_protos_processor_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8882,7 +8120,7 @@ func (x *Data_StarknetEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_StarknetEvent.ProtoReflect.Descriptor instead.
 func (*Data_StarknetEvent) Descriptor() ([]byte, []int) {
-	return file_processor_protos_processor_proto_rawDescGZIP(), []int{62, 18}
+	return file_processor_protos_processor_proto_rawDescGZIP(), []int{54, 17}
 }
 
 func (x *Data_StarknetEvent) GetResult() *structpb.Struct {
@@ -8938,10 +8176,8 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x0eexport_configs\x18\a \x03(\v2\x17.processor.ExportConfigR\rexportConfigs\x12E\n" +
 	"\x11event_log_configs\x18\b \x03(\v2\x19.processor.EventLogConfigR\x0feventLogConfigs\x126\n" +
 	"\tdb_schema\x18\n" +
-	" \x01(\v2\x19.processor.DataBaseSchemaR\bdbSchema\"\xa4\x01\n" +
-	"\x19ConfigureHandlersResponse\x12D\n" +
-	"\x10contract_configs\x18\x02 \x03(\v2\x19.processor.ContractConfigR\x0fcontractConfigs\x12A\n" +
-	"\x0faccount_configs\x18\x04 \x03(\v2\x18.processor.AccountConfigR\x0eaccountConfigs\"\xc7\v\n" +
+	" \x01(\v2\x19.processor.DataBaseSchemaR\bdbSchema\"\xa6\n" +
+	"\n" +
 	"\x0eContractConfig\x123\n" +
 	"\bcontract\x18\x01 \x01(\v2\x17.processor.ContractInfoR\bcontract\x12F\n" +
 	"\x10interval_configs\x18\v \x03(\v2\x1b.processor.OnIntervalConfigR\x0fintervalConfigs\x12S\n" +
@@ -8953,11 +8189,9 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x12move_event_configs\x18\t \x03(\v2!.processor.MoveEventHandlerConfigR\x10moveEventConfigs\x12L\n" +
 	"\x11move_call_configs\x18\n" +
 	" \x03(\v2 .processor.MoveCallHandlerConfigR\x0fmoveCallConfigs\x12d\n" +
-	"\x1cmove_resource_change_configs\x18\f \x03(\v2#.processor.MoveResourceChangeConfigR\x19moveResourceChangeConfigs\x12P\n" +
-	"\x11fuel_call_configs\x18\r \x03(\v2 .processor.FuelCallHandlerConfigB\x02\x18\x01R\x0ffuelCallConfigs\x12a\n" +
+	"\x1cmove_resource_change_configs\x18\f \x03(\v2#.processor.MoveResourceChangeConfigR\x19moveResourceChangeConfigs\x12a\n" +
 	"\x18fuel_transaction_configs\x18\x14 \x03(\v2'.processor.FuelTransactionHandlerConfigR\x16fuelTransactionConfigs\x12F\n" +
-	"\rasset_configs\x18\x0e \x03(\v2!.processor.FuelAssetHandlerConfigR\fassetConfigs\x12M\n" +
-	"\x10fuel_log_configs\x18\x0f \x03(\v2\x1f.processor.FuelLogHandlerConfigB\x02\x18\x01R\x0efuelLogConfigs\x12U\n" +
+	"\rasset_configs\x18\x0e \x03(\v2!.processor.FuelAssetHandlerConfigR\fassetConfigs\x12U\n" +
 	"\x14fuel_receipt_configs\x18\x15 \x03(\v2#.processor.FuelReceiptHandlerConfigR\x12fuelReceiptConfigs\x12O\n" +
 	"\x12cosmos_log_configs\x18\x10 \x03(\v2!.processor.CosmosLogHandlerConfigR\x10cosmosLogConfigs\x12[\n" +
 	"\x16starknet_event_configs\x18\x11 \x03(\v2%.processor.StarknetEventHandlerConfigR\x14starknetEventConfigs\x12R\n" +
@@ -8968,15 +8202,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x0eprocessor_type\x18\b \x01(\tR\rprocessorType\"/\n" +
 	"\x0eDataBaseSchema\x12\x1d\n" +
 	"\n" +
-	"gql_schema\x18\x01 \x01(\tR\tgqlSchema\"8\n" +
-	"\x19TotalPerEntityAggregation\"\x1b\n" +
-	"\x04Type\x12\a\n" +
-	"\x03AVG\x10\x00\x12\n" +
-	"\n" +
-	"\x06MEDIAN\x10\x01\"W\n" +
-	"\x0fRetentionConfig\x120\n" +
-	"\x14retention_event_name\x18\x02 \x01(\tR\x12retentionEventName\x12\x12\n" +
-	"\x04days\x18\x03 \x01(\x05R\x04days\"<\n" +
+	"gql_schema\x18\x01 \x01(\tR\tgqlSchema\"<\n" +
 	"\fExportConfig\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\achannel\x18\x02 \x01(\tR\achannel\"\xa6\x02\n" +
@@ -9013,7 +8239,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x11AggregationConfig\x12.\n" +
 	"\x13interval_in_minutes\x18\x01 \x03(\x05R\x11intervalInMinutes\x120\n" +
 	"\x05types\x18\x02 \x03(\x0e2\x1a.processor.AggregationTypeR\x05types\x12%\n" +
-	"\x0ediscard_origin\x18\x03 \x01(\bR\rdiscardOrigin\"\xed\x04\n" +
+	"\x0ediscard_origin\x18\x03 \x01(\bR\rdiscardOrigin\"\x91\x04\n" +
 	"\rAccountConfig\x12\x19\n" +
 	"\bchain_id\x18\x01 \x01(\tR\achainId\x12\x18\n" +
 	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x1f\n" +
@@ -9021,8 +8247,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"startBlock\x12\x1b\n" +
 	"\tend_block\x18\n" +
 	" \x01(\x04R\bendBlock\x12F\n" +
-	"\x10interval_configs\x18\x04 \x03(\v2\x1b.processor.OnIntervalConfigR\x0fintervalConfigs\x12Z\n" +
-	"\x16aptos_interval_configs\x18\x05 \x03(\v2 .processor.AptosOnIntervalConfigB\x02\x18\x01R\x14aptosIntervalConfigs\x12S\n" +
+	"\x10interval_configs\x18\x04 \x03(\v2\x1b.processor.OnIntervalConfigR\x0fintervalConfigs\x12S\n" +
 	"\x15move_interval_configs\x18\a \x03(\v2\x1f.processor.MoveOnIntervalConfigR\x13moveIntervalConfigs\x12L\n" +
 	"\x11move_call_configs\x18\b \x03(\v2 .processor.MoveCallHandlerConfigR\x0fmoveCallConfigs\x12d\n" +
 	"\x1cmove_resource_change_configs\x18\t \x03(\v2#.processor.MoveResourceChangeConfigR\x19moveResourceChangeConfigs\x12<\n" +
@@ -9041,10 +8266,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\ffetch_config\x18\x06 \x01(\v2\x19.processor.EthFetchConfigR\vfetchConfig\x12!\n" +
 	"\fhandler_name\x18\a \x01(\tR\vhandlerNameB\x13\n" +
 	"\x11_minutes_intervalB\x10\n" +
-	"\x0e_slot_interval\"q\n" +
-	"\x15AptosOnIntervalConfig\x12D\n" +
-	"\x0finterval_config\x18\x01 \x01(\v2\x1b.processor.OnIntervalConfigR\x0eintervalConfig\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\"\xbf\x02\n" +
+	"\x0e_slot_interval\"\xbf\x02\n" +
 	"\x14MoveOnIntervalConfig\x12D\n" +
 	"\x0finterval_config\x18\x01 \x01(\v2\x1b.processor.OnIntervalConfigR\x0eintervalConfig\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x127\n" +
@@ -9078,10 +8300,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\bchain_id\x18\x01 \x01(\tR\achainId\x12J\n" +
 	"\x12template_instances\x18\x02 \x03(\v2\x1b.processor.TemplateInstanceR\x11templateInstances\"Z\n" +
 	"\fStartRequest\x12J\n" +
-	"\x12template_instances\x18\x01 \x03(\v2\x1b.processor.TemplateInstanceR\x11templateInstances\"3\n" +
-	"\x12BlockHandlerConfig\x12\x1d\n" +
-	"\n" +
-	"handler_id\x18\x01 \x01(\x05R\thandlerId\"\xc9\x01\n" +
+	"\x12template_instances\x18\x01 \x03(\v2\x1b.processor.TemplateInstanceR\x11templateInstances\"\xc9\x01\n" +
 	"\x0eEthFetchConfig\x12 \n" +
 	"\vtransaction\x18\x01 \x01(\bR\vtransaction\x12/\n" +
 	"\x13transaction_receipt\x18\x02 \x01(\bR\x12transactionReceipt\x128\n" +
@@ -9117,12 +8336,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"to_address\x18\x03 \x01(\tH\x02R\ttoAddress\x88\x01\x01B\v\n" +
 	"\t_asset_idB\x0f\n" +
 	"\r_from_addressB\r\n" +
-	"\v_to_address\"q\n" +
-	"\x14FuelLogHandlerConfig\x12\x17\n" +
-	"\alog_ids\x18\x01 \x03(\tR\x06logIds\x12\x1d\n" +
-	"\n" +
-	"handler_id\x18\x02 \x01(\x05R\thandlerId\x12!\n" +
-	"\fhandler_name\x18\x03 \x01(\tR\vhandlerName\"\xe2\x02\n" +
+	"\v_to_address\"\xe2\x02\n" +
 	"\x18FuelReceiptHandlerConfig\x12;\n" +
 	"\x03log\x18\x01 \x01(\v2'.processor.FuelReceiptHandlerConfig.LogH\x00R\x03log\x12J\n" +
 	"\btransfer\x18\x02 \x01(\v2,.processor.FuelReceiptHandlerConfig.TransferH\x00R\btransfer\x12\x1d\n" +
@@ -9182,9 +8396,8 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\n" +
 	"handler_id\x18\x02 \x01(\x05R\thandlerId\x12=\n" +
 	"\ffetch_config\x18\x03 \x01(\v2\x1a.processor.MoveFetchConfigR\vfetchConfig\x12!\n" +
-	"\fhandler_name\x18\x04 \x01(\tR\vhandlerName\"\xb3\x01\n" +
-	"\x18MoveResourceChangeConfig\x12\x16\n" +
-	"\x04type\x18\x01 \x01(\tB\x02\x18\x01R\x04type\x12\x14\n" +
+	"\fhandler_name\x18\x04 \x01(\tR\vhandlerName\"\x9b\x01\n" +
+	"\x18MoveResourceChangeConfig\x12\x14\n" +
 	"\x05types\x18\x05 \x03(\tR\x05types\x12'\n" +
 	"\x0finclude_deleted\x18\x04 \x01(\bR\x0eincludeDeleted\x12\x1d\n" +
 	"\n" +
@@ -9208,15 +8421,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\fhandler_name\x18\x03 \x01(\tR\vhandlerName\"C\n" +
 	"\x13StarknetEventFilter\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
-	"\x04keys\x18\x02 \x03(\tR\x04keys\"S\n" +
-	"\x0eFuelCallFilter\x12\x1a\n" +
-	"\bfunction\x18\x01 \x01(\tR\bfunction\x12%\n" +
-	"\x0einclude_failed\x18\x02 \x01(\bR\rincludeFailed\"\x8e\x01\n" +
-	"\x15FuelCallHandlerConfig\x123\n" +
-	"\afilters\x18\x01 \x03(\v2\x19.processor.FuelCallFilterR\afilters\x12\x1d\n" +
-	"\n" +
-	"handler_id\x18\x02 \x01(\x05R\thandlerId\x12!\n" +
-	"\fhandler_name\x18\x03 \x01(\tR\vhandlerName\"`\n" +
+	"\x04keys\x18\x02 \x03(\tR\x04keys\"`\n" +
 	"\x1cFuelTransactionHandlerConfig\x12\x1d\n" +
 	"\n" +
 	"handler_id\x18\x01 \x01(\x05R\thandlerId\x12!\n" +
@@ -9224,10 +8429,9 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x05Topic\x12\x16\n" +
 	"\x06hashes\x18\x01 \x03(\tR\x06hashes\"L\n" +
 	"\x16ProcessBindingsRequest\x122\n" +
-	"\bbindings\x18\x01 \x03(\v2\x16.processor.DataBindingR\bbindings\"u\n" +
+	"\bbindings\x18\x01 \x03(\v2\x16.processor.DataBindingR\bbindings\"J\n" +
 	"\x16ProcessBindingResponse\x120\n" +
-	"\x06result\x18\x01 \x01(\v2\x18.processor.ProcessResultR\x06result\x12)\n" +
-	"\x0econfig_updated\x18\x04 \x01(\bB\x02\x18\x01R\rconfigUpdated\"\xc0\x01\n" +
+	"\x06result\x18\x01 \x01(\v2\x18.processor.ProcessResultR\x06result\"\xc0\x01\n" +
 	"\x14ProcessStreamRequest\x12\x1d\n" +
 	"\n" +
 	"process_id\x18\x01 \x01(\x05R\tprocessId\x122\n" +
@@ -9381,7 +8585,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\aHAS_ALL\x10\n" +
 	"\x12\v\n" +
 	"\aHAS_ANY\x10\vB\x04\n" +
-	"\x02op\"\x9a-\n" +
+	"\x02op\"\xe0 \n" +
 	"\x04Data\x121\n" +
 	"\aeth_log\x18\x02 \x01(\v2\x16.processor.Data.EthLogH\x00R\x06ethLog\x127\n" +
 	"\teth_block\x18\x03 \x01(\v2\x18.processor.Data.EthBlockH\x00R\bethBlock\x12I\n" +
@@ -9397,69 +8601,46 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\n" +
 	"sui_object\x18\f \x01(\v2\x19.processor.Data.SuiObjectH\x00R\tsuiObject\x12M\n" +
 	"\x11sui_object_change\x18\r \x01(\v2\x1f.processor.Data.SuiObjectChangeH\x00R\x0fsuiObjectChange\x128\n" +
-	"\bfuel_log\x18\x14 \x01(\v2\x1b.processor.Data.FuelReceiptH\x00R\afuelLog\x12;\n" +
-	"\tfuel_call\x18\x0e \x01(\v2\x18.processor.Data.FuelCallB\x02\x18\x01H\x00R\bfuelCall\x12L\n" +
+	"\bfuel_log\x18\x14 \x01(\v2\x1b.processor.Data.FuelReceiptH\x00R\afuelLog\x12L\n" +
 	"\x10fuel_transaction\x18\x15 \x01(\v2\x1f.processor.Data.FuelTransactionH\x00R\x0ffuelTransaction\x12:\n" +
 	"\n" +
 	"fuel_block\x18\x12 \x01(\v2\x19.processor.Data.FuelBlockH\x00R\tfuelBlock\x12=\n" +
 	"\vcosmos_call\x18\x0f \x01(\v2\x1a.processor.Data.CosmosCallH\x00R\n" +
 	"cosmosCall\x12H\n" +
 	"\x0fstarknet_events\x18\x10 \x01(\v2\x1d.processor.Data.StarknetEventH\x00R\x0estarknetEvents\x127\n" +
-	"\tsol_block\x18\x16 \x01(\v2\x18.processor.Data.SolBlockH\x00R\bsolBlock\x1a\xc6\x04\n" +
-	"\x06EthLog\x12)\n" +
-	"\x03log\x18\x03 \x01(\v2\x17.google.protobuf.StructR\x03log\x128\n" +
-	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12>\n" +
-	"\vtransaction\x18\x02 \x01(\v2\x17.google.protobuf.StructH\x00R\vtransaction\x88\x01\x01\x12M\n" +
-	"\x13transaction_receipt\x18\x05 \x01(\v2\x17.google.protobuf.StructH\x01R\x12transactionReceipt\x88\x01\x01\x122\n" +
-	"\x05block\x18\x06 \x01(\v2\x17.google.protobuf.StructH\x02R\x05block\x88\x01\x01\x12\x17\n" +
+	"\tsol_block\x18\x16 \x01(\v2\x18.processor.Data.SolBlockH\x00R\bsolBlock\x1a\xa6\x02\n" +
+	"\x06EthLog\x128\n" +
+	"\ttimestamp\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x17\n" +
 	"\araw_log\x18\a \x01(\tR\x06rawLog\x12,\n" +
-	"\x0fraw_transaction\x18\b \x01(\tH\x03R\x0erawTransaction\x88\x01\x01\x12;\n" +
-	"\x17raw_transaction_receipt\x18\t \x01(\tH\x04R\x15rawTransactionReceipt\x88\x01\x01\x12 \n" +
+	"\x0fraw_transaction\x18\b \x01(\tH\x00R\x0erawTransaction\x88\x01\x01\x12;\n" +
+	"\x17raw_transaction_receipt\x18\t \x01(\tH\x01R\x15rawTransactionReceipt\x88\x01\x01\x12 \n" +
 	"\traw_block\x18\n" +
-	" \x01(\tH\x05R\brawBlock\x88\x01\x01B\x0e\n" +
-	"\f_transactionB\x16\n" +
-	"\x14_transaction_receiptB\b\n" +
-	"\x06_blockB\x12\n" +
+	" \x01(\tH\x02R\brawBlock\x88\x01\x01B\x12\n" +
 	"\x10_raw_transactionB\x1a\n" +
 	"\x18_raw_transaction_receiptB\f\n" +
 	"\n" +
-	"_raw_block\x1aV\n" +
-	"\bEthBlock\x12-\n" +
-	"\x05block\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x05block\x12\x1b\n" +
-	"\traw_block\x18\x01 \x01(\tR\brawBlock\x1a\xca\x04\n" +
-	"\x0eEthTransaction\x129\n" +
-	"\vtransaction\x18\x04 \x01(\v2\x17.google.protobuf.StructR\vtransaction\x128\n" +
-	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12M\n" +
-	"\x13transaction_receipt\x18\x03 \x01(\v2\x17.google.protobuf.StructH\x00R\x12transactionReceipt\x88\x01\x01\x122\n" +
-	"\x05block\x18\x06 \x01(\v2\x17.google.protobuf.StructH\x01R\x05block\x88\x01\x01\x122\n" +
-	"\x05trace\x18\a \x01(\v2\x17.google.protobuf.StructH\x02R\x05trace\x88\x01\x01\x12'\n" +
+	"_raw_block\x1a'\n" +
+	"\bEthBlock\x12\x1b\n" +
+	"\traw_block\x18\x01 \x01(\tR\brawBlock\x1a\xac\x02\n" +
+	"\x0eEthTransaction\x128\n" +
+	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12'\n" +
 	"\x0fraw_transaction\x18\b \x01(\tR\x0erawTransaction\x12;\n" +
-	"\x17raw_transaction_receipt\x18\t \x01(\tH\x03R\x15rawTransactionReceipt\x88\x01\x01\x12 \n" +
+	"\x17raw_transaction_receipt\x18\t \x01(\tH\x00R\x15rawTransactionReceipt\x88\x01\x01\x12 \n" +
 	"\traw_block\x18\n" +
-	" \x01(\tH\x04R\brawBlock\x88\x01\x01\x12 \n" +
-	"\traw_trace\x18\v \x01(\tH\x05R\brawTrace\x88\x01\x01B\x16\n" +
-	"\x14_transaction_receiptB\b\n" +
-	"\x06_blockB\b\n" +
-	"\x06_traceB\x1a\n" +
+	" \x01(\tH\x01R\brawBlock\x88\x01\x01\x12 \n" +
+	"\traw_trace\x18\v \x01(\tH\x02R\brawTrace\x88\x01\x01B\x1a\n" +
 	"\x18_raw_transaction_receiptB\f\n" +
 	"\n" +
 	"_raw_blockB\f\n" +
 	"\n" +
-	"_raw_trace\x1a\xd0\x04\n" +
-	"\bEthTrace\x12-\n" +
-	"\x05trace\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x05trace\x128\n" +
-	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12>\n" +
-	"\vtransaction\x18\x02 \x01(\v2\x17.google.protobuf.StructH\x00R\vtransaction\x88\x01\x01\x12M\n" +
-	"\x13transaction_receipt\x18\x03 \x01(\v2\x17.google.protobuf.StructH\x01R\x12transactionReceipt\x88\x01\x01\x122\n" +
-	"\x05block\x18\x06 \x01(\v2\x17.google.protobuf.StructH\x02R\x05block\x88\x01\x01\x12\x1b\n" +
+	"_raw_trace\x1a\xac\x02\n" +
+	"\bEthTrace\x128\n" +
+	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1b\n" +
 	"\traw_trace\x18\a \x01(\tR\brawTrace\x12,\n" +
-	"\x0fraw_transaction\x18\b \x01(\tH\x03R\x0erawTransaction\x88\x01\x01\x12;\n" +
-	"\x17raw_transaction_receipt\x18\t \x01(\tH\x04R\x15rawTransactionReceipt\x88\x01\x01\x12 \n" +
+	"\x0fraw_transaction\x18\b \x01(\tH\x00R\x0erawTransaction\x88\x01\x01\x12;\n" +
+	"\x17raw_transaction_receipt\x18\t \x01(\tH\x01R\x15rawTransactionReceipt\x88\x01\x01\x12 \n" +
 	"\traw_block\x18\n" +
-	" \x01(\tH\x05R\brawBlock\x88\x01\x01B\x0e\n" +
-	"\f_transactionB\x16\n" +
-	"\x14_transaction_receiptB\b\n" +
-	"\x06_blockB\x12\n" +
+	" \x01(\tH\x02R\brawBlock\x88\x01\x01B\x12\n" +
 	"\x10_raw_transactionB\x1a\n" +
 	"\x18_raw_transaction_receiptB\f\n" +
 	"\n" +
@@ -9476,48 +8657,39 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\bSolBlock\x12\x1b\n" +
 	"\traw_block\x18\x01 \x01(\tR\brawBlock\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x12\n" +
-	"\x04slot\x18\x03 \x01(\x04R\x04slot\x1a\xb0\x01\n" +
+	"\x04slot\x18\x03 \x01(\x04R\x04slot\x1aq\n" +
 	"\bAptEvent\x12\x1b\n" +
 	"\traw_event\x18\x01 \x01(\tR\brawEvent\x12\x1f\n" +
 	"\vevent_index\x18\x04 \x01(\x05R\n" +
-	"eventIndex\x12=\n" +
-	"\vtransaction\x18\x02 \x01(\v2\x17.google.protobuf.StructB\x02\x18\x01R\vtransaction\x12'\n" +
-	"\x0fraw_transaction\x18\x03 \x01(\tR\x0erawTransaction\x1aq\n" +
-	"\aAptCall\x12=\n" +
-	"\vtransaction\x18\x02 \x01(\v2\x17.google.protobuf.StructB\x02\x18\x01R\vtransaction\x12'\n" +
-	"\x0fraw_transaction\x18\x03 \x01(\tR\x0erawTransaction\x1a\xb1\x01\n" +
-	"\vAptResource\x129\n" +
-	"\tresources\x18\x04 \x03(\v2\x17.google.protobuf.StructB\x02\x18\x01R\tresources\x12\x18\n" +
+	"eventIndex\x12'\n" +
+	"\x0fraw_transaction\x18\x03 \x01(\tR\x0erawTransaction\x1a2\n" +
+	"\aAptCall\x12'\n" +
+	"\x0fraw_transaction\x18\x03 \x01(\tR\x0erawTransaction\x1av\n" +
+	"\vAptResource\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\x03R\aversion\x12(\n" +
 	"\x0ftimestampMicros\x18\x05 \x01(\x03R\x0ftimestampMicros\x12#\n" +
-	"\rraw_resources\x18\x06 \x03(\tR\frawResources\x1a\xdd\x01\n" +
-	"\bSuiEvent\x12=\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x17.google.protobuf.StructB\x02\x18\x01R\vtransaction\x12\x1b\n" +
+	"\rraw_resources\x18\x06 \x03(\tR\frawResources\x1a\x9e\x01\n" +
+	"\bSuiEvent\x12\x1b\n" +
 	"\traw_event\x18\x04 \x01(\tR\brawEvent\x12'\n" +
 	"\x0fraw_transaction\x18\x05 \x01(\tR\x0erawTransaction\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x12\n" +
-	"\x04slot\x18\x03 \x01(\x04R\x04slot\x1a\xbf\x01\n" +
-	"\aSuiCall\x12=\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x17.google.protobuf.StructB\x02\x18\x01R\vtransaction\x12'\n" +
+	"\x04slot\x18\x03 \x01(\x04R\x04slot\x1a\x80\x01\n" +
+	"\aSuiCall\x12'\n" +
 	"\x0fraw_transaction\x18\x04 \x01(\tR\x0erawTransaction\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x12\n" +
-	"\x04slot\x18\x03 \x01(\x04R\x04slot\x1a\x86\x03\n" +
-	"\tSuiObject\x125\n" +
-	"\aobjects\x18\x01 \x03(\v2\x17.google.protobuf.StructB\x02\x18\x01R\aobjects\x124\n" +
-	"\x04self\x18\x04 \x01(\v2\x17.google.protobuf.StructB\x02\x18\x01H\x00R\x04self\x88\x01\x01\x12\x1f\n" +
+	"\x04slot\x18\x03 \x01(\x04R\x04slot\x1a\x90\x02\n" +
+	"\tSuiObject\x12\x1f\n" +
 	"\vraw_objects\x18\n" +
 	" \x03(\tR\n" +
 	"rawObjects\x12\x1e\n" +
-	"\braw_self\x18\t \x01(\tH\x01R\arawSelf\x88\x01\x01\x12\x1b\n" +
+	"\braw_self\x18\t \x01(\tH\x00R\arawSelf\x88\x01\x01\x12\x1b\n" +
 	"\tobject_id\x18\x05 \x01(\tR\bobjectId\x12%\n" +
 	"\x0eobject_version\x18\x06 \x01(\x04R\robjectVersion\x12#\n" +
 	"\robject_digest\x18\a \x01(\tR\fobjectDigest\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x12\n" +
-	"\x04slot\x18\x03 \x01(\x04R\x04slotB\a\n" +
-	"\x05_selfB\v\n" +
-	"\t_raw_self\x1a\xd4\x01\n" +
-	"\x0fSuiObjectChange\x125\n" +
-	"\achanges\x18\x01 \x03(\v2\x17.google.protobuf.StructB\x02\x18\x01R\achanges\x12\x1f\n" +
+	"\x04slot\x18\x03 \x01(\x04R\x04slotB\v\n" +
+	"\t_raw_self\x1a\x9d\x01\n" +
+	"\x0fSuiObjectChange\x12\x1f\n" +
 	"\vraw_changes\x18\x05 \x03(\tR\n" +
 	"rawChanges\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1b\n" +
@@ -9529,10 +8701,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\rreceipt_index\x18\x03 \x01(\x03R\freceiptIndex\x1a\x86\x01\n" +
 	"\x0fFuelTransaction\x129\n" +
 	"\vtransaction\x18\x01 \x01(\v2\x17.google.protobuf.StructR\vtransaction\x128\n" +
-	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x1a\x83\x01\n" +
-	"\bFuelCall\x129\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x17.google.protobuf.StructR\vtransaction\x128\n" +
-	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp:\x02\x18\x01\x1at\n" +
+	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x1at\n" +
 	"\tFuelBlock\x12-\n" +
 	"\x05block\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x05block\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x1a\x81\x01\n" +
@@ -9654,7 +8823,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x05ERC20\x10\x00\x12\n" +
 	"\n" +
 	"\x06ERC721\x10\x01\x12\v\n" +
-	"\aERC1155\x10\x02*\xdd\x02\n" +
+	"\aERC1155\x10\x02*\xce\x02\n" +
 	"\vHandlerType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
 	"\aETH_LOG\x10\x01\x12\r\n" +
@@ -9670,8 +8839,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\n" +
 	"SUI_OBJECT\x10\n" +
 	"\x12\x15\n" +
-	"\x11SUI_OBJECT_CHANGE\x10\f\x12\r\n" +
-	"\tFUEL_CALL\x10\r\x12\x10\n" +
+	"\x11SUI_OBJECT_CHANGE\x10\f\x12\x10\n" +
 	"\fFUEL_RECEIPT\x10\x13\x12\x14\n" +
 	"\x10FUEL_TRANSACTION\x10\x14\x12\x0e\n" +
 	"\n" +
@@ -9710,8 +8878,8 @@ func file_processor_protos_processor_proto_rawDescGZIP() []byte {
 	return file_processor_protos_processor_proto_rawDescData
 }
 
-var file_processor_protos_processor_proto_enumTypes = make([]protoimpl.EnumInfo, 13)
-var file_processor_protos_processor_proto_msgTypes = make([]protoimpl.MessageInfo, 118)
+var file_processor_protos_processor_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
+var file_processor_protos_processor_proto_msgTypes = make([]protoimpl.MessageInfo, 109)
 var file_processor_protos_processor_proto_goTypes = []any{
 	(MetricType)(0),      // 0: processor.MetricType
 	(AggregationType)(0), // 1: processor.AggregationType
@@ -9720,381 +8888,340 @@ var file_processor_protos_processor_proto_goTypes = []any{
 	(HandlerType)(0),     // 4: processor.HandlerType
 	(LogLevel)(0),        // 5: processor.LogLevel
 	(ExecutionConfig_HandlerOrderInsideTransaction)(0),       // 6: processor.ExecutionConfig.HandlerOrderInsideTransaction
-	(TotalPerEntityAggregation_Type)(0),                      // 7: processor.TotalPerEntityAggregation.Type
-	(EventLogConfig_BasicFieldType)(0),                       // 8: processor.EventLogConfig.BasicFieldType
-	(ProcessStreamResponse_Partitions_Partition_SysValue)(0), // 9: processor.ProcessStreamResponse.Partitions.Partition.SysValue
-	(EntityUpdateData_Operator)(0),                           // 10: processor.EntityUpdateData.Operator
-	(DBRequest_DBOperator)(0),                                // 11: processor.DBRequest.DBOperator
-	(TimeseriesResult_TimeseriesType)(0),                     // 12: processor.TimeseriesResult.TimeseriesType
-	(*ProjectConfig)(nil),                                    // 13: processor.ProjectConfig
-	(*ExecutionConfig)(nil),                                  // 14: processor.ExecutionConfig
-	(*ProcessConfigRequest)(nil),                             // 15: processor.ProcessConfigRequest
-	(*ProcessConfigResponse)(nil),                            // 16: processor.ProcessConfigResponse
-	(*ConfigureHandlersResponse)(nil),                        // 17: processor.ConfigureHandlersResponse
-	(*ContractConfig)(nil),                                   // 18: processor.ContractConfig
-	(*DataBaseSchema)(nil),                                   // 19: processor.DataBaseSchema
-	(*TotalPerEntityAggregation)(nil),                        // 20: processor.TotalPerEntityAggregation
-	(*RetentionConfig)(nil),                                  // 21: processor.RetentionConfig
-	(*ExportConfig)(nil),                                     // 22: processor.ExportConfig
-	(*MetricConfig)(nil),                                     // 23: processor.MetricConfig
-	(*EventLogConfig)(nil),                                   // 24: processor.EventLogConfig
-	(*AggregationConfig)(nil),                                // 25: processor.AggregationConfig
-	(*AccountConfig)(nil),                                    // 26: processor.AccountConfig
-	(*HandleInterval)(nil),                                   // 27: processor.HandleInterval
-	(*OnIntervalConfig)(nil),                                 // 28: processor.OnIntervalConfig
-	(*AptosOnIntervalConfig)(nil),                            // 29: processor.AptosOnIntervalConfig
-	(*MoveOnIntervalConfig)(nil),                             // 30: processor.MoveOnIntervalConfig
-	(*ContractInfo)(nil),                                     // 31: processor.ContractInfo
-	(*TemplateInstance)(nil),                                 // 32: processor.TemplateInstance
-	(*InitResponse)(nil),                                     // 33: processor.InitResponse
-	(*UpdateTemplatesRequest)(nil),                           // 34: processor.UpdateTemplatesRequest
-	(*StartRequest)(nil),                                     // 35: processor.StartRequest
-	(*BlockHandlerConfig)(nil),                               // 36: processor.BlockHandlerConfig
-	(*EthFetchConfig)(nil),                                   // 37: processor.EthFetchConfig
-	(*TraceHandlerConfig)(nil),                               // 38: processor.TraceHandlerConfig
-	(*TransactionHandlerConfig)(nil),                         // 39: processor.TransactionHandlerConfig
-	(*LogHandlerConfig)(nil),                                 // 40: processor.LogHandlerConfig
-	(*FuelAssetHandlerConfig)(nil),                           // 41: processor.FuelAssetHandlerConfig
-	(*FuelLogHandlerConfig)(nil),                             // 42: processor.FuelLogHandlerConfig
-	(*FuelReceiptHandlerConfig)(nil),                         // 43: processor.FuelReceiptHandlerConfig
-	(*CosmosLogHandlerConfig)(nil),                           // 44: processor.CosmosLogHandlerConfig
-	(*LogFilter)(nil),                                        // 45: processor.LogFilter
-	(*InstructionHandlerConfig)(nil),                         // 46: processor.InstructionHandlerConfig
-	(*ResourceConfig)(nil),                                   // 47: processor.ResourceConfig
-	(*MoveFetchConfig)(nil),                                  // 48: processor.MoveFetchConfig
-	(*MoveAccountFetchConfig)(nil),                           // 49: processor.MoveAccountFetchConfig
-	(*MoveEventHandlerConfig)(nil),                           // 50: processor.MoveEventHandlerConfig
-	(*MoveEventFilter)(nil),                                  // 51: processor.MoveEventFilter
-	(*MoveCallHandlerConfig)(nil),                            // 52: processor.MoveCallHandlerConfig
-	(*MoveResourceChangeConfig)(nil),                         // 53: processor.MoveResourceChangeConfig
-	(*MoveCallFilter)(nil),                                   // 54: processor.MoveCallFilter
-	(*StarknetEventHandlerConfig)(nil),                       // 55: processor.StarknetEventHandlerConfig
-	(*StarknetEventFilter)(nil),                              // 56: processor.StarknetEventFilter
-	(*FuelCallFilter)(nil),                                   // 57: processor.FuelCallFilter
-	(*FuelCallHandlerConfig)(nil),                            // 58: processor.FuelCallHandlerConfig
-	(*FuelTransactionHandlerConfig)(nil),                     // 59: processor.FuelTransactionHandlerConfig
-	(*Topic)(nil),                                            // 60: processor.Topic
-	(*ProcessBindingsRequest)(nil),                           // 61: processor.ProcessBindingsRequest
-	(*ProcessBindingResponse)(nil),                           // 62: processor.ProcessBindingResponse
-	(*ProcessStreamRequest)(nil),                             // 63: processor.ProcessStreamRequest
-	(*ProcessStreamResponse)(nil),                            // 64: processor.ProcessStreamResponse
-	(*ProcessStreamResponseV3)(nil),                          // 65: processor.ProcessStreamResponseV3
-	(*PreprocessStreamRequest)(nil),                          // 66: processor.PreprocessStreamRequest
-	(*PreprocessStreamResponse)(nil),                         // 67: processor.PreprocessStreamResponse
-	(*DBResponse)(nil),                                       // 68: processor.DBResponse
-	(*Entity)(nil),                                           // 69: processor.Entity
-	(*EntityList)(nil),                                       // 70: processor.EntityList
-	(*EntityUpdateData)(nil),                                 // 71: processor.EntityUpdateData
-	(*TPLRequest)(nil),                                       // 72: processor.TPLRequest
-	(*TSRequest)(nil),                                        // 73: processor.TSRequest
-	(*DBRequest)(nil),                                        // 74: processor.DBRequest
-	(*Data)(nil),                                             // 75: processor.Data
-	(*DataBinding)(nil),                                      // 76: processor.DataBinding
-	(*StateResult)(nil),                                      // 77: processor.StateResult
-	(*ProcessResult)(nil),                                    // 78: processor.ProcessResult
-	(*EthCallParam)(nil),                                     // 79: processor.EthCallParam
-	(*EthCallContext)(nil),                                   // 80: processor.EthCallContext
-	(*PreprocessResult)(nil),                                 // 81: processor.PreprocessResult
-	(*PreparedData)(nil),                                     // 82: processor.PreparedData
-	(*RecordMetaData)(nil),                                   // 83: processor.RecordMetaData
-	(*MetricValue)(nil),                                      // 84: processor.MetricValue
-	(*RuntimeInfo)(nil),                                      // 85: processor.RuntimeInfo
-	(*GaugeResult)(nil),                                      // 86: processor.GaugeResult
-	(*CounterResult)(nil),                                    // 87: processor.CounterResult
-	(*EventTrackingResult)(nil),                              // 88: processor.EventTrackingResult
-	(*TimeseriesResult)(nil),                                 // 89: processor.TimeseriesResult
-	(*ExportResult)(nil),                                     // 90: processor.ExportResult
-	(*ExecutionConfig_DecoderWorkerConfig)(nil),              // 91: processor.ExecutionConfig.DecoderWorkerConfig
-	(*EventLogConfig_StructFieldType)(nil),                   // 92: processor.EventLogConfig.StructFieldType
-	(*EventLogConfig_Field)(nil),                             // 93: processor.EventLogConfig.Field
-	(*FuelAssetHandlerConfig_AssetFilter)(nil),               // 94: processor.FuelAssetHandlerConfig.AssetFilter
-	(*FuelReceiptHandlerConfig_Transfer)(nil),                // 95: processor.FuelReceiptHandlerConfig.Transfer
-	(*FuelReceiptHandlerConfig_Log)(nil),                     // 96: processor.FuelReceiptHandlerConfig.Log
-	(*MoveCallFilter_FromAndToAddress)(nil),                  // 97: processor.MoveCallFilter.FromAndToAddress
-	(*ProcessStreamResponse_Partitions)(nil),                 // 98: processor.ProcessStreamResponse.Partitions
-	(*ProcessStreamResponse_Partitions_Partition)(nil),       // 99: processor.ProcessStreamResponse.Partitions.Partition
-	nil, // 100: processor.ProcessStreamResponse.Partitions.PartitionsEntry
-	(*PreprocessStreamRequest_DataBindings)(nil), // 101: processor.PreprocessStreamRequest.DataBindings
-	(*EntityUpdateData_FieldValue)(nil),          // 102: processor.EntityUpdateData.FieldValue
-	nil,                                          // 103: processor.EntityUpdateData.FieldsEntry
-	(*DBRequest_DBGet)(nil),                      // 104: processor.DBRequest.DBGet
-	(*DBRequest_DBList)(nil),                     // 105: processor.DBRequest.DBList
-	(*DBRequest_DBUpsert)(nil),                   // 106: processor.DBRequest.DBUpsert
-	(*DBRequest_DBUpdate)(nil),                   // 107: processor.DBRequest.DBUpdate
-	(*DBRequest_DBDelete)(nil),                   // 108: processor.DBRequest.DBDelete
-	(*DBRequest_DBFilter)(nil),                   // 109: processor.DBRequest.DBFilter
-	(*Data_EthLog)(nil),                          // 110: processor.Data.EthLog
-	(*Data_EthBlock)(nil),                        // 111: processor.Data.EthBlock
-	(*Data_EthTransaction)(nil),                  // 112: processor.Data.EthTransaction
-	(*Data_EthTrace)(nil),                        // 113: processor.Data.EthTrace
-	(*Data_SolInstruction)(nil),                  // 114: processor.Data.SolInstruction
-	(*Data_SolBlock)(nil),                        // 115: processor.Data.SolBlock
-	(*Data_AptEvent)(nil),                        // 116: processor.Data.AptEvent
-	(*Data_AptCall)(nil),                         // 117: processor.Data.AptCall
-	(*Data_AptResource)(nil),                     // 118: processor.Data.AptResource
-	(*Data_SuiEvent)(nil),                        // 119: processor.Data.SuiEvent
-	(*Data_SuiCall)(nil),                         // 120: processor.Data.SuiCall
-	(*Data_SuiObject)(nil),                       // 121: processor.Data.SuiObject
-	(*Data_SuiObjectChange)(nil),                 // 122: processor.Data.SuiObjectChange
-	(*Data_FuelReceipt)(nil),                     // 123: processor.Data.FuelReceipt
-	(*Data_FuelTransaction)(nil),                 // 124: processor.Data.FuelTransaction
-	(*Data_FuelCall)(nil),                        // 125: processor.Data.FuelCall
-	(*Data_FuelBlock)(nil),                       // 126: processor.Data.FuelBlock
-	(*Data_CosmosCall)(nil),                      // 127: processor.Data.CosmosCall
-	(*Data_StarknetEvent)(nil),                   // 128: processor.Data.StarknetEvent
-	nil,                                          // 129: processor.PreparedData.EthCallResultsEntry
-	nil,                                          // 130: processor.RecordMetaData.LabelsEntry
-	(*structpb.Struct)(nil),                      // 131: google.protobuf.Struct
-	(*structpb.ListValue)(nil),                   // 132: google.protobuf.ListValue
-	(*protos.RichStructList)(nil),                // 133: common.RichStructList
-	(*timestamppb.Timestamp)(nil),                // 134: google.protobuf.Timestamp
-	(*protos.RichStruct)(nil),                    // 135: common.RichStruct
-	(*protos.BigInteger)(nil),                    // 136: common.BigInteger
-	(*protos.CoinID)(nil),                        // 137: common.CoinID
-	(*protos.RichValue)(nil),                     // 138: common.RichValue
-	(*protos.RichValueList)(nil),                 // 139: common.RichValueList
-	(*emptypb.Empty)(nil),                        // 140: google.protobuf.Empty
+	(EventLogConfig_BasicFieldType)(0),                       // 7: processor.EventLogConfig.BasicFieldType
+	(ProcessStreamResponse_Partitions_Partition_SysValue)(0), // 8: processor.ProcessStreamResponse.Partitions.Partition.SysValue
+	(EntityUpdateData_Operator)(0),                           // 9: processor.EntityUpdateData.Operator
+	(DBRequest_DBOperator)(0),                                // 10: processor.DBRequest.DBOperator
+	(TimeseriesResult_TimeseriesType)(0),                     // 11: processor.TimeseriesResult.TimeseriesType
+	(*ProjectConfig)(nil),                                    // 12: processor.ProjectConfig
+	(*ExecutionConfig)(nil),                                  // 13: processor.ExecutionConfig
+	(*ProcessConfigRequest)(nil),                             // 14: processor.ProcessConfigRequest
+	(*ProcessConfigResponse)(nil),                            // 15: processor.ProcessConfigResponse
+	(*ContractConfig)(nil),                                   // 16: processor.ContractConfig
+	(*DataBaseSchema)(nil),                                   // 17: processor.DataBaseSchema
+	(*ExportConfig)(nil),                                     // 18: processor.ExportConfig
+	(*MetricConfig)(nil),                                     // 19: processor.MetricConfig
+	(*EventLogConfig)(nil),                                   // 20: processor.EventLogConfig
+	(*AggregationConfig)(nil),                                // 21: processor.AggregationConfig
+	(*AccountConfig)(nil),                                    // 22: processor.AccountConfig
+	(*HandleInterval)(nil),                                   // 23: processor.HandleInterval
+	(*OnIntervalConfig)(nil),                                 // 24: processor.OnIntervalConfig
+	(*MoveOnIntervalConfig)(nil),                             // 25: processor.MoveOnIntervalConfig
+	(*ContractInfo)(nil),                                     // 26: processor.ContractInfo
+	(*TemplateInstance)(nil),                                 // 27: processor.TemplateInstance
+	(*InitResponse)(nil),                                     // 28: processor.InitResponse
+	(*UpdateTemplatesRequest)(nil),                           // 29: processor.UpdateTemplatesRequest
+	(*StartRequest)(nil),                                     // 30: processor.StartRequest
+	(*EthFetchConfig)(nil),                                   // 31: processor.EthFetchConfig
+	(*TraceHandlerConfig)(nil),                               // 32: processor.TraceHandlerConfig
+	(*TransactionHandlerConfig)(nil),                         // 33: processor.TransactionHandlerConfig
+	(*LogHandlerConfig)(nil),                                 // 34: processor.LogHandlerConfig
+	(*FuelAssetHandlerConfig)(nil),                           // 35: processor.FuelAssetHandlerConfig
+	(*FuelReceiptHandlerConfig)(nil),                         // 36: processor.FuelReceiptHandlerConfig
+	(*CosmosLogHandlerConfig)(nil),                           // 37: processor.CosmosLogHandlerConfig
+	(*LogFilter)(nil),                                        // 38: processor.LogFilter
+	(*InstructionHandlerConfig)(nil),                         // 39: processor.InstructionHandlerConfig
+	(*ResourceConfig)(nil),                                   // 40: processor.ResourceConfig
+	(*MoveFetchConfig)(nil),                                  // 41: processor.MoveFetchConfig
+	(*MoveAccountFetchConfig)(nil),                           // 42: processor.MoveAccountFetchConfig
+	(*MoveEventHandlerConfig)(nil),                           // 43: processor.MoveEventHandlerConfig
+	(*MoveEventFilter)(nil),                                  // 44: processor.MoveEventFilter
+	(*MoveCallHandlerConfig)(nil),                            // 45: processor.MoveCallHandlerConfig
+	(*MoveResourceChangeConfig)(nil),                         // 46: processor.MoveResourceChangeConfig
+	(*MoveCallFilter)(nil),                                   // 47: processor.MoveCallFilter
+	(*StarknetEventHandlerConfig)(nil),                       // 48: processor.StarknetEventHandlerConfig
+	(*StarknetEventFilter)(nil),                              // 49: processor.StarknetEventFilter
+	(*FuelTransactionHandlerConfig)(nil),                     // 50: processor.FuelTransactionHandlerConfig
+	(*Topic)(nil),                                            // 51: processor.Topic
+	(*ProcessBindingsRequest)(nil),                           // 52: processor.ProcessBindingsRequest
+	(*ProcessBindingResponse)(nil),                           // 53: processor.ProcessBindingResponse
+	(*ProcessStreamRequest)(nil),                             // 54: processor.ProcessStreamRequest
+	(*ProcessStreamResponse)(nil),                            // 55: processor.ProcessStreamResponse
+	(*ProcessStreamResponseV3)(nil),                          // 56: processor.ProcessStreamResponseV3
+	(*PreprocessStreamRequest)(nil),                          // 57: processor.PreprocessStreamRequest
+	(*PreprocessStreamResponse)(nil),                         // 58: processor.PreprocessStreamResponse
+	(*DBResponse)(nil),                                       // 59: processor.DBResponse
+	(*Entity)(nil),                                           // 60: processor.Entity
+	(*EntityList)(nil),                                       // 61: processor.EntityList
+	(*EntityUpdateData)(nil),                                 // 62: processor.EntityUpdateData
+	(*TPLRequest)(nil),                                       // 63: processor.TPLRequest
+	(*TSRequest)(nil),                                        // 64: processor.TSRequest
+	(*DBRequest)(nil),                                        // 65: processor.DBRequest
+	(*Data)(nil),                                             // 66: processor.Data
+	(*DataBinding)(nil),                                      // 67: processor.DataBinding
+	(*StateResult)(nil),                                      // 68: processor.StateResult
+	(*ProcessResult)(nil),                                    // 69: processor.ProcessResult
+	(*EthCallParam)(nil),                                     // 70: processor.EthCallParam
+	(*EthCallContext)(nil),                                   // 71: processor.EthCallContext
+	(*PreprocessResult)(nil),                                 // 72: processor.PreprocessResult
+	(*PreparedData)(nil),                                     // 73: processor.PreparedData
+	(*RecordMetaData)(nil),                                   // 74: processor.RecordMetaData
+	(*MetricValue)(nil),                                      // 75: processor.MetricValue
+	(*RuntimeInfo)(nil),                                      // 76: processor.RuntimeInfo
+	(*GaugeResult)(nil),                                      // 77: processor.GaugeResult
+	(*CounterResult)(nil),                                    // 78: processor.CounterResult
+	(*EventTrackingResult)(nil),                              // 79: processor.EventTrackingResult
+	(*TimeseriesResult)(nil),                                 // 80: processor.TimeseriesResult
+	(*ExportResult)(nil),                                     // 81: processor.ExportResult
+	(*ExecutionConfig_DecoderWorkerConfig)(nil),              // 82: processor.ExecutionConfig.DecoderWorkerConfig
+	(*EventLogConfig_StructFieldType)(nil),                   // 83: processor.EventLogConfig.StructFieldType
+	(*EventLogConfig_Field)(nil),                             // 84: processor.EventLogConfig.Field
+	(*FuelAssetHandlerConfig_AssetFilter)(nil),               // 85: processor.FuelAssetHandlerConfig.AssetFilter
+	(*FuelReceiptHandlerConfig_Transfer)(nil),                // 86: processor.FuelReceiptHandlerConfig.Transfer
+	(*FuelReceiptHandlerConfig_Log)(nil),                     // 87: processor.FuelReceiptHandlerConfig.Log
+	(*MoveCallFilter_FromAndToAddress)(nil),                  // 88: processor.MoveCallFilter.FromAndToAddress
+	(*ProcessStreamResponse_Partitions)(nil),                 // 89: processor.ProcessStreamResponse.Partitions
+	(*ProcessStreamResponse_Partitions_Partition)(nil),       // 90: processor.ProcessStreamResponse.Partitions.Partition
+	nil, // 91: processor.ProcessStreamResponse.Partitions.PartitionsEntry
+	(*PreprocessStreamRequest_DataBindings)(nil), // 92: processor.PreprocessStreamRequest.DataBindings
+	(*EntityUpdateData_FieldValue)(nil),          // 93: processor.EntityUpdateData.FieldValue
+	nil,                                          // 94: processor.EntityUpdateData.FieldsEntry
+	(*DBRequest_DBGet)(nil),                      // 95: processor.DBRequest.DBGet
+	(*DBRequest_DBList)(nil),                     // 96: processor.DBRequest.DBList
+	(*DBRequest_DBUpsert)(nil),                   // 97: processor.DBRequest.DBUpsert
+	(*DBRequest_DBUpdate)(nil),                   // 98: processor.DBRequest.DBUpdate
+	(*DBRequest_DBDelete)(nil),                   // 99: processor.DBRequest.DBDelete
+	(*DBRequest_DBFilter)(nil),                   // 100: processor.DBRequest.DBFilter
+	(*Data_EthLog)(nil),                          // 101: processor.Data.EthLog
+	(*Data_EthBlock)(nil),                        // 102: processor.Data.EthBlock
+	(*Data_EthTransaction)(nil),                  // 103: processor.Data.EthTransaction
+	(*Data_EthTrace)(nil),                        // 104: processor.Data.EthTrace
+	(*Data_SolInstruction)(nil),                  // 105: processor.Data.SolInstruction
+	(*Data_SolBlock)(nil),                        // 106: processor.Data.SolBlock
+	(*Data_AptEvent)(nil),                        // 107: processor.Data.AptEvent
+	(*Data_AptCall)(nil),                         // 108: processor.Data.AptCall
+	(*Data_AptResource)(nil),                     // 109: processor.Data.AptResource
+	(*Data_SuiEvent)(nil),                        // 110: processor.Data.SuiEvent
+	(*Data_SuiCall)(nil),                         // 111: processor.Data.SuiCall
+	(*Data_SuiObject)(nil),                       // 112: processor.Data.SuiObject
+	(*Data_SuiObjectChange)(nil),                 // 113: processor.Data.SuiObjectChange
+	(*Data_FuelReceipt)(nil),                     // 114: processor.Data.FuelReceipt
+	(*Data_FuelTransaction)(nil),                 // 115: processor.Data.FuelTransaction
+	(*Data_FuelBlock)(nil),                       // 116: processor.Data.FuelBlock
+	(*Data_CosmosCall)(nil),                      // 117: processor.Data.CosmosCall
+	(*Data_StarknetEvent)(nil),                   // 118: processor.Data.StarknetEvent
+	nil,                                          // 119: processor.PreparedData.EthCallResultsEntry
+	nil,                                          // 120: processor.RecordMetaData.LabelsEntry
+	(*structpb.Struct)(nil),                      // 121: google.protobuf.Struct
+	(*structpb.ListValue)(nil),                   // 122: google.protobuf.ListValue
+	(*protos.RichStructList)(nil),                // 123: common.RichStructList
+	(*timestamppb.Timestamp)(nil),                // 124: google.protobuf.Timestamp
+	(*protos.RichStruct)(nil),                    // 125: common.RichStruct
+	(*protos.BigInteger)(nil),                    // 126: common.BigInteger
+	(*protos.CoinID)(nil),                        // 127: common.CoinID
+	(*protos.RichValue)(nil),                     // 128: common.RichValue
+	(*protos.RichValueList)(nil),                 // 129: common.RichValueList
+	(*emptypb.Empty)(nil),                        // 130: google.protobuf.Empty
 }
 var file_processor_protos_processor_proto_depIdxs = []int32{
 	6,   // 0: processor.ExecutionConfig.handler_order_inside_transaction:type_name -> processor.ExecutionConfig.HandlerOrderInsideTransaction
-	91,  // 1: processor.ExecutionConfig.ethAbiDecoderConfig:type_name -> processor.ExecutionConfig.DecoderWorkerConfig
-	13,  // 2: processor.ProcessConfigResponse.config:type_name -> processor.ProjectConfig
-	14,  // 3: processor.ProcessConfigResponse.execution_config:type_name -> processor.ExecutionConfig
-	18,  // 4: processor.ProcessConfigResponse.contract_configs:type_name -> processor.ContractConfig
-	32,  // 5: processor.ProcessConfigResponse.template_instances:type_name -> processor.TemplateInstance
-	26,  // 6: processor.ProcessConfigResponse.account_configs:type_name -> processor.AccountConfig
-	23,  // 7: processor.ProcessConfigResponse.metric_configs:type_name -> processor.MetricConfig
-	22,  // 8: processor.ProcessConfigResponse.export_configs:type_name -> processor.ExportConfig
-	24,  // 9: processor.ProcessConfigResponse.event_log_configs:type_name -> processor.EventLogConfig
-	19,  // 10: processor.ProcessConfigResponse.db_schema:type_name -> processor.DataBaseSchema
-	18,  // 11: processor.ConfigureHandlersResponse.contract_configs:type_name -> processor.ContractConfig
-	26,  // 12: processor.ConfigureHandlersResponse.account_configs:type_name -> processor.AccountConfig
-	31,  // 13: processor.ContractConfig.contract:type_name -> processor.ContractInfo
-	28,  // 14: processor.ContractConfig.interval_configs:type_name -> processor.OnIntervalConfig
-	30,  // 15: processor.ContractConfig.move_interval_configs:type_name -> processor.MoveOnIntervalConfig
-	40,  // 16: processor.ContractConfig.log_configs:type_name -> processor.LogHandlerConfig
-	38,  // 17: processor.ContractConfig.trace_configs:type_name -> processor.TraceHandlerConfig
-	39,  // 18: processor.ContractConfig.transaction_config:type_name -> processor.TransactionHandlerConfig
-	50,  // 19: processor.ContractConfig.move_event_configs:type_name -> processor.MoveEventHandlerConfig
-	52,  // 20: processor.ContractConfig.move_call_configs:type_name -> processor.MoveCallHandlerConfig
-	53,  // 21: processor.ContractConfig.move_resource_change_configs:type_name -> processor.MoveResourceChangeConfig
-	58,  // 22: processor.ContractConfig.fuel_call_configs:type_name -> processor.FuelCallHandlerConfig
-	59,  // 23: processor.ContractConfig.fuel_transaction_configs:type_name -> processor.FuelTransactionHandlerConfig
-	41,  // 24: processor.ContractConfig.asset_configs:type_name -> processor.FuelAssetHandlerConfig
-	42,  // 25: processor.ContractConfig.fuel_log_configs:type_name -> processor.FuelLogHandlerConfig
-	43,  // 26: processor.ContractConfig.fuel_receipt_configs:type_name -> processor.FuelReceiptHandlerConfig
-	44,  // 27: processor.ContractConfig.cosmos_log_configs:type_name -> processor.CosmosLogHandlerConfig
-	55,  // 28: processor.ContractConfig.starknet_event_configs:type_name -> processor.StarknetEventHandlerConfig
-	46,  // 29: processor.ContractConfig.instruction_config:type_name -> processor.InstructionHandlerConfig
-	0,   // 30: processor.MetricConfig.type:type_name -> processor.MetricType
-	25,  // 31: processor.MetricConfig.aggregation_config:type_name -> processor.AggregationConfig
-	93,  // 32: processor.EventLogConfig.fields:type_name -> processor.EventLogConfig.Field
-	1,   // 33: processor.AggregationConfig.types:type_name -> processor.AggregationType
-	28,  // 34: processor.AccountConfig.interval_configs:type_name -> processor.OnIntervalConfig
-	29,  // 35: processor.AccountConfig.aptos_interval_configs:type_name -> processor.AptosOnIntervalConfig
-	30,  // 36: processor.AccountConfig.move_interval_configs:type_name -> processor.MoveOnIntervalConfig
-	52,  // 37: processor.AccountConfig.move_call_configs:type_name -> processor.MoveCallHandlerConfig
-	53,  // 38: processor.AccountConfig.move_resource_change_configs:type_name -> processor.MoveResourceChangeConfig
-	40,  // 39: processor.AccountConfig.log_configs:type_name -> processor.LogHandlerConfig
-	27,  // 40: processor.OnIntervalConfig.minutes_interval:type_name -> processor.HandleInterval
-	27,  // 41: processor.OnIntervalConfig.slot_interval:type_name -> processor.HandleInterval
-	37,  // 42: processor.OnIntervalConfig.fetch_config:type_name -> processor.EthFetchConfig
-	28,  // 43: processor.AptosOnIntervalConfig.interval_config:type_name -> processor.OnIntervalConfig
-	28,  // 44: processor.MoveOnIntervalConfig.interval_config:type_name -> processor.OnIntervalConfig
-	2,   // 45: processor.MoveOnIntervalConfig.owner_type:type_name -> processor.MoveOwnerType
-	49,  // 46: processor.MoveOnIntervalConfig.resource_fetch_config:type_name -> processor.MoveAccountFetchConfig
-	48,  // 47: processor.MoveOnIntervalConfig.fetch_config:type_name -> processor.MoveFetchConfig
-	31,  // 48: processor.TemplateInstance.contract:type_name -> processor.ContractInfo
-	131, // 49: processor.TemplateInstance.base_labels:type_name -> google.protobuf.Struct
-	19,  // 50: processor.InitResponse.db_schema:type_name -> processor.DataBaseSchema
-	13,  // 51: processor.InitResponse.config:type_name -> processor.ProjectConfig
-	14,  // 52: processor.InitResponse.execution_config:type_name -> processor.ExecutionConfig
-	23,  // 53: processor.InitResponse.metric_configs:type_name -> processor.MetricConfig
-	22,  // 54: processor.InitResponse.export_configs:type_name -> processor.ExportConfig
-	24,  // 55: processor.InitResponse.event_log_configs:type_name -> processor.EventLogConfig
-	32,  // 56: processor.UpdateTemplatesRequest.template_instances:type_name -> processor.TemplateInstance
-	32,  // 57: processor.StartRequest.template_instances:type_name -> processor.TemplateInstance
-	37,  // 58: processor.TraceHandlerConfig.fetch_config:type_name -> processor.EthFetchConfig
-	37,  // 59: processor.TransactionHandlerConfig.fetch_config:type_name -> processor.EthFetchConfig
-	45,  // 60: processor.LogHandlerConfig.filters:type_name -> processor.LogFilter
-	37,  // 61: processor.LogHandlerConfig.fetch_config:type_name -> processor.EthFetchConfig
-	94,  // 62: processor.FuelAssetHandlerConfig.filters:type_name -> processor.FuelAssetHandlerConfig.AssetFilter
-	96,  // 63: processor.FuelReceiptHandlerConfig.log:type_name -> processor.FuelReceiptHandlerConfig.Log
-	95,  // 64: processor.FuelReceiptHandlerConfig.transfer:type_name -> processor.FuelReceiptHandlerConfig.Transfer
-	60,  // 65: processor.LogFilter.topics:type_name -> processor.Topic
-	3,   // 66: processor.LogFilter.address_type:type_name -> processor.AddressType
-	47,  // 67: processor.MoveFetchConfig.resource_config:type_name -> processor.ResourceConfig
-	51,  // 68: processor.MoveEventHandlerConfig.filters:type_name -> processor.MoveEventFilter
-	48,  // 69: processor.MoveEventHandlerConfig.fetch_config:type_name -> processor.MoveFetchConfig
-	54,  // 70: processor.MoveCallHandlerConfig.filters:type_name -> processor.MoveCallFilter
-	48,  // 71: processor.MoveCallHandlerConfig.fetch_config:type_name -> processor.MoveFetchConfig
-	97,  // 72: processor.MoveCallFilter.from_and_to_address:type_name -> processor.MoveCallFilter.FromAndToAddress
-	56,  // 73: processor.StarknetEventHandlerConfig.filters:type_name -> processor.StarknetEventFilter
-	57,  // 74: processor.FuelCallHandlerConfig.filters:type_name -> processor.FuelCallFilter
-	76,  // 75: processor.ProcessBindingsRequest.bindings:type_name -> processor.DataBinding
-	78,  // 76: processor.ProcessBindingResponse.result:type_name -> processor.ProcessResult
-	76,  // 77: processor.ProcessStreamRequest.binding:type_name -> processor.DataBinding
-	68,  // 78: processor.ProcessStreamRequest.db_result:type_name -> processor.DBResponse
-	74,  // 79: processor.ProcessStreamResponse.db_request:type_name -> processor.DBRequest
-	78,  // 80: processor.ProcessStreamResponse.result:type_name -> processor.ProcessResult
-	98,  // 81: processor.ProcessStreamResponse.partitions:type_name -> processor.ProcessStreamResponse.Partitions
-	98,  // 82: processor.ProcessStreamResponseV3.partitions:type_name -> processor.ProcessStreamResponse.Partitions
-	74,  // 83: processor.ProcessStreamResponseV3.db_request:type_name -> processor.DBRequest
-	73,  // 84: processor.ProcessStreamResponseV3.ts_request:type_name -> processor.TSRequest
-	72,  // 85: processor.ProcessStreamResponseV3.tpl_request:type_name -> processor.TPLRequest
-	78,  // 86: processor.ProcessStreamResponseV3.result:type_name -> processor.ProcessResult
-	101, // 87: processor.PreprocessStreamRequest.bindings:type_name -> processor.PreprocessStreamRequest.DataBindings
-	68,  // 88: processor.PreprocessStreamRequest.db_result:type_name -> processor.DBResponse
-	74,  // 89: processor.PreprocessStreamResponse.db_request:type_name -> processor.DBRequest
-	131, // 90: processor.DBResponse.data:type_name -> google.protobuf.Struct
-	132, // 91: processor.DBResponse.list:type_name -> google.protobuf.ListValue
-	133, // 92: processor.DBResponse.entities:type_name -> common.RichStructList
-	70,  // 93: processor.DBResponse.entity_list:type_name -> processor.EntityList
-	134, // 94: processor.Entity.gen_block_time:type_name -> google.protobuf.Timestamp
-	135, // 95: processor.Entity.data:type_name -> common.RichStruct
-	69,  // 96: processor.EntityList.entities:type_name -> processor.Entity
-	103, // 97: processor.EntityUpdateData.fields:type_name -> processor.EntityUpdateData.FieldsEntry
-	32,  // 98: processor.TPLRequest.templates:type_name -> processor.TemplateInstance
-	89,  // 99: processor.TSRequest.data:type_name -> processor.TimeseriesResult
-	104, // 100: processor.DBRequest.get:type_name -> processor.DBRequest.DBGet
-	106, // 101: processor.DBRequest.upsert:type_name -> processor.DBRequest.DBUpsert
-	107, // 102: processor.DBRequest.update:type_name -> processor.DBRequest.DBUpdate
-	108, // 103: processor.DBRequest.delete:type_name -> processor.DBRequest.DBDelete
-	105, // 104: processor.DBRequest.list:type_name -> processor.DBRequest.DBList
-	110, // 105: processor.Data.eth_log:type_name -> processor.Data.EthLog
-	111, // 106: processor.Data.eth_block:type_name -> processor.Data.EthBlock
-	112, // 107: processor.Data.eth_transaction:type_name -> processor.Data.EthTransaction
-	113, // 108: processor.Data.eth_trace:type_name -> processor.Data.EthTrace
-	114, // 109: processor.Data.sol_instruction:type_name -> processor.Data.SolInstruction
-	116, // 110: processor.Data.apt_event:type_name -> processor.Data.AptEvent
-	117, // 111: processor.Data.apt_call:type_name -> processor.Data.AptCall
-	118, // 112: processor.Data.apt_resource:type_name -> processor.Data.AptResource
-	119, // 113: processor.Data.sui_event:type_name -> processor.Data.SuiEvent
-	120, // 114: processor.Data.sui_call:type_name -> processor.Data.SuiCall
-	121, // 115: processor.Data.sui_object:type_name -> processor.Data.SuiObject
-	122, // 116: processor.Data.sui_object_change:type_name -> processor.Data.SuiObjectChange
-	123, // 117: processor.Data.fuel_log:type_name -> processor.Data.FuelReceipt
-	125, // 118: processor.Data.fuel_call:type_name -> processor.Data.FuelCall
-	124, // 119: processor.Data.fuel_transaction:type_name -> processor.Data.FuelTransaction
-	126, // 120: processor.Data.fuel_block:type_name -> processor.Data.FuelBlock
-	127, // 121: processor.Data.cosmos_call:type_name -> processor.Data.CosmosCall
-	128, // 122: processor.Data.starknet_events:type_name -> processor.Data.StarknetEvent
-	115, // 123: processor.Data.sol_block:type_name -> processor.Data.SolBlock
-	75,  // 124: processor.DataBinding.data:type_name -> processor.Data
-	4,   // 125: processor.DataBinding.handler_type:type_name -> processor.HandlerType
-	86,  // 126: processor.ProcessResult.gauges:type_name -> processor.GaugeResult
-	87,  // 127: processor.ProcessResult.counters:type_name -> processor.CounterResult
-	88,  // 128: processor.ProcessResult.events:type_name -> processor.EventTrackingResult
-	90,  // 129: processor.ProcessResult.exports:type_name -> processor.ExportResult
-	77,  // 130: processor.ProcessResult.states:type_name -> processor.StateResult
-	89,  // 131: processor.ProcessResult.timeseries_result:type_name -> processor.TimeseriesResult
-	80,  // 132: processor.EthCallParam.context:type_name -> processor.EthCallContext
-	79,  // 133: processor.PreprocessResult.ethCallParams:type_name -> processor.EthCallParam
-	129, // 134: processor.PreparedData.eth_call_results:type_name -> processor.PreparedData.EthCallResultsEntry
-	130, // 135: processor.RecordMetaData.labels:type_name -> processor.RecordMetaData.LabelsEntry
-	136, // 136: processor.MetricValue.big_integer:type_name -> common.BigInteger
-	4,   // 137: processor.RuntimeInfo.from:type_name -> processor.HandlerType
-	83,  // 138: processor.GaugeResult.metadata:type_name -> processor.RecordMetaData
-	84,  // 139: processor.GaugeResult.metric_value:type_name -> processor.MetricValue
-	85,  // 140: processor.GaugeResult.runtime_info:type_name -> processor.RuntimeInfo
-	83,  // 141: processor.CounterResult.metadata:type_name -> processor.RecordMetaData
-	84,  // 142: processor.CounterResult.metric_value:type_name -> processor.MetricValue
-	85,  // 143: processor.CounterResult.runtime_info:type_name -> processor.RuntimeInfo
-	83,  // 144: processor.EventTrackingResult.metadata:type_name -> processor.RecordMetaData
-	131, // 145: processor.EventTrackingResult.attributes:type_name -> google.protobuf.Struct
-	5,   // 146: processor.EventTrackingResult.severity:type_name -> processor.LogLevel
-	85,  // 147: processor.EventTrackingResult.runtime_info:type_name -> processor.RuntimeInfo
-	135, // 148: processor.EventTrackingResult.attributes2:type_name -> common.RichStruct
-	83,  // 149: processor.TimeseriesResult.metadata:type_name -> processor.RecordMetaData
-	12,  // 150: processor.TimeseriesResult.type:type_name -> processor.TimeseriesResult.TimeseriesType
-	135, // 151: processor.TimeseriesResult.data:type_name -> common.RichStruct
-	85,  // 152: processor.TimeseriesResult.runtime_info:type_name -> processor.RuntimeInfo
-	83,  // 153: processor.ExportResult.metadata:type_name -> processor.RecordMetaData
-	85,  // 154: processor.ExportResult.runtime_info:type_name -> processor.RuntimeInfo
-	93,  // 155: processor.EventLogConfig.StructFieldType.fields:type_name -> processor.EventLogConfig.Field
-	8,   // 156: processor.EventLogConfig.Field.basic_type:type_name -> processor.EventLogConfig.BasicFieldType
-	137, // 157: processor.EventLogConfig.Field.coin_type:type_name -> common.CoinID
-	92,  // 158: processor.EventLogConfig.Field.struct_type:type_name -> processor.EventLogConfig.StructFieldType
-	100, // 159: processor.ProcessStreamResponse.Partitions.partitions:type_name -> processor.ProcessStreamResponse.Partitions.PartitionsEntry
-	9,   // 160: processor.ProcessStreamResponse.Partitions.Partition.sys_value:type_name -> processor.ProcessStreamResponse.Partitions.Partition.SysValue
-	99,  // 161: processor.ProcessStreamResponse.Partitions.PartitionsEntry.value:type_name -> processor.ProcessStreamResponse.Partitions.Partition
-	76,  // 162: processor.PreprocessStreamRequest.DataBindings.bindings:type_name -> processor.DataBinding
-	138, // 163: processor.EntityUpdateData.FieldValue.value:type_name -> common.RichValue
-	10,  // 164: processor.EntityUpdateData.FieldValue.op:type_name -> processor.EntityUpdateData.Operator
-	102, // 165: processor.EntityUpdateData.FieldsEntry.value:type_name -> processor.EntityUpdateData.FieldValue
-	109, // 166: processor.DBRequest.DBList.filters:type_name -> processor.DBRequest.DBFilter
-	131, // 167: processor.DBRequest.DBUpsert.data:type_name -> google.protobuf.Struct
-	135, // 168: processor.DBRequest.DBUpsert.entity_data:type_name -> common.RichStruct
-	71,  // 169: processor.DBRequest.DBUpdate.entity_data:type_name -> processor.EntityUpdateData
-	11,  // 170: processor.DBRequest.DBFilter.op:type_name -> processor.DBRequest.DBOperator
-	139, // 171: processor.DBRequest.DBFilter.value:type_name -> common.RichValueList
-	131, // 172: processor.Data.EthLog.log:type_name -> google.protobuf.Struct
-	134, // 173: processor.Data.EthLog.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 174: processor.Data.EthLog.transaction:type_name -> google.protobuf.Struct
-	131, // 175: processor.Data.EthLog.transaction_receipt:type_name -> google.protobuf.Struct
-	131, // 176: processor.Data.EthLog.block:type_name -> google.protobuf.Struct
-	131, // 177: processor.Data.EthBlock.block:type_name -> google.protobuf.Struct
-	131, // 178: processor.Data.EthTransaction.transaction:type_name -> google.protobuf.Struct
-	134, // 179: processor.Data.EthTransaction.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 180: processor.Data.EthTransaction.transaction_receipt:type_name -> google.protobuf.Struct
-	131, // 181: processor.Data.EthTransaction.block:type_name -> google.protobuf.Struct
-	131, // 182: processor.Data.EthTransaction.trace:type_name -> google.protobuf.Struct
-	131, // 183: processor.Data.EthTrace.trace:type_name -> google.protobuf.Struct
-	134, // 184: processor.Data.EthTrace.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 185: processor.Data.EthTrace.transaction:type_name -> google.protobuf.Struct
-	131, // 186: processor.Data.EthTrace.transaction_receipt:type_name -> google.protobuf.Struct
-	131, // 187: processor.Data.EthTrace.block:type_name -> google.protobuf.Struct
-	131, // 188: processor.Data.SolInstruction.parsed:type_name -> google.protobuf.Struct
-	134, // 189: processor.Data.SolBlock.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 190: processor.Data.AptEvent.transaction:type_name -> google.protobuf.Struct
-	131, // 191: processor.Data.AptCall.transaction:type_name -> google.protobuf.Struct
-	131, // 192: processor.Data.AptResource.resources:type_name -> google.protobuf.Struct
-	131, // 193: processor.Data.SuiEvent.transaction:type_name -> google.protobuf.Struct
-	134, // 194: processor.Data.SuiEvent.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 195: processor.Data.SuiCall.transaction:type_name -> google.protobuf.Struct
-	134, // 196: processor.Data.SuiCall.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 197: processor.Data.SuiObject.objects:type_name -> google.protobuf.Struct
-	131, // 198: processor.Data.SuiObject.self:type_name -> google.protobuf.Struct
-	134, // 199: processor.Data.SuiObject.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 200: processor.Data.SuiObjectChange.changes:type_name -> google.protobuf.Struct
-	134, // 201: processor.Data.SuiObjectChange.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 202: processor.Data.FuelReceipt.transaction:type_name -> google.protobuf.Struct
-	134, // 203: processor.Data.FuelReceipt.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 204: processor.Data.FuelTransaction.transaction:type_name -> google.protobuf.Struct
-	134, // 205: processor.Data.FuelTransaction.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 206: processor.Data.FuelCall.transaction:type_name -> google.protobuf.Struct
-	134, // 207: processor.Data.FuelCall.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 208: processor.Data.FuelBlock.block:type_name -> google.protobuf.Struct
-	134, // 209: processor.Data.FuelBlock.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 210: processor.Data.CosmosCall.transaction:type_name -> google.protobuf.Struct
-	134, // 211: processor.Data.CosmosCall.timestamp:type_name -> google.protobuf.Timestamp
-	131, // 212: processor.Data.StarknetEvent.result:type_name -> google.protobuf.Struct
-	134, // 213: processor.Data.StarknetEvent.timestamp:type_name -> google.protobuf.Timestamp
-	35,  // 214: processor.Processor.Start:input_type -> processor.StartRequest
-	140, // 215: processor.Processor.Stop:input_type -> google.protobuf.Empty
-	15,  // 216: processor.Processor.GetConfig:input_type -> processor.ProcessConfigRequest
-	61,  // 217: processor.Processor.ProcessBindings:input_type -> processor.ProcessBindingsRequest
-	63,  // 218: processor.Processor.ProcessBindingsStream:input_type -> processor.ProcessStreamRequest
-	66,  // 219: processor.Processor.PreprocessBindingsStream:input_type -> processor.PreprocessStreamRequest
-	35,  // 220: processor.ProcessorV3.Start:input_type -> processor.StartRequest
-	15,  // 221: processor.ProcessorV3.GetConfig:input_type -> processor.ProcessConfigRequest
-	34,  // 222: processor.ProcessorV3.UpdateTemplates:input_type -> processor.UpdateTemplatesRequest
-	63,  // 223: processor.ProcessorV3.ProcessBindingsStream:input_type -> processor.ProcessStreamRequest
-	140, // 224: processor.Processor.Start:output_type -> google.protobuf.Empty
-	140, // 225: processor.Processor.Stop:output_type -> google.protobuf.Empty
-	16,  // 226: processor.Processor.GetConfig:output_type -> processor.ProcessConfigResponse
-	62,  // 227: processor.Processor.ProcessBindings:output_type -> processor.ProcessBindingResponse
-	64,  // 228: processor.Processor.ProcessBindingsStream:output_type -> processor.ProcessStreamResponse
-	67,  // 229: processor.Processor.PreprocessBindingsStream:output_type -> processor.PreprocessStreamResponse
-	140, // 230: processor.ProcessorV3.Start:output_type -> google.protobuf.Empty
-	16,  // 231: processor.ProcessorV3.GetConfig:output_type -> processor.ProcessConfigResponse
-	140, // 232: processor.ProcessorV3.UpdateTemplates:output_type -> google.protobuf.Empty
-	65,  // 233: processor.ProcessorV3.ProcessBindingsStream:output_type -> processor.ProcessStreamResponseV3
-	224, // [224:234] is the sub-list for method output_type
-	214, // [214:224] is the sub-list for method input_type
-	214, // [214:214] is the sub-list for extension type_name
-	214, // [214:214] is the sub-list for extension extendee
-	0,   // [0:214] is the sub-list for field type_name
+	82,  // 1: processor.ExecutionConfig.ethAbiDecoderConfig:type_name -> processor.ExecutionConfig.DecoderWorkerConfig
+	12,  // 2: processor.ProcessConfigResponse.config:type_name -> processor.ProjectConfig
+	13,  // 3: processor.ProcessConfigResponse.execution_config:type_name -> processor.ExecutionConfig
+	16,  // 4: processor.ProcessConfigResponse.contract_configs:type_name -> processor.ContractConfig
+	27,  // 5: processor.ProcessConfigResponse.template_instances:type_name -> processor.TemplateInstance
+	22,  // 6: processor.ProcessConfigResponse.account_configs:type_name -> processor.AccountConfig
+	19,  // 7: processor.ProcessConfigResponse.metric_configs:type_name -> processor.MetricConfig
+	18,  // 8: processor.ProcessConfigResponse.export_configs:type_name -> processor.ExportConfig
+	20,  // 9: processor.ProcessConfigResponse.event_log_configs:type_name -> processor.EventLogConfig
+	17,  // 10: processor.ProcessConfigResponse.db_schema:type_name -> processor.DataBaseSchema
+	26,  // 11: processor.ContractConfig.contract:type_name -> processor.ContractInfo
+	24,  // 12: processor.ContractConfig.interval_configs:type_name -> processor.OnIntervalConfig
+	25,  // 13: processor.ContractConfig.move_interval_configs:type_name -> processor.MoveOnIntervalConfig
+	34,  // 14: processor.ContractConfig.log_configs:type_name -> processor.LogHandlerConfig
+	32,  // 15: processor.ContractConfig.trace_configs:type_name -> processor.TraceHandlerConfig
+	33,  // 16: processor.ContractConfig.transaction_config:type_name -> processor.TransactionHandlerConfig
+	43,  // 17: processor.ContractConfig.move_event_configs:type_name -> processor.MoveEventHandlerConfig
+	45,  // 18: processor.ContractConfig.move_call_configs:type_name -> processor.MoveCallHandlerConfig
+	46,  // 19: processor.ContractConfig.move_resource_change_configs:type_name -> processor.MoveResourceChangeConfig
+	50,  // 20: processor.ContractConfig.fuel_transaction_configs:type_name -> processor.FuelTransactionHandlerConfig
+	35,  // 21: processor.ContractConfig.asset_configs:type_name -> processor.FuelAssetHandlerConfig
+	36,  // 22: processor.ContractConfig.fuel_receipt_configs:type_name -> processor.FuelReceiptHandlerConfig
+	37,  // 23: processor.ContractConfig.cosmos_log_configs:type_name -> processor.CosmosLogHandlerConfig
+	48,  // 24: processor.ContractConfig.starknet_event_configs:type_name -> processor.StarknetEventHandlerConfig
+	39,  // 25: processor.ContractConfig.instruction_config:type_name -> processor.InstructionHandlerConfig
+	0,   // 26: processor.MetricConfig.type:type_name -> processor.MetricType
+	21,  // 27: processor.MetricConfig.aggregation_config:type_name -> processor.AggregationConfig
+	84,  // 28: processor.EventLogConfig.fields:type_name -> processor.EventLogConfig.Field
+	1,   // 29: processor.AggregationConfig.types:type_name -> processor.AggregationType
+	24,  // 30: processor.AccountConfig.interval_configs:type_name -> processor.OnIntervalConfig
+	25,  // 31: processor.AccountConfig.move_interval_configs:type_name -> processor.MoveOnIntervalConfig
+	45,  // 32: processor.AccountConfig.move_call_configs:type_name -> processor.MoveCallHandlerConfig
+	46,  // 33: processor.AccountConfig.move_resource_change_configs:type_name -> processor.MoveResourceChangeConfig
+	34,  // 34: processor.AccountConfig.log_configs:type_name -> processor.LogHandlerConfig
+	23,  // 35: processor.OnIntervalConfig.minutes_interval:type_name -> processor.HandleInterval
+	23,  // 36: processor.OnIntervalConfig.slot_interval:type_name -> processor.HandleInterval
+	31,  // 37: processor.OnIntervalConfig.fetch_config:type_name -> processor.EthFetchConfig
+	24,  // 38: processor.MoveOnIntervalConfig.interval_config:type_name -> processor.OnIntervalConfig
+	2,   // 39: processor.MoveOnIntervalConfig.owner_type:type_name -> processor.MoveOwnerType
+	42,  // 40: processor.MoveOnIntervalConfig.resource_fetch_config:type_name -> processor.MoveAccountFetchConfig
+	41,  // 41: processor.MoveOnIntervalConfig.fetch_config:type_name -> processor.MoveFetchConfig
+	26,  // 42: processor.TemplateInstance.contract:type_name -> processor.ContractInfo
+	121, // 43: processor.TemplateInstance.base_labels:type_name -> google.protobuf.Struct
+	17,  // 44: processor.InitResponse.db_schema:type_name -> processor.DataBaseSchema
+	12,  // 45: processor.InitResponse.config:type_name -> processor.ProjectConfig
+	13,  // 46: processor.InitResponse.execution_config:type_name -> processor.ExecutionConfig
+	19,  // 47: processor.InitResponse.metric_configs:type_name -> processor.MetricConfig
+	18,  // 48: processor.InitResponse.export_configs:type_name -> processor.ExportConfig
+	20,  // 49: processor.InitResponse.event_log_configs:type_name -> processor.EventLogConfig
+	27,  // 50: processor.UpdateTemplatesRequest.template_instances:type_name -> processor.TemplateInstance
+	27,  // 51: processor.StartRequest.template_instances:type_name -> processor.TemplateInstance
+	31,  // 52: processor.TraceHandlerConfig.fetch_config:type_name -> processor.EthFetchConfig
+	31,  // 53: processor.TransactionHandlerConfig.fetch_config:type_name -> processor.EthFetchConfig
+	38,  // 54: processor.LogHandlerConfig.filters:type_name -> processor.LogFilter
+	31,  // 55: processor.LogHandlerConfig.fetch_config:type_name -> processor.EthFetchConfig
+	85,  // 56: processor.FuelAssetHandlerConfig.filters:type_name -> processor.FuelAssetHandlerConfig.AssetFilter
+	87,  // 57: processor.FuelReceiptHandlerConfig.log:type_name -> processor.FuelReceiptHandlerConfig.Log
+	86,  // 58: processor.FuelReceiptHandlerConfig.transfer:type_name -> processor.FuelReceiptHandlerConfig.Transfer
+	51,  // 59: processor.LogFilter.topics:type_name -> processor.Topic
+	3,   // 60: processor.LogFilter.address_type:type_name -> processor.AddressType
+	40,  // 61: processor.MoveFetchConfig.resource_config:type_name -> processor.ResourceConfig
+	44,  // 62: processor.MoveEventHandlerConfig.filters:type_name -> processor.MoveEventFilter
+	41,  // 63: processor.MoveEventHandlerConfig.fetch_config:type_name -> processor.MoveFetchConfig
+	47,  // 64: processor.MoveCallHandlerConfig.filters:type_name -> processor.MoveCallFilter
+	41,  // 65: processor.MoveCallHandlerConfig.fetch_config:type_name -> processor.MoveFetchConfig
+	88,  // 66: processor.MoveCallFilter.from_and_to_address:type_name -> processor.MoveCallFilter.FromAndToAddress
+	49,  // 67: processor.StarknetEventHandlerConfig.filters:type_name -> processor.StarknetEventFilter
+	67,  // 68: processor.ProcessBindingsRequest.bindings:type_name -> processor.DataBinding
+	69,  // 69: processor.ProcessBindingResponse.result:type_name -> processor.ProcessResult
+	67,  // 70: processor.ProcessStreamRequest.binding:type_name -> processor.DataBinding
+	59,  // 71: processor.ProcessStreamRequest.db_result:type_name -> processor.DBResponse
+	65,  // 72: processor.ProcessStreamResponse.db_request:type_name -> processor.DBRequest
+	69,  // 73: processor.ProcessStreamResponse.result:type_name -> processor.ProcessResult
+	89,  // 74: processor.ProcessStreamResponse.partitions:type_name -> processor.ProcessStreamResponse.Partitions
+	89,  // 75: processor.ProcessStreamResponseV3.partitions:type_name -> processor.ProcessStreamResponse.Partitions
+	65,  // 76: processor.ProcessStreamResponseV3.db_request:type_name -> processor.DBRequest
+	64,  // 77: processor.ProcessStreamResponseV3.ts_request:type_name -> processor.TSRequest
+	63,  // 78: processor.ProcessStreamResponseV3.tpl_request:type_name -> processor.TPLRequest
+	69,  // 79: processor.ProcessStreamResponseV3.result:type_name -> processor.ProcessResult
+	92,  // 80: processor.PreprocessStreamRequest.bindings:type_name -> processor.PreprocessStreamRequest.DataBindings
+	59,  // 81: processor.PreprocessStreamRequest.db_result:type_name -> processor.DBResponse
+	65,  // 82: processor.PreprocessStreamResponse.db_request:type_name -> processor.DBRequest
+	121, // 83: processor.DBResponse.data:type_name -> google.protobuf.Struct
+	122, // 84: processor.DBResponse.list:type_name -> google.protobuf.ListValue
+	123, // 85: processor.DBResponse.entities:type_name -> common.RichStructList
+	61,  // 86: processor.DBResponse.entity_list:type_name -> processor.EntityList
+	124, // 87: processor.Entity.gen_block_time:type_name -> google.protobuf.Timestamp
+	125, // 88: processor.Entity.data:type_name -> common.RichStruct
+	60,  // 89: processor.EntityList.entities:type_name -> processor.Entity
+	94,  // 90: processor.EntityUpdateData.fields:type_name -> processor.EntityUpdateData.FieldsEntry
+	27,  // 91: processor.TPLRequest.templates:type_name -> processor.TemplateInstance
+	80,  // 92: processor.TSRequest.data:type_name -> processor.TimeseriesResult
+	95,  // 93: processor.DBRequest.get:type_name -> processor.DBRequest.DBGet
+	97,  // 94: processor.DBRequest.upsert:type_name -> processor.DBRequest.DBUpsert
+	98,  // 95: processor.DBRequest.update:type_name -> processor.DBRequest.DBUpdate
+	99,  // 96: processor.DBRequest.delete:type_name -> processor.DBRequest.DBDelete
+	96,  // 97: processor.DBRequest.list:type_name -> processor.DBRequest.DBList
+	101, // 98: processor.Data.eth_log:type_name -> processor.Data.EthLog
+	102, // 99: processor.Data.eth_block:type_name -> processor.Data.EthBlock
+	103, // 100: processor.Data.eth_transaction:type_name -> processor.Data.EthTransaction
+	104, // 101: processor.Data.eth_trace:type_name -> processor.Data.EthTrace
+	105, // 102: processor.Data.sol_instruction:type_name -> processor.Data.SolInstruction
+	107, // 103: processor.Data.apt_event:type_name -> processor.Data.AptEvent
+	108, // 104: processor.Data.apt_call:type_name -> processor.Data.AptCall
+	109, // 105: processor.Data.apt_resource:type_name -> processor.Data.AptResource
+	110, // 106: processor.Data.sui_event:type_name -> processor.Data.SuiEvent
+	111, // 107: processor.Data.sui_call:type_name -> processor.Data.SuiCall
+	112, // 108: processor.Data.sui_object:type_name -> processor.Data.SuiObject
+	113, // 109: processor.Data.sui_object_change:type_name -> processor.Data.SuiObjectChange
+	114, // 110: processor.Data.fuel_log:type_name -> processor.Data.FuelReceipt
+	115, // 111: processor.Data.fuel_transaction:type_name -> processor.Data.FuelTransaction
+	116, // 112: processor.Data.fuel_block:type_name -> processor.Data.FuelBlock
+	117, // 113: processor.Data.cosmos_call:type_name -> processor.Data.CosmosCall
+	118, // 114: processor.Data.starknet_events:type_name -> processor.Data.StarknetEvent
+	106, // 115: processor.Data.sol_block:type_name -> processor.Data.SolBlock
+	66,  // 116: processor.DataBinding.data:type_name -> processor.Data
+	4,   // 117: processor.DataBinding.handler_type:type_name -> processor.HandlerType
+	77,  // 118: processor.ProcessResult.gauges:type_name -> processor.GaugeResult
+	78,  // 119: processor.ProcessResult.counters:type_name -> processor.CounterResult
+	79,  // 120: processor.ProcessResult.events:type_name -> processor.EventTrackingResult
+	81,  // 121: processor.ProcessResult.exports:type_name -> processor.ExportResult
+	68,  // 122: processor.ProcessResult.states:type_name -> processor.StateResult
+	80,  // 123: processor.ProcessResult.timeseries_result:type_name -> processor.TimeseriesResult
+	71,  // 124: processor.EthCallParam.context:type_name -> processor.EthCallContext
+	70,  // 125: processor.PreprocessResult.ethCallParams:type_name -> processor.EthCallParam
+	119, // 126: processor.PreparedData.eth_call_results:type_name -> processor.PreparedData.EthCallResultsEntry
+	120, // 127: processor.RecordMetaData.labels:type_name -> processor.RecordMetaData.LabelsEntry
+	126, // 128: processor.MetricValue.big_integer:type_name -> common.BigInteger
+	4,   // 129: processor.RuntimeInfo.from:type_name -> processor.HandlerType
+	74,  // 130: processor.GaugeResult.metadata:type_name -> processor.RecordMetaData
+	75,  // 131: processor.GaugeResult.metric_value:type_name -> processor.MetricValue
+	76,  // 132: processor.GaugeResult.runtime_info:type_name -> processor.RuntimeInfo
+	74,  // 133: processor.CounterResult.metadata:type_name -> processor.RecordMetaData
+	75,  // 134: processor.CounterResult.metric_value:type_name -> processor.MetricValue
+	76,  // 135: processor.CounterResult.runtime_info:type_name -> processor.RuntimeInfo
+	74,  // 136: processor.EventTrackingResult.metadata:type_name -> processor.RecordMetaData
+	121, // 137: processor.EventTrackingResult.attributes:type_name -> google.protobuf.Struct
+	5,   // 138: processor.EventTrackingResult.severity:type_name -> processor.LogLevel
+	76,  // 139: processor.EventTrackingResult.runtime_info:type_name -> processor.RuntimeInfo
+	125, // 140: processor.EventTrackingResult.attributes2:type_name -> common.RichStruct
+	74,  // 141: processor.TimeseriesResult.metadata:type_name -> processor.RecordMetaData
+	11,  // 142: processor.TimeseriesResult.type:type_name -> processor.TimeseriesResult.TimeseriesType
+	125, // 143: processor.TimeseriesResult.data:type_name -> common.RichStruct
+	76,  // 144: processor.TimeseriesResult.runtime_info:type_name -> processor.RuntimeInfo
+	74,  // 145: processor.ExportResult.metadata:type_name -> processor.RecordMetaData
+	76,  // 146: processor.ExportResult.runtime_info:type_name -> processor.RuntimeInfo
+	84,  // 147: processor.EventLogConfig.StructFieldType.fields:type_name -> processor.EventLogConfig.Field
+	7,   // 148: processor.EventLogConfig.Field.basic_type:type_name -> processor.EventLogConfig.BasicFieldType
+	127, // 149: processor.EventLogConfig.Field.coin_type:type_name -> common.CoinID
+	83,  // 150: processor.EventLogConfig.Field.struct_type:type_name -> processor.EventLogConfig.StructFieldType
+	91,  // 151: processor.ProcessStreamResponse.Partitions.partitions:type_name -> processor.ProcessStreamResponse.Partitions.PartitionsEntry
+	8,   // 152: processor.ProcessStreamResponse.Partitions.Partition.sys_value:type_name -> processor.ProcessStreamResponse.Partitions.Partition.SysValue
+	90,  // 153: processor.ProcessStreamResponse.Partitions.PartitionsEntry.value:type_name -> processor.ProcessStreamResponse.Partitions.Partition
+	67,  // 154: processor.PreprocessStreamRequest.DataBindings.bindings:type_name -> processor.DataBinding
+	128, // 155: processor.EntityUpdateData.FieldValue.value:type_name -> common.RichValue
+	9,   // 156: processor.EntityUpdateData.FieldValue.op:type_name -> processor.EntityUpdateData.Operator
+	93,  // 157: processor.EntityUpdateData.FieldsEntry.value:type_name -> processor.EntityUpdateData.FieldValue
+	100, // 158: processor.DBRequest.DBList.filters:type_name -> processor.DBRequest.DBFilter
+	121, // 159: processor.DBRequest.DBUpsert.data:type_name -> google.protobuf.Struct
+	125, // 160: processor.DBRequest.DBUpsert.entity_data:type_name -> common.RichStruct
+	62,  // 161: processor.DBRequest.DBUpdate.entity_data:type_name -> processor.EntityUpdateData
+	10,  // 162: processor.DBRequest.DBFilter.op:type_name -> processor.DBRequest.DBOperator
+	129, // 163: processor.DBRequest.DBFilter.value:type_name -> common.RichValueList
+	124, // 164: processor.Data.EthLog.timestamp:type_name -> google.protobuf.Timestamp
+	124, // 165: processor.Data.EthTransaction.timestamp:type_name -> google.protobuf.Timestamp
+	124, // 166: processor.Data.EthTrace.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 167: processor.Data.SolInstruction.parsed:type_name -> google.protobuf.Struct
+	124, // 168: processor.Data.SolBlock.timestamp:type_name -> google.protobuf.Timestamp
+	124, // 169: processor.Data.SuiEvent.timestamp:type_name -> google.protobuf.Timestamp
+	124, // 170: processor.Data.SuiCall.timestamp:type_name -> google.protobuf.Timestamp
+	124, // 171: processor.Data.SuiObject.timestamp:type_name -> google.protobuf.Timestamp
+	124, // 172: processor.Data.SuiObjectChange.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 173: processor.Data.FuelReceipt.transaction:type_name -> google.protobuf.Struct
+	124, // 174: processor.Data.FuelReceipt.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 175: processor.Data.FuelTransaction.transaction:type_name -> google.protobuf.Struct
+	124, // 176: processor.Data.FuelTransaction.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 177: processor.Data.FuelBlock.block:type_name -> google.protobuf.Struct
+	124, // 178: processor.Data.FuelBlock.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 179: processor.Data.CosmosCall.transaction:type_name -> google.protobuf.Struct
+	124, // 180: processor.Data.CosmosCall.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 181: processor.Data.StarknetEvent.result:type_name -> google.protobuf.Struct
+	124, // 182: processor.Data.StarknetEvent.timestamp:type_name -> google.protobuf.Timestamp
+	30,  // 183: processor.Processor.Start:input_type -> processor.StartRequest
+	130, // 184: processor.Processor.Stop:input_type -> google.protobuf.Empty
+	14,  // 185: processor.Processor.GetConfig:input_type -> processor.ProcessConfigRequest
+	52,  // 186: processor.Processor.ProcessBindings:input_type -> processor.ProcessBindingsRequest
+	54,  // 187: processor.Processor.ProcessBindingsStream:input_type -> processor.ProcessStreamRequest
+	57,  // 188: processor.Processor.PreprocessBindingsStream:input_type -> processor.PreprocessStreamRequest
+	30,  // 189: processor.ProcessorV3.Start:input_type -> processor.StartRequest
+	14,  // 190: processor.ProcessorV3.GetConfig:input_type -> processor.ProcessConfigRequest
+	29,  // 191: processor.ProcessorV3.UpdateTemplates:input_type -> processor.UpdateTemplatesRequest
+	54,  // 192: processor.ProcessorV3.ProcessBindingsStream:input_type -> processor.ProcessStreamRequest
+	130, // 193: processor.Processor.Start:output_type -> google.protobuf.Empty
+	130, // 194: processor.Processor.Stop:output_type -> google.protobuf.Empty
+	15,  // 195: processor.Processor.GetConfig:output_type -> processor.ProcessConfigResponse
+	53,  // 196: processor.Processor.ProcessBindings:output_type -> processor.ProcessBindingResponse
+	55,  // 197: processor.Processor.ProcessBindingsStream:output_type -> processor.ProcessStreamResponse
+	58,  // 198: processor.Processor.PreprocessBindingsStream:output_type -> processor.PreprocessStreamResponse
+	130, // 199: processor.ProcessorV3.Start:output_type -> google.protobuf.Empty
+	15,  // 200: processor.ProcessorV3.GetConfig:output_type -> processor.ProcessConfigResponse
+	130, // 201: processor.ProcessorV3.UpdateTemplates:output_type -> google.protobuf.Empty
+	56,  // 202: processor.ProcessorV3.ProcessBindingsStream:output_type -> processor.ProcessStreamResponseV3
+	193, // [193:203] is the sub-list for method output_type
+	183, // [183:193] is the sub-list for method input_type
+	183, // [183:183] is the sub-list for extension type_name
+	183, // [183:183] is the sub-list for extension extendee
+	0,   // [0:183] is the sub-list for field type_name
 }
 
 func init() { file_processor_protos_processor_proto_init() }
@@ -10103,53 +9230,53 @@ func file_processor_protos_processor_proto_init() {
 		return
 	}
 	file_processor_protos_processor_proto_msgTypes[1].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[15].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[30].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[12].OneofWrappers = []any{}
+	file_processor_protos_processor_proto_msgTypes[24].OneofWrappers = []any{
 		(*FuelReceiptHandlerConfig_Log_)(nil),
 		(*FuelReceiptHandlerConfig_Transfer_)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[32].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[26].OneofWrappers = []any{
 		(*LogFilter_Address)(nil),
 		(*LogFilter_AddressType)(nil),
 	}
+	file_processor_protos_processor_proto_msgTypes[29].OneofWrappers = []any{}
 	file_processor_protos_processor_proto_msgTypes[35].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[41].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[50].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[42].OneofWrappers = []any{
 		(*ProcessStreamRequest_Binding)(nil),
 		(*ProcessStreamRequest_DbResult)(nil),
 		(*ProcessStreamRequest_Start)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[51].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[43].OneofWrappers = []any{
 		(*ProcessStreamResponse_DbRequest)(nil),
 		(*ProcessStreamResponse_Result)(nil),
 		(*ProcessStreamResponse_Partitions_)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[52].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[44].OneofWrappers = []any{
 		(*ProcessStreamResponseV3_Partitions)(nil),
 		(*ProcessStreamResponseV3_DbRequest)(nil),
 		(*ProcessStreamResponseV3_TsRequest)(nil),
 		(*ProcessStreamResponseV3_TplRequest)(nil),
 		(*ProcessStreamResponseV3_Result)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[53].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[45].OneofWrappers = []any{
 		(*PreprocessStreamRequest_Bindings)(nil),
 		(*PreprocessStreamRequest_DbResult)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[55].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[47].OneofWrappers = []any{
 		(*DBResponse_Data)(nil),
 		(*DBResponse_List)(nil),
 		(*DBResponse_Error)(nil),
 		(*DBResponse_Entities)(nil),
 		(*DBResponse_EntityList)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[61].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[53].OneofWrappers = []any{
 		(*DBRequest_Get)(nil),
 		(*DBRequest_Upsert)(nil),
 		(*DBRequest_Update)(nil),
 		(*DBRequest_Delete)(nil),
 		(*DBRequest_List)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[62].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[54].OneofWrappers = []any{
 		(*Data_EthLog_)(nil),
 		(*Data_EthBlock_)(nil),
 		(*Data_EthTransaction_)(nil),
@@ -10163,43 +9290,42 @@ func file_processor_protos_processor_proto_init() {
 		(*Data_SuiObject_)(nil),
 		(*Data_SuiObjectChange_)(nil),
 		(*Data_FuelLog)(nil),
-		(*Data_FuelCall_)(nil),
 		(*Data_FuelTransaction_)(nil),
 		(*Data_FuelBlock_)(nil),
 		(*Data_CosmosCall_)(nil),
 		(*Data_StarknetEvents)(nil),
 		(*Data_SolBlock_)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[64].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[71].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[56].OneofWrappers = []any{}
+	file_processor_protos_processor_proto_msgTypes[63].OneofWrappers = []any{
 		(*MetricValue_BigDecimal)(nil),
 		(*MetricValue_DoubleValue)(nil),
 		(*MetricValue_BigInteger)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[78].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[80].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[70].OneofWrappers = []any{}
+	file_processor_protos_processor_proto_msgTypes[72].OneofWrappers = []any{
 		(*EventLogConfig_Field_BasicType)(nil),
 		(*EventLogConfig_Field_CoinType)(nil),
 		(*EventLogConfig_Field_StructType)(nil),
 	}
-	file_processor_protos_processor_proto_msgTypes[81].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[86].OneofWrappers = []any{
+	file_processor_protos_processor_proto_msgTypes[73].OneofWrappers = []any{}
+	file_processor_protos_processor_proto_msgTypes[78].OneofWrappers = []any{
 		(*ProcessStreamResponse_Partitions_Partition_UserValue)(nil),
 		(*ProcessStreamResponse_Partitions_Partition_SysValue_)(nil),
 	}
+	file_processor_protos_processor_proto_msgTypes[84].OneofWrappers = []any{}
+	file_processor_protos_processor_proto_msgTypes[89].OneofWrappers = []any{}
+	file_processor_protos_processor_proto_msgTypes[91].OneofWrappers = []any{}
 	file_processor_protos_processor_proto_msgTypes[92].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[97].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[99].OneofWrappers = []any{}
+	file_processor_protos_processor_proto_msgTypes[93].OneofWrappers = []any{}
 	file_processor_protos_processor_proto_msgTypes[100].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[101].OneofWrappers = []any{}
-	file_processor_protos_processor_proto_msgTypes[108].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_processor_protos_processor_proto_rawDesc), len(file_processor_protos_processor_proto_rawDesc)),
-			NumEnums:      13,
-			NumMessages:   118,
+			NumEnums:      12,
+			NumMessages:   109,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

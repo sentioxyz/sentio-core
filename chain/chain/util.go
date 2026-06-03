@@ -125,6 +125,11 @@ func CheckRange[ELEM any](
 // history). Results are merged. When fallback is nil it degrades to CheckRange (primary only,
 // erroring when the request falls outside the primary range), preserving the original behavior.
 //
+// A request extending ABOVE rangeStore.End is rejected with an error (same as CheckRange): the
+// primary store (ClickHouse) has not synced that far yet, so the caller must retry rather than have
+// the uncovered upper part silently dropped. Only the OLDER history below rangeStore.Start is
+// delegated to the fallback.
+//
 // This realizes the data-source priority: latest-slot cache > ClickHouse (within rangeStore) >
 // BigQuery (older history below rangeStore.Start). The cache layer is handled by the surrounding
 // QueryRangeWithCache, which only forwards the still-uncovered (lower) sub-range here.
@@ -140,6 +145,12 @@ func CheckRangeWithFallback[ELEM any](
 		r, err := rangeStore.Get(ctx)
 		if err != nil {
 			return nil, err
+		}
+		// Above the primary store's upper bound: ClickHouse is not synced far enough. Error so the
+		// caller retries instead of silently dropping the uncovered upper part. The fallback only
+		// extends coverage downward, never upward.
+		if !r.IsEmpty() && queryRange.EndOrMaxUInt64() > *r.End {
+			return nil, errors.Errorf("request range %s exceeds range store %s", queryRange, r)
 		}
 		var result []ELEM
 		// The part covered by the primary store (ClickHouse).

@@ -34,6 +34,7 @@ go_test(
         "cache_latest_slot_test.go",
         "dimension_simple_test.go",
         "operation_test.go",
+        "util_test.go",
     ],
     embed = [":chain"],
     deps = [
@@ -42,6 +43,7 @@ go_test(
         "//common/range",
         "//common/utils",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_zap//zapcore",
     ],
 )

@@ -146,9 +146,8 @@ func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64) (lo, hi t
 // A missing slot is returned as a skipped block (nil GetBlockResult), matching ClickHouse semantics.
 func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error) {
 	q := s.query(
-		fmt.Sprintf(`SELECT slot, block_hash, block_timestamp, height, previous_block_hash,
-			(SELECT MAX(slot) FROM %s WHERE slot < @slot) AS parent_slot
-			FROM %s WHERE slot = @slot LIMIT 1`, s.blocksTable, s.blocksTable),
+		fmt.Sprintf(`SELECT slot, block_hash, block_timestamp, height, previous_block_hash
+			FROM %s WHERE slot = @slot LIMIT 1`, s.blocksTable),
 		bigquery.QueryParameter{Name: "slot", Value: int64(slot)},
 	)
 	rows, err := readAll[blockRow](ctx, q)
@@ -248,10 +247,9 @@ func (s *Store) QueryBlocksByInterval(
 		firsts AS (
 			SELECT MIN(slot) AS slot FROM windowed GROUP BY wkey ORDER BY slot LIMIT @limit
 		)
-		SELECT b.slot, b.block_hash, b.block_timestamp, b.height, b.previous_block_hash,
-			(SELECT MAX(slot) FROM %s WHERE slot < b.slot) AS parent_slot
+		SELECT b.slot, b.block_hash, b.block_timestamp, b.height, b.previous_block_hash
 		FROM %s b JOIN firsts ON b.slot = firsts.slot
-		ORDER BY b.slot`, wkey, s.blocksTable, s.blocksTable, s.blocksTable)
+		ORDER BY b.slot`, wkey, s.blocksTable, s.blocksTable)
 	q := s.query(sql,
 		bigquery.QueryParameter{Name: "from", Value: int64(from)},
 		bigquery.QueryParameter{Name: "to", Value: int64(to)},

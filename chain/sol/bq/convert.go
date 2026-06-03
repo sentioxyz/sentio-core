@@ -24,15 +24,14 @@ import (
 // scan into plain Go types instead of *big.Rat).
 // ---------------------------------------------------------------------------
 
-// blockRow is a row of the Blocks table plus the derived parent slot (BigQuery has no parent-slot
-// column; it is computed as MAX(slot) below the block, see store.go).
+// blockRow is a row of the Blocks table. There is no parent-slot column; the BigQuery store does
+// not populate GetBlockResult.ParentSlot (see toBlock).
 type blockRow struct {
-	Slot              int64              `bigquery:"slot"`
-	BlockHash         string             `bigquery:"block_hash"`
+	Slot              int64                  `bigquery:"slot"`
+	BlockHash         string                 `bigquery:"block_hash"`
 	BlockTimestamp    bigquery.NullTimestamp `bigquery:"block_timestamp"`
-	Height            int64              `bigquery:"height"`
-	PreviousBlockHash string             `bigquery:"previous_block_hash"`
-	ParentSlot        bigquery.NullInt64 `bigquery:"parent_slot"`
+	Height            int64                  `bigquery:"height"`
+	PreviousBlockHash string                 `bigquery:"previous_block_hash"`
 }
 
 type accountRow struct {
@@ -125,8 +124,12 @@ const (
 // Conversions
 // ---------------------------------------------------------------------------
 
-// toBlock builds the block header. parentSlot comes from blockRow.ParentSlot (0 when unknown).
-// signatures are attached when provided (sol_getBlocksByInterval needs them; sol_getBlock does not).
+// toBlock builds the block header. signatures are attached when provided (sol_getBlocksByInterval
+// needs them; sol_getBlock does not).
+//
+// NOTE: ParentSlot is intentionally left zero. BigQuery has no parent-slot column, and deriving it
+// (MAX(slot) below the block) costs a full-column scan of the Blocks table per block — too expensive
+// for a value downstream consumers of the historical (archival) tier do not rely on.
 func (b blockRow) toBlock(signatures []solana.Signature) (sol.Block, error) {
 	blockhash, err := solana.HashFromBase58(b.BlockHash)
 	if err != nil {
@@ -140,7 +143,6 @@ func (b blockRow) toBlock(signatures []solana.Signature) (sol.Block, error) {
 	result := &rpc.GetBlockResult{
 		Blockhash:         blockhash,
 		PreviousBlockhash: previous,
-		ParentSlot:        uint64(b.ParentSlot.Int64),
 		BlockHeight:       &height,
 		Signatures:        signatures,
 	}

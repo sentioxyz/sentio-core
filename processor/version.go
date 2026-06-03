@@ -149,10 +149,7 @@ func GetRuntimeVersion(version string) (string, error) {
 
 	// For RC version, use same runtime for testing
 	if strings.Contains(v.Patch, "rc") {
-		if v.Major == 2 && v.Minor > 47 {
-			return version, nil
-		}
-		if v.Major >= 3 {
+		if v.Major >= 4 {
 			return version, nil
 		}
 	}

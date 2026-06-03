@@ -3,7 +3,7 @@ module sentioxyz/sentio-core
 go 1.26.3
 
 require (
-	cloud.google.com/go/bigquery v1.71.0
+	cloud.google.com/go/bigquery v1.67.0
 	github.com/BurntSushi/toml v1.5.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.42.0
 	github.com/DmitriyVTitov/size v1.5.0
@@ -69,8 +69,8 @@ require (
 	go.uber.org/zap v1.27.1
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/net v0.55.0
-	google.golang.org/api v0.250.0
-	google.golang.org/genproto v0.0.0-20251007200510-49b9836ed3ff
+	google.golang.org/api v0.233.0
+	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
@@ -84,8 +84,8 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.121.6 // indirect
-	cloud.google.com/go/auth v0.16.5 // indirect
+	cloud.google.com/go v0.120.0 // indirect
+	cloud.google.com/go/auth v0.16.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.5.2 // indirect
@@ -124,7 +124,7 @@ require (
 	github.com/google/flatbuffers v23.5.26+incompatible // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
-	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
 	github.com/hasura/go-graphql-client v0.12.1 // indirect
 	github.com/hdevalence/ed25519consensus v0.2.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
@@ -234,7 +234,7 @@ require (
 	github.com/paulmach/orb v0.12.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.25 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_model v0.6.1 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/redis/go-redis/extra/rediscmd/v9 v9.15.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

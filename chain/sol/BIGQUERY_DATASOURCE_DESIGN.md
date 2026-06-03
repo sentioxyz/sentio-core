@@ -1,6 +1,6 @@
 # Solana Super-Node: BigQuery as a Third Data Source — Field Mapping & Gap Handling
 
-> Status: implemented in `sentio-core/chain/sol/bq`, wired in `sentio/launcher/chain_sol.go`.
+> Status: implemented in `chain/sol/bq` and the super-node (`chain/sol/supernode`).
 > Goal: add BigQuery as the **lowest-priority** data source for the Solana super-node.
 
 ---
@@ -17,11 +17,11 @@ ClickHouse does **not** hold Solana data back to genesis (everything below `rang
 - Dataset: `bigquery-public-data.crypto_solana_mainnet_us`
   - `.Blocks`, `.Transactions`, `.Instructions`
 - BigQuery is the **lowest-priority** tier, used only when the two higher tiers do not cover the slot.
-- Auth: the super-node pod already mounts `gcloud-secret-admin` (GCP SA `bigquery@sentio-352722`, verified to have `bigquery.jobs.create` and query access to this public dataset) and sets `GOOGLE_APPLICATION_CREDENTIALS`, so the BigQuery client uses ADC directly.
+- Auth: the BigQuery client uses Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`), provided by the deployment environment.
 
 ### Two high-risk uncertainties — verified against BigQuery
 
-> Verified using `test/test-sentio-driver-sa` + `gcloud-secret-admin` (`bigquery@sentio-352722`).
+> Verified by querying the public dataset directly.
 
 1. **The `Transactions` table has no `version` column and no `loadedAddresses`** (full schema confirmed). BigQuery does not distinguish legacy vs v0; `accounts` is the only account list. **Decision**: always default `version` to `legacy(-1)` (see §5.1).
 2. **`accounts` is the fully-resolved account set.** Verified on a 44-account v0 transaction (`4FTMt8f6…`, Jupiter v6): `ARRAY_LENGTH(accounts)=44`, `ARRAY_LENGTH(balance_changes)=44`, max token `account_index` = 29 (< 44). Address-lookup-table accounts are **already expanded into `accounts`**, and `balance_changes` and the token `account_index` all align to this same list. Conclusion: as long as the reconstruction uses BigQuery's `accounts` order as `accountKeys`, preBalances/postBalances/tokenBalances are internally consistent, with no need for `loadedAddresses` (§5.3).
@@ -39,7 +39,6 @@ ClickHouse does **not** hold Solana data back to genesis (everything below `rang
 | Domain types | `sentio-core/chain/sol/types.go`, `slot.go` | `Block`, `WrappedTransaction`, `BlockTransactions`, `ParsedTransactionWithMeta` |
 | Target RPC types | `gagliardetto/solana-go@v1.20.0/rpc/types.go`, `getBlock.go` | `GetBlockResult`, `ParsedTransaction`, `ParsedTransactionMeta`, `ParsedInstruction`, `ParsedInnerInstruction`, `ParsedMessageAccount`, `TokenBalance`, `UiTokenAmount` |
 | BigQuery impl | `sentio-core/chain/sol/bq/` | `Store` (`store.go`), conversions (`convert.go`), stats (`stat.go`) |
-| Wiring | `sentio/launcher/chain_sol.go` | `BuildSolMiddlewares` |
 
 ---
 
@@ -156,7 +155,7 @@ Single instruction (`rpc.ParsedInstruction`) mapping:
 
 | # | Gap | Impact | Handling |
 |---|---|---|---|
-| 5.1 | **`version`** (legacy / v0); `Transactions` **has no such column** | `WrappedTransaction.Version` is serialized into the tx JSON the processor sees, via `ToParsedTransactionResult` (`block_data.go`); the driver only passes it through, never branches on it | **Decision: always default to `LegacyTransactionVersion = -1`** (solana-go `transaction_version.go`, serializes to `"legacy"`). Instructions/accounts/balances do not depend on it; for a v0 tx this only makes the `version` field read `"legacy"` (accepted fidelity gap). **No** account-count heuristic. |
+| 5.1 | **`version`** (legacy / v0); `Transactions` **has no such column** | `WrappedTransaction.Version` flows into the parsed transaction result (`ToParsedTransactionResult`) and thus into the serialized `version` field | **Decision: always default to `LegacyTransactionVersion = -1`** (solana-go `transaction_version.go`, serializes to `"legacy"`). Instructions/accounts/balances do not depend on it; for a v0 tx this only makes the `version` field read `"legacy"` (accepted fidelity gap). **No** account-count heuristic. |
 | 5.2 | `accountKeys[].source` (transaction / lookupTable) | none | **No handling needed**: `rpc.ParsedMessageAccount` has no `source` field, so the ClickHouse path drops it too. |
 | 5.3 | `meta.loadedAddresses` (v0 LUT-loaded addresses) | `ParsedTransactionMeta.LoadedAddresses` exists but BQ does not provide it directly | **Verified safe to leave empty**: BQ `accounts[]` is already the fully-resolved list including LUT accounts (verified on a 44-account v0 tx: `n_acct==n_bal==44`, token `account_index` within range). Using BQ `accounts` order as `accountKeys` keeps preBalances/postBalances/token `accountIndex` internally consistent; leaving `loadedAddresses` empty does not affect the parsed reconstruction. **Note**: the **absolute** account order was not cross-checked against RPC (the sandbox slots are in the future and public RPCs lack that history), but in parsed mode instructions reference accounts by pubkey, so only internal consistency matters. |
 | 5.4 | `preBalances/postBalances` order | must match `accountKeys` order, or balances are misaligned | Build an `account→{before,after}` map from BQ `balance_changes[]`, then project it onto the two arrays **in `accountKeys` order**. (In the sample they happen to share order, but the implementation must not rely on that.) |
@@ -183,7 +182,7 @@ The `Storage` interface has 5 methods (`supernode/storage.go`); the BigQuery imp
 
 ### ⚠️ Cost-critical point (decided): resolve slot→timestamp via `Blocks` first
 
-Measured: `Transactions`/`Instructions` are ~888/890 TB, partitioned by **`block_timestamp` (DAY) with `requirePartitionFilter=True`** — a query without a `block_timestamp` predicate errors outright; a `slot` filter cannot prune partitions. Billing goes to `bigquery@sentio-352722` (charged by bytes scanned). The super-node input is a **slot**, so we must obtain the time first.
+Measured: `Transactions`/`Instructions` are ~888/890 TB, partitioned by **`block_timestamp` (DAY) with `requirePartitionFilter=True`** — a query without a `block_timestamp` predicate errors outright; a `slot` filter cannot prune partitions. Queries are charged by bytes scanned against the configured billing project. The super-node input is a **slot**, so we must obtain the time first.
 
 **Decided approach**:
 1. **First hop: resolve time from `Blocks`.** `Blocks` is only ~71 GB, MONTH-partitioned, with no required filter, so a slot lookup is cheap:
@@ -204,8 +203,8 @@ Measured: `Transactions`/`Instructions` are ~888/890 TB, partitioned by **`block
 ### 6.1 BigQuery `Storage` implementation
 - New package `sentio-core/chain/sol/bq`; `bq.Store` implements `supernode.Storage` (5 methods).
 - Internally uses §2 ("build JSON → `json.Unmarshal`") to produce `sol.Block` / `sol.WrappedTransaction` / `sol.BlockTransactions`, isomorphic to `sol/ch` output.
-- Depends on `cloud.google.com/go/bigquery` (added to `MODULE.bazel` + gazelle); auth via the mounted ADC (`bigquery@` SA).
-- Per-query statistics (latency / returned count / bytes billed) recorded in `stat.go`, mirroring `sol/ch.statistic`, exposed via `Snapshot()` and registered with the tracker by the launcher.
+- Depends on `cloud.google.com/go/bigquery` (added to `MODULE.bazel` + gazelle); auth via Application Default Credentials.
+- Per-query statistics (latency / returned count / bytes billed) recorded in `stat.go`, mirroring `sol/ch.statistic`, exposed via `Snapshot()` for tracking.
 
 ### 6.2 Three-tier chaining
 `QueryRangeWithCache(ctx, interval, slotCache, cachedProc, queryLoader)` takes **one** `queryLoader`, and `CheckRange` **errors** when the range exceeds `rangeStore`. To plug BigQuery in as the "below ClickHouse" fallback, the implemented approach (Option A — smallest change) keeps `QueryRangeWithCache` unchanged and introduces `chain.CheckRangeWithFallback`:
@@ -225,17 +224,16 @@ Priority: cache (newest) > ClickHouse (within `rangeStore`) > BigQuery (archival
   - **P1 (with a semantic twist)**: `EarliestProgramSlot` / `GetContractStartBlock`. **The priority direction is reversed here**: this method asks for a program's *earliest* slot, and BigQuery covers exactly the older history below ClickHouse's `minSlot`, so **BigQuery may have an earlier answer**. Semantics: consult ClickHouse first; if it finds the program at exactly its lower bound (so the program might extend below the range), check BigQuery for an earlier slot; if ClickHouse doesn't find it at all, BigQuery (then the cache) is consulted. This is a dedicated branch, not the §6.2 composite loader, and is cost-aware (only queries BigQuery when the program may actually extend below the ClickHouse range).
   - **P2**: `QueryPreviousUnskipped` (chain time as of a slot), `QueryBlocksByInterval` (windowed block listing; window grouping over large partitions is the **most expensive**, bounded by `maxBytesBilled` and the slot-span cap).
 
-### 6.4 Wiring & config (`sentio/launcher/chain_sol.go` `BuildSolMiddlewares`)
-- Reads `bqConf := c.Get("bigquery")`; when present, builds `bq.NewStore(...)` and passes it to `NewSuperNode`; otherwise passes `nil` (backward compatible). A construction error degrades gracefully (logged, tier disabled) instead of failing the super-node.
-- Registers the store with the tracker (`bigquery-store`) so its stats are reported.
-- Config (yaml), as deployed in `production`:
-  ```yaml
-  bigquery:
-    project: sentio-352722                                  # billing project
-    dataset: bigquery-public-data.crypto_solana_mainnet_us  # optional; this is the default
-    max-bytes-billed: 100000000000                          # per-query cost circuit breaker
-    # auth via GOOGLE_APPLICATION_CREDENTIALS (gcloud-secret-admin mounted in the pod)
-  ```
+### 6.4 Configuration (`bq.Config`)
+`NewStore(ctx, bq.Config)` is constructed by the caller and passed to `NewSuperNode`; passing `nil` disables the tier. `bq.Config` fields:
+- `ProjectID` — billing/job project (queries are billed here even though the dataset is public).
+- `Dataset` — `"<project>.<dataset>"` qualifier; defaults to `bigquery-public-data.crypto_solana_mainnet_us`.
+- `MaxBytesBilled` — per-query bytes-scanned cap (cost circuit breaker; 0 = unlimited).
+- `BlocksTable` / `TransactionsTable` / `InstructionsTable` — table-name overrides (default `Blocks`/`Transactions`/`Instructions`).
+- `PartitionPaddingDays` — widens the resolved `[lo, hi]` window at DAY boundaries (default 1).
+- `HistoryStart` — dataset-wide lower `block_timestamp` bound for whole-history scans (`EarliestProgramSlot`); default 2020-03-01.
+
+A construction error should degrade gracefully (disable the tier) rather than fail the super-node.
 
 ---
 
@@ -256,6 +254,6 @@ Priority: cache (newest) > ClickHouse (within `rangeStore`) > BigQuery (archival
 
 ---
 
-## Appendix: sample files
+## Appendix: validation sample
 
-Under `my-processors/test/`: `blocks.json` (a Blocks row), `tx.json` (a Transactions row), `instructions.json` (Instructions rows) come from BigQuery; `raw_tx.json` is the RPC `getTransaction(encoding=jsonParsed)` result for the same transaction — the **target shape** this design reconstructs. All mappings here were checked against this sample.
+The mappings above were checked against one sample transaction: its `Blocks` / `Transactions` / `Instructions` rows from BigQuery versus the RPC `getTransaction(encoding=jsonParsed)` result for the same transaction (the **target shape** this design reconstructs). The same sample shapes are exercised by the unit tests in `convert_test.go`.

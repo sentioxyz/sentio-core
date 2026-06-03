@@ -24,6 +24,8 @@ type Store struct {
 	blocksTable string
 	txsTable    string
 	instrsTable string
+
+	statistic
 }
 
 // Config configures the BigQuery store.
@@ -74,13 +76,15 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "bq: new client")
 	}
-	return &Store{
+	s := &Store{
 		client:      client,
 		cfg:         cfg,
 		blocksTable: fmt.Sprintf("`%s.%s`", cfg.Dataset, cfg.BlocksTable),
 		txsTable:    fmt.Sprintf("`%s.%s`", cfg.Dataset, cfg.TransactionsTable),
 		instrsTable: fmt.Sprintf("`%s.%s`", cfg.Dataset, cfg.InstructionsTable),
-	}, nil
+	}
+	s.init()
+	return s, nil
 }
 
 var _ supernode.Storage = (*Store)(nil)
@@ -97,10 +101,16 @@ func (s *Store) query(sql string, params ...bigquery.QueryParameter) *bigquery.Q
 	return q
 }
 
-// readAll runs a query and scans every row into a slice of T.
-func readAll[T any](ctx context.Context, q *bigquery.Query) ([]T, error) {
-	it, err := q.Read(ctx)
+// readAll runs a query and scans every row into a slice of T. The query's bytes-billed is added to
+// *bytesBilled (when non-nil) for statistics, regardless of success.
+func readAll[T any](ctx context.Context, q *bigquery.Query, bytesBilled *int64) ([]T, error) {
+	job, err := q.Run(ctx)
 	if err != nil {
+		return nil, err
+	}
+	it, err := job.Read(ctx)
+	if err != nil {
+		addBytesBilled(bytesBilled, job)
 		return nil, err
 	}
 	var out []T
@@ -111,17 +121,34 @@ func readAll[T any](ctx context.Context, q *bigquery.Query) ([]T, error) {
 			break
 		}
 		if err != nil {
+			addBytesBilled(bytesBilled, job)
 			return nil, err
 		}
 		out = append(out, row)
 	}
+	addBytesBilled(bytesBilled, job)
 	return out, nil
+}
+
+// addBytesBilled accumulates a completed query job's total bytes billed (best effort; 0 when the
+// statistics are not available, e.g. cache hits).
+func addBytesBilled(acc *int64, job *bigquery.Job) {
+	if acc == nil || job == nil {
+		return
+	}
+	status := job.LastStatus()
+	if status == nil || status.Statistics == nil {
+		return
+	}
+	if qs, ok := status.Statistics.Details.(*bigquery.QueryStatistics); ok {
+		*acc += qs.TotalBytesBilled
+	}
 }
 
 // resolveTimeRange returns the [lo, hi] block_timestamp window (padded) spanning the slot range,
 // by querying the cheap, non-partition-restricted Blocks table. found is false when no block exists
 // in the range. The window is used as the mandatory partition filter on Transactions/Instructions.
-func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64) (lo, hi time.Time, found bool, err error) {
+func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64, bytes *int64) (lo, hi time.Time, found bool, err error) {
 	q := s.query(
 		fmt.Sprintf("SELECT MIN(block_timestamp) AS lo, MAX(block_timestamp) AS hi FROM %s WHERE slot BETWEEN @from AND @to", s.blocksTable),
 		bigquery.QueryParameter{Name: "from", Value: int64(from)},
@@ -131,7 +158,7 @@ func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64) (lo, hi t
 		Lo bigquery.NullTimestamp `bigquery:"lo"`
 		Hi bigquery.NullTimestamp `bigquery:"hi"`
 	}
-	rows, err := readAll[row](ctx, q)
+	rows, err := readAll[row](ctx, q, bytes)
 	if err != nil {
 		return time.Time{}, time.Time{}, false, errors.Wrap(err, "resolve time range")
 	}
@@ -142,15 +169,20 @@ func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64) (lo, hi t
 	return rows[0].Lo.Timestamp.AddDate(0, 0, -pad), rows[0].Hi.Timestamp.AddDate(0, 0, pad), true, nil
 }
 
-// QueryBlock returns the header of a slot (parent slot derived from the previous existing block).
-// A missing slot is returned as a skipped block (nil GetBlockResult), matching ClickHouse semantics.
+// QueryBlock returns the header of a slot. A missing slot is returned as a skipped block (nil
+// GetBlockResult), matching ClickHouse semantics.
 func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error) {
+	var bytes int64
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "queryBlock", time.Since(start), count, bytes) }()
+
 	q := s.query(
 		fmt.Sprintf(`SELECT slot, block_hash, block_timestamp, height, previous_block_hash
 			FROM %s WHERE slot = @slot LIMIT 1`, s.blocksTable),
 		bigquery.QueryParameter{Name: "slot", Value: int64(slot)},
 	)
-	rows, err := readAll[blockRow](ctx, q)
+	rows, err := readAll[blockRow](ctx, q, &bytes)
 	if err != nil {
 		return nil, errors.Wrapf(err, "query block %d", slot)
 	}
@@ -162,6 +194,7 @@ func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error)
 	if err != nil {
 		return nil, err
 	}
+	count = 1
 	return &block, nil
 }
 
@@ -170,6 +203,11 @@ func (s *Store) QueryPreviousUnskipped(
 	ctx context.Context,
 	before uint64,
 ) (uint64, *solana.UnixTimeSeconds, bool, error) {
+	var bytes int64
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "queryPreviousUnskipped", time.Since(start), count, bytes) }()
+
 	q := s.query(
 		fmt.Sprintf("SELECT slot, block_timestamp FROM %s WHERE slot < @before ORDER BY slot DESC LIMIT 1", s.blocksTable),
 		bigquery.QueryParameter{Name: "before", Value: int64(before)},
@@ -178,13 +216,14 @@ func (s *Store) QueryPreviousUnskipped(
 		Slot           int64                  `bigquery:"slot"`
 		BlockTimestamp bigquery.NullTimestamp `bigquery:"block_timestamp"`
 	}
-	rows, err := readAll[row](ctx, q)
+	rows, err := readAll[row](ctx, q, &bytes)
 	if err != nil {
 		return 0, nil, false, errors.Wrapf(err, "query previous unskipped before %d", before)
 	}
 	if len(rows) == 0 {
 		return 0, nil, false, nil
 	}
+	count = 1
 	var bt *solana.UnixTimeSeconds
 	if rows[0].BlockTimestamp.Valid {
 		t := solana.UnixTimeSeconds(rows[0].BlockTimestamp.Timestamp.Unix())
@@ -197,6 +236,11 @@ func (s *Store) QueryPreviousUnskipped(
 // retained history. The mandatory partition filter is satisfied with a dataset-wide lower bound;
 // the program_id clustering prunes the scan. This is a rare (per-program-start) call.
 func (s *Store) EarliestProgramSlot(ctx context.Context, address solana.PublicKey) (uint64, bool, error) {
+	var bytes int64
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "earliestProgramSlot", time.Since(start), count, bytes) }()
+
 	q := s.query(
 		fmt.Sprintf("SELECT MIN(block_slot) AS min_slot FROM %s WHERE program_id = @addr AND block_timestamp >= @start", s.instrsTable),
 		bigquery.QueryParameter{Name: "addr", Value: address.String()},
@@ -205,13 +249,14 @@ func (s *Store) EarliestProgramSlot(ctx context.Context, address solana.PublicKe
 	type row struct {
 		MinSlot bigquery.NullInt64 `bigquery:"min_slot"`
 	}
-	rows, err := readAll[row](ctx, q)
+	rows, err := readAll[row](ctx, q, &bytes)
 	if err != nil {
 		return 0, false, errors.Wrapf(err, "earliest program slot %s", address)
 	}
 	if len(rows) == 0 || !rows[0].MinSlot.Valid {
 		return 0, false, nil
 	}
+	count = 1
 	return uint64(rows[0].MinSlot.Int64), true, nil
 }
 
@@ -224,7 +269,12 @@ func (s *Store) QueryBlocksByInterval(
 	window sol.IntervalWindow,
 	limit int,
 ) ([]sol.Block, error) {
-	lo, hi, found, err := s.resolveTimeRange(ctx, from, to)
+	var bytes int64
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "queryBlocksByInterval", time.Since(start), count, bytes) }()
+
+	lo, hi, found, err := s.resolveTimeRange(ctx, from, to, &bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +307,7 @@ func (s *Store) QueryBlocksByInterval(
 		bigquery.QueryParameter{Name: "hi", Value: hi},
 		bigquery.QueryParameter{Name: "limit", Value: int64(limit)},
 	)
-	blockRows, err := readAll[blockRow](ctx, q)
+	blockRows, err := readAll[blockRow](ctx, q, &bytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "query blocks by interval")
 	}
@@ -269,7 +319,7 @@ func (s *Store) QueryBlocksByInterval(
 	for i, b := range blockRows {
 		slots[i] = b.Slot
 	}
-	sigsBySlot, err := s.signaturesBySlot(ctx, slots, lo, hi)
+	sigsBySlot, err := s.signaturesBySlot(ctx, slots, lo, hi, &bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -281,6 +331,7 @@ func (s *Store) QueryBlocksByInterval(
 		}
 		out = append(out, block)
 	}
+	count = len(out)
 	return out, nil
 }
 
@@ -289,6 +340,7 @@ func (s *Store) signaturesBySlot(
 	ctx context.Context,
 	slots []int64,
 	lo, hi time.Time,
+	bytes *int64,
 ) (map[int64][]solana.Signature, error) {
 	q := s.query(
 		fmt.Sprintf(`SELECT block_slot, signature, index FROM %s
@@ -303,7 +355,7 @@ func (s *Store) signaturesBySlot(
 		Signature string `bigquery:"signature"`
 		Index     int64  `bigquery:"index"`
 	}
-	rows, err := readAll[row](ctx, q)
+	rows, err := readAll[row](ctx, q, bytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "query block signatures")
 	}
@@ -327,7 +379,12 @@ func (s *Store) FindTransactions(
 	programIDs []solana.PublicKey,
 	limit int,
 ) ([]sol.BlockTransactions, error) {
-	lo, hi, found, err := s.resolveTimeRange(ctx, from, to)
+	var bytes int64
+	var count int
+	start := time.Now()
+	defer func() { s.record(ctx, "findTransactions", time.Since(start), count, bytes) }()
+
+	lo, hi, found, err := s.resolveTimeRange(ctx, from, to, &bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -358,7 +415,7 @@ func (s *Store) FindTransactions(
 		BlockSlot   int64  `bigquery:"block_slot"`
 		TxSignature string `bigquery:"tx_signature"`
 	}
-	matches, err := readAll[matchRow](ctx, matchQ)
+	matches, err := readAll[matchRow](ctx, matchQ, &bytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "find matching transactions")
 	}
@@ -371,11 +428,11 @@ func (s *Store) FindTransactions(
 	}
 
 	// 2. Full transaction rows, instruction rows, and block headers for those signatures.
-	txRows, err := s.queryTransactions(ctx, sigs, lo, hi)
+	txRows, err := s.queryTransactions(ctx, sigs, lo, hi, &bytes)
 	if err != nil {
 		return nil, err
 	}
-	instrBySig, err := s.queryInstructions(ctx, sigs, lo, hi)
+	instrBySig, err := s.queryInstructions(ctx, sigs, lo, hi, &bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -387,16 +444,23 @@ func (s *Store) FindTransactions(
 	for sl := range slotSet {
 		slots = append(slots, sl)
 	}
-	headers, err := s.queryBlockHeaders(ctx, slots)
+	headers, err := s.queryBlockHeaders(ctx, slots, &bytes)
 	if err != nil {
 		return nil, err
 	}
 
 	// 3. Assemble: build each transaction, group by slot.
-	return assembleBlockTransactions(txRows, instrBySig, headers)
+	result, err := assembleBlockTransactions(txRows, instrBySig, headers)
+	if err != nil {
+		return nil, err
+	}
+	for _, bt := range result {
+		count += len(bt.Transactions)
+	}
+	return result, nil
 }
 
-func (s *Store) queryTransactions(ctx context.Context, sigs []string, lo, hi time.Time) ([]txRow, error) {
+func (s *Store) queryTransactions(ctx context.Context, sigs []string, lo, hi time.Time, bytes *int64) ([]txRow, error) {
 	q := s.query(
 		fmt.Sprintf(`SELECT block_slot, block_hash, recent_block_hash, signature, index,
 			CAST(fee AS INT64) AS fee, status, err, CAST(compute_units_consumed AS INT64) AS compute_units_consumed,
@@ -409,14 +473,14 @@ func (s *Store) queryTransactions(ctx context.Context, sigs []string, lo, hi tim
 		bigquery.QueryParameter{Name: "hi", Value: hi},
 		bigquery.QueryParameter{Name: "sigs", Value: sigs},
 	)
-	rows, err := readAll[txRow](ctx, q)
+	rows, err := readAll[txRow](ctx, q, bytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "query transactions")
 	}
 	return rows, nil
 }
 
-func (s *Store) queryInstructions(ctx context.Context, sigs []string, lo, hi time.Time) (map[string][]instructionRow, error) {
+func (s *Store) queryInstructions(ctx context.Context, sigs []string, lo, hi time.Time, bytes *int64) (map[string][]instructionRow, error) {
 	q := s.query(
 		fmt.Sprintf(`SELECT block_slot, tx_signature, index, parent_index, accounts, data, parsed, program, program_id, instruction_type, params
 			FROM %s WHERE block_timestamp BETWEEN @lo AND @hi AND tx_signature IN UNNEST(@sigs)`, s.instrsTable),
@@ -424,7 +488,7 @@ func (s *Store) queryInstructions(ctx context.Context, sigs []string, lo, hi tim
 		bigquery.QueryParameter{Name: "hi", Value: hi},
 		bigquery.QueryParameter{Name: "sigs", Value: sigs},
 	)
-	rows, err := readAll[instructionRow](ctx, q)
+	rows, err := readAll[instructionRow](ctx, q, bytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "query instructions")
 	}
@@ -442,7 +506,7 @@ type blockHeader struct {
 	BlockTime         *solana.UnixTimeSeconds
 }
 
-func (s *Store) queryBlockHeaders(ctx context.Context, slots []int64) (map[int64]blockHeader, error) {
+func (s *Store) queryBlockHeaders(ctx context.Context, slots []int64, bytes *int64) (map[int64]blockHeader, error) {
 	q := s.query(
 		fmt.Sprintf("SELECT slot, block_hash, previous_block_hash, block_timestamp FROM %s WHERE slot IN UNNEST(@slots)", s.blocksTable),
 		bigquery.QueryParameter{Name: "slots", Value: slots},
@@ -453,7 +517,7 @@ func (s *Store) queryBlockHeaders(ctx context.Context, slots []int64) (map[int64
 		PreviousBlockHash string                 `bigquery:"previous_block_hash"`
 		BlockTimestamp    bigquery.NullTimestamp `bigquery:"block_timestamp"`
 	}
-	rows, err := readAll[row](ctx, q)
+	rows, err := readAll[row](ctx, q, bytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "query block headers")
 	}

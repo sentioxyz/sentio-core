@@ -4,6 +4,7 @@ go_library(
     name = "bq",
     srcs = [
         "convert.go",
+        "stat.go",
         "store.go",
     ],
     importpath = "sentioxyz/sentio-core/chain/sol/bq",
@@ -11,6 +12,10 @@ go_library(
     deps = [
         "//chain/sol",
         "//chain/sol/supernode",
+        "//common/histogram",
+        "//common/jsonrpc",
+        "//common/timehist",
+        "//common/utils",
         "@com_github_gagliardetto_solana_go//:solana-go",
         "@com_github_gagliardetto_solana_go//rpc",
         "@com_github_pkg_errors//:errors",

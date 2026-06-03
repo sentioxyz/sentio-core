@@ -7909,6 +7909,7 @@ type Data_SolInstruction struct {
 	ProgramAccountId string                 `protobuf:"bytes,3,opt,name=program_account_id,json=programAccountId,proto3" json:"program_account_id,omitempty"`
 	Accounts         []string               `protobuf:"bytes,5,rep,name=accounts,proto3" json:"accounts,omitempty"`
 	Parsed           *structpb.Struct       `protobuf:"bytes,4,opt,name=parsed,proto3,oneof" json:"parsed,omitempty"`
+	RawParsed        *string                `protobuf:"bytes,7,opt,name=raw_parsed,json=rawParsed,proto3,oneof" json:"raw_parsed,omitempty"`
 	RawTransaction   *string                `protobuf:"bytes,6,opt,name=raw_transaction,json=rawTransaction,proto3,oneof" json:"raw_transaction,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
@@ -7977,6 +7978,13 @@ func (x *Data_SolInstruction) GetParsed() *structpb.Struct {
 		return x.Parsed
 	}
 	return nil
+}
+
+func (x *Data_SolInstruction) GetRawParsed() string {
+	if x != nil && x.RawParsed != nil {
+		return *x.RawParsed
+	}
+	return ""
 }
 
 func (x *Data_SolInstruction) GetRawTransaction() string {
@@ -9381,7 +9389,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\aHAS_ALL\x10\n" +
 	"\x12\v\n" +
 	"\aHAS_ANY\x10\vB\x04\n" +
-	"\x02op\"\x9a-\n" +
+	"\x02op\"\xcd-\n" +
 	"\x04Data\x121\n" +
 	"\aeth_log\x18\x02 \x01(\v2\x16.processor.Data.EthLogH\x00R\x06ethLog\x127\n" +
 	"\teth_block\x18\x03 \x01(\v2\x18.processor.Data.EthBlockH\x00R\bethBlock\x12I\n" +
@@ -9463,15 +9471,18 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x10_raw_transactionB\x1a\n" +
 	"\x18_raw_transaction_receiptB\f\n" +
 	"\n" +
-	"_raw_block\x1a\x9c\x02\n" +
+	"_raw_block\x1a\xcf\x02\n" +
 	"\x0eSolInstruction\x12)\n" +
 	"\x10instruction_data\x18\x01 \x01(\tR\x0finstructionData\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\x04R\x04slot\x12,\n" +
 	"\x12program_account_id\x18\x03 \x01(\tR\x10programAccountId\x12\x1a\n" +
 	"\baccounts\x18\x05 \x03(\tR\baccounts\x124\n" +
-	"\x06parsed\x18\x04 \x01(\v2\x17.google.protobuf.StructH\x00R\x06parsed\x88\x01\x01\x12,\n" +
-	"\x0fraw_transaction\x18\x06 \x01(\tH\x01R\x0erawTransaction\x88\x01\x01B\t\n" +
-	"\a_parsedB\x12\n" +
+	"\x06parsed\x18\x04 \x01(\v2\x17.google.protobuf.StructH\x00R\x06parsed\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"raw_parsed\x18\a \x01(\tH\x01R\trawParsed\x88\x01\x01\x12,\n" +
+	"\x0fraw_transaction\x18\x06 \x01(\tH\x02R\x0erawTransaction\x88\x01\x01B\t\n" +
+	"\a_parsedB\r\n" +
+	"\v_raw_parsedB\x12\n" +
 	"\x10_raw_transaction\x1au\n" +
 	"\bSolBlock\x12\x1b\n" +
 	"\traw_block\x18\x01 \x01(\tR\brawBlock\x128\n" +

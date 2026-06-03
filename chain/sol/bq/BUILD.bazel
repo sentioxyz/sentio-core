@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "bq",
+    srcs = [
+        "convert.go",
+        "store.go",
+    ],
+    importpath = "sentioxyz/sentio-core/chain/sol/bq",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/sol",
+        "//chain/sol/supernode",
+        "@com_github_gagliardetto_solana_go//:solana-go",
+        "@com_github_gagliardetto_solana_go//rpc",
+        "@com_github_pkg_errors//:errors",
+        "@com_google_cloud_go_bigquery//:bigquery",
+        "@org_golang_google_api//iterator",
+    ],
+)
+
+go_test(
+    name = "bq_test",
+    srcs = ["convert_test.go"],
+    embed = [":bq"],
+    deps = [
+        "@com_github_gagliardetto_solana_go//rpc",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_google_cloud_go_bigquery//:bigquery",
+    ],
+)

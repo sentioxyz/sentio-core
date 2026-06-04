@@ -60,6 +60,26 @@ func (ix *DaySlotIndex) window(from, to uint64) (lo, hi time.Time, ok bool) {
 	return loDay, hiDay.Add(24*time.Hour - time.Nanosecond), true
 }
 
+// previousWindow returns the [lo, hi] window (inclusive, UTC) of the day that holds the nearest block
+// with slot < before. That block lives in the last day whose MinSlot < before: days after it start
+// at slot >= before, and within that day the largest slot < before is present (its MinSlot < before).
+// ok is false when no indexed day precedes before.
+func (ix *DaySlotIndex) previousWindow(before uint64) (lo, hi time.Time, ok bool) {
+	n := len(ix.Days)
+	if n == 0 {
+		return time.Time{}, time.Time{}, false
+	}
+	j := sort.Search(n, func(i int) bool { return ix.Days[i].MinSlot >= before }) - 1
+	if j < 0 {
+		return time.Time{}, time.Time{}, false
+	}
+	d, err := time.ParseInLocation(dateLayout, ix.Days[j].Date, time.UTC)
+	if err != nil {
+		return time.Time{}, time.Time{}, false
+	}
+	return d, d.Add(24*time.Hour - time.Nanosecond), true
+}
+
 // mergeForward appends day entries that are strictly newer than the current ones (extension toward
 // the present) and records the new completeness boundary. newDays must be sorted ascending.
 func (ix *DaySlotIndex) mergeForward(newDays []DayEntry, completeThrough string) {

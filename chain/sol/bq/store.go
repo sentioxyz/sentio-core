@@ -28,7 +28,7 @@ type Store struct {
 	instrsTable string
 
 	// Day-slot index: maps historical UTC days to their slot ranges so resolveTimeRange avoids a
-	// Blocks scan per call. nil dayCache disables it (falls back to a direct query each time).
+	// Blocks scan per call. dayCache persists it; indexMu guards both the build and every read.
 	dayCache kvstore.Store[DaySlotIndex]
 	indexMu  sync.Mutex
 	index    *DaySlotIndex
@@ -55,8 +55,9 @@ type Config struct {
 	// required because the partitioned tables enforce a partition filter. Default 2020-03-01 (mainnet).
 	// It also bounds the day-slot index build.
 	HistoryStart time.Time
-	// DayCache persists the day-slot index (a few KB, under a single key). When nil, resolveTimeRange
-	// resolves slot→timestamp with a direct Blocks query on every call instead.
+	// DayCache persists the day-slot index (a few KB, under a single key). Required: slot→timestamp
+	// resolution is served entirely from this index. Use a redis store to survive restarts, or a
+	// mem-lru store to rebuild the index once per process.
 	DayCache kvstore.Store[DaySlotIndex]
 }
 
@@ -68,6 +69,11 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 	}
 	if cfg.Dataset == "" {
 		return nil, errors.New("bq: Dataset is required")
+	}
+	if cfg.DayCache == nil {
+		// The day-slot index is mandatory: resolveTimeRange relies on it, and enabling the BigQuery
+		// tier without it would scan Blocks on every call. Wire a mem-lru store at minimum.
+		return nil, errors.New("bq: DayCache is required")
 	}
 	if cfg.BlocksTable == "" {
 		cfg.BlocksTable = "Blocks"
@@ -158,63 +164,52 @@ func addBytesBilled(acc *int64, job *bigquery.Job) {
 	}
 }
 
-// resolveTimeRange returns the [lo, hi] block_timestamp window (padded) spanning the slot range,
-// by querying the cheap, non-partition-restricted Blocks table. found is false when no block exists
-// in the range. The window is used as the mandatory partition filter on Transactions/Instructions.
-func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64, bytes *int64) (lo, hi time.Time, found bool, err error) {
-	// With a day-slot index, resolve from the cached per-day slot ranges (no Blocks scan). The index
-	// is built/extended once from BigQuery and persisted; only a slot newer than the indexed history
-	// (today) or an all-skipped gap falls through to the direct query below.
-	if s.dayCache != nil {
-		ix, ixErr := s.ensureDayIndex(ctx, bytes)
-		if ixErr != nil {
-			return time.Time{}, time.Time{}, false, ixErr
-		}
-		if wLo, wHi, ok := ix.window(from, to); ok {
-			return wLo, wHi, true, nil
-		}
-	}
-	return s.resolveTimeRangeDirect(ctx, from, to, bytes)
+// resolveTimeRange returns the [lo, hi] block_timestamp window (inclusive, UTC) spanning the slot
+// range, from the day-slot index. found is false when the range cannot be resolved — the slot is
+// newer than the indexed history (today) or [from,to] is an all-skipped gap — and callers treat that
+// as "no data". The whole call holds indexMu, so the index build/extend and the window read can
+// never race.
+func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64) (lo, hi time.Time, found bool, err error) {
+	return s.withIndex(ctx, func(ix *DaySlotIndex) (time.Time, time.Time, bool) {
+		return ix.window(from, to)
+	})
 }
 
-// resolveTimeRangeDirect resolves the slot range to a block_timestamp window with a direct Blocks
-// query (MIN/MAX over the slot range), padded by PartitionPaddingDays. Used when no day index is
-// configured, or when the index cannot cover the request.
-func (s *Store) resolveTimeRangeDirect(ctx context.Context, from, to uint64, bytes *int64) (lo, hi time.Time, found bool, err error) {
-	q := s.query(
-		fmt.Sprintf("SELECT MIN(block_timestamp) AS lo, MAX(block_timestamp) AS hi FROM %s WHERE slot BETWEEN @from AND @to", s.blocksTable),
-		bigquery.QueryParameter{Name: "from", Value: int64(from)},
-		bigquery.QueryParameter{Name: "to", Value: int64(to)},
-	)
-	type row struct {
-		Lo bigquery.NullTimestamp `bigquery:"lo"`
-		Hi bigquery.NullTimestamp `bigquery:"hi"`
+// previousDayWindow returns the [lo, hi] window of the day that holds the nearest block with slot <
+// before, used to bound QueryPreviousUnskipped. found is false when no indexed day precedes before.
+func (s *Store) previousDayWindow(ctx context.Context, before uint64) (lo, hi time.Time, found bool, err error) {
+	return s.withIndex(ctx, func(ix *DaySlotIndex) (time.Time, time.Time, bool) {
+		return ix.previousWindow(before)
+	})
+}
+
+// withIndex ensures the day-slot index is built/current and evaluates fn against it, all while
+// holding indexMu — so the (rare) build/extend and the index read are serialized and never race.
+func (s *Store) withIndex(
+	ctx context.Context,
+	fn func(*DaySlotIndex) (time.Time, time.Time, bool),
+) (lo, hi time.Time, found bool, err error) {
+	s.indexMu.Lock()
+	defer s.indexMu.Unlock()
+	if err := s.ensureDayIndexLocked(ctx); err != nil {
+		return time.Time{}, time.Time{}, false, err
 	}
-	rows, err := readAll[row](ctx, q, bytes)
-	if err != nil {
-		return time.Time{}, time.Time{}, false, errors.Wrap(err, "resolve time range")
-	}
-	if len(rows) == 0 || !rows[0].Lo.Valid || !rows[0].Hi.Valid {
-		return time.Time{}, time.Time{}, false, nil
-	}
-	pad := s.cfg.PartitionPaddingDays
-	return rows[0].Lo.Timestamp.AddDate(0, 0, -pad), rows[0].Hi.Timestamp.AddDate(0, 0, pad), true, nil
+	lo, hi, found = fn(s.index)
+	return lo, hi, found, nil
 }
 
 const dayIndexKey = "index"
 
-// ensureDayIndex loads the day-slot index from the cache (once) and extends it forward to cover all
-// complete (past) UTC days. Today is never recorded — it is still being ingested. The forward
-// extension is a single GROUP BY over the missing day range (the bulk form of a per-day
-// MIN/MAX-by-day fill), scanning only the Blocks slot/timestamp columns of the months involved.
-func (s *Store) ensureDayIndex(ctx context.Context, bytes *int64) (*DaySlotIndex, error) {
-	s.indexMu.Lock()
-	defer s.indexMu.Unlock()
-
+// ensureDayIndexLocked loads the day-slot index (once) and extends it forward to cover all complete
+// (past) UTC days; today is never recorded (still being ingested). The forward extension is a single
+// GROUP BY over the missing day range. Its BigQuery cost is recorded under a dedicated "dayIndex"
+// stat, so it is not mixed into the business method (FindTransactions etc.) that happened to trigger
+// the build. Caller must hold indexMu.
+func (s *Store) ensureDayIndexLocked(ctx context.Context) error {
 	if s.index == nil {
 		got, err := s.dayCache.Get(ctx, dayIndexKey)
 		if err != nil {
-			return nil, errors.Wrap(err, "load day-slot index")
+			return errors.Wrap(err, "load day-slot index")
 		}
 		if cached, ok := got[dayIndexKey]; ok {
 			s.index = &cached
@@ -232,18 +227,21 @@ func (s *Store) ensureDayIndex(ctx context.Context, bytes *int64) (*DaySlotIndex
 		}
 	}
 	if !start.Before(end) {
-		return s.index, nil // already complete through yesterday
+		return nil // already complete through yesterday
 	}
 
-	newDays, err := s.queryDayRanges(ctx, start, end, bytes)
+	var bytes int64
+	t0 := time.Now()
+	newDays, err := s.queryDayRanges(ctx, start, end, &bytes)
+	s.record(ctx, "dayIndex", time.Since(t0), len(newDays), bytes)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	s.index.mergeForward(newDays, end.Add(-24*time.Hour).Format(dateLayout))
 	if err := s.dayCache.Set(ctx, map[string]DaySlotIndex{dayIndexKey: *s.index}); err != nil {
-		return nil, errors.Wrap(err, "persist day-slot index")
+		return errors.Wrap(err, "persist day-slot index")
 	}
-	return s.index, nil
+	return nil
 }
 
 // queryDayRanges returns, per UTC day in [start, end), the day's min/max unskipped slot, via one
@@ -287,9 +285,21 @@ func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error)
 	start := time.Now()
 	defer func() { s.record(ctx, "queryBlock", time.Since(start), count, bytes) }()
 
+	// Bound the Blocks scan to the slot's UTC day (its block_timestamp partition) via the day index;
+	// without it the point lookup scans the whole Blocks table. found=false ⇒ the slot is in a
+	// skipped gap (or newer than indexed history) ⇒ no block.
+	lo, hi, found, err := s.resolveTimeRange(ctx, slot, slot)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return &sol.Block{Slot: slot}, nil
+	}
 	q := s.query(
 		fmt.Sprintf(`SELECT slot, block_hash, block_timestamp, height, previous_block_hash
-			FROM %s WHERE slot = @slot LIMIT 1`, s.blocksTable),
+			FROM %s WHERE block_timestamp BETWEEN @lo AND @hi AND slot = @slot LIMIT 1`, s.blocksTable),
+		bigquery.QueryParameter{Name: "lo", Value: lo},
+		bigquery.QueryParameter{Name: "hi", Value: hi},
 		bigquery.QueryParameter{Name: "slot", Value: int64(slot)},
 	)
 	rows, err := readAll[blockRow](ctx, q, &bytes)
@@ -318,8 +328,20 @@ func (s *Store) QueryPreviousUnskipped(
 	start := time.Now()
 	defer func() { s.record(ctx, "queryPreviousUnskipped", time.Since(start), count, bytes) }()
 
+	// The nearest block with slot < before lives in the last indexed day whose min slot < before.
+	// Bound the scan to that day's block_timestamp window (prunes Blocks to one month) instead of
+	// scanning the whole table. found=false ⇒ no day precedes before.
+	lo, hi, found, err := s.previousDayWindow(ctx, before)
+	if err != nil {
+		return 0, nil, false, err
+	}
+	if !found {
+		return 0, nil, false, nil
+	}
 	q := s.query(
-		fmt.Sprintf("SELECT slot, block_timestamp FROM %s WHERE slot < @before ORDER BY slot DESC LIMIT 1", s.blocksTable),
+		fmt.Sprintf("SELECT slot, block_timestamp FROM %s WHERE block_timestamp BETWEEN @lo AND @hi AND slot < @before ORDER BY slot DESC LIMIT 1", s.blocksTable),
+		bigquery.QueryParameter{Name: "lo", Value: lo},
+		bigquery.QueryParameter{Name: "hi", Value: hi},
 		bigquery.QueryParameter{Name: "before", Value: int64(before)},
 	)
 	type row struct {
@@ -384,7 +406,7 @@ func (s *Store) QueryBlocksByInterval(
 	start := time.Now()
 	defer func() { s.record(ctx, "queryBlocksByInterval", time.Since(start), count, bytes) }()
 
-	lo, hi, found, err := s.resolveTimeRange(ctx, from, to, &bytes)
+	lo, hi, found, err := s.resolveTimeRange(ctx, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +533,7 @@ func (s *Store) FindTransactions(
 	start := time.Now()
 	defer func() { s.record(ctx, "findTransactions", time.Since(start), count, bytes) }()
 
-	lo, hi, found, err := s.resolveTimeRange(ctx, from, to, &bytes)
+	lo, hi, found, err := s.resolveTimeRange(ctx, from, to)
 	if err != nil {
 		return nil, err
 	}

@@ -37,6 +37,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
@@ -44,6 +45,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"sentioxyz/sentio-core/chain/sol"
+	"sentioxyz/sentio-core/common/kvstore"
 )
 
 const (
@@ -62,11 +64,16 @@ func newITStore(t *testing.T) *Store {
 	if project == "" {
 		project = "sentio-352722"
 	}
+	// The day-slot index is mandatory; an in-memory store is enough for the test (rebuilt per run).
+	dayCache, err := kvstore.NewLRUKVStore[DaySlotIndex](4)
+	require.NoError(t, err)
 	store, err := NewStore(context.Background(), Config{
 		ProjectID: project,
 		Dataset:   "bigquery-public-data.crypto_solana_mainnet_us",
-		// A single known slot: pad 0 so the partition filter stays on the one DAY partition.
-		PartitionPaddingDays: 0,
+		DayCache:  dayCache,
+		// Start the day index just before the sample day so its one-time GROUP BY build scans only a
+		// couple of Blocks month-partitions (~GB), not all of history.
+		HistoryStart: time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC),
 		// Generous one-off cap. FindTransactions filters instructions by program_id (cluster key) so
 		// the scan is pruned; this cap is just a safety ceiling for the test. Tune down for production.
 		MaxBytesBilled: 512 << 30, // 512 GiB

@@ -67,6 +67,36 @@ func TestDaySlotIndexWindow(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestDaySlotIndexPreviousWindow(t *testing.T) {
+	ix := sampleIndex() // days: [100,199], [210,299], [300,399]
+
+	// before inside day 1 → previous block is day 0.
+	lo, _, ok := ix.previousWindow(150)
+	require.True(t, ok)
+	assert.Equal(t, day("2026-05-26"), lo)
+
+	// before in the gap (205) → previous block is day 0's max (199), in day 0.
+	lo, _, ok = ix.previousWindow(205)
+	require.True(t, ok)
+	assert.Equal(t, day("2026-05-26"), lo)
+
+	// before inside day 2 → previous block is day 1.
+	lo, _, ok = ix.previousWindow(250)
+	require.True(t, ok)
+	assert.Equal(t, day("2026-05-27"), lo)
+
+	// before newer than everything → previous block is the last day.
+	lo, _, ok = ix.previousWindow(1000)
+	require.True(t, ok)
+	assert.Equal(t, day("2026-05-28"), lo)
+
+	// before at/below the earliest slot → no previous block.
+	_, _, ok = ix.previousWindow(100)
+	assert.False(t, ok)
+	_, _, ok = ix.previousWindow(50)
+	assert.False(t, ok)
+}
+
 func TestDaySlotIndexMergeForward(t *testing.T) {
 	ix := &DaySlotIndex{
 		Days:            []DayEntry{{Date: "2026-05-26", MinSlot: 100, MaxSlot: 199}},

@@ -196,6 +196,15 @@ Measured: `Transactions`/`Instructions` are ~888/890 TB, partitioned by **`block
 
 > Alternative (not the primary path): extrapolate a time window from Solana's ~400ms/slot anchored at `rangeStore.minSlot`, skipping the first hop. It requires a wide window for the error margin and risks anchor drift; consider only if the `Blocks` first hop becomes a bottleneck.
 
+#### Day-slot index (removes the recurring first-hop scan)
+
+The first hop above still scans the `Blocks` slot/timestamp columns (~6 GB) on **every** call. To avoid that, the slot→timestamp resolution is backed by a persistent **day-slot index**: for each historical UTC day, the min/max unskipped slot. This is small (a few thousand entries, a few KB) and is:
+
+- **Built once** with a single `GROUP BY TIMESTAMP_TRUNC(block_timestamp, DAY)` over `Blocks` (the bulk form of a per-day `MIN/MAX`), then **extended forward** one GROUP BY at a time as new complete days appear. Today is never recorded (it is still being ingested; UTC, matching BigQuery's DAY partitions).
+- **Persisted under a single cache key** (`kvstore.Store[DaySlotIndex]`, Redis or mem-lru) so it survives restarts — the same pattern as the Sui super node's `cachedCheckpointTime`.
+
+`resolveTimeRange` then maps `[from,to]` to a `block_timestamp` window by binary-searching the index — **zero BigQuery** once the index covers the range. It handles non-contiguous day boundaries (skipped slots between `day(N).max` and `day(N+1).min`) and empty days. It falls back to the direct `Blocks` query only when the index is unconfigured, or for a slot newer than the indexed history (today) / an all-skipped gap. A slot greater than the latest indexed day's max is, by definition, today — no BigQuery needed.
+
 ### ⚠️ Cost-critical point (decided): `FindTransactions` returns only the queried programs' instructions
 
 Measured against a busy sample day, fetching a transaction's **full** instruction set (filter `tx_signature IN @sigs` on `Instructions`) scans **~1.34 TB** — because `Instructions` is clustered by `program_id`, not by signature/slot, so the per-transaction filter cannot prune and reads the whole DAY partition. (`Transactions`, clustered by `signature`, is fine: `signature IN @sigs` prunes to ~MBs. `QueryBlock` on `Blocks` scans ~10–50 GB, the whole table's referenced columns, since it is unclustered and the lookup is by slot.)
@@ -256,6 +265,7 @@ A construction error should degrade gracefully (disable the tier) rather than fa
 | 7 | slot→timestamp cost | resolve exact DAY bounds via `Blocks` (cheap) first, then add the partition predicate to the heavy tables; set `maxBytesBilled` per job | §5 "cost-critical point" |
 | 8 | method wiring priority | P0: `FindTransactions`, `QueryBlock`; P1: `EarliestProgramSlot` (BigQuery has reverse-highest priority); P2: `QueryPreviousUnskipped`, `QueryBlocksByInterval` | §6.3 |
 | 9 | `FindTransactions` instruction scope | return only the queried programs' instructions (filter `program_id`, the cluster key) instead of the full set; avoids the ~1.34 TB per-transaction day-partition scan. Tx-level data stays complete | §5 "returns only the queried programs' instructions" |
+| 10 | `resolveTimeRange` day-slot index | back slot→timestamp resolution with a persistent per-UTC-day min/max-slot index (one Redis key, built/extended via `GROUP BY` day), removing the ~6 GB `Blocks` scan per call; today excluded; direct query is the fallback | §5 "Day-slot index" |
 
 **Remaining runtime consideration (non-blocking; observe during rollout)**: BigQuery queries are seconds-scale and take the super-node's slow-request path. Evaluate the impact on driver timeouts/retries, and consider a dedicated timeout for the BigQuery tier and local caching of results (archival history is immutable, so the hit rate should be high).
 

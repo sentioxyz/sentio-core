@@ -3,6 +3,7 @@ package bq
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -12,6 +13,7 @@ import (
 
 	"sentioxyz/sentio-core/chain/sol"
 	"sentioxyz/sentio-core/chain/sol/supernode"
+	"sentioxyz/sentio-core/common/kvstore"
 )
 
 // Store is the BigQuery-backed implementation of supernode.Storage, serving Solana history older
@@ -24,6 +26,12 @@ type Store struct {
 	blocksTable string
 	txsTable    string
 	instrsTable string
+
+	// Day-slot index: maps historical UTC days to their slot ranges so resolveTimeRange avoids a
+	// Blocks scan per call. nil dayCache disables it (falls back to a direct query each time).
+	dayCache kvstore.Store[DaySlotIndex]
+	indexMu  sync.Mutex
+	index    *DaySlotIndex
 
 	statistic
 }
@@ -45,7 +53,11 @@ type Config struct {
 	PartitionPaddingDays int
 	// HistoryStart is the lower block_timestamp bound used for whole-history scans (EarliestProgramSlot),
 	// required because the partitioned tables enforce a partition filter. Default 2020-03-01 (mainnet).
+	// It also bounds the day-slot index build.
 	HistoryStart time.Time
+	// DayCache persists the day-slot index (a few KB, under a single key). When nil, resolveTimeRange
+	// resolves slot→timestamp with a direct Blocks query on every call instead.
+	DayCache kvstore.Store[DaySlotIndex]
 }
 
 // NewStore creates a BigQuery-backed store. Authentication uses Application Default Credentials
@@ -82,6 +94,7 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 		blocksTable: fmt.Sprintf("`%s.%s`", cfg.Dataset, cfg.BlocksTable),
 		txsTable:    fmt.Sprintf("`%s.%s`", cfg.Dataset, cfg.TransactionsTable),
 		instrsTable: fmt.Sprintf("`%s.%s`", cfg.Dataset, cfg.InstructionsTable),
+		dayCache:    cfg.DayCache,
 	}
 	s.init()
 	return s, nil
@@ -149,6 +162,25 @@ func addBytesBilled(acc *int64, job *bigquery.Job) {
 // by querying the cheap, non-partition-restricted Blocks table. found is false when no block exists
 // in the range. The window is used as the mandatory partition filter on Transactions/Instructions.
 func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64, bytes *int64) (lo, hi time.Time, found bool, err error) {
+	// With a day-slot index, resolve from the cached per-day slot ranges (no Blocks scan). The index
+	// is built/extended once from BigQuery and persisted; only a slot newer than the indexed history
+	// (today) or an all-skipped gap falls through to the direct query below.
+	if s.dayCache != nil {
+		ix, ixErr := s.ensureDayIndex(ctx, bytes)
+		if ixErr != nil {
+			return time.Time{}, time.Time{}, false, ixErr
+		}
+		if wLo, wHi, ok := ix.window(from, to); ok {
+			return wLo, wHi, true, nil
+		}
+	}
+	return s.resolveTimeRangeDirect(ctx, from, to, bytes)
+}
+
+// resolveTimeRangeDirect resolves the slot range to a block_timestamp window with a direct Blocks
+// query (MIN/MAX over the slot range), padded by PartitionPaddingDays. Used when no day index is
+// configured, or when the index cannot cover the request.
+func (s *Store) resolveTimeRangeDirect(ctx context.Context, from, to uint64, bytes *int64) (lo, hi time.Time, found bool, err error) {
 	q := s.query(
 		fmt.Sprintf("SELECT MIN(block_timestamp) AS lo, MAX(block_timestamp) AS hi FROM %s WHERE slot BETWEEN @from AND @to", s.blocksTable),
 		bigquery.QueryParameter{Name: "from", Value: int64(from)},
@@ -167,6 +199,84 @@ func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64, bytes *in
 	}
 	pad := s.cfg.PartitionPaddingDays
 	return rows[0].Lo.Timestamp.AddDate(0, 0, -pad), rows[0].Hi.Timestamp.AddDate(0, 0, pad), true, nil
+}
+
+const dayIndexKey = "index"
+
+// ensureDayIndex loads the day-slot index from the cache (once) and extends it forward to cover all
+// complete (past) UTC days. Today is never recorded — it is still being ingested. The forward
+// extension is a single GROUP BY over the missing day range (the bulk form of a per-day
+// MIN/MAX-by-day fill), scanning only the Blocks slot/timestamp columns of the months involved.
+func (s *Store) ensureDayIndex(ctx context.Context, bytes *int64) (*DaySlotIndex, error) {
+	s.indexMu.Lock()
+	defer s.indexMu.Unlock()
+
+	if s.index == nil {
+		got, err := s.dayCache.Get(ctx, dayIndexKey)
+		if err != nil {
+			return nil, errors.Wrap(err, "load day-slot index")
+		}
+		if cached, ok := got[dayIndexKey]; ok {
+			s.index = &cached
+		} else {
+			s.index = &DaySlotIndex{}
+		}
+	}
+
+	// [start, end): complete past days not yet recorded. end is the start of today (UTC), excluded.
+	end := time.Now().UTC().Truncate(24 * time.Hour)
+	start := s.cfg.HistoryStart.UTC().Truncate(24 * time.Hour)
+	if s.index.CompleteThrough != "" {
+		if ct, perr := time.ParseInLocation(dateLayout, s.index.CompleteThrough, time.UTC); perr == nil {
+			start = ct.Add(24 * time.Hour) // day after CompleteThrough
+		}
+	}
+	if !start.Before(end) {
+		return s.index, nil // already complete through yesterday
+	}
+
+	newDays, err := s.queryDayRanges(ctx, start, end, bytes)
+	if err != nil {
+		return nil, err
+	}
+	s.index.mergeForward(newDays, end.Add(-24*time.Hour).Format(dateLayout))
+	if err := s.dayCache.Set(ctx, map[string]DaySlotIndex{dayIndexKey: *s.index}); err != nil {
+		return nil, errors.Wrap(err, "persist day-slot index")
+	}
+	return s.index, nil
+}
+
+// queryDayRanges returns, per UTC day in [start, end), the day's min/max unskipped slot, via one
+// GROUP BY over the Blocks slot/timestamp columns. Empty days produce no row.
+func (s *Store) queryDayRanges(ctx context.Context, start, end time.Time, bytes *int64) ([]DayEntry, error) {
+	q := s.query(
+		fmt.Sprintf(`SELECT TIMESTAMP_TRUNC(block_timestamp, DAY) AS day, MIN(slot) AS min_slot, MAX(slot) AS max_slot
+			FROM %s WHERE block_timestamp >= @start AND block_timestamp < @end
+			GROUP BY day ORDER BY day`, s.blocksTable),
+		bigquery.QueryParameter{Name: "start", Value: start},
+		bigquery.QueryParameter{Name: "end", Value: end},
+	)
+	type row struct {
+		Day     bigquery.NullTimestamp `bigquery:"day"`
+		MinSlot int64                  `bigquery:"min_slot"`
+		MaxSlot int64                  `bigquery:"max_slot"`
+	}
+	rows, err := readAll[row](ctx, q, bytes)
+	if err != nil {
+		return nil, errors.Wrap(err, "query day slot ranges")
+	}
+	out := make([]DayEntry, 0, len(rows))
+	for _, r := range rows {
+		if !r.Day.Valid {
+			continue
+		}
+		out = append(out, DayEntry{
+			Date:    r.Day.Timestamp.UTC().Format(dateLayout),
+			MinSlot: uint64(r.MinSlot),
+			MaxSlot: uint64(r.MaxSlot),
+		})
+	}
+	return out, nil
 }
 
 // QueryBlock returns the header of a slot. A missing slot is returned as a skipped block (nil

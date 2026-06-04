@@ -4,6 +4,7 @@ go_library(
     name = "bq",
     srcs = [
         "convert.go",
+        "dayindex.go",
         "stat.go",
         "store.go",
     ],
@@ -14,6 +15,7 @@ go_library(
         "//chain/sol/supernode",
         "//common/histogram",
         "//common/jsonrpc",
+        "//common/kvstore",
         "//common/timehist",
         "//common/utils",
         "@com_github_gagliardetto_solana_go//:solana-go",
@@ -26,7 +28,10 @@ go_library(
 
 go_test(
     name = "bq_test",
-    srcs = ["convert_test.go"],
+    srcs = [
+        "convert_test.go",
+        "dayindex_test.go",
+    ],
     embed = [":bq"],
     deps = [
         "@com_github_gagliardetto_solana_go//rpc",

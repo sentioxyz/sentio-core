@@ -414,54 +414,51 @@ func (s *Store) FindTransactions(
 		programs[i] = p.String()
 	}
 
-	// 1. Matching (slot, signature) pairs from the program-clustered Instructions table.
-	matchQ := s.query(
-		fmt.Sprintf(`SELECT DISTINCT block_slot, tx_signature FROM %s
-			WHERE block_timestamp BETWEEN @lo AND @hi
-			  AND block_slot BETWEEN @from AND @to
-			  AND program_id IN UNNEST(@programs)
-			ORDER BY block_slot LIMIT @limit`, s.instrsTable),
-		bigquery.QueryParameter{Name: "lo", Value: lo},
-		bigquery.QueryParameter{Name: "hi", Value: hi},
-		bigquery.QueryParameter{Name: "from", Value: int64(from)},
-		bigquery.QueryParameter{Name: "to", Value: int64(to)},
-		bigquery.QueryParameter{Name: "programs", Value: programs},
-		bigquery.QueryParameter{Name: "limit", Value: int64(limit)},
-	)
-	type matchRow struct {
-		BlockSlot   int64  `bigquery:"block_slot"`
-		TxSignature string `bigquery:"tx_signature"`
-	}
-	matches, err := readAll[matchRow](ctx, matchQ, &bytes)
+	// 1. Single Instructions scan (program_id clustered): the full instruction rows of the queried
+	// programs for the first `limit` matching transactions. This both selects the matching
+	// transactions and yields their instructions, so no second instruction fetch is needed.
+	instrBySig, err := s.queryMatchingInstructions(ctx, from, to, lo, hi, programs, limit, &bytes)
 	if err != nil {
-		return nil, errors.Wrap(err, "find matching transactions")
+		return nil, err
 	}
-	if len(matches) == 0 {
+	if len(instrBySig) == 0 {
 		return nil, nil
 	}
-	sigs := make([]string, len(matches))
-	for i, m := range matches {
-		sigs[i] = m.TxSignature
-	}
 
-	// 2. Full transaction rows, instruction rows, and block headers for those signatures.
-	txRows, err := s.queryTransactions(ctx, sigs, lo, hi, &bytes)
-	if err != nil {
-		return nil, err
-	}
-	instrBySig, err := s.queryInstructions(ctx, sigs, programs, lo, hi, &bytes)
-	if err != nil {
-		return nil, err
-	}
+	// Derive the signatures, slots, and a TIGHT block_timestamp window from the matched instruction
+	// rows. The exact timestamps prune the Transactions (DAY) and Blocks (MONTH) scans below far
+	// better than the padded range from resolveTimeRange.
+	sigs := make([]string, 0, len(instrBySig))
 	slotSet := make(map[int64]struct{})
-	for _, t := range txRows {
-		slotSet[t.BlockSlot] = struct{}{}
+	tLo, tHi := hi, lo
+	for sig, rows := range instrBySig {
+		sigs = append(sigs, sig)
+		for _, r := range rows {
+			slotSet[r.BlockSlot] = struct{}{}
+			if r.BlockTimestamp.Valid {
+				if r.BlockTimestamp.Timestamp.Before(tLo) {
+					tLo = r.BlockTimestamp.Timestamp
+				}
+				if r.BlockTimestamp.Timestamp.After(tHi) {
+					tHi = r.BlockTimestamp.Timestamp
+				}
+			}
+		}
+	}
+	if tLo.After(tHi) { // no valid timestamps (shouldn't happen): fall back to the resolved range.
+		tLo, tHi = lo, hi
 	}
 	slots := make([]int64, 0, len(slotSet))
 	for sl := range slotSet {
 		slots = append(slots, sl)
 	}
-	headers, err := s.queryBlockHeaders(ctx, slots, &bytes)
+
+	// 2. Transaction rows (signature-clustered) and block headers, both scoped to the tight window.
+	txRows, err := s.queryTransactions(ctx, sigs, tLo, tHi, &bytes)
+	if err != nil {
+		return nil, err
+	}
+	headers, err := s.queryBlockHeaders(ctx, slots, tLo, tHi, &bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -497,25 +494,44 @@ func (s *Store) queryTransactions(ctx context.Context, sigs []string, lo, hi tim
 	return rows, nil
 }
 
-// queryInstructions fetches, per transaction signature, ONLY the instructions whose program_id is
-// in programs. The program_id predicate is essential: it is the Instructions table's cluster key,
-// so the scan is pruned to those programs (cheap). Filtering by tx_signature alone (not the cluster
-// key) would scan the whole day partition (~1.3 TB). The resulting transactions therefore carry
-// only the queried programs' instructions — see FindTransactions for the rationale.
-func (s *Store) queryInstructions(ctx context.Context, sigs, programs []string, lo, hi time.Time, bytes *int64) (map[string][]instructionRow, error) {
+// queryMatchingInstructions scans the Instructions table once, filtered by program_id (the cluster
+// key, so the scan is pruned to just the queried programs), and returns the full instruction rows
+// — grouped by transaction signature — for the first `limit` matching transactions in [from,to].
+//
+// DENSE_RANK over (block_slot, tx_signature) caps the number of *transactions* (the limit is on
+// transactions, not instruction rows); it is computed after the scan, so it adds no cost. Because
+// only the queried programs' rows are returned, each transaction carries only those programs'
+// instructions — see FindTransactions for why that is acceptable. Filtering by tx_signature instead
+// would not hit the cluster key and would scan the whole day partition (~1.3 TB).
+func (s *Store) queryMatchingInstructions(
+	ctx context.Context,
+	from, to uint64,
+	lo, hi time.Time,
+	programs []string,
+	limit int,
+	bytes *int64,
+) (map[string][]instructionRow, error) {
 	q := s.query(
-		fmt.Sprintf(`SELECT block_slot, tx_signature, index, parent_index, accounts, data, parsed, program, program_id, instruction_type, params
-			FROM %s WHERE block_timestamp BETWEEN @lo AND @hi
-			  AND program_id IN UNNEST(@programs)
-			  AND tx_signature IN UNNEST(@sigs)`, s.instrsTable),
+		fmt.Sprintf(`SELECT block_slot, tx_signature, block_timestamp, index, parent_index, accounts, data, parsed, program, program_id, instruction_type, params
+			FROM (
+				SELECT block_slot, tx_signature, block_timestamp, index, parent_index, accounts, data, parsed, program, program_id, instruction_type, params,
+					DENSE_RANK() OVER (ORDER BY block_slot, tx_signature) AS _txrank
+				FROM %s
+				WHERE block_timestamp BETWEEN @lo AND @hi
+				  AND block_slot BETWEEN @from AND @to
+				  AND program_id IN UNNEST(@programs)
+			)
+			WHERE _txrank <= @limit`, s.instrsTable),
 		bigquery.QueryParameter{Name: "lo", Value: lo},
 		bigquery.QueryParameter{Name: "hi", Value: hi},
+		bigquery.QueryParameter{Name: "from", Value: int64(from)},
+		bigquery.QueryParameter{Name: "to", Value: int64(to)},
 		bigquery.QueryParameter{Name: "programs", Value: programs},
-		bigquery.QueryParameter{Name: "sigs", Value: sigs},
+		bigquery.QueryParameter{Name: "limit", Value: int64(limit)},
 	)
 	rows, err := readAll[instructionRow](ctx, q, bytes)
 	if err != nil {
-		return nil, errors.Wrap(err, "query instructions")
+		return nil, errors.Wrap(err, "query matching instructions")
 	}
 	out := make(map[string][]instructionRow)
 	for _, r := range rows {
@@ -531,9 +547,14 @@ type blockHeader struct {
 	BlockTime         *solana.UnixTimeSeconds
 }
 
-func (s *Store) queryBlockHeaders(ctx context.Context, slots []int64, bytes *int64) (map[int64]blockHeader, error) {
+// queryBlockHeaders fetches the headers for the given slots. The [lo,hi] block_timestamp predicate
+// prunes the (MONTH-partitioned, unclustered) Blocks table to the relevant month(s) instead of
+// scanning the whole table; pass the tight window derived from the matched instructions.
+func (s *Store) queryBlockHeaders(ctx context.Context, slots []int64, lo, hi time.Time, bytes *int64) (map[int64]blockHeader, error) {
 	q := s.query(
-		fmt.Sprintf("SELECT slot, block_hash, previous_block_hash, block_timestamp FROM %s WHERE slot IN UNNEST(@slots)", s.blocksTable),
+		fmt.Sprintf("SELECT slot, block_hash, previous_block_hash, block_timestamp FROM %s WHERE block_timestamp BETWEEN @lo AND @hi AND slot IN UNNEST(@slots)", s.blocksTable),
+		bigquery.QueryParameter{Name: "lo", Value: lo},
+		bigquery.QueryParameter{Name: "hi", Value: hi},
 		bigquery.QueryParameter{Name: "slots", Value: slots},
 	)
 	type row struct {

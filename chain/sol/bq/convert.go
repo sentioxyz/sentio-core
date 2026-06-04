@@ -57,20 +57,20 @@ type tokenBalanceRow struct {
 // txRow is a row of the Transactions table. fee/compute_units_consumed are CAST to INT64 and token
 // amounts to STRING in the projection.
 type txRow struct {
-	BlockSlot         int64              `bigquery:"block_slot"`
-	BlockHash         string             `bigquery:"block_hash"`
-	RecentBlockHash   string             `bigquery:"recent_block_hash"`
-	Signature         string             `bigquery:"signature"`
-	Index             int64              `bigquery:"index"`
-	Fee               int64              `bigquery:"fee"`
-	Status            string             `bigquery:"status"`
+	BlockSlot         int64               `bigquery:"block_slot"`
+	BlockHash         string              `bigquery:"block_hash"`
+	RecentBlockHash   string              `bigquery:"recent_block_hash"`
+	Signature         string              `bigquery:"signature"`
+	Index             int64               `bigquery:"index"`
+	Fee               int64               `bigquery:"fee"`
+	Status            string              `bigquery:"status"`
 	Err               bigquery.NullString `bigquery:"err"`
-	ComputeUnits      bigquery.NullInt64 `bigquery:"compute_units_consumed"`
-	Accounts          []accountRow       `bigquery:"accounts"`
-	LogMessages       []string           `bigquery:"log_messages"`
-	BalanceChanges    []balanceChangeRow `bigquery:"balance_changes"`
-	PreTokenBalances  []tokenBalanceRow  `bigquery:"pre_token_balances"`
-	PostTokenBalances []tokenBalanceRow  `bigquery:"post_token_balances"`
+	ComputeUnits      bigquery.NullInt64  `bigquery:"compute_units_consumed"`
+	Accounts          []accountRow        `bigquery:"accounts"`
+	LogMessages       []string            `bigquery:"log_messages"`
+	BalanceChanges    []balanceChangeRow  `bigquery:"balance_changes"`
+	PreTokenBalances  []tokenBalanceRow   `bigquery:"pre_token_balances"`
+	PostTokenBalances []tokenBalanceRow   `bigquery:"post_token_balances"`
 }
 
 type paramRow struct {
@@ -81,16 +81,17 @@ type paramRow struct {
 // instructionRow is a row of the Instructions table. parent_index is NULL for top-level
 // instructions; program/instruction_type/parsed are NULL for unparsed instructions.
 type instructionRow struct {
-	BlockSlot       int64               `bigquery:"block_slot"`
-	TxSignature     string              `bigquery:"tx_signature"`
-	Index           int64               `bigquery:"index"`
-	ParentIndex     bigquery.NullInt64  `bigquery:"parent_index"`
-	Accounts        []string            `bigquery:"accounts"`
-	Data            bigquery.NullString `bigquery:"data"`
-	Program         bigquery.NullString `bigquery:"program"`
-	ProgramID       string              `bigquery:"program_id"`
-	InstructionType bigquery.NullString `bigquery:"instruction_type"`
-	Params          []paramRow          `bigquery:"params"`
+	BlockSlot       int64                  `bigquery:"block_slot"`
+	TxSignature     string                 `bigquery:"tx_signature"`
+	BlockTimestamp  bigquery.NullTimestamp `bigquery:"block_timestamp"`
+	Index           int64                  `bigquery:"index"`
+	ParentIndex     bigquery.NullInt64     `bigquery:"parent_index"`
+	Accounts        []string               `bigquery:"accounts"`
+	Data            bigquery.NullString    `bigquery:"data"`
+	Program         bigquery.NullString    `bigquery:"program"`
+	ProgramID       string                 `bigquery:"program_id"`
+	InstructionType bigquery.NullString    `bigquery:"instruction_type"`
+	Params          []paramRow             `bigquery:"params"`
 }
 
 // ---------------------------------------------------------------------------

@@ -26,11 +26,13 @@
 //
 // How to run (one-off, from the sentio-core module root):
 //
-//	GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json \
+//	BQ_BILLING_PROJECT=<your-gcp-project> \
+//	  GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json \
 //	  go test -tags bqintegration -run TestBQIntegration ./chain/sol/bq/ -v
 //
-// The billing project defaults below and can be overridden with BQ_BILLING_PROJECT. Queries are
-// billed to that project even though the dataset is public.
+// BQ_BILLING_PROJECT is required (no default — this is a public repo, so no project id is baked in):
+// queries are billed to that project even though the dataset is public. The test is skipped when it
+// is unset.
 package bq
 
 import (
@@ -62,7 +64,7 @@ func newITStore(t *testing.T) *Store {
 	t.Helper()
 	project := os.Getenv("BQ_BILLING_PROJECT")
 	if project == "" {
-		project = "sentio-352722"
+		t.Skip("set BQ_BILLING_PROJECT to run the BigQuery integration test")
 	}
 	// The day-slot and program-start caches are mandatory; in-memory stores suffice for the test.
 	dayCache, err := kvstore.NewLRUKVStore[DaySlotIndex](4)

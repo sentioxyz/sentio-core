@@ -64,13 +64,16 @@ func newITStore(t *testing.T) *Store {
 	if project == "" {
 		project = "sentio-352722"
 	}
-	// The day-slot index is mandatory; an in-memory store is enough for the test (rebuilt per run).
+	// The day-slot and program-start caches are mandatory; in-memory stores suffice for the test.
 	dayCache, err := kvstore.NewLRUKVStore[DaySlotIndex](4)
 	require.NoError(t, err)
+	programStartCache, err := kvstore.NewLRUKVStore[ProgramStart](1024)
+	require.NoError(t, err)
 	store, err := NewStore(context.Background(), Config{
-		ProjectID: project,
-		Dataset:   "bigquery-public-data.crypto_solana_mainnet_us",
-		DayCache:  dayCache,
+		ProjectID:         project,
+		Dataset:           "bigquery-public-data.crypto_solana_mainnet_us",
+		DayCache:          dayCache,
+		ProgramStartCache: programStartCache,
 		// Start the day index just before the sample day so its one-time GROUP BY build scans only a
 		// couple of Blocks month-partitions (~GB), not all of history.
 		HistoryStart: time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC),

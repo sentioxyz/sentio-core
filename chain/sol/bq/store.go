@@ -33,8 +33,8 @@ type Store struct {
 	indexMu  sync.Mutex
 	index    *DaySlotIndex
 
-	// programStartCache optionally caches EarliestProgramSlot by program address (nil = no cache).
-	programStartCache kvstore.Store[uint64]
+	// programStartCache caches EarliestProgramSlot by program address (required).
+	programStartCache kvstore.Store[ProgramStart]
 
 	statistic
 }
@@ -62,10 +62,24 @@ type Config struct {
 	// resolution is served entirely from this index. Use a redis store to survive restarts, or a
 	// mem-lru store to rebuild the index once per process.
 	DayCache kvstore.Store[DaySlotIndex]
-	// ProgramStartCache optionally caches EarliestProgramSlot results keyed by program address. A
-	// program's earliest slot only ever decreases or stays, so a cached hit is permanently valid; a
-	// long TTL (e.g. a month) is fine. Only found results are cached. nil disables it.
-	ProgramStartCache kvstore.Store[uint64]
+	// ProgramStartCache caches EarliestProgramSlot results keyed by program address (required, like
+	// DayCache). A found earliest slot is immutable; a not-found result records how far the history
+	// has been searched, so repeated lookups only re-scan the recent tail. A long TTL (e.g. a month)
+	// is fine.
+	ProgramStartCache kvstore.Store[ProgramStart]
+}
+
+// ProgramStart is the cached EarliestProgramSlot result for one program address. When Found, Slot is
+// the (immutable) earliest slot. When not Found, SearchedThrough records that the program has no
+// instruction in [HistoryStart, SearchedThrough); the next lookup resumes from there instead of
+// rescanning all history.
+//
+// Exported only because it is the persisted cache payload (the launcher constructs the typed
+// kvstore); it is not part of the Storage contract.
+type ProgramStart struct {
+	Found           bool      `json:"found"`
+	Slot            uint64    `json:"slot,omitempty"`
+	SearchedThrough time.Time `json:"searchedThrough,omitempty"`
 }
 
 // NewStore creates a BigQuery-backed store. Authentication uses Application Default Credentials
@@ -81,6 +95,9 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 		// The day-slot index is mandatory: resolveTimeRange relies on it, and enabling the BigQuery
 		// tier without it would scan Blocks on every call. Wire a mem-lru store at minimum.
 		return nil, errors.New("bq: DayCache is required")
+	}
+	if cfg.ProgramStartCache == nil {
+		return nil, errors.New("bq: ProgramStartCache is required")
 	}
 	if cfg.BlocksTable == "" {
 		cfg.BlocksTable = "Blocks"
@@ -370,22 +387,28 @@ func (s *Store) QueryPreviousUnskipped(
 	return uint64(rows[0].Slot), bt, true, nil
 }
 
-// EarliestProgramSlot returns the earliest slot at which address is invoked, scanning the whole
-// retained history. The mandatory partition filter is satisfied with a dataset-wide lower bound;
-// the program_id clustering prunes the scan. This is a rare (per-program-start) but expensive call,
-// so found results are cached by address (the earliest slot is immutable once known).
+// EarliestProgramSlot returns the earliest slot at which address is invoked. It scans the
+// program_id-clustered Instructions table from a lower block_timestamp bound; the result is cached
+// by address (this is a rare but otherwise whole-history call):
+//   - a found earliest slot is immutable, so it is cached and returned directly thereafter;
+//   - a not-found result caches how far the history has been searched, so the next lookup resumes
+//     from there. That watermark is capped at yesterday 00:00 UTC (BigQuery is not real-time, so the
+//     last day or two is always re-scanned), which keeps a genuinely-absent program's repeated
+//     lookups scanning only the recent tail.
 func (s *Store) EarliestProgramSlot(ctx context.Context, address solana.PublicKey) (uint64, bool, error) {
 	addr := address.String()
 
-	// Cache hit: a recorded earliest slot never changes, so it is permanently valid. A cache error
-	// is non-fatal — fall through to BigQuery.
-	if s.programStartCache != nil {
-		if got, err := s.programStartCache.Get(ctx, addr); err == nil {
-			if slot, ok := got[addr]; ok {
-				return slot, true, nil
+	searchFrom := s.cfg.HistoryStart
+	if got, err := s.programStartCache.Get(ctx, addr); err == nil {
+		if ps, ok := got[addr]; ok {
+			if ps.Found {
+				return ps.Slot, true, nil // immutable
+			}
+			if ps.SearchedThrough.After(searchFrom) {
+				searchFrom = ps.SearchedThrough // resume from where we left off
 			}
 		}
-	}
+	} // a cache read error is non-fatal: fall through to a full BigQuery scan.
 
 	var bytes int64
 	var count int
@@ -395,7 +418,7 @@ func (s *Store) EarliestProgramSlot(ctx context.Context, address solana.PublicKe
 	q := s.query(
 		fmt.Sprintf("SELECT MIN(block_slot) AS min_slot FROM %s WHERE program_id = @addr AND block_timestamp >= @start", s.instrsTable),
 		bigquery.QueryParameter{Name: "addr", Value: addr},
-		bigquery.QueryParameter{Name: "start", Value: s.cfg.HistoryStart},
+		bigquery.QueryParameter{Name: "start", Value: searchFrom},
 	)
 	type row struct {
 		MinSlot bigquery.NullInt64 `bigquery:"min_slot"`
@@ -404,17 +427,20 @@ func (s *Store) EarliestProgramSlot(ctx context.Context, address solana.PublicKe
 	if err != nil {
 		return 0, false, errors.Wrapf(err, "earliest program slot %s", address)
 	}
-	if len(rows) == 0 || !rows[0].MinSlot.Valid {
-		// Not found is not cached: the program may appear later (a hit would then be wrong).
-		return 0, false, nil
+	if len(rows) > 0 && rows[0].MinSlot.Valid {
+		count = 1
+		slot := uint64(rows[0].MinSlot.Int64)
+		_ = s.programStartCache.Set(ctx, map[string]ProgramStart{addr: {Found: true, Slot: slot}})
+		return slot, true, nil
 	}
-	count = 1
-	slot := uint64(rows[0].MinSlot.Int64)
-	if s.programStartCache != nil {
-		// Best effort; a cache write failure does not fail the lookup.
-		_ = s.programStartCache.Set(ctx, map[string]uint64{addr: slot})
+
+	// Not found: record the searched-through watermark (capped at yesterday 00:00 UTC) so the next
+	// lookup only re-scans the recent tail rather than all history. Advance it only forward.
+	watermark := time.Now().UTC().Truncate(24 * time.Hour).Add(-24 * time.Hour)
+	if watermark.After(searchFrom) {
+		_ = s.programStartCache.Set(ctx, map[string]ProgramStart{addr: {Found: false, SearchedThrough: watermark}})
 	}
-	return slot, true, nil
+	return 0, false, nil
 }
 
 // QueryBlocksByInterval returns the first existing block of each window within [from, to] (with

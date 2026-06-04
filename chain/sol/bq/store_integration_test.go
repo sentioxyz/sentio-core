@@ -6,13 +6,18 @@
 //
 //   - Google Cloud credentials with bigquery.jobs.create + read on the public dataset, supplied via
 //     GOOGLE_APPLICATION_CREDENTIALS (Application Default Credentials).
-//   - Network access and bytes scanned (order of magnitude):
-//   - TestBQIntegration_QueryBlock       ~10-50 GB  (Blocks has no time filter on a point lookup)
-//   - TestBQIntegration_FindTransactions ~tens of GB. It filters instructions by program_id (the
-//     cluster key), so the Instructions scan is pruned to the queried program; the Blocks
-//     lookups dominate. (Fetching a transaction's FULL instruction set by tx_signature — the
-//     non-clustered path the store deliberately avoids — would instead scan a whole DAY
-//     partition, ~1.34 TB.) Each test logs the actual bytes billed via Store.Snapshot().
+//   - Network access and bytes scanned (order of magnitude, with HistoryStart set to the sample day
+//     below so the one-time day-slot index build only scans a few days of Blocks):
+//   - TestBQIntegration_QueryBlock       ~hundreds of MB. The day index bounds the point lookup to
+//     the slot's day partition (block_timestamp BETWEEN), plus the one-time index build (a GROUP BY
+//     over a few days of Blocks, ~tens of MB).
+//   - TestBQIntegration_FindTransactions ~1-10 GB. It filters instructions by program_id (the
+//     cluster key), so the Instructions scan is pruned to the queried program, and the matched
+//     instructions' tight block_timestamp window bounds the Transactions/Blocks lookups. (Fetching a
+//     transaction's FULL instruction set by tx_signature — the non-clustered path the store
+//     deliberately avoids — would instead scan a whole DAY partition, ~1.34 TB.)
+//
+// Each test logs the full Store.Snapshot() (per-method bytes billed + the day-slot index summary).
 //
 // Why this test exists: the unit tests in convert_test.go validate the row→RPC conversion with
 // hand-built rows. They cannot exercise the real SQL, the BigQuery row scanning, or whether the
@@ -76,8 +81,9 @@ func newITStore(t *testing.T) *Store {
 		Dataset:           "bigquery-public-data.crypto_solana_mainnet_us",
 		DayCache:          dayCache,
 		ProgramStartCache: programStartCache,
-		// Start the day index just before the sample day so its one-time GROUP BY build scans only a
-		// couple of Blocks month-partitions (~GB), not all of history.
+		// Start the day index at the sample day so its one-time GROUP BY build scans only a few days of
+		// Blocks (one or two month-partitions), not all of history. The sample day still resolves
+		// because later days exist, so it is admitted to the index as a complete day.
 		HistoryStart: time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC),
 		// Generous one-off cap. FindTransactions filters instructions by program_id (cluster key) so
 		// the scan is pruned; this cap is just a safety ceiling for the test. Tune down for production.

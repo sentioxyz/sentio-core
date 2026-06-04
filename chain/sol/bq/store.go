@@ -372,8 +372,8 @@ func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error)
 	defer func() { s.record(ctx, "queryBlock", time.Since(start), count, bytes) }()
 
 	// Bound the Blocks scan to the slot's UTC day (its block_timestamp partition) via the day index;
-	// without it the point lookup scans the whole Blocks table. found=false ⇒ the slot is in a
-	// skipped gap (or newer than indexed history) ⇒ no block.
+	// without it the point lookup scans the whole Blocks table. found=false ⇒ the slot is in a skipped
+	// gap ⇒ no block. (A slot above the data boundary errors in resolveTimeRange, it is not "no block".)
 	lo, hi, found, err := s.resolveTimeRange(ctx, slot, slot)
 	if err != nil {
 		return nil, err

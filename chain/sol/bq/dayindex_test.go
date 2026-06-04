@@ -52,9 +52,18 @@ func TestDaySlotIndexWindow(t *testing.T) {
 	_, _, ok = ix.window(200, 209)
 	assert.False(t, ok)
 
-	// Slot newer than the indexed history (today) → not resolvable.
-	_, _, ok = ix.window(500, 500)
-	assert.False(t, ok)
+	// Slot newer than the last recorded day (today) → window starts at the day after CompleteThrough,
+	// open-ended upper bound.
+	lo, hi, ok = ix.window(500, 500)
+	require.True(t, ok)
+	assert.Equal(t, day("2026-05-29"), lo) // CompleteThrough 2026-05-28 + 1 day
+	assert.Equal(t, maxIndexTime, hi)
+
+	// from is historical but to reaches into today → lower day start to the open-ended upper bound.
+	lo, hi, ok = ix.window(150, 500)
+	require.True(t, ok)
+	assert.Equal(t, day("2026-05-26"), lo)
+	assert.Equal(t, maxIndexTime, hi)
 
 	// Full span.
 	lo, hi, ok = ix.window(100, 399)
@@ -62,7 +71,13 @@ func TestDaySlotIndexWindow(t *testing.T) {
 	assert.Equal(t, day("2026-05-26"), lo)
 	assert.Equal(t, day("2026-05-28").Add(24*time.Hour-time.Nanosecond), hi)
 
-	// Empty index.
+	// Empty Days but a known CompleteThrough: no unskipped slots through that day ⇒ today window.
+	lo, hi, ok = (&DaySlotIndex{CompleteThrough: "2026-05-28"}).window(100, 100)
+	require.True(t, ok)
+	assert.Equal(t, day("2026-05-29"), lo)
+	assert.Equal(t, maxIndexTime, hi)
+
+	// Unbuilt index (no CompleteThrough) → not resolvable.
 	_, _, ok = (&DaySlotIndex{}).window(100, 100)
 	assert.False(t, ok)
 }
@@ -85,15 +100,26 @@ func TestDaySlotIndexPreviousWindow(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, day("2026-05-27"), lo)
 
-	// before newer than everything → previous block is the last day.
-	lo, _, ok = ix.previousWindow(1000)
+	// before newer than everything (today) → starts at the last recorded day, open-ended upper bound.
+	lo, hi, ok := ix.previousWindow(1000)
 	require.True(t, ok)
 	assert.Equal(t, day("2026-05-28"), lo)
+	assert.Equal(t, maxIndexTime, hi)
 
 	// before at/below the earliest slot → no previous block.
 	_, _, ok = ix.previousWindow(100)
 	assert.False(t, ok)
 	_, _, ok = ix.previousWindow(50)
+	assert.False(t, ok)
+
+	// Empty Days but a known CompleteThrough: previous block (if any) is in today.
+	lo, hi, ok = (&DaySlotIndex{CompleteThrough: "2026-05-28"}).previousWindow(100)
+	require.True(t, ok)
+	assert.Equal(t, day("2026-05-29"), lo)
+	assert.Equal(t, maxIndexTime, hi)
+
+	// Unbuilt index → not resolvable.
+	_, _, ok = (&DaySlotIndex{}).previousWindow(100)
 	assert.False(t, ok)
 }
 

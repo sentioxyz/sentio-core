@@ -9,7 +9,7 @@ import (
 )
 
 func day(s string) time.Time {
-	t, err := time.ParseInLocation(dateLayout, s, time.UTC)
+	t, err := time.ParseInLocation("2006-01-02", s, time.UTC)
 	if err != nil {
 		panic(err)
 	}
@@ -20,11 +20,11 @@ func day(s string) time.Time {
 func sampleIndex() *DaySlotIndex {
 	return &DaySlotIndex{
 		Days: []DayEntry{
-			{Date: "2026-05-26", MinSlot: 100, MaxSlot: 199},
-			{Date: "2026-05-27", MinSlot: 210, MaxSlot: 299}, // gap 200..209 vs previous max
-			{Date: "2026-05-28", MinSlot: 300, MaxSlot: 399},
+			{Date: day("2026-05-26"), MinSlot: 100, MaxSlot: 199},
+			{Date: day("2026-05-27"), MinSlot: 210, MaxSlot: 299}, // gap 200..209 vs previous max
+			{Date: day("2026-05-28"), MinSlot: 300, MaxSlot: 399},
 		},
-		CompleteThrough: "2026-05-28",
+		CompleteThrough: day("2026-05-28"),
 	}
 }
 
@@ -72,7 +72,7 @@ func TestDaySlotIndexWindow(t *testing.T) {
 	assert.Equal(t, day("2026-05-28").Add(24*time.Hour-time.Nanosecond), hi)
 
 	// Empty Days but a known CompleteThrough: no unskipped slots through that day ⇒ today window.
-	lo, hi, ok = (&DaySlotIndex{CompleteThrough: "2026-05-28"}).window(100, 100)
+	lo, hi, ok = (&DaySlotIndex{CompleteThrough: day("2026-05-28")}).window(100, 100)
 	require.True(t, ok)
 	assert.Equal(t, day("2026-05-29"), lo)
 	assert.Equal(t, maxIndexTime, hi)
@@ -113,7 +113,7 @@ func TestDaySlotIndexPreviousWindow(t *testing.T) {
 	assert.False(t, ok)
 
 	// Empty Days but a known CompleteThrough: previous block (if any) is in today.
-	lo, hi, ok = (&DaySlotIndex{CompleteThrough: "2026-05-28"}).previousWindow(100)
+	lo, hi, ok = (&DaySlotIndex{CompleteThrough: day("2026-05-28")}).previousWindow(100)
 	require.True(t, ok)
 	assert.Equal(t, day("2026-05-29"), lo)
 	assert.Equal(t, maxIndexTime, hi)
@@ -125,16 +125,16 @@ func TestDaySlotIndexPreviousWindow(t *testing.T) {
 
 func TestDaySlotIndexMergeForward(t *testing.T) {
 	ix := &DaySlotIndex{
-		Days:            []DayEntry{{Date: "2026-05-26", MinSlot: 100, MaxSlot: 199}},
-		CompleteThrough: "2026-05-26",
+		Days:            []DayEntry{{Date: day("2026-05-26"), MinSlot: 100, MaxSlot: 199}},
+		CompleteThrough: day("2026-05-26"),
 	}
 	ix.mergeForward([]DayEntry{
-		{Date: "2026-05-27", MinSlot: 210, MaxSlot: 299},
-		{Date: "2026-05-28", MinSlot: 300, MaxSlot: 399},
-	}, "2026-05-28")
+		{Date: day("2026-05-27"), MinSlot: 210, MaxSlot: 299},
+		{Date: day("2026-05-28"), MinSlot: 300, MaxSlot: 399},
+	}, day("2026-05-28"))
 
 	require.Len(t, ix.Days, 3)
-	assert.Equal(t, "2026-05-28", ix.CompleteThrough)
+	assert.Equal(t, day("2026-05-28"), ix.CompleteThrough)
 	// stays sorted ascending by slot
 	for i := 1; i < len(ix.Days); i++ {
 		assert.Less(t, ix.Days[i-1].MinSlot, ix.Days[i].MinSlot)

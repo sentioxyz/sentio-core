@@ -221,10 +221,8 @@ func (s *Store) ensureDayIndexLocked(ctx context.Context) error {
 	// [start, end): complete past days not yet recorded. end is the start of today (UTC), excluded.
 	end := time.Now().UTC().Truncate(24 * time.Hour)
 	start := s.cfg.HistoryStart.UTC().Truncate(24 * time.Hour)
-	if s.index.CompleteThrough != "" {
-		if ct, perr := time.ParseInLocation(dateLayout, s.index.CompleteThrough, time.UTC); perr == nil {
-			start = ct.Add(24 * time.Hour) // day after CompleteThrough
-		}
+	if !s.index.CompleteThrough.IsZero() {
+		start = s.index.CompleteThrough.Add(24 * time.Hour) // day after CompleteThrough
 	}
 	if !start.Before(end) {
 		return nil // already complete through yesterday
@@ -237,7 +235,7 @@ func (s *Store) ensureDayIndexLocked(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.index.mergeForward(newDays, end.Add(-24*time.Hour).Format(dateLayout))
+	s.index.mergeForward(newDays, end.Add(-24*time.Hour))
 	if err := s.dayCache.Set(ctx, map[string]DaySlotIndex{dayIndexKey: *s.index}); err != nil {
 		return errors.Wrap(err, "persist day-slot index")
 	}
@@ -269,7 +267,7 @@ func (s *Store) queryDayRanges(ctx context.Context, start, end time.Time, bytes 
 			continue
 		}
 		out = append(out, DayEntry{
-			Date:    r.Day.Timestamp.UTC().Format(dateLayout),
+			Date:    r.Day.Timestamp.UTC(),
 			MinSlot: uint64(r.MinSlot),
 			MaxSlot: uint64(r.MaxSlot),
 		})

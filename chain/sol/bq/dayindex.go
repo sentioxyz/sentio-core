@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-const dateLayout = "2006-01-02"
-
 // DayEntry records, for one UTC day, the min/max unskipped slot seen in the Blocks table. A day with
 // no blocks produces no entry; its absence within [genesis, CompleteThrough] means "empty day", not
 // "not yet queried".
@@ -14,19 +12,20 @@ const dateLayout = "2006-01-02"
 // Exported only because it is the persisted cache payload (the launcher constructs the typed
 // kvstore); it is not part of the Storage contract.
 type DayEntry struct {
-	Date    string `json:"date"` // UTC calendar day, "2006-01-02"
-	MinSlot uint64 `json:"minSlot"`
-	MaxSlot uint64 `json:"maxSlot"`
+	Date    time.Time `json:"date"` // UTC midnight of the day
+	MinSlot uint64    `json:"minSlot"`
+	MaxSlot uint64    `json:"maxSlot"`
 }
 
 // DaySlotIndex maps historical UTC days to their unskipped-slot ranges so that a slot range can be
 // resolved to a block_timestamp window without querying BigQuery. It is complete for
-// [genesis, CompleteThrough]; CompleteThrough is the latest fully-ingested UTC day — today is never
-// recorded since it is still growing (matching BigQuery's UTC DAY partitioning). Days is kept sorted
-// ascending (by date, equivalently by slot — both monotonic). Stored under a single cache key.
+// [genesis, CompleteThrough]; CompleteThrough is the UTC midnight of the latest fully-ingested day —
+// today is never recorded since it is still growing (matching BigQuery's UTC DAY partitioning). The
+// zero CompleteThrough means the index has not been built yet. Days is kept sorted ascending (by
+// date, equivalently by slot — both monotonic). Stored under a single cache key.
 type DaySlotIndex struct {
 	Days            []DayEntry `json:"days"`
-	CompleteThrough string     `json:"completeThrough"` // UTC date "2006-01-02"; "" when empty
+	CompleteThrough time.Time  `json:"completeThrough"`
 }
 
 // maxIndexTime is the open-ended upper bound used when a slot range reaches into "today" (and
@@ -34,19 +33,8 @@ type DaySlotIndex struct {
 // requirePartitionFilter and prunes to the existing partitions from the lower bound onward.
 var maxIndexTime = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
 
-// completeThroughTime parses CompleteThrough; ok is false when the index has not been built yet.
-func (ix *DaySlotIndex) completeThroughTime() (time.Time, bool) {
-	if ix.CompleteThrough == "" {
-		return time.Time{}, false
-	}
-	t, err := time.ParseInLocation(dateLayout, ix.CompleteThrough, time.UTC)
-	return t, err == nil
-}
-
-func parseDay(s string) (time.Time, bool) {
-	t, err := time.ParseInLocation(dateLayout, s, time.UTC)
-	return t, err == nil
-}
+// endOfDay returns the last instant of the UTC day that starts at d.
+func endOfDay(d time.Time) time.Time { return d.Add(24*time.Hour - time.Nanosecond) }
 
 // window returns the [lo, hi] block_timestamp window (inclusive, UTC) covering every block whose slot
 // is in [from, to], using only the day index. ok is false only when the index has not been built, or
@@ -62,11 +50,10 @@ func parseDay(s string) (time.Time, bool) {
 // first recorded day whose MaxSlot >= from (the day holding `from`, or the next one if `from` sits in
 // a gap); the upper bound is the last day whose MinSlot <= to.
 func (ix *DaySlotIndex) window(from, to uint64) (lo, hi time.Time, ok bool) {
-	ct, ctOK := ix.completeThroughTime()
-	if !ctOK {
-		return time.Time{}, time.Time{}, false
+	if ix.CompleteThrough.IsZero() {
+		return time.Time{}, time.Time{}, false // index not built yet
 	}
-	today := ct.Add(24 * time.Hour) // start of the day after CompleteThrough
+	today := ix.CompleteThrough.Add(24 * time.Hour) // start of the day after CompleteThrough
 
 	n := len(ix.Days)
 	// No recorded slots at all, or `from` is newer than every recorded day ⇒ today and beyond.
@@ -75,24 +62,15 @@ func (ix *DaySlotIndex) window(from, to uint64) (lo, hi time.Time, ok bool) {
 	}
 
 	loIdx := sort.Search(n, func(i int) bool { return ix.Days[i].MaxSlot >= from })
-	loDay, dayOK := parseDay(ix.Days[loIdx].Date)
-	if !dayOK {
-		return time.Time{}, time.Time{}, false
-	}
-
+	loDay := ix.Days[loIdx].Date
 	if to > ix.Days[n-1].MaxSlot {
-		// `to` reaches into today; cover everything from loDay onward.
-		return loDay, maxIndexTime, true
+		return loDay, maxIndexTime, true // `to` reaches into today
 	}
 	hiIdx := sort.Search(n, func(i int) bool { return ix.Days[i].MinSlot > to }) - 1
 	if hiIdx < loIdx {
 		return time.Time{}, time.Time{}, false // [from, to] covers no actual blocks (gap)
 	}
-	hiDay, dayOK := parseDay(ix.Days[hiIdx].Date)
-	if !dayOK {
-		return time.Time{}, time.Time{}, false
-	}
-	return loDay, hiDay.Add(24*time.Hour - time.Nanosecond), true
+	return loDay, endOfDay(ix.Days[hiIdx].Date), true
 }
 
 // previousWindow returns the [lo, hi] window (inclusive, UTC) of the day that holds the nearest block
@@ -104,32 +82,27 @@ func (ix *DaySlotIndex) window(from, to uint64) (lo, hi time.Time, ok bool) {
 // [start of the day after CompleteThrough, maxIndexTime]. When `before` is past the last recorded
 // slot, the previous block may be in today, so the upper bound is maxIndexTime.
 func (ix *DaySlotIndex) previousWindow(before uint64) (lo, hi time.Time, ok bool) {
-	ct, ctOK := ix.completeThroughTime()
-	if !ctOK {
-		return time.Time{}, time.Time{}, false
+	if ix.CompleteThrough.IsZero() {
+		return time.Time{}, time.Time{}, false // index not built yet
 	}
 	n := len(ix.Days)
 	if n == 0 {
-		return ct.Add(24 * time.Hour), maxIndexTime, true
+		return ix.CompleteThrough.Add(24 * time.Hour), maxIndexTime, true
 	}
 	j := sort.Search(n, func(i int) bool { return ix.Days[i].MinSlot >= before }) - 1
 	if j < 0 {
 		return time.Time{}, time.Time{}, false // before is at/below the earliest recorded slot
 	}
-	day, dayOK := parseDay(ix.Days[j].Date)
-	if !dayOK {
-		return time.Time{}, time.Time{}, false
-	}
 	if before > ix.Days[n-1].MaxSlot {
 		// before is in today; the previous block may be the last recorded block or a today block.
-		return day, maxIndexTime, true
+		return ix.Days[j].Date, maxIndexTime, true
 	}
-	return day, day.Add(24*time.Hour - time.Nanosecond), true
+	return ix.Days[j].Date, endOfDay(ix.Days[j].Date), true
 }
 
 // mergeForward appends day entries that are strictly newer than the current ones (extension toward
 // the present) and records the new completeness boundary. newDays must be sorted ascending.
-func (ix *DaySlotIndex) mergeForward(newDays []DayEntry, completeThrough string) {
+func (ix *DaySlotIndex) mergeForward(newDays []DayEntry, completeThrough time.Time) {
 	ix.Days = append(ix.Days, newDays...)
 	sort.Slice(ix.Days, func(i, j int) bool { return ix.Days[i].MinSlot < ix.Days[j].MinSlot })
 	ix.CompleteThrough = completeThrough

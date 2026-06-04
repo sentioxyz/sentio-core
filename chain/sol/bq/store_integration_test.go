@@ -7,12 +7,12 @@
 //   - Google Cloud credentials with bigquery.jobs.create + read on the public dataset, supplied via
 //     GOOGLE_APPLICATION_CREDENTIALS (Application Default Credentials).
 //   - Network access and bytes scanned (order of magnitude):
-//       * TestBQIntegration_QueryBlock       ~10-50 GB  (Blocks has no time filter on a point lookup)
-//       * TestBQIntegration_FindTransactions ~tens of GB. It filters instructions by program_id (the
-//         cluster key), so the Instructions scan is pruned to the queried program; the Blocks
-//         lookups dominate. (Fetching a transaction's FULL instruction set by tx_signature — the
-//         non-clustered path the store deliberately avoids — would instead scan a whole DAY
-//         partition, ~1.34 TB.) Each test logs the actual bytes billed via Store.Snapshot().
+//   - TestBQIntegration_QueryBlock       ~10-50 GB  (Blocks has no time filter on a point lookup)
+//   - TestBQIntegration_FindTransactions ~tens of GB. It filters instructions by program_id (the
+//     cluster key), so the Instructions scan is pruned to the queried program; the Blocks
+//     lookups dominate. (Fetching a transaction's FULL instruction set by tx_signature — the
+//     non-clustered path the store deliberately avoids — would instead scan a whole DAY
+//     partition, ~1.34 TB.) Each test logs the actual bytes billed via Store.Snapshot().
 //
 // Why this test exists: the unit tests in convert_test.go validate the row→RPC conversion with
 // hand-built rows. They cannot exercise the real SQL, the BigQuery row scanning, or whether the
@@ -47,13 +47,13 @@ import (
 )
 
 const (
-	itSlot            = uint64(422822279)
-	itSig             = "3WeJDhD1wXfY1qmHfh7yJotHV2dH7XnxXb7oY4xmK2yu3PNQJzm4oH6SHYiNTHQ48CJx3xhmaeEo45Jq8WsGyywv"
-	itBlockhash       = "8a2rWas3z1EQN1yWnkTZxMsGytWfSUatXKcV84vdcTj7"
-	itPrevBlockhash   = "5t3qB6gVEf9ejNneXnNGarTBQYrRD7f1dVyRESysEBiA"
-	itBlockTimeUnix   = int64(1780011734)
-	itBlockHeight     = uint64(400908723)
-	itPAMMProgram = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA" // the sample tx invokes this program
+	itSlot          = uint64(422822279)
+	itSig           = "3WeJDhD1wXfY1qmHfh7yJotHV2dH7XnxXb7oY4xmK2yu3PNQJzm4oH6SHYiNTHQ48CJx3xhmaeEo45Jq8WsGyywv"
+	itBlockhash     = "8a2rWas3z1EQN1yWnkTZxMsGytWfSUatXKcV84vdcTj7"
+	itPrevBlockhash = "5t3qB6gVEf9ejNneXnNGarTBQYrRD7f1dVyRESysEBiA"
+	itBlockTimeUnix = int64(1780011734)
+	itBlockHeight   = uint64(400908723)
+	itPAMMProgram   = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA" // the sample tx invokes this program
 )
 
 func newITStore(t *testing.T) *Store {

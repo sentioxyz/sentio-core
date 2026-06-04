@@ -32,17 +32,22 @@ const (
 	maxQuerySpan = 100000
 )
 
+// NewSuperNode wires the sol_* handlers. store is the ClickHouse-backed Storage; bqStore is an
+// optional lower-priority Storage (BigQuery) consulted only for slots below the ClickHouse range
+// (older archival history). Pass bqStore == nil to disable the BigQuery tier (original behavior).
 func NewSuperNode(
 	client *sol.ClientPool,
 	slotCache chain.LatestSlotCache[*sol.Slot],
 	rangeStore chain.RangeStore,
 	store Storage,
+	bqStore Storage,
 ) []jsonrpc.Middleware {
 	svc := &RPCService{
 		client:     client,
 		slotCache:  slotCache,
 		rangeStore: rangeStore,
 		store:      store,
+		bqStore:    bqStore,
 	}
 	return []jsonrpc.Middleware{
 		func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
@@ -76,6 +81,50 @@ type RPCService struct {
 	slotCache  chain.LatestSlotCache[*sol.Slot]
 	rangeStore chain.RangeStore
 	store      Storage
+	// bqStore is the optional lowest-priority store (BigQuery) for slots below the ClickHouse range.
+	// nil when the BigQuery tier is not configured.
+	bqStore Storage
+}
+
+// bqBlockLoader returns a single-slot block loader backed by BigQuery for use as the fallback of
+// CheckRangeWithFallback in GetBlock, or nil when the BigQuery tier is disabled.
+func (s *RPCService) bqBlockLoader() func(context.Context, rg.Range) ([]sol.Block, error) {
+	if s.bqStore == nil {
+		return nil
+	}
+	return func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
+		block, err := s.bqStore.QueryBlock(ctx, queryRange.Start)
+		if err != nil {
+			return nil, err
+		}
+		return []sol.Block{*block}, nil
+	}
+}
+
+// bqIntervalLoader returns the BigQuery fallback for GetBlocksByInterval, or nil when disabled.
+func (s *RPCService) bqIntervalLoader(
+	param sol.GetBlocksByIntervalParam,
+	limit int,
+) func(context.Context, rg.Range) ([]sol.Block, error) {
+	if s.bqStore == nil {
+		return nil
+	}
+	return func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
+		return s.bqStore.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, limit)
+	}
+}
+
+// bqFindTxLoader returns the BigQuery fallback for FindTransactions, or nil when disabled.
+func (s *RPCService) bqFindTxLoader(
+	param sol.FindTransactionsParam,
+	storeLimit int,
+) func(context.Context, rg.Range) ([]sol.BlockTransactions, error) {
+	if s.bqStore == nil {
+		return nil
+	}
+	return func(ctx context.Context, queryRange rg.Range) ([]sol.BlockTransactions, error) {
+		return s.bqStore.FindTransactions(ctx, queryRange.Start, *queryRange.End, param.ProgramIDs, storeLimit)
+	}
 }
 
 func (s *RPCService) GetLatestBlockNumber(ctx context.Context) (uint64, error) {
@@ -140,13 +189,16 @@ func (s *RPCService) GetBlock(ctx context.Context, slot uint64) (sol.Block, erro
 		func(st *sol.Slot) ([]sol.Block, error) {
 			return []sol.Block{st.ToBlock(false)}, nil
 		},
-		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
-			block, queryErr := s.store.QueryBlock(ctx, queryRange.Start)
-			if queryErr != nil {
-				return nil, queryErr
-			}
-			return []sol.Block{*block}, nil
-		}),
+		chain.CheckRangeWithFallback(s.rangeStore,
+			func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
+				block, queryErr := s.store.QueryBlock(ctx, queryRange.Start)
+				if queryErr != nil {
+					return nil, queryErr
+				}
+				return []sol.Block{*block}, nil
+			},
+			s.bqBlockLoader(),
+		),
 	)
 	if err != nil {
 		return sol.Block{}, err
@@ -206,11 +258,14 @@ func (s *RPCService) GetBlocksByInterval(
 			seen[key] = struct{}{}
 			return []sol.Block{st.ToBlock(true)}, nil
 		},
-		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
-			// maxIntervalBlocks+2: one extra so an over-cap range yields > maxIntervalBlocks results,
-			// plus one more because the boundary window (first result) may be dropped below.
-			return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, maxIntervalBlocks+2)
-		}),
+		chain.CheckRangeWithFallback(s.rangeStore,
+			func(ctx context.Context, queryRange rg.Range) ([]sol.Block, error) {
+				// maxIntervalBlocks+2: one extra so an over-cap range yields > maxIntervalBlocks results,
+				// plus one more because the boundary window (first result) may be dropped below.
+				return s.store.QueryBlocksByInterval(ctx, queryRange.Start, *queryRange.End, param.Window, maxIntervalBlocks+2)
+			},
+			s.bqIntervalLoader(param, maxIntervalBlocks+2),
+		),
 	)
 	if err != nil {
 		return nil, err
@@ -312,7 +367,16 @@ func (s *RPCService) previousUnskippedBlock(
 	if !cachedRange.IsEmpty() {
 		before = cachedRange.Start
 	}
-	return s.store.QueryPreviousUnskipped(ctx, before)
+	chSlot, chTime, chFound, err := s.store.QueryPreviousUnskipped(ctx, before)
+	if err != nil {
+		return 0, nil, false, err
+	}
+	if chFound || s.bqStore == nil {
+		return chSlot, chTime, chFound, nil
+	}
+	// Not found in ClickHouse (the requested point is below the ClickHouse range): fall back to the
+	// older BigQuery history.
+	return s.bqStore.QueryPreviousUnskipped(ctx, before)
 }
 
 // FindTransactions returns, grouped by block, the transactions in [From, To] that invoke any of the
@@ -353,9 +417,12 @@ func (s *RPCService) FindTransactions(
 				Transactions:      matching,
 			}}, nil
 		},
-		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]sol.BlockTransactions, error) {
-			return s.store.FindTransactions(ctx, queryRange.Start, *queryRange.End, param.ProgramIDs, storeLimit)
-		}),
+		chain.CheckRangeWithFallback(s.rangeStore,
+			func(ctx context.Context, queryRange rg.Range) ([]sol.BlockTransactions, error) {
+				return s.store.FindTransactions(ctx, queryRange.Start, *queryRange.End, param.ProgramIDs, storeLimit)
+			},
+			s.bqFindTxLoader(param, storeLimit),
+		),
 	)
 	if err != nil {
 		return nil, err
@@ -389,7 +456,34 @@ func (s *RPCService) GetContractStartBlock(
 		return sol.GetContractStartBlockResult{}, err
 	}
 	if chFound {
+		// If the program first appears strictly above the ClickHouse lower bound, ClickHouse already
+		// covers earlier slots without it, so chMin is the global earliest — no need to scan the
+		// older (and more expensive) BigQuery history. Only when it appears exactly at the lower
+		// bound might it extend below into BigQuery.
+		r, rangeErr := s.rangeStore.Get(ctx)
+		if rangeErr != nil {
+			return sol.GetContractStartBlockResult{}, rangeErr
+		}
+		if s.bqStore != nil && !r.IsEmpty() && chMin <= r.Start {
+			bqMin, bqFound, bqErr := s.bqStore.EarliestProgramSlot(ctx, address)
+			if bqErr != nil {
+				return sol.GetContractStartBlockResult{}, bqErr
+			}
+			if bqFound && bqMin < chMin {
+				return sol.GetContractStartBlockResult{Slot: bqMin, Found: true}, nil
+			}
+		}
 		return sol.GetContractStartBlockResult{Slot: chMin, Found: true}, nil
+	}
+	// Absent from ClickHouse: the program may live entirely in the older BigQuery history.
+	if s.bqStore != nil {
+		bqMin, bqFound, bqErr := s.bqStore.EarliestProgramSlot(ctx, address)
+		if bqErr != nil {
+			return sol.GetContractStartBlockResult{}, bqErr
+		}
+		if bqFound {
+			return sol.GetContractStartBlockResult{Slot: bqMin, Found: true}, nil
+		}
 	}
 	programSet := map[string]struct{}{address.String(): {}}
 	var cacheMin uint64

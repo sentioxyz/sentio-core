@@ -118,3 +118,76 @@ func CheckRange[ELEM any](
 		return do(ctx, queryRange)
 	}
 }
+
+// CheckRangeWithFallback splits a query range across two stores by the primary store's available
+// range (from rangeStore): the sub-range covered by rangeStore is served by primary (ClickHouse),
+// and the sub-range strictly below rangeStore.Start is served by fallback (BigQuery archival
+// history). Results are merged. When fallback is nil it degrades to CheckRange (primary only,
+// erroring when the request falls outside the primary range), preserving the original behavior.
+//
+// A request extending ABOVE rangeStore.End is rejected with an error (same as CheckRange): the
+// primary store (ClickHouse) has not synced that far yet, so the caller must retry rather than have
+// the uncovered upper part silently dropped. Only the OLDER history below rangeStore.Start is
+// delegated to the fallback.
+//
+// This realizes the data-source priority: latest-slot cache > ClickHouse (within rangeStore) >
+// BigQuery (older history below rangeStore.Start). The cache layer is handled by the surrounding
+// QueryRangeWithCache, which only forwards the still-uncovered (lower) sub-range here.
+func CheckRangeWithFallback[ELEM any](
+	rangeStore RangeStore,
+	primary func(context.Context, rg.Range) ([]ELEM, error),
+	fallback func(context.Context, rg.Range) ([]ELEM, error),
+) func(context.Context, rg.Range) ([]ELEM, error) {
+	if fallback == nil {
+		return CheckRange(rangeStore, primary)
+	}
+	return func(ctx context.Context, queryRange rg.Range) ([]ELEM, error) {
+		r, err := rangeStore.Get(ctx)
+		if err != nil {
+			return nil, err
+		}
+		// Above the primary store's upper bound: ClickHouse is not synced far enough. Error so the
+		// caller retries instead of silently dropping the uncovered upper part. The fallback only
+		// extends coverage downward, never upward.
+		if !r.IsEmpty() && queryRange.EndOrMaxUInt64() > *r.End {
+			return nil, errors.Errorf("request range %s exceeds range store %s", queryRange, r)
+		}
+		var result []ELEM
+		// The part covered by the primary store (ClickHouse).
+		if !r.IsEmpty() {
+			if chPart := queryRange.Intersection(r); !chPart.IsEmpty() {
+				primaryRes, err := primary(ctx, chPart)
+				if err != nil {
+					return nil, err
+				}
+				result = utils.MergeArr(primaryRes, result)
+			}
+		}
+		// The part below the primary store's lower bound (or the whole range when the primary store
+		// is empty) goes to the fallback store (BigQuery).
+		bqPart := rg.EmptyRange
+		if r.IsEmpty() {
+			// The whole range goes to the fallback. The fallback (BigQuery) needs a bounded range; an
+			// open-ended query with no primary range to cap it is a caller error rather than an
+			// unbounded archival scan.
+			if queryRange.End == nil {
+				return nil, errors.Errorf("request range %s is open-ended but range store is empty; cannot delegate to fallback", queryRange)
+			}
+			bqPart = queryRange
+		} else if queryRange.Start < r.Start {
+			bqEnd := r.Start - 1
+			if e := queryRange.End; e != nil && *e < bqEnd {
+				bqEnd = *e
+			}
+			bqPart = rg.NewRange(queryRange.Start, bqEnd)
+		}
+		if !bqPart.IsEmpty() {
+			fallbackRes, err := fallback(ctx, bqPart)
+			if err != nil {
+				return nil, err
+			}
+			result = utils.MergeArr(fallbackRes, result)
+		}
+		return result, nil
+	}
+}

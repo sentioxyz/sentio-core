@@ -43,8 +43,8 @@ func Test_solRpc(t *testing.T) {
 
 	addr := "127.0.0.1:18890"
 	h := jsonrpc.NewHandler("test", true, false, nil, nil, "")
-	// nil cache/store: this test only exercises the proxy fallback for raw sol methods.
-	h.RegisterMiddleware(NewSuperNode(cli, nil, nil, nil)...)
+	// nil cache/store/bqStore: this test only exercises the proxy fallback for raw sol methods.
+	h.RegisterMiddleware(NewSuperNode(cli, nil, nil, nil, nil)...)
 
 	g.Go(func() error {
 		return jsonrpc.ListenAndServe(gctx, ":18890", h)

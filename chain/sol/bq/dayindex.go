@@ -28,6 +28,11 @@ type DayEntry struct {
 // the BigQuery data (see maxValidSlot); it plays the same role as the ClickHouse range store — a slot
 // query above it cannot be answered from complete data and must error rather than be served from a
 // partially-ingested tail. Stored under a single cache key.
+//
+// Invariant (relied on by window/previousWindow, which binary-search Days by slot even though it is
+// sorted by date): slot ranges increase monotonically with date — for adjacent days,
+// Days[i].MaxSlot < Days[i+1].MinSlot. This holds for Solana (slots increase with time) and for the
+// build query (GROUP BY day ORDER BY day over Blocks).
 type DaySlotIndex struct {
 	Days            []DayEntry `json:"days"`
 	CompleteThrough time.Time  `json:"completeThrough"`

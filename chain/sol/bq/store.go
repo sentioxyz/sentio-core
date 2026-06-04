@@ -54,9 +54,6 @@ type Config struct {
 	InstructionsTable string
 	// MaxBytesBilled caps the bytes scanned per query as a cost circuit breaker (0 = unlimited).
 	MaxBytesBilled int64
-	// PartitionPaddingDays widens the resolved [lo, hi] block_timestamp window on each side, to
-	// tolerate slot/time skew at DAY-partition boundaries. Default 1.
-	PartitionPaddingDays int
 	// HistoryStart is the lower block_timestamp bound used for whole-history scans (EarliestProgramSlot),
 	// required because the partitioned tables enforce a partition filter. Default 2020-03-01 (mainnet).
 	// It also bounds the day-slot index build.
@@ -110,9 +107,6 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 	}
 	if cfg.InstructionsTable == "" {
 		cfg.InstructionsTable = "Instructions"
-	}
-	if cfg.PartitionPaddingDays <= 0 {
-		cfg.PartitionPaddingDays = 1
 	}
 	if cfg.HistoryStart.IsZero() {
 		cfg.HistoryStart = time.Date(2020, 3, 1, 0, 0, 0, 0, time.UTC)

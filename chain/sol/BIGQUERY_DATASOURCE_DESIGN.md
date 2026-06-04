@@ -245,7 +245,6 @@ Priority: cache (newest) > ClickHouse (within `rangeStore`) > BigQuery (archival
 - `Dataset` — `"<project>.<dataset>"` qualifier; defaults to `bigquery-public-data.crypto_solana_mainnet_us`.
 - `MaxBytesBilled` — per-query bytes-scanned cap (cost circuit breaker; 0 = unlimited).
 - `BlocksTable` / `TransactionsTable` / `InstructionsTable` — table-name overrides (default `Blocks`/`Transactions`/`Instructions`).
-- `PartitionPaddingDays` — widens the resolved `[lo, hi]` window at DAY boundaries (default 1).
 - `HistoryStart` — dataset-wide lower `block_timestamp` bound for whole-history scans (`EarliestProgramSlot`); default 2020-03-01.
 
 A construction error should degrade gracefully (disable the tier) rather than fail the super-node.

@@ -103,6 +103,34 @@ func (ix *DaySlotIndex) previousWindow(before uint64) (lo, hi time.Time, ok bool
 	return ix.Days[j].Date, endOfDay(ix.Days[j].Date), true
 }
 
+// snapshot returns a compact, display-friendly view of the index for Store.Snapshot: the completeness
+// boundary, the data boundary slot, the day count, and the day entries — capped at the oldest 100 plus
+// the newest 100 (with the elided count) so the output stays bounded for a multi-thousand-day index.
+func (ix *DaySlotIndex) snapshot() map[string]any {
+	n := len(ix.Days)
+	out := map[string]any{
+		"completeThrough": ix.CompleteThrough,
+		"dayCount":        n,
+	}
+	if maxSlot, ok := ix.maxValidSlot(); ok {
+		out["maxValidSlot"] = maxSlot
+	}
+	const k = 100
+	cp := func(src []DayEntry) []DayEntry {
+		dst := make([]DayEntry, len(src))
+		copy(dst, src)
+		return dst
+	}
+	if n <= 2*k {
+		out["days"] = cp(ix.Days)
+	} else {
+		out["oldestDays"] = cp(ix.Days[:k])
+		out["newestDays"] = cp(ix.Days[n-k:])
+		out["elidedDays"] = n - 2*k
+	}
+	return out
+}
+
 // mergeForward folds newDays into the index and records the new completeness boundary. Entries for a
 // day already present are replaced (refreshed); new days are appended; the result is kept sorted
 // ascending by date. (The sole caller passes only days strictly newer than the current

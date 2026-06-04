@@ -138,6 +138,20 @@ var _ supernode.Storage = (*Store)(nil)
 
 func (s *Store) Close() error { return s.client.Close() }
 
+// Snapshot reports the BigQuery store's state for the launcher's tracker: the per-method query
+// statistics (latency / result-count / bytes-billed histograms) and the day-slot index summary
+// (completeness boundary, data boundary slot, day count, and a capped sample of day entries). It
+// shadows the embedded statistic.Snapshot to add the index view.
+func (s *Store) Snapshot() any {
+	out := map[string]any{"stats": s.statistic.Snapshot()}
+	s.indexMu.Lock()
+	defer s.indexMu.Unlock()
+	if s.index != nil {
+		out["index"] = s.index.snapshot()
+	}
+	return out
+}
+
 // query builds a parameterized query with the configured byte cap applied.
 func (s *Store) query(sql string, params ...bigquery.QueryParameter) *bigquery.Query {
 	q := s.client.Query(sql)

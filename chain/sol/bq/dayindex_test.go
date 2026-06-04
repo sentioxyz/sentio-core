@@ -151,6 +151,34 @@ func TestDaySlotIndexMergeForwardDedup(t *testing.T) {
 	assert.Equal(t, uint64(399), maxSlot)
 }
 
+func TestDaySlotIndexSnapshot(t *testing.T) {
+	// Small index: all days shown.
+	snap := sampleIndex().snapshot()
+	assert.Equal(t, 3, snap["dayCount"])
+	assert.Equal(t, uint64(399), snap["maxValidSlot"])
+	assert.Equal(t, day("2026-05-28"), snap["completeThrough"])
+	require.Len(t, snap["days"], 3)
+	_, hasOldest := snap["oldestDays"]
+	assert.False(t, hasOldest)
+
+	// Large index: capped at oldest 100 + newest 100, with the elided count.
+	big := &DaySlotIndex{CompleteThrough: day("2026-05-28")}
+	for i := 0; i < 250; i++ {
+		s := uint64(i*100 + 1)
+		big.Days = append(big.Days, DayEntry{Date: day("2026-05-26").AddDate(0, 0, i), MinSlot: s, MaxSlot: s + 99})
+	}
+	snap = big.snapshot()
+	assert.Equal(t, 250, snap["dayCount"])
+	assert.Equal(t, 50, snap["elidedDays"])
+	require.Len(t, snap["oldestDays"], 100)
+	require.Len(t, snap["newestDays"], 100)
+	_, hasDays := snap["days"]
+	assert.False(t, hasDays)
+	// oldest starts at the first day, newest ends at the last.
+	assert.Equal(t, uint64(1), snap["oldestDays"].([]DayEntry)[0].MinSlot)
+	assert.Equal(t, uint64(249*100+1), snap["newestDays"].([]DayEntry)[99].MinSlot)
+}
+
 func TestDaySlotIndexClone(t *testing.T) {
 	ix := sampleIndex()
 	c := ix.clone()

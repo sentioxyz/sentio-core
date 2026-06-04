@@ -51,7 +51,9 @@ func endOfDay(d time.Time) time.Time { return d.Add(24*time.Hour - time.Nanoseco
 // a gap); the upper bound is the last day whose MinSlot <= to.
 func (ix *DaySlotIndex) window(from, to uint64) (lo, hi time.Time, ok bool) {
 	if ix.CompleteThrough.IsZero() {
-		return time.Time{}, time.Time{}, false // index not built yet
+		// Only reachable on a programming error: callers go through ensureDayIndexLocked, which
+		// always sets CompleteThrough before the index is read.
+		panic("bq: DaySlotIndex.window called on an unbuilt index")
 	}
 	today := ix.CompleteThrough.Add(24 * time.Hour) // start of the day after CompleteThrough
 
@@ -83,7 +85,8 @@ func (ix *DaySlotIndex) window(from, to uint64) (lo, hi time.Time, ok bool) {
 // slot, the previous block may be in today, so the upper bound is maxIndexTime.
 func (ix *DaySlotIndex) previousWindow(before uint64) (lo, hi time.Time, ok bool) {
 	if ix.CompleteThrough.IsZero() {
-		return time.Time{}, time.Time{}, false // index not built yet
+		// Only reachable on a programming error (see window).
+		panic("bq: DaySlotIndex.previousWindow called on an unbuilt index")
 	}
 	n := len(ix.Days)
 	if n == 0 {

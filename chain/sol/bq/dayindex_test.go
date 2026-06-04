@@ -77,9 +77,8 @@ func TestDaySlotIndexWindow(t *testing.T) {
 	assert.Equal(t, day("2026-05-29"), lo)
 	assert.Equal(t, maxIndexTime, hi)
 
-	// Unbuilt index (no CompleteThrough) → not resolvable.
-	_, _, ok = (&DaySlotIndex{}).window(100, 100)
-	assert.False(t, ok)
+	// Unbuilt index (no CompleteThrough) → programming error → panic.
+	assert.Panics(t, func() { (&DaySlotIndex{}).window(100, 100) })
 }
 
 func TestDaySlotIndexPreviousWindow(t *testing.T) {
@@ -118,9 +117,8 @@ func TestDaySlotIndexPreviousWindow(t *testing.T) {
 	assert.Equal(t, day("2026-05-29"), lo)
 	assert.Equal(t, maxIndexTime, hi)
 
-	// Unbuilt index → not resolvable.
-	_, _, ok = (&DaySlotIndex{}).previousWindow(100)
-	assert.False(t, ok)
+	// Unbuilt index → programming error → panic.
+	assert.Panics(t, func() { (&DaySlotIndex{}).previousWindow(100) })
 }
 
 func TestDaySlotIndexMergeForward(t *testing.T) {

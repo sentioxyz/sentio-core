@@ -28,10 +28,13 @@ type Store struct {
 	instrsTable string
 
 	// Day-slot index: maps historical UTC days to their slot ranges so resolveTimeRange avoids a
-	// Blocks scan per call. dayCache persists it; indexMu guards both the build and every read.
+	// Blocks scan per call. dayCache persists it; indexMu guards the build, the read, and lastExtendDay.
 	dayCache kvstore.Store[DaySlotIndex]
 	indexMu  sync.Mutex
 	index    *DaySlotIndex
+	// lastExtendDay is the UTC day on which the forward extension last ran. The boundary advances at
+	// most once per day, so re-querying is throttled to once per UTC day per process (in-memory only).
+	lastExtendDay time.Time
 
 	// programStartCache caches EarliestProgramSlot by program address (required).
 	programStartCache kvstore.Store[ProgramStart]
@@ -190,21 +193,41 @@ func addBytesBilled(acc *int64, job *bigquery.Job) {
 }
 
 // resolveTimeRange returns the [lo, hi] block_timestamp window (inclusive, UTC) spanning the slot
-// range, from the day-slot index. found is false when the range cannot be resolved — the slot is
-// newer than the indexed history (today) or [from,to] is an all-skipped gap — and callers treat that
-// as "no data". The whole call holds indexMu, so the index build/extend and the window read can
-// never race.
+// range, from the day-slot index. found is false when [from,to] is an all-skipped gap (no blocks),
+// which callers treat as "no data". It ERRORS when `to` exceeds the BigQuery data boundary (the
+// latest complete day's MaxSlot) — that part is not covered by complete data, so the caller must not
+// silently serve a partial result (the BigQuery analogue of the ClickHouse range store check). The
+// whole call holds indexMu, so the index build/extend and the window read can never race.
 func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64) (lo, hi time.Time, found bool, err error) {
-	return s.withIndex(ctx, func(ix *DaySlotIndex) (time.Time, time.Time, bool) {
-		return ix.window(from, to)
+	return s.withIndex(ctx, func(ix *DaySlotIndex) (time.Time, time.Time, bool, error) {
+		maxValid, ok := ix.maxValidSlot()
+		if !ok {
+			return time.Time{}, time.Time{}, false, errors.Errorf("bq: day-slot index has no complete day yet; cannot serve slots [%d,%d]", from, to)
+		}
+		if to > maxValid {
+			return time.Time{}, time.Time{}, false, errors.Errorf("bq: slot range [%d,%d] exceeds BigQuery complete data (valid through slot %d)", from, to, maxValid)
+		}
+		lo, hi, found := ix.window(from, to)
+		return lo, hi, found, nil
 	})
 }
 
 // previousDayWindow returns the [lo, hi] window of the day that holds the nearest block with slot <
 // before, used to bound QueryPreviousUnskipped. found is false when no indexed day precedes before.
+// It ERRORS when the predecessor would lie above the BigQuery data boundary (before > maxValidSlot+1).
 func (s *Store) previousDayWindow(ctx context.Context, before uint64) (lo, hi time.Time, found bool, err error) {
-	return s.withIndex(ctx, func(ix *DaySlotIndex) (time.Time, time.Time, bool) {
-		return ix.previousWindow(before)
+	return s.withIndex(ctx, func(ix *DaySlotIndex) (time.Time, time.Time, bool, error) {
+		maxValid, ok := ix.maxValidSlot()
+		if !ok {
+			return time.Time{}, time.Time{}, false, errors.Errorf("bq: day-slot index has no complete day yet; cannot serve previous-unskipped before %d", before)
+		}
+		// The returned predecessor has slot < before; the largest such slot must be within the complete
+		// data, i.e. before-1 <= maxValid.
+		if before > maxValid+1 {
+			return time.Time{}, time.Time{}, false, errors.Errorf("bq: previous-unskipped before %d exceeds BigQuery complete data (valid through slot %d)", before, maxValid)
+		}
+		lo, hi, found := ix.previousWindow(before)
+		return lo, hi, found, nil
 	})
 }
 
@@ -212,24 +235,40 @@ func (s *Store) previousDayWindow(ctx context.Context, before uint64) (lo, hi ti
 // holding indexMu — so the (rare) build/extend and the index read are serialized and never race.
 func (s *Store) withIndex(
 	ctx context.Context,
-	fn func(*DaySlotIndex) (time.Time, time.Time, bool),
+	fn func(*DaySlotIndex) (time.Time, time.Time, bool, error),
 ) (lo, hi time.Time, found bool, err error) {
 	s.indexMu.Lock()
 	defer s.indexMu.Unlock()
 	if err := s.ensureDayIndexLocked(ctx); err != nil {
 		return time.Time{}, time.Time{}, false, err
 	}
-	lo, hi, found = fn(s.index)
-	return lo, hi, found, nil
+	return fn(s.index)
+}
+
+// indexCompleteThrough ensures the index is current and returns the UTC midnight through which the
+// BigQuery data is complete (zero if no complete day yet). Used by EarliestProgramSlot to cap its
+// not-found watermark at the boundary of complete data.
+func (s *Store) indexCompleteThrough(ctx context.Context) (time.Time, error) {
+	s.indexMu.Lock()
+	defer s.indexMu.Unlock()
+	if err := s.ensureDayIndexLocked(ctx); err != nil {
+		return time.Time{}, err
+	}
+	return s.index.CompleteThrough, nil
 }
 
 const dayIndexKey = "index"
 
-// ensureDayIndexLocked loads the day-slot index (once) and extends it forward to cover all complete
-// (past) UTC days; today is never recorded (still being ingested). The forward extension is a single
-// GROUP BY over the missing day range. Its BigQuery cost is recorded under a dedicated "dayIndex"
-// stat, so it is not mixed into the business method (FindTransactions etc.) that happened to trigger
-// the build. Caller must hold indexMu.
+// ensureDayIndexLocked loads the day-slot index (once) and extends it forward to cover newly-complete
+// UTC days. The forward extension is a single GROUP BY over the missing day range, with NO upper
+// bound: the most recent returned day may still be ingesting (BigQuery is not real-time), so it is
+// treated as incomplete and dropped — a day is only admitted as complete once a strictly-later day
+// has appeared. The latest admitted day's MaxSlot is therefore the authoritative data boundary.
+//
+// Re-extension is throttled to once per UTC day per process (the boundary advances at most daily),
+// except on a never-built index. Its BigQuery cost is recorded under a dedicated "dayIndex" stat, so
+// it is not mixed into the business method (FindTransactions etc.) that happened to trigger the
+// build. Caller must hold indexMu.
 func (s *Store) ensureDayIndexLocked(ctx context.Context) error {
 	if s.index == nil {
 		got, err := s.dayCache.Get(ctx, dayIndexKey)
@@ -243,39 +282,55 @@ func (s *Store) ensureDayIndexLocked(ctx context.Context) error {
 		}
 	}
 
-	// [start, end): complete past days not yet recorded. end is the start of today (UTC), excluded.
-	end := time.Now().UTC().Truncate(24 * time.Hour)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	// Throttle: the boundary advances at most once per day, so re-query at most once per UTC day.
+	// Always run when the index has never been built (CompleteThrough zero).
+	if !s.index.CompleteThrough.IsZero() && !s.lastExtendDay.Before(today) {
+		return nil
+	}
+
+	// start: the first day not yet confirmed complete.
 	start := s.cfg.HistoryStart.UTC().Truncate(24 * time.Hour)
 	if !s.index.CompleteThrough.IsZero() {
-		start = s.index.CompleteThrough.Add(24 * time.Hour) // day after CompleteThrough
+		start = s.index.CompleteThrough.Add(24 * time.Hour)
 	}
-	if !start.Before(end) {
-		return nil // already complete through yesterday
+	// A day can only be confirmed complete once a strictly-later day has data, i.e. start <= yesterday.
+	// If start is today or later, nothing new can be confirmed yet.
+	if !start.Before(today) {
+		s.lastExtendDay = today
+		return nil
 	}
 
 	var bytes int64
 	t0 := time.Now()
-	newDays, err := s.queryDayRanges(ctx, start, end, &bytes)
+	newDays, err := s.queryDayRanges(ctx, start, &bytes)
 	s.record(ctx, "dayIndex", time.Since(t0), len(newDays), bytes)
 	if err != nil {
-		return err
+		return err // leave lastExtendDay unset so a transient failure is retried
 	}
-	s.index.mergeForward(newDays, end.Add(-24*time.Hour))
-	if err := s.dayCache.Set(ctx, map[string]DaySlotIndex{dayIndexKey: *s.index}); err != nil {
-		return errors.Wrap(err, "persist day-slot index")
+	// The most recent returned day is potentially still ingesting; drop it. The rest are complete.
+	if len(newDays) >= 2 {
+		complete := newDays[:len(newDays)-1]
+		merged := s.index.clone() // stage the merge so s.index is untouched if persisting fails
+		merged.mergeForward(complete, complete[len(complete)-1].Date)
+		if err := s.dayCache.Set(ctx, map[string]DaySlotIndex{dayIndexKey: *merged}); err != nil {
+			return errors.Wrap(err, "persist day-slot index")
+		}
+		s.index = merged
 	}
+	s.lastExtendDay = today
 	return nil
 }
 
-// queryDayRanges returns, per UTC day in [start, end), the day's min/max unskipped slot, via one
-// GROUP BY over the Blocks slot/timestamp columns. Empty days produce no row.
-func (s *Store) queryDayRanges(ctx context.Context, start, end time.Time, bytes *int64) ([]DayEntry, error) {
+// queryDayRanges returns, per UTC day with block_timestamp >= start, the day's min/max unskipped
+// slot, via one GROUP BY over the Blocks slot/timestamp columns. There is intentionally NO upper
+// bound: the caller drops the most recent (possibly still-ingesting) day. Empty days produce no row.
+func (s *Store) queryDayRanges(ctx context.Context, start time.Time, bytes *int64) ([]DayEntry, error) {
 	q := s.query(
 		fmt.Sprintf(`SELECT TIMESTAMP_TRUNC(block_timestamp, DAY) AS day, MIN(slot) AS min_slot, MAX(slot) AS max_slot
-			FROM %s WHERE block_timestamp >= @start AND block_timestamp < @end
+			FROM %s WHERE block_timestamp >= @start
 			GROUP BY day ORDER BY day`, s.blocksTable),
 		bigquery.QueryParameter{Name: "start", Value: start},
-		bigquery.QueryParameter{Name: "end", Value: end},
 	)
 	type row struct {
 		Day     bigquery.NullTimestamp `bigquery:"day"`
@@ -392,9 +447,10 @@ func (s *Store) QueryPreviousUnskipped(
 // by address (this is a rare but otherwise whole-history call):
 //   - a found earliest slot is immutable, so it is cached and returned directly thereafter;
 //   - a not-found result caches how far the history has been searched, so the next lookup resumes
-//     from there. That watermark is capped at yesterday 00:00 UTC (BigQuery is not real-time, so the
-//     last day or two is always re-scanned), which keeps a genuinely-absent program's repeated
-//     lookups scanning only the recent tail.
+//     from there. That watermark is capped at the day-slot index's complete-data boundary (BigQuery
+//     is not real-time, so days past it may still gain rows), which both keeps a genuinely-absent
+//     program's repeated lookups scanning only the recent tail and prevents a late-arriving early
+//     instruction from being permanently missed.
 func (s *Store) EarliestProgramSlot(ctx context.Context, address solana.PublicKey) (uint64, bool, error) {
 	addr := address.String()
 
@@ -434,9 +490,15 @@ func (s *Store) EarliestProgramSlot(ctx context.Context, address solana.PublicKe
 		return slot, true, nil
 	}
 
-	// Not found: record the searched-through watermark (capped at yesterday 00:00 UTC) so the next
-	// lookup only re-scans the recent tail rather than all history. Advance it only forward.
-	watermark := time.Now().UTC().Truncate(24 * time.Hour).Add(-24 * time.Hour)
+	// Not found: record the searched-through watermark so the next lookup only re-scans the recent
+	// tail rather than all history. The result is trustworthy only up to where the data is complete,
+	// so cap the watermark at the start of the first not-yet-complete day (CompleteThrough + 1 day).
+	// Advance it only forward.
+	completeThrough, err := s.indexCompleteThrough(ctx)
+	if err != nil {
+		return 0, false, err
+	}
+	watermark := completeThrough.Add(24 * time.Hour)
 	if watermark.After(searchFrom) {
 		_ = s.programStartCache.Set(ctx, map[string]ProgramStart{addr: {Found: false, SearchedThrough: watermark}})
 	}
@@ -482,6 +544,7 @@ func (s *Store) QueryBlocksByInterval(
 		)
 		SELECT b.slot, b.block_hash, b.block_timestamp, b.height, b.previous_block_hash
 		FROM %s b JOIN firsts ON b.slot = firsts.slot
+		WHERE b.block_timestamp BETWEEN @lo AND @hi
 		ORDER BY b.slot`, wkey, s.blocksTable, s.blocksTable)
 	q := s.query(sql,
 		bigquery.QueryParameter{Name: "from", Value: int64(from)},

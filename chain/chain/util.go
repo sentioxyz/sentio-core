@@ -167,6 +167,12 @@ func CheckRangeWithFallback[ELEM any](
 		// is empty) goes to the fallback store (BigQuery).
 		bqPart := rg.EmptyRange
 		if r.IsEmpty() {
+			// The whole range goes to the fallback. The fallback (BigQuery) needs a bounded range; an
+			// open-ended query with no primary range to cap it is a caller error rather than an
+			// unbounded archival scan.
+			if queryRange.End == nil {
+				return nil, errors.Errorf("request range %s is open-ended but range store is empty; cannot delegate to fallback", queryRange)
+			}
 			bqPart = queryRange
 		} else if queryRange.Start < r.Start {
 			bqEnd := r.Start - 1

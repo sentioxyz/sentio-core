@@ -28,6 +28,15 @@ func sampleIndex() *DaySlotIndex {
 	}
 }
 
+func TestDaySlotIndexMaxValidSlot(t *testing.T) {
+	maxSlot, ok := sampleIndex().maxValidSlot()
+	require.True(t, ok)
+	assert.Equal(t, uint64(399), maxSlot) // MaxSlot of the latest complete day
+
+	_, ok = (&DaySlotIndex{}).maxValidSlot()
+	assert.False(t, ok) // no complete day → not serveable
+}
+
 func TestDaySlotIndexWindow(t *testing.T) {
 	ix := sampleIndex()
 
@@ -52,33 +61,20 @@ func TestDaySlotIndexWindow(t *testing.T) {
 	_, _, ok = ix.window(200, 209)
 	assert.False(t, ok)
 
-	// Slot newer than the last recorded day (today) → window starts at the day after CompleteThrough,
-	// open-ended upper bound.
-	lo, hi, ok = ix.window(500, 500)
-	require.True(t, ok)
-	assert.Equal(t, day("2026-05-29"), lo) // CompleteThrough 2026-05-28 + 1 day
-	assert.Equal(t, maxIndexTime, hi)
-
-	// from is historical but to reaches into today → lower day start to the open-ended upper bound.
-	lo, hi, ok = ix.window(150, 500)
-	require.True(t, ok)
-	assert.Equal(t, day("2026-05-26"), lo)
-	assert.Equal(t, maxIndexTime, hi)
-
-	// Full span.
+	// Full span: lower day start to the latest complete day's end.
 	lo, hi, ok = ix.window(100, 399)
 	require.True(t, ok)
 	assert.Equal(t, day("2026-05-26"), lo)
 	assert.Equal(t, day("2026-05-28").Add(24*time.Hour-time.Nanosecond), hi)
 
-	// Empty Days but a known CompleteThrough: no unskipped slots through that day ⇒ today window.
-	lo, hi, ok = (&DaySlotIndex{CompleteThrough: day("2026-05-28")}).window(100, 100)
-	require.True(t, ok)
-	assert.Equal(t, day("2026-05-29"), lo)
-	assert.Equal(t, maxIndexTime, hi)
+	// `from` above every recorded day (the store rejects this via maxValidSlot before calling window;
+	// window defensively returns not-ok).
+	_, _, ok = ix.window(500, 500)
+	assert.False(t, ok)
 
-	// Unbuilt index (no CompleteThrough) → programming error → panic.
-	assert.Panics(t, func() { (&DaySlotIndex{}).window(100, 100) })
+	// Empty Days → nothing to resolve.
+	_, _, ok = (&DaySlotIndex{CompleteThrough: day("2026-05-28")}).window(100, 100)
+	assert.False(t, ok)
 }
 
 func TestDaySlotIndexPreviousWindow(t *testing.T) {
@@ -99,11 +95,11 @@ func TestDaySlotIndexPreviousWindow(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, day("2026-05-27"), lo)
 
-	// before newer than everything (today) → starts at the last recorded day, open-ended upper bound.
-	lo, hi, ok := ix.previousWindow(1000)
+	// before just past the last complete slot (maxValid+1=400) → predecessor is in the last day.
+	lo, hi, ok := ix.previousWindow(400)
 	require.True(t, ok)
 	assert.Equal(t, day("2026-05-28"), lo)
-	assert.Equal(t, maxIndexTime, hi)
+	assert.Equal(t, day("2026-05-28").Add(24*time.Hour-time.Nanosecond), hi)
 
 	// before at/below the earliest slot → no previous block.
 	_, _, ok = ix.previousWindow(100)
@@ -111,14 +107,9 @@ func TestDaySlotIndexPreviousWindow(t *testing.T) {
 	_, _, ok = ix.previousWindow(50)
 	assert.False(t, ok)
 
-	// Empty Days but a known CompleteThrough: previous block (if any) is in today.
-	lo, hi, ok = (&DaySlotIndex{CompleteThrough: day("2026-05-28")}).previousWindow(100)
-	require.True(t, ok)
-	assert.Equal(t, day("2026-05-29"), lo)
-	assert.Equal(t, maxIndexTime, hi)
-
-	// Unbuilt index → programming error → panic.
-	assert.Panics(t, func() { (&DaySlotIndex{}).previousWindow(100) })
+	// Empty Days → no previous block.
+	_, _, ok = (&DaySlotIndex{CompleteThrough: day("2026-05-28")}).previousWindow(100)
+	assert.False(t, ok)
 }
 
 func TestDaySlotIndexMergeForward(t *testing.T) {
@@ -133,8 +124,39 @@ func TestDaySlotIndexMergeForward(t *testing.T) {
 
 	require.Len(t, ix.Days, 3)
 	assert.Equal(t, day("2026-05-28"), ix.CompleteThrough)
-	// stays sorted ascending by slot
+	// stays sorted ascending by date
 	for i := 1; i < len(ix.Days); i++ {
-		assert.Less(t, ix.Days[i-1].MinSlot, ix.Days[i].MinSlot)
+		assert.True(t, ix.Days[i-1].Date.Before(ix.Days[i].Date))
 	}
+}
+
+// A re-queried day replaces the existing entry rather than duplicating it.
+func TestDaySlotIndexMergeForwardDedup(t *testing.T) {
+	ix := &DaySlotIndex{
+		Days: []DayEntry{
+			{Date: day("2026-05-26"), MinSlot: 100, MaxSlot: 199},
+			{Date: day("2026-05-27"), MinSlot: 210, MaxSlot: 290}, // stale max
+		},
+		CompleteThrough: day("2026-05-27"),
+	}
+	ix.mergeForward([]DayEntry{
+		{Date: day("2026-05-27"), MinSlot: 210, MaxSlot: 299}, // refreshed, larger max
+		{Date: day("2026-05-28"), MinSlot: 300, MaxSlot: 399},
+	}, day("2026-05-28"))
+
+	require.Len(t, ix.Days, 3) // 05-27 replaced, not duplicated
+	assert.Equal(t, uint64(299), ix.Days[1].MaxSlot)
+	maxSlot, ok := ix.maxValidSlot()
+	require.True(t, ok)
+	assert.Equal(t, uint64(399), maxSlot)
+}
+
+func TestDaySlotIndexClone(t *testing.T) {
+	ix := sampleIndex()
+	c := ix.clone()
+	c.Days[0].MaxSlot = 12345
+	c.CompleteThrough = day("2026-06-01")
+	// Mutating the clone must not affect the original.
+	assert.Equal(t, uint64(199), ix.Days[0].MaxSlot)
+	assert.Equal(t, day("2026-05-28"), ix.CompleteThrough)
 }

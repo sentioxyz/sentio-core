@@ -6,12 +6,13 @@
 //
 //   - Google Cloud credentials with bigquery.jobs.create + read on the public dataset, supplied via
 //     GOOGLE_APPLICATION_CREDENTIALS (Application Default Credentials).
-//   - Network access and a non-trivial number of bytes scanned (measured against the sample day):
-//       * TestBQIntegration_QueryBlock      ~10-50 GB  (Blocks has no time filter on a point lookup)
-//       * TestBQIntegration_FindTransactions ~1.34 TB  (queryInstructions scans a full DAY partition
-//         of Instructions — it is clustered by program_id, not by signature/slot, so fetching one
-//         transaction's instruction set cannot be pruned). The heavy test is gated behind
-//         BQ_RUN_HEAVY=1. Acceptable for a one-off check, NOT for CI.
+//   - Network access and bytes scanned (order of magnitude):
+//       * TestBQIntegration_QueryBlock       ~10-50 GB  (Blocks has no time filter on a point lookup)
+//       * TestBQIntegration_FindTransactions ~tens of GB. It filters instructions by program_id (the
+//         cluster key), so the Instructions scan is pruned to the queried program; the Blocks
+//         lookups dominate. (Fetching a transaction's FULL instruction set by tx_signature — the
+//         non-clustered path the store deliberately avoids — would instead scan a whole DAY
+//         partition, ~1.34 TB.) Each test logs the actual bytes billed via Store.Snapshot().
 //
 // Why this test exists: the unit tests in convert_test.go validate the row→RPC conversion with
 // hand-built rows. They cannot exercise the real SQL, the BigQuery row scanning, or whether the
@@ -34,7 +35,6 @@ package bq
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"testing"
 
@@ -53,9 +53,7 @@ const (
 	itPrevBlockhash   = "5t3qB6gVEf9ejNneXnNGarTBQYrRD7f1dVyRESysEBiA"
 	itBlockTimeUnix   = int64(1780011734)
 	itBlockHeight     = uint64(400908723)
-	itPAMMProgram     = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA" // the sample tx invokes this program
-	itComputeBudgetID = "ComputeBudget111111111111111111111111111111"
-	itATAProgramID    = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+	itPAMMProgram = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA" // the sample tx invokes this program
 )
 
 func newITStore(t *testing.T) *Store {
@@ -69,12 +67,9 @@ func newITStore(t *testing.T) *Store {
 		Dataset:   "bigquery-public-data.crypto_solana_mainnet_us",
 		// A single known slot: pad 0 so the partition filter stays on the one DAY partition.
 		PartitionPaddingDays: 0,
-		// Generous one-off cap. NOTE: reconstructing a transaction scans a whole DAY partition of
-		// the Instructions table (it is clustered by program_id, not by signature/slot, so fetching
-		// one transaction's instructions cannot be pruned). For the busy sample day this was measured
-		// at ~1.34 TB for the queryInstructions step alone. The cap is set above that so the heavy
-		// test can run; tune MaxBytesBilled down hard for production.
-		MaxBytesBilled: 2 << 40, // 2 TiB
+		// Generous one-off cap. FindTransactions filters instructions by program_id (cluster key) so
+		// the scan is pruned; this cap is just a safety ceiling for the test. Tune down for production.
+		MaxBytesBilled: 512 << 30, // 512 GiB
 	})
 	require.NoError(t, err)
 	return store
@@ -105,11 +100,6 @@ func TestBQIntegration_QueryBlock(t *testing.T) {
 // TestBQIntegration_FindTransactions reconstructs the sample transaction end-to-end (real SQL + row
 // scanning + conversion) and asserts it matches the known RPC getTransaction(jsonParsed) shape.
 func TestBQIntegration_FindTransactions(t *testing.T) {
-	// EXPENSIVE: reconstructing the transaction scans a full DAY partition of the Instructions table
-	// (~1.34 TB measured on the sample day ≈ ~$8 at on-demand pricing). Opt in explicitly.
-	if os.Getenv("BQ_RUN_HEAVY") == "" {
-		t.Skip("expensive (~1.3 TB scan); set BQ_RUN_HEAVY=1 to run")
-	}
 	store := newITStore(t)
 	defer store.Close()
 
@@ -161,44 +151,35 @@ func TestBQIntegration_FindTransactions(t *testing.T) {
 	assert.Equal(t, uint64(53943741), tx.Meta.PreBalances[0])
 	assert.Equal(t, uint64(677753040), tx.Meta.PostBalances[0])
 
-	// Top-level instructions: 7, ordered by index.
-	require.Len(t, tx.Transaction.Message.Instructions, 7)
-	// [0] ComputeBudget is unparsed (data + no parsed envelope), stackHeight 1.
-	assert.Empty(t, tx.Transaction.Message.Instructions[0].Program)
-	assert.Nil(t, tx.Transaction.Message.Instructions[0].Parsed)
-	assert.Equal(t, itComputeBudgetID, tx.Transaction.Message.Instructions[0].ProgramId.String())
-	assert.Equal(t, int64(1), tx.Transaction.Message.Instructions[0].StackHeight)
-
-	// [2] createIdempotent is a parsed instruction; compare the full reconstructed JSON.
-	gotInstr, err := json.Marshal(tx.Transaction.Message.Instructions[2])
-	require.NoError(t, err)
-	assert.JSONEq(t, `{
-		"parsed": {
-			"info": {
-				"account": "FXMZw41raezasEk2Q8JMDxadzWMyCrRnEUyu8YQji8RN",
-				"mint": "So11111111111111111111111111111111111111112",
-				"source": "6h3xQ9sBEwoNgCZSwHinBNShpikQeeKL67mYgXqeFJe2",
-				"systemProgram": "11111111111111111111111111111111",
-				"tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-				"wallet": "6h3xQ9sBEwoNgCZSwHinBNShpikQeeKL67mYgXqeFJe2"
-			},
-			"type": "createIdempotent"
-		},
-		"program": "spl-associated-token-account",
-		"programId": "`+itATAProgramID+`",
-		"stackHeight": 1
-	}`, string(gotInstr))
-
-	// Inner instructions: groups for parent index 2 (4 instructions) and 3 (7 instructions),
-	// ordered by parent index; all inner stackHeight = 2 (§5.6).
-	require.Len(t, tx.Meta.InnerInstructions, 2)
-	assert.Equal(t, uint64(2), tx.Meta.InnerInstructions[0].Index)
-	assert.Len(t, tx.Meta.InnerInstructions[0].Instructions, 4)
-	assert.Equal(t, uint64(3), tx.Meta.InnerInstructions[1].Index)
-	assert.Len(t, tx.Meta.InnerInstructions[1].Instructions, 7)
-	for _, in := range tx.Meta.InnerInstructions[1].Instructions {
-		assert.Equal(t, int64(2), in.StackHeight)
+	// Partial instructions (this store returns ONLY the queried programs' instructions — see the
+	// FindTransactions doc). We filtered by pAMM, so every instruction returned — top-level and
+	// inner — must be pAMM, and the other programs' instructions are dropped (gaps in the tree).
+	require.NotEmpty(t, tx.Transaction.Message.Instructions)
+	for _, in := range tx.Transaction.Message.Instructions {
+		assert.Equal(t, itPAMMProgram, in.ProgramId.String())
 	}
+	// The sample has a single pAMM top-level instruction (the swap), which is unparsed: it carries
+	// data + accounts and no parsed envelope, at stackHeight 1.
+	require.Len(t, tx.Transaction.Message.Instructions, 1)
+	pammTop := tx.Transaction.Message.Instructions[0]
+	assert.Nil(t, pammTop.Parsed)
+	assert.NotEmpty(t, pammTop.Data)
+	assert.NotEmpty(t, pammTop.Accounts)
+	assert.Equal(t, int64(1), pammTop.StackHeight)
+
+	// pAMM is also invoked once as an inner instruction (CPI) under top-level index 3; the parent
+	// index is preserved even though that parent (a different program) was dropped. Inner
+	// stackHeight = 2 (§5.6).
+	require.Len(t, tx.Meta.InnerInstructions, 1)
+	assert.Equal(t, uint64(3), tx.Meta.InnerInstructions[0].Index)
+	require.Len(t, tx.Meta.InnerInstructions[0].Instructions, 1)
+	pammInner := tx.Meta.InnerInstructions[0].Instructions[0]
+	assert.Equal(t, itPAMMProgram, pammInner.ProgramId.String())
+	assert.Equal(t, int64(2), pammInner.StackHeight)
+
+	// Parsed-instruction reconstruction (e.g. spl-token transferChecked, ATA createIdempotent) is
+	// covered by the unit tests in convert_test.go; it is not re-asserted here because those
+	// programs are filtered out by the pAMM-only query.
 
 	// Token balances: 6 each; uiAmount is computed from amount/decimals (§3.4).
 	require.Len(t, tx.Meta.PreTokenBalances, 6)

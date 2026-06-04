@@ -372,6 +372,23 @@ func (s *Store) signaturesBySlot(
 
 // FindTransactions returns, grouped by block, the transactions in [from, to] invoking any of the
 // given programs, up to limit transactions.
+//
+// IMPORTANT — partial instructions (cost optimization): unlike the ClickHouse store, the returned
+// transactions carry ONLY the instructions whose program_id is in programIDs (both top-level and
+// inner), NOT the transaction's full instruction set. Instructions of other programs (e.g. system,
+// compute-budget, token transfers driven by an unrelated program) are omitted, and message
+// instruction indices therefore have gaps.
+//
+// Why: the Instructions table is partitioned by block_timestamp (DAY) and clustered by program_id.
+// Fetching a transaction's *full* instruction set (filtered by tx_signature, which is not the
+// cluster key) cannot be pruned and scans the entire day partition — ~1.3 TB for a busy day.
+// Filtering by program_id instead hits the cluster key, so the scan is pruned to just those
+// programs' instructions (orders of magnitude cheaper).
+//
+// This is acceptable because an instruction handler only inspects instructions of the program it
+// targets; the transaction's other data (account keys, balances, token balances, logs, status/err,
+// fee, compute units) is complete. Consumers that need the full instruction set of an arbitrary
+// program must not rely on this store. See chain/sol/BIGQUERY_DATASOURCE_DESIGN.md.
 func (s *Store) FindTransactions(
 	ctx context.Context,
 	from uint64,
@@ -432,7 +449,7 @@ func (s *Store) FindTransactions(
 	if err != nil {
 		return nil, err
 	}
-	instrBySig, err := s.queryInstructions(ctx, sigs, lo, hi, &bytes)
+	instrBySig, err := s.queryInstructions(ctx, sigs, programs, lo, hi, &bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -480,12 +497,20 @@ func (s *Store) queryTransactions(ctx context.Context, sigs []string, lo, hi tim
 	return rows, nil
 }
 
-func (s *Store) queryInstructions(ctx context.Context, sigs []string, lo, hi time.Time, bytes *int64) (map[string][]instructionRow, error) {
+// queryInstructions fetches, per transaction signature, ONLY the instructions whose program_id is
+// in programs. The program_id predicate is essential: it is the Instructions table's cluster key,
+// so the scan is pruned to those programs (cheap). Filtering by tx_signature alone (not the cluster
+// key) would scan the whole day partition (~1.3 TB). The resulting transactions therefore carry
+// only the queried programs' instructions — see FindTransactions for the rationale.
+func (s *Store) queryInstructions(ctx context.Context, sigs, programs []string, lo, hi time.Time, bytes *int64) (map[string][]instructionRow, error) {
 	q := s.query(
 		fmt.Sprintf(`SELECT block_slot, tx_signature, index, parent_index, accounts, data, parsed, program, program_id, instruction_type, params
-			FROM %s WHERE block_timestamp BETWEEN @lo AND @hi AND tx_signature IN UNNEST(@sigs)`, s.instrsTable),
+			FROM %s WHERE block_timestamp BETWEEN @lo AND @hi
+			  AND program_id IN UNNEST(@programs)
+			  AND tx_signature IN UNNEST(@sigs)`, s.instrsTable),
 		bigquery.QueryParameter{Name: "lo", Value: lo},
 		bigquery.QueryParameter{Name: "hi", Value: hi},
+		bigquery.QueryParameter{Name: "programs", Value: programs},
 		bigquery.QueryParameter{Name: "sigs", Value: sigs},
 	)
 	rows, err := readAll[instructionRow](ctx, q, bytes)

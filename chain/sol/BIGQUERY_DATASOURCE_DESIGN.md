@@ -177,7 +177,7 @@ The `Storage` interface has 5 methods (`supernode/storage.go`); the BigQuery imp
 1. **`QueryBlock(slot)`** → `SELECT … FROM Blocks WHERE slot=@slot LIMIT 1`; empty ⇒ skipped (§5.12); `parentSlot` not populated (§5.9).
 2. **`QueryBlocksByInterval(from,to,window,limit)`** → first block of each window. BQ has no skipped rows; window grouping (block window: `DIV(slot,W)`; time window: `DIV(UNIX_SECONDS(block_timestamp), W)`) takes the min slot per group. Signatures attached via a join on `Transactions`. **More complex; watch cost.**
 3. **`QueryPreviousUnskipped(before)`** → `SELECT slot, block_timestamp FROM Blocks WHERE slot<@before ORDER BY slot DESC LIMIT 1`.
-4. **`FindTransactions(from,to,programIDs,limit)`** → select `DISTINCT (block_slot, tx_signature)` from `Instructions` where `program_id IN @ids` and `block_slot BETWEEN`, then assemble from `Transactions` + `Instructions` (all instructions) + `Blocks` (block header). **The heaviest query.**
+4. **`FindTransactions(from,to,programIDs,limit)`** → select `DISTINCT (block_slot, tx_signature)` from `Instructions` where `program_id IN @ids` and `block_slot BETWEEN`, then assemble from `Transactions` (by `signature`) + `Instructions` + `Blocks` (block header). **Returns only the queried programs' instructions, not the full instruction set — see the cost note below.**
 5. **`EarliestProgramSlot(address)`** → `SELECT MIN(block_slot) FROM Instructions WHERE program_id=@addr AND <whole-history block_timestamp predicate>`. ⚠️ Because of `requirePartitionFilter=True`, an unbounded MIN is impossible; supply a dataset-wide lower bound (e.g. `block_timestamp >= '2020-03-01'`) and rely on `program_id` clustering to prune to that program. Popular programs can still be expensive, but this call is rare (once at processor start) and is bounded by `maxBytesBilled`.
 
 ### ⚠️ Cost-critical point (decided): resolve slot→timestamp via `Blocks` first
@@ -195,6 +195,12 @@ Measured: `Transactions`/`Instructions` are ~888/890 TB, partitioned by **`block
 4. **Select only the needed columns** (BigQuery bills by column): assembling a transaction needs the `Transactions` scalar columns + `accounts`/`*_token_balances`/`balance_changes`/`log_messages`, plus the `Instructions` columns.
 
 > Alternative (not the primary path): extrapolate a time window from Solana's ~400ms/slot anchored at `rangeStore.minSlot`, skipping the first hop. It requires a wide window for the error margin and risks anchor drift; consider only if the `Blocks` first hop becomes a bottleneck.
+
+### ⚠️ Cost-critical point (decided): `FindTransactions` returns only the queried programs' instructions
+
+Measured against a busy sample day, fetching a transaction's **full** instruction set (filter `tx_signature IN @sigs` on `Instructions`) scans **~1.34 TB** — because `Instructions` is clustered by `program_id`, not by signature/slot, so the per-transaction filter cannot prune and reads the whole DAY partition. (`Transactions`, clustered by `signature`, is fine: `signature IN @sigs` prunes to ~MBs. `QueryBlock` on `Blocks` scans ~10–50 GB, the whole table's referenced columns, since it is unclustered and the lookup is by slot.)
+
+**Decision**: `FindTransactions` fetches instructions filtered by **`program_id IN @programIDs`** (the cluster key), so the scan is pruned to just those programs. The returned transactions therefore carry **only the queried programs' instructions** (top-level and inner), not the full set. This is acceptable because an instruction handler only inspects instructions of the program it targets, and all other transaction data (accounts, balances, token balances, logs, status/err, fee, compute units) is complete. See the `bq.Store.FindTransactions` doc comment, and the matching note where the driver builds the raw transaction for instruction handlers. Consumers needing the full instruction set of an arbitrary transaction must not use this store.
 
 ---
 
@@ -249,6 +255,7 @@ A construction error should degrade gracefully (disable the tier) rather than fa
 | 6 | `parentSlot` | not populated (per-block full-column scan too costly; unused by archival consumers) | §5.9 |
 | 7 | slot→timestamp cost | resolve exact DAY bounds via `Blocks` (cheap) first, then add the partition predicate to the heavy tables; set `maxBytesBilled` per job | §5 "cost-critical point" |
 | 8 | method wiring priority | P0: `FindTransactions`, `QueryBlock`; P1: `EarliestProgramSlot` (BigQuery has reverse-highest priority); P2: `QueryPreviousUnskipped`, `QueryBlocksByInterval` | §6.3 |
+| 9 | `FindTransactions` instruction scope | return only the queried programs' instructions (filter `program_id`, the cluster key) instead of the full set; avoids the ~1.34 TB per-transaction day-partition scan. Tx-level data stays complete | §5 "returns only the queried programs' instructions" |
 
 **Remaining runtime consideration (non-blocking; observe during rollout)**: BigQuery queries are seconds-scale and take the super-node's slow-request path. Evaluate the impact on driver timeouts/retries, and consider a dedicated timeout for the BigQuery tier and local caching of results (archival history is immutable, so the hit rate should be high).
 

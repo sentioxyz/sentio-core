@@ -9,7 +9,6 @@ import (
 	"cloud.google.com/go/bigquery"
 	"github.com/gagliardetto/solana-go"
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/api/iterator"
 
 	"sentioxyz/sentio-core/chain/sol"
@@ -68,10 +67,17 @@ type Config struct {
 	// has been searched, so repeated lookups only re-scan the recent tail. A long TTL (e.g. a month)
 	// is fine.
 	ProgramStartCache kvstore.Store[ProgramStart]
-	// CostCounter, when set, accumulates total bytes billed (the BigQuery on-demand cost driver),
-	// labelled by method, as an OpenTelemetry counter. Optional.
-	CostCounter metric.Int64Counter
+	// Notifier, when set, is called once per completed operation with its stats (including bytes
+	// billed, the BigQuery on-demand cost driver). The launcher uses it to emit metrics with its own
+	// attributes (network, server name, ...). Optional.
+	Notifier Notifier
 }
+
+// Notifier is invoked once per completed BigQuery operation with its method, request source (the
+// jsonrpc caller summary), latency, result count, and bytes billed. It must be cheap/non-blocking.
+// The bq store stays decoupled from any metrics backend; the launcher supplies a Notifier that, e.g.,
+// adds bytes billed to an OpenTelemetry counter with richer attributes (network, server name).
+type Notifier func(ctx context.Context, method, source string, used time.Duration, count int, bytesBilled int64)
 
 // ProgramStart is the cached EarliestProgramSlot result for one program address. When Found, Slot is
 // the (immutable) earliest slot. When not Found, SearchedThrough records that the program has no
@@ -129,7 +135,7 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 		programStartCache: cfg.ProgramStartCache,
 	}
 	s.init()
-	s.costCounter = cfg.CostCounter
+	s.notifier = cfg.Notifier
 	return s, nil
 }
 

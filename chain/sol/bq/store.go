@@ -9,6 +9,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"github.com/gagliardetto/solana-go"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/api/iterator"
 
 	"sentioxyz/sentio-core/chain/sol"
@@ -67,6 +68,9 @@ type Config struct {
 	// has been searched, so repeated lookups only re-scan the recent tail. A long TTL (e.g. a month)
 	// is fine.
 	ProgramStartCache kvstore.Store[ProgramStart]
+	// CostCounter, when set, accumulates total bytes billed (the BigQuery on-demand cost driver),
+	// labelled by method, as an OpenTelemetry counter. Optional.
+	CostCounter metric.Int64Counter
 }
 
 // ProgramStart is the cached EarliestProgramSlot result for one program address. When Found, Slot is
@@ -125,6 +129,7 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 		programStartCache: cfg.ProgramStartCache,
 	}
 	s.init()
+	s.costCounter = cfg.CostCounter
 	return s, nil
 }
 

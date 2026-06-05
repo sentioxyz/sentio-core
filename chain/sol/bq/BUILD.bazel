@@ -22,6 +22,8 @@ go_library(
         "@com_github_gagliardetto_solana_go//rpc",
         "@com_github_pkg_errors//:errors",
         "@com_google_cloud_go_bigquery//:bigquery",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel_metric//:metric",
         "@org_golang_google_api//iterator",
     ],
 )

@@ -5,6 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"sentioxyz/sentio-core/common/histogram"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/timehist"
@@ -28,6 +31,10 @@ type statistic struct {
 	queryUsed  map[string]timehist.Histogram
 	queryGot   map[string]histogram.Histogram
 	queryBytes map[string]histogram.Histogram
+
+	// costCounter, when set, accumulates total BigQuery bytes billed (the on-demand cost driver),
+	// labelled by method, as an OpenTelemetry counter. Optional (nil = not reported).
+	costCounter metric.Int64Counter
 }
 
 func (m *statistic) init() {
@@ -44,8 +51,12 @@ func (m *statistic) getSource(ctx context.Context) string {
 }
 
 // record adds one observation for method: latency, returned element count, and total bytes billed
-// across all BigQuery jobs the method ran.
+// across all BigQuery jobs the method ran. It also accumulates bytes billed into the OpenTelemetry
+// cost counter (when configured), labelled by method.
 func (m *statistic) record(ctx context.Context, method string, used time.Duration, count int, bytesBilled int64) {
+	if m.costCounter != nil && bytesBilled > 0 {
+		m.costCounter.Add(ctx, bytesBilled, metric.WithAttributes(attribute.String("method", method)))
+	}
 	key := method + "/" + m.getSource(ctx)
 	m.mu.Lock()
 	defer m.mu.Unlock()

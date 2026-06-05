@@ -135,13 +135,15 @@ const (
 // Conversions
 // ---------------------------------------------------------------------------
 
-// toBlock builds the block header. signatures are attached when provided (sol_getBlocksByInterval
-// needs them; sol_getBlock does not).
+// toBlock builds the block header.
 //
-// NOTE: ParentSlot is intentionally left zero. BigQuery has no parent-slot column, and deriving it
-// (MAX(slot) below the block) costs a full-column scan of the Blocks table per block — too expensive
-// for a value downstream consumers of the historical (archival) tier do not rely on.
-func (b blockRow) toBlock(signatures []solana.Signature) (sol.Block, error) {
+// NOTE: it carries no transaction signatures (GetBlockResult.Signatures stays nil). The BigQuery
+// store never populates them: signatures live only in the Transactions table, keyed by a non-cluster
+// column (block_slot), so fetching them scans a whole DAY partition (~15 GB) regardless of result
+// size — too expensive for the archival tier. Callers needing a block's transactions use
+// FindTransactions / QueryBlock. ParentSlot is likewise left zero (BigQuery has no parent-slot
+// column; deriving it would cost a full Blocks column scan per block).
+func (b blockRow) toBlock() (sol.Block, error) {
 	blockhash, err := solana.HashFromBase58(b.BlockHash)
 	if err != nil {
 		return sol.Block{}, errors.Wrapf(err, "parse blockhash of slot %d", b.Slot)
@@ -153,7 +155,6 @@ func (b blockRow) toBlock(signatures []solana.Signature) (sol.Block, error) {
 	result := &rpc.GetBlockResult{
 		Blockhash:         blockhash,
 		PreviousBlockhash: previous,
-		Signatures:        signatures,
 	}
 	if b.Height.Valid {
 		height := uint64(b.Height.Int64)

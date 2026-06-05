@@ -102,6 +102,11 @@ func (s *RPCService) bqBlockLoader() func(context.Context, rg.Range) ([]sol.Bloc
 }
 
 // bqIntervalLoader returns the BigQuery fallback for GetBlocksByInterval, or nil when disabled.
+//
+// NOTE: blocks served from the BigQuery tier (for the slot range below ClickHouse) carry headers
+// only — no transaction signatures — as a deliberate BigQuery cost optimization (attaching them
+// scans whole Transactions DAY partitions; see bq.Store.QueryBlocksByInterval). Interval/sampling
+// callers on the archival range must not rely on per-block signatures.
 func (s *RPCService) bqIntervalLoader(
 	param sol.GetBlocksByIntervalParam,
 	limit int,

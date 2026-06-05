@@ -26,25 +26,34 @@ func Test_pushLatestQueue_bothAdvance_pushes(t *testing.T) {
 	assert.Equal(t, time.Second, dur) // 10s / 10 blocks = 1s per block
 }
 
-func Test_pushLatestQueue_skipWhenOnlyNumberAdvances(t *testing.T) {
-	// Bug-fix: if timestamp goes backwards, entry must NOT be pushed.
+func Test_pushLatestQueue_timestampRegresses_replacesTail(t *testing.T) {
+	// Higher block number but earlier timestamp (clock skew): it cannot keep order with the
+	// existing tail (number up, timestamp down), so the tail is popped and latest is kept.
 	base := time.Unix(1_000_000, 0)
 	q, _ := pushLatestQueue(nil, Block{Number: 5, Timestamp: base}, time.Minute)
 
-	// Higher block number but earlier timestamp (clock skew) → skip
-	q, dur := pushLatestQueue(q, Block{Number: 10, Timestamp: base.Add(-time.Second)}, time.Minute)
+	latest := Block{Number: 10, Timestamp: base.Add(-time.Second)}
+	q, dur := pushLatestQueue(q, latest, time.Minute)
 	assert.Equal(t, 1, q.Len())
-	assert.Equal(t, time.Duration(0), dur)
+	assert.Equal(t, time.Duration(0), dur) // single entry → interval unknown
+	bc, has := q.Back()
+	assert.True(t, has)
+	assert.Equal(t, latest, bc) // latest replaced the out-of-order tail
 }
 
-func Test_pushLatestQueue_skipWhenOnlyTimestampAdvances(t *testing.T) {
-	// Same block number, newer timestamp → skip (number must advance too).
+func Test_pushLatestQueue_numberStalls_replacesTail(t *testing.T) {
+	// Same block number, newer timestamp: number must strictly increase, so the stale-number
+	// tail is popped and latest is kept (tracks the most recent observation).
 	base := time.Unix(1_000_000, 0)
 	q, _ := pushLatestQueue(nil, Block{Number: 5, Timestamp: base}, time.Minute)
 
-	q, dur := pushLatestQueue(q, Block{Number: 5, Timestamp: base.Add(time.Second)}, time.Minute)
+	latest := Block{Number: 5, Timestamp: base.Add(time.Second)}
+	q, dur := pushLatestQueue(q, latest, time.Minute)
 	assert.Equal(t, 1, q.Len())
 	assert.Equal(t, time.Duration(0), dur)
+	bc, has := q.Back()
+	assert.True(t, has)
+	assert.Equal(t, latest, bc)
 }
 
 func Test_pushLatestQueue_trimsEntriesOutsideWindow(t *testing.T) {
@@ -61,6 +70,49 @@ func Test_pushLatestQueue_trimsEntriesOutsideWindow(t *testing.T) {
 	q, d := pushLatestQueue(q, Block{Number: 4, Timestamp: base.Add(8 * time.Second)}, window)
 	assert.Equal(t, 2, q.Len()) // only t=4 and t=8 remain
 	assert.Equal(t, 4*time.Second, d)
+}
+
+// Test_pushLatestQueue_reorg_keepsLatest reproduces the production livelock on the Moonbeam
+// super-node (lb pool) and verifies the fix.
+//
+// When a `latest` arrives whose block number does NOT advance (a reorg/backoff, or an
+// inconsistent endpoint in the load-balanced pool) — possibly with a timestamp far ahead of
+// the queued window — the old code refused to push it AND the pop-front loop could evict the
+// entire window. The queue went empty, but the loop did `fr, _ = q.Front()`, discarding
+// has=false: it then read a zero-value Block whose zero timestamp kept the trim condition
+// true forever, and PopFront() on the empty queue is a no-op — so the refresher goroutine
+// spun on a CPU, never returned to its ctx check, and wedged the whole pool for ~15h.
+//
+// The fix pops the out-of-order tail, pushes latest, and leaves it in the queue, so the
+// queue is genuinely never empty when the front is read.
+func Test_pushLatestQueue_reorg_keepsLatest(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	dur := time.Minute
+
+	// A normal window of two advancing blocks.
+	q, _ := pushLatestQueue(nil, Block{Number: 100, Timestamp: base}, dur)
+	q, _ = pushLatestQueue(q, Block{Number: 101, Timestamp: base.Add(time.Second)}, dur)
+
+	// Reorg: number regresses below the whole window while the timestamp jumps far ahead.
+	bad := Block{Number: 50, Timestamp: base.Add(10 * time.Minute)}
+
+	done := make(chan struct{})
+	go func() {
+		q, _ = pushLatestQueue(q, bad, dur)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("pushLatestQueue spun forever instead of pushing latest after the window was evicted")
+	}
+
+	// latest must be kept as the (sole, newest) back entry — never drained to empty.
+	assert.Equal(t, 1, q.Len())
+	bc, has := q.Back()
+	assert.True(t, has)
+	assert.Equal(t, bad, bc)
 }
 
 func Test_pushLatestQueue_intervalMonotonicallyCalculated(t *testing.T) {

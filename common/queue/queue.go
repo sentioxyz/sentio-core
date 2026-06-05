@@ -5,6 +5,7 @@ import "container/list"
 type Queue[V any] interface {
 	PushBack(V)
 	PopFront() (V, bool)
+	PopBack() (V, bool)
 	Front() (V, bool)
 	Back() (V, bool)
 	Len() int
@@ -27,6 +28,15 @@ func (q *queue[V]) PushBack(v V) {
 
 func (q *queue[V]) PopFront() (v V, has bool) {
 	e := q.list.Front()
+	if e == nil {
+		return v, false
+	}
+	q.list.Remove(e)
+	return e.Value.(V), true
+}
+
+func (q *queue[V]) PopBack() (v V, has bool) {
+	e := q.list.Back()
 	if e == nil {
 		return v, false
 	}

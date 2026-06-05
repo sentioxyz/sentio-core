@@ -31,7 +31,14 @@ type entryInPool[EC any, ES any] struct {
 type Pool[EC EntryConfig[EC], ES Status, PS Status] struct {
 	name string
 
-	poolStatusBuilder    func(map[string]Entry[EC, ES], PS, uint64) PS
+	poolStatusBuilder func(map[string]Entry[EC, ES], PS, uint64) PS
+	// entryStatusRefresher runs an entry's status-refresh loop until its ctx is cancelled.
+	//
+	// CONTRACT: it MUST return promptly once ctx is cancelled. disable() cancels this ctx and
+	// then waits for the loop to return while holding p.mu, so a refresher that blocks or spins
+	// after cancellation (e.g. an unbounded RPC that ignores ctx, or a busy loop) does not just
+	// leak — it freezes the ENTIRE pool: every Add/Enable/Disable/Fetch blocks on p.mu until it
+	// returns. A refresher that ignored a backwards-jumping block once wedged a pool for ~15h.
 	entryStatusRefresher func(context.Context, EC, ES, chan<- ES)
 
 	mu      sync.Mutex
@@ -42,6 +49,9 @@ type Pool[EC EntryConfig[EC], ES Status, PS Status] struct {
 	statusWaiter *concurrency.StatusWaiter[uint64]
 }
 
+// NewPool creates a Pool. entryStatusRefresher MUST return promptly once its context is
+// cancelled — see the entryStatusRefresher field doc: disable() waits for it under p.mu, so a
+// refresher that blocks or spins after cancellation freezes the whole pool.
 func NewPool[EC EntryConfig[EC], ES Status, PS Status](
 	name string,
 	poolStatusBuilder func(map[string]Entry[EC, ES], PS, uint64) PS,
@@ -133,6 +143,9 @@ func (p *Pool[EC, ES, PS]) disable(name string) bool {
 	}
 	ent.refreshCancel()
 	ent.Enable = false
+	// Wait for the refresher to stop. This holds p.mu, so it relies on the entryStatusRefresher
+	// contract (see NewPool): it must return promptly after the cancel above. A refresher that
+	// blocks or spins past cancellation freezes the whole pool here.
 	<-ent.refreshDone
 	return true
 }

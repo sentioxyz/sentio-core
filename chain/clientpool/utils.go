@@ -11,10 +11,21 @@ func pushLatestQueue(q queue.Queue[Block], latest Block, dur time.Duration) (que
 	if q == nil {
 		q = queue.NewQueue[Block]()
 	}
-	if bc, has := q.Back(); !has || (bc.Number < latest.Number && bc.Timestamp.Before(latest.Timestamp)) {
-		q.PushBack(latest)
+	// Append latest as the new back, keeping the queue strictly ordered: number strictly
+	// increasing and timestamp non-decreasing. First pop any trailing entries that would break
+	// that ordering against latest (number not below latest's, or timestamp after latest's) —
+	// e.g. on a reorg/backoff — then push latest. latest always ends up in the queue.
+	for {
+		bc, has := q.Back()
+		if !has || (bc.Number < latest.Number && !bc.Timestamp.After(latest.Timestamp)) {
+			break
+		}
+		q.PopBack()
 	}
-	// here q will never be empty
+	q.PushBack(latest)
+	// Trim entries from the front whose timestamp is more than dur behind latest. Because
+	// latest was just pushed (and latest.Timestamp.Sub(latest.Timestamp) == 0 <= dur), the
+	// queue is never emptied here — so Front() always returns a real block.
 	var fr Block
 	for {
 		fr, _ = q.Front()

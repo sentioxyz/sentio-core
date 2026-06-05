@@ -8,8 +8,13 @@ import (
 type StatusChecker[STATUS any] func(STATUS) bool
 
 type statusWaiter[STATUS any] struct {
-	checker    StatusChecker[STATUS]
-	microphone chan STATUS
+	checker StatusChecker[STATUS]
+	// notify is a buffered(1) wakeup signal: producers coalesce wakeups into it without
+	// blocking. result carries the status that satisfied the checker; it is written and read
+	// only under StatusWaiter.mu (a coalesced trySignal may skip the send, so the channel alone
+	// does not order the latest write — the lock does).
+	notify chan struct{}
+	result STATUS
 }
 
 type StatusWaiter[STATUS any] struct {
@@ -32,7 +37,8 @@ func (w *StatusWaiter[STATUS]) NewStatus(s STATUS) {
 	w.current = s
 	for _, wa := range w.waiters {
 		if wa.checker(s) {
-			sendIgnoreClosed(wa.microphone, s)
+			wa.result = s
+			trySignal(wa.notify)
 		}
 	}
 }
@@ -50,32 +56,34 @@ func (w *StatusWaiter[STATUS]) Waiting() int {
 }
 
 func (w *StatusWaiter[STATUS]) Wait(ctx context.Context, checker StatusChecker[STATUS]) (STATUS, error) {
-	// new waiter
 	w.mu.Lock()
 	if checker(w.current) {
+		s := w.current
 		w.mu.Unlock()
-		return w.current, nil
+		return s, nil
 	}
 	id := w.waiterID
 	me := &statusWaiter[STATUS]{
-		checker:    checker,
-		microphone: make(chan STATUS, 0),
+		checker: checker,
+		notify:  make(chan struct{}, 1),
 	}
 	w.waiterID++
 	w.waiters[id] = me
 	w.mu.Unlock()
 
 	defer func() {
-		// Some producers may be using w.mu and sending signal to me.microphone
-		// Here close me.microphone first to make sure the producer will not be blocked by me.microphone
-		close(me.microphone)
 		w.mu.Lock()
 		delete(w.waiters, id)
 		w.mu.Unlock()
 	}()
 
+	// A notify is only sent after a status satisfied this waiter's checker (see NewStatus), so
+	// a single wakeup is enough — read the recorded result under the lock and return it.
 	select {
-	case s := <-me.microphone:
+	case <-me.notify:
+		w.mu.Lock()
+		s := me.result
+		w.mu.Unlock()
 		return s, nil
 	case <-ctx.Done():
 		var zero STATUS

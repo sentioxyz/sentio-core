@@ -2,11 +2,12 @@ package chain
 
 import (
 	"context"
-	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/common/concurrency"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
 	rg "sentioxyz/sentio-core/common/range"
+
+	"github.com/pkg/errors"
 )
 
 type SimpleDimension[SLOT Slot] struct {
@@ -64,14 +65,12 @@ func (d *SimpleDimension[SLOT]) Save(ctx context.Context, interval rg.Range, slo
 	// check all slot from slotChan are continuous
 	inCheckers = append(inCheckers, func(index int, st SLOT) error {
 		if !interval.Contains(st.GetNumber()) {
-			err := errors.Wrapf(ErrDiscontinuous, "slot number %d out of range", st.GetNumber())
-			logger.Warnfe(err, "save %s failed", curRange.String())
-			return err
+			logger.Warnfe(ErrDiscontinuous, "slot number %d out of range", st.GetNumber())
+			return errors.Wrapf(ErrDiscontinuous, "slot number %d out of range", st.GetNumber())
 		}
 		if expNumber := interval.Start + uint64(index); st.GetNumber() != expNumber {
-			err := errors.Wrapf(ErrDiscontinuous, "next slot should be %d, not %d", expNumber, st.GetNumber())
-			logger.Warnfe(err, "save %s failed", curRange.String())
-			return err
+			logger.Warnfe(ErrDiscontinuous, "next slot should be %d, not %d", expNumber, st.GetNumber())
+			return errors.Wrapf(ErrDiscontinuous, "next slot should be %d, not %d", expNumber, st.GetNumber())
 		}
 		return nil
 	})

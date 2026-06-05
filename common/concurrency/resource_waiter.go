@@ -9,8 +9,12 @@ import (
 type ResourceSelector[R comparable] func(R) bool
 
 type waiter[R comparable] struct {
-	selector   ResourceSelector[R]
-	microphone chan int
+	selector ResourceSelector[R]
+	// notify is a buffered(1) wakeup signal. Producers coalesce wakeups into it with a
+	// non-blocking send (see signal); the waiter recomputes its missing count from notReady
+	// under the lock after each wakeup. Nothing is delivered through the channel itself, so
+	// there is no blocking send under the lock and no close/send race.
+	notify chan struct{}
 }
 
 type ResourceWaiter[R comparable] struct {
@@ -27,11 +31,21 @@ func NewResourceWaiter[R comparable]() *ResourceWaiter[R] {
 	}
 }
 
-func sendIgnoreClosed[V any](c chan<- V, v V) {
-	defer func() {
-		_ = recover() // ignore closed
-	}()
-	c <- v
+// signal performs a non-blocking, coalescing wakeup on a buffered(1) channel: if a wakeup is
+// already pending it is a no-op. It never blocks, so it is safe to call while holding a lock.
+func trySignal(ch chan struct{}) {
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
+func (w *ResourceWaiter[R]) wakeMatching(r R) {
+	for _, wa := range w.waiters {
+		if wa.selector(r) {
+			trySignal(wa.notify)
+		}
+	}
 }
 
 func (w *ResourceWaiter[R]) NewResource(r R) {
@@ -41,11 +55,7 @@ func (w *ResourceWaiter[R]) NewResource(r R) {
 		return // already has, do nothing
 	}
 	w.notReady[r] = struct{}{}
-	for _, wa := range w.waiters {
-		if wa.selector(r) {
-			sendIgnoreClosed(wa.microphone, 1)
-		}
-	}
+	w.wakeMatching(r)
 }
 
 func (w *ResourceWaiter[R]) ResourceReady(r R) {
@@ -55,39 +65,34 @@ func (w *ResourceWaiter[R]) ResourceReady(r R) {
 		panic(fmt.Errorf("no resource %v", r))
 	}
 	delete(w.notReady, r)
-	for _, wa := range w.waiters {
-		if wa.selector(r) {
-			sendIgnoreClosed(wa.microphone, -1)
-		}
-	}
+	w.wakeMatching(r)
 }
 
-func (w *ResourceWaiter[R]) Wait(ctx context.Context, selector ResourceSelector[R]) error {
-	// new waiter
-	w.mu.Lock()
-	var missing int
+// countMissing returns how many not-ready resources match selector. Caller must hold w.mu.
+func (w *ResourceWaiter[R]) countMissing(selector ResourceSelector[R]) int {
+	missing := 0
 	for r := range w.notReady {
 		if selector(r) {
 			missing++
 		}
 	}
-	if missing == 0 {
-		w.mu.Unlock()
-		return nil
-	}
+	return missing
+}
+
+func (w *ResourceWaiter[R]) Wait(ctx context.Context, selector ResourceSelector[R]) error {
+	// Register first, then count under the same lock, so no readiness change is missed.
+	w.mu.Lock()
 	id := w.waiterID
 	me := &waiter[R]{
-		selector:   selector,
-		microphone: make(chan int, 0),
+		selector: selector,
+		notify:   make(chan struct{}, 1),
 	}
 	w.waiterID++
 	w.waiters[id] = me
+	missing := w.countMissing(selector)
 	w.mu.Unlock()
 
 	defer func() {
-		// Some producers may be using w.mu and sending signal to me.microphone
-		// Here close me.microphone first to make sure the producer will not be blocked by me.microphone
-		close(me.microphone)
 		w.mu.Lock()
 		delete(w.waiters, id)
 		w.mu.Unlock()
@@ -95,8 +100,10 @@ func (w *ResourceWaiter[R]) Wait(ctx context.Context, selector ResourceSelector[
 
 	for missing != 0 {
 		select {
-		case delta := <-me.microphone:
-			missing += delta
+		case <-me.notify:
+			w.mu.Lock()
+			missing = w.countMissing(selector)
+			w.mu.Unlock()
 		case <-ctx.Done():
 			return ctx.Err()
 		}

@@ -15,6 +15,7 @@ func Test_resMgr_normal(t *testing.T) {
 
 	q := NewResourceManager(10)
 	var g sync.WaitGroup
+	var mu sync.Mutex
 	var result []int
 	for i := 1; i <= 10; i++ {
 		g.Add(1)
@@ -28,7 +29,9 @@ func Test_resMgr_normal(t *testing.T) {
 				t.Errorf("#%d failed: %s", p, err)
 			} else {
 				t.Logf("#%d got", p)
+				mu.Lock()
 				result = append(result, p)
+				mu.Unlock()
 				time.Sleep(time.Second)
 				release()
 				t.Logf("#%d released", p)
@@ -121,6 +124,7 @@ func Test_resMgr_canceled(t *testing.T) {
 
 	q := NewResourceManager(10)
 	var g sync.WaitGroup
+	var mu sync.Mutex
 	var result []int
 	var errList []error
 	for i := 1; i <= 10; i++ {
@@ -131,10 +135,14 @@ func Test_resMgr_canceled(t *testing.T) {
 			release, err := q.Apply(ctx, int64(100-p), p, 0, nil)
 			if err != nil {
 				t.Logf("#%d failed: %s", p, err)
+				mu.Lock()
 				errList = append(errList, err)
+				mu.Unlock()
 			} else {
 				t.Logf("#%d got", p)
+				mu.Lock()
 				result = append(result, p)
+				mu.Unlock()
 				time.Sleep(time.Second * 2)
 				release()
 				t.Logf("#%d released", p)

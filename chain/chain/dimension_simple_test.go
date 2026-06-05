@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -111,15 +112,23 @@ func (s *testSimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Rang
 	return nil
 }
 
+// testRangeStore is an in-memory RangeStore double. Real RangeStore implementations are
+// backed by a transactional store and are safe for concurrent Get/Update; multiple dimension
+// range-updaters can call into a shared store concurrently, so guard cur with a mutex.
 type testRangeStore struct {
+	mu  sync.Mutex
 	cur rg.Range
 }
 
 func (s *testRangeStore) Get(ctx context.Context) (rg.Range, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.cur, nil
 }
 
 func (s *testRangeStore) Update(ctx context.Context, operator rg.RangeOperator) (rg.Range, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.cur = operator(s.cur)
 	return s.cur, nil
 }

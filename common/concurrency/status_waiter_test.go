@@ -62,6 +62,29 @@ func Test_statusWaiter1(t *testing.T) {
 	}
 }
 
+// Test_statusWaiter_cancelRaceWithNewStatus is a regression test for a data race where a
+// waiter returning via ctx cancellation closed its channel while a concurrent NewStatus was
+// sending to it. It asserts nothing on its own — run under `-race` to catch the regression.
+func Test_statusWaiter_cancelRaceWithNewStatus(t *testing.T) {
+	for round := 0; round < 500; round++ {
+		w := NewStatusWaiter[int](0)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_, _ = w.Wait(ctx, func(s int) bool { return s >= 1 })
+		}()
+		go func() {
+			defer wg.Done()
+			w.NewStatus(1) // races the cancel below
+		}()
+		cancel()
+		wg.Wait()
+	}
+}
+
 func Test_statusWaiter2(t *testing.T) {
 	w := NewStatusWaiter[int](0)
 

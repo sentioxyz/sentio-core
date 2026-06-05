@@ -134,8 +134,7 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 		dayCache:          cfg.DayCache,
 		programStartCache: cfg.ProgramStartCache,
 	}
-	s.init()
-	s.notifier = cfg.Notifier
+	s.init(cfg.Notifier)
 	return s, nil
 }
 

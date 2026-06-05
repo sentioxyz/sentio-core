@@ -34,11 +34,12 @@ type statistic struct {
 	notifier Notifier
 }
 
-func (m *statistic) init() {
+func (m *statistic) init(notifier Notifier) {
 	m.queryUsed = make(map[string]timehist.Histogram)
 	m.queryGot = make(map[string]histogram.Histogram)
 	m.queryBytes = make(map[string]histogram.Histogram)
 	m.queryTotalBytes = make(map[string]int64)
+	m.notifier = notifier
 }
 
 func (m *statistic) getSource(ctx context.Context) string {

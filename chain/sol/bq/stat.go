@@ -25,15 +25,21 @@ var queryBytesLadder = histogram.Ladder[int64]{
 type statistic struct {
 	mu sync.Mutex
 
-	queryUsed  map[string]timehist.Histogram
-	queryGot   map[string]histogram.Histogram
-	queryBytes map[string]histogram.Histogram
+	queryUsed       map[string]timehist.Histogram
+	queryGot        map[string]histogram.Histogram
+	queryBytes      map[string]histogram.Histogram // distribution of bytes billed per query
+	queryTotalBytes map[string]int64               // running total of bytes billed (cumulative cost)
+
+	// notifier, when set, is invoked once per recorded operation. Optional (nil = not reported).
+	notifier Notifier
 }
 
-func (m *statistic) init() {
+func (m *statistic) init(notifier Notifier) {
 	m.queryUsed = make(map[string]timehist.Histogram)
 	m.queryGot = make(map[string]histogram.Histogram)
 	m.queryBytes = make(map[string]histogram.Histogram)
+	m.queryTotalBytes = make(map[string]int64)
+	m.notifier = notifier
 }
 
 func (m *statistic) getSource(ctx context.Context) string {
@@ -43,24 +49,35 @@ func (m *statistic) getSource(ctx context.Context) string {
 	return ""
 }
 
-// record adds one observation for method: latency, returned element count, and total bytes billed
-// across all BigQuery jobs the method ran.
+// record adds one observation for method: latency, returned element count, the distribution of bytes
+// billed, and the cumulative total of bytes billed — all keyed by method+source. It also invokes the
+// notifier (when set) so the launcher can emit external metrics with its own attributes.
 func (m *statistic) record(ctx context.Context, method string, used time.Duration, count int, bytesBilled int64) {
-	key := method + "/" + m.getSource(ctx)
+	source := m.getSource(ctx)
+	if m.notifier != nil {
+		m.notifier(ctx, method, source, used, count, bytesBilled)
+	}
+	key := method + "/" + source
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.queryUsed[key] = m.queryUsed[key].Incr(used)
 	m.queryGot[key] = queryGotLadder.Incr(m.queryGot[key], count)
 	m.queryBytes[key] = queryBytesLadder.Incr(m.queryBytes[key], bytesBilled)
+	m.queryTotalBytes[key] += bytesBilled
 }
 
 func (m *statistic) Snapshot() any {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	totalBytes := make(map[string]int64, len(m.queryTotalBytes))
+	for k, v := range m.queryTotalBytes {
+		totalBytes[k] = v
+	}
 	return map[string]any{
 		"used":        utils.MapMapNoError(m.queryUsed, timehist.Histogram.Snapshot),
 		"count":       utils.MapMapNoError(m.queryUsed, timehist.Histogram.Sum),
 		"got":         utils.MapMapNoError(m.queryGot, queryGotLadder.Snapshot),
 		"bytesBilled": utils.MapMapNoError(m.queryBytes, queryBytesLadder.Snapshot),
+		"totalBytes":  totalBytes,
 	}
 }

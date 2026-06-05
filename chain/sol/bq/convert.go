@@ -22,6 +22,13 @@ import (
 // ---------------------------------------------------------------------------
 // BigQuery row structs (one per table; numeric columns are CAST in SQL so they
 // scan into plain Go types instead of *big.Rat).
+//
+// Per the dataset schema, EVERY column in Blocks/Transactions/Instructions is NULLABLE (there are no
+// REQUIRED columns), and the BigQuery client errors when scanning a NULL into a non-nullable Go
+// field. Policy: read every column that can carry a real value as a nullable type and default it in
+// conversion (0 / "" / false / nil). Logical-identity columns (slot, block/tx hashes, signature,
+// pubkey, program_id, index) are kept as plain types — they are never NULL in practice and have no
+// meaningful default, so a NULL there indicates corrupt data and is allowed to surface as an error.
 // ---------------------------------------------------------------------------
 
 // blockRow is a row of the Blocks table. There is no parent-slot column; the BigQuery store does
@@ -35,9 +42,9 @@ type blockRow struct {
 }
 
 type accountRow struct {
-	Pubkey   string `bigquery:"pubkey"`
-	Signer   bool   `bigquery:"signer"`
-	Writable bool   `bigquery:"writable"`
+	Pubkey   string            `bigquery:"pubkey"`
+	Signer   bigquery.NullBool `bigquery:"signer"`   // NULL → false
+	Writable bigquery.NullBool `bigquery:"writable"` // NULL → false
 }
 
 type balanceChangeRow struct {
@@ -65,8 +72,8 @@ type txRow struct {
 	RecentBlockHash   string              `bigquery:"recent_block_hash"`
 	Signature         string              `bigquery:"signature"`
 	Index             int64               `bigquery:"index"`
-	Fee               bigquery.NullInt64  `bigquery:"fee"` // CAST(fee AS INT64) in SQL; NULL → 0
-	Status            string              `bigquery:"status"`
+	Fee               bigquery.NullInt64  `bigquery:"fee"`    // CAST(fee AS INT64) in SQL; NULL → 0
+	Status            bigquery.NullString `bigquery:"status"` // NULL → treated as success (empty)
 	Err               bigquery.NullString `bigquery:"err"`
 	ComputeUnits      bigquery.NullInt64  `bigquery:"compute_units_consumed"`
 	Accounts          []accountRow        `bigquery:"accounts"`
@@ -173,7 +180,7 @@ func toWrappedTransaction(tx txRow, instrs []instructionRow) (sol.WrappedTransac
 		if err != nil {
 			return sol.WrappedTransaction{}, errors.Wrapf(err, "parse account %s of %s", a.Pubkey, tx.Signature)
 		}
-		accountKeys[i] = rpc.ParsedMessageAccount{PublicKey: pk, Signer: a.Signer, Writable: a.Writable}
+		accountKeys[i] = rpc.ParsedMessageAccount{PublicKey: pk, Signer: a.Signer.Bool, Writable: a.Writable.Bool}
 	}
 
 	top, inner := splitInstructions(instrs)
@@ -195,7 +202,7 @@ func toWrappedTransaction(tx txRow, instrs []instructionRow) (sol.WrappedTransac
 		return sol.WrappedTransaction{}, errors.Wrapf(err, "post token balances of %s", tx.Signature)
 	}
 	pre, post := toBalances(tx.Accounts, tx.BalanceChanges)
-	errVal, status := toErrAndStatus(tx.Status, tx.Err)
+	errVal, status := toErrAndStatus(tx.Status.StringVal, tx.Err) // StringVal is "" when NULL
 
 	var computeUnits *uint64
 	if tx.ComputeUnits.Valid {

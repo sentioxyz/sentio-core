@@ -175,6 +175,25 @@ func TestToTokenBalancesNullable(t *testing.T) {
 	assert.Equal(t, "1", out[1].UiTokenAmount.UiAmountString)
 }
 
+// NULL value columns on the transaction (status, fee, signer/writable) default cleanly instead of
+// failing the scan/convert. Identity columns (signature, pubkey) stay required.
+func TestToWrappedTransactionNullValueColumns(t *testing.T) {
+	tx := txRow{
+		Signature: "3WeJDhD1wXfY1qmHfh7yJotHV2dH7XnxXb7oY4xmK2yu3PNQJzm4oH6SHYiNTHQ48CJx3xhmaeEo45Jq8WsGyywv",
+		Accounts:  []accountRow{{Pubkey: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"}}, // signer/writable NULL
+		// Status and Fee left NULL.
+	}
+	wt, err := toWrappedTransaction(tx, nil)
+	require.NoError(t, err)
+	require.NotNil(t, wt.Meta)
+	assert.Equal(t, uint64(0), wt.Meta.Fee)  // NULL fee → 0
+	assert.Nil(t, wt.Meta.Err)               // NULL status → success
+	assert.Contains(t, wt.Meta.Status, "Ok") // {"Ok": null}
+	require.Len(t, wt.Transaction.Message.AccountKeys, 1)
+	assert.False(t, wt.Transaction.Message.AccountKeys[0].Signer)   // NULL → false
+	assert.False(t, wt.Transaction.Message.AccountKeys[0].Writable) // NULL → false
+}
+
 // A NULL block height maps to a nil BlockHeight (Solana's blockHeight is legitimately nullable),
 // not a scan error.
 func TestToBlockNullHeight(t *testing.T) {

@@ -71,3 +71,39 @@ func Test_queue(t *testing.T) {
 	q.Reset()
 	assert.Equal(t, 0, q.Len())
 }
+
+func Test_queue_PopBack(t *testing.T) {
+	q := NewQueue[int]()
+
+	v, has := q.PopBack()
+	assert.False(t, has)
+	assert.Equal(t, 0, v)
+
+	q.PushBack(1)
+	q.PushBack(2)
+	q.PushBack(3)
+	assert.Equal(t, 3, q.Len())
+
+	v, has = q.PopBack()
+	assert.True(t, has)
+	assert.Equal(t, 3, v)
+	assert.Equal(t, 2, q.Len())
+
+	// front is unaffected
+	v, has = q.Front()
+	assert.True(t, has)
+	assert.Equal(t, 1, v)
+
+	v, has = q.PopBack()
+	assert.True(t, has)
+	assert.Equal(t, 2, v)
+
+	v, has = q.PopBack()
+	assert.True(t, has)
+	assert.Equal(t, 1, v)
+	assert.Equal(t, 0, q.Len())
+
+	v, has = q.PopBack()
+	assert.False(t, has)
+	assert.Equal(t, 0, v)
+}

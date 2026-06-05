@@ -22,6 +22,13 @@ import (
 // ---------------------------------------------------------------------------
 // BigQuery row structs (one per table; numeric columns are CAST in SQL so they
 // scan into plain Go types instead of *big.Rat).
+//
+// Per the dataset schema, EVERY column in Blocks/Transactions/Instructions is NULLABLE (there are no
+// REQUIRED columns), and the BigQuery client errors when scanning a NULL into a non-nullable Go
+// field. Policy: read every column that can carry a real value as a nullable type and default it in
+// conversion (0 / "" / false / nil). Logical-identity columns (slot, block/tx hashes, signature,
+// pubkey, program_id, index) are kept as plain types — they are never NULL in practice and have no
+// meaningful default, so a NULL there indicates corrupt data and is allowed to surface as an error.
 // ---------------------------------------------------------------------------
 
 // blockRow is a row of the Blocks table. There is no parent-slot column; the BigQuery store does
@@ -30,28 +37,31 @@ type blockRow struct {
 	Slot              int64                  `bigquery:"slot"`
 	BlockHash         string                 `bigquery:"block_hash"`
 	BlockTimestamp    bigquery.NullTimestamp `bigquery:"block_timestamp"`
-	Height            int64                  `bigquery:"height"`
+	Height            bigquery.NullInt64     `bigquery:"height"` // Solana blockHeight is legitimately nullable
 	PreviousBlockHash string                 `bigquery:"previous_block_hash"`
 }
 
 type accountRow struct {
-	Pubkey   string `bigquery:"pubkey"`
-	Signer   bool   `bigquery:"signer"`
-	Writable bool   `bigquery:"writable"`
+	Pubkey   string            `bigquery:"pubkey"`
+	Signer   bigquery.NullBool `bigquery:"signer"`   // NULL → false
+	Writable bigquery.NullBool `bigquery:"writable"` // NULL → false
 }
 
 type balanceChangeRow struct {
-	Account string `bigquery:"account"`
-	Before  int64  `bigquery:"before"`
-	After   int64  `bigquery:"after"`
+	Account string             `bigquery:"account"`
+	Before  bigquery.NullInt64 `bigquery:"before"`
+	After   bigquery.NullInt64 `bigquery:"after"`
 }
 
+// tokenBalanceRow. Every scalar is read as a nullable type: the public dataset leaves some of these
+// NULL (e.g. account_index), and the BigQuery client errors when scanning NULL into a non-nullable
+// Go field. NULLs are defaulted in toTokenBalances (0 / "0"); a row with no mint is dropped.
 type tokenBalanceRow struct {
-	AccountIndex int64               `bigquery:"account_index"`
-	Mint         string              `bigquery:"mint"`
+	AccountIndex bigquery.NullInt64  `bigquery:"account_index"`
+	Mint         bigquery.NullString `bigquery:"mint"`
 	Owner        bigquery.NullString `bigquery:"owner"`
-	Amount       string              `bigquery:"amount"` // CAST(amount AS STRING) in SQL
-	Decimals     int64               `bigquery:"decimals"`
+	Amount       bigquery.NullString `bigquery:"amount"` // CAST(amount AS STRING) in SQL; NULL → "0"
+	Decimals     bigquery.NullInt64  `bigquery:"decimals"`
 }
 
 // txRow is a row of the Transactions table. fee/compute_units_consumed are CAST to INT64 and token
@@ -62,8 +72,8 @@ type txRow struct {
 	RecentBlockHash   string              `bigquery:"recent_block_hash"`
 	Signature         string              `bigquery:"signature"`
 	Index             int64               `bigquery:"index"`
-	Fee               int64               `bigquery:"fee"`
-	Status            string              `bigquery:"status"`
+	Fee               bigquery.NullInt64  `bigquery:"fee"`    // CAST(fee AS INT64) in SQL; NULL → 0
+	Status            bigquery.NullString `bigquery:"status"` // NULL → treated as success (empty)
 	Err               bigquery.NullString `bigquery:"err"`
 	ComputeUnits      bigquery.NullInt64  `bigquery:"compute_units_consumed"`
 	Accounts          []accountRow        `bigquery:"accounts"`
@@ -140,12 +150,14 @@ func (b blockRow) toBlock(signatures []solana.Signature) (sol.Block, error) {
 	if err != nil {
 		return sol.Block{}, errors.Wrapf(err, "parse previous blockhash of slot %d", b.Slot)
 	}
-	height := uint64(b.Height)
 	result := &rpc.GetBlockResult{
 		Blockhash:         blockhash,
 		PreviousBlockhash: previous,
-		BlockHeight:       &height,
 		Signatures:        signatures,
+	}
+	if b.Height.Valid {
+		height := uint64(b.Height.Int64)
+		result.BlockHeight = &height
 	}
 	if b.BlockTimestamp.Valid {
 		bt := solana.UnixTimeSeconds(b.BlockTimestamp.Timestamp.Unix())
@@ -168,7 +180,7 @@ func toWrappedTransaction(tx txRow, instrs []instructionRow) (sol.WrappedTransac
 		if err != nil {
 			return sol.WrappedTransaction{}, errors.Wrapf(err, "parse account %s of %s", a.Pubkey, tx.Signature)
 		}
-		accountKeys[i] = rpc.ParsedMessageAccount{PublicKey: pk, Signer: a.Signer, Writable: a.Writable}
+		accountKeys[i] = rpc.ParsedMessageAccount{PublicKey: pk, Signer: a.Signer.Bool, Writable: a.Writable.Bool}
 	}
 
 	top, inner := splitInstructions(instrs)
@@ -190,7 +202,7 @@ func toWrappedTransaction(tx txRow, instrs []instructionRow) (sol.WrappedTransac
 		return sol.WrappedTransaction{}, errors.Wrapf(err, "post token balances of %s", tx.Signature)
 	}
 	pre, post := toBalances(tx.Accounts, tx.BalanceChanges)
-	errVal, status := toErrAndStatus(tx.Status, tx.Err)
+	errVal, status := toErrAndStatus(tx.Status.StringVal, tx.Err) // StringVal is "" when NULL
 
 	var computeUnits *uint64
 	if tx.ComputeUnits.Valid {
@@ -208,7 +220,7 @@ func toWrappedTransaction(tx txRow, instrs []instructionRow) (sol.WrappedTransac
 	}
 	meta := &rpc.ParsedTransactionMeta{
 		Err:                  errVal,
-		Fee:                  uint64(tx.Fee),
+		Fee:                  uint64(tx.Fee.Int64), // 0 when NULL
 		PreBalances:          pre,
 		PostBalances:         post,
 		InnerInstructions:    innerInstructions,
@@ -348,8 +360,8 @@ func toBalances(accounts []accountRow, changes []balanceChangeRow) (pre, post []
 	post = make([]uint64, len(accounts))
 	for i, a := range accounts {
 		if c, ok := byAccount[a.Pubkey]; ok {
-			pre[i] = uint64(c.Before)
-			post[i] = uint64(c.After)
+			pre[i] = uint64(c.Before.Int64) // 0 when NULL
+			post[i] = uint64(c.After.Int64) // 0 when NULL
 		}
 	}
 	return pre, post
@@ -361,14 +373,22 @@ func toTokenBalances(rows []tokenBalanceRow) ([]rpc.TokenBalance, error) {
 	}
 	out := make([]rpc.TokenBalance, 0, len(rows))
 	for _, t := range rows {
-		mint, err := solana.PublicKeyFromBase58(t.Mint)
+		// A token balance with no mint is unusable; skip it rather than fail the whole query.
+		if !t.Mint.Valid || t.Mint.StringVal == "" {
+			continue
+		}
+		mint, err := solana.PublicKeyFromBase58(t.Mint.StringVal)
 		if err != nil {
-			return nil, errors.Wrapf(err, "parse token mint %s", t.Mint)
+			return nil, errors.Wrapf(err, "parse token mint %s", t.Mint.StringVal)
+		}
+		amount := "0"
+		if t.Amount.Valid {
+			amount = t.Amount.StringVal
 		}
 		tb := rpc.TokenBalance{
-			AccountIndex:  uint16(t.AccountIndex),
+			AccountIndex:  uint16(t.AccountIndex.Int64), // 0 when NULL
 			Mint:          mint,
-			UiTokenAmount: uiTokenAmount(t.Amount, uint8(t.Decimals)),
+			UiTokenAmount: uiTokenAmount(amount, uint8(t.Decimals.Int64)), // decimals 0 when NULL
 			// ProgramId left nil (§5.5): BigQuery does not record the token program.
 		}
 		if t.Owner.Valid && t.Owner.StringVal != "" {

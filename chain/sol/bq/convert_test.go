@@ -11,6 +11,7 @@ import (
 )
 
 func ns(s string) bigquery.NullString { return bigquery.NullString{StringVal: s, Valid: true} }
+func ni(n int64) bigquery.NullInt64   { return bigquery.NullInt64{Int64: n, Valid: true} }
 
 func TestBuildInstruction_Parsed(t *testing.T) {
 	// From instructions.json: a system "transfer" top-level instruction.
@@ -139,10 +140,73 @@ func TestErrAndStatus(t *testing.T) {
 func TestToBalancesProjection(t *testing.T) {
 	accounts := []accountRow{{Pubkey: "A"}, {Pubkey: "B"}, {Pubkey: "C"}}
 	// Out-of-order changes; C has none.
-	changes := []balanceChangeRow{{Account: "B", Before: 20, After: 25}, {Account: "A", Before: 10, After: 15}}
+	changes := []balanceChangeRow{{Account: "B", Before: ni(20), After: ni(25)}, {Account: "A", Before: ni(10), After: ni(15)}}
 	pre, post := toBalances(accounts, changes)
 	assert.Equal(t, []uint64{10, 20, 0}, pre)
 	assert.Equal(t, []uint64{15, 25, 0}, post)
+
+	// NULL before/after (the public dataset leaves some scalars NULL) default to 0, not a scan error.
+	preN, postN := toBalances([]accountRow{{Pubkey: "A"}}, []balanceChangeRow{{Account: "A"}})
+	assert.Equal(t, []uint64{0}, preN)
+	assert.Equal(t, []uint64{0}, postN)
+}
+
+// NULL scalars from the public dataset must default cleanly instead of failing the scan/convert.
+func TestToTokenBalancesNullable(t *testing.T) {
+	mint := "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+	rows := []tokenBalanceRow{
+		// account_index / decimals / amount all NULL.
+		{Mint: ns(mint)},
+		// fully populated.
+		{AccountIndex: ni(3), Mint: ns(mint), Amount: ns("1000000"), Decimals: ni(6)},
+		// no mint => dropped.
+		{AccountIndex: ni(1)},
+	}
+	out, err := toTokenBalances(rows)
+	require.NoError(t, err)
+	require.Len(t, out, 2) // the mint-less row is skipped
+
+	assert.Equal(t, uint16(0), out[0].AccountIndex)
+	assert.Equal(t, "0", out[0].UiTokenAmount.Amount)
+	assert.Equal(t, uint8(0), out[0].UiTokenAmount.Decimals)
+
+	assert.Equal(t, uint16(3), out[1].AccountIndex)
+	assert.Equal(t, "1000000", out[1].UiTokenAmount.Amount)
+	assert.Equal(t, "1", out[1].UiTokenAmount.UiAmountString)
+}
+
+// NULL value columns on the transaction (status, fee, signer/writable) default cleanly instead of
+// failing the scan/convert. Identity columns (signature, pubkey) stay required.
+func TestToWrappedTransactionNullValueColumns(t *testing.T) {
+	tx := txRow{
+		Signature: "3WeJDhD1wXfY1qmHfh7yJotHV2dH7XnxXb7oY4xmK2yu3PNQJzm4oH6SHYiNTHQ48CJx3xhmaeEo45Jq8WsGyywv",
+		Accounts:  []accountRow{{Pubkey: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"}}, // signer/writable NULL
+		// Status and Fee left NULL.
+	}
+	wt, err := toWrappedTransaction(tx, nil)
+	require.NoError(t, err)
+	require.NotNil(t, wt.Meta)
+	assert.Equal(t, uint64(0), wt.Meta.Fee)  // NULL fee → 0
+	assert.Nil(t, wt.Meta.Err)               // NULL status → success
+	assert.Contains(t, wt.Meta.Status, "Ok") // {"Ok": null}
+	require.Len(t, wt.Transaction.Message.AccountKeys, 1)
+	assert.False(t, wt.Transaction.Message.AccountKeys[0].Signer)   // NULL → false
+	assert.False(t, wt.Transaction.Message.AccountKeys[0].Writable) // NULL → false
+}
+
+// A NULL block height maps to a nil BlockHeight (Solana's blockHeight is legitimately nullable),
+// not a scan error.
+func TestToBlockNullHeight(t *testing.T) {
+	row := blockRow{
+		Slot:              100,
+		BlockHash:         "8a2rWas3z1EQN1yWnkTZxMsGytWfSUatXKcV84vdcTj7",
+		PreviousBlockHash: "5t3qB6gVEf9ejNneXnNGarTBQYrRD7f1dVyRESysEBiA",
+		// Height left NULL
+	}
+	blk, err := row.toBlock(nil)
+	require.NoError(t, err)
+	require.NotNil(t, blk.GetBlockResult)
+	assert.Nil(t, blk.BlockHeight)
 }
 
 // Sanity: meta status carries a JSON-marshalable Ok shape for success.

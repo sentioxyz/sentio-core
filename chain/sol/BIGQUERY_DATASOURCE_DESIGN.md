@@ -77,7 +77,7 @@ Based on sample transaction `3WeJDhD1…WsGyywv` (slot `422822279`), the three t
 
 ### 3.1 `Blocks` → `sol.Block` / `rpc.GetBlockResult`
 
-`sol_getBlock` fills only the header (no signatures); `sol_getBlocksByInterval` additionally fills `Signatures` (the first signature of each transaction, taken from `Transactions` ordered by `index`).
+`sol_getBlock` fills only the header (no signatures). In the ClickHouse store `sol_getBlocksByInterval` additionally fills `Signatures`, but the **BigQuery store deliberately does not** — attaching them is prohibitively expensive on BigQuery (the `Transactions` table is clustered by `signature`, not `block_slot`, so a by-slot fetch scans whole DAY partitions). See the §5 cost note. Archival interval/sampling callers only need the header.
 
 | BQ `Blocks` column | Target field (JSON key) | Notes |
 |---|---|---|
@@ -175,7 +175,7 @@ Single instruction (`rpc.ParsedInstruction`) mapping:
 The `Storage` interface has 5 methods (`supernode/storage.go`); the BigQuery implementation covers each:
 
 1. **`QueryBlock(slot)`** → `SELECT … FROM Blocks WHERE block_timestamp BETWEEN @lo AND @hi AND slot=@slot LIMIT 1` (the `[lo,hi]` day window comes from the day-slot index, so the point lookup is pruned to one partition); empty ⇒ skipped (§5.12); `parentSlot` not populated (§5.9).
-2. **`QueryBlocksByInterval(from,to,window,limit)`** → first block of each window, all bounded by the index's `[lo,hi]` window. BQ has no skipped rows; window grouping (block window: `DIV(slot,W)`; time window: `DIV(UNIX_SECONDS(block_timestamp), W)`) takes the min slot per group. Signatures attached via a second `Transactions` query. **More complex; watch cost.**
+2. **`QueryBlocksByInterval(from,to,window,limit)`** → first block of each window (headers only), bounded by the index's `[lo,hi]` window. BQ has no skipped rows; window grouping (block window: `DIV(slot,W)`; time window: `DIV(UNIX_SECONDS(block_timestamp), W)`) takes the min slot per group, then a `Blocks` self-join fetches those headers. **Returns no transaction signatures** — see the cost note below.
 3. **`QueryPreviousUnskipped(before)`** → `SELECT slot, block_timestamp FROM Blocks WHERE block_timestamp BETWEEN @lo AND @hi AND slot<@before ORDER BY slot DESC LIMIT 1` (the `[lo,hi]` window is the day holding the nearest block < `before`, from the index).
 4. **`FindTransactions(from,to,programIDs,limit)`** → one `Instructions` scan filtered by `program_id IN @ids` (cluster key) returning the **full instruction rows** of the first `limit` matching transactions (capped via `DENSE_RANK() OVER (ORDER BY block_slot, tx_signature)`, computed after the scan — no second instruction query). The matched rows yield the signatures, slots, and an exact `block_timestamp` window, which then scope the `Transactions` fetch (by `signature`) and the `Blocks` header fetch. **Returns only the queried programs' instructions, not the full instruction set — see the cost note below.**
 5. **`EarliestProgramSlot(address)`** → `SELECT MIN(block_slot) FROM Instructions WHERE program_id=@addr AND <whole-history block_timestamp predicate>`. ⚠️ Because of `requirePartitionFilter=True`, an unbounded MIN is impossible; supply a dataset-wide lower bound (e.g. `block_timestamp >= '2020-03-01'`) and rely on `program_id` clustering to prune to that program. Popular programs can still be expensive, but this call is rare (once at processor start) and is bounded by `maxBytesBilled`.
@@ -211,6 +211,12 @@ Measured against a busy sample day, fetching a transaction's **full** instructio
 
 **Decision**: `FindTransactions` fetches instructions filtered by **`program_id IN @programIDs`** (the cluster key), so the scan is pruned to just those programs. The returned transactions therefore carry **only the queried programs' instructions** (top-level and inner), not the full set. This is acceptable because an instruction handler only inspects instructions of the program it targets, and all other transaction data (accounts, balances, token balances, logs, status/err, fee, compute units) is complete. See the `bq.Store.FindTransactions` doc comment, and the matching note where the driver builds the raw transaction for instruction handlers. Consumers needing the full instruction set of an arbitrary transaction must not use this store.
 
+### ⚠️ Cost-critical point (decided): `QueryBlocksByInterval` returns headers without transaction signatures
+
+Attaching each returned block's transaction signatures means querying `Transactions` filtered by `block_slot IN @slots`. But `Transactions` is clustered by `signature`, **not** by `block_slot`, so that filter cannot prune and reads the whole DAY partition(s) of the `[lo,hi]` window — **~15 GB per day regardless of how few blocks are returned**. In production this made `QueryBlocksByInterval` the single most expensive query in the BigQuery tier (e.g. ~33 GB/call returning <100 blocks, ~10× the total of `FindTransactions`).
+
+**Decision**: `QueryBlocksByInterval` returns **block headers only** (`GetBlockResult.Signatures` is nil); the `Transactions` query is dropped entirely. Interval/sampling callers on the archival tier only need the headers (slot, hash, time, height). Consumers that need a block's transactions use `FindTransactions` / `QueryBlock`. See the `bq.Store.QueryBlocksByInterval` and `toBlock` doc comments.
+
 ---
 
 ## 6. Go integration (as implemented)
@@ -237,7 +243,7 @@ Priority: cache (newest) > ClickHouse (within `rangeStore`) > BigQuery (archival
 - **Method wiring**:
   - **P0 (core backfill path)**: `FindTransactions` (backfill historical program activity — the main use), `QueryBlock` (block header for assembly; also serves as the §5 "first hop" slot→time resolution).
   - **P1 (with a semantic twist)**: `EarliestProgramSlot` / `GetContractStartBlock`. **The priority direction is reversed here**: this method asks for a program's *earliest* slot, and BigQuery covers exactly the older history below ClickHouse's `minSlot`, so **BigQuery may have an earlier answer**. Semantics: consult ClickHouse first; if it finds the program at exactly its lower bound (so the program might extend below the range), check BigQuery for an earlier slot; if ClickHouse doesn't find it at all, BigQuery (then the cache) is consulted. This is a dedicated branch, not the §6.2 composite loader, and is cost-aware (only queries BigQuery when the program may actually extend below the ClickHouse range).
-  - **P2**: `QueryPreviousUnskipped` (chain time as of a slot), `QueryBlocksByInterval` (windowed block listing; window grouping over large partitions is the **most expensive**, bounded by `maxBytesBilled` and the slot-span cap).
+  - **P2**: `QueryPreviousUnskipped` (chain time as of a slot), `QueryBlocksByInterval` (windowed block listing; headers only — no signatures — so it scans only the `Blocks` table, bounded by `maxBytesBilled` and the slot-span cap).
 
 ### 6.4 Configuration (`bq.Config`)
 `NewStore(ctx, bq.Config)` is constructed by the caller and passed to `NewSuperNode`; passing `nil` disables the tier. `bq.Config` fields:

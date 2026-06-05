@@ -406,7 +406,7 @@ func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error)
 		// Skipped/absent slot.
 		return &sol.Block{Slot: slot}, nil
 	}
-	block, err := rows[0].toBlock(nil)
+	block, err := rows[0].toBlock()
 	if err != nil {
 		return nil, err
 	}
@@ -523,8 +523,17 @@ func (s *Store) EarliestProgramSlot(ctx context.Context, address solana.PublicKe
 	return 0, false, nil
 }
 
-// QueryBlocksByInterval returns the first existing block of each window within [from, to] (with
-// transaction signatures), at most limit blocks, in ascending slot order.
+// QueryBlocksByInterval returns the first existing block of each window within [from, to], at most
+// limit blocks, in ascending slot order.
+//
+// IMPORTANT — no transaction signatures (BigQuery cost optimization): unlike the ClickHouse store,
+// the returned blocks do NOT carry their transaction signatures (GetBlockResult.Signatures is nil).
+// Attaching signatures means scanning the Transactions table filtered by block_slot, which is NOT
+// the cluster key (Transactions is clustered by signature), so it cannot be pruned and reads the
+// whole DAY partition(s) of the window — ~15 GB per day regardless of how few blocks are returned,
+// which made this the single most expensive query in the BigQuery tier. Interval/sampling callers on
+// the archival tier only need the block headers (slot, hash, time, height), so the signatures are
+// dropped. Callers that need a block's transactions must use FindTransactions / QueryBlock instead.
 func (s *Store) QueryBlocksByInterval(
 	ctx context.Context,
 	from uint64,
@@ -579,58 +588,17 @@ func (s *Store) QueryBlocksByInterval(
 		return nil, nil
 	}
 
-	slots := make([]int64, len(blockRows))
-	for i, b := range blockRows {
-		slots[i] = b.Slot
-	}
-	sigsBySlot, err := s.signaturesBySlot(ctx, slots, lo, hi, &bytes)
-	if err != nil {
-		return nil, err
-	}
+	// Headers only — no transaction signatures (see the doc comment: attaching them would scan the
+	// Transactions table by the non-cluster-key block_slot, ~15 GB/day regardless of result size).
 	out := make([]sol.Block, 0, len(blockRows))
 	for _, b := range blockRows {
-		block, err := b.toBlock(sigsBySlot[b.Slot])
+		block, err := b.toBlock()
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, block)
 	}
 	count = len(out)
-	return out, nil
-}
-
-// signaturesBySlot returns the transaction signatures of each slot in transaction-index order.
-func (s *Store) signaturesBySlot(
-	ctx context.Context,
-	slots []int64,
-	lo, hi time.Time,
-	bytes *int64,
-) (map[int64][]solana.Signature, error) {
-	q := s.query(
-		fmt.Sprintf(`SELECT block_slot, signature, index FROM %s
-			WHERE block_timestamp BETWEEN @lo AND @hi AND block_slot IN UNNEST(@slots)
-			ORDER BY block_slot, index`, s.txsTable),
-		bigquery.QueryParameter{Name: "lo", Value: lo},
-		bigquery.QueryParameter{Name: "hi", Value: hi},
-		bigquery.QueryParameter{Name: "slots", Value: slots},
-	)
-	type row struct {
-		BlockSlot int64  `bigquery:"block_slot"`
-		Signature string `bigquery:"signature"`
-		Index     int64  `bigquery:"index"`
-	}
-	rows, err := readAll[row](ctx, q, bytes)
-	if err != nil {
-		return nil, errors.Wrap(err, "query block signatures")
-	}
-	out := make(map[int64][]solana.Signature)
-	for _, r := range rows {
-		sig, err := solana.SignatureFromBase58(r.Signature)
-		if err != nil {
-			return nil, errors.Wrapf(err, "parse signature %s", r.Signature)
-		}
-		out[r.BlockSlot] = append(out[r.BlockSlot], sig)
-	}
 	return out, nil
 }
 

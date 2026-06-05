@@ -203,7 +203,7 @@ func TestToBlockNullHeight(t *testing.T) {
 		PreviousBlockHash: "5t3qB6gVEf9ejNneXnNGarTBQYrRD7f1dVyRESysEBiA",
 		// Height left NULL
 	}
-	blk, err := row.toBlock(nil)
+	blk, err := row.toBlock()
 	require.NoError(t, err)
 	require.NotNil(t, blk.GetBlockResult)
 	assert.Nil(t, blk.BlockHeight)

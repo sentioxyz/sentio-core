@@ -633,15 +633,29 @@ func (s *Service) CreateOrUpdateProcessor(
 }
 
 func (s *Service) PauseProcessorInternal(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason)
+	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, "")
 }
 
 func (s *Service) PauseProcessor(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason)
+	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, "")
 }
 
 func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, false, "")
+	return s.updateProcessorPause(ctx, req.ProcessorId, false, "", "")
+}
+
+// ResumeProcessorInternal resumes a processor that was paused by the system
+// (e.g. because the project was over quota), without any request identity.
+//
+// preStateId acts as a fence to guarantee consistency: the caller passes the id
+// of the pause state history entry it observed, and the resume only proceeds if
+// that entry is still the latest pause/resume action on the processor. If the
+// user resumed and/or re-paused in between (or the system re-paused due to a new
+// over-quota event), the fence no longer matches and the call is rejected with
+// FailedPrecondition without doing anything. Intervening "active"/"obsolete"
+// actions are ignored on purpose, as they do not represent a pause decision.
+func (s *Service) ResumeProcessorInternal(ctx context.Context, req *protos.ResumeProcessorInternalRequest) (*emptypb.Empty, error) {
+	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, req.PrePauseStateId)
 }
 
 func (s *Service) updateProcessorPause(
@@ -649,38 +663,66 @@ func (s *Service) updateProcessorPause(
 	processorID string,
 	pause bool,
 	reason string,
+	prePauseStateID string,
 ) (*emptypb.Empty, error) {
-	processor, err := s.processorRepo.PreloadProcessor(ctx, processorID)
+	_, logger := log.FromContext(ctx, "processor_id", processorID)
+
+	var processor *models.Processor
+	var noop bool
+	// Validate (including the fence check) and flip the pause flag atomically so a
+	// concurrent user pause/resume cannot slip in between the check and the save.
+	err := s.processorRepo.WithTransaction(ctx, func(ctx context.Context) error {
+		var err error
+		// Read fresh inside the transaction (not PreloadProcessor, which may hand
+		// back a processor loaded earlier in the request): the Pause check and the
+		// save below must operate on the current persisted state.
+		processor, err = s.processorRepo.GetProcessor(ctx, processorID, false)
+		if err != nil {
+			return err
+		}
+		if !processor.IsRunningVersion() {
+			return status.Error(codes.InvalidArgument, "processor version state is not active or pending")
+		}
+		if len(processor.ReferenceProjectID) > 0 {
+			return status.Error(codes.InvalidArgument, "reference processor can not be paused")
+		}
+		// Already in the desired state: nothing to do. Check this before the fence
+		// so an already-resumed processor is a no-op success rather than a wasted
+		// history lookup / spurious FailedPrecondition.
+		if processor.Pause == pause {
+			noop = true
+			return nil
+		}
+		if prePauseStateID != "" {
+			if err := s.checkPauseFence(ctx, processorID, prePauseStateID); err != nil {
+				return err
+			}
+		}
+		if pause {
+			processor.PauseAt = time.Now()
+			processor.PauseReason = reason
+			logger.Infof("Pause now")
+		} else {
+			logger.Infof("Resume now")
+		}
+		processor.Pause = pause
+		if err := s.processorRepo.SaveProcessor(ctx, processor); err != nil {
+			return err
+		}
+		if pause {
+			s.saveStateHistory(ctx, processorID, models.ProcessorStateActionPause, reason)
+		} else {
+			s.saveStateHistory(ctx, processorID, models.ProcessorStateActionResume, reason)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	if !processor.IsRunningVersion() {
-		return nil, status.Error(codes.InvalidArgument, "processor version state is not active or pending")
-	}
-	if len(processor.ReferenceProjectID) > 0 {
-		return nil, status.Error(codes.InvalidArgument, "reference processor can not be paused")
-	}
-	if processor.Pause == pause {
+	if noop {
 		return &emptypb.Empty{}, nil
 	}
-	_, logger := log.FromContext(ctx, "processor_id", processorID)
-	if pause {
-		processor.PauseAt = time.Now()
-		processor.PauseReason = reason
-		logger.Infof("Pause now")
-	} else {
-		logger.Infof("Resume now")
-	}
-	processor.Pause = pause
-	if err := s.processorRepo.SaveProcessor(ctx, processor); err != nil {
-		return nil, err
-	}
-	if pause {
-		s.saveStateHistory(ctx, processorID, models.ProcessorStateActionPause, reason)
-	} else {
-		s.saveStateHistory(ctx, processorID, models.ProcessorStateActionResume, "")
-	}
+
 	if err := s.driverJobManager.StartOrUpdateDriverJob(ctx, processor); err != nil {
 		log.Errorfe(err, "failed to update driverJob for processor %q", processorID)
 		return nil, err
@@ -695,6 +737,37 @@ func (s *Service) updateProcessorPause(
 		return nil, hookErr
 	}
 	return &emptypb.Empty{}, nil
+}
+
+// checkPauseFence verifies that the pause entry identified by prePauseStateID is
+// still the latest pause/resume action on the processor, i.e. nothing pause-
+// related has happened since the caller observed it. "active"/"obsolete" entries
+// are skipped because they do not change the pause state.
+//
+// The history entry is immutable, so matching its id is the whole consistency
+// signal: whether that pause was made by the system or a user is the caller's
+// concern, not the fence's.
+func (s *Service) checkPauseFence(ctx context.Context, processorID, prePauseStateID string) error {
+	histories, err := s.processorRepo.ListProcessorStateHistory(ctx, processorID)
+	if err != nil {
+		return err
+	}
+	var latest *models.ProcessorStateHistory
+	for i := range histories {
+		action := histories[i].Action
+		if action == models.ProcessorStateActionPause || action == models.ProcessorStateActionResume {
+			latest = &histories[i]
+			break
+		}
+	}
+	// latest must be a pause (not a resume) whose id matches; if the latest
+	// pause/resume is a resume or a different pause, the state has changed.
+	if latest == nil ||
+		latest.ID != prePauseStateID ||
+		latest.Action != models.ProcessorStateActionPause {
+		return status.Error(codes.FailedPrecondition, "processor pause state changed since observed")
+	}
+	return nil
 }
 
 func (s *Service) saveStateHistory(ctx context.Context, processorID string, action models.ProcessorStateAction, reason string) {

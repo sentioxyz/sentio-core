@@ -202,6 +202,14 @@ func (h *ProcessorStateHistory) BeforeCreate(tx *gorm.DB) (err error) {
 	return err
 }
 
+// IsSystemOperator reports whether this state change was performed by the system
+// itself rather than by a user. Internal actions (e.g. an over-quota pause) are
+// done without a request identity, so the operator id is empty. Centralized here
+// so the notion of "system operator" can evolve without touching call sites.
+func (h *ProcessorStateHistory) IsSystemOperator() bool {
+	return h.OperatorID == ""
+}
+
 func (h *ProcessorStateHistory) ToPB() *protos.ProcessorStateHistory {
 	return &protos.ProcessorStateHistory{
 		Id:          h.ID,

@@ -30,6 +30,7 @@ const (
 	ProcessorService_DownloadProcessor_FullMethodName            = "/processor_service.ProcessorService/DownloadProcessor"
 	ProcessorService_GetProcessorStatusInternal_FullMethodName   = "/processor_service.ProcessorService/GetProcessorStatusInternal"
 	ProcessorService_PauseProcessorInternal_FullMethodName       = "/processor_service.ProcessorService/PauseProcessorInternal"
+	ProcessorService_ResumeProcessorInternal_FullMethodName      = "/processor_service.ProcessorService/ResumeProcessorInternal"
 	ProcessorService_GetProcessorStatusV2_FullMethodName         = "/processor_service.ProcessorService/GetProcessorStatusV2"
 	ProcessorService_RemoveProcessor_FullMethodName              = "/processor_service.ProcessorService/RemoveProcessor"
 	ProcessorService_GetProcessorUpgradeHistories_FullMethodName = "/processor_service.ProcessorService/GetProcessorUpgradeHistories"
@@ -58,6 +59,7 @@ type ProcessorServiceClient interface {
 	DownloadProcessor(ctx context.Context, in *DownloadProcessorRequest, opts ...grpc.CallOption) (*DownloadProcessorResponse, error)
 	GetProcessorStatusInternal(ctx context.Context, in *GetProcessorStatusRequest, opts ...grpc.CallOption) (*GetProcessorStatusResponse, error)
 	PauseProcessorInternal(ctx context.Context, in *PauseProcessorRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ResumeProcessorInternal(ctx context.Context, in *ResumeProcessorInternalRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetProcessorStatusV2(ctx context.Context, in *GetProcessorStatusRequestV2, opts ...grpc.CallOption) (*GetProcessorStatusResponse, error)
 	RemoveProcessor(ctx context.Context, in *ProcessorIdRequest, opts ...grpc.CallOption) (*RemoveProcessorResponse, error)
 	GetProcessorUpgradeHistories(ctx context.Context, in *GetProcessorUpgradeHistoryRequest, opts ...grpc.CallOption) (*GetProcessorUpgradeHistoryResponse, error)
@@ -165,6 +167,16 @@ func (c *processorServiceClient) PauseProcessorInternal(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, ProcessorService_PauseProcessorInternal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *processorServiceClient) ResumeProcessorInternal(ctx context.Context, in *ResumeProcessorInternalRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ProcessorService_ResumeProcessorInternal_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -314,6 +326,7 @@ type ProcessorServiceServer interface {
 	DownloadProcessor(context.Context, *DownloadProcessorRequest) (*DownloadProcessorResponse, error)
 	GetProcessorStatusInternal(context.Context, *GetProcessorStatusRequest) (*GetProcessorStatusResponse, error)
 	PauseProcessorInternal(context.Context, *PauseProcessorRequest) (*emptypb.Empty, error)
+	ResumeProcessorInternal(context.Context, *ResumeProcessorInternalRequest) (*emptypb.Empty, error)
 	GetProcessorStatusV2(context.Context, *GetProcessorStatusRequestV2) (*GetProcessorStatusResponse, error)
 	RemoveProcessor(context.Context, *ProcessorIdRequest) (*RemoveProcessorResponse, error)
 	GetProcessorUpgradeHistories(context.Context, *GetProcessorUpgradeHistoryRequest) (*GetProcessorUpgradeHistoryResponse, error)
@@ -363,6 +376,9 @@ func (UnimplementedProcessorServiceServer) GetProcessorStatusInternal(context.Co
 }
 func (UnimplementedProcessorServiceServer) PauseProcessorInternal(context.Context, *PauseProcessorRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PauseProcessorInternal not implemented")
+}
+func (UnimplementedProcessorServiceServer) ResumeProcessorInternal(context.Context, *ResumeProcessorInternalRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResumeProcessorInternal not implemented")
 }
 func (UnimplementedProcessorServiceServer) GetProcessorStatusV2(context.Context, *GetProcessorStatusRequestV2) (*GetProcessorStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProcessorStatusV2 not implemented")
@@ -582,6 +598,24 @@ func _ProcessorService_PauseProcessorInternal_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProcessorServiceServer).PauseProcessorInternal(ctx, req.(*PauseProcessorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProcessorService_ResumeProcessorInternal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResumeProcessorInternalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProcessorServiceServer).ResumeProcessorInternal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProcessorService_ResumeProcessorInternal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProcessorServiceServer).ResumeProcessorInternal(ctx, req.(*ResumeProcessorInternalRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -862,6 +896,10 @@ var ProcessorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PauseProcessorInternal",
 			Handler:    _ProcessorService_PauseProcessorInternal_Handler,
+		},
+		{
+			MethodName: "ResumeProcessorInternal",
+			Handler:    _ProcessorService_ResumeProcessorInternal_Handler,
 		},
 		{
 			MethodName: "GetProcessorStatusV2",

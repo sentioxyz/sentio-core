@@ -2988,12 +2988,12 @@ func (x *PauseProcessorRequest) GetReason() string {
 }
 
 type ResumeProcessorInternalRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ProcessorId   string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
-	PreStateId    string                 `protobuf:"bytes,2,opt,name=pre_state_id,json=preStateId,proto3" json:"pre_state_id,omitempty"`
-	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ProcessorId     string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
+	PrePauseStateId string                 `protobuf:"bytes,2,opt,name=pre_pause_state_id,json=prePauseStateId,proto3" json:"pre_pause_state_id,omitempty"`
+	Reason          string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ResumeProcessorInternalRequest) Reset() {
@@ -3033,9 +3033,9 @@ func (x *ResumeProcessorInternalRequest) GetProcessorId() string {
 	return ""
 }
 
-func (x *ResumeProcessorInternalRequest) GetPreStateId() string {
+func (x *ResumeProcessorInternalRequest) GetPrePauseStateId() string {
 	if x != nil {
-		return x.PreStateId
+		return x.PrePauseStateId
 	}
 	return ""
 }
@@ -4440,11 +4440,10 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\x06schema\x18\x02 \x01(\tR\x06schema\"R\n" +
 	"\x15PauseProcessorRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\"}\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x88\x01\n" +
 	"\x1eResumeProcessorInternalRequest\x12!\n" +
-	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12 \n" +
-	"\fpre_state_id\x18\x02 \x01(\tR\n" +
-	"preStateId\x12\x16\n" +
+	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12+\n" +
+	"\x12pre_pause_state_id\x18\x02 \x01(\tR\x0fprePauseStateId\x12\x16\n" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\"\xe8\x02\n" +
 	"\x13RunProcessorRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x19\n" +

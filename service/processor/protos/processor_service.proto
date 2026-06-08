@@ -642,7 +642,7 @@ message ResumeProcessorInternalRequest {
   // The id of the pause state history entry observed by the caller. Used as a
   // fence: resume only happens if that entry is still the latest pause/resume
   // action, i.e. no pause/resume happened since the caller observed it.
-  string pre_state_id = 2;
+  string pre_pause_state_id = 2;
   string reason = 3;
 }
 

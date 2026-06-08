@@ -3,6 +3,7 @@ package jsonrpc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/pkg/errors"
 	"net/http"
 	"net/url"
@@ -135,7 +136,11 @@ func ProxyJSONRPCRequest[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCCl
 		clientpool.WithoutTags[CONFIG](clientpool.MethodNotSupportedTag(method)),
 	)
 	if errors.Is(r.Err, clientpool.ErrNoValidClient) {
-		return nil, errors.Errorf("the method %s does not exist/is not available", method)
+		return nil, NewJSONError(
+			MethodNotFoundErrorCode,
+			fmt.Sprintf("the method %s does not exist/is not available", method),
+			nil,
+		)
 	}
 	ctxData.RespHeaders = http.Header{}
 	ctxData.RespHeaders.Set(UpstreamHeaderKey, r.ClientName)

@@ -45,7 +45,11 @@ func (c MiddlewareChain) CallMethod(ctx context.Context, method string, params j
 
 func finalHandler(ctx context.Context, method string, params json.RawMessage) (any, error) {
 	_, logger := log.FromContext(ctx)
-	err := errors.Errorf("reaches final handler, method %s is not handled", method)
+	err := NewJSONError(
+		MethodNotFoundErrorCode,
+		fmt.Sprintf("reaches final handler, method %s is not handled", method),
+		nil,
+	)
 	logger.Warne(err)
 	return nil, err
 }

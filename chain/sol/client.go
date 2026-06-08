@@ -204,6 +204,13 @@ func buildResult(method string, err error) clientpool.Result {
 		Err:    err,
 		Broken: isBrokenError(err),
 	}
+	// gagliardetto's *jsonrpc.RPCError carries Code/Message/Data fields but does not
+	// implement the ErrorCode()/ErrorData() methods (rpc.Error / rpc.DataError).
+	// When this Result.Err is later handled by jsonrpc.Handler (which builds the
+	// response via JSONErrorResponse using errors.As), those missing methods mean the
+	// upstream Solana error code (e.g. -32601 method not found) and data are dropped and
+	// the response falls back to the default -32000. Wrap it in a local jsonError that
+	// implements those methods so the original code and data propagate to the client.
 	var rpcErr *jsonrpc.RPCError
 	if errors.As(err, &rpcErr) {
 		r.Err = &jsonError{RPCError: rpcErr}

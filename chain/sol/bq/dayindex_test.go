@@ -37,6 +37,29 @@ func TestDaySlotIndexMaxValidSlot(t *testing.T) {
 	assert.False(t, ok) // no complete day → not serveable
 }
 
+func TestDaySlotIndexRetentionFloor(t *testing.T) {
+	// 5 consecutive days, slots 100-per-day.
+	ix := &DaySlotIndex{CompleteThrough: day("2026-05-30")}
+	for i, d := range []string{"2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30"} {
+		ix.Days = append(ix.Days, DayEntry{Date: day(d), MinSlot: uint64(i*100 + 1), MaxSlot: uint64(i*100 + 100)})
+	}
+	// 2-day retention from the latest day (05-30): floor is the day at 05-28.
+	minSlot, date, ok := ix.retentionFloor(2)
+	require.True(t, ok)
+	assert.Equal(t, uint64(201), minSlot) // 05-28 MinSlot
+	assert.Equal(t, day("2026-05-28"), date)
+
+	// Retention longer than the indexed span → floor is the earliest day.
+	minSlot, date, ok = ix.retentionFloor(365)
+	require.True(t, ok)
+	assert.Equal(t, uint64(1), minSlot)
+	assert.Equal(t, day("2026-05-26"), date)
+
+	// Empty index.
+	_, _, ok = (&DaySlotIndex{}).retentionFloor(180)
+	assert.False(t, ok)
+}
+
 func TestDaySlotIndexWindow(t *testing.T) {
 	ix := sampleIndex()
 

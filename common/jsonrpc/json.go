@@ -21,6 +21,25 @@ type jsonError struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
+// NewJSONError constructs a jsonError with the given code, message and optional data.
+// The returned value implements error, rpc.Error and rpc.DataError, so JSONErrorResponse
+// will carry the code and data through to the response.
+func NewJSONError(code int, msg string, data any) error {
+	return &jsonError{Code: code, Message: msg, Data: data}
+}
+
+func (e *jsonError) Error() string {
+	return e.Message
+}
+
+func (e *jsonError) ErrorCode() int {
+	return e.Code
+}
+
+func (e *jsonError) ErrorData() any {
+	return e.Data
+}
+
 type JsonrpcMessage struct {
 	Version string          `json:"jsonrpc,omitempty"`
 	ID      json.RawMessage `json:"id,omitempty"`
@@ -75,6 +94,7 @@ func (m JsonrpcMessage) MarshalJSON() ([]byte, error) {
 const (
 	vsn                     = "2.0"
 	defaultErrorCode        = -32000
+	MethodNotFoundErrorCode = -32601
 	MaxRequestContentLength = 1024 * 1024 * 5
 	contentType             = "application/json"
 )

@@ -128,16 +128,23 @@ func (ix *DaySlotIndex) previousWindow(before uint64) (lo, hi time.Time, ok bool
 }
 
 // snapshot returns a compact, display-friendly view of the index for Store.Snapshot: the completeness
-// boundary, the data boundary slot, the day count, and the day entries — capped at the oldest 100 plus
-// the newest 100 (with the elided count) so the output stays bounded for a multi-thousand-day index.
-func (ix *DaySlotIndex) snapshot() map[string]any {
+// boundary, the data boundary slot (maxValidSlot), the retention floor (the lower bound, from
+// retentionDays), the day count, and the day entries — capped at the oldest 100 plus the newest 100
+// (with the elided count) so the output stays bounded for a multi-thousand-day index. The
+// [minValidSlot, maxValidSlot] pair is the slot range the BigQuery tier currently serves.
+func (ix *DaySlotIndex) snapshot(retentionDays int) map[string]any {
 	n := len(ix.Days)
 	out := map[string]any{
 		"completeThrough": ix.CompleteThrough,
 		"dayCount":        n,
+		"retentionDays":   retentionDays,
 	}
 	if maxSlot, ok := ix.maxValidSlot(); ok {
 		out["maxValidSlot"] = maxSlot
+	}
+	if minSlot, date, ok := ix.retentionFloor(retentionDays); ok {
+		out["minValidSlot"] = minSlot
+		out["retentionFloorDate"] = date
 	}
 	const k = 100
 	cp := func(src []DayEntry) []DayEntry {

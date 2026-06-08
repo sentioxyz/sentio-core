@@ -52,6 +52,25 @@ func (ix *DaySlotIndex) maxValidSlot() (uint64, bool) {
 	return ix.Days[n-1].MaxSlot, true
 }
 
+// retentionFloor returns the lower slot bound (and its UTC day) below which BigQuery queries are
+// refused: the MinSlot of the earliest complete day still within `days` days of the latest complete
+// day. This caps how far back (and thus how much data / cost) the BigQuery tier will serve. ok is
+// false when no complete day is recorded yet. When the index spans fewer than `days` days, the floor
+// is simply the earliest recorded day.
+func (ix *DaySlotIndex) retentionFloor(days int) (minSlot uint64, date time.Time, ok bool) {
+	n := len(ix.Days)
+	if n == 0 {
+		return 0, time.Time{}, false
+	}
+	cutoff := ix.Days[n-1].Date.AddDate(0, 0, -days)
+	// first recorded day whose Date >= cutoff (the last day's Date >= cutoff, so i < n always).
+	i := sort.Search(n, func(i int) bool { return !ix.Days[i].Date.Before(cutoff) })
+	if i == n {
+		i = n - 1
+	}
+	return ix.Days[i].MinSlot, ix.Days[i].Date, true
+}
+
 // clone returns a deep copy (the Days slice is copied), so a merge can be staged and only swapped in
 // after it has been persisted — see ensureDayIndexLocked.
 func (ix *DaySlotIndex) clone() *DaySlotIndex {

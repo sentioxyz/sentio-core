@@ -39,6 +39,9 @@ type Store struct {
 	// programStartCache caches EarliestProgramSlot by program address (required).
 	programStartCache kvstore.Store[ProgramStart]
 
+	// permissionChecker gates access to the BigQuery tier (nil = allow all). See Config.PermissionChecker.
+	permissionChecker PermissionChecker
+
 	statistic
 }
 
@@ -58,6 +61,11 @@ type Config struct {
 	// required because the partitioned tables enforce a partition filter. Default 2020-03-01 (mainnet).
 	// It also bounds the day-slot index build.
 	HistoryStart time.Time
+	// RetentionDays caps how far back the BigQuery tier will serve, as a cost guard: the lower slot
+	// bound is the MinSlot of the earliest complete day still within RetentionDays of the latest
+	// complete day (see DaySlotIndex.retentionFloor). Queries reaching below it error; EarliestProgramSlot
+	// scans only from that day. Default 180.
+	RetentionDays int
 	// DayCache persists the day-slot index (a few KB, under a single key). Required: slot→timestamp
 	// resolution is served entirely from this index. Use a redis store to survive restarts, or a
 	// mem-lru store to rebuild the index once per process.
@@ -71,6 +79,10 @@ type Config struct {
 	// billed, the BigQuery on-demand cost driver). The launcher uses it to emit metrics with its own
 	// attributes (network, server name, ...). Optional.
 	Notifier Notifier
+	// PermissionChecker, when set, is called before every BigQuery query; a non-nil error rejects the
+	// request (no query is run). The launcher supplies one that gates access by the caller's project
+	// tier (a cost guard on who may use the BigQuery tier). Optional (nil = allow all).
+	PermissionChecker PermissionChecker
 }
 
 // Notifier is invoked once per completed BigQuery operation with its method, request source (the
@@ -78,6 +90,12 @@ type Config struct {
 // The bq store stays decoupled from any metrics backend; the launcher supplies a Notifier that, e.g.,
 // adds bytes billed to an OpenTelemetry counter with richer attributes (network, server name).
 type Notifier func(ctx context.Context, method, source string, used time.Duration, count int, bytesBilled int64)
+
+// PermissionChecker decides whether the caller in ctx may use the BigQuery tier; a non-nil error
+// rejects the query before it runs. The bq store stays decoupled from project/tier lookups; the
+// launcher supplies one that resolves the caller's project (from jsonrpc.CtxData.ReqSrc.Labels) to
+// its owner's tier and rejects tiers outside the configured allow-set.
+type PermissionChecker func(ctx context.Context) error
 
 // ProgramStart is the cached EarliestProgramSlot result for one program address. When Found, Slot is
 // the (immutable) earliest slot. When not Found, SearchedThrough records that the program has no
@@ -121,6 +139,9 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 	if cfg.HistoryStart.IsZero() {
 		cfg.HistoryStart = time.Date(2020, 3, 1, 0, 0, 0, 0, time.UTC)
 	}
+	if cfg.RetentionDays <= 0 {
+		cfg.RetentionDays = 180
+	}
 	client, err := bigquery.NewClient(ctx, cfg.ProjectID)
 	if err != nil {
 		return nil, errors.Wrap(err, "bq: new client")
@@ -133,9 +154,18 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 		instrsTable:       fmt.Sprintf("`%s.%s`", cfg.Dataset, cfg.InstructionsTable),
 		dayCache:          cfg.DayCache,
 		programStartCache: cfg.ProgramStartCache,
+		permissionChecker: cfg.PermissionChecker,
 	}
 	s.init(cfg.Notifier)
 	return s, nil
+}
+
+// checkPermission gates a BigQuery query on the configured PermissionChecker (no-op when unset).
+func (s *Store) checkPermission(ctx context.Context) error {
+	if s.permissionChecker != nil {
+		return s.permissionChecker(ctx)
+	}
+	return nil
 }
 
 var _ supernode.Storage = (*Store)(nil)
@@ -225,6 +255,9 @@ func (s *Store) resolveTimeRange(ctx context.Context, from, to uint64) (lo, hi t
 		if to > maxValid {
 			return time.Time{}, time.Time{}, false, errors.Errorf("bq: slot range [%d,%d] exceeds BigQuery complete data (valid through slot %d)", from, to, maxValid)
 		}
+		if minValid, _, _ := ix.retentionFloor(s.cfg.RetentionDays); from < minValid {
+			return time.Time{}, time.Time{}, false, errors.Errorf("bq: slot range [%d,%d] is below the BigQuery retention floor (slot %d, %d-day retention)", from, to, minValid, s.cfg.RetentionDays)
+		}
 		lo, hi, found := ix.window(from, to)
 		return lo, hi, found, nil
 	})
@@ -243,6 +276,11 @@ func (s *Store) previousDayWindow(ctx context.Context, before uint64) (lo, hi ti
 		// data, i.e. before-1 <= maxValid.
 		if before > maxValid+1 {
 			return time.Time{}, time.Time{}, false, errors.Errorf("bq: previous-unskipped before %d exceeds BigQuery complete data (valid through slot %d)", before, maxValid)
+		}
+		// The predecessor has slot < before; it must be at/above the retention floor, so before must
+		// be strictly above it.
+		if minValid, _, _ := ix.retentionFloor(s.cfg.RetentionDays); before <= minValid {
+			return time.Time{}, time.Time{}, false, errors.Errorf("bq: previous-unskipped before %d is below the BigQuery retention floor (slot %d, %d-day retention)", before, minValid, s.cfg.RetentionDays)
 		}
 		lo, hi, found := ix.previousWindow(before)
 		return lo, hi, found, nil
@@ -273,6 +311,20 @@ func (s *Store) indexCompleteThrough(ctx context.Context) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return s.index.CompleteThrough, nil
+}
+
+// retentionFloorDate ensures the index is current and returns the UTC day of the retention floor —
+// the earliest day the BigQuery tier serves. EarliestProgramSlot scans only from this day (not from
+// HistoryStart), so a whole-history program lookup is bounded to the retention window. Returns the
+// zero time when no complete day is recorded yet.
+func (s *Store) retentionFloorDate(ctx context.Context) (time.Time, error) {
+	s.indexMu.Lock()
+	defer s.indexMu.Unlock()
+	if err := s.ensureDayIndexLocked(ctx); err != nil {
+		return time.Time{}, err
+	}
+	_, date, _ := s.index.retentionFloor(s.cfg.RetentionDays)
+	return date, nil
 }
 
 const dayIndexKey = "index"
@@ -376,6 +428,9 @@ func (s *Store) queryDayRanges(ctx context.Context, start time.Time, bytes *int6
 // QueryBlock returns the header of a slot. A missing slot is returned as a skipped block (nil
 // GetBlockResult), matching ClickHouse semantics.
 func (s *Store) QueryBlock(ctx context.Context, slot uint64) (*sol.Block, error) {
+	if err := s.checkPermission(ctx); err != nil {
+		return nil, err
+	}
 	var bytes int64
 	var count int
 	start := time.Now()
@@ -419,6 +474,9 @@ func (s *Store) QueryPreviousUnskipped(
 	ctx context.Context,
 	before uint64,
 ) (uint64, *solana.UnixTimeSeconds, bool, error) {
+	if err := s.checkPermission(ctx); err != nil {
+		return 0, nil, false, err
+	}
 	var bytes int64
 	var count int
 	start := time.Now()
@@ -470,9 +528,18 @@ func (s *Store) QueryPreviousUnskipped(
 //     program's repeated lookups scanning only the recent tail and prevents a late-arriving early
 //     instruction from being permanently missed.
 func (s *Store) EarliestProgramSlot(ctx context.Context, address solana.PublicKey) (uint64, bool, error) {
+	if err := s.checkPermission(ctx); err != nil {
+		return 0, false, err
+	}
 	addr := address.String()
 
-	searchFrom := s.cfg.HistoryStart
+	// Scan only from the retention floor (not HistoryStart): the BigQuery tier serves nothing older,
+	// so a program's reported earliest slot is clamped to the retention window — and the scan stays
+	// bounded.
+	searchFrom, err := s.retentionFloorDate(ctx)
+	if err != nil {
+		return 0, false, err
+	}
 	if got, err := s.programStartCache.Get(ctx, addr); err == nil {
 		if ps, ok := got[addr]; ok {
 			if ps.Found {
@@ -541,6 +608,9 @@ func (s *Store) QueryBlocksByInterval(
 	window sol.IntervalWindow,
 	limit int,
 ) ([]sol.Block, error) {
+	if err := s.checkPermission(ctx); err != nil {
+		return nil, err
+	}
 	var bytes int64
 	var count int
 	start := time.Now()
@@ -628,6 +698,9 @@ func (s *Store) FindTransactions(
 	programIDs []solana.PublicKey,
 	limit int,
 ) ([]sol.BlockTransactions, error) {
+	if err := s.checkPermission(ctx); err != nil {
+		return nil, err
+	}
 	var bytes int64
 	var count int
 	start := time.Now()

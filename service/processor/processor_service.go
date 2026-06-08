@@ -736,9 +736,14 @@ func (s *Service) updateProcessorPause(
 	return &emptypb.Empty{}, nil
 }
 
-// checkPauseFence verifies that the latest pause/resume action on the processor
-// is still the system pause entry identified by preStateID. "active"/"obsolete"
-// entries are skipped because they do not change the pause decision.
+// checkPauseFence verifies that the pause entry identified by preStateID is
+// still the latest pause/resume action on the processor, i.e. nothing pause-
+// related has happened since the caller observed it. "active"/"obsolete" entries
+// are skipped because they do not change the pause state.
+//
+// The history entry is immutable, so matching its id is the whole consistency
+// signal: whether that pause was made by the system or a user is the caller's
+// concern, not the fence's.
 func (s *Service) checkPauseFence(ctx context.Context, processorID, preStateID string) error {
 	histories, err := s.processorRepo.ListProcessorStateHistory(ctx, processorID)
 	if err != nil {
@@ -752,10 +757,11 @@ func (s *Service) checkPauseFence(ctx context.Context, processorID, preStateID s
 			break
 		}
 	}
+	// latest must be a pause (not a resume) whose id matches; if the latest
+	// pause/resume is a resume or a different pause, the state has changed.
 	if latest == nil ||
 		latest.ID != preStateID ||
-		latest.Action != models.ProcessorStateActionPause ||
-		!latest.IsSystemOperator() {
+		latest.Action != models.ProcessorStateActionPause {
 		return status.Error(codes.FailedPrecondition, "processor pause state changed since observed")
 	}
 	return nil

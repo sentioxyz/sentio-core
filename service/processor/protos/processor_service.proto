@@ -639,9 +639,9 @@ message PauseProcessorRequest {
 
 message ResumeProcessorInternalRequest {
   string processor_id = 1;
-  // The id of the latest pause state history entry observed by the caller.
-  // Used as a fence: resume only happens if the processor is still in exactly
-  // that system-paused state (no user pause/resume in between).
+  // The id of the pause state history entry observed by the caller. Used as a
+  // fence: resume only happens if that entry is still the latest pause/resume
+  // action, i.e. no pause/resume happened since the caller observed it.
   string pre_state_id = 2;
   string reason = 3;
 }

@@ -673,7 +673,10 @@ func (s *Service) updateProcessorPause(
 	// concurrent user pause/resume cannot slip in between the check and the save.
 	err := s.processorRepo.WithTransaction(ctx, func(ctx context.Context) error {
 		var err error
-		processor, err = s.processorRepo.PreloadProcessor(ctx, processorID)
+		// Read fresh inside the transaction (not PreloadProcessor, which may hand
+		// back a processor loaded earlier in the request): the Pause check and the
+		// save below must operate on the current persisted state.
+		processor, err = s.processorRepo.GetProcessor(ctx, processorID, false)
 		if err != nil {
 			return err
 		}
@@ -752,7 +755,7 @@ func (s *Service) checkPauseFence(ctx context.Context, processorID, preStateID s
 	if latest == nil ||
 		latest.ID != preStateID ||
 		latest.Action != models.ProcessorStateActionPause ||
-		latest.OperatorID != "" {
+		!latest.IsSystemOperator() {
 		return status.Error(codes.FailedPrecondition, "processor pause state changed since observed")
 	}
 	return nil

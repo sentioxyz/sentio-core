@@ -49,6 +49,9 @@ service ProcessorService {
   rpc PauseProcessorInternal(PauseProcessorRequest)
       returns (google.protobuf.Empty);
 
+  rpc ResumeProcessorInternal(ResumeProcessorInternalRequest)
+      returns (google.protobuf.Empty);
+
   // Get processor status
   rpc GetProcessorStatusV2(GetProcessorStatusRequestV2)
       returns (GetProcessorStatusResponse) {
@@ -632,6 +635,15 @@ message SetProcessorEntitySchemaRequest {
 message PauseProcessorRequest {
   string processor_id = 1;
   string reason = 2;
+}
+
+message ResumeProcessorInternalRequest {
+  string processor_id = 1;
+  // The id of the latest pause state history entry observed by the caller.
+  // Used as a fence: resume only happens if the processor is still in exactly
+  // that system-paused state (no user pause/resume in between).
+  string pre_state_id = 2;
+  string reason = 3;
 }
 
 message RunProcessorRequest {

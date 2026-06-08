@@ -183,10 +183,30 @@ func isInvalidMethodError(err error) bool {
 	return false
 }
 
+type jsonError struct {
+	*jsonrpc.RPCError
+}
+
+func (e *jsonError) Error() string {
+	return e.RPCError.Message
+}
+
+func (e *jsonError) ErrorCode() int {
+	return e.RPCError.Code
+}
+
+func (e *jsonError) ErrorData() any {
+	return e.RPCError.Data
+}
+
 func buildResult(method string, err error) clientpool.Result {
 	r := clientpool.Result{
 		Err:    err,
 		Broken: isBrokenError(err),
+	}
+	var rpcErr *jsonrpc.RPCError
+	if errors.As(err, &rpcErr) {
+		r.Err = &jsonError{RPCError: rpcErr}
 	}
 	if isInvalidMethodError(err) {
 		r.BrokenForTask = true

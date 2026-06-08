@@ -175,11 +175,14 @@ func TestDaySlotIndexMergeForwardDedup(t *testing.T) {
 }
 
 func TestDaySlotIndexSnapshot(t *testing.T) {
-	// Small index: all days shown.
-	snap := sampleIndex().snapshot()
+	// Small index: all days shown. retentionDays=1 → floor is the 2nd-to-latest day (05-27).
+	snap := sampleIndex().snapshot(1)
 	assert.Equal(t, 3, snap["dayCount"])
 	assert.Equal(t, uint64(399), snap["maxValidSlot"])
 	assert.Equal(t, day("2026-05-28"), snap["completeThrough"])
+	assert.Equal(t, 1, snap["retentionDays"])
+	assert.Equal(t, uint64(210), snap["minValidSlot"]) // 05-27 MinSlot
+	assert.Equal(t, day("2026-05-27"), snap["retentionFloorDate"])
 	require.Len(t, snap["days"], 3)
 	_, hasOldest := snap["oldestDays"]
 	assert.False(t, hasOldest)
@@ -190,9 +193,11 @@ func TestDaySlotIndexSnapshot(t *testing.T) {
 		s := uint64(i*100 + 1)
 		big.Days = append(big.Days, DayEntry{Date: day("2026-05-26").AddDate(0, 0, i), MinSlot: s, MaxSlot: s + 99})
 	}
-	snap = big.snapshot()
+	snap = big.snapshot(180)
 	assert.Equal(t, 250, snap["dayCount"])
 	assert.Equal(t, 50, snap["elidedDays"])
+	// floor day = last (index 249) minus 180 days = index 69 → MinSlot 69*100+1.
+	assert.Equal(t, uint64(6901), snap["minValidSlot"])
 	require.Len(t, snap["oldestDays"], 100)
 	require.Len(t, snap["newestDays"], 100)
 	_, hasDays := snap["days"]

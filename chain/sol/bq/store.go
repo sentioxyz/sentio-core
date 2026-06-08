@@ -181,7 +181,7 @@ func (s *Store) Snapshot() any {
 	s.indexMu.Lock()
 	defer s.indexMu.Unlock()
 	if s.index != nil {
-		out["index"] = s.index.snapshot()
+		out["index"] = s.index.snapshot(s.cfg.RetentionDays)
 	}
 	return out
 }

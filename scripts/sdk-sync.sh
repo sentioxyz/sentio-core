@@ -40,5 +40,16 @@ fi
 echo "Sync Proto and Gen TS to SDK folder"
 bazel run //sentio-sdk:write_gen
 
-sed -i '' -e 's/Function.fromPartial(base ?? {});/Function.fromPartial(base ?? {} as any);/g' "$SDK_MOUNT/packages/protos/src/service/common/protos/common.ts"
-sed -i '' -e 's/Function.fromPartial(base ?? {});/Function.fromPartial(base ?? {} as any);/g' "$SDK_MOUNT/packages/runtime/src/gen/service/common/protos/common.ts"
+# protobuf-es: common.proto imports the grpc-gateway openapiv2 options (used only as
+# MethodOptions/JSONSchema extensions). The SDK never reads those options, so strip the
+# generated file-descriptor dependency from common_pb.ts rather than also generating the
+# openapiv2 protos into the SDK. (protobuf-es boots + round-trips fine without it.)
+for f in \
+  "$SDK_MOUNT/packages/protos/src/service/common/protos/common_pb.ts" \
+  "$SDK_MOUNT/packages/runtime/src/gen/service/common/protos/common_pb.ts"; do
+  perl -0pi -e 's/^import \{ file_protoc_gen_openapiv2_options_annotations \} from ".*?annotations_pb\.js";\n//m' "$f"
+  perl -0pi -e 's/file_protoc_gen_openapiv2_options_annotations, //g' "$f"
+done
+
+# The generated *_pb.ts are listed in the sentio-sdk .prettierignore (they are
+# machine-generated), so this script emits them verbatim — no formatting pass here.

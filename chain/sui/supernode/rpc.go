@@ -174,33 +174,41 @@ func (s *SuperService) GetCheckpointTime(
 	if ct, has := cached[key]; has {
 		return []uint64{ct.CheckpointTime, ct.MinTxnTime, ct.MaxTxnTime}, nil
 	}
-	return chain.QueryRangeWithCache(
+	results, err := chain.QueryRangeWithCache(
 		ctx,
 		rg.NewSingleRange(checkpointSequenceNumber.Uint64()),
 		s.slotCache,
-		func(slot *sui.Slot) ([]uint64, error) {
+		func(slot *sui.Slot) ([]sui.CheckpointTime, error) {
 			ts := slot.TimestampMs.Uint64()
 			minMs, maxMs := ts, ts
 			for _, tx := range slot.Transactions {
 				maxMs = max(maxMs, tx.TimestampMs.Uint64())
 				minMs = min(minMs, tx.TimestampMs.Uint64())
 			}
-			return []uint64{ts, minMs, maxMs}, nil
+			return []sui.CheckpointTime{{CheckpointTime: ts, MinTxnTime: minMs, MaxTxnTime: maxMs}}, nil
 		},
-		func(ctx context.Context, queryRange rg.Range) ([]uint64, error) {
+		func(ctx context.Context, queryRange rg.Range) ([]sui.CheckpointTime, error) {
 			// cache already checked as missing above, query from clickhouse
 			result, err := s.storageJSONRPC.QueryCheckpointTime(ctx, checkpointSequenceNumber.Uint64())
 			if err != nil {
 				return nil, err
 			}
-			// update cache
-			err = s.cachedCheckpointTime.Set(ctx, map[string]sui.CheckpointTime{key: result})
-			if err != nil {
-				logger.Warne(err, "update cached checkpoint time failed")
-			}
-			return []uint64{result.CheckpointTime, result.MinTxnTime, result.MaxTxnTime}, nil
+			return []sui.CheckpointTime{result}, nil
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, errors.Errorf("checkpoint %d not found", checkpointSequenceNumber.Uint64())
+	}
+	ct := results[0]
+	// update cache regardless of whether the result came from the slot cache or clickhouse;
+	// checkpoint time is immutable, so it is always safe to persist.
+	if setErr := s.cachedCheckpointTime.Set(ctx, map[string]sui.CheckpointTime{key: ct}); setErr != nil {
+		logger.Warne(setErr, "update cached checkpoint time failed")
+	}
+	return []uint64{ct.CheckpointTime, ct.MinTxnTime, ct.MaxTxnTime}, nil
 }
 
 func (s *SuperService) GetTransactions(

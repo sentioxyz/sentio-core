@@ -28,7 +28,7 @@ func NewSuperNode(
 		func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 			return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
 				switch method {
-				case "sui_getLatestCheckpointSequenceNumber": // driverV2
+				case "sui_getLatestCheckpointSequenceNumber": // DriverVersion[0]
 					return superSvr.GetLatestCheckpointSequenceNumber(ctx)
 				case "sui_getCheckpointTime": // DriverVersion[0]
 					return jsonrpc.CallMethod(superSvr.GetCheckpointTime, ctx, params)
@@ -188,16 +188,7 @@ func (s *SuperService) GetCheckpointTime(
 			return []uint64{ts, minMs, maxMs}, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) ([]uint64, error) {
-			key := checkpointSequenceNumber.String()
-			cached, getCacheErr := s.cachedCheckpointTime.Get(ctx, key)
-			if getCacheErr != nil {
-				logger.Errorfe(getCacheErr, "get checkpoint time from cache failed")
-				return nil, getCacheErr
-			}
-			if ct, has := cached[key]; has {
-				return []uint64{ct.CheckpointTime, ct.MinTxnTime, ct.MaxTxnTime}, nil
-			}
-			// cache missing, query from clickhouse
+			// cache already checked as missing above, query from clickhouse
 			result, err := s.storageJSONRPC.QueryCheckpointTime(ctx, checkpointSequenceNumber.Uint64())
 			if err != nil {
 				return nil, err

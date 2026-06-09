@@ -53,17 +53,15 @@ func (t *Tracker) Fetch(keys []string) map[string]any {
 	return snapshot
 }
 
-var GlobalTracker *Tracker
+var GlobalTracker *Tracker = NewTracker()
 
 func init() {
-	GlobalTracker = NewTracker()
-
 	timestamp, err := strconv.ParseInt(version.BuildTimestamp, 10, 64)
 	var timeStr string
 	if err != nil {
 		timeStr = "No BuildTimestamp"
 	} else {
-		timeStr = time.Unix(timestamp, 0).String()
+		timeStr = time.Unix(timestamp, 0).Format(time.RFC3339)
 	}
 	AddOrReplaceTrackedFunc("version", func() any {
 		return map[string]any{

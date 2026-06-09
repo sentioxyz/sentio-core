@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"sentioxyz/sentio-core/common/version"
+	"strconv"
 	"sync"
+	"time"
 )
 
 type TrackedObject interface {
@@ -51,6 +54,23 @@ func (t *Tracker) Fetch(keys []string) map[string]any {
 }
 
 var GlobalTracker *Tracker = NewTracker()
+
+func init() {
+	timestamp, err := strconv.ParseInt(version.BuildTimestamp, 10, 64)
+	var timeStr string
+	if err != nil {
+		timeStr = "No BuildTimestamp"
+	} else {
+		timeStr = time.Unix(timestamp, 0).Format(time.RFC3339)
+	}
+	AddOrReplaceTrackedFunc("version", func() any {
+		return map[string]any{
+			"Version":   version.Version,
+			"CommitSha": version.CommitSha,
+			"BuildTime": timeStr,
+		}
+	})
+}
 
 func AddOrReplaceTrackedObject(name string, object TrackedObject) {
 	GlobalTracker.TrackObject(name, object)

@@ -5,4 +5,5 @@ go_library(
     srcs = ["tracker.go"],
     importpath = "sentioxyz/sentio-core/common/tracker",
     visibility = ["//visibility:public"],
+    deps = ["//common/version"],
 )

@@ -1,6 +1,6 @@
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel:ts-rules.bzl", "ts_proto")
+load("//bazel:ts-rules.bzl", "es_proto", "ts_proto")
 load("//bazel/golang:go_proto_library.bzl", "go_proto_library")
 
 proto_library(
@@ -49,6 +49,14 @@ go_library(
 ts_proto(
     name = "common_protos_ts_proto",
     esm = True,
+    protos = [":protos_proto"],
+    visibility = ["//visibility:public"],
+)
+
+# protobuf-es (protoc-gen-es) drop-in for `common_protos_ts_proto`. Generates
+# `common_pb.ts` for the protobuf-es migration of the sentio-sdk.
+es_proto(
+    name = "common_protos_es_proto",
     protos = [":protos_proto"],
     visibility = ["//visibility:public"],
 )

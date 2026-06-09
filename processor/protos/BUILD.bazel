@@ -95,3 +95,12 @@ es_proto(
     remove_deprecated = True,
     visibility = ["//visibility:public"],
 )
+
+# protobuf-es (protoc-gen-es) drop-in for `money_ts_proto`. google.type.Money is
+# NOT a well-known type, so (unlike empty/struct/timestamp, which protobuf-es
+# imports from @bufbuild/protobuf/wkt) it must still be generated for the sentio-sdk.
+es_proto(
+    name = "money_es_proto",
+    protos = ["@googleapis//google/type:money_proto"],
+    visibility = ["//visibility:public"],
+)

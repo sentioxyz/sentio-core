@@ -60,3 +60,13 @@ es_proto(
     protos = [":protos_proto"],
     visibility = ["//visibility:public"],
 )
+
+# common.proto uses grpc-gateway openapiv2 MethodOptions/JSONSchema extensions, so
+# the protobuf-es output of common registers protoc-gen-openapiv2/options as a file
+# dependency (descriptor-faithful; ts-proto silently dropped custom options). Unlike
+# ts-proto, protobuf-es therefore needs these option protos generated and importable.
+es_proto(
+    name = "openapiv2_options_es_proto",
+    protos = ["@grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options:options_proto"],
+    visibility = ["//visibility:public"],
+)

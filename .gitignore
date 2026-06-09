@@ -180,3 +180,6 @@ provider/build
 
 # pycache
 __pycache__
+
+# local Claude Code settings
+.claude/settings.local.json

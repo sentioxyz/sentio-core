@@ -5,12 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/move"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"strings"
+
+	"github.com/pkg/errors"
+	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 )
 
 // ObjectChangeOwnerFilter need the objects which id in OwnerID
@@ -36,11 +38,32 @@ func (f ObjectChangeOwnerFilter) Checker() func(oc types.ObjectChangeExtend) boo
 		if ownerIDSet.Contains(oc.GetObjectID()) {
 			return true
 		}
+		ownerType, ownerID, _ := oc.Owner.GetTypeAndID()
+		return ownerIDSet.Contains(ownerID) && ownerTypeSet.Contains(ownerType)
+	}
+}
+
+func (f ObjectChangeOwnerFilter) CheckerGrpc() func(oc *rpcv2.ChangedObject) bool {
+	ownerIDSet := set.New[string](f.OwnerID...)
+	ownerTypeSet := set.New[string](f.OwnerType...)
+	return func(oc *rpcv2.ChangedObject) bool {
 		if ownerIDSet.Empty() {
 			return false
 		}
-		ownerType, ownerID, _ := oc.Owner.GetTypeAndID()
-		return ownerIDSet.Contains(ownerID) && ownerTypeSet.Contains(ownerType)
+		if ownerIDSet.Contains(oc.GetObjectId()) {
+			return true
+		}
+		if owner := oc.GetInputOwner(); owner != nil {
+			if ownerIDSet.Contains(owner.GetAddress()) && ownerTypeSet.Contains(owner.GetKind().String()) {
+				return true
+			}
+		}
+		if owner := oc.GetOutputOwner(); owner != nil {
+			if ownerIDSet.Contains(owner.GetAddress()) && ownerTypeSet.Contains(owner.GetKind().String()) {
+				return true
+			}
+		}
+		return false
 	}
 }
 
@@ -115,6 +138,25 @@ func (f ObjectChangeFilter) Checker() func(oc types.ObjectChangeExtend) bool {
 	}
 }
 
+func (f ObjectChangeFilter) CheckerGrpc() func(oc *rpcv2.ChangedObject) bool {
+	var ownerChecker func(oc *rpcv2.ChangedObject) bool
+	if f.OwnerFilter != nil {
+		ownerChecker = f.OwnerFilter.CheckerGrpc()
+	}
+	return func(oc *rpcv2.ChangedObject) bool {
+		if len(f.TypePattern) > 0 && f.TypePattern.IncludeTypeString(oc.ObjectType) {
+			return true
+		}
+		if ownerChecker != nil && ownerChecker(oc) {
+			return true
+		}
+		if f.ObjectIDIn != nil && !f.ObjectIDIn.Empty() && f.ObjectIDIn.Contains(oc.GetObjectId()) {
+			return true
+		}
+		return false
+	}
+}
+
 func (f ObjectChangeFilter) Merge(a ObjectChangeFilter) (r ObjectChangeFilter) {
 	// r.TypePattern
 	r.TypePattern = f.TypePattern.Merge(a.TypePattern)
@@ -137,6 +179,29 @@ func (f ObjectChangeFilter) Merge(a ObjectChangeFilter) (r ObjectChangeFilter) {
 	return r
 }
 
+type ExtendedGrpcTransaction struct {
+	Checkpoint       uint64
+	CheckpointDigest string
+	TimestampMs      uint64
+	Epoch            uint64
+
+	TxIndex uint64
+
+	*rpcv2.ExecutedTransaction
+}
+
+type ExtendedGrpcChangedObject struct {
+	Checkpoint       uint64
+	CheckpointDigest string
+	TimestampMs      uint64
+	Epoch            uint64
+
+	TxIndex  uint64
+	TxDigest string
+
+	*rpcv2.ChangedObject
+}
+
 // CommandFilter has 3 parts and linked AND
 type CommandFilter struct {
 	CallPackage  *string
@@ -155,6 +220,22 @@ func (f *CommandFilter) CheckCommand(cmd types.Command) bool {
 		return false
 	}
 	if f.CallFunction != nil && (cmd.MoveCall == nil || cmd.MoveCall.Function != *f.CallFunction) {
+		return false
+	}
+	return true
+}
+
+func (f *CommandFilter) CheckGrpcCommand(cmd *rpcv2.Command) bool {
+	if f == nil {
+		return true
+	}
+	if f.CallPackage != nil && cmd.GetMoveCall().GetPackage() != *f.CallPackage {
+		return false
+	}
+	if f.CallModule != nil && cmd.GetMoveCall().GetModule() != *f.CallModule {
+		return false
+	}
+	if f.CallFunction != nil && (cmd.GetMoveCall().GetFunction() != *f.CallFunction) {
 		return false
 	}
 	return true
@@ -249,6 +330,46 @@ func (f FunctionFilter) Check(tx types.TransactionResponseV1) bool {
 	return true
 }
 
+func (f FunctionFilter) CheckGrpcTx(tx *rpcv2.ExecutedTransaction) bool {
+	if f.Kind != nil && tx.GetTransaction().GetKind().String() != *f.Kind {
+		return false
+	}
+	txCommands := tx.GetTransaction().GetKind().GetProgrammableTransaction().GetCommands()
+	if f.CommandFilter != nil && !utils.HasAny(txCommands, f.CommandFilter.CheckGrpcCommand) {
+		return false
+	}
+	if f.MultiSigPublicKeyPrefix != nil {
+		prefix, err := hex.DecodeString(strings.TrimPrefix(*f.MultiSigPublicKeyPrefix, "0x"))
+		if err != nil {
+			return false
+		}
+		if len(tx.GetSignatures()) != 1 {
+			return false
+		}
+		multisig := tx.GetSignatures()[0].GetMultisig()
+		if multisig == nil {
+			return false
+		}
+		if !utils.HasAny(multisig.GetCommittee().GetMembers(), func(m *rpcv2.MultisigMember) bool {
+			return bytes.HasPrefix(m.GetPublicKey().GetPublicKey(), prefix)
+		}) {
+			return false
+		}
+	}
+	if f.Sender != nil && tx.GetTransaction().GetSender() != *f.Sender {
+		return false
+	}
+	if f.Receiver != nil && !utils.HasAny(tx.GetBalanceChanges(), func(bc *rpcv2.BalanceChange) bool {
+		return bc.GetAddress() == *f.Receiver
+	}) {
+		return false
+	}
+	if !f.FailedIsOK && !tx.GetEffects().GetStatus().GetSuccess() {
+		return false
+	}
+	return true
+}
+
 func (f FunctionFilter) IsEmpty() bool {
 	return f.Kind == nil &&
 		f.CommandFilter == nil &&
@@ -289,8 +410,28 @@ func (f EventFilterV2) CheckEvent(ev types.Event) bool {
 	return true
 }
 
+func (f EventFilterV2) CheckGrpcEvent(ev *rpcv2.Event) bool {
+	if f.Sender != nil && ev.GetSender() != *f.Sender {
+		return false
+	}
+	if len(f.TypePattern) > 0 {
+		et, err := move.BuildType(ev.GetEventType())
+		if err != nil {
+			return false
+		}
+		if !f.TypePattern.Include(et) {
+			return false
+		}
+	}
+	return true
+}
+
 func (f EventFilterV2) Check(tx types.TransactionResponseV1) bool {
 	return utils.HasAny(tx.Events, f.CheckEvent)
+}
+
+func (f EventFilterV2) CheckGrpcTx(tx *rpcv2.ExecutedTransaction) bool {
+	return utils.HasAny(tx.GetEvents().GetEvents(), f.CheckGrpcEvent)
 }
 
 func (f EventFilterV2) Equal(a EventFilterV2) bool {
@@ -301,6 +442,14 @@ func BuildEventChecker(filters []EventFilterV2) func(ev types.Event) bool {
 	return func(ev types.Event) bool {
 		return utils.HasAny(filters, func(ff EventFilterV2) bool {
 			return ff.CheckEvent(ev)
+		})
+	}
+}
+
+func BuildGrpcEventChecker(filters []EventFilterV2) func(ev *rpcv2.Event) bool {
+	return func(ev *rpcv2.Event) bool {
+		return utils.HasAny(filters, func(ff EventFilterV2) bool {
+			return ff.CheckGrpcEvent(ev)
 		})
 	}
 }
@@ -325,6 +474,23 @@ func (f TransactionFilter) Check(tx types.TransactionResponseV1) bool {
 	}
 	for _, ff := range f.EventFilters {
 		if ff.Check(tx) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f TransactionFilter) CheckGrpcTx(tx *rpcv2.ExecutedTransaction) bool {
+	if !f.FailedIsOK && !tx.GetEffects().GetStatus().GetSuccess() {
+		return false
+	}
+	for _, ff := range f.FunctionFilters {
+		if ff.CheckGrpcTx(tx) {
+			return true
+		}
+	}
+	for _, ff := range f.EventFilters {
+		if ff.CheckGrpcTx(tx) {
 			return true
 		}
 	}
@@ -393,6 +559,62 @@ func (f TransactionFetchConfig) PruneTransaction(
 		}
 	}
 	return r
+}
+
+// PruneGrpcTransaction returns a pruned copy of tx without mutating the shared/cached
+// *rpcv2.ExecutedTransaction. The pruning rules mirror PruneTransaction:
+//   - !NeedAllEvents: keep only the events matching eventFilters
+//   - !NeedInputs: drop the transaction inputs/commands
+//   - !NeedEffects: keep only the lightweight effects fields, drop the big changed-objects set
+func (f TransactionFetchConfig) PruneGrpcTransaction(
+	tx *ExtendedGrpcTransaction,
+	eventFilters []EventFilterV2,
+) *ExtendedGrpcTransaction {
+	if tx == nil {
+		return nil
+	}
+	src := tx.ExecutedTransaction
+	// shallow copy so the shared/cached tx is never mutated
+	pruned := &rpcv2.ExecutedTransaction{
+		Digest:         src.Digest,
+		Transaction:    src.Transaction,
+		Signatures:     src.Signatures,
+		Effects:        src.Effects,
+		Events:         src.Events,
+		Checkpoint:     src.Checkpoint,
+		Timestamp:      src.Timestamp,
+		BalanceChanges: src.BalanceChanges,
+		Objects:        src.Objects,
+	}
+	if !f.NeedAllEvents {
+		checker := BuildGrpcEventChecker(eventFilters)
+		pruned.Events = &rpcv2.TransactionEvents{
+			Bcs:    src.GetEvents().GetBcs(),
+			Digest: src.GetEvents().Digest,
+			Events: utils.FilterArr(src.GetEvents().GetEvents(), checker),
+		}
+	}
+	if !f.NeedInputs {
+		pruned.Transaction = nil
+	}
+	if !f.NeedEffects {
+		eff := src.GetEffects()
+		pruned.Effects = &rpcv2.TransactionEffects{
+			Bcs:               eff.GetBcs(),
+			Digest:            eff.Digest,
+			Version:           eff.Version,
+			Status:            eff.Status,
+			Epoch:             eff.Epoch,
+			GasUsed:           eff.GasUsed,
+			TransactionDigest: eff.TransactionDigest,
+			GasObject:         eff.GasObject,
+			LamportVersion:    eff.LamportVersion,
+			// drop the big ChangedObjects / dependencies / consensus objects sets
+		}
+	}
+	r := *tx
+	r.ExecutedTransaction = pruned
+	return &r
 }
 
 type ObjectCreation struct {

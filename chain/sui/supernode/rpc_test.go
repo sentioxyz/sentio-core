@@ -38,34 +38,56 @@ func (m *mockKVStore[T]) Del(_ context.Context, _ ...string) error    { return n
 
 var _ kvstore.Store[sui.SimpleCheckpoint] = (*mockKVStore[sui.SimpleCheckpoint])(nil)
 
-// mockStorage implements supernode.Storage with empty responses.
-type mockStorage struct{}
+// mockStorageJSONRPC implements supernode.StorageJSONRPC with empty responses.
+type mockStorageJSONRPC struct{}
 
-func (m *mockStorage) QueryCheckpointTime(_ context.Context, _ uint64) (sui.CheckpointTime, error) {
+func (m *mockStorageJSONRPC) QueryCheckpointTime(_ context.Context, _ uint64) (sui.CheckpointTime, error) {
 	return sui.CheckpointTime{}, errors.Errorf("not found")
 }
-func (m *mockStorage) QuerySimpleCheckpoint(_ context.Context, _ uint64) (sui.SimpleCheckpoint, error) {
+func (m *mockStorageJSONRPC) QuerySimpleCheckpoint(_ context.Context, _ uint64) (sui.SimpleCheckpoint, error) {
 	return sui.SimpleCheckpoint{}, errors.Errorf("not found")
 }
-func (m *mockStorage) QueryTransactions(_ context.Context, _ *sui.TransactionQuery) ([]suitypes.TransactionResponseV1, error) {
+func (m *mockStorageJSONRPC) QueryTransactions(_ context.Context, _ *sui.TransactionQuery) ([]suitypes.TransactionResponseV1, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryTransactionsV2(
+func (m *mockStorageJSONRPC) QueryTransactionsV2(
 	_ context.Context, _, _ uint64,
 	_ sui.TransactionFilter, _ sui.TransactionFetchConfig,
 ) ([]suitypes.TransactionResponseV1, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryObjectChanges(_ context.Context, _ *sui.ObjectChangeQuery) ([]suitypes.ObjectChangeExtend, error) {
+func (m *mockStorageJSONRPC) QueryObjectChanges(_ context.Context, _ *sui.ObjectChangeQuery) ([]suitypes.ObjectChangeExtend, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryObjectChangesV2(_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter) ([]suitypes.ObjectChangeExtend, error) {
+func (m *mockStorageJSONRPC) QueryObjectChangesV2(_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter) ([]suitypes.ObjectChangeExtend, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryObjectsStat(_ context.Context, _, _ uint64, _ []string) (map[string]sui.ObjectStat, error) {
+func (m *mockStorageJSONRPC) QueryObjectsStat(_ context.Context, _, _ uint64, _ []string) (map[string]sui.ObjectStat, error) {
 	return nil, nil
 }
-func (m *mockStorage) Snapshot() any { return nil }
+func (m *mockStorageJSONRPC) Snapshot() any { return nil }
+
+// mockStorageGRPC implements supernode.StorageGRPC with empty responses.
+type mockStorageGRPC struct{}
+
+func (m *mockStorageGRPC) QuerySimpleCheckpoint(_ context.Context, _ uint64) (sui.SimpleCheckpoint, error) {
+	return sui.SimpleCheckpoint{}, errors.Errorf("not found")
+}
+func (m *mockStorageGRPC) QueryTransactions(
+	_ context.Context, _, _ uint64,
+	_ sui.TransactionFilter, _ sui.TransactionFetchConfig,
+) ([]*sui.ExtendedGrpcTransaction, error) {
+	return nil, nil
+}
+func (m *mockStorageGRPC) QueryObjectChanges(
+	_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter,
+) ([]*sui.ExtendedGrpcChangedObject, error) {
+	return nil, nil
+}
+func (m *mockStorageGRPC) QueryObjectsStat(_ context.Context, _, _ uint64, _ []string) (map[string]sui.ObjectStat, error) {
+	return nil, nil
+}
+func (m *mockStorageGRPC) Snapshot() any { return nil }
 
 type rpcRequest struct {
 	JSONRPC string `json:"jsonrpc"`
@@ -133,9 +155,13 @@ func Test_suiRpc(t *testing.T) {
 
 	ext := sui.NewExtServerDimension(
 		cli,
-		true, // skipValidate
-		10,   // loadConcurrency
-		3,    // loadRetry
+		true,  // enableJSONRPC
+		true,  // skipValidate
+		false, // enableGrpc
+		0,     // loadObjectsBatchSize
+		0,     // loadObjectsConcurrency
+		10,    // loadConcurrency
+		3,     // loadRetry
 		rg.Range{},
 		0,
 	)
@@ -157,11 +183,13 @@ func Test_suiRpc(t *testing.T) {
 	})
 
 	superSvr := NewSuperService(
+		cli,
 		sc,
 		&mockKVStore[sui.SimpleCheckpoint]{},
 		&mockKVStore[sui.CheckpointTime]{},
 		&mockKVStore[sui.ObjectCreation]{},
-		&mockStorage{},
+		&mockStorageJSONRPC{},
+		&mockStorageGRPC{},
 	)
 
 	addr := "127.0.0.1:18892"

@@ -160,8 +160,10 @@ The codebase is organized into several major components:
 
 ### Adding New Code
 
-1. **Go packages**: Add files, then run `bazel run //:gazelle` to update BUILD files
-2. **Go dependencies**: Update `go.mod`, then `bazel run //:gazelle-update-repos` and `bazel run //:gazelle`
+**Whenever Go packages, files, or dependencies are added or removed, run `scripts/deps-update.sh` to regenerate `BUILD.bazel` files — do not hand-edit them.** The script runs `go mod tidy`, `bazel mod tidy`, `bazel run //:gazelle`, and refreshes the Python requirements lock. Commit the regenerated `BUILD.bazel` / `MODULE.bazel` / `go.mod` changes together with your source changes.
+
+1. **Go packages / files**: Add or remove `.go` files, then run `scripts/deps-update.sh`
+2. **Go dependencies**: Update imports / `go.mod`, then run `scripts/deps-update.sh`
 3. **Proto changes**: Modify `.proto` files, rebuild will auto-generate code
 4. **TypeScript packages**: Use pnpm workspace, dependencies managed in package.json files
 

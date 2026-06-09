@@ -73,6 +73,9 @@ type SuperService struct {
 	cachedObjectCreation   kvstore.Store[sui.ObjectCreation]
 	storageJSONRPC         StorageJSONRPC
 	storageGRPC            StorageGRPC
+	// storageShared serves the format-agnostic queries; it is whichever of
+	// storageGRPC / storageJSONRPC is configured (grpc preferred when both exist).
+	storageShared StorageShared
 }
 
 func NewSuperService(
@@ -84,6 +87,17 @@ func NewSuperService(
 	storageJSONRPC StorageJSONRPC,
 	storageGRPC StorageGRPC,
 ) *SuperService {
+	// A chain may have only grpc data, only json-rpc data (e.g. iota), or both,
+	// but it must have at least one.
+	var storageShared StorageShared
+	switch {
+	case storageGRPC != nil:
+		storageShared = storageGRPC
+	case storageJSONRPC != nil:
+		storageShared = storageJSONRPC
+	default:
+		panic("supernode: at least one of storageJSONRPC / storageGRPC must be provided")
+	}
 	return &SuperService{
 		client:                 client,
 		slotCache:              slotCache,
@@ -92,7 +106,24 @@ func NewSuperService(
 		cachedObjectCreation:   cachedObjectCreation,
 		storageJSONRPC:         storageJSONRPC,
 		storageGRPC:            storageGRPC,
+		storageShared:          storageShared,
 	}
+}
+
+// requireJSONRPC guards json-rpc-format methods on chains that have no json-rpc storage.
+func (s *SuperService) requireJSONRPC() error {
+	if s.storageJSONRPC == nil {
+		return errors.Errorf("json-rpc storage is not configured for this chain")
+	}
+	return nil
+}
+
+// requireGRPC guards grpc-format methods on chains that have no grpc storage (e.g. iota).
+func (s *SuperService) requireGRPC() error {
+	if s.storageGRPC == nil {
+		return errors.Errorf("grpc storage is not configured for this chain")
+	}
+	return nil
 }
 
 func (s *SuperService) GetLatestCheckpointSequenceNumber(ctx context.Context) (types.Number, error) {
@@ -138,7 +169,7 @@ func (s *SuperService) GetSimpleCheckpoint(ctx context.Context, checkpoint uint6
 			return []sui.SimpleCheckpoint{sui.NewSimpleCheckpoint(slot)}, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) ([]sui.SimpleCheckpoint, error) {
-			sc, queryErr := s.storageGRPC.QuerySimpleCheckpoint(ctx, queryRange.Start)
+			sc, queryErr := s.storageShared.QuerySimpleCheckpoint(ctx, queryRange.Start)
 			if queryErr != nil {
 				return nil, queryErr
 			}
@@ -164,6 +195,9 @@ func (s *SuperService) GetCheckpointTime(
 	network string,
 	checkpointSequenceNumber types.Number,
 ) ([]uint64, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	ctx, logger := log.FromContext(ctx, "checkpoint", checkpointSequenceNumber)
 	key := checkpointSequenceNumber.String()
 	cached, getCacheErr := s.cachedCheckpointTime.Get(ctx, key)
@@ -216,6 +250,9 @@ func (s *SuperService) GetTransactions(
 	network string,
 	query *sui.TransactionQuery,
 ) ([]types.TransactionResponseV1, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	return chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(query.FromSequenceNumber, query.ToSequenceNumber),
@@ -246,6 +283,9 @@ func (s *SuperService) GetTransactionsV2(
 	filter sui.TransactionFilter,
 	fetchConfig sui.TransactionFetchConfig,
 ) ([]types.TransactionResponseV1, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	return chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(fromBlock, toBlock),
@@ -286,6 +326,9 @@ func (s *SuperService) GetGrpcTransactions(
 	filter sui.TransactionFilter,
 	fetchConfig sui.TransactionFetchConfig,
 ) ([]*sui.ExtendedGrpcTransaction, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
 	return chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(fromBlock, toBlock),
@@ -321,6 +364,9 @@ func (s *SuperService) FilterObjectChanges(
 	ctx context.Context,
 	query *sui.ObjectChangeQuery,
 ) ([]types.ObjectChangeExtend, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	result, err := chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(query.FromSequenceNumber, query.ToSequenceNumber),
@@ -365,6 +411,9 @@ func (s *SuperService) FilterObjectChangesV2(
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
 ) ([]types.ObjectChangeExtend, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	checker := filter.Checker()
 	return chain.QueryRangeWithCache(
 		ctx,
@@ -407,6 +456,9 @@ func (s *SuperService) FilterGrpcChangedObjects(
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
 	checker := filter.CheckerGrpc()
 	return chain.QueryRangeWithCache(
 		ctx,
@@ -446,6 +498,9 @@ func (s *SuperService) GetGrpcObjects(
 	concurrency int,
 	batchSize int,
 ) ([]*rpcv2.GetObjectResult, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
 	const theme = "proxy.GetGrpcObjects.grpc_BatchGetObjects"
 	concurrency = min(concurrency, 10)
 	batchSize = min(batchSize, 50)
@@ -511,7 +566,7 @@ func (s *SuperService) GetObjectStat(
 			return []sui.ObjectStat{result}, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) ([]sui.ObjectStat, error) {
-			r, err := s.storageGRPC.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, []string{objectID})
+			r, err := s.storageShared.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, []string{objectID})
 			if err != nil {
 				return nil, err
 			}
@@ -565,7 +620,7 @@ func (s *SuperService) GetObjectsStat(
 			return []map[string]sui.ObjectStat{result}, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) ([]map[string]sui.ObjectStat, error) {
-			r, err := s.storageGRPC.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, objectIDList)
+			r, err := s.storageShared.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, objectIDList)
 			if err != nil {
 				return nil, err
 			}

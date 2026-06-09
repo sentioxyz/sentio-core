@@ -6,6 +6,15 @@ import (
 	"sentioxyz/sentio-core/chain/sui/types"
 )
 
+// StorageShared is the format-agnostic subset served by either backing storage.
+// Both StorageJSONRPC and StorageGRPC satisfy it, so format-agnostic methods
+// (simple checkpoint, object stat) can be served by whichever storage exists.
+type StorageShared interface {
+	// QuerySimpleCheckpoint will return error if checkpoint not found
+	QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) (sui.SimpleCheckpoint, error)
+	QueryObjectsStat(ctx context.Context, fromBlock, toBlock uint64, objectIDList []string) (map[string]sui.ObjectStat, error)
+}
+
 type StorageJSONRPC interface {
 	// QueryCheckpointTime will return error if checkpoint not found
 	QueryCheckpointTime(ctx context.Context, checkpoint uint64) (sui.CheckpointTime, error)

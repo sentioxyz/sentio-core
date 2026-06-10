@@ -1,0 +1,101 @@
+{
+  "digest": "WHKTznZhauTP7KzdBuCKARxYWbJwKigKbjnuE7bmCWH",
+  "transaction": {
+    "data": {
+      "messageVersion": "v1",
+      "transaction": {
+        "kind": "ProgrammableTransaction",
+        "inputs": [
+          {
+            "type": "object",
+            "objectType": "sharedObject",
+            "objectId": "0x0000000000000000000000000000000000000000000000000000000000000acc",
+            "initialSharedVersion": "684265543",
+            "mutable": true
+          },
+          {
+            "type": "pure",
+            "valueType": "u64",
+            "value": "1154"
+          },
+          {
+            "type": "pure",
+            "valueType": "u64",
+            "value": "833015"
+          },
+          {
+            "type": "pure",
+            "valueType": "u64",
+            "value": "0"
+          }
+        ],
+        "transactions": [
+          {
+            "MoveCall": {
+              "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
+              "module": "accumulator_settlement",
+              "function": "settlement_prologue",
+              "arguments": [
+                {
+                  "Input": 0
+                },
+                {
+                  "Input": 1
+                },
+                {
+                  "Input": 2
+                },
+                {
+                  "Input": 3
+                },
+                {
+                  "Input": 3
+                },
+                {
+                  "Input": 3
+                }
+              ]
+            }
+          },
+          {
+            "MoveCall": {
+              "package": "0x0000000000000000000000000000000000000000000000000000000000000002",
+              "module": "accumulator_metadata",
+              "function": "record_accumulator_object_changes",
+              "arguments": [
+                {
+                  "Input": 0
+                },
+                {
+                  "Input": 3
+                },
+                {
+                  "Input": 3
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "gasData": {
+        "payment": [
+          {
+            "objectId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "version": 0,
+            "digest": "11111111111111111111111111111111"
+          }
+        ],
+        "owner": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "price": "1",
+        "budget": "0"
+      }
+    },
+    "txSignatures": [
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    ]
+  },
+  "rawTransaction": "AQAAAAAKBAEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACsxHEMkoAAAAAAEACIIEAAAAAAAAAAj3tQwAAAAAAAAIAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACFmFjY3VtdWxhdG9yX3NldHRsZW1lbnQTc2V0dGxlbWVudF9wcm9sb2d1ZQAGAQAAAQEAAQIAAQMAAQMAAQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACFGFjY3VtdWxhdG9yX21ldGFkYXRhIXJlY29yZF9hY2N1bXVsYXRvcl9vYmplY3RfY2hhbmdlcwADAQAAAQMAAQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAABYQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  "timestampMs": "1781104363467",
+  "checkpoint": "285421893"
+}

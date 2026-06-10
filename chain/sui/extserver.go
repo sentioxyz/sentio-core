@@ -158,13 +158,17 @@ func (d *ExtServerDimension) loadCheckpoint(
 	return
 }
 
+// uncompletedKinds are transaction kinds whose Go types are not yet exact, so
+// slot loading skips DeriveAux/TxSanityCheck for them rather than failing.
+// ConsensusCommitPrologueV4 (Sui) and ConsensusCommitPrologueV1 (IOTA) are now
+// complete and validated against real testnet samples (see
+// consensus_commit_prologue_test.go). V2/V3 stay here until a historical sample
+// is captured to validate their round-trip.
 var uncompletedKinds = map[string]bool{
 	"Genesis":                   true,
 	"EndOfEpochTransaction":     true,
-	"ConsensusCommitPrologueV1": true,
 	"ConsensusCommitPrologueV2": true,
 	"ConsensusCommitPrologueV3": true,
-	"ConsensusCommitPrologueV4": true,
 	"RandomnessStateUpdate":     true,
 }
 

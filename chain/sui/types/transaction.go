@@ -311,14 +311,17 @@ type ConsensusCommitPrologue struct {
 	CommitTimestampMs Number `json:"commit_timestamp_ms"`
 }
 
+// ConsensusCommitPrologueV1 is IOTA's consensus commit prologue (TransactionKind
+// variant index 2 on IOTA). Its layout matches Sui's V3 (sub_dag_index Option,
+// consensus_commit_digest, consensus_determined_version_assignments) but it has
+// NO additional_state_digest. Sui has no "ConsensusCommitPrologueV1" kind name.
 type ConsensusCommitPrologueV1 struct {
-	Epoch                 Number `json:"epoch"`
-	Round                 Number `json:"round"`
-	CommitTimestampMs     Number `json:"commit_timestamp_ms"`
-	ConsensusCommitDigest Digest `json:"consensus_commit_digest"`
-	// TODO add following def
-	// see: https://docs.sui.io/sui-api-ref#transactionblockresponse
-	//pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
+	Epoch                                 Number                                 `json:"epoch"`
+	Round                                 Number                                 `json:"round"`
+	SubDagIndex                           *Number                                `json:"sub_dag_index" bcs:"optional"`
+	CommitTimestampMs                     Number                                 `json:"commit_timestamp_ms"`
+	ConsensusCommitDigest                 Digest                                 `json:"consensus_commit_digest"`
+	ConsensusDeterminedVersionAssignments *ConsensusDeterminedVersionAssignments `json:"consensus_determined_version_assignments"`
 }
 
 type ConsensusCommitPrologueV2 struct {
@@ -329,25 +332,102 @@ type ConsensusCommitPrologueV2 struct {
 }
 
 type ConsensusCommitPrologueV3 struct {
-	Epoch                 Number  `json:"epoch"`
-	Round                 Number  `json:"round"`
-	SubDagIndex           *Number `json:"sub_dag_index"`
-	CommitTimestampMs     Number  `json:"commit_timestamp_ms"`
-	ConsensusCommitDigest Digest  `json:"consensus_commit_digest"`
-	// TODO add following def
-	//pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
+	Epoch                                 Number                                 `json:"epoch"`
+	Round                                 Number                                 `json:"round"`
+	SubDagIndex                           *Number                                `json:"sub_dag_index" bcs:"optional"`
+	CommitTimestampMs                     Number                                 `json:"commit_timestamp_ms"`
+	ConsensusCommitDigest                 Digest                                 `json:"consensus_commit_digest"`
+	ConsensusDeterminedVersionAssignments *ConsensusDeterminedVersionAssignments `json:"consensus_determined_version_assignments"`
 }
 
 type ConsensusCommitPrologueV4 struct {
-	Epoch                 Number  `json:"epoch"`
-	Round                 Number  `json:"round"`
-	SubDagIndex           *Number `json:"sub_dag_index"`
-	CommitTimestampMs     Number  `json:"commit_timestamp_ms"`
-	ConsensusCommitDigest Digest  `json:"consensus_commit_digest"`
-	AdditionalStateDigest Digest  `json:"additional_state_digest"`
-	// TODO add following def
-	// see: https://docs.sui.io/sui-api-ref#transactionblockresponse
-	//pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
+	Epoch                                 Number                                 `json:"epoch"`
+	Round                                 Number                                 `json:"round"`
+	SubDagIndex                           *Number                                `json:"sub_dag_index" bcs:"optional"`
+	CommitTimestampMs                     Number                                 `json:"commit_timestamp_ms"`
+	ConsensusCommitDigest                 Digest                                 `json:"consensus_commit_digest"`
+	ConsensusDeterminedVersionAssignments *ConsensusDeterminedVersionAssignments `json:"consensus_determined_version_assignments"`
+	AdditionalStateDigest                 Digest                                 `json:"additional_state_digest"`
+}
+
+// ConsensusDeterminedVersionAssignments is a BCS enum carrying shared-object
+// version assignments for transactions cancelled by consensus. Sui has two
+// variants (CanceledTransactions=0, CanceledTransactionsV2=1); IOTA has only the
+// first (index 0). In json-rpc the variant key is spelled "Cancelled" (double l)
+// even though the Rust type spells it "Canceled"; UnmarshalJSON accepts both.
+type ConsensusDeterminedVersionAssignments struct {
+	CanceledTransactions   *CanceledTransactions   `bcs:"enumNum[sui]=0,enumNum[iota]=0"`
+	CanceledTransactionsV2 *CanceledTransactionsV2 `bcs:"enumNum[sui]=1"`
+}
+
+func (s *ConsensusDeterminedVersionAssignments) IsBcsEnum() {}
+
+// CanceledTransactions wraps the single tuple field of the variant (Vec<CanceledTransaction>);
+// a one-field struct encodes identically to the bare field in BCS.
+type CanceledTransactions struct {
+	Transactions []CanceledTransaction
+}
+
+type CanceledTransaction struct {
+	TxDigest           Digest
+	VersionAssignments []VersionAssignment
+}
+
+type VersionAssignment struct {
+	ObjectID ObjectID
+	Version  Number
+}
+
+type CanceledTransactionsV2 struct {
+	Transactions []CanceledTransactionV2
+}
+
+type CanceledTransactionV2 struct {
+	TxDigest           Digest
+	VersionAssignments []VersionAssignmentV2
+}
+
+type VersionAssignmentV2 struct {
+	ObjectID     ObjectID
+	StartVersion Number
+	Version      Number
+}
+
+func (s *ConsensusDeterminedVersionAssignments) UnmarshalJSON(data []byte) error {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	for k, v := range m {
+		switch k {
+		case "CancelledTransactions", "CanceledTransactions":
+			var arr []CanceledTransaction
+			if err := json.Unmarshal(v, &arr); err != nil {
+				return err
+			}
+			s.CanceledTransactions = &CanceledTransactions{Transactions: arr}
+			return nil
+		case "CancelledTransactionsV2", "CanceledTransactionsV2":
+			var arr []CanceledTransactionV2
+			if err := json.Unmarshal(v, &arr); err != nil {
+				return err
+			}
+			s.CanceledTransactionsV2 = &CanceledTransactionsV2{Transactions: arr}
+			return nil
+		}
+	}
+	return errors.Errorf("unknown ConsensusDeterminedVersionAssignments variant in %s", string(data))
+}
+
+func (s ConsensusDeterminedVersionAssignments) MarshalJSON() ([]byte, error) {
+	switch {
+	case s.CanceledTransactions != nil:
+		return json.Marshal(map[string]any{"CancelledTransactions": s.CanceledTransactions.Transactions})
+	case s.CanceledTransactionsV2 != nil:
+		return json.Marshal(map[string]any{"CancelledTransactionsV2": s.CanceledTransactionsV2.Transactions})
+	default:
+		return []byte("null"), nil
+	}
 }
 
 type ProgrammableTransaction struct {
@@ -524,24 +604,42 @@ type RandomnessStateUpdate struct {
 	// TODO
 }
 
+// TransactionKind is a BCS enum whose variant indices differ between Sui and
+// IOTA, so each field carries per-selector enumNum tags rather than relying on
+// Go field position. See bcs_enum_selector_design.md for the full index table.
+// Sui:  0 Programmable, 1 ChangeEpoch, 2 Genesis, 3 ConsensusCommitPrologue(V1),
+//
+//	4 AuthenticatorStateUpdate, 5 EndOfEpoch, 6 RandomnessStateUpdate,
+//	7 CCPv2, 8 CCPv3, 9 CCPv4, 10 ProgrammableSystemTransaction.
+//
+// IOTA: 0 Programmable, 1 Genesis, 2 ConsensusCommitPrologueV1,
+//
+//	3 AuthenticatorStateUpdateV1(deprecated), 4 EndOfEpoch, 5 RandomnessStateUpdate.
+//
+// IOTA-only / Sui-only kinds whose payloads have not been verified are tagged
+// for the chain we have validated; an unverified variant decodes to a loud
+// "variant not defined" error rather than silently corrupting a round-trip.
 type TransactionKind struct {
-	ProgrammableTransaction   *ProgrammableTransaction
-	ChangeEpoch               *ChangeEpoch
-	Genesis                   *Genesis
-	ConsensusCommitPrologue   *ConsensusCommitPrologue
-	AuthenticatorStateUpdate  *AuthenticatorStateUpdate
-	EndOfEpochTransaction     *EndOfEpochTransaction
-	RandomnessStateUpdate     *RandomnessStateUpdate
-	ConsensusCommitPrologueV2 *ConsensusCommitPrologueV2
-	ConsensusCommitPrologueV3 *ConsensusCommitPrologueV3
-	ConsensusCommitPrologueV4 *ConsensusCommitPrologueV4
-	ConsensusCommitPrologueV1 *ConsensusCommitPrologueV1 // iota-mainnet has this kind of tx
+	ProgrammableTransaction       *ProgrammableTransaction   `bcs:"enumNum[sui]=0,enumNum[iota]=0"`
+	ChangeEpoch                   *ChangeEpoch               `bcs:"enumNum[sui]=1"`
+	Genesis                       *Genesis                   `bcs:"enumNum[sui]=2,enumNum[iota]=1"`
+	ConsensusCommitPrologue       *ConsensusCommitPrologue   `bcs:"enumNum[sui]=3"`
+	AuthenticatorStateUpdate      *AuthenticatorStateUpdate  `bcs:"enumNum[sui]=4"`
+	EndOfEpochTransaction         *EndOfEpochTransaction     `bcs:"enumNum[sui]=5"`
+	RandomnessStateUpdate         *RandomnessStateUpdate     `bcs:"enumNum[sui]=6"`
+	ConsensusCommitPrologueV2     *ConsensusCommitPrologueV2 `bcs:"enumNum[sui]=7"`
+	ConsensusCommitPrologueV3     *ConsensusCommitPrologueV3 `bcs:"enumNum[sui]=8"`
+	ConsensusCommitPrologueV4     *ConsensusCommitPrologueV4 `bcs:"enumNum[sui]=9"`
+	ProgrammableSystemTransaction *ProgrammableTransaction   `bcs:"enumNum[sui]=10"`
+	ConsensusCommitPrologueV1     *ConsensusCommitPrologueV1 `bcs:"enumNum[iota]=2"` // iota-mainnet has this kind of tx
 }
 
 func (s *TransactionKind) Kind() string {
 	switch {
 	case s.ProgrammableTransaction != nil:
 		return "ProgrammableTransaction"
+	case s.ProgrammableSystemTransaction != nil:
+		return "ProgrammableSystemTransaction"
 	case s.ChangeEpoch != nil:
 		return "ChangeEpoch"
 	case s.Genesis != nil:
@@ -580,6 +678,8 @@ func (s *TransactionKind) UnmarshalJSON(data []byte) error {
 	switch j.Kind {
 	case "ProgrammableTransaction":
 		return json.Unmarshal(data, &s.ProgrammableTransaction)
+	case "ProgrammableSystemTransaction":
+		return json.Unmarshal(data, &s.ProgrammableSystemTransaction)
 	case "ChangeEpoch":
 		return json.Unmarshal(data, &s.ChangeEpoch)
 	case "Genesis":
@@ -616,6 +716,14 @@ func (s TransactionKind) MarshalJSON() ([]byte, error) {
 		}{
 			Kind:                    "ProgrammableTransaction",
 			ProgrammableTransaction: s.ProgrammableTransaction,
+		}
+	case s.ProgrammableSystemTransaction != nil:
+		j = &struct {
+			Kind string `json:"kind"`
+			*ProgrammableTransaction
+		}{
+			Kind:                    "ProgrammableSystemTransaction",
+			ProgrammableTransaction: s.ProgrammableSystemTransaction,
 		}
 	case s.ChangeEpoch != nil:
 		j = &struct {

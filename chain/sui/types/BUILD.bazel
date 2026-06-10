@@ -15,6 +15,7 @@ go_library(
         "transaction.go",
         "transaction_command.go",
         "transaction_data_v1.go",
+        "variation.go",
     ],
     importpath = "sentioxyz/sentio-core/chain/sui/types",
     visibility = ["//visibility:public"],
@@ -35,6 +36,7 @@ go_test(
     name = "types_test",
     srcs = [
         "address_test.go",
+        "consensus_commit_prologue_test.go",
         "digest_test.go",
         "language_test.go",
         "object_test.go",
@@ -43,9 +45,14 @@ go_test(
         "structpb_test.go",
         "transaction_command_test.go",
         "transaction_data_v1_test.go",
+        "transaction_expiration_test.go",
         "transaction_test.go",
     ],
-    data = ["//chain/sui/types/testdata:txs-v1.json"],
+    data = [
+        "//chain/sui/types/testdata:ccp-iota-v1.json",
+        "//chain/sui/types/testdata:ccp-sui-v4.json",
+        "//chain/sui/types/testdata:txs-v1.json",
+    ],
     embed = [":types"],
     deps = [
         "//chain/sui/types/serde",
@@ -55,6 +62,7 @@ go_test(
         "@com_github_kinbiko_jsonassert//:jsonassert",
         "@com_github_pkg_errors//:errors",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_zap//zapcore",
     ],
 )

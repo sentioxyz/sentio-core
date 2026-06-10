@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "serde",
@@ -13,5 +13,15 @@ go_library(
         "//common/log",
         "@com_github_fardream_go_bcs//bcs",
         "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "serde_test",
+    srcs = ["bcs_selector_test.go"],
+    embed = [":serde"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

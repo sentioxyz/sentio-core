@@ -1,1 +1,5 @@
-exports_files(["txs-v1.json"])
+exports_files([
+    "ccp-iota-v1.json",
+    "ccp-sui-v4.json",
+    "txs-v1.json",
+])

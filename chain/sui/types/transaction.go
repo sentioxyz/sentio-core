@@ -492,30 +492,88 @@ type AuthenticatorStateExpire struct {
 	AuthenticatorObjInitialSharedVersion uint64 `json:"-"`
 }
 
-// EndOfEpochTransactionSingle https://docs.sui.io/sui-api-ref#suiendofepochtransactionkind
-// EndOfEpochTransactionSingle is the EndOfEpochTransactionKind enum. Sui variant
-// indices equal the Go field positions (so the enumNum[sui] tags are exactly the
-// legacy position semantics). IOTA uses a different layout; only the variant we
-// have a validated sample for (ChangeEpochV2 = 3 on IOTA) is tagged for iota.
+// EndOfEpochTransactionSingle is the EndOfEpochTransactionKind enum. Variant
+// indices and payloads follow the authoritative BCS layout (sui-types staged
+// snapshot), NOT the Go field order. Several variants are units in the json-rpc
+// reply but carry a BCS payload (StoreExecutionTimeObservations,
+// WriteAccumulatorStorageCost) — those payloads are json:"-" and derived from
+// the decoded BCS. IOTA uses different ChangeEpoch payloads (V2/V3/V4).
+// See https://docs.sui.io/sui-api-ref#suiendofepochtransactionkind
 type EndOfEpochTransactionSingle struct {
-	ChangeEpoch                    *ChangeEpoch              `bcs:"enumNum[sui]=0"`
-	AuthenticatorStateCreate       *struct{}                 `bcs:"enumNum[sui]=1"`
-	AuthenticatorStateExpire       *AuthenticatorStateExpire `bcs:"enumNum[sui]=2"`
-	RandomnessStateCreate          *struct{}                 `bcs:"enumNum[sui]=3"`
-	CoinDenyListStateCreate        *struct{}                 `bcs:"enumNum[sui]=4"`
-	StoreExecutionTimeObservations *struct{}                 `bcs:"enumNum[sui]=5"`
-	BridgeStateCreate              *string                   `bcs:"enumNum[sui]=6"`
-	BridgeCommitteeUpdate          *int64                    `bcs:"enumNum[sui]=7"`
-	AccumulatorRootCreate          *struct{}                 `bcs:"enumNum[sui]=8"`
-	CoinRegistryCreate             *struct{}                 `bcs:"enumNum[sui]=9"`
-	DisplayRegistryCreate          *struct{}                 `bcs:"enumNum[sui]=10"`
-	AddressAliasStateCreate        *struct{}                 `bcs:"enumNum[sui]=11"`
-	WriteAccumulatorStorageCost    *struct{}                 `bcs:"enumNum[sui]=12"`
-	// IOTA's EndOfEpochTransactionKind variants 0..3 (ChangeEpoch differs from
-	// Sui's, so it is tagged for iota here; V2/V3/V4 are iota-only).
+	ChangeEpoch                    *ChangeEpoch                     `bcs:"enumNum[sui]=0"`
+	AuthenticatorStateCreate       *struct{}                        `bcs:"enumNum[sui]=1"`
+	AuthenticatorStateExpire       *AuthenticatorStateExpire        `bcs:"enumNum[sui]=2"`
+	RandomnessStateCreate          *struct{}                        `bcs:"enumNum[sui]=3"`
+	CoinDenyListStateCreate        *struct{}                        `bcs:"enumNum[sui]=4"`
+	BridgeStateCreate              *Digest                          `bcs:"enumNum[sui]=5"` // ChainIdentifier
+	BridgeCommitteeUpdate          *uint64                          `bcs:"enumNum[sui]=6"` // BridgeCommitteeInit(SequenceNumber)
+	StoreExecutionTimeObservations *StoredExecutionTimeObservations `bcs:"enumNum[sui]=7"`
+	AccumulatorRootCreate          *struct{}                        `bcs:"enumNum[sui]=8"`
+	CoinRegistryCreate             *struct{}                        `bcs:"enumNum[sui]=9"`
+	DisplayRegistryCreate          *struct{}                        `bcs:"enumNum[sui]=10"`
+	AddressAliasStateCreate        *struct{}                        `bcs:"enumNum[sui]=11"`
+	WriteAccumulatorStorageCost    *WriteAccumulatorStorageCost     `bcs:"enumNum[sui]=12"`
+	// IOTA's EndOfEpochTransactionKind ChangeEpoch payloads (V2/V3/V4 at iota
+	// variants 1/2/3); ChangeEpoch differs from Sui's so it is sui-only above.
 	ChangeEpochV2 *ChangeEpochV2 `bcs:"enumNum[sui]=13,enumNum[iota]=1"`
 	ChangeEpochV3 *ChangeEpochV3 `bcs:"enumNum[iota]=2"`
 	ChangeEpochV4 *ChangeEpochV4 `bcs:"enumNum[iota]=3"`
+}
+
+// StoredExecutionTimeObservations is the BCS payload of the
+// StoreExecutionTimeObservations end-of-epoch variant. The json-rpc reply
+// reports the variant as a bare string with no data, so the payload is json:"-"
+// and derived from the decoded BCS. Layout: enum { V1(Vec<(ExecutionTimeObservationKey,
+// Vec<(AuthorityPublicKeyBytes, Duration)>)>) }.
+type StoredExecutionTimeObservations struct {
+	V1 *StoredExecutionTimeObservationsV1 `json:"-"`
+}
+
+func (*StoredExecutionTimeObservations) IsBcsEnum() {}
+
+type StoredExecutionTimeObservationsV1 struct {
+	Observations []ExecutionTimeObservation
+}
+
+type ExecutionTimeObservation struct {
+	Key          *ExecutionTimeObservationKey
+	Observations []ValidatorDurationObservation
+}
+
+type ValidatorDurationObservation struct {
+	Authority []byte // AuthorityPublicKeyBytes: length-prefixed bytes
+	Duration  Duration
+}
+
+type Duration struct {
+	Secs  uint64
+	Nanos uint32
+}
+
+type ExecutionTimeObservationKey struct {
+	MoveEntryPoint  *MoveEntryPoint `bcs:"enumNum[sui]=0"`
+	TransferObjects *struct{}       `bcs:"enumNum[sui]=1"`
+	SplitCoins      *struct{}       `bcs:"enumNum[sui]=2"`
+	MergeCoins      *struct{}       `bcs:"enumNum[sui]=3"`
+	Publish         *struct{}       `bcs:"enumNum[sui]=4"`
+	MakeMoveVec     *struct{}       `bcs:"enumNum[sui]=5"`
+	Upgrade         *struct{}       `bcs:"enumNum[sui]=6"`
+}
+
+func (*ExecutionTimeObservationKey) IsBcsEnum() {}
+
+type MoveEntryPoint struct {
+	Package       ObjectID
+	Module        string
+	Function      string
+	TypeArguments []TypeTag // TypeInput shares TypeTag's BCS layout
+}
+
+// WriteAccumulatorStorageCost is the BCS payload of the
+// WriteAccumulatorStorageCost end-of-epoch variant (a json-rpc unit variant),
+// derived from BCS.
+type WriteAccumulatorStorageCost struct {
+	StorageCost Number `json:"-"`
 }
 
 func (s *EndOfEpochTransactionSingle) IsBcsEnum() {}
@@ -581,13 +639,13 @@ func (s EndOfEpochTransactionSingle) buildRawStruct() any {
 		}
 	case s.BridgeStateCreate != nil:
 		j = &struct {
-			BridgeStateCreate string `json:"BridgeStateCreate"`
+			BridgeStateCreate Digest `json:"BridgeStateCreate"`
 		}{
 			BridgeStateCreate: *s.BridgeStateCreate,
 		}
 	case s.BridgeCommitteeUpdate != nil:
 		j = &struct {
-			BridgeCommitteeUpdate int64 `json:"BridgeCommitteeUpdate"`
+			BridgeCommitteeUpdate uint64 `json:"BridgeCommitteeUpdate"`
 		}{
 			BridgeCommitteeUpdate: *s.BridgeCommitteeUpdate,
 		}
@@ -611,7 +669,8 @@ func (s *EndOfEpochTransactionSingle) UnmarshalJSON(data []byte) error {
 		case "CoinDenyListStateCreate":
 			s.CoinDenyListStateCreate = &struct{}{}
 		case "StoreExecutionTimeObservations":
-			s.StoreExecutionTimeObservations = &struct{}{}
+			// payload is not in json; DeriveAux fills it from the decoded BCS.
+			s.StoreExecutionTimeObservations = &StoredExecutionTimeObservations{}
 		case "AccumulatorRootCreate":
 			s.AccumulatorRootCreate = &struct{}{}
 		case "CoinRegistryCreate":
@@ -621,7 +680,8 @@ func (s *EndOfEpochTransactionSingle) UnmarshalJSON(data []byte) error {
 		case "AddressAliasStateCreate":
 			s.AddressAliasStateCreate = &struct{}{}
 		case "WriteAccumulatorStorageCost":
-			s.WriteAccumulatorStorageCost = &struct{}{}
+			// payload is not in json; DeriveAux fills it from the decoded BCS.
+			s.WriteAccumulatorStorageCost = &WriteAccumulatorStorageCost{}
 		default:
 			return errors.New(fmt.Sprintf("invalid EndOfEpochTransactionSingle %q", str))
 		}
@@ -631,8 +691,8 @@ func (s *EndOfEpochTransactionSingle) UnmarshalJSON(data []byte) error {
 		ChangeEpoch              *ChangeEpoch              `json:"ChangeEpoch"`
 		ChangeEpochV2            json.RawMessage           `json:"ChangeEpochV2"`
 		AuthenticatorStateExpire *AuthenticatorStateExpire `json:"AuthenticatorStateExpire"`
-		BridgeStateCreate        *string                   `json:"BridgeStateCreate"`
-		BridgeCommitteeUpdate    *int64                    `json:"BridgeCommitteeUpdate"`
+		BridgeStateCreate        *Digest                   `json:"BridgeStateCreate"`
+		BridgeCommitteeUpdate    *uint64                   `json:"BridgeCommitteeUpdate"`
 	}
 	err := json.Unmarshal(data, &j)
 	if err != nil {
@@ -723,7 +783,7 @@ type TransactionKind struct {
 	ConsensusCommitPrologueV3     *ConsensusCommitPrologueV3 `bcs:"enumNum[sui]=8"`
 	ConsensusCommitPrologueV4     *ConsensusCommitPrologueV4 `bcs:"enumNum[sui]=9"`
 	ProgrammableSystemTransaction *ProgrammableTransaction   `bcs:"enumNum[sui]=10"`
-	ConsensusCommitPrologueV1     *ConsensusCommitPrologueV1 `bcs:"enumNum[iota]=2"` // iota-mainnet has this kind of tx
+	ConsensusCommitPrologueV1     *ConsensusCommitPrologueV1 `bcs:"enumNum[iota]=2"`
 }
 
 func (s *TransactionKind) Kind() string {

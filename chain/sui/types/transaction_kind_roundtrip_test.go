@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/goccy/go-json"
+	"github.com/kinbiko/jsonassert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,6 +62,20 @@ func TestTransactionKindRoundTrip(t *testing.T) {
 			if !tc.bcsValidated {
 				return
 			}
+
+			// JSON fidelity: re-marshalling the kind must reproduce the node's
+			// transaction.data.transaction json exactly (no dropped/extra fields).
+			var orig struct {
+				Transaction struct {
+					Data struct {
+						Transaction json.RawMessage `json:"transaction"`
+					} `json:"data"`
+				} `json:"transaction"`
+			}
+			require.NoError(t, json.Unmarshal(data, &orig))
+			kindJSON, err := json.Marshal(tx.Transaction.Data.V1.Kind)
+			require.NoError(t, err)
+			jsonassert.New(t).Assertf(string(kindJSON), "%s", string(orig.Transaction.Data.Transaction))
 
 			raw := tx.RawTransaction.Data()
 			require.NotEmpty(t, raw)

@@ -273,6 +273,18 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 					return errors.New("y.ChangeEpochV4 == nil")
 				}
 				populateChangeEpochV4(x.ChangeEpochV4, y.ChangeEpochV4)
+			} else if x.StoreExecutionTimeObservations != nil {
+				// json reports this variant as a bare string; its payload only
+				// exists in the BCS.
+				if y.StoreExecutionTimeObservations == nil {
+					return errors.New("y.StoreExecutionTimeObservations == nil")
+				}
+				*x.StoreExecutionTimeObservations = *y.StoreExecutionTimeObservations
+			} else if x.WriteAccumulatorStorageCost != nil {
+				if y.WriteAccumulatorStorageCost == nil {
+					return errors.New("y.WriteAccumulatorStorageCost == nil")
+				}
+				*x.WriteAccumulatorStorageCost = *y.WriteAccumulatorStorageCost
 			}
 		}
 	}

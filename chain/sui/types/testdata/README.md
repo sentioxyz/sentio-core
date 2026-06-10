@@ -24,7 +24,7 @@ tables for `kind` + `checkpoint` + `digest`, then fetched from the node.
 | `sui/consensus-commit-prologue-v4.json` | sui testnet | ConsensusCommitPrologueV4 | 9 | 346673896 | yes |
 | `sui/randomness-state-update.json` | sui testnet | RandomnessStateUpdate | 6 | 346679383 | yes |
 | `sui/authenticator-state-update.json` | sui mainnet | AuthenticatorStateUpdate | 4 | 285177209 | yes |
-| `sui/end-of-epoch.json` | sui mainnet | EndOfEpochTransaction (ChangeEpoch) | 5 | 11367491 | yes |
+| `sui/end-of-epoch.json` | sui mainnet | EndOfEpochTransaction (AuthenticatorStateExpire + StoreExecutionTimeObservations + WriteAccumulatorStorageCost + ChangeEpoch) | 5 | 285177205 | yes |
 | `sui/genesis.json` | sui mainnet | Genesis | 2 | 0 | no (payload unmodeled) |
 | `sui/transactions-bundle.json` | sui mainnet | curated bundle of 60 replies (diverse Programmable + a few system txs + 1 errored tx) | — | early epochs | yes (per-tx) |
 | `iota/programmable.json` | iota testnet | ProgrammableTransaction | 0 | 225943757 | yes |

@@ -540,57 +540,12 @@ func (s *SuperService) GetObjectStat(
 	endCheckpoint uint64,
 	objectID string,
 ) (sui.ObjectStat, error) {
-	ss, err := chain.QueryRangeWithCache(
-		ctx,
-		rg.NewRange(startCheckpoint, endCheckpoint),
-		s.slotCache,
-		func(st *sui.Slot) ([]sui.ObjectStat, error) {
-			var result sui.ObjectStat
-			merge := func(version uint64) {
-				result = result.Merge(sui.ObjectStat{
-					Count:            1,
-					MinObjectVersion: version,
-					MinCheckpoint:    st.GetNumber(),
-					MaxObjectVersion: version,
-					MaxCheckpoint:    st.GetNumber(),
-				})
-			}
-			// prefer grpc data; fall back to json-rpc when the slot has no grpc data (e.g. iota)
-			if st.GrpcCheckpoint != nil {
-				st.IterGrpcObjectChanges(func(objID string, version uint64) {
-					if objID == objectID {
-						merge(version)
-					}
-				})
-			} else {
-				for _, tx := range st.Transactions {
-					for _, oc := range tx.ObjectChanges {
-						if oc.GetObjectID() == objectID {
-							merge(oc.Version.Uint64())
-						}
-					}
-				}
-			}
-			if result.Count == 0 {
-				return nil, nil
-			}
-			return []sui.ObjectStat{result}, nil
-		},
-		func(ctx context.Context, queryRange rg.Range) ([]sui.ObjectStat, error) {
-			r, err := s.storageShared.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, []string{objectID})
-			if err != nil {
-				return nil, err
-			}
-			if result, has := r[objectID]; has && result.Count > 0 {
-				return []sui.ObjectStat{result}, nil
-			}
-			return nil, nil
-		},
-	)
+	stats, err := s.GetObjectsStat(ctx, startCheckpoint, endCheckpoint, []string{objectID})
 	if err != nil {
 		return sui.ObjectStat{}, err
 	}
-	return utils.Reduce(ss, sui.ObjectStat.Merge), nil
+	// stats[objectID] is the zero ObjectStat (Count 0) when the object is not found
+	return stats[objectID], nil
 }
 
 func (s *SuperService) GetObjectsStat(

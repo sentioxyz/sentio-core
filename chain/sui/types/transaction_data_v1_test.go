@@ -81,7 +81,7 @@ func TestDecodeV1TransactionFromBCSToJSON(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		decodedData, err := DecodeSenderSignedData(rawTx.RawTransaction)
+		decodedData, err := DecodeSenderSignedData(rawTx.RawTransaction, VariationSUI)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,7 +175,7 @@ func TestDecodeV1TransactionFromJSONToBCS(t *testing.T) {
 			// As a go program, we do not have the ability to translate that string into binary bytecode.
 			// However, the bytecode in binary form is given if we decode rawTransaction BCS.
 			if err = DeriveAuxInformationFromBCSV1(inputTx.Data.V1,
-				rawTx.RawTransaction.Data()); err != nil {
+				rawTx.RawTransaction.Data(), VariationSUI); err != nil {
 				t.Fatal(err)
 			}
 			if inputTx.Data.V1.Expiration == nil {
@@ -191,7 +191,7 @@ func TestDecodeV1TransactionFromJSONToBCS(t *testing.T) {
 			inputTx.Intent = &IntentMessage{0, 0, 0}
 			encodedBCS, err := EncodeSenderSignedData(&SenderSignedData{
 				Transactions: []SenderSignedTransaction{*inputTx},
-			})
+			}, VariationSUI)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -723,6 +723,6 @@ func Test_decode(t *testing.T) {
 	rawTxStr := "AQAAAAAKBAEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACszPrT8mAAAAAAEACNsDAAAAAAAAAAgYAAAAAAAAAAAIAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACFmFjY3VtdWxhdG9yX3NldHRsZW1lbnQTc2V0dGxlbWVudF9wcm9sb2d1ZQAGAQAAAQEAAQIAAQMAAQMAAQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACFGFjY3VtdWxhdG9yX21ldGFkYXRhIXJlY29yZF9hY2N1bXVsYXRvcl9vYmplY3RfY2hhbmdlcwADAQAAAQMAAQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAABYQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 	rawTx, err := base64.StdEncoding.DecodeString(rawTxStr)
 	assert.NoError(t, err)
-	_, err = DecodeSenderSignedData(rawTx)
+	_, err = DecodeSenderSignedData(rawTx, VariationSUI)
 	assert.NoError(t, err)
 }

@@ -15,7 +15,7 @@ import (
 // We want to make sure at least whenever there is a new Kind being added (to SingleTransactionKind or Event),
 // we fail fast with a clear error message, rather than proceed with incorrect results, as rewinding already
 // stored data (particularly in gcs) is often difficult if not impossible.
-func TxSanityCheck(tx *types.TransactionResponseV1) (err error) {
+func TxSanityCheck(tx *types.TransactionResponseV1, variation types.Variation) (err error) {
 	if tx.Transaction.Data == nil {
 		return errors.Errorf("transaction data is nil (no transaction payload?)")
 	}
@@ -31,7 +31,7 @@ func TxSanityCheck(tx *types.TransactionResponseV1) (err error) {
 	var encodedBCS []byte
 	encodedBCS, err = types.EncodeSenderSignedData(&types.SenderSignedData{
 		Transactions: []types.SenderSignedTransaction{*tx.Transaction},
-	})
+	}, variation)
 	if err != nil {
 		return errors.Wrap(err, "failed to encode transaction to bcs")
 	}

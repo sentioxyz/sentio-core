@@ -24,6 +24,10 @@ import (
 type ExtServerDimension struct {
 	client *ClientPool
 
+	// variation selects the chain-specific BCS enum layout (sui vs iota) when
+	// decoding/re-encoding json-rpc transactions.
+	variation types.Variation
+
 	enableJSONRPC bool
 	skipValidate  bool
 
@@ -36,6 +40,7 @@ type ExtServerDimension struct {
 
 func NewExtServerDimension(
 	client *ClientPool,
+	variation types.Variation,
 	enableJSONRPC bool,
 	skipValidate bool,
 	enableGrpc bool,
@@ -49,8 +54,12 @@ func NewExtServerDimension(
 	if !enableJSONRPC && !enableGrpc {
 		panic("both json-rpc and grpc data are disabled")
 	}
+	if variation == "" {
+		variation = types.VariationSUI
+	}
 	dim := &ExtServerDimension{
 		client:                 client,
+		variation:              variation,
 		enableJSONRPC:          enableJSONRPC,
 		skipValidate:           skipValidate,
 		enableGrpc:             enableGrpc,
@@ -195,10 +204,10 @@ func (d *ExtServerDimension) getSlot(ctx context.Context, sn uint64) (*Slot, err
 			logger.Debugf("Skipping decoding %s transaction %s", kind, tx.Digest.String())
 			uncompleteTxns++
 		} else {
-			if err = types.DeriveAuxInformationFromBCSV1(tx.Transaction.Data.V1, tx.RawTransaction.Data()); err != nil {
+			if err = types.DeriveAuxInformationFromBCSV1(tx.Transaction.Data.V1, tx.RawTransaction.Data(), d.variation); err != nil {
 				return nil, errors.Wrapf(err, "derive aux information from BCS for %d/%s failed", sn, tx.Digest.String())
 			}
-			if err = TxSanityCheck(&tx); err != nil {
+			if err = TxSanityCheck(&tx, d.variation); err != nil {
 				return nil, errors.Wrapf(err, "sanity check for %d/%s failed", sn, tx.Digest.String())
 			}
 		}

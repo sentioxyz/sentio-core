@@ -98,22 +98,22 @@ type SenderSignedData struct {
 	Transactions []SenderSignedTransaction
 }
 
-func DecodeSenderSignedData(b []byte) (*SenderSignedData, error) {
+func DecodeSenderSignedData(b []byte, variation Variation) (*SenderSignedData, error) {
 	data := &SenderSignedData{}
-	return data, serde.NewDecoder(bytes.NewReader(b)).Decode(data)
+	return data, serde.NewDecoderForSelector(bytes.NewReader(b), variation.String()).Decode(data)
 }
 
-func EncodeSenderSignedData(data *SenderSignedData) ([]byte, error) {
+func EncodeSenderSignedData(data *SenderSignedData, variation Variation) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
-	err := serde.NewEncoder(buf).Encode(data)
+	err := serde.NewEncoderForSelector(buf, variation.String()).Encode(data)
 	return buf.Bytes(), err
 }
 
-func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byte) error {
+func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byte, variation Variation) error {
 	if data == nil || data.Kind == nil {
 		return errors.New("invalid transaction, no data populated")
 	}
-	decoded, err := DecodeSenderSignedData(rawTransaction)
+	decoded, err := DecodeSenderSignedData(rawTransaction, variation)
 	if err != nil {
 		return err
 	}

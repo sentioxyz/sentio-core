@@ -94,7 +94,7 @@ func FromChangeType(changeType types.ObjectChangeType) (
 ) {
 	switch changeType {
 	case types.ObjectChangeTypeAccumulatorWrite:
-		return rpcv2.ChangedObject_INPUT_OBJECT_STATE_EXISTS,
+		return rpcv2.ChangedObject_INPUT_OBJECT_STATE_DOES_NOT_EXIST,
 			rpcv2.ChangedObject_OUTPUT_OBJECT_STATE_ACCUMULATOR_WRITE,
 			rpcv2.ChangedObject_NONE
 	case types.ObjectChangeTypePublished:

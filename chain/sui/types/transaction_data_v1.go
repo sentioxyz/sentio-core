@@ -2,11 +2,11 @@ package types
 
 import (
 	"bytes"
-	"errors"
 	"io"
 
 	"github.com/fardream/go-bcs/bcs"
 	"github.com/goccy/go-json"
+	"github.com/pkg/errors"
 
 	"sentioxyz/sentio-core/chain/sui/types/serde"
 )
@@ -107,6 +107,41 @@ func EncodeSenderSignedData(data *SenderSignedData, variation Variation) ([]byte
 	buf := bytes.NewBuffer(nil)
 	err := serde.NewEncoderForSelector(buf, variation.String()).Encode(data)
 	return buf.Bytes(), err
+}
+
+// TxSanityCheck makes sure a decoded transaction is valid: it re-encodes the
+// transaction to BCS and requires the result to byte-for-byte equal the original
+// raw bytes. Sui/IOTA use Rust enums extensively, which are easy to mis-model in
+// Go; this fails fast with a clear error (e.g. when a new variant appears) rather
+// than proceeding with incorrect results, since rewinding already-stored data is
+// often difficult or impossible. Pair with DeriveAuxInformationFromBCSV1, which
+// fills the json:"-" fields this re-encode needs.
+func TxSanityCheck(tx *TransactionResponseV1, variation Variation) (err error) {
+	if tx.Transaction.Data == nil {
+		return errors.Errorf("transaction data is nil (no transaction payload?)")
+	}
+	if tx.Transaction.Data.V1 == nil {
+		return errors.Errorf("transaction data v1 is nil (no transaction payload?)")
+	}
+	tx.Transaction.Intent = &EmptyIntentMessage
+	defer func() {
+		if panicErr := recover(); panicErr != nil {
+			err = errors.Errorf("%v", panicErr)
+		}
+	}()
+	encodedBCS, err := EncodeSenderSignedData(&SenderSignedData{
+		Transactions: []SenderSignedTransaction{*tx.Transaction},
+	}, variation)
+	if err != nil {
+		return errors.Wrap(err, "failed to encode transaction to bcs")
+	}
+	if !bytes.Equal(encodedBCS, tx.RawTransaction.Data()) {
+		return errors.Errorf(
+			"transaction sanity check failed: encoded bcs doesn't match raw transaction %s",
+			tx.Digest.String(),
+		)
+	}
+	return nil
 }
 
 func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byte, variation Variation) error {

@@ -88,14 +88,9 @@ func TestTransactionKindRoundTrip(t *testing.T) {
 			assert.True(t, bytes.Equal(reencoded, raw), "raw BCS round-trip mismatch")
 
 			// 2. getSlot mirror: derive aux onto the json-parsed transaction then
-			// encode it (== TxSanityCheck).
+			// run the real TxSanityCheck (re-encode == raw).
 			require.NoError(t, DeriveAuxInformationFromBCSV1(tx.Transaction.Data.V1, raw, tc.variation))
-			tx.Transaction.Intent = &EmptyIntentMessage
-			encoded, err := EncodeSenderSignedData(&SenderSignedData{
-				Transactions: []SenderSignedTransaction{*tx.Transaction},
-			}, tc.variation)
-			require.NoError(t, err)
-			assert.True(t, bytes.Equal(encoded, raw), "sanity-check round-trip mismatch")
+			require.NoError(t, TxSanityCheck(&tx, tc.variation))
 		})
 	}
 }

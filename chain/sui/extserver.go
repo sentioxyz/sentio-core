@@ -226,7 +226,7 @@ func (d *ExtServerDimension) getSlot(ctx context.Context, sn uint64) (*Slot, err
 			if err = types.DeriveAuxInformationFromBCSV1(tx.Transaction.Data.V1, tx.RawTransaction.Data(), d.variation); err != nil {
 				return nil, errors.Wrapf(err, "derive aux information from BCS for %d/%s failed", sn, tx.Digest.String())
 			}
-			if err = TxSanityCheck(&tx, d.variation); err != nil {
+			if err = types.TxSanityCheck(&tx, d.variation); err != nil {
 				return nil, errors.Wrapf(err, "sanity check for %d/%s failed", sn, tx.Digest.String())
 			}
 		}

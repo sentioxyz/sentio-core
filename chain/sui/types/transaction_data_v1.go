@@ -126,7 +126,13 @@ func TxSanityCheck(tx *TransactionResponseV1, variation Variation) (err error) {
 	tx.Transaction.Intent = &EmptyIntentMessage
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
-			err = errors.Errorf("%v", panicErr)
+			// Panics in this package carry a pkg/errors error (with location); keep
+			// that origin by wrapping it rather than flattening to a string.
+			if e, ok := panicErr.(error); ok {
+				err = errors.Wrapf(e, "panic while sanity-checking transaction %s", tx.Digest.String())
+			} else {
+				err = errors.Errorf("panic while sanity-checking transaction %s: %v", tx.Digest.String(), panicErr)
+			}
 		}
 	}()
 	encodedBCS, err := EncodeSenderSignedData(&SenderSignedData{

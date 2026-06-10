@@ -2,7 +2,6 @@ package types
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"strconv"
 
@@ -152,7 +151,7 @@ func (s CallArg) MarshalJSON() ([]byte, error) {
 	case s.FundsWithdrawal != nil:
 		return json.Marshal(s.FundsWithdrawal)
 	default:
-		panic("invalid CallArg")
+		panic(errors.New("invalid CallArg"))
 	}
 }
 
@@ -208,7 +207,7 @@ func (s TransactionExpiration) MarshalBCS() ([]byte, error) {
 		buf.Write(vd.Chain)
 		serde.Encode(buf, &vd.Nonce)
 	default:
-		panic("invalid TransactionExpiration")
+		panic(errors.New("invalid TransactionExpiration"))
 	}
 	return buf.Bytes(), nil
 }
@@ -683,7 +682,7 @@ func (s *EndOfEpochTransactionSingle) UnmarshalJSON(data []byte) error {
 			// payload is not in json; DeriveAux fills it from the decoded BCS.
 			s.WriteAccumulatorStorageCost = &WriteAccumulatorStorageCost{}
 		default:
-			return errors.New(fmt.Sprintf("invalid EndOfEpochTransactionSingle %q", str))
+			return errors.Errorf("invalid EndOfEpochTransactionSingle %q", str)
 		}
 		return nil
 	}
@@ -813,7 +812,7 @@ func (s *TransactionKind) Kind() string {
 	case s.RandomnessStateUpdate != nil:
 		return "RandomnessStateUpdate"
 	default:
-		panic("invalid TransactionKind")
+		panic(errors.New("invalid TransactionKind"))
 	}
 }
 

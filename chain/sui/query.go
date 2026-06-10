@@ -92,8 +92,8 @@ func (query TransactionQuery) CheckAndTrim(r *types.TransactionResponseV1) bool 
 	if query.Kind != "" && query.Kind != txKind {
 		return false
 	}
-	if query.Kind == txKind && tx.ProgrammableTransaction != nil && query.MoveCallFilter != nil {
-		commands := tx.ProgrammableTransaction.Commands
+	if ptb := tx.Programmable(); query.Kind == txKind && ptb != nil && query.MoveCallFilter != nil {
+		commands := ptb.Commands
 		hasMatch := false
 		for i := range commands {
 			if commands[i].MoveCall == nil {

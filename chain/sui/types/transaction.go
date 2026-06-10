@@ -819,6 +819,19 @@ func (s *TransactionKind) Kind() string {
 	}
 }
 
+// Programmable returns the programmable-transaction payload for both a regular
+// PTB (BCS variant 0) and a system PTB (BCS variant 10,
+// ProgrammableSystemTransaction), or nil for any other kind. Callers that only
+// care that the tx is "programmable" (move-call filters, input/command
+// extraction, etc.) should use this rather than the ProgrammableTransaction
+// field, since current sui json-rpc reports both under the same kind name.
+func (s *TransactionKind) Programmable() *ProgrammableTransaction {
+	if s.ProgrammableTransaction != nil {
+		return s.ProgrammableTransaction
+	}
+	return s.ProgrammableSystemTransaction
+}
+
 type txKindJSON struct {
 	Kind string `json:"kind"`
 }

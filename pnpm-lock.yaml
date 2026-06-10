@@ -44,9 +44,6 @@ importers:
       '@next/eslint-plugin-next':
         specifier: ^15.5.4
         version: 15.5.4
-      '@sentio/ts-proto':
-        specifier: 2.11.8-patch.2
-        version: 2.11.8-patch.2
       '@types/node':
         specifier: ^24.0.0
         version: 24.10.13
@@ -2751,10 +2748,6 @@ packages:
   '@sentio/truffle-source-map-utils@0.0.6':
     resolution: {integrity: sha512-YVCLyeuoum8gt3Wg+Fyo23pOaOr2eMwiLcqqwh6X92uQrbPWEqBCsg1i5FN6MdxwTcs+T1VVY3VkAEvco5EiLw==}
 
-  '@sentio/ts-proto@2.11.8-patch.2':
-    resolution: {integrity: sha512-HL09JBrBURYycXGjqu0OS/FPM17Xly68c7AAjhlUuuMTiw2Klo9yhTIez0qbylmi2myxjwoydmlDzlUxXmVyzQ==}
-    hasBin: true
-
   '@sindresorhus/is@4.6.0':
     resolution: {integrity: sha512-t09vSN3MdfsyCHoFcTRCH/iUtG7OJ0CsjzB8cjAmKc/va/kIgeDI/TxsigdncE/4be734m0cvIYwNaV4i2XqAw==}
     engines: {node: '>=10'}
@@ -3833,10 +3826,6 @@ packages:
   caniuse-lite@1.0.30001756:
     resolution: {integrity: sha512-4HnCNKbMLkLdhJz3TToeVWHSnfJvPaq6vu/eRP0Ahub/07n484XHhBF5AJoSGHdVrS8tKFauUQz8Bp9P7LVx7A==}
 
-  case-anything@2.1.13:
-    resolution: {integrity: sha512-zlOQ80VrQ2Ue+ymH5OuM/DlDq64mEm+B9UTdHULv5osUMD6HalNTblf2b1u/m6QecjsnOkBpqVZ+XPwIVsy7Ng==}
-    engines: {node: '>=12.13'}
-
   caseless@0.12.0:
     resolution: {integrity: sha512-4tYFyifaFfGacoiObjJegolkwSU4xQNGbVgUiNYVUxbQ2x2lUsFvY4hVgVzGiIe6WLOPqycWXA40l+PWsxthUw==}
 
@@ -4414,9 +4403,6 @@ packages:
   dotignore@0.1.2:
     resolution: {integrity: sha512-UGGGWfSauusaVJC+8fgV+NVvBXkCTmVv7sk6nojDZZvuOUNGUy0Zk4UpHQD6EDjS0jpBwcACvH4eofvyzBcRDw==}
     hasBin: true
-
-  dprint-node@1.0.8:
-    resolution: {integrity: sha512-iVKnUtYfGrYcW1ZAlfR/F59cUVL8QIhWoBJoSjkkdua/dkWIgjZfiLMeTjiB06X0ZLkQ0M2C1VbUj/CxkIf1zg==}
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
@@ -8185,12 +8171,6 @@ packages:
     peerDependencies:
       typescript: '>=2.7'
 
-  ts-poet@6.12.0:
-    resolution: {integrity: sha512-xo+iRNMWqyvXpFTaOAvLPA5QAWO6TZrSUs5s4Odaya3epqofBu/fMLHEWl8jPmjhA0s9sgj9sNvF1BmaQlmQkA==}
-
-  ts-proto-descriptors@2.1.0:
-    resolution: {integrity: sha512-S5EZYEQ6L9KLFfjSRpZWDIXDV/W7tAj8uW7pLsihIxyr62EAVSiKuVPwE8iWnr849Bqa53enex1jhDUcpgquzA==}
-
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
@@ -11546,13 +11526,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@sentio/ts-proto@2.11.8-patch.2':
-    dependencies:
-      '@bufbuild/protobuf': 2.12.0
-      case-anything: 2.1.13
-      ts-poet: 6.12.0
-      ts-proto-descriptors: 2.1.0
-
   '@sindresorhus/is@4.6.0': {}
 
   '@sindresorhus/merge-streams@2.3.0': {}
@@ -12683,8 +12656,6 @@ snapshots:
 
   caniuse-lite@1.0.30001756: {}
 
-  case-anything@2.1.13: {}
-
   caseless@0.12.0: {}
 
   cbor@5.2.0:
@@ -13278,10 +13249,6 @@ snapshots:
   dotignore@0.1.2:
     dependencies:
       minimatch: 3.1.2
-
-  dprint-node@1.0.8:
-    dependencies:
-      detect-libc: 1.0.3
 
   dunder-proto@1.0.1:
     dependencies:
@@ -17928,14 +17895,6 @@ snapshots:
       source-map-support: 0.5.21
       typescript: 3.9.10
       yn: 3.1.1
-
-  ts-poet@6.12.0:
-    dependencies:
-      dprint-node: 1.0.8
-
-  ts-proto-descriptors@2.1.0:
-    dependencies:
-      '@bufbuild/protobuf': 2.12.0
 
   tsconfck@3.1.6(typescript@6.0.3):
     optionalDependencies:

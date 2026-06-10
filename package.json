@@ -24,7 +24,6 @@
     "@eslint/js": "^9.35.0",
     "@ls-lint/ls-lint": "^2.3.1",
     "@next/eslint-plugin-next": "^15.5.4",
-    "@sentio/ts-proto": "2.11.8-patch.2",
     "@types/node": "^24.0.0",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",

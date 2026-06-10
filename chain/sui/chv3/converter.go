@@ -229,17 +229,25 @@ func (m *SlotConverter) ConvertTxn(
 		}
 		// types.TransactionResponseV1.Transaction.Data.V1.Kind
 		txKind := t.Transaction.Data.V1.Kind
+		// A system PTB (BCS variant 10, ProgrammableSystemTransaction) carries the
+		// same payload as a regular PTB and current sui json-rpc reports it under the
+		// same "ProgrammableTransaction" kind; extract it the same way but flag it as
+		// a system tx.
+		ptb := txKind.Programmable()
 		switch {
-		case txKind.ProgrammableTransaction != nil:
+		case ptb != nil:
 			txn.Kind = "ProgrammableTransaction"
-			txn.TransactionCount = uint32(len(txKind.ProgrammableTransaction.Commands))
-			txn.InputCount = uint32(len(txKind.ProgrammableTransaction.Inputs))
-			for _, arg := range txKind.ProgrammableTransaction.Inputs {
+			if txKind.ProgrammableSystemTransaction != nil {
+				txn.IsSystemTx = 1
+			}
+			txn.TransactionCount = uint32(len(ptb.Commands))
+			txn.InputCount = uint32(len(ptb.Inputs))
+			for _, arg := range ptb.Inputs {
 				if arg.Object != nil && arg.Object.SharedObject != nil {
 					txn.SharedInputCount++
 				}
 			}
-			for i, cmd := range txKind.ProgrammableTransaction.Commands {
+			for i, cmd := range ptb.Commands {
 				switch {
 				case cmd.MoveCall != nil:
 					txn.MoveCallsCount++

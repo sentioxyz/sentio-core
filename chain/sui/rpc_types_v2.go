@@ -280,7 +280,7 @@ func (f FunctionFilter) Check(tx types.TransactionResponseV1) bool {
 	}
 	var ptx *types.ProgrammableTransaction
 	if txV1 != nil && txV1.Kind != nil {
-		ptx = txV1.Kind.ProgrammableTransaction
+		ptx = txV1.Kind.Programmable()
 	}
 
 	if f.Kind != nil && (txV1 == nil || txV1.Kind == nil || txV1.Kind.Kind() != *f.Kind) {

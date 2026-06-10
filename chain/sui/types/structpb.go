@@ -66,13 +66,15 @@ func (s TransactionData) MarshalStructpb() *structpb.Value {
 func (s TransactionKind) MarshalStructpb() *structpb.Value {
 	var j interface{}
 	switch {
-	case s.ProgrammableTransaction != nil:
+	case s.Programmable() != nil:
+		// covers both regular (variant 0) and system (variant 10) PTBs, which
+		// share the "ProgrammableTransaction" kind.
 		j = &struct {
 			Kind string `json:"kind"`
 			*ProgrammableTransaction
 		}{
 			Kind:                    "ProgrammableTransaction",
-			ProgrammableTransaction: s.ProgrammableTransaction,
+			ProgrammableTransaction: s.Programmable(),
 		}
 	case s.ChangeEpoch != nil:
 		j = &struct {

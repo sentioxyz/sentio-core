@@ -165,8 +165,30 @@ func (s CallArg) MarshalJSON() ([]byte, error) {
 func (s *CallArg) IsBcsEnum() {}
 
 type TransactionExpiration struct {
-	None  *struct{}
-	Epoch *uint64
+	None        *struct{}
+	Epoch       *uint64
+	ValidDuring *ValidDuring
+}
+
+// ValidDuring mirrors sui's TransactionExpiration::ValidDuring (BCS variant 2).
+// Field order/types match sui-types/src/transaction.rs:
+//
+//	ValidDuring {
+//	    min_epoch: Option<EpochId>, max_epoch: Option<EpochId>,
+//	    min_timestamp: Option<u64>, max_timestamp: Option<u64>,
+//	    chain: ChainIdentifier, nonce: u32,
+//	}
+//
+// ChainIdentifier wraps a CheckpointDigest(Digest([u8;32])) whose
+// `#[serde_as(as = "Readable<Base58, Bytes>")]` makes BCS length-prefix the
+// 32 bytes (serialize_bytes), so Chain is encoded as ULEB128(len)+bytes.
+type ValidDuring struct {
+	MinEpoch     *uint64
+	MaxEpoch     *uint64
+	MinTimestamp *uint64
+	MaxTimestamp *uint64
+	Chain        []byte
+	Nonce        uint32
 }
 
 func (s TransactionExpiration) MarshalBCS() ([]byte, error) {
@@ -177,6 +199,20 @@ func (s TransactionExpiration) MarshalBCS() ([]byte, error) {
 	case s.Epoch != nil:
 		buf.Write(bcs.ULEB128Encode(1))
 		serde.Encode(buf, s.Epoch)
+	case s.ValidDuring != nil:
+		buf.Write(bcs.ULEB128Encode(2))
+		vd := s.ValidDuring
+		for _, opt := range []*uint64{vd.MinEpoch, vd.MaxEpoch, vd.MinTimestamp, vd.MaxTimestamp} {
+			if opt == nil {
+				buf.Write(bcs.ULEB128Encode(0))
+			} else {
+				buf.Write(bcs.ULEB128Encode(1))
+				serde.Encode(buf, opt)
+			}
+		}
+		buf.Write(bcs.ULEB128Encode(len(vd.Chain)))
+		buf.Write(vd.Chain)
+		serde.Encode(buf, &vd.Nonce)
 	default:
 		panic("invalid TransactionExpiration")
 	}
@@ -196,6 +232,36 @@ func (s *TransactionExpiration) UnmarshalBCS(r io.Reader) (int, error) {
 		// Epoch
 		s.Epoch = new(uint64)
 		err = serde.Decode(r, s.Epoch)
+	case 2:
+		// ValidDuring
+		vd := &ValidDuring{}
+		for _, dst := range []**uint64{&vd.MinEpoch, &vd.MaxEpoch, &vd.MinTimestamp, &vd.MaxTimestamp} {
+			var tag int
+			if tag, _, err = bcs.ULEB128Decode[int](r); err != nil {
+				return 0, err
+			}
+			if tag == 1 {
+				v := new(uint64)
+				if err = serde.Decode(r, v); err != nil {
+					return 0, err
+				}
+				*dst = v
+			}
+		}
+		var chainLen int
+		if chainLen, _, err = bcs.ULEB128Decode[int](r); err != nil {
+			return 0, err
+		}
+		vd.Chain = make([]byte, chainLen)
+		if _, err = io.ReadFull(r, vd.Chain); err != nil {
+			return 0, err
+		}
+		if err = serde.Decode(r, &vd.Nonce); err != nil {
+			return 0, err
+		}
+		s.ValidDuring = vd
+	default:
+		return 0, errors.Errorf("unknown TransactionExpiration variant %d", enumID)
 	}
 	return 0, err
 }

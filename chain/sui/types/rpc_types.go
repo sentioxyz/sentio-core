@@ -153,27 +153,6 @@ type CheckpointResponse struct {
 	Transactions []string `json:"transactions"`
 }
 
-type DynamicFieldName struct {
-	Type  TypeTag         `json:"type"`
-	Value json.RawMessage `json:"value"`
-}
-
-type DynamicFieldInfo struct {
-	Name       DynamicFieldName `json:"name"`
-	BCSName    Base58Data       `json:"bcsName"`
-	Type       string           `json:"type"`
-	ObjectType string           `json:"objectType"`
-	ObjectID   ObjectID         `json:"objectId"`
-	Version    Number           `json:"version"`
-	Digest     Digest           `json:"digest"`
-}
-
-type DynamicFieldPage struct {
-	Data        []DynamicFieldInfo `json:"data"`
-	NextCursor  *ObjectID          `json:"nextCursor"`
-	HasNextPage bool               `json:"hasNextPage"`
-}
-
 type SuiGetPastObjectRequest struct {
 	ObjectID ObjectID `json:"objectId"`
 	Version  Number   `json:"version"`
@@ -200,22 +179,4 @@ type SuiObjectDataOptions struct {
 	ShowContent             bool `json:"showContent"`
 	ShowBCS                 bool `json:"showBcs"`
 	ShowStorageRebate       bool `json:"showStorageRebate"`
-}
-
-type SuiObjectResponse struct {
-	Data struct {
-		ObjectID            ObjectID     `json:"objectId"`
-		Version             Number       `json:"version"`
-		Digest              Digest       `json:"digest"`
-		Type                TypeTag      `json:"type"`
-		Owner               *ObjectOwner `json:"owner"`
-		PreviousTransaction *Digest      `json:"previousTransaction"`
-		StorageRebate       Number       `json:"storageRebate"`
-		Content             struct {
-			DataType          string          `json:"dataType"`
-			Type              TypeTag         `json:"type"`
-			HasPublicTransfer bool            `json:"hasPublicTransfer"`
-			Fields            json.RawMessage `json:"fields"`
-		} `json:"content"`
-	} `json:"data"`
 }

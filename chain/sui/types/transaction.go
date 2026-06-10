@@ -13,12 +13,6 @@ import (
 	"sentioxyz/sentio-core/chain/sui/types/serde"
 )
 
-type AuthSignInfo struct {
-	Epoch      Number `json:"epoch"`
-	Signature  string `json:"signature"`
-	SignersMap []byte `json:"signers_map"`
-}
-
 type SharedObject struct {
 	ObjectID             ObjectID `json:"objectId"`
 	InitialSharedVersion Number   `json:"initialSharedVersion"`

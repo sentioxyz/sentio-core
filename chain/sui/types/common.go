@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"sentioxyz/sentio-core/chain/sui/types/serde"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/goccy/go-json"
 	"github.com/mr-tron/base58/base58"
 	"github.com/pkg/errors"
@@ -95,22 +94,6 @@ func (h *Base64Data) UnmarshalBCS(r io.Reader) (int, error) {
 	}
 	*h = data
 	return 0, err
-}
-
-type HexData hexutil.Bytes
-
-func (a HexData) MarshalBCS() ([]byte, error) {
-	return serde.WriteByteSlice(a)
-}
-
-func (a *HexData) UnmarshalBCS(r io.Reader) (int, error) {
-	var err error
-	data, err := serde.ReadByteSlice(r)
-	if err != nil {
-		return 0, err
-	}
-	*a = data
-	return 0, nil
 }
 
 type Number big.Int

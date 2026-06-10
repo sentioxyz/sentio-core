@@ -66,13 +66,40 @@ type ObjectArg struct {
 
 func (s *ObjectArg) IsBcsEnum() {}
 
+// FundsWithdrawal mirrors upstream `FundsWithdrawalArg` (sui-types
+// transaction.rs), the payload of `CallArg::FundsWithdrawal`. It is a *struct*
+// of three nested enums — NOT an enum itself (an earlier version mis-modeled it
+// as a 3-variant enum, which mis-aligned the rest of the BCS stream and either
+// failed to decode or panicked on a bogus length-prefix). FundsWithdrawal is
+// Sui-only; IOTA's CallArg has no such variant.
 type FundsWithdrawal struct {
-	Amount   *uint64
-	CoinType *string
-	Source   *string
+	Reservation  *Reservation
+	TypeArg      *WithdrawalTypeArg
+	WithdrawFrom *WithdrawFrom
 }
 
-func (f *FundsWithdrawal) IsBcsEnum() {}
+// Reservation: enum { MaxAmountU64(u64) }.
+type Reservation struct {
+	MaxAmountU64 *uint64
+}
+
+func (r *Reservation) IsBcsEnum() {}
+
+// WithdrawalTypeArg: enum { Balance(TypeTag) } — the type parameter T of the
+// funds accumulator `Balance<T>` being withdrawn.
+type WithdrawalTypeArg struct {
+	Balance *TypeTag
+}
+
+func (w *WithdrawalTypeArg) IsBcsEnum() {}
+
+// WithdrawFrom: enum { Sender, Sponsor } — both unit variants.
+type WithdrawFrom struct {
+	Sender  *struct{}
+	Sponsor *struct{}
+}
+
+func (w *WithdrawFrom) IsBcsEnum() {}
 
 func (f *FundsWithdrawal) UnmarshalJSON(b []byte) error {
 	payload := struct {
@@ -80,7 +107,7 @@ func (f *FundsWithdrawal) UnmarshalJSON(b []byte) error {
 			MaxAmountU64 string `json:"maxAmountU64"`
 		} `json:"reservation"`
 		TypeArg struct {
-			Balance string `json:"balance"`
+			Balance *TypeTag `json:"balance"`
 		} `json:"typeArg"`
 		WithdrawFrom string `json:"withdrawFrom"`
 	}{}
@@ -92,31 +119,42 @@ func (f *FundsWithdrawal) UnmarshalJSON(b []byte) error {
 		if err != nil {
 			return errors.Wrapf(err, "invalid amount %q", payload.Reservation.MaxAmountU64)
 		}
-		f.Amount = &amount
+		f.Reservation = &Reservation{MaxAmountU64: &amount}
 	}
-	if payload.TypeArg.Balance != "" {
-		f.CoinType = &payload.TypeArg.Balance
+	if payload.TypeArg.Balance != nil {
+		f.TypeArg = &WithdrawalTypeArg{Balance: payload.TypeArg.Balance}
 	}
-	if payload.WithdrawFrom != "" {
-		f.Source = &payload.WithdrawFrom
+	switch payload.WithdrawFrom {
+	case "":
+	case "sender", "Sender":
+		f.WithdrawFrom = &WithdrawFrom{Sender: &struct{}{}}
+	case "sponsor", "Sponsor":
+		f.WithdrawFrom = &WithdrawFrom{Sponsor: &struct{}{}}
+	default:
+		return errors.Errorf("invalid withdrawFrom %q", payload.WithdrawFrom)
 	}
 	return nil
 }
 
 func (f FundsWithdrawal) MarshalJSON() ([]byte, error) {
 	r := map[string]any{"type": "fundsWithdrawal"}
-	if f.Amount != nil {
+	if f.Reservation != nil && f.Reservation.MaxAmountU64 != nil {
 		r["reservation"] = map[string]any{
-			"maxAmountU64": strconv.FormatUint(*f.Amount, 10),
+			"maxAmountU64": strconv.FormatUint(*f.Reservation.MaxAmountU64, 10),
 		}
 	}
-	if f.CoinType != nil {
+	if f.TypeArg != nil && f.TypeArg.Balance != nil {
 		r["typeArg"] = map[string]any{
-			"balance": *f.CoinType,
+			"balance": f.TypeArg.Balance,
 		}
 	}
-	if f.Source != nil {
-		r["withdrawFrom"] = *f.Source
+	if f.WithdrawFrom != nil {
+		switch {
+		case f.WithdrawFrom.Sender != nil:
+			r["withdrawFrom"] = "sender"
+		case f.WithdrawFrom.Sponsor != nil:
+			r["withdrawFrom"] = "sponsor"
+		}
 	}
 	return json.Marshal(r)
 }

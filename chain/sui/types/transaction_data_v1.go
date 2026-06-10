@@ -150,10 +150,23 @@ func TxSanityCheck(tx *TransactionResponseV1, variation Variation) (err error) {
 	return nil
 }
 
-func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byte, variation Variation) error {
+func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byte, variation Variation) (err error) {
 	if data == nil || data.Kind == nil {
 		return errors.New("invalid transaction, no data populated")
 	}
+	// Decoding mis-modeled / unexpected BCS can panic (e.g. a bogus length-prefix
+	// reaching makeslice when a struct/enum layout is wrong). Recover so a single
+	// bad transaction surfaces as a retriable error instead of crashing the whole
+	// process, mirroring TxSanityCheck.
+	defer func() {
+		if panicErr := recover(); panicErr != nil {
+			if e, ok := panicErr.(error); ok {
+				err = errors.Wrap(e, "panic while deriving aux information from bcs")
+			} else {
+				err = errors.Errorf("panic while deriving aux information from bcs: %v", panicErr)
+			}
+		}
+	}()
 	decoded, err := DecodeSenderSignedData(rawTransaction, variation)
 	if err != nil {
 		return err
@@ -226,6 +239,17 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 				}
 				if targetObj != nil && targetObj.SharedObject != nil && decodedObj.SharedObject != nil {
 					targetObj.SharedObject.Mutability = decodedObj.SharedObject.Mutability
+				}
+				// FundsWithdrawal carries a TypeTag that may not round-trip
+				// byte-for-byte through its json string form, so take the
+				// authoritative value from the decoded BCS.
+				targetFW := targetTx.Inputs[i].FundsWithdrawal
+				decodedFW := decodedTx.Inputs[i].FundsWithdrawal
+				if (targetFW == nil) != (decodedFW == nil) {
+					return errors.New("targetFW nil mismatch with decodedFW")
+				}
+				if targetFW != nil {
+					*targetFW = *decodedFW
 				}
 				continue
 			}

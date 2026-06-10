@@ -254,9 +254,29 @@ func (s CallArg) MarshalStructpb() *structpb.Value {
 			}
 		}
 		return utils.MarshalStructpb(j)
+	case s.FundsWithdrawal != nil:
+		return s.FundsWithdrawal.MarshalStructpb()
 	default:
 		panic(errors.New("invalid CallArg"))
 	}
+}
+
+// MarshalStructpb serves a funds-withdrawal input using the same shape as its
+// json form (the single source of truth in MarshalJSON).
+func (f FundsWithdrawal) MarshalStructpb() *structpb.Value {
+	b, err := json.Marshal(f)
+	if err != nil {
+		panic(err)
+	}
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		panic(err)
+	}
+	val, err := structpb.NewValue(v)
+	if err != nil {
+		panic(err)
+	}
+	return val
 }
 
 func (s PureValue) MarshalStructpb() *structpb.Value {

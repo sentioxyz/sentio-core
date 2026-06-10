@@ -373,7 +373,7 @@ For each variant, validate against **real chain bytes** (do not trust prose):
    - json-rpc `sui_getTransactionBlock` with `showRawInput` → base64 raw tx bytes;
    - grpc `LedgerService.GetCheckpoint` (ReadMask `*`) → structured field values
      (ground truth) for cross-checking.
-   (k8s-internal nodes: `kubectl port-forward -n nodes pod/<chain>-<net>-a-0 <local>:9000`.)
+   (Fetch from any Sui/IOTA full node that retains the checkpoint.)
 2. add a table-driven unit test that decodes the raw bytes, asserts the decoded
    fields equal the grpc ground truth, then re-encodes and asserts
    `bytes.Equal` with the original (this is exactly what `TxSanityCheck`

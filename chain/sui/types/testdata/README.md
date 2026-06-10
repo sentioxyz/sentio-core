@@ -7,10 +7,9 @@ per-kind file is the verbatim json-rpc `sui_getTransactionBlock` /
 `iota_getTransactionBlock` result (`showInput` + `showRawInput`), so
 `rawTransaction` is the canonical BCS the round-trip is checked against.
 
-Captured via `kubectl port-forward` to the internal full nodes
-(`sui-mainnet-a-0`, `sui-testnet-a-0`, `iota-testnet-0`). Rare/historical kinds
-were located by querying the `chain-part-b` ClickHouse `<chain>.transactions`
-tables for `kind` + `checkpoint` + `digest`, then fetched from the node.
+Captured from Sui and IOTA full nodes (mainnet/testnet) via json-rpc. For rare
+or historical kinds, locate a checkpoint known to contain the kind (e.g. an
+epoch-boundary checkpoint for end-of-epoch) and fetch that transaction.
 
 ## Files
 
@@ -51,10 +50,12 @@ Notes:
 
 ## Refreshing / adding a sample
 
-1. `kubectl port-forward -n nodes pod/<node> 9000:9000`
-2. Locate a checkpoint with the kind (recent checkpoint, or `chain-part-b`
-   `SELECT checkpoint, digest FROM \`<chain>.transactions\` WHERE kind='...'`).
-3. Fetch the tx with `{"showInput": true, "showRawInput": true}` and save the
-   `result` object as `testdata/<chain>/<kebab-case-kind>.json` (json filenames
-   must be kebab-case per the repo lint).
+1. Point at a Sui/IOTA full node (mainnet or testnet) that retains the
+   checkpoint you need.
+2. Find a checkpoint containing the kind — a recent one for common kinds, an
+   epoch boundary for end-of-epoch, checkpoint 0 for genesis — and pick a tx
+   digest from it.
+3. Fetch the tx via json-rpc with `{"showInput": true, "showRawInput": true}`
+   and save the `result` object as `testdata/<chain>/<kebab-case-kind>.json`
+   (json filenames must be kebab-case per the repo lint).
 4. Add a row to the table in `transaction_kind_roundtrip_test.go`.

@@ -137,7 +137,10 @@ func (o *ObjectOwner) GetTypeAndID() (ownerType string, ownerID string, initialS
 	case o.Shared != nil:
 		return OwnerTypeShared, "", o.Shared.InitialSharedVersion
 	case o.ConsensusAddressOwner != nil:
-		return OwnerTypeConsensusAddress, o.ConsensusAddressOwner.Owner.String(), 0
+		// Mirror the grpc data path, which surfaces a single Owner.Version for all
+		// kinds (start_version for a consensus-address owner), so the json-rpc and
+		// grpc paths derive the same ownerInitialSharedVersion.
+		return OwnerTypeConsensusAddress, o.ConsensusAddressOwner.Owner.String(), o.ConsensusAddressOwner.StartVersion
 	default:
 		panic(errors.Errorf("invalid owner %#v", o))
 	}

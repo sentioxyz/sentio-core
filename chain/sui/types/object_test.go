@@ -36,7 +36,7 @@ func TestObjectOwnerJSON(t *testing.T) {
 		{"ObjectOwner", `{"ObjectOwner":"` + addr + `"}`, OwnerTypeObject, addr, 0},
 		{"SingleOwner", `{"SingleOwner":"` + addr + `"}`, OwnerTypeSingle, addr, 0},
 		{"Shared", `{"Shared":{"initial_shared_version":7}}`, OwnerTypeShared, "", 7},
-		{"ConsensusAddressOwner", `{"ConsensusAddressOwner":{"start_version":9,"owner":"` + addr + `"}}`, OwnerTypeConsensusAddress, addr, 0},
+		{"ConsensusAddressOwner", `{"ConsensusAddressOwner":{"start_version":9,"owner":"` + addr + `"}}`, OwnerTypeConsensusAddress, addr, 9},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -55,39 +55,32 @@ func TestObjectOwnerJSON(t *testing.T) {
 	}
 }
 
-// TestBuildObjectOwnerRoundTrip checks BuildObjectOwner produces an owner whose
-// GetTypeAndID reports the right (type, id). Note GetTypeAndID only surfaces the
-// version for Shared owners; for ConsensusAddressOwner it reports 0 even though
-// BuildObjectOwner stores the start version (asserted separately below).
+// TestBuildObjectOwnerRoundTrip checks BuildObjectOwner is the inverse of
+// GetTypeAndID. GetTypeAndID surfaces the version for both Shared
+// (initial_shared_version) and ConsensusAddressOwner (start_version), matching
+// the grpc data path.
 func TestBuildObjectOwnerRoundTrip(t *testing.T) {
 	const addr = "0x0000000000000000000000000000000000000000000000000000000000000005"
 	cases := []struct {
-		ownerType   string
-		ownerID     string
-		buildVer    uint64
-		wantVersion uint64
+		ownerType string
+		ownerID   string
+		version   uint64
 	}{
-		{OwnerTypeAddress, addr, 0, 0},
-		{OwnerTypeObject, addr, 0, 0},
-		{OwnerTypeSingle, addr, 0, 0},
-		{OwnerTypeShared, "", 7, 7},
-		{OwnerTypeConsensusAddress, addr, 9, 0},
-		{OwnerTypeSpecial, "Immutable", 0, 0},
+		{OwnerTypeAddress, addr, 0},
+		{OwnerTypeObject, addr, 0},
+		{OwnerTypeSingle, addr, 0},
+		{OwnerTypeShared, "", 7},
+		{OwnerTypeConsensusAddress, addr, 9},
+		{OwnerTypeSpecial, "Immutable", 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.ownerType, func(t *testing.T) {
-			o := BuildObjectOwner(tc.ownerID, tc.ownerType, tc.buildVer)
+			o := BuildObjectOwner(tc.ownerID, tc.ownerType, tc.version)
 			require.NotNil(t, o)
 			gotType, gotID, gotVer := o.GetTypeAndID()
 			assert.Equal(t, tc.ownerType, gotType)
 			assert.Equal(t, tc.ownerID, gotID)
-			assert.Equal(t, tc.wantVersion, gotVer)
+			assert.Equal(t, tc.version, gotVer)
 		})
 	}
-
-	// ConsensusAddressOwner stores the start version even though GetTypeAndID
-	// does not report it.
-	o := BuildObjectOwner(addr, OwnerTypeConsensusAddress, 9)
-	require.NotNil(t, o.ConsensusAddressOwner)
-	assert.Equal(t, uint64(9), o.ConsensusAddressOwner.StartVersion)
 }

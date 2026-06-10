@@ -217,7 +217,8 @@ func (d *ExtServerDimension) getSlot(ctx context.Context, sn uint64) (*Slot, err
 				return nil, errors.Errorf("invalid transaction %d/%s, required fields not present", sn, tx.Digest.String())
 			}
 		} else if kind := tx.Transaction.Data.V1.Kind.Kind(); isUncompletedKind(d.variation, kind) || d.skipValidate {
-			// No decoding/sanity check on Genesis and ConsensusCommitPrologueV3 transaction.
+			// Skip DeriveAux/TxSanityCheck for kinds not yet exact for this chain
+			// (see uncompletedKindsByVariation) or when validation is disabled.
 			logger.Debugf("Skipping decoding %s transaction %s", kind, tx.Digest.String())
 			uncompleteTxns++
 		} else {

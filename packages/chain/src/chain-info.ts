@@ -1302,6 +1302,23 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     lightIcon: 'https://assets.sentio.xyz/chains/sentio.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/sentio-dark.svg'
   },
+  [EthChainId.SENTIO_TESTNET_V2]: {
+    name: 'Sentio testnet v2',
+    slug: 'sentio-testnet-v2',
+    chainId: EthChainId.SENTIO_TESTNET_V2,
+    nativeChainId: 7892102,
+    variation: EthVariation.DEFAULT,
+    priceTokenAddress: '0x0000000000000000000000000000000000000000',
+    tokenAddress: '0x0000000000000000000000000000000000000000',
+    wrappedTokenAddress: '0x0000000000000000000000000000000000000000',
+    tokenSymbol: 'ETH',
+    tokenDecimals: 18,
+    explorerApiType: ExplorerApiType.BLOCKSCOUT,
+    explorerUrl: 'https://testnet-v2-explorer.sentio.xyz',
+    blockscoutUrl: 'https://testnet-v2-explorer.sentio.xyz',
+    lightIcon: 'https://assets.sentio.xyz/chains/sentio.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/sentio-dark.svg'
+  },
   [EthChainId.SENTIO_DEVNET]: {
     name: 'Sentio devnet',
     slug: 'sentio-devnet',

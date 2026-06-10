@@ -3,10 +3,11 @@ package sui
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/utils"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/pkg/errors"
 )
 
 // TxSanityCheck will make sure decoded transaction is valid.
@@ -14,7 +15,7 @@ import (
 // We want to make sure at least whenever there is a new Kind being added (to SingleTransactionKind or Event),
 // we fail fast with a clear error message, rather than proceed with incorrect results, as rewinding already
 // stored data (particularly in gcs) is often difficult if not impossible.
-func TxSanityCheck(tx *types.TransactionResponseV1) error {
+func TxSanityCheck(tx *types.TransactionResponseV1) (err error) {
 	if tx.Transaction.Data == nil {
 		return errors.Errorf("transaction data is nil (no transaction payload?)")
 	}
@@ -22,7 +23,13 @@ func TxSanityCheck(tx *types.TransactionResponseV1) error {
 		return errors.Errorf("transaction data v1 is nil (no transaction payload?)")
 	}
 	tx.Transaction.Intent = &types.EmptyIntentMessage
-	encodedBCS, err := types.EncodeSenderSignedData(&types.SenderSignedData{
+	defer func() {
+		if panicErr := recover(); panicErr != nil {
+			err = errors.Errorf("%v", panicErr)
+		}
+	}()
+	var encodedBCS []byte
+	encodedBCS, err = types.EncodeSenderSignedData(&types.SenderSignedData{
 		Transactions: []types.SenderSignedTransaction{*tx.Transaction},
 	})
 	if err != nil {

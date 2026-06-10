@@ -63,6 +63,26 @@ list. See `bcs_enum_selector_design.md` for the dual-chain plan.
 
 Fetch source without auth via the GitHub raw URL or `gh api repos/<org>/<repo>/contents/<path> --jq .content | base64 -d`.
 
+## Two wire paths: BCS *and* JSON
+
+A transaction reaches `TransactionResponseV1` two ways, and **both** can diverge
+per chain:
+
+- **BCS** — `rawTransaction` is BCS-decoded by `serde` and must re-encode
+  byte-for-byte (`TxSanityCheck`). Strict; this is what `uncompletedKinds` guards.
+- **JSON** — the json-rpc reply is `json.Unmarshal`ed into the same types
+  (`getSlot`), dispatching on a `kind` discriminator (see
+  `TransactionKind.UnmarshalJSON`). `encoding/json` is lenient (unknown keys
+  ignored, absent keys zero, no round-trip check), so it usually tolerates a
+  union struct — but the **same `kind` name can mean different payloads on Sui
+  vs IOTA**, which a single name→field dispatch cannot express.
+
+Neither `UnmarshalBCS(r)` nor `UnmarshalJSON(data)` receives a chain, so chain
+routing must be injected at a chain-aware entry point (the decoder selector for
+BCS; a wrapper like `UnmarshalTransaction(raw, selector)` for JSON). When you
+complete a kind, verify **both** paths against real sui/iota replies — see
+`bcs_enum_selector_design.md` §9 for the JSON-path rules.
+
 ## Sui and IOTA are NOT the same enum layout
 
 `TransactionKind` (and possibly other enums) have **different variant orders and

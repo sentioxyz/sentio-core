@@ -370,3 +370,63 @@ For each variant, validate against **real chain bytes** (do not trust prose):
   `ConsensusDeterminedVersionAssignments`, …), iota selector plumbing, verify
   with IOTA samples, drop iota-applicable entries.
 - Later PRs: `Genesis`, `EndOfEpochTransaction`, remaining kinds.
+
+## 9. The JSON path diverges too
+
+Transactions reach `types.TransactionResponseV1` via `json.Unmarshal(rawTx, &tx)`
+from the node's json-rpc reply (`chain/sui/extserver.go`, `getSlot`), **not** only
+via BCS. `TransactionKind.UnmarshalJSON` (and `EndOfEpochTransactionSingle`)
+dispatch on a discriminator — the `kind` string / object key — to a Go field:
+
+```go
+switch j.Kind {
+case "ConsensusCommitPrologueV1":
+    return json.Unmarshal(data, &s.ConsensusCommitPrologueV1)
+...
+}
+```
+
+Sui and IOTA can (a) use the **same discriminator name for a different payload
+shape** (e.g. both report `"ConsensusCommitPrologueV1"` with different fields),
+or (b) use **different names for the analogous tx**. So "which Go field does this
+value belong to" is a per-chain question on the JSON side as well — and
+`UnmarshalJSON(data []byte)`, like `UnmarshalBCS(r)`, has **no chain parameter**.
+
+### Why it is less severe than BCS
+
+- JSON is **self-describing** and `encoding/json` is **lenient**: unknown keys
+  are ignored, absent keys stay zero, and there is no byte-exact round-trip
+  check (no `TxSanityCheck` equivalent on the JSON value). A single Go struct
+  holding the **union** of both chains' JSON fields therefore decodes either
+  chain's reply without error.
+- The remaining risk is **semantic** (a value landing in the wrong field), not a
+  hard decode failure.
+
+### When chain-awareness is still required
+
+- the **same discriminator name must map to a different Go type per chain**
+  (one name → one field dispatch cannot express this), or
+- the **same json key carries a different-typed value per chain** (a real
+  conflict, not merely extra/missing fields).
+
+### Approach (mirror the BCS design)
+
+The selector cannot live inside the stdlib `UnmarshalJSON(data)`. Inject it at a
+**chain-aware entry point** instead — e.g. `UnmarshalTransaction(raw, selector)`
+called from `getSlot` (which knows the chain): for the divergent kinds it peeks
+the discriminator and routes to the chain-specific Go type; the common kinds keep
+their existing `UnmarshalJSON`. The same selector is used when **serving**
+(`MarshalJSON` must emit the discriminator name the target chain's driver
+expects).
+
+Prefer **union structs** (lenient decode) over chain routing wherever a union is
+unambiguous; introduce routing only for genuine same-name-different-type
+conflicts, and record each such conflict in `CLAUDE.md`.
+
+### Scope note
+
+These divergent kinds are in `uncompletedKinds` (BCS-skipped today) but their
+**JSON values are still decoded and served to drivers**. Completing a kind thus
+has two independent correctness aspects — the BCS round-trip (§3–§4 selector) and
+JSON field routing (this section) — and both must be verified against real
+sui/iota json-rpc replies.

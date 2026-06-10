@@ -148,22 +148,16 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 		x.SystemPackages = y.SystemPackages
 		x.AdjustRewardsByScore = y.AdjustRewardsByScore
 	}
-	switch {
-	case data.Kind.ChangeEpoch != nil:
-		if decodedV1.Kind.ChangeEpoch == nil {
+	// populateProgrammable derives the aux info (pure-value raw bytes, published /
+	// upgraded move bytecodes, move-call type args) that only the decoded BCS
+	// carries, onto the json-parsed programmable transaction. Shared by the
+	// ProgrammableTransaction and ProgrammableSystemTransaction kinds, whose
+	// payload is the same type.
+	populateProgrammable := func(targetTx, decodedTx *ProgrammableTransaction) error {
+		if decodedTx == nil {
 			// This indicates a mismatch between the given transaction data and the decoded transaction.
-			return errors.New("decodedV1.Kind.ChangeEpoch is nil")
+			return errors.New("decoded programmable transaction is nil")
 		}
-		decodedTx := decodedV1.Kind.ChangeEpoch
-		targetTx := data.Kind.ChangeEpoch
-		populateChangeEpoch(targetTx, decodedTx)
-	case data.Kind.ProgrammableTransaction != nil:
-		if decodedV1.Kind.ProgrammableTransaction == nil {
-			// This indicates a mismatch between the given transaction data and the decoded transaction.
-			return errors.New("decodedV1.Kind.ProgrammableTransaction is nil")
-		}
-		decodedTx := decodedV1.Kind.ProgrammableTransaction
-		targetTx := data.Kind.ProgrammableTransaction
 		if len(decodedTx.Inputs) != len(targetTx.Inputs) {
 			return errors.New("invalid number of inputs")
 		}
@@ -185,7 +179,6 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 			// Derive raw bytes from BCS.
 			targetPure.Value = decodedPure.Value
 		}
-
 		for i := range targetTx.Commands {
 			switch {
 			case targetTx.Commands[i].Publish != nil:
@@ -212,6 +205,25 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 				}
 				targetMoveCall.TypeArgs = decodedMoveCall.TypeArgs
 			}
+		}
+		return nil
+	}
+	switch {
+	case data.Kind.ChangeEpoch != nil:
+		if decodedV1.Kind.ChangeEpoch == nil {
+			// This indicates a mismatch between the given transaction data and the decoded transaction.
+			return errors.New("decodedV1.Kind.ChangeEpoch is nil")
+		}
+		decodedTx := decodedV1.Kind.ChangeEpoch
+		targetTx := data.Kind.ChangeEpoch
+		populateChangeEpoch(targetTx, decodedTx)
+	case data.Kind.ProgrammableTransaction != nil:
+		if err := populateProgrammable(data.Kind.ProgrammableTransaction, decodedV1.Kind.ProgrammableTransaction); err != nil {
+			return err
+		}
+	case data.Kind.ProgrammableSystemTransaction != nil:
+		if err := populateProgrammable(data.Kind.ProgrammableSystemTransaction, decodedV1.Kind.ProgrammableSystemTransaction); err != nil {
+			return err
 		}
 	case data.Kind.AuthenticatorStateUpdate != nil:
 		if decodedV1.Kind.AuthenticatorStateUpdate == nil {

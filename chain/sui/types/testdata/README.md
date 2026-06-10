@@ -43,8 +43,11 @@ Notes:
   `GenesisTransaction` payload (every genesis object) is not modeled, so the
   samples are trimmed (object list shortened, `rawTransaction` dropped) and only
   checked for json decode + `Kind()`.
-- `ProgrammableSystemTransaction` (Sui variant 10) is modeled but has no sample:
-  it does not appear in current sui mainnet/testnet data.
+- `ProgrammableSystemTransaction` (Sui variant 10) is modeled (same payload as
+  ProgrammableTransaction) but has no captured sample yet. It is NOT skipped: if
+  one is encountered it goes through DeriveAux + TxSanityCheck like a normal
+  programmable tx, and a round-trip failure halts slot loading rather than
+  persisting unvalidated data.
 
 ## Refreshing / adding a sample
 

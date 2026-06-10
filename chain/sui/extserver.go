@@ -158,19 +158,20 @@ func (d *ExtServerDimension) loadCheckpoint(
 	return
 }
 
-// uncompletedKindsByVariation lists, per chain, the transaction kinds whose Go
-// types are not yet exact, so slot loading skips DeriveAux/TxSanityCheck for them
-// rather than failing. The set is per-variation because Sui and IOTA have
-// different enum layouts and a kind validated on one chain may be unmodeled on
-// the other. Every kind NOT listed has a real-data BCS round-trip test in
-// chain/sui/types (transaction_kind_roundtrip_test.go + the txs-v1 bundle).
+// uncompletedKindsByVariation lists, per chain, the transaction kinds that are
+// intentionally stored WITHOUT BCS validation — i.e. the json reply is
+// self-sufficient and nothing is derived from the tx BCS, so skipping
+// DeriveAux/TxSanityCheck cannot store wrong data. Every OTHER kind must go
+// through TxSanityCheck and, if its BCS round-trip fails, halt slot loading
+// rather than silently persist unvalidated data (that is the whole point of the
+// sanity check). The set is per-variation because Sui and IOTA have different
+// enum layouts.
 var uncompletedKindsByVariation = map[types.Variation]map[string]bool{
 	types.VariationSUI: {
-		// GenesisTransaction payload (objects/events) is not modeled.
+		// GenesisTransaction payload (objects/events) is not modeled, and its
+		// object changes come from the reply's objectChanges (not derived from the
+		// tx BCS), so there is nothing to validate or derive here.
 		"Genesis": true,
-		// Modeled (variant 10) but never observed in sui mainnet/testnet data, so
-		// its round-trip is unvalidated; skip until a real sample confirms it.
-		"ProgrammableSystemTransaction": true,
 	},
 	types.VariationIOTA: {
 		// GenesisTransaction payload is not modeled.

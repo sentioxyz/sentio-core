@@ -1,5 +1,5 @@
-exports_files([
-    "ccp-iota-v1.json",
-    "ccp-sui-v4.json",
-    "txs-v1.json",
-])
+filegroup(
+    name = "testdata",
+    srcs = glob(["**/*.json"]),
+    visibility = ["//chain/sui/types:__pkg__"],
+)

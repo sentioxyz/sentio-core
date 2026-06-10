@@ -158,18 +158,31 @@ func (d *ExtServerDimension) loadCheckpoint(
 	return
 }
 
-// uncompletedKinds are transaction kinds whose Go types are not yet exact, so
-// slot loading skips DeriveAux/TxSanityCheck for them rather than failing.
-// ConsensusCommitPrologueV4 (Sui) and ConsensusCommitPrologueV1 (IOTA) are now
-// complete and validated against real testnet samples (see
-// consensus_commit_prologue_test.go). V2/V3 stay here until a historical sample
-// is captured to validate their round-trip.
-var uncompletedKinds = map[string]bool{
-	"Genesis":                   true,
-	"EndOfEpochTransaction":     true,
-	"ConsensusCommitPrologueV2": true,
-	"ConsensusCommitPrologueV3": true,
-	"RandomnessStateUpdate":     true,
+// uncompletedKindsByVariation lists, per chain, the transaction kinds whose Go
+// types are not yet exact, so slot loading skips DeriveAux/TxSanityCheck for them
+// rather than failing. The set is per-variation because Sui and IOTA have
+// different enum layouts and a kind validated on one chain may be unmodeled on
+// the other. Every kind NOT listed has a real-data BCS round-trip test in
+// chain/sui/types (transaction_kind_roundtrip_test.go + the txs-v1 bundle).
+var uncompletedKindsByVariation = map[types.Variation]map[string]bool{
+	types.VariationSUI: {
+		// GenesisTransaction payload (objects/events) is not modeled.
+		"Genesis": true,
+		// Modeled (variant 10) but never observed in sui mainnet/testnet data, so
+		// its round-trip is unvalidated; skip until a real sample confirms it.
+		"ProgrammableSystemTransaction": true,
+	},
+	types.VariationIOTA: {
+		// GenesisTransaction payload is not modeled.
+		"Genesis": true,
+	},
+}
+
+func isUncompletedKind(variation types.Variation, kind string) bool {
+	if variation == "" {
+		variation = types.VariationSUI
+	}
+	return uncompletedKindsByVariation[variation][kind]
 }
 
 const (
@@ -203,7 +216,7 @@ func (d *ExtServerDimension) getSlot(ctx context.Context, sn uint64) (*Slot, err
 			if len(tx.Errors) == 0 {
 				return nil, errors.Errorf("invalid transaction %d/%s, required fields not present", sn, tx.Digest.String())
 			}
-		} else if kind := tx.Transaction.Data.V1.Kind.Kind(); uncompletedKinds[kind] || d.skipValidate {
+		} else if kind := tx.Transaction.Data.V1.Kind.Kind(); isUncompletedKind(d.variation, kind) || d.skipValidate {
 			// No decoding/sanity check on Genesis and ConsensusCommitPrologueV3 transaction.
 			logger.Debugf("Skipping decoding %s transaction %s", kind, tx.Digest.String())
 			uncompleteTxns++

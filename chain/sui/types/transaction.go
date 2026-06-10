@@ -293,16 +293,53 @@ type ChangeEpoch struct {
 	SystemPackages          []SystemPackage `json:"-"`
 }
 
+// ChangeEpochV2/V3/V4 are IOTA's end-of-epoch change-epoch payloads (variants 1,
+// 2, 3 of EndOfEpochTransactionKind). Field order matches the IOTA staged BCS
+// layout (iota-core/tests/staged/iota.yaml). protocol_version,
+// non_refundable_storage_fee, system_packages and adjust_rewards_by_score are not
+// in the json reply and are derived from the decoded BCS (DeriveAux).
+//
+// IOTA's json-rpc collapses all three into a single "ChangeEpochV2" kind with
+// optional eligible_active_validators/scores, so EndOfEpochTransactionSingle's
+// UnmarshalJSON disambiguates V2/V3/V4 by which of those fields are present.
 type ChangeEpochV2 struct {
 	Epoch                   Number          `json:"epoch"`
 	ProtocolVersion         Number          `json:"-"`
 	StorageCharge           Number          `json:"storage_charge"`
 	ComputationCharge       Number          `json:"computation_charge"`
+	ComputationChargeBurned Number          `json:"computation_charge_burned"`
 	StorageRebate           Number          `json:"storage_rebate"`
 	NonRefundableStorageFee Number          `json:"-"`
 	EpochStartTimestampMs   Number          `json:"epoch_start_timestamp_ms"`
 	SystemPackages          []SystemPackage `json:"-"`
-	// TODO add more fields
+}
+
+type ChangeEpochV3 struct {
+	Epoch                    Number          `json:"epoch"`
+	ProtocolVersion          Number          `json:"-"`
+	StorageCharge            Number          `json:"storage_charge"`
+	ComputationCharge        Number          `json:"computation_charge"`
+	ComputationChargeBurned  Number          `json:"computation_charge_burned"`
+	StorageRebate            Number          `json:"storage_rebate"`
+	NonRefundableStorageFee  Number          `json:"-"`
+	EpochStartTimestampMs    Number          `json:"epoch_start_timestamp_ms"`
+	SystemPackages           []SystemPackage `json:"-"`
+	EligibleActiveValidators []Number        `json:"eligible_active_validators"`
+}
+
+type ChangeEpochV4 struct {
+	Epoch                    Number          `json:"epoch"`
+	ProtocolVersion          Number          `json:"-"`
+	StorageCharge            Number          `json:"storage_charge"`
+	ComputationCharge        Number          `json:"computation_charge"`
+	ComputationChargeBurned  Number          `json:"computation_charge_burned"`
+	StorageRebate            Number          `json:"storage_rebate"`
+	NonRefundableStorageFee  Number          `json:"-"`
+	EpochStartTimestampMs    Number          `json:"epoch_start_timestamp_ms"`
+	SystemPackages           []SystemPackage `json:"-"`
+	EligibleActiveValidators []Number        `json:"eligible_active_validators"`
+	Scores                   []Number        `json:"scores"`
+	AdjustRewardsByScore     bool            `json:"-"`
 }
 
 type ConsensusCommitPrologue struct {
@@ -462,24 +499,38 @@ type AuthenticatorStateExpire struct {
 }
 
 // EndOfEpochTransactionSingle https://docs.sui.io/sui-api-ref#suiendofepochtransactionkind
+// EndOfEpochTransactionSingle is the EndOfEpochTransactionKind enum. Sui variant
+// indices equal the Go field positions (so the enumNum[sui] tags are exactly the
+// legacy position semantics). IOTA uses a different layout; only the variant we
+// have a validated sample for (ChangeEpochV2 = 3 on IOTA) is tagged for iota.
 type EndOfEpochTransactionSingle struct {
-	ChangeEpoch                    *ChangeEpoch
-	AuthenticatorStateCreate       *struct{}
-	AuthenticatorStateExpire       *AuthenticatorStateExpire
-	RandomnessStateCreate          *struct{}
-	CoinDenyListStateCreate        *struct{}
-	StoreExecutionTimeObservations *struct{}
-	BridgeStateCreate              *string
-	BridgeCommitteeUpdate          *int64
-	AccumulatorRootCreate          *struct{}
-	CoinRegistryCreate             *struct{}
-	DisplayRegistryCreate          *struct{}
-	AddressAliasStateCreate        *struct{}
-	WriteAccumulatorStorageCost    *struct{}
-	ChangeEpochV2                  *ChangeEpochV2 // iota has this kind of value
+	ChangeEpoch                    *ChangeEpoch              `bcs:"enumNum[sui]=0"`
+	AuthenticatorStateCreate       *struct{}                 `bcs:"enumNum[sui]=1"`
+	AuthenticatorStateExpire       *AuthenticatorStateExpire `bcs:"enumNum[sui]=2"`
+	RandomnessStateCreate          *struct{}                 `bcs:"enumNum[sui]=3"`
+	CoinDenyListStateCreate        *struct{}                 `bcs:"enumNum[sui]=4"`
+	StoreExecutionTimeObservations *struct{}                 `bcs:"enumNum[sui]=5"`
+	BridgeStateCreate              *string                   `bcs:"enumNum[sui]=6"`
+	BridgeCommitteeUpdate          *int64                    `bcs:"enumNum[sui]=7"`
+	AccumulatorRootCreate          *struct{}                 `bcs:"enumNum[sui]=8"`
+	CoinRegistryCreate             *struct{}                 `bcs:"enumNum[sui]=9"`
+	DisplayRegistryCreate          *struct{}                 `bcs:"enumNum[sui]=10"`
+	AddressAliasStateCreate        *struct{}                 `bcs:"enumNum[sui]=11"`
+	WriteAccumulatorStorageCost    *struct{}                 `bcs:"enumNum[sui]=12"`
+	// IOTA's EndOfEpochTransactionKind variants 0..3 (ChangeEpoch differs from
+	// Sui's, so it is tagged for iota here; V2/V3/V4 are iota-only).
+	ChangeEpochV2 *ChangeEpochV2 `bcs:"enumNum[sui]=13,enumNum[iota]=1"`
+	ChangeEpochV3 *ChangeEpochV3 `bcs:"enumNum[iota]=2"`
+	ChangeEpochV4 *ChangeEpochV4 `bcs:"enumNum[iota]=3"`
 }
 
 func (s *EndOfEpochTransactionSingle) IsBcsEnum() {}
+
+// jsonFieldPresent reports whether a captured json.RawMessage corresponds to a
+// field that was present and non-null in the source object.
+func jsonFieldPresent(raw json.RawMessage) bool {
+	return len(raw) > 0 && string(raw) != "null"
+}
 
 func (s EndOfEpochTransactionSingle) buildRawStruct() any {
 	var j interface{}
@@ -513,6 +564,20 @@ func (s EndOfEpochTransactionSingle) buildRawStruct() any {
 			ChangeEpochV2 *ChangeEpochV2 `json:"ChangeEpochV2"`
 		}{
 			ChangeEpochV2: s.ChangeEpochV2,
+		}
+	case s.ChangeEpochV3 != nil:
+		// IOTA json-rpc reports V3 under the "ChangeEpochV2" kind name.
+		j = &struct {
+			ChangeEpochV3 *ChangeEpochV3 `json:"ChangeEpochV2"`
+		}{
+			ChangeEpochV3: s.ChangeEpochV3,
+		}
+	case s.ChangeEpochV4 != nil:
+		// IOTA json-rpc reports V4 under the "ChangeEpochV2" kind name.
+		j = &struct {
+			ChangeEpochV4 *ChangeEpochV4 `json:"ChangeEpochV2"`
+		}{
+			ChangeEpochV4: s.ChangeEpochV4,
 		}
 	case s.AuthenticatorStateExpire != nil:
 		j = &struct {
@@ -570,7 +635,7 @@ func (s *EndOfEpochTransactionSingle) UnmarshalJSON(data []byte) error {
 	}
 	var j struct {
 		ChangeEpoch              *ChangeEpoch              `json:"ChangeEpoch"`
-		ChangeEpochV2            *ChangeEpochV2            `json:"ChangeEpochV2"`
+		ChangeEpochV2            json.RawMessage           `json:"ChangeEpochV2"`
 		AuthenticatorStateExpire *AuthenticatorStateExpire `json:"AuthenticatorStateExpire"`
 		BridgeStateCreate        *string                   `json:"BridgeStateCreate"`
 		BridgeCommitteeUpdate    *int64                    `json:"BridgeCommitteeUpdate"`
@@ -582,8 +647,28 @@ func (s *EndOfEpochTransactionSingle) UnmarshalJSON(data []byte) error {
 	switch {
 	case j.ChangeEpoch != nil:
 		s.ChangeEpoch = j.ChangeEpoch
-	case j.ChangeEpochV2 != nil:
-		s.ChangeEpochV2 = j.ChangeEpochV2
+	case jsonFieldPresent(j.ChangeEpochV2):
+		// IOTA json-rpc reports BCS ChangeEpoch V2/V3/V4 all under the single
+		// "ChangeEpochV2" kind, distinguished by which optional fields appear:
+		// scores => V4, eligible_active_validators only => V3, neither => V2.
+		var probe struct {
+			Eligible json.RawMessage `json:"eligible_active_validators"`
+			Scores   json.RawMessage `json:"scores"`
+		}
+		if err := json.Unmarshal(j.ChangeEpochV2, &probe); err != nil {
+			return err
+		}
+		switch {
+		case jsonFieldPresent(probe.Scores):
+			s.ChangeEpochV4 = &ChangeEpochV4{}
+			return json.Unmarshal(j.ChangeEpochV2, s.ChangeEpochV4)
+		case jsonFieldPresent(probe.Eligible):
+			s.ChangeEpochV3 = &ChangeEpochV3{}
+			return json.Unmarshal(j.ChangeEpochV2, s.ChangeEpochV3)
+		default:
+			s.ChangeEpochV2 = &ChangeEpochV2{}
+			return json.Unmarshal(j.ChangeEpochV2, s.ChangeEpochV2)
+		}
 	case j.AuthenticatorStateExpire != nil:
 		s.AuthenticatorStateExpire = j.AuthenticatorStateExpire
 	case j.BridgeStateCreate != nil:
@@ -600,8 +685,21 @@ type EndOfEpochTransaction struct {
 	Transactions []EndOfEpochTransactionSingle `json:"transactions"`
 }
 
+// RandomnessStateUpdate mirrors sui/iota RandomnessStateUpdate. Field order/types
+// match sui-types/src/transaction.rs (and the IOTA equivalent):
+//
+//	RandomnessStateUpdate {
+//	    epoch: u64, randomness_round: u64, random_bytes: Vec<u8>,
+//	    randomness_obj_initial_shared_version: SequenceNumber,
+//	}
+//
+// randomness_obj_initial_shared_version is not part of the json-rpc reply, so it
+// is derived from the decoded BCS (DeriveAuxInformationFromBCSV1).
 type RandomnessStateUpdate struct {
-	// TODO
+	Epoch                             Number     `json:"epoch"`
+	RandomnessRound                   Number     `json:"randomness_round"`
+	RandomBytes                       Uint8Slice `json:"random_bytes"`
+	RandomnessObjInitialSharedVersion uint64     `json:"-"`
 }
 
 // TransactionKind is a BCS enum whose variant indices differ between Sui and
@@ -625,8 +723,8 @@ type TransactionKind struct {
 	Genesis                       *Genesis                   `bcs:"enumNum[sui]=2,enumNum[iota]=1"`
 	ConsensusCommitPrologue       *ConsensusCommitPrologue   `bcs:"enumNum[sui]=3"`
 	AuthenticatorStateUpdate      *AuthenticatorStateUpdate  `bcs:"enumNum[sui]=4"`
-	EndOfEpochTransaction         *EndOfEpochTransaction     `bcs:"enumNum[sui]=5"`
-	RandomnessStateUpdate         *RandomnessStateUpdate     `bcs:"enumNum[sui]=6"`
+	EndOfEpochTransaction         *EndOfEpochTransaction     `bcs:"enumNum[sui]=5,enumNum[iota]=4"`
+	RandomnessStateUpdate         *RandomnessStateUpdate     `bcs:"enumNum[sui]=6,enumNum[iota]=5"`
 	ConsensusCommitPrologueV2     *ConsensusCommitPrologueV2 `bcs:"enumNum[sui]=7"`
 	ConsensusCommitPrologueV3     *ConsensusCommitPrologueV3 `bcs:"enumNum[sui]=8"`
 	ConsensusCommitPrologueV4     *ConsensusCommitPrologueV4 `bcs:"enumNum[sui]=9"`
@@ -699,8 +797,7 @@ func (s *TransactionKind) UnmarshalJSON(data []byte) error {
 	case "EndOfEpochTransaction":
 		return json.Unmarshal(data, &s.EndOfEpochTransaction)
 	case "RandomnessStateUpdate":
-		s.RandomnessStateUpdate = &RandomnessStateUpdate{}
-		return nil
+		return json.Unmarshal(data, &s.RandomnessStateUpdate)
 	default:
 		return errors.Errorf("invalid tx kind %q", j.Kind)
 	}

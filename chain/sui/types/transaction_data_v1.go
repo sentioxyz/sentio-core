@@ -132,6 +132,22 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 		x.NonRefundableStorageFee = y.NonRefundableStorageFee
 		x.SystemPackages = y.SystemPackages
 	}
+	populateChangeEpochV2 := func(x *ChangeEpochV2, y *ChangeEpochV2) {
+		x.ProtocolVersion = y.ProtocolVersion
+		x.NonRefundableStorageFee = y.NonRefundableStorageFee
+		x.SystemPackages = y.SystemPackages
+	}
+	populateChangeEpochV3 := func(x *ChangeEpochV3, y *ChangeEpochV3) {
+		x.ProtocolVersion = y.ProtocolVersion
+		x.NonRefundableStorageFee = y.NonRefundableStorageFee
+		x.SystemPackages = y.SystemPackages
+	}
+	populateChangeEpochV4 := func(x *ChangeEpochV4, y *ChangeEpochV4) {
+		x.ProtocolVersion = y.ProtocolVersion
+		x.NonRefundableStorageFee = y.NonRefundableStorageFee
+		x.SystemPackages = y.SystemPackages
+		x.AdjustRewardsByScore = y.AdjustRewardsByScore
+	}
 	switch {
 	case data.Kind.ChangeEpoch != nil:
 		if decodedV1.Kind.ChangeEpoch == nil {
@@ -203,6 +219,12 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 			return errors.New("decodedV1.Kind.AuthenticatorStateUpdate is nil")
 		}
 		data.Kind.AuthenticatorStateUpdate.AuthenticatorObjInitialSharedVersion = decodedV1.Kind.AuthenticatorStateUpdate.AuthenticatorObjInitialSharedVersion
+	case data.Kind.RandomnessStateUpdate != nil:
+		if decodedV1.Kind.RandomnessStateUpdate == nil {
+			return errors.New("decodedV1.Kind.RandomnessStateUpdate is nil")
+		}
+		// randomness_obj_initial_shared_version is not part of the json reply.
+		data.Kind.RandomnessStateUpdate.RandomnessObjInitialSharedVersion = decodedV1.Kind.RandomnessStateUpdate.RandomnessObjInitialSharedVersion
 	case data.Kind.EndOfEpochTransaction != nil:
 		if decodedV1.Kind.EndOfEpochTransaction == nil {
 			// This indicates a mismatch between the given transaction data and the decoded transaction.
@@ -224,6 +246,21 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 					return errors.New("y.ChangeEpoch == nil")
 				}
 				populateChangeEpoch(x.ChangeEpoch, y.ChangeEpoch)
+			} else if x.ChangeEpochV2 != nil {
+				if y.ChangeEpochV2 == nil {
+					return errors.New("y.ChangeEpochV2 == nil")
+				}
+				populateChangeEpochV2(x.ChangeEpochV2, y.ChangeEpochV2)
+			} else if x.ChangeEpochV3 != nil {
+				if y.ChangeEpochV3 == nil {
+					return errors.New("y.ChangeEpochV3 == nil")
+				}
+				populateChangeEpochV3(x.ChangeEpochV3, y.ChangeEpochV3)
+			} else if x.ChangeEpochV4 != nil {
+				if y.ChangeEpochV4 == nil {
+					return errors.New("y.ChangeEpochV4 == nil")
+				}
+				populateChangeEpochV4(x.ChangeEpochV4, y.ChangeEpochV4)
 			}
 		}
 	}

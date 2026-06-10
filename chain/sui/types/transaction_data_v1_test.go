@@ -14,7 +14,7 @@ import (
 	"sentioxyz/sentio-core/common/log"
 )
 
-var testDataFile = "testdata/txs-v1.json"
+var testDataFile = "testdata/sui/txs-v1.json"
 
 func unresolvePureValueTypes(j string) string {
 	var m map[string]interface{}

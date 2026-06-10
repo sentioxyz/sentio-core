@@ -1,0 +1,82 @@
+{
+  "digest": "3KNHVsjz4df4ubJQvccECxS96NCNrPingj8udP4cqE2y",
+  "transaction": {
+    "data": {
+      "messageVersion": "v1",
+      "transaction": {
+        "kind": "RandomnessStateUpdate",
+        "epoch": "1126",
+        "randomness_round": "80252",
+        "random_bytes": [
+          134,
+          25,
+          93,
+          240,
+          94,
+          119,
+          172,
+          156,
+          5,
+          107,
+          66,
+          250,
+          126,
+          193,
+          214,
+          215,
+          109,
+          244,
+          74,
+          189,
+          219,
+          45,
+          121,
+          183,
+          229,
+          32,
+          6,
+          34,
+          184,
+          47,
+          247,
+          16,
+          227,
+          209,
+          107,
+          236,
+          193,
+          124,
+          191,
+          162,
+          98,
+          193,
+          45,
+          172,
+          230,
+          56,
+          184,
+          68
+        ]
+      },
+      "sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "gasData": {
+        "payment": [
+          {
+            "objectId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "version": 0,
+            "digest": "11111111111111111111111111111111"
+          }
+        ],
+        "owner": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "price": "1",
+        "budget": "0"
+      }
+    },
+    "txSignatures": [
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    ]
+  },
+  "rawTransaction": "AQAAAAAGZgQAAAAAAAB8OQEAAAAAADCGGV3wXnesnAVrQvp+wdbXbfRKvdstebflIAYiuC/3EOPRa+zBfL+iYsEtrOY4uEQBWpUCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAWEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "timestampMs": "1781084221250",
+  "checkpoint": "346679383"
+}

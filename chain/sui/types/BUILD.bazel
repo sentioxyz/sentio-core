@@ -36,7 +36,6 @@ go_test(
     name = "types_test",
     srcs = [
         "address_test.go",
-        "consensus_commit_prologue_test.go",
         "digest_test.go",
         "language_test.go",
         "object_test.go",
@@ -46,13 +45,10 @@ go_test(
         "transaction_command_test.go",
         "transaction_data_v1_test.go",
         "transaction_expiration_test.go",
+        "transaction_kind_roundtrip_test.go",
         "transaction_test.go",
     ],
-    data = [
-        "//chain/sui/types/testdata:ccp-iota-v1.json",
-        "//chain/sui/types/testdata:ccp-sui-v4.json",
-        "//chain/sui/types/testdata:txs-v1.json",
-    ],
+    data = ["//chain/sui/types/testdata"],
     embed = [":types"],
     deps = [
         "//chain/sui/types/serde",

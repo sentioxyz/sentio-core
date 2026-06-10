@@ -12,6 +12,38 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Uint8Slice is a byte slice that (un)marshals as a JSON array of numbers, the
+// form sui/iota json-rpc uses for fields like random_bytes. It still BCS-encodes
+// as Vec<u8> (serde treats any []uint8-kind slice as a byte slice).
+type Uint8Slice []byte
+
+func (s Uint8Slice) MarshalJSON() ([]byte, error) {
+	if s == nil {
+		return []byte("null"), nil
+	}
+	nums := make([]uint16, len(s))
+	for i, b := range s {
+		nums[i] = uint16(b)
+	}
+	return json.Marshal(nums)
+}
+
+func (s *Uint8Slice) UnmarshalJSON(data []byte) error {
+	var nums []uint16
+	if err := json.Unmarshal(data, &nums); err != nil {
+		return err
+	}
+	out := make([]byte, len(nums))
+	for i, n := range nums {
+		if n > 255 {
+			return errors.Errorf("byte value %d out of range", n)
+		}
+		out[i] = byte(n)
+	}
+	*s = out
+	return nil
+}
+
 type Base64Data []byte
 
 func NewBase64Data(str string) (Base64Data, error) {

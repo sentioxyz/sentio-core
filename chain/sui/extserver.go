@@ -152,9 +152,10 @@ func (d *ExtServerDimension) loadCheckpoint(
 var uncompletedKinds = map[string]bool{
 	"Genesis":                   true,
 	"EndOfEpochTransaction":     true,
+	"ConsensusCommitPrologueV1": true,
+	"ConsensusCommitPrologueV2": true,
 	"ConsensusCommitPrologueV3": true,
 	"ConsensusCommitPrologueV4": true,
-	"ConsensusCommitPrologueV1": true,
 	"RandomnessStateUpdate":     true,
 }
 
@@ -277,8 +278,8 @@ func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot,
 	objects := make(ObjectSet)
 	for i, res := range results {
 		if res.GetError() != nil {
-			return nil, errors.Errorf("load object %s/%d failed: %s",
-				objReqs[i].GetObjectId(), objReqs[i].GetVersion(), utils.MustJSONMarshal(res.GetError()))
+			return nil, errors.Errorf("load object %s/%d in checkpoint %d failed: %s",
+				objReqs[i].GetObjectId(), objReqs[i].GetVersion(), sn, utils.MustJSONMarshal(res.GetError()))
 		}
 		objects.Put(res.GetObject())
 	}
@@ -303,8 +304,8 @@ func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot,
 			if !changeType.IsCreated() && co.GetInputOwner() == nil {
 				pre, has := objects.Get(co.GetObjectId(), co.GetInputVersion())
 				if !has {
-					return nil, errors.Errorf("object %s/%d not found in checkpoint objects",
-						co.GetObjectId(), co.GetInputVersion())
+					return nil, errors.Errorf("object %s/%d of in transaction %d/%s not found in checkpoint objects",
+						co.GetObjectId(), co.GetInputVersion(), sn, tx.GetDigest())
 				}
 				co.InputOwner = pre.GetOwner()
 			}
@@ -313,15 +314,15 @@ func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot,
 				if changeType.IsDeleted() {
 					pre, has := objects.Get(co.GetObjectId(), co.GetInputVersion())
 					if !has {
-						return nil, errors.Errorf("object %s/%d not found in checkpoint objects",
-							co.GetObjectId(), co.GetInputVersion())
+						return nil, errors.Errorf("object %s/%d of in transaction %d/%s not found in checkpoint objects",
+							co.GetObjectId(), co.GetInputVersion(), sn, tx.GetDigest())
 					}
 					co.ObjectType = pre.ObjectType
 				} else {
 					cur, has := objects.Get(co.GetObjectId(), co.GetOutputVersion())
 					if !has {
-						return nil, errors.Errorf("object %s/%d not found in checkpoint objects",
-							co.GetObjectId(), co.GetOutputVersion())
+						return nil, errors.Errorf("object %s/%d of in transaction %d/%s not found in checkpoint objects",
+							co.GetObjectId(), co.GetOutputVersion(), sn, tx.GetDigest())
 					}
 					co.ObjectType = cur.ObjectType
 				}

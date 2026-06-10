@@ -34,6 +34,13 @@ func TestTransactionKindRoundTrip(t *testing.T) {
 		// BCS variant 10 (ProgrammableSystemTransaction); json-rpc reports it under
 		// the regular "ProgrammableTransaction" kind.
 		{"testdata/sui/programmable-system.json", VariationSUI, "ProgrammableTransaction", true},
+		// A system PTB whose shared-object input has mutability NonExclusiveWrite
+		// (BCS 0x02); json-rpc collapses it to "mutable": false, so the exact
+		// variant must be restored from BCS for the re-encode to match.
+		{"testdata/sui/programmable-system-nonexclusive.json", VariationSUI, "ProgrammableTransaction", true},
+		// A PTB with a CallArg::FundsWithdrawal input (Sui-only; payload is the
+		// FundsWithdrawalArg struct, not an enum).
+		{"testdata/sui/programmable-funds-withdrawal.json", VariationSUI, "ProgrammableTransaction", true},
 		{"testdata/sui/change-epoch.json", VariationSUI, "ChangeEpoch", true},
 		{"testdata/sui/consensus-commit-prologue.json", VariationSUI, "ConsensusCommitPrologue", true},
 		{"testdata/sui/consensus-commit-prologue-v2.json", VariationSUI, "ConsensusCommitPrologueV2", true},

@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"sentioxyz/sentio-core/chain/sui/types/serde"
-	"sentioxyz/sentio-core/common/utils"
 )
 
 // TestCallArgFundsWithdrawalJSON checks CallArg.FundsWithdrawal json round-trips
@@ -32,29 +31,32 @@ func TestCallArgFundsWithdrawalJSON(t *testing.T) {
 `
 	var inputs []CallArg
 	assert.NoError(t, json.Unmarshal([]byte(raw), &inputs))
-	assert.Equal(t, []CallArg{{
-		FundsWithdrawal: &FundsWithdrawal{
-			Amount:   utils.WrapPointer[uint64](12345),
-			CoinType: utils.WrapPointer("0x2::sui::SUI"),
-			Source:   utils.WrapPointer("sender"),
-		},
-	}}, inputs)
+	require.NotNil(t, inputs[0].FundsWithdrawal)
+	fw := inputs[0].FundsWithdrawal
+	require.NotNil(t, fw.Reservation)
+	assert.Equal(t, uint64(12345), *fw.Reservation.MaxAmountU64)
+	require.NotNil(t, fw.TypeArg)
+	require.NotNil(t, fw.TypeArg.Balance)
+	assert.Equal(t, "0x2::sui::SUI", fw.TypeArg.Balance.String())
+	require.NotNil(t, fw.WithdrawFrom)
+	assert.NotNil(t, fw.WithdrawFrom.Sender)
+	assert.Nil(t, fw.WithdrawFrom.Sponsor)
 
 	b, err := json.Marshal(inputs)
 	assert.NoError(t, err)
 	assert.Equal(t, `[{"reservation":{"maxAmountU64":"12345"},"type":"fundsWithdrawal","typeArg":{"balance":"0x2::sui::SUI"},"withdrawFrom":"sender"}]`, string(b))
 
-	inputs[0].FundsWithdrawal.Source = nil
+	inputs[0].FundsWithdrawal.WithdrawFrom = nil
 	b, err = json.Marshal(inputs)
 	assert.NoError(t, err)
 	assert.Equal(t, `[{"reservation":{"maxAmountU64":"12345"},"type":"fundsWithdrawal","typeArg":{"balance":"0x2::sui::SUI"}}]`, string(b))
 
-	inputs[0].FundsWithdrawal.CoinType = nil
+	inputs[0].FundsWithdrawal.TypeArg = nil
 	b, err = json.Marshal(inputs)
 	assert.NoError(t, err)
 	assert.Equal(t, `[{"reservation":{"maxAmountU64":"12345"},"type":"fundsWithdrawal"}]`, string(b))
 
-	inputs[0].FundsWithdrawal.Amount = nil
+	inputs[0].FundsWithdrawal.Reservation = nil
 	b, err = json.Marshal(inputs)
 	assert.NoError(t, err)
 	assert.Equal(t, `[{"type":"fundsWithdrawal"}]`, string(b))

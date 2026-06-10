@@ -119,6 +119,46 @@ use; the selector comes from `ExtServerDimension.variation`. Every divergent kin
 is tagged per chain and validated, so always set the index from the authoritative
 BCS source (the staged snapshot, below), never from Go field position.
 
+## Auditing for upstream drift — compare every field, not just enum variants
+
+When a transaction fails to round-trip, the instinct is to check enum variant
+indices. That is necessary but **not sufficient**. Upstream drift hides in
+struct fields just as often:
+
+- a field's *type* changes while its position stays (e.g. `SharedObject.mutable`
+  went `bool` → the `SharedObjectMutability` enum; `0x00`/`0x01` stayed
+  compatible but a new `0x02` broke the bool);
+- a payload's *shape* changes (e.g. `CallArg::FundsWithdrawal` is a `struct` of
+  three nested enums, not an enum — mis-modeling it as an enum mis-aligned the
+  whole stream and either errored or panicked on a bogus length-prefix);
+- a struct gains a trailing field; a `bool` becomes an enum that is bool-compatible
+  only for its first two variants.
+
+So a real audit walks the **entire BCS-reachable graph** from `SenderSignedData`
+and compares *every type* — struct field order **and** field types, enum variant
+indices, custom `MarshalBCS` codecs (`TypeTag`, `Argument`, `IntentMessage`,
+`MovePackage`, `TransactionExpiration`) — against the staged snapshot, field by
+field. The snapshot is the complete reference: `STRUCT` entries give field order
+and types; `ENUM` entries give variant indices; `NEWTYPE`/`TUPLE`/`SEQ`/`OPTION`/
+`MAP`/`BYTES` give the exact wire shape (and a nested `TUPLE` is just its elements
+concatenated, so it is BCS-equivalent to a flat struct of the same fields).
+
+The reachable set (audit all of these, both chains): `SenderSignedData` →
+`SenderSignedTransaction` (`IntentMessage` + `TransactionData` + `[]Signature`) →
+`TransactionDataV1` → `{TransactionKind, GasData, TransactionExpiration}` → every
+`TransactionKind` payload (`ProgrammableTransaction`, `ChangeEpoch[V2..V4]`,
+`ConsensusCommitPrologue[V1..V4]`, `AuthenticatorStateUpdate`→`ActiveJwk`,
+`EndOfEpochTransaction`→`EndOfEpochTransactionSingle` payloads,
+`RandomnessStateUpdate`) → `CallArg`/`ObjectArg`/`FundsWithdrawal`, `Command`/
+`ProgrammableMoveCall`/`Argument`, `TypeTag`/`StructTag`/`MovePackage`,
+`ConsensusDeterminedVersionAssignments` payloads, the execution-time-observation
+types. Everything else on `TransactionResponseV1` (effects, objectChanges,
+events, balanceChanges) comes from the **json reply, not `rawTransaction`**, so it
+is out of the BCS round-trip and not part of this audit.
+
+To fetch the snapshots: `gh api repos/MystenLabs/sui/contents/crates/sui-types/tests/snapshots/format__sui.yaml.snap -q .content | base64 -d`
+and `gh api repos/iotaledger/iota/contents/crates/iota-core/tests/staged/iota.yaml -q .content | base64 -d`.
+
 ## Procedure: updating a type to follow an upstream change
 
 1. **Find the authoritative Rust definition** for the exact version/branch in

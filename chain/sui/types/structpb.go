@@ -254,9 +254,29 @@ func (s CallArg) MarshalStructpb() *structpb.Value {
 			}
 		}
 		return utils.MarshalStructpb(j)
+	case s.FundsWithdrawal != nil:
+		return s.FundsWithdrawal.MarshalStructpb()
 	default:
 		panic(errors.New("invalid CallArg"))
 	}
+}
+
+// MarshalStructpb serves a funds-withdrawal input using the same shape as its
+// json form (the single source of truth in MarshalJSON).
+func (f FundsWithdrawal) MarshalStructpb() *structpb.Value {
+	b, err := json.Marshal(f)
+	if err != nil {
+		panic(err)
+	}
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		panic(err)
+	}
+	val, err := structpb.NewValue(v)
+	if err != nil {
+		panic(err)
+	}
+	return val
 }
 
 func (s PureValue) MarshalStructpb() *structpb.Value {
@@ -282,6 +302,13 @@ func (s PureValue) MarshalStructpb() *structpb.Value {
 
 func (s Signature) MarshalStructpb() *structpb.Value {
 	return structpb.NewStringValue(base64.StdEncoding.EncodeToString(s))
+}
+
+// MarshalStructpb serves the shared-object mutability as a bool, mirroring the
+// json-rpc representation: only Mutable is reported as true (see the type doc on
+// SharedObjectMutability).
+func (m SharedObjectMutability) MarshalStructpb() *structpb.Value {
+	return structpb.NewBoolValue(m == SharedObjectMutable)
 }
 
 func (s Event) MarshalStructpb() *structpb.Value {
@@ -337,6 +364,7 @@ func init() {
 	utils.RegisterSpecialType(reflect.TypeOf(CallArg{}))
 	utils.RegisterSpecialType(reflect.TypeOf(PureValue{}))
 	utils.RegisterSpecialType(reflect.TypeOf(Signature{}))
+	utils.RegisterSpecialType(reflect.TypeOf(SharedObjectMutability(0)))
 	utils.RegisterSpecialType(reflect.TypeOf(Event{}))
 	utils.RegisterSpecialType(reflect.TypeOf(EndOfEpochTransactionSingle{}))
 }

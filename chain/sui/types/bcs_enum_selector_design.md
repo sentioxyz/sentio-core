@@ -56,6 +56,32 @@ the `ConsensusCommitPrologueV1` field at Go index 10 (commented "iota-mainnet ha
 this") is actually wrong: IOTA's CCPV1 is index 2, and Sui's index 10 is
 `ProgrammableSystemTransaction`.
 
+### 1.2 Guiding principle: Sui and IOTA are *variations* of one chain type
+
+Treat Sui and IOTA as two **variations** of the `sui` chain type — analogous to
+the several EVM variations the platform already supports. The working rule:
+
+> Variations may **differ** (a variant/field present in one, absent in the other)
+> but must not **conflict** — where *conflict* = the **same position** holding a
+> **different-typed value**. For BCS, "position" is the numeric variant index /
+> field offset; for JSON it is the key name.
+
+Consequences:
+- **BCS**: the index *numbering* itself differs between variations (Sui idx 2 =
+  `Genesis`, IOTA idx 2 = `ConsensusCommitPrologueV1`). The per-selector
+  `enumNum` tags (§3) let each variation declare its own indices, so this is a
+  *diff* resolved by the selector — not an unresolvable conflict.
+- **JSON**: keyed by **names**, which do not collide (`"Genesis"`,
+  `"ConsensusCommitPrologue"`, `"ConsensusCommitPrologueV1"` are distinct; a kind
+  both variations have, e.g. `RandomnessStateUpdate`, uses the same field names
+  with the same types). So a single **union struct** decodes both variations'
+  JSON — no per-chain JSON routing is needed (see §9).
+
+Adopt "no conflict" as the **default assumption**; do not build machinery for a
+conflict until one actually appears. When refactoring `chain/sui/types`, watch
+for a real violation (same JSON key / same BCS index with incompatible types)
+and only then add chain-specific handling for that one spot.
+
 ## 2. Goals / non-goals
 
 Goals:
@@ -386,42 +412,41 @@ case "ConsensusCommitPrologueV1":
 }
 ```
 
-Sui and IOTA can (a) use the **same discriminator name for a different payload
-shape** (e.g. both report `"ConsensusCommitPrologueV1"` with different fields),
-or (b) use **different names for the analogous tx**. So "which Go field does this
-value belong to" is a per-chain question on the JSON side as well — and
-`UnmarshalJSON(data []byte)`, like `UnmarshalBCS(r)`, has **no chain parameter**.
+Different variations may use **different discriminator names for the analogous
+tx** (e.g. Sui `"ConsensusCommitPrologue"` vs IOTA `"ConsensusCommitPrologueV1"`)
+and one variation may have kinds/fields the other lacks. Under §1.2 these are
+*diffs*, not conflicts.
 
-### Why it is less severe than BCS
+### Default: a single union struct (no JSON selector)
 
-- JSON is **self-describing** and `encoding/json` is **lenient**: unknown keys
-  are ignored, absent keys stay zero, and there is no byte-exact round-trip
-  check (no `TxSanityCheck` equivalent on the JSON value). A single Go struct
-  holding the **union** of both chains' JSON fields therefore decodes either
-  chain's reply without error.
-- The remaining risk is **semantic** (a value landing in the wrong field), not a
-  hard decode failure.
+By the §1.2 principle, the variations do **not** conflict on JSON keys — distinct
+kinds use distinct names, and a kind both have uses the same field names with the
+same types. JSON is also self-describing and `encoding/json` is lenient (unknown
+keys ignored, absent keys zero, no byte-exact check). So:
 
-### When chain-awareness is still required
+- Keep **one `TransactionKind` (and friends)** whose `UnmarshalJSON` dispatch is
+  the **union** of both variations' discriminator names — each name maps to its
+  own Go field (e.g. both `case "ConsensusCommitPrologue"` and
+  `case "ConsensusCommitPrologueV1"`). A reply only ever carries the names of its
+  own variation; the others stay nil.
+- For a kind shared by both variations, one struct with the (identical-typed)
+  field set decodes both.
+- **No chain selector is needed on the JSON path.** `UnmarshalJSON(data)` having
+  no chain parameter is fine, because the wire is self-describing and
+  conflict-free.
 
-- the **same discriminator name must map to a different Go type per chain**
-  (one name → one field dispatch cannot express this), or
-- the **same json key carries a different-typed value per chain** (a real
-  conflict, not merely extra/missing fields).
+This is unlike BCS, where the numeric index *positions* genuinely differ and the
+selector (§3) is required.
 
-### Approach (mirror the BCS design)
+### Fallback (only if the no-conflict assumption breaks)
 
-The selector cannot live inside the stdlib `UnmarshalJSON(data)`. Inject it at a
-**chain-aware entry point** instead — e.g. `UnmarshalTransaction(raw, selector)`
-called from `getSlot` (which knows the chain): for the divergent kinds it peeks
-the discriminator and routes to the chain-specific Go type; the common kinds keep
-their existing `UnmarshalJSON`. The same selector is used when **serving**
-(`MarshalJSON` must emit the discriminator name the target chain's driver
-expects).
-
-Prefer **union structs** (lenient decode) over chain routing wherever a union is
-unambiguous; introduce routing only for genuine same-name-different-type
-conflicts, and record each such conflict in `CLAUDE.md`.
+If a real conflict ever appears — the **same** discriminator name needing a
+different Go type per variation, or the **same** json key carrying a
+different-typed value — then (and only then) inject a selector at a chain-aware
+entry point, e.g. `UnmarshalTransaction(raw, selector)` called from `getSlot`,
+that peeks the discriminator and routes to the variation-specific type; likewise
+`MarshalJSON` would need the selector to emit the expected name. Record any such
+conflict in `CLAUDE.md`. Do not build this until it is actually needed.
 
 ### Scope note
 

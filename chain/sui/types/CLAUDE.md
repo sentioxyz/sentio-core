@@ -63,27 +63,35 @@ list. See `bcs_enum_selector_design.md` for the dual-chain plan.
 
 Fetch source without auth via the GitHub raw URL or `gh api repos/<org>/<repo>/contents/<path> --jq .content | base64 -d`.
 
+## Sui and IOTA are *variations* of one chain type
+
+Treat Sui and IOTA as two variations of the `sui` chain type (like the EVM
+variations). They may **differ** but must not **conflict** — same position, same
+type. "Position" = numeric variant index for BCS, key name for JSON. See
+`bcs_enum_selector_design.md` §1.2. Assume no conflict by default; only add
+chain-specific handling if a real one appears, and document it.
+
 ## Two wire paths: BCS *and* JSON
 
-A transaction reaches `TransactionResponseV1` two ways, and **both** can diverge
-per chain:
+A transaction reaches `TransactionResponseV1` two ways:
 
 - **BCS** — `rawTransaction` is BCS-decoded by `serde` and must re-encode
-  byte-for-byte (`TxSanityCheck`). Strict; this is what `uncompletedKinds` guards.
+  byte-for-byte (`TxSanityCheck`). Strict, and the index *positions* genuinely
+  differ per variation, so this path needs the per-selector `enumNum` mechanism
+  (the decoder/encoder selector). This is what `uncompletedKinds` guards.
 - **JSON** — the json-rpc reply is `json.Unmarshal`ed into the same types
-  (`getSlot`), dispatching on a `kind` discriminator (see
-  `TransactionKind.UnmarshalJSON`). `encoding/json` is lenient (unknown keys
-  ignored, absent keys zero, no round-trip check), so it usually tolerates a
-  union struct — but the **same `kind` name can mean different payloads on Sui
-  vs IOTA**, which a single name→field dispatch cannot express.
+  (`getSlot`), dispatching on a `kind` discriminator (`TransactionKind.UnmarshalJSON`).
+  Keyed by names, which don't collide between variations, and `encoding/json` is
+  lenient. So a single **union struct** (dispatch = the union of both variations'
+  kind names; a shared kind = one identically-typed field set) decodes both —
+  **no JSON selector needed**. Only if a real key/type conflict ever appears do
+  you inject a chain-aware entry point (see §9 fallback).
 
-Neither `UnmarshalBCS(r)` nor `UnmarshalJSON(data)` receives a chain, so chain
-routing must be injected at a chain-aware entry point (the decoder selector for
-BCS; a wrapper like `UnmarshalTransaction(raw, selector)` for JSON). When you
-complete a kind, verify **both** paths against real sui/iota replies — see
-`bcs_enum_selector_design.md` §9 for the JSON-path rules.
+When you complete a kind, verify the **BCS** round-trip (selector) and make sure
+the **JSON** union covers both variations' kinds/fields, against real sui/iota
+replies.
 
-## Sui and IOTA are NOT the same enum layout
+## Sui and IOTA are NOT the same enum layout (BCS)
 
 `TransactionKind` (and possibly other enums) have **different variant orders and
 payloads** on Sui vs IOTA — see the table in `bcs_enum_selector_design.md`. Do

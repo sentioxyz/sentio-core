@@ -14,12 +14,24 @@ import (
 // Encoder takes an [io.Writer] and encodes value into it.
 type Encoder struct {
 	w io.Writer
+	// selector picks per-chain `bcs` tag variants (e.g. "sui"/"iota"); the empty
+	// string means position-based enums and unscoped tags only (legacy behavior).
+	selector string
 }
 
 // NewEncoder creates a new [Encoder] from an [io.Writer]
 func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
 		w: w,
+	}
+}
+
+// NewEncoderForSelector creates an [Encoder] that resolves per-selector `bcs`
+// tags (enumNum/optional/ignore) for the given selector.
+func NewEncoderForSelector(w io.Writer, selector string) *Encoder {
+	return &Encoder{
+		w:        w,
+		selector: selector,
 	}
 }
 
@@ -138,6 +150,11 @@ func (e *Encoder) encode(v reflect.Value) error {
 func (e *Encoder) encodeEnum(v reflect.Value) error {
 	t := v.Type()
 
+	layout, err := enumLayoutFor(t, e.selector)
+	if err != nil {
+		return err
+	}
+
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		// ignore fields that are not exported
@@ -147,11 +164,11 @@ func (e *Encoder) encodeEnum(v reflect.Value) error {
 
 		fieldType := t.Field(i)
 		// check the tag
-		tag, err := parseTagValue(fieldType.Tag.Get(tagName))
+		tag, err := parseTag(fieldType.Tag.Get(tagName))
 		if err != nil {
 			return err
 		}
-		if tag&tagValueIgnore > 0 {
+		if tag.isIgnored(e.selector) {
 			continue
 		}
 		fieldKind := field.Kind()
@@ -161,7 +178,17 @@ func (e *Encoder) encodeEnum(v reflect.Value) error {
 			)
 		}
 		if !field.IsNil() {
-			if _, err := e.w.Write(bcs.ULEB128Encode(i)); err != nil {
+			// tag mode: variant index comes from the enumNum tag for this selector;
+			// position mode (no enumNum tags): variant index == field position.
+			variant := i
+			if layout.tagged {
+				n, ok := layout.byField[i]
+				if !ok {
+					return errors.Errorf("variant %s not valid for selector %q on %s", fieldType.Name, e.selector, t)
+				}
+				variant = n
+			}
+			if _, err := e.w.Write(bcs.ULEB128Encode(variant)); err != nil {
 				return err
 			}
 			if fieldKind == reflect.Pointer {
@@ -248,17 +275,17 @@ func (e *Encoder) encodeStruct(v reflect.Value) error {
 		if !field.CanInterface() {
 			continue
 		}
-		tag, err := parseTagValue(t.Field(i).Tag.Get(tagName))
+		tag, err := parseTag(t.Field(i).Tag.Get(tagName))
 		if err != nil {
 			return err
 		}
 		// ignored
-		if tag&tagValueIgnore != 0 {
+		if tag.isIgnored(e.selector) {
 			continue
 		}
 
 		// optional
-		if tag&tagValueOptional != 0 {
+		if tag.isOptional(e.selector) {
 			if field.Kind() != reflect.Pointer && field.Kind() != reflect.Interface {
 				return errors.Errorf("optional field can only be pointer or interface")
 			}

@@ -410,6 +410,7 @@ func (d *ExtServerDimension) GetSlotHeader(ctx context.Context, sn uint64) (chai
 func (d *ExtServerDimension) Snapshot() any {
 	sn := d.ExtServerDimension.Snapshot().(map[string]any)
 	utils.MergeMap(sn, map[string]any{
+		"variation":              d.variation,
 		"enableJSONRPC":          d.enableJSONRPC,
 		"skipValidate":           d.skipValidate,
 		"enableGrpc":             d.enableGrpc,

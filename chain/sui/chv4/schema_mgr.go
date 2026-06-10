@@ -114,7 +114,7 @@ func decodeJSON[T proto.Message](d string, v T) (bool, error) {
 	return true, jsonDecoder.Unmarshal(strings.NewReader(d), v)
 }
 
-func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint) (
+func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint, objectDict sui.ObjectSet) (
 	checkpoint Checkpoint,
 	txs []Transaction,
 	events []Event,
@@ -143,11 +143,6 @@ func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint)
 	if err = m.balanceCtrl.Align(ctx, ck.GetSequenceNumber()-1); err != nil {
 		err = errors.Wrapf(err, "align balance store for checkpoint %d failed", ck.GetSequenceNumber())
 		return
-	}
-	// build dict for ck.GetObjects()
-	objectDict := make(map[string]map[uint64]*rpcv2.Object)
-	for _, obj := range ck.GetObjects().GetObjects() {
-		utils.PutIntoK2Map(objectDict, obj.GetObjectId(), obj.GetVersion(), obj)
 	}
 	// === checkpoint
 	ckTitle := fmt.Sprintf("of checkpoint %d", ck.GetSequenceNumber())
@@ -293,19 +288,8 @@ func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint)
 				objects = append(objects, obj)
 				continue
 			}
-			if !changeType.IsCreated() && co.GetInputOwner() == nil {
-				// the early data may miss co.InputOwner, in this situation we need to get the pre-owner from the pre-object
-				preFullObj, has := utils.GetFromK2Map(objectDict, co.GetObjectId(), co.GetInputVersion())
-				if !has {
-					err = errors.Errorf("object %s/%d not found in checkpoint objects", co.GetObjectId(), co.GetInputVersion())
-					return
-				}
-				obj.PreOwnerKind = preFullObj.GetOwner().GetKind().String()
-				obj.PreOwnerAddress = preFullObj.GetOwner().GetAddress()
-				obj.PreOwnerVersion = preFullObj.GetOwner().GetVersion()
-			}
 			fullObjVersion := utils.Select(changeType.IsDeleted(), co.GetInputVersion(), obj.ObjectVersion)
-			fullObj, has := utils.GetFromK2Map(objectDict, co.GetObjectId(), fullObjVersion)
+			fullObj, has := objectDict.Get(co.GetObjectId(), fullObjVersion)
 			if !has {
 				err = errors.Errorf("object %s/%d not found in checkpoint objects", co.GetObjectId(), fullObjVersion)
 				return
@@ -333,7 +317,7 @@ func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint)
 }
 
 func (m *ClickhouseSchemaMgr) Convert(ctx context.Context, slot *sui.Slot) (clickhouse.Chunk, error) {
-	checkpoint, txs, events, objects, balances, err := m.convert(ctx, slot.GrpcCheckpoint)
+	checkpoint, txs, events, objects, balances, err := m.convert(ctx, slot.GrpcCheckpoint, slot.GrpcObjects)
 	if err != nil {
 		return clickhouse.Chunk{}, err
 	}

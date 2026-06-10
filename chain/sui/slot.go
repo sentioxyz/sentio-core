@@ -15,8 +15,12 @@ type SlotCheckpointInfo struct {
 
 type Slot struct {
 	SlotCheckpointInfo
+
+	HasJSONRPCData bool
 	Transactions   []types.TransactionResponseV1 `json:"transactions,omitempty"`
-	GrpcCheckpoint *rpcv2.Checkpoint             `json:"grpc_checkpoint,omitempty"`
+
+	GrpcCheckpoint *rpcv2.Checkpoint `json:"grpc_checkpoint,omitempty"`
+	GrpcObjects    ObjectSet
 }
 
 var _ chain.Slot = (*Slot)(nil)
@@ -33,13 +37,19 @@ func (s *Slot) GetParentHash() string {
 	return ""
 }
 
-const featureFromGRPC = "FromGRPC"
+const (
+	featureMissGRPC    = "MissGRPC"
+	featureMissJSONRPC = "MissJSONRPC"
+)
 
-func (s *Slot) Features() []string {
-	if s.GrpcCheckpoint != nil {
-		return []string{featureFromGRPC}
+func (s *Slot) Features() (feas []string) {
+	if !s.HasJSONRPCData {
+		feas = append(feas, featureMissJSONRPC)
 	}
-	return nil
+	if s.GrpcCheckpoint == nil {
+		feas = append(feas, featureMissGRPC)
+	}
+	return feas
 }
 
 func (s *Slot) Linked() bool {

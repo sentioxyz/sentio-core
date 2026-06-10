@@ -3,8 +3,12 @@ package supernode
 import (
 	"context"
 	"encoding/json"
-	"github.com/pkg/errors"
 	"math"
+	"strconv"
+
+	"github.com/pkg/errors"
+	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/chain/sui/types"
@@ -14,7 +18,6 @@ import (
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
-	"strconv"
 )
 
 func NewSuperNode(
@@ -25,28 +28,34 @@ func NewSuperNode(
 		func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 			return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
 				switch method {
-				case "sui_getLatestCheckpointSequenceNumber": // driverV2
+				case "sui_getLatestCheckpointSequenceNumber": // DriverVersion[0]
 					return superSvr.GetLatestCheckpointSequenceNumber(ctx)
-				case "sui_getCheckpointTime": // driverV2
+				case "sui_getCheckpointTime": // DriverVersion[0]
 					return jsonrpc.CallMethod(superSvr.GetCheckpointTime, ctx, params)
-				case "sui_getTransactions": // driverV2
+				case "sui_getTransactions": // DriverVersion[0]
 					return jsonrpc.CallMethod(superSvr.GetTransactions, ctx, params)
-				case "sui_filterObjectChanges": // driverV2
+				case "sui_filterObjectChanges": // DriverVersion[0]
 					return jsonrpc.CallMethod(superSvr.FilterObjectChanges, ctx, params)
-				case "sui_getLatestSimpleCheckpoint": // driverV3
+				case "sui_getLatestSimpleCheckpoint": // DriverVersion[1,2]
 					return jsonrpc.CallMethod(superSvr.GetLatestSimpleCheckpoint, ctx, params)
-				case "sui_getSimpleCheckpoint": // driverV3
+				case "sui_getSimpleCheckpoint": // DriverVersion[1,2]
 					return jsonrpc.CallMethod(superSvr.GetSimpleCheckpoint, ctx, params)
-				case "sui_getTransactionsV2": // driverV3
+				case "sui_getTransactionsV2": // DriverVersion[1]
 					return jsonrpc.CallMethod(superSvr.GetTransactionsV2, ctx, params)
-				case "sui_filterObjectChangesV2": // driverV3
+				case "sui_filterObjectChangesV2": // DriverVersion[1]
 					return jsonrpc.CallMethod(superSvr.FilterObjectChangesV2, ctx, params)
-				case "sui_getObjectCreation": // driverV2 driverV3
+				case "sui_getObjectCreation": // DriverVersion[0,1,2]
 					return jsonrpc.CallMethod(superSvr.GetObjectCreation, ctx, params)
-				case "sui_getObjectStat": // driverV2 driverV3
+				case "sui_getObjectStat": // DriverVersion[0,1,2]
 					return jsonrpc.CallMethod(superSvr.GetObjectStat, ctx, params)
-				case "sui_getObjectsStat": // driverV2 driverV3
+				case "sui_getObjectsStat": // DriverVersion[0,1,2]
 					return jsonrpc.CallMethod(superSvr.GetObjectsStat, ctx, params)
+				case "sui_getGrpcTransactions": // DriverVersion[2]
+					return jsonrpc.CallMethod(superSvr.GetGrpcTransactions, ctx, params)
+				case "sui_filterGrpcChangedObjects": // DriverVersion[2]
+					return jsonrpc.CallMethod(superSvr.FilterGrpcChangedObjects, ctx, params)
+				case "sui_getGrpcObjects": // DriverVersion[2]
+					return jsonrpc.CallMethod(superSvr.GetGrpcObjects, ctx, params)
 				default:
 					return next(ctx, method, params)
 				}
@@ -57,27 +66,64 @@ func NewSuperNode(
 }
 
 type SuperService struct {
+	client                 *sui.ClientPool
 	slotCache              chain.LatestSlotCache[*sui.Slot]
 	cachedSimpleCheckpoint kvstore.Store[sui.SimpleCheckpoint]
 	cachedCheckpointTime   kvstore.Store[sui.CheckpointTime]
 	cachedObjectCreation   kvstore.Store[sui.ObjectCreation]
-	storage                Storage
+	storageJSONRPC         StorageJSONRPC
+	storageGRPC            StorageGRPC
+	// storageShared serves the format-agnostic queries; it is whichever of
+	// storageGRPC / storageJSONRPC is configured (grpc preferred when both exist).
+	storageShared StorageShared
 }
 
 func NewSuperService(
+	client *sui.ClientPool,
 	slotCache chain.LatestSlotCache[*sui.Slot],
 	cachedSimpleCheckpoint kvstore.Store[sui.SimpleCheckpoint],
 	cachedCheckpointTime kvstore.Store[sui.CheckpointTime],
 	cachedObjectCreation kvstore.Store[sui.ObjectCreation],
-	storage Storage,
+	storageJSONRPC StorageJSONRPC,
+	storageGRPC StorageGRPC,
 ) *SuperService {
+	// A chain may have only grpc data, only json-rpc data (e.g. iota), or both,
+	// but it must have at least one.
+	var storageShared StorageShared
+	switch {
+	case storageGRPC != nil:
+		storageShared = storageGRPC
+	case storageJSONRPC != nil:
+		storageShared = storageJSONRPC
+	default:
+		panic("supernode: at least one of storageJSONRPC / storageGRPC must be provided")
+	}
 	return &SuperService{
+		client:                 client,
 		slotCache:              slotCache,
 		cachedSimpleCheckpoint: cachedSimpleCheckpoint,
 		cachedCheckpointTime:   cachedCheckpointTime,
 		cachedObjectCreation:   cachedObjectCreation,
-		storage:                storage,
+		storageJSONRPC:         storageJSONRPC,
+		storageGRPC:            storageGRPC,
+		storageShared:          storageShared,
 	}
+}
+
+// requireJSONRPC guards json-rpc-format methods on chains that have no json-rpc storage.
+func (s *SuperService) requireJSONRPC() error {
+	if s.storageJSONRPC == nil {
+		return errors.Errorf("json-rpc storage is not configured for this chain")
+	}
+	return nil
+}
+
+// requireGRPC guards grpc-format methods on chains that have no grpc storage (e.g. iota).
+func (s *SuperService) requireGRPC() error {
+	if s.storageGRPC == nil {
+		return errors.Errorf("grpc storage is not configured for this chain")
+	}
+	return nil
 }
 
 func (s *SuperService) GetLatestCheckpointSequenceNumber(ctx context.Context) (types.Number, error) {
@@ -123,7 +169,7 @@ func (s *SuperService) GetSimpleCheckpoint(ctx context.Context, checkpoint uint6
 			return []sui.SimpleCheckpoint{sui.NewSimpleCheckpoint(slot)}, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) ([]sui.SimpleCheckpoint, error) {
-			sc, queryErr := s.storage.QuerySimpleCheckpoint(ctx, queryRange.Start)
+			sc, queryErr := s.storageShared.QuerySimpleCheckpoint(ctx, queryRange.Start)
 			if queryErr != nil {
 				return nil, queryErr
 			}
@@ -149,6 +195,9 @@ func (s *SuperService) GetCheckpointTime(
 	network string,
 	checkpointSequenceNumber types.Number,
 ) ([]uint64, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	ctx, logger := log.FromContext(ctx, "checkpoint", checkpointSequenceNumber)
 	key := checkpointSequenceNumber.String()
 	cached, getCacheErr := s.cachedCheckpointTime.Get(ctx, key)
@@ -159,42 +208,41 @@ func (s *SuperService) GetCheckpointTime(
 	if ct, has := cached[key]; has {
 		return []uint64{ct.CheckpointTime, ct.MinTxnTime, ct.MaxTxnTime}, nil
 	}
-	return chain.QueryRangeWithCache(
+	results, err := chain.QueryRangeWithCache(
 		ctx,
 		rg.NewSingleRange(checkpointSequenceNumber.Uint64()),
 		s.slotCache,
-		func(slot *sui.Slot) ([]uint64, error) {
+		func(slot *sui.Slot) ([]sui.CheckpointTime, error) {
 			ts := slot.TimestampMs.Uint64()
 			minMs, maxMs := ts, ts
 			for _, tx := range slot.Transactions {
 				maxMs = max(maxMs, tx.TimestampMs.Uint64())
 				minMs = min(minMs, tx.TimestampMs.Uint64())
 			}
-			return []uint64{ts, minMs, maxMs}, nil
+			return []sui.CheckpointTime{{CheckpointTime: ts, MinTxnTime: minMs, MaxTxnTime: maxMs}}, nil
 		},
-		func(ctx context.Context, queryRange rg.Range) ([]uint64, error) {
-			key := checkpointSequenceNumber.String()
-			cached, getCacheErr := s.cachedCheckpointTime.Get(ctx, key)
-			if getCacheErr != nil {
-				logger.Errorfe(getCacheErr, "get checkpoint time from cache failed")
-				return nil, getCacheErr
-			}
-			if ct, has := cached[key]; has {
-				return []uint64{ct.CheckpointTime, ct.MinTxnTime, ct.MaxTxnTime}, nil
-			}
-			// cache missing, query from clickhouse
-			result, err := s.storage.QueryCheckpointTime(ctx, checkpointSequenceNumber.Uint64())
+		func(ctx context.Context, queryRange rg.Range) ([]sui.CheckpointTime, error) {
+			// cache already checked as missing above, query from clickhouse
+			result, err := s.storageJSONRPC.QueryCheckpointTime(ctx, checkpointSequenceNumber.Uint64())
 			if err != nil {
 				return nil, err
 			}
-			// update cache
-			err = s.cachedCheckpointTime.Set(ctx, map[string]sui.CheckpointTime{key: result})
-			if err != nil {
-				logger.Warne(err, "update cached checkpoint time failed")
-			}
-			return []uint64{result.CheckpointTime, result.MinTxnTime, result.MaxTxnTime}, nil
+			return []sui.CheckpointTime{result}, nil
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, errors.Errorf("checkpoint %d not found", checkpointSequenceNumber.Uint64())
+	}
+	ct := results[0]
+	// update cache regardless of whether the result came from the slot cache or clickhouse;
+	// checkpoint time is immutable, so it is always safe to persist.
+	if setErr := s.cachedCheckpointTime.Set(ctx, map[string]sui.CheckpointTime{key: ct}); setErr != nil {
+		logger.Warne(setErr, "update cached checkpoint time failed")
+	}
+	return []uint64{ct.CheckpointTime, ct.MinTxnTime, ct.MaxTxnTime}, nil
 }
 
 func (s *SuperService) GetTransactions(
@@ -202,6 +250,9 @@ func (s *SuperService) GetTransactions(
 	network string,
 	query *sui.TransactionQuery,
 ) ([]types.TransactionResponseV1, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	return chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(query.FromSequenceNumber, query.ToSequenceNumber),
@@ -221,7 +272,7 @@ func (s *SuperService) GetTransactions(
 			storeQuery := *query
 			storeQuery.FromSequenceNumber = queryRange.Start
 			storeQuery.ToSequenceNumber = *queryRange.End
-			return s.storage.QueryTransactions(ctx, &storeQuery)
+			return s.storageJSONRPC.QueryTransactions(ctx, &storeQuery)
 		},
 	)
 }
@@ -232,6 +283,9 @@ func (s *SuperService) GetTransactionsV2(
 	filter sui.TransactionFilter,
 	fetchConfig sui.TransactionFetchConfig,
 ) ([]types.TransactionResponseV1, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	return chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(fromBlock, toBlock),
@@ -248,7 +302,60 @@ func (s *SuperService) GetTransactionsV2(
 			return resp, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (txs []types.TransactionResponseV1, err error) {
-			return s.storage.QueryTransactionsV2(ctx, queryRange.Start, *queryRange.End, filter, fetchConfig)
+			return s.storageJSONRPC.QueryTransactionsV2(ctx, queryRange.Start, *queryRange.End, filter, fetchConfig)
+		},
+	)
+}
+
+// GetGrpcTransactions is a grpc data format interface,
+// kind in filter.FunctionFilters should use TransactionKind_Kind values:
+//   - PROGRAMMABLE_TRANSACTION
+//   - CHANGE_EPOCH
+//   - GENESIS
+//   - CONSENSUS_COMMIT_PROLOGUE_V1
+//   - AUTHENTICATOR_STATE_UPDATE
+//   - END_OF_EPOCH
+//   - RANDOMNESS_STATE_UPDATE
+//   - CONSENSUS_COMMIT_PROLOGUE_V2
+//   - CONSENSUS_COMMIT_PROLOGUE_V3
+//   - CONSENSUS_COMMIT_PROLOGUE_V4
+//   - PROGRAMMABLE_SYSTEM_TRANSACTION
+func (s *SuperService) GetGrpcTransactions(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	filter sui.TransactionFilter,
+	fetchConfig sui.TransactionFetchConfig,
+) ([]*sui.ExtendedGrpcTransaction, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
+	return chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(fromBlock, toBlock),
+		s.slotCache,
+		func(slot *sui.Slot) ([]*sui.ExtendedGrpcTransaction, error) {
+			if slot.GrpcCheckpoint == nil {
+				return nil, errors.Errorf("checkpoint %d miss grpc data", slot.GetNumber())
+			}
+			var resp []*sui.ExtendedGrpcTransaction
+			for txIndex, tx := range slot.GrpcCheckpoint.GetTransactions() {
+				if !filter.CheckGrpcTx(tx) {
+					continue
+				}
+				etx := &sui.ExtendedGrpcTransaction{
+					Checkpoint:          slot.SequenceNumber,
+					CheckpointDigest:    slot.Digest,
+					TimestampMs:         slot.TimestampMs.Uint64(),
+					Epoch:               slot.GrpcCheckpoint.GetSummary().GetEpoch(),
+					TxIndex:             uint64(txIndex),
+					ExecutedTransaction: tx,
+				}
+				resp = append(resp, fetchConfig.PruneGrpcTransaction(etx, filter.EventFilters))
+			}
+			return resp, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) (txs []*sui.ExtendedGrpcTransaction, err error) {
+			return s.storageGRPC.QueryTransactions(ctx, queryRange.Start, *queryRange.End, filter, fetchConfig)
 		},
 	)
 }
@@ -257,6 +364,9 @@ func (s *SuperService) FilterObjectChanges(
 	ctx context.Context,
 	query *sui.ObjectChangeQuery,
 ) ([]types.ObjectChangeExtend, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	result, err := chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(query.FromSequenceNumber, query.ToSequenceNumber),
@@ -280,7 +390,7 @@ func (s *SuperService) FilterObjectChanges(
 			storeQuery := *query
 			storeQuery.FromSequenceNumber = queryRange.Start
 			storeQuery.ToSequenceNumber = *queryRange.End
-			return s.storage.QueryObjectChanges(ctx, &storeQuery)
+			return s.storageJSONRPC.QueryObjectChanges(ctx, &storeQuery)
 		},
 	)
 	if err != nil {
@@ -301,6 +411,9 @@ func (s *SuperService) FilterObjectChangesV2(
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
 ) ([]types.ObjectChangeExtend, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
 	checker := filter.Checker()
 	return chain.QueryRangeWithCache(
 		ctx,
@@ -326,9 +439,72 @@ func (s *SuperService) FilterObjectChangesV2(
 			return result, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (objs []types.ObjectChangeExtend, err error) {
-			return s.storage.QueryObjectChangesV2(ctx, queryRange.Start, *queryRange.End, filter)
+			return s.storageJSONRPC.QueryObjectChangesV2(ctx, queryRange.Start, *queryRange.End, filter)
 		},
 	)
+}
+
+// FilterGrpcChangedObjects is a grpc data format interface,
+// ownerType in filter should use Owner_OwnerKind values:
+//   - ADDRESS
+//   - OBJECT
+//   - SHARED
+//   - IMMUTABLE
+//   - CONSENSUS_ADDRESS
+func (s *SuperService) FilterGrpcChangedObjects(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	filter sui.ObjectChangeFilter,
+) ([]*sui.ExtendedGrpcChangedObject, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
+	checker := filter.CheckerGrpc()
+	return chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(fromBlock, toBlock),
+		s.slotCache,
+		func(slot *sui.Slot) (result []*sui.ExtendedGrpcChangedObject, err error) {
+			if slot.GrpcCheckpoint == nil {
+				return nil, errors.Errorf("checkpoint %d miss grpc data", slot.GetNumber())
+			}
+			for i, tx := range slot.GrpcCheckpoint.GetTransactions() {
+				for _, co := range tx.GetEffects().GetChangedObjects() {
+					if !checker(co) {
+						continue
+					}
+					result = append(result, &sui.ExtendedGrpcChangedObject{
+						Checkpoint:       slot.SequenceNumber,
+						CheckpointDigest: slot.Digest,
+						TimestampMs:      slot.TimestampMs.Uint64(),
+						Epoch:            slot.GrpcCheckpoint.GetSummary().GetEpoch(),
+						TxIndex:          uint64(i),
+						TxDigest:         tx.GetDigest(),
+						ChangedObject:    co,
+					})
+				}
+			}
+			return result, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) (objs []*sui.ExtendedGrpcChangedObject, err error) {
+			return s.storageGRPC.QueryObjectChanges(ctx, queryRange.Start, *queryRange.End, filter)
+		},
+	)
+}
+
+func (s *SuperService) GetGrpcObjects(
+	ctx context.Context,
+	reqs []*rpcv2.GetObjectRequest,
+	concurrency int,
+	batchSize int,
+) ([]*rpcv2.GetObjectResult, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
+	const theme = "proxy.GetGrpcObjects.grpc_BatchGetObjects"
+	concurrency = min(concurrency, 10)
+	batchSize = min(batchSize, 50)
+	return s.client.GetGrpcObjectsByPage(ctx, theme, theme, concurrency, batchSize, reqs)
 }
 
 func (s *SuperService) GetObjectCreation(ctx context.Context, objectID string) (*sui.ObjectCreation, error) {
@@ -364,46 +540,12 @@ func (s *SuperService) GetObjectStat(
 	endCheckpoint uint64,
 	objectID string,
 ) (sui.ObjectStat, error) {
-	ss, err := chain.QueryRangeWithCache(
-		ctx,
-		rg.NewRange(startCheckpoint, endCheckpoint),
-		s.slotCache,
-		func(st *sui.Slot) ([]sui.ObjectStat, error) {
-			var result sui.ObjectStat
-			for _, tx := range st.Transactions {
-				for _, oc := range tx.ObjectChanges {
-					if oc.GetObjectID() != objectID {
-						continue
-					}
-					result = result.Merge(sui.ObjectStat{
-						Count:            1,
-						MinObjectVersion: oc.Version.Uint64(),
-						MinCheckpoint:    st.GetNumber(),
-						MaxObjectVersion: oc.Version.Uint64(),
-						MaxCheckpoint:    st.GetNumber(),
-					})
-				}
-			}
-			if result.Count == 0 {
-				return nil, nil
-			}
-			return []sui.ObjectStat{result}, nil
-		},
-		func(ctx context.Context, queryRange rg.Range) ([]sui.ObjectStat, error) {
-			r, err := s.storage.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, []string{objectID})
-			if err != nil {
-				return nil, err
-			}
-			if result, has := r[objectID]; has && result.Count > 0 {
-				return []sui.ObjectStat{result}, nil
-			}
-			return nil, nil
-		},
-	)
+	stats, err := s.GetObjectsStat(ctx, startCheckpoint, endCheckpoint, []string{objectID})
 	if err != nil {
 		return sui.ObjectStat{}, err
 	}
-	return utils.Reduce(ss, sui.ObjectStat.Merge), nil
+	// stats[objectID] is the zero ObjectStat (Count 0) when the object is not found
+	return stats[objectID], nil
 }
 
 func (s *SuperService) GetObjectsStat(
@@ -423,19 +565,29 @@ func (s *SuperService) GetObjectsStat(
 		s.slotCache,
 		func(st *sui.Slot) ([]map[string]sui.ObjectStat, error) {
 			result := make(map[string]sui.ObjectStat)
-			for _, tx := range st.Transactions {
-				for _, oc := range tx.ObjectChanges {
-					objID := oc.GetObjectID()
-					if !objectIDSet.Contains(objID) {
-						continue
+			merge := func(objID string, version uint64) {
+				result[objID] = result[objID].Merge(sui.ObjectStat{
+					Count:            1,
+					MinObjectVersion: version,
+					MinCheckpoint:    st.GetNumber(),
+					MaxObjectVersion: version,
+					MaxCheckpoint:    st.GetNumber(),
+				})
+			}
+			// prefer grpc data; fall back to json-rpc when the slot has no grpc data (e.g. iota)
+			if st.GrpcCheckpoint != nil {
+				st.IterGrpcObjectChanges(func(objID string, version uint64) {
+					if objectIDSet.Contains(objID) {
+						merge(objID, version)
 					}
-					result[objID] = result[objID].Merge(sui.ObjectStat{
-						Count:            1,
-						MinObjectVersion: oc.Version.Uint64(),
-						MinCheckpoint:    st.GetNumber(),
-						MaxObjectVersion: oc.Version.Uint64(),
-						MaxCheckpoint:    st.GetNumber(),
-					})
+				})
+			} else {
+				for _, tx := range st.Transactions {
+					for _, oc := range tx.ObjectChanges {
+						if objID := oc.GetObjectID(); objectIDSet.Contains(objID) {
+							merge(objID, oc.Version.Uint64())
+						}
+					}
 				}
 			}
 			if len(result) == 0 {
@@ -444,7 +596,7 @@ func (s *SuperService) GetObjectsStat(
 			return []map[string]sui.ObjectStat{result}, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) ([]map[string]sui.ObjectStat, error) {
-			r, err := s.storage.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, objectIDList)
+			r, err := s.storageShared.QueryObjectsStat(ctx, queryRange.Start, *queryRange.End, objectIDList)
 			if err != nil {
 				return nil, err
 			}

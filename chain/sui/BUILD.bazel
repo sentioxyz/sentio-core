@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "client.go",
         "extserver.go",
-        "extserver_grpc.go",
         "query.go",
         "rpc_types.go",
         "rpc_types_v2.go",

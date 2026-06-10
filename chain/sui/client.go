@@ -3,6 +3,13 @@ package sui
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
+	"net/http"
+	"net/url"
+	"reflect"
+	"strings"
+	"time"
+
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
@@ -10,16 +17,13 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
-	"net/http"
-	"net/url"
-	"reflect"
+
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/chain/sui/types"
+	"sentioxyz/sentio-core/common/concurrency"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
-	"strings"
-	"time"
 )
 
 type ClientConfig struct {
@@ -375,5 +379,52 @@ func (p *ClientPool) UseGRPCConnection(
 			return cli.UseGRPCConnection(ctx, method, fn)
 		},
 		clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
+	)
+}
+
+func (p *ClientPool) GetGrpcObjectsByPage(
+	ctx context.Context,
+	theme string,
+	method string,
+	getConcurrency int,
+	getBatchSize int,
+	requests []*rpcv2.GetObjectRequest,
+) ([]*rpcv2.GetObjectResult, error) {
+	return concurrency.TraverseByPage(
+		ctx,
+		getConcurrency,
+		getBatchSize,
+		requests,
+		func(ctx context.Context, page concurrency.Page, reqs []*rpcv2.GetObjectRequest) ([]*rpcv2.GetObjectResult, error) {
+			var resp *rpcv2.BatchGetObjectsResponse
+			r := p.UseClient(
+				ctx,
+				fmt.Sprintf("%s/P#%d[%d-%d)", theme, page.Num, page.Start, page.End),
+				func(ctx context.Context, cli *Client) clientpool.Result {
+					return cli.UseGRPCConnection(ctx, method,
+						func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
+							req := &rpcv2.BatchGetObjectsRequest{
+								Requests: reqs,
+								ReadMask: &fieldmaskpb.FieldMask{Paths: []string{"*"}},
+							}
+							var getErr error
+							resp, getErr = rpcv2.NewLedgerServiceClient(conn).BatchGetObjects(ctx, req)
+							return clientpool.Result{
+								Err:           getErr,
+								BrokenForTask: getErr != nil, // always retry using other client
+							}
+						},
+					)
+				},
+				clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
+			)
+			if r.Err != nil {
+				return nil, errors.Wrapf(r.Err, "load objects %s failed", utils.MustJSONMarshal(reqs))
+			}
+			if len(resp.GetObjects()) != len(reqs) {
+				return nil, errors.Errorf("should get %d objects but got %d", len(reqs), len(resp.GetObjects()))
+			}
+			return resp.GetObjects(), nil
+		},
 	)
 }

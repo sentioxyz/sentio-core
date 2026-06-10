@@ -177,12 +177,14 @@ func Test_convertReal(t *testing.T) {
 	r := cli.CallContext(context.Background(), &resp, "test", "grpc_getCheckpoint", uint64(154000214), true)
 	assert.NoError(t, r.Err)
 
-	_, txs, _, _, _, err := sm.convert(context.Background(), resp.GetCheckpoint())
+	objs := make(sui.ObjectSet)
+	objs.Put(resp.GetCheckpoint().GetObjects().GetObjects()...)
+	_, txs, _, _, _, err := sm.convert(context.Background(), resp.GetCheckpoint(), objs)
 	assert.NoError(t, err)
 	for i := range txs {
 		etx, err := txs[i].ToExecutedTransaction()
 		assert.NoError(t, err)
-		assert.Equal(t, resp.GetCheckpoint().GetTransactions()[i], etx)
+		assert.Equal(t, resp.GetCheckpoint().GetTransactions()[i], etx.ExecutedTransaction)
 	}
 
 	assert.NoError(t, os.RemoveAll(balanceStorePath))

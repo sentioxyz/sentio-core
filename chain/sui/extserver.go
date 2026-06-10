@@ -8,6 +8,9 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/pkg/errors"
+	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/clientpool"
@@ -15,25 +18,45 @@ import (
 	"sentioxyz/sentio-core/common/concurrency"
 	"sentioxyz/sentio-core/common/log"
 	rg "sentioxyz/sentio-core/common/range"
+	"sentioxyz/sentio-core/common/utils"
 )
 
 type ExtServerDimension struct {
 	client *ClientPool
 
-	skipValidate bool
+	enableJSONRPC bool
+	skipValidate  bool
+
+	enableGrpc             bool
+	loadObjectsBatchSize   int
+	loadObjectsConcurrency int
 
 	*chain.ExtServerDimension[*Slot]
 }
 
 func NewExtServerDimension(
 	client *ClientPool,
+	enableJSONRPC bool,
 	skipValidate bool,
+	enableGrpc bool,
+	loadObjectsBatchSize int,
+	loadObjectsConcurrency int,
 	loadConcurrency uint,
 	loadRetry int,
 	validRange rg.Range,
 	fallBehind time.Duration,
 ) *ExtServerDimension {
-	dim := &ExtServerDimension{client: client, skipValidate: skipValidate}
+	if !enableJSONRPC && !enableGrpc {
+		panic("both json-rpc and grpc data are disabled")
+	}
+	dim := &ExtServerDimension{
+		client:                 client,
+		enableJSONRPC:          enableJSONRPC,
+		skipValidate:           skipValidate,
+		enableGrpc:             enableGrpc,
+		loadObjectsBatchSize:   loadObjectsBatchSize,
+		loadObjectsConcurrency: loadObjectsConcurrency,
+	}
 	// loadBatchSize more than 1 is meaningless
 	dim.ExtServerDimension = chain.NewExtServerDimension[*Slot](
 		client,
@@ -149,7 +172,7 @@ var loadTxnOptions = map[string]interface{}{
 	"showBalanceChanges": true,
 }
 
-func (d *ExtServerDimension) GetSlot(ctx context.Context, sn uint64) (*Slot, error) {
+func (d *ExtServerDimension) getSlot(ctx context.Context, sn uint64) (*Slot, error) {
 	ctx, logger := log.FromContext(ctx, "checkpoint", sn)
 
 	ckpt, txns, err := d.loadCheckpoint(ctx, sn, loadTxsConcurrency, loadTxsPageSize, loadTxnOptions)
@@ -194,6 +217,147 @@ func (d *ExtServerDimension) GetSlot(ctx context.Context, sn uint64) (*Slot, err
 	}, nil
 }
 
+func (d *ExtServerDimension) getGrpcCheckpoint(ctx context.Context, sn uint64) (*rpcv2.Checkpoint, error) {
+	var resp *rpcv2.GetCheckpointResponse
+	r := d.client.UseClient(
+		ctx,
+		fmt.Sprintf("ext.GetSlot.MainPart.grpc_GetCheckpoint/%d", sn),
+		func(ctx context.Context, cli *Client) clientpool.Result {
+			return cli.UseGRPCConnection(ctx, "ext.GetSlot.MainPart.grpc_GetCheckpoint",
+				func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
+					req := &rpcv2.GetCheckpointRequest{
+						CheckpointId: &rpcv2.GetCheckpointRequest_SequenceNumber{SequenceNumber: sn},
+						ReadMask:     &fieldmaskpb.FieldMask{Paths: []string{"*"}},
+					}
+					var err error
+					resp, err = rpcv2.NewLedgerServiceClient(conn).GetCheckpoint(ctx, req)
+					return clientpool.Result{
+						Err:           err,
+						BrokenForTask: err != nil, // always retry using other client
+					}
+				},
+			)
+		},
+		clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
+	)
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	return resp.GetCheckpoint(), nil
+}
+
+func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot, error) {
+	ck, err := d.getGrpcCheckpoint(ctx, sn)
+	if err != nil {
+		return nil, err
+	}
+	s := &Slot{GrpcCheckpoint: ck}
+	s.loadCheckpointInfo()
+	// Although ck.GetObjects().GetObjects() have all related objects, but ck.GetObjects().GetObjects()[*].GetJson()
+	// will be empty, so have to use grpc_getObjects here to fetch all related objects.
+	// The fetch result will be saved in Slot.GrpcObjects
+	var objReqs []*rpcv2.GetObjectRequest
+	for _, obj := range ck.GetObjects().GetObjects() {
+		objReqs = append(objReqs, &rpcv2.GetObjectRequest{
+			ObjectId: obj.ObjectId,
+			Version:  obj.Version,
+		})
+	}
+	results, getObjErr := d.client.GetGrpcObjectsByPage(
+		ctx,
+		fmt.Sprintf("ext.GetSlot.ObjectsPart.grpc_BatchGetObjects/%d", sn),
+		"ext.GetSlot.ObjectsPart.grpc_BatchGetObjects",
+		d.loadObjectsConcurrency,
+		d.loadObjectsBatchSize,
+		objReqs,
+	)
+	if getObjErr != nil {
+		return nil, getObjErr
+	}
+	objects := make(ObjectSet)
+	for i, res := range results {
+		if res.GetError() != nil {
+			return nil, errors.Errorf("load object %s/%d failed: %s",
+				objReqs[i].GetObjectId(), objReqs[i].GetVersion(), utils.MustJSONMarshal(res.GetError()))
+		}
+		objects.Put(res.GetObject())
+	}
+	s.GrpcObjects = objects
+	// fill changed object in tx effects
+	for _, tx := range ck.Transactions {
+		for i, co := range tx.GetEffects().GetChangedObjects() {
+			changeType := GetChangeType(co)
+			if changeType == types.ObjectChangeTypeUnwrappedThenDeleted {
+				continue
+			}
+			// output version
+			if co.GetOutputVersion() == 0 {
+				co.OutputVersion = tx.GetEffects().LamportVersion
+			}
+			if co.GetOutputVersion() == 0 {
+				return nil, errors.Errorf("changed object #%d/%d in transaction %d/%s with id %s miss version",
+					i, len(tx.GetEffects().GetChangedObjects()), sn, tx.GetDigest(), co.GetObjectId())
+			}
+			// input owner
+			// the early data may miss co.InputOwner, in this situation we need to get the pre-owner from the pre-object
+			if !changeType.IsCreated() && co.GetInputOwner() == nil {
+				pre, has := objects.Get(co.GetObjectId(), co.GetInputVersion())
+				if !has {
+					return nil, errors.Errorf("object %s/%d not found in checkpoint objects",
+						co.GetObjectId(), co.GetInputVersion())
+				}
+				co.InputOwner = pre.GetOwner()
+			}
+			// object type
+			if co.GetObjectType() == "" {
+				if changeType.IsDeleted() {
+					pre, has := objects.Get(co.GetObjectId(), co.GetInputVersion())
+					if !has {
+						return nil, errors.Errorf("object %s/%d not found in checkpoint objects",
+							co.GetObjectId(), co.GetInputVersion())
+					}
+					co.ObjectType = pre.ObjectType
+				} else {
+					cur, has := objects.Get(co.GetObjectId(), co.GetOutputVersion())
+					if !has {
+						return nil, errors.Errorf("object %s/%d not found in checkpoint objects",
+							co.GetObjectId(), co.GetOutputVersion())
+					}
+					co.ObjectType = cur.ObjectType
+				}
+			}
+		}
+	}
+	s.removeBcs()
+	return s, nil
+}
+
+func (d *ExtServerDimension) GetSlot(ctx context.Context, sn uint64) (*Slot, error) {
+	var slot Slot
+	if d.enableJSONRPC {
+		if st, err := d.getSlot(ctx, sn); err != nil {
+			return nil, err
+		} else {
+			slot.SlotCheckpointInfo = st.SlotCheckpointInfo
+			slot.HasJSONRPCData = true
+			slot.Transactions = st.Transactions
+		}
+	}
+	if d.enableGrpc {
+		if st, err := d.getGrpcSlot(ctx, sn); err != nil {
+			return nil, err
+		} else {
+			if !d.enableJSONRPC {
+				// when json-rpc is disabled, the checkpoint header info comes from grpc data
+				slot.SlotCheckpointInfo = st.SlotCheckpointInfo
+			}
+			slot.GrpcCheckpoint = st.GrpcCheckpoint
+			slot.GrpcObjects = st.GrpcObjects
+		}
+	}
+	return &slot, nil
+}
+
 func (d *ExtServerDimension) GetSlots(ctx context.Context, sr rg.Range) ([]*Slot, error) {
 	slots := make([]*Slot, 0, *sr.Size())
 	for sn := sr.Start; sn <= *sr.End; sn++ {
@@ -212,7 +376,12 @@ func (d *ExtServerDimension) GetSlotHeader(ctx context.Context, sn uint64) (chai
 
 func (d *ExtServerDimension) Snapshot() any {
 	sn := d.ExtServerDimension.Snapshot().(map[string]any)
-	sn["kind"] = "jsonrpc"
-	sn["skipValidate"] = d.skipValidate
+	utils.MergeMap(sn, map[string]any{
+		"enableJSONRPC":          d.enableJSONRPC,
+		"skipValidate":           d.skipValidate,
+		"enableGrpc":             d.enableGrpc,
+		"loadObjectsBatchSize":   d.loadObjectsBatchSize,
+		"loadObjectsConcurrency": d.loadObjectsConcurrency,
+	})
 	return sn
 }

@@ -1,13 +1,14 @@
 package chv4
 
 import (
+	"math/big"
+	"sentioxyz/sentio-core/chain/sui"
+	"sentioxyz/sentio-core/chain/sui/types"
+	"time"
+
 	"github.com/pkg/errors"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"math/big"
-	"sentioxyz/sentio-core/chain/sui/types"
-	"sentioxyz/sentio-core/common/utils"
-	"time"
 )
 
 type CheckpointIndex struct {
@@ -62,7 +63,7 @@ type Transaction struct {
 }
 
 // ToExecutedTransaction result will miss ExecutedTransaction.Objects
-func (tx Transaction) ToExecutedTransaction() (*rpcv2.ExecutedTransaction, error) {
+func (tx Transaction) ToExecutedTransaction() (*sui.ExtendedGrpcTransaction, error) {
 	var r rpcv2.ExecutedTransaction
 	r.Digest = &tx.TxDigest
 	r.Checkpoint = &tx.Checkpoint
@@ -108,7 +109,15 @@ func (tx Transaction) ToExecutedTransaction() (*rpcv2.ExecutedTransaction, error
 		}
 		r.BalanceChanges = append(r.BalanceChanges, bc)
 	}
-	return &r, nil
+	etx := &sui.ExtendedGrpcTransaction{
+		Checkpoint:          tx.Checkpoint,
+		CheckpointDigest:    tx.CheckpointDigest,
+		TimestampMs:         uint64(tx.Timestamp.UnixMilli()),
+		Epoch:               tx.Epoch,
+		TxIndex:             tx.TxIndex,
+		ExecutedTransaction: &r,
+	}
+	return etx, nil
 }
 
 type Event struct {
@@ -166,50 +175,41 @@ type Object struct {
 	Balance           uint64   `clickhouse:"balance"`
 }
 
-func (obj Object) ToObjectChangeExtend() (r types.ObjectChangeExtend, err error) {
-	r.Checkpoint = types.Uint64ToNumber(obj.Checkpoint)
-	r.CheckpointDigest, err = types.StrToDigest(obj.CheckpointDigest)
-	if err != nil {
-		return r, errors.Wrapf(err, "invalid checkpoint digest %q", obj.CheckpointDigest)
+func buildGrpcOwner(kind string, address string, version uint64) *rpcv2.Owner {
+	ownerKind := rpcv2.Owner_OwnerKind(rpcv2.Owner_OwnerKind_value[kind])
+	return &rpcv2.Owner{
+		Kind:    &ownerKind,
+		Address: &address,
+		Version: &version,
 	}
-	r.TxIndex = int(obj.TxIndex)
-	r.TxDigest, err = types.StrToDigest(obj.TxDigest)
-	if err != nil {
-		return r, errors.Wrapf(err, "invalid transaction digest %q", obj.TxDigest)
+}
+
+func (obj Object) ToChangedObject() *sui.ExtendedGrpcChangedObject {
+	r := sui.ExtendedGrpcChangedObject{ChangedObject: &rpcv2.ChangedObject{}}
+	r.Checkpoint = obj.Checkpoint
+	r.CheckpointDigest = obj.CheckpointDigest
+	r.TimestampMs = uint64(obj.Timestamp.UnixMilli())
+	r.Epoch = obj.Epoch
+	r.TxIndex = obj.TxIndex
+	r.TxDigest = obj.TxDigest
+
+	changeType := types.ObjectChangeType(obj.ChangeType)
+	r.ObjectId = &obj.ObjectID
+	inputState, outputState, idOperation := sui.FromChangeType(changeType)
+	r.InputState, r.OutputState, r.IdOperation = &inputState, &outputState, &idOperation
+	if !changeType.IsCreated() {
+		r.InputVersion = &obj.PreObjectVersion
+		r.InputDigest = &obj.PreDigest
+		r.InputOwner = buildGrpcOwner(obj.PreOwnerKind, obj.PreOwnerAddress, obj.PreOwnerVersion)
 	}
-	r.Type = types.ObjectChangeType(obj.ChangeType)
-	r.Digest, err = types.StrToDigest(obj.ObjectDigest)
-	if err != nil {
-		return r, errors.Wrapf(err, "invalid digest %q", obj.ObjectDigest)
+	r.OutputVersion = &obj.ObjectVersion
+	r.OutputDigest = &obj.ObjectDigest
+	if !changeType.IsDeleted() {
+		r.OutputOwner = buildGrpcOwner(obj.OwnerKind, obj.OwnerAddress, obj.OwnerVersion)
 	}
-	r.Version = types.Uint64ToNumber(obj.ObjectVersion)
-	if obj.PreObjectVersion > 0 {
-		r.PreviousVersion = utils.WrapPointer(types.Uint64ToNumber(obj.PreObjectVersion))
-	}
-	r.ObjectID = utils.WrapPointer(types.StrToObjectIDMust(obj.ObjectID))
-	r.ObjectType, err = types.TypeTagFromString(obj.ObjectType)
-	if err != nil {
-		return r, errors.Wrapf(err, "invalid object type %q", obj.ObjectType)
-	}
-	if r.Type.IsDeleted() {
-		r.Owner = types.BuildObjectOwner(
-			obj.PreOwnerAddress,
-			ownerKindToType(rpcv2.Owner_OwnerKind(rpcv2.Owner_OwnerKind_value[obj.PreOwnerKind])),
-			obj.PreOwnerVersion,
-		)
-	} else {
-		r.Owner = types.BuildObjectOwner(
-			obj.OwnerAddress,
-			ownerKindToType(rpcv2.Owner_OwnerKind(rpcv2.Owner_OwnerKind_value[obj.OwnerKind])),
-			obj.OwnerVersion,
-		)
-	}
-	r.Modules = obj.Modules
-	if obj.ChangeType == types.ObjectChangeTypePublished {
-		r.PackageID = r.ObjectID
-	}
-	// r.Sender && r.Recipient not set
-	return r, nil
+	r.ObjectType = &obj.ObjectType
+	// miss r.AccumulatorWrite
+	return &r
 }
 
 type Balance struct {

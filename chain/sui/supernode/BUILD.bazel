@@ -19,6 +19,7 @@ go_library(
         "//common/set",
         "//common/utils",
         "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
     ],
 )
 

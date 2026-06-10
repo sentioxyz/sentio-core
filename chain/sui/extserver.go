@@ -288,9 +288,6 @@ func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot,
 	for _, tx := range ck.Transactions {
 		for i, co := range tx.GetEffects().GetChangedObjects() {
 			changeType := GetChangeType(co)
-			if changeType == types.ObjectChangeTypeUnwrappedThenDeleted {
-				continue
-			}
 			// output version
 			if co.GetOutputVersion() == 0 {
 				co.OutputVersion = tx.GetEffects().LamportVersion
@@ -298,6 +295,13 @@ func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot,
 			if co.GetOutputVersion() == 0 {
 				return nil, errors.Errorf("changed object #%d/%d in transaction %d/%s with id %s miss version",
 					i, len(tx.GetEffects().GetChangedObjects()), sn, tx.GetDigest(), co.GetObjectId())
+			}
+			// these kinds carry no pre-object / input owner / object type to enrich
+			// (e.g. accumulator writes have input_version 0 and no owner/type), mirror chv4 convert
+			if changeType == types.ObjectChangeTypeUnknown ||
+				changeType == types.ObjectChangeTypeAccumulatorWrite ||
+				changeType == types.ObjectChangeTypeUnwrappedThenDeleted {
+				continue
 			}
 			// input owner
 			// the early data may miss co.InputOwner, in this situation we need to get the pre-owner from the pre-object

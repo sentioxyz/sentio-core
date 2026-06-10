@@ -36,6 +36,7 @@ go_test(
     name = "types_test",
     srcs = [
         "address_test.go",
+        "common_test.go",
         "digest_test.go",
         "event_test.go",
         "language_test.go",
@@ -47,6 +48,7 @@ go_test(
         "transaction_data_v1_test.go",
         "transaction_kind_roundtrip_test.go",
         "transaction_test.go",
+        "variation_test.go",
     ],
     data = ["//chain/sui/types/testdata"],
     embed = [":types"],

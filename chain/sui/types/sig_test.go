@@ -9,6 +9,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSignatureFlagHelpers(t *testing.T) {
+	// scheme flag is the first byte: 0x03 multisig, 0x05 zklogin, 0x00 ed25519.
+	assert.True(t, IsMultiSigBytes([]byte{0x03, 0xaa}))
+	assert.False(t, IsMultiSigBytes([]byte{0x00, 0xaa}))
+	assert.False(t, IsMultiSigBytes(nil))
+
+	assert.True(t, IsZkLoginSigBytes([]byte{0x05, 0xaa}))
+	assert.False(t, IsZkLoginSigBytes([]byte{0x03, 0xaa}))
+	assert.False(t, IsZkLoginSigBytes(nil))
+
+	// base64 of a 0x03-prefixed payload starts with 'A' then a char encoding 11xxxx
+	assert.True(t, IsMultiSigBase64("Aw=="))
+	assert.False(t, IsMultiSigBase64("AA==")) // 0x00 prefix
+	assert.False(t, IsMultiSigBase64("A"))
+}
+
 func TestDecodeMultiSig(t *testing.T) {
 	s := `AwIAvlJnUP0iJFZL+QTxkKC9FHZGwCa5I4TITHS/QDQ12q1sYW6SMt2Yp3PSNzsAay0Fp2MPVohqyyA02UtdQ2RNAQGH0eLk4ifl9h1I8Uc+4QlRYfJC21dUbP8aFaaRqiM/f32TKKg/4PSsGf9lFTGwKsHJYIMkDoqKwI8Xqr+3apQzAwADAFriILSy9l6XfBLt5hV5/1FwtsIsAGFow3tefGGvAYCDAQECHRUjB8a3Kw7QQYsOcM2A5/UpW42G9XItP1IT+9I5TzYCADtqJ7zOtqQtYqOo0CpvDXNlMhV3HeJDpjrASKGLWdopAwMA`
 

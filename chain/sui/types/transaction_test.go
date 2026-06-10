@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"sentioxyz/sentio-core/chain/sui/types/serde"
 	"sentioxyz/sentio-core/common/utils"
@@ -104,4 +105,34 @@ func Test_TransactionExpiration_UnknownVariantErrors(t *testing.T) {
 	// variant 3 is not known -> must error, not silently produce an empty value
 	_, err := exp.UnmarshalBCS(bytes.NewReader([]byte{0x03}))
 	assert.Error(t, err)
+}
+
+// TestConsensusDeterminedVersionAssignmentsJSON covers the json-rpc spelling
+// quirk: the wire uses "Cancelled" (double l) even though the Rust/Go type uses
+// "Canceled". UnmarshalJSON accepts both spellings; MarshalJSON emits the
+// json-rpc "Cancelled" form.
+func TestConsensusDeterminedVersionAssignmentsJSON(t *testing.T) {
+	// variant 0 (CanceledTransactions), both spellings accepted
+	for _, in := range []string{`{"CancelledTransactions":[]}`, `{"CanceledTransactions":[]}`} {
+		var c ConsensusDeterminedVersionAssignments
+		require.NoError(t, json.Unmarshal([]byte(in), &c))
+		assert.NotNil(t, c.CanceledTransactions)
+		assert.Nil(t, c.CanceledTransactionsV2)
+	}
+
+	// variant 1 (CanceledTransactionsV2)
+	var v2 ConsensusDeterminedVersionAssignments
+	require.NoError(t, json.Unmarshal([]byte(`{"CancelledTransactionsV2":[]}`), &v2))
+	assert.NotNil(t, v2.CanceledTransactionsV2)
+
+	// marshal emits the json-rpc "Cancelled" spelling
+	out, err := json.Marshal(ConsensusDeterminedVersionAssignments{
+		CanceledTransactions: &CanceledTransactions{},
+	})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"CancelledTransactions":null}`, string(out))
+
+	// unknown variant errors
+	var bad ConsensusDeterminedVersionAssignments
+	assert.Error(t, json.Unmarshal([]byte(`{"Whatever":[]}`), &bad))
 }

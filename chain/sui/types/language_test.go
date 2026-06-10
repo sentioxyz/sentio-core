@@ -92,6 +92,26 @@ func TestPureValueSerialize(t *testing.T) {
 	}
 }
 
+func TestTypeTagBCSRoundTrip(t *testing.T) {
+	for _, s := range []string{
+		"u64",
+		"address",
+		"vector<u8>",
+		"0x2::coin::Coin<0x2::sui::SUI>",
+		"0x2::coin::Coin<vector<0x3::a::B>, u128>",
+	} {
+		tt, err := TypeTagFromString(s)
+		assert.NoError(t, err)
+
+		enc, err := serde.Marshal(tt)
+		assert.NoError(t, err)
+
+		var got TypeTag
+		assert.NoError(t, serde.Unmarshal(enc, &got))
+		assert.Equal(t, s, got.String(), "round-trip %s", s)
+	}
+}
+
 func TestMatchIgnoreGeneric(t *testing.T) {
 	s0, err := TypeTagFromString("0x1111111111111111111111111111111111111111::SUI::coin")
 	assert.NoError(t, err)

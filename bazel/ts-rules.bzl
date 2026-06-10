@@ -102,10 +102,26 @@ ES_BASE_OPTIONS = [
     "keep_empty_files=true",
 ]
 
+# Imports that exist purely to declare custom-option extensions (annotations), never
+# referenced as message/field TYPES. protobuf-es would otherwise emit a file-descriptor
+# dependency + import for each (forcing those option protos to be generated too); ts-proto
+# silently dropped all custom options, so it never did. The es-proto-plugin drops these
+# from each FileDescriptorProto's `dependency` list (the option bytes remain as harmless
+# unknown fields). Override per-target via the `strip_imports` attr.
+ES_STRIP_IMPORTS = [
+    "protoc-gen-openapiv2/options/annotations.proto",
+    "google/api/annotations.proto",
+    "google/api/field_behavior.proto",
+    "google/api/visibility.proto",
+    "google/api/client.proto",
+]
+
 def es_proto_compile_impl(ctx):
     options = [] + ES_BASE_OPTIONS
     if ctx.attr.remove_deprecated:
         options += ["remove_deprecated=true"]
+    if ctx.attr.strip_imports:
+        options += ["strip_imports=" + ";".join(ctx.attr.strip_imports)]
     options += ctx.attr.options
 
     extra_protoc_args = getattr(ctx.attr, "extra_protoc_args", [])
@@ -120,6 +136,12 @@ es_proto = rule(
         remove_deprecated = attr.bool(
             default = False,
             doc = "Strip [deprecated=true] fields/messages/enums/services/methods from the generated code (protobuf-es counterpart of ts_proto's remove_deprecated)",
+        ),
+        strip_imports = attr.string_list(
+            default = ES_STRIP_IMPORTS,
+            doc = "Proto import paths to drop from the generated descriptor's dependency list " +
+                  "(options-only annotation protos that protobuf-es would otherwise import). " +
+                  "Defaults to the well-known annotation protos; set [] to disable.",
         ),
         options = attr.string_list(
             default = [],

@@ -40,5 +40,11 @@ fi
 echo "Sync Proto and Gen TS to SDK folder"
 bazel run //sentio-sdk:write_gen
 
-sed -i '' -e 's/Function.fromPartial(base ?? {});/Function.fromPartial(base ?? {} as any);/g' "$SDK_MOUNT/packages/protos/src/service/common/protos/common.ts"
-sed -i '' -e 's/Function.fromPartial(base ?? {});/Function.fromPartial(base ?? {} as any);/g' "$SDK_MOUNT/packages/runtime/src/gen/service/common/protos/common.ts"
+# NOTE: common.proto imports the grpc-gateway openapiv2 options (used only as
+# MethodOptions/JSONSchema extensions, never as field types). The es-proto-plugin
+# (see //bazel/protoc-gen-es-nodeprecated, driven by the es_proto rule's strip_imports
+# attr) drops those options-only import dependencies from the generated descriptor at
+# codegen time, so common_pb.ts has no openapiv2 import and no post-processing is needed.
+#
+# The generated *_pb.ts are listed in the sentio-sdk .prettierignore (they are
+# machine-generated), so this script emits them verbatim — no formatting pass here.

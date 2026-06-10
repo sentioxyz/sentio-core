@@ -102,11 +102,83 @@ function takeRemoveDeprecated(req) {
   return remove
 }
 
+// --- strip options-only imports -------------------------------------------
+//
+// Some protos import files purely for their custom-option extensions (e.g.
+// grpc-gateway's openapiv2 annotations, google.api.http/field_behavior/visibility).
+// protobuf-es is descriptor-faithful, so it emits a file-descriptor dependency +
+// import for every imported .proto — which would force generating those option
+// protos too (ts-proto silently dropped all custom options, so it never did).
+//
+// Since NO message/field references a TYPE from these option-only files (they appear
+// only in options), we can drop them from each FileDescriptorProto's `dependency`
+// list before delegating. protobuf-es then omits the import + the dep from the
+// generated `fileDesc(b64, [deps])`; the option bytes remain as harmless unknown
+// fields in the embedded descriptor. Controlled by the `strip_imports` plugin option
+// (a `;`-separated list of proto import paths), set by the `es_proto` rule.
+function stripImportsFromFile(fd, toStrip) {
+  const deps = fd.dependency ?? []
+  if (deps.length === 0) return
+  const removed = new Set()
+  deps.forEach((dep, i) => {
+    if (toStrip.has(dep)) removed.add(i)
+  })
+  if (removed.size === 0) return
+  // Remap surviving dependency indices (public/weak dependency lists hold indices).
+  const remap = new Map()
+  let next = 0
+  deps.forEach((_, i) => {
+    if (!removed.has(i)) remap.set(i, next++)
+  })
+  fd.dependency = deps.filter((_, i) => !removed.has(i))
+  if (fd.publicDependency) {
+    fd.publicDependency = fd.publicDependency.filter((i) => !removed.has(i)).map((i) => remap.get(i))
+  }
+  if (fd.weakDependency) {
+    fd.weakDependency = fd.weakDependency.filter((i) => !removed.has(i)).map((i) => remap.get(i))
+  }
+}
+
+function stripImports(req, toStrip) {
+  ;(req.protoFile ?? []).forEach((fd) => stripImportsFromFile(fd, toStrip))
+  ;(req.sourceFileDescriptors ?? []).forEach((fd) => stripImportsFromFile(fd, toStrip))
+  return req
+}
+
+// Consume the custom `strip_imports` option (a `;`-separated list of import paths)
+// from the protoc parameter string and strip it out before stock protoc-gen-es
+// (which rejects unknown options) sees it. Returns the Set of import paths to drop.
+function takeStripImports(req) {
+  const kept = []
+  let toStrip = new Set()
+  for (const part of (req.parameter ?? '').split(',')) {
+    const opt = part.trim()
+    if (!opt) continue
+    const eq = opt.indexOf('=')
+    const key = eq === -1 ? opt : opt.slice(0, eq)
+    const value = eq === -1 ? undefined : opt.slice(eq + 1)
+    if (key === 'strip_imports') {
+      toStrip = new Set(
+        (value ?? '')
+          .split(';')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      )
+    } else {
+      kept.push(opt)
+    }
+  }
+  req.parameter = kept.join(',')
+  return toStrip
+}
+
 runNodeJs({
   name: protocGenEs.name,
   version: protocGenEs.version,
   run: (req) => {
     if (takeRemoveDeprecated(req)) stripDeprecated(req)
+    const toStrip = takeStripImports(req)
+    if (toStrip.size > 0) stripImports(req, toStrip)
     return protocGenEs.run(req)
   }
 })

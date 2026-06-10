@@ -2,11 +2,11 @@ package types
 
 import (
 	"bytes"
-	"errors"
 	"io"
 
 	"github.com/fardream/go-bcs/bcs"
 	"github.com/goccy/go-json"
+	"github.com/pkg/errors"
 
 	"sentioxyz/sentio-core/chain/sui/types/serde"
 )
@@ -98,22 +98,63 @@ type SenderSignedData struct {
 	Transactions []SenderSignedTransaction
 }
 
-func DecodeSenderSignedData(b []byte) (*SenderSignedData, error) {
+func DecodeSenderSignedData(b []byte, variation Variation) (*SenderSignedData, error) {
 	data := &SenderSignedData{}
-	return data, serde.NewDecoder(bytes.NewReader(b)).Decode(data)
+	return data, serde.NewDecoderForSelector(bytes.NewReader(b), variation.String()).Decode(data)
 }
 
-func EncodeSenderSignedData(data *SenderSignedData) ([]byte, error) {
+func EncodeSenderSignedData(data *SenderSignedData, variation Variation) ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
-	err := serde.NewEncoder(buf).Encode(data)
+	err := serde.NewEncoderForSelector(buf, variation.String()).Encode(data)
 	return buf.Bytes(), err
 }
 
-func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byte) error {
+// TxSanityCheck makes sure a decoded transaction is valid: it re-encodes the
+// transaction to BCS and requires the result to byte-for-byte equal the original
+// raw bytes. Sui/IOTA use Rust enums extensively, which are easy to mis-model in
+// Go; this fails fast with a clear error (e.g. when a new variant appears) rather
+// than proceeding with incorrect results, since rewinding already-stored data is
+// often difficult or impossible. Pair with DeriveAuxInformationFromBCSV1, which
+// fills the json:"-" fields this re-encode needs.
+func TxSanityCheck(tx *TransactionResponseV1, variation Variation) (err error) {
+	if tx.Transaction.Data == nil {
+		return errors.Errorf("transaction data is nil (no transaction payload?)")
+	}
+	if tx.Transaction.Data.V1 == nil {
+		return errors.Errorf("transaction data v1 is nil (no transaction payload?)")
+	}
+	tx.Transaction.Intent = &EmptyIntentMessage
+	defer func() {
+		if panicErr := recover(); panicErr != nil {
+			// Panics in this package carry a pkg/errors error (with location); keep
+			// that origin by wrapping it rather than flattening to a string.
+			if e, ok := panicErr.(error); ok {
+				err = errors.Wrapf(e, "panic while sanity-checking transaction %s", tx.Digest.String())
+			} else {
+				err = errors.Errorf("panic while sanity-checking transaction %s: %v", tx.Digest.String(), panicErr)
+			}
+		}
+	}()
+	encodedBCS, err := EncodeSenderSignedData(&SenderSignedData{
+		Transactions: []SenderSignedTransaction{*tx.Transaction},
+	}, variation)
+	if err != nil {
+		return errors.Wrap(err, "failed to encode transaction to bcs")
+	}
+	if !bytes.Equal(encodedBCS, tx.RawTransaction.Data()) {
+		return errors.Errorf(
+			"transaction sanity check failed: encoded bcs doesn't match raw transaction %s",
+			tx.Digest.String(),
+		)
+	}
+	return nil
+}
+
+func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byte, variation Variation) error {
 	if data == nil || data.Kind == nil {
 		return errors.New("invalid transaction, no data populated")
 	}
-	decoded, err := DecodeSenderSignedData(rawTransaction)
+	decoded, err := DecodeSenderSignedData(rawTransaction, variation)
 	if err != nil {
 		return err
 	}
@@ -132,22 +173,32 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 		x.NonRefundableStorageFee = y.NonRefundableStorageFee
 		x.SystemPackages = y.SystemPackages
 	}
-	switch {
-	case data.Kind.ChangeEpoch != nil:
-		if decodedV1.Kind.ChangeEpoch == nil {
+	populateChangeEpochV2 := func(x *ChangeEpochV2, y *ChangeEpochV2) {
+		x.ProtocolVersion = y.ProtocolVersion
+		x.NonRefundableStorageFee = y.NonRefundableStorageFee
+		x.SystemPackages = y.SystemPackages
+	}
+	populateChangeEpochV3 := func(x *ChangeEpochV3, y *ChangeEpochV3) {
+		x.ProtocolVersion = y.ProtocolVersion
+		x.NonRefundableStorageFee = y.NonRefundableStorageFee
+		x.SystemPackages = y.SystemPackages
+	}
+	populateChangeEpochV4 := func(x *ChangeEpochV4, y *ChangeEpochV4) {
+		x.ProtocolVersion = y.ProtocolVersion
+		x.NonRefundableStorageFee = y.NonRefundableStorageFee
+		x.SystemPackages = y.SystemPackages
+		x.AdjustRewardsByScore = y.AdjustRewardsByScore
+	}
+	// populateProgrammable derives the aux info (pure-value raw bytes, published /
+	// upgraded move bytecodes, move-call type args) that only the decoded BCS
+	// carries, onto the json-parsed programmable transaction. Shared by the
+	// ProgrammableTransaction and ProgrammableSystemTransaction kinds, whose
+	// payload is the same type.
+	populateProgrammable := func(targetTx, decodedTx *ProgrammableTransaction) error {
+		if decodedTx == nil {
 			// This indicates a mismatch between the given transaction data and the decoded transaction.
-			return errors.New("decodedV1.Kind.ChangeEpoch is nil")
+			return errors.New("decoded programmable transaction is nil")
 		}
-		decodedTx := decodedV1.Kind.ChangeEpoch
-		targetTx := data.Kind.ChangeEpoch
-		populateChangeEpoch(targetTx, decodedTx)
-	case data.Kind.ProgrammableTransaction != nil:
-		if decodedV1.Kind.ProgrammableTransaction == nil {
-			// This indicates a mismatch between the given transaction data and the decoded transaction.
-			return errors.New("decodedV1.Kind.ProgrammableTransaction is nil")
-		}
-		decodedTx := decodedV1.Kind.ProgrammableTransaction
-		targetTx := data.Kind.ProgrammableTransaction
 		if len(decodedTx.Inputs) != len(targetTx.Inputs) {
 			return errors.New("invalid number of inputs")
 		}
@@ -169,7 +220,6 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 			// Derive raw bytes from BCS.
 			targetPure.Value = decodedPure.Value
 		}
-
 		for i := range targetTx.Commands {
 			switch {
 			case targetTx.Commands[i].Publish != nil:
@@ -197,12 +247,37 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 				targetMoveCall.TypeArgs = decodedMoveCall.TypeArgs
 			}
 		}
+		return nil
+	}
+	switch {
+	case data.Kind.ChangeEpoch != nil:
+		if decodedV1.Kind.ChangeEpoch == nil {
+			// This indicates a mismatch between the given transaction data and the decoded transaction.
+			return errors.New("decodedV1.Kind.ChangeEpoch is nil")
+		}
+		decodedTx := decodedV1.Kind.ChangeEpoch
+		targetTx := data.Kind.ChangeEpoch
+		populateChangeEpoch(targetTx, decodedTx)
+	case data.Kind.ProgrammableTransaction != nil:
+		if err := populateProgrammable(data.Kind.ProgrammableTransaction, decodedV1.Kind.ProgrammableTransaction); err != nil {
+			return err
+		}
+	case data.Kind.ProgrammableSystemTransaction != nil:
+		if err := populateProgrammable(data.Kind.ProgrammableSystemTransaction, decodedV1.Kind.ProgrammableSystemTransaction); err != nil {
+			return err
+		}
 	case data.Kind.AuthenticatorStateUpdate != nil:
 		if decodedV1.Kind.AuthenticatorStateUpdate == nil {
 			// This indicates a mismatch between the given transaction data and the decoded transaction.
 			return errors.New("decodedV1.Kind.AuthenticatorStateUpdate is nil")
 		}
 		data.Kind.AuthenticatorStateUpdate.AuthenticatorObjInitialSharedVersion = decodedV1.Kind.AuthenticatorStateUpdate.AuthenticatorObjInitialSharedVersion
+	case data.Kind.RandomnessStateUpdate != nil:
+		if decodedV1.Kind.RandomnessStateUpdate == nil {
+			return errors.New("decodedV1.Kind.RandomnessStateUpdate is nil")
+		}
+		// randomness_obj_initial_shared_version is not part of the json reply.
+		data.Kind.RandomnessStateUpdate.RandomnessObjInitialSharedVersion = decodedV1.Kind.RandomnessStateUpdate.RandomnessObjInitialSharedVersion
 	case data.Kind.EndOfEpochTransaction != nil:
 		if decodedV1.Kind.EndOfEpochTransaction == nil {
 			// This indicates a mismatch between the given transaction data and the decoded transaction.
@@ -224,6 +299,33 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 					return errors.New("y.ChangeEpoch == nil")
 				}
 				populateChangeEpoch(x.ChangeEpoch, y.ChangeEpoch)
+			} else if x.ChangeEpochV2 != nil {
+				if y.ChangeEpochV2 == nil {
+					return errors.New("y.ChangeEpochV2 == nil")
+				}
+				populateChangeEpochV2(x.ChangeEpochV2, y.ChangeEpochV2)
+			} else if x.ChangeEpochV3 != nil {
+				if y.ChangeEpochV3 == nil {
+					return errors.New("y.ChangeEpochV3 == nil")
+				}
+				populateChangeEpochV3(x.ChangeEpochV3, y.ChangeEpochV3)
+			} else if x.ChangeEpochV4 != nil {
+				if y.ChangeEpochV4 == nil {
+					return errors.New("y.ChangeEpochV4 == nil")
+				}
+				populateChangeEpochV4(x.ChangeEpochV4, y.ChangeEpochV4)
+			} else if x.StoreExecutionTimeObservations != nil {
+				// json reports this variant as a bare string; its payload only
+				// exists in the BCS.
+				if y.StoreExecutionTimeObservations == nil {
+					return errors.New("y.StoreExecutionTimeObservations == nil")
+				}
+				*x.StoreExecutionTimeObservations = *y.StoreExecutionTimeObservations
+			} else if x.WriteAccumulatorStorageCost != nil {
+				if y.WriteAccumulatorStorageCost == nil {
+					return errors.New("y.WriteAccumulatorStorageCost == nil")
+				}
+				*x.WriteAccumulatorStorageCost = *y.WriteAccumulatorStorageCost
 			}
 		}
 	}

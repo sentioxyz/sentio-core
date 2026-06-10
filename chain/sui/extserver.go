@@ -24,6 +24,10 @@ import (
 type ExtServerDimension struct {
 	client *ClientPool
 
+	// variation selects the chain-specific BCS enum layout (sui vs iota) when
+	// decoding/re-encoding json-rpc transactions.
+	variation types.Variation
+
 	enableJSONRPC bool
 	skipValidate  bool
 
@@ -36,6 +40,7 @@ type ExtServerDimension struct {
 
 func NewExtServerDimension(
 	client *ClientPool,
+	variation types.Variation,
 	enableJSONRPC bool,
 	skipValidate bool,
 	enableGrpc bool,
@@ -49,8 +54,12 @@ func NewExtServerDimension(
 	if !enableJSONRPC && !enableGrpc {
 		panic("both json-rpc and grpc data are disabled")
 	}
+	if variation == "" {
+		variation = types.VariationSUI
+	}
 	dim := &ExtServerDimension{
 		client:                 client,
+		variation:              variation,
 		enableJSONRPC:          enableJSONRPC,
 		skipValidate:           skipValidate,
 		enableGrpc:             enableGrpc,
@@ -149,14 +158,32 @@ func (d *ExtServerDimension) loadCheckpoint(
 	return
 }
 
-var uncompletedKinds = map[string]bool{
-	"Genesis":                   true,
-	"EndOfEpochTransaction":     true,
-	"ConsensusCommitPrologueV1": true,
-	"ConsensusCommitPrologueV2": true,
-	"ConsensusCommitPrologueV3": true,
-	"ConsensusCommitPrologueV4": true,
-	"RandomnessStateUpdate":     true,
+// uncompletedKindsByVariation lists, per chain, the transaction kinds that are
+// intentionally stored WITHOUT BCS validation — i.e. the json reply is
+// self-sufficient and nothing is derived from the tx BCS, so skipping
+// DeriveAux/TxSanityCheck cannot store wrong data. Every OTHER kind must go
+// through TxSanityCheck and, if its BCS round-trip fails, halt slot loading
+// rather than silently persist unvalidated data (that is the whole point of the
+// sanity check). The set is per-variation because Sui and IOTA have different
+// enum layouts.
+var uncompletedKindsByVariation = map[types.Variation]map[string]bool{
+	types.VariationSUI: {
+		// GenesisTransaction payload (objects/events) is not modeled, and its
+		// object changes come from the reply's objectChanges (not derived from the
+		// tx BCS), so there is nothing to validate or derive here.
+		"Genesis": true,
+	},
+	types.VariationIOTA: {
+		// GenesisTransaction payload is not modeled.
+		"Genesis": true,
+	},
+}
+
+func isUncompletedKind(variation types.Variation, kind string) bool {
+	if variation == "" {
+		variation = types.VariationSUI
+	}
+	return uncompletedKindsByVariation[variation][kind]
 }
 
 const (
@@ -190,15 +217,16 @@ func (d *ExtServerDimension) getSlot(ctx context.Context, sn uint64) (*Slot, err
 			if len(tx.Errors) == 0 {
 				return nil, errors.Errorf("invalid transaction %d/%s, required fields not present", sn, tx.Digest.String())
 			}
-		} else if kind := tx.Transaction.Data.V1.Kind.Kind(); uncompletedKinds[kind] || d.skipValidate {
-			// No decoding/sanity check on Genesis and ConsensusCommitPrologueV3 transaction.
+		} else if kind := tx.Transaction.Data.V1.Kind.Kind(); isUncompletedKind(d.variation, kind) || d.skipValidate {
+			// Skip DeriveAux/TxSanityCheck for kinds not yet exact for this chain
+			// (see uncompletedKindsByVariation) or when validation is disabled.
 			logger.Debugf("Skipping decoding %s transaction %s", kind, tx.Digest.String())
 			uncompleteTxns++
 		} else {
-			if err = types.DeriveAuxInformationFromBCSV1(tx.Transaction.Data.V1, tx.RawTransaction.Data()); err != nil {
+			if err = types.DeriveAuxInformationFromBCSV1(tx.Transaction.Data.V1, tx.RawTransaction.Data(), d.variation); err != nil {
 				return nil, errors.Wrapf(err, "derive aux information from BCS for %d/%s failed", sn, tx.Digest.String())
 			}
-			if err = TxSanityCheck(&tx); err != nil {
+			if err = types.TxSanityCheck(&tx, d.variation); err != nil {
 				return nil, errors.Wrapf(err, "sanity check for %d/%s failed", sn, tx.Digest.String())
 			}
 		}
@@ -382,6 +410,7 @@ func (d *ExtServerDimension) GetSlotHeader(ctx context.Context, sn uint64) (chai
 func (d *ExtServerDimension) Snapshot() any {
 	sn := d.ExtServerDimension.Snapshot().(map[string]any)
 	utils.MergeMap(sn, map[string]any{
+		"variation":              d.variation,
 		"enableJSONRPC":          d.enableJSONRPC,
 		"skipValidate":           d.skipValidate,
 		"enableGrpc":             d.enableGrpc,

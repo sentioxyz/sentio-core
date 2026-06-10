@@ -1,48 +1,12 @@
 package sui
 
 import (
-	"bytes"
 	"encoding/json"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/utils"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/pkg/errors"
 )
-
-// TxSanityCheck will make sure decoded transaction is valid.
-// Sui uses rust Enum extensively, which is difficult to capture or mimic in go.
-// We want to make sure at least whenever there is a new Kind being added (to SingleTransactionKind or Event),
-// we fail fast with a clear error message, rather than proceed with incorrect results, as rewinding already
-// stored data (particularly in gcs) is often difficult if not impossible.
-func TxSanityCheck(tx *types.TransactionResponseV1) (err error) {
-	if tx.Transaction.Data == nil {
-		return errors.Errorf("transaction data is nil (no transaction payload?)")
-	}
-	if tx.Transaction.Data.V1 == nil {
-		return errors.Errorf("transaction data v1 is nil (no transaction payload?)")
-	}
-	tx.Transaction.Intent = &types.EmptyIntentMessage
-	defer func() {
-		if panicErr := recover(); panicErr != nil {
-			err = errors.Errorf("%v", panicErr)
-		}
-	}()
-	var encodedBCS []byte
-	encodedBCS, err = types.EncodeSenderSignedData(&types.SenderSignedData{
-		Transactions: []types.SenderSignedTransaction{*tx.Transaction},
-	})
-	if err != nil {
-		return errors.Wrap(err, "failed to encode transaction to bcs")
-	}
-	if !bytes.Equal(encodedBCS, tx.RawTransaction.Data()) {
-		return errors.Errorf(
-			"transaction sanity check failed: encoded bcs doesn't match raw transaction %s",
-			tx.Digest.String(),
-		)
-	}
-	return nil
-}
 
 type MoveCallFilter struct {
 	Package  *types.ObjectID `json:"package,omitempty"`

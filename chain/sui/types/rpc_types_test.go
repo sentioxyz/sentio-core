@@ -5,13 +5,38 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/goccy/go-json"
 	"github.com/kinbiko/jsonassert"
 )
 
+func TestObjectChangeTypeClassification(t *testing.T) {
+	deleted := []ObjectChangeType{ObjectChangeTypeDeleted, ObjectChangeTypeWrapped, ObjectChangeTypeUnwrappedThenDeleted}
+	created := []ObjectChangeType{ObjectChangeTypeCreated, ObjectChangeTypePublished, ObjectChangeTypeUnwrapped}
+	for _, c := range deleted {
+		assert.Truef(t, c.IsDeleted(), "%s should be deleted", c)
+		assert.Falsef(t, c.IsCreated(), "%s should not be created", c)
+	}
+	for _, c := range created {
+		assert.Truef(t, c.IsCreated(), "%s should be created", c)
+		assert.Falsef(t, c.IsDeleted(), "%s should not be deleted", c)
+	}
+	assert.False(t, ObjectChangeType(ObjectChangeTypeMutated).IsDeleted())
+	assert.False(t, ObjectChangeType(ObjectChangeTypeMutated).IsCreated())
+}
+
+func TestObjectChangeGetObjectID(t *testing.T) {
+	pkg := StrToObjectIDMust("0x2")
+	obj := StrToObjectIDMust("0x5")
+	// packageId takes precedence over objectId
+	assert.Equal(t, pkg.String(), ObjectChange{PackageID: &pkg, ObjectID: &obj}.GetObjectID())
+	assert.Equal(t, obj.String(), ObjectChange{ObjectID: &obj}.GetObjectID())
+	assert.Equal(t, "", ObjectChange{}.GetObjectID())
+}
+
 func TestTransactionResponseV1JSON(t *testing.T) {
-	b, _ := os.ReadFile(testDataFile)
+	b, _ := os.ReadFile(transactionBundleFile)
 	var rawTxs []json.RawMessage
 	err := json.Unmarshal(b, &rawTxs)
 	if err != nil {
@@ -31,43 +56,5 @@ func TestTransactionResponseV1JSON(t *testing.T) {
 			t.Fatal(err)
 		}
 		ja.Assertf(string(b), string(rawTx))
-	}
-}
-
-func TestEventJSON(t *testing.T) {
-	raw := `
-{
-	"id": {
-			"txDigest": "4WmGHKKACJhh93CvCgL8QHKnZLjVcwim95T9nBjX19tn",
-			"eventSeq": "20"
-	},
-	"packageId": "0x0000000000000000000000000000000000000000000000000000000000000003",
-	"transactionModule": "sui_system",
-	"sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
-	"type": "0x3::validator_set::ValidatorEpochInfoEventV2",
-	"parsedJson": {
-			"commission_rate": "200",
-			"epoch": "9",
-			"pool_staking_reward": "0",
-			"pool_token_exchange_rate": {
-					"pool_token_amount": "25000000000011551",
-					"sui_amount": "25000000000577800"
-			},
-			"reference_gas_survey_quote": "1000",
-			"stake": "25000000000577800",
-			"storage_fund_staking_reward": "0",
-			"tallying_rule_global_score": "1",
-			"tallying_rule_reporters": [],
-			"validator_address": "0xbba318294a51ddeafa50c335c8e77202170e1f272599a2edc40592100863f638",
-			"voting_power": "54"
-	},
-	"bcs": ""
-}
-`
-
-	var ev Event
-	err := json.Unmarshal([]byte(raw), &ev)
-	if err != nil {
-		t.Fatal(err)
 	}
 }

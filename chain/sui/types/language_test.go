@@ -92,6 +92,26 @@ func TestPureValueSerialize(t *testing.T) {
 	}
 }
 
+func TestTypeTagBCSRoundTrip(t *testing.T) {
+	for _, s := range []string{
+		"u64",
+		"address",
+		"vector<u8>",
+		"0x2::coin::Coin<0x2::sui::SUI>",
+		"0x2::coin::Coin<vector<0x3::a::B>, u128>",
+	} {
+		tt, err := TypeTagFromString(s)
+		assert.NoError(t, err)
+
+		enc, err := serde.Marshal(tt)
+		assert.NoError(t, err)
+
+		var got TypeTag
+		assert.NoError(t, serde.Unmarshal(enc, &got))
+		assert.Equal(t, s, got.String(), "round-trip %s", s)
+	}
+}
+
 func TestMatchIgnoreGeneric(t *testing.T) {
 	s0, err := TypeTagFromString("0x1111111111111111111111111111111111111111::SUI::coin")
 	assert.NoError(t, err)
@@ -253,7 +273,9 @@ func TestPureValueWithNoType(t *testing.T) {
 	ja.Assertf(string(j), rawJSON)
 }
 
-func Test_xxx(t *testing.T) {
+// TestPureValueJSONEscaping checks that a pure string value containing a U+2028
+// line separator is JSON-escaped (Go's encoding/json escapes it as  ).
+func TestPureValueJSONEscaping(t *testing.T) {
 	// sui-mainnet transaction with seq number 10076320 has value below:
 	//
 	//value := json.RawMessage{

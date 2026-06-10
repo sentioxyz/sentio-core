@@ -137,7 +137,10 @@ func (o *ObjectOwner) GetTypeAndID() (ownerType string, ownerID string, initialS
 	case o.Shared != nil:
 		return OwnerTypeShared, "", o.Shared.InitialSharedVersion
 	case o.ConsensusAddressOwner != nil:
-		return OwnerTypeConsensusAddress, o.ConsensusAddressOwner.Owner.String(), 0
+		// Mirror the grpc data path, which surfaces a single Owner.Version for all
+		// kinds (start_version for a consensus-address owner), so the json-rpc and
+		// grpc paths derive the same ownerInitialSharedVersion.
+		return OwnerTypeConsensusAddress, o.ConsensusAddressOwner.Owner.String(), o.ConsensusAddressOwner.StartVersion
 	default:
 		panic(errors.Errorf("invalid owner %#v", o))
 	}
@@ -213,44 +216,4 @@ func (o *ObjectOwner) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	return errors.New("value not json")
-}
-
-type ObjectReadDetail struct {
-	Data  map[string]interface{} `json:"data"`
-	Owner *ObjectOwner           `json:"owner"`
-
-	PreviousTransaction string     `json:"previousTransaction"`
-	StorageRebate       int        `json:"storageRebate"`
-	Reference           *ObjectRef `json:"reference"`
-}
-
-type ObjectStatus string
-
-const (
-	// ObjectStatusExists ObjectStatusNotExists ObjectStatusDeleted
-	// status for sui_getObject
-	ObjectStatusExists    ObjectStatus = "Exists"
-	ObjectStatusNotExists ObjectStatus = "NotExists"
-	ObjectStatusDeleted   ObjectStatus = "Deleted"
-	// ObjectDeleted VersionFound VersionTooHigh VersionNotFound
-	// status for sui_tryGetPastObject
-	ObjectDeleted   ObjectStatus = "ObjectDeleted"
-	VersionFound    ObjectStatus = "VersionFound"
-	VersionTooHigh  ObjectStatus = "VersionTooHigh"
-	VersionNotFound ObjectStatus = "VersionNotFound"
-)
-
-type ObjectRead struct {
-	Details *ObjectReadDetail `json:"details"`
-	Status  ObjectStatus      `json:"status"`
-}
-
-type ObjectInfo struct {
-	ObjectID *ObjectID    `json:"objectId"`
-	Version  int          `json:"version"`
-	Digest   string       `json:"digest"`
-	Type     string       `json:"type"`
-	Owner    *ObjectOwner `json:"owner"`
-
-	PreviousTransaction string `json:"previousTransaction"`
 }

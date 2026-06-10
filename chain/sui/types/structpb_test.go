@@ -46,7 +46,7 @@ func changeAllNumberToStringJSON(s string) string {
 }
 
 func TestTransactionResponseV1Structpb(t *testing.T) {
-	b, _ := os.ReadFile(testDataFile)
+	b, _ := os.ReadFile(transactionBundleFile)
 	var rawTxs []json.RawMessage
 	err := json.Unmarshal(b, &rawTxs)
 	if err != nil {

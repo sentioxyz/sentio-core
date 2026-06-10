@@ -1,0 +1,34 @@
+{
+  "digest": "7CuBm1AnLgkBMB6GiEn5d3RizznF5LbawjJTs8A5dcXF",
+  "checkpoint": "0",
+  "timestampMs": "1681318800000",
+  "transaction": {
+    "data": {
+      "messageVersion": "v1",
+      "transaction": {
+        "kind": "Genesis",
+        "objects": [
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x0000000000000000000000000000000000000000000000000000000000000002",
+          "0x0000000000000000000000000000000000000000000000000000000000000003"
+        ]
+      },
+      "sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "gasData": {
+        "payment": [
+          {
+            "objectId": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "version": 0,
+            "digest": "11111111111111111111111111111111"
+          }
+        ],
+        "owner": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "price": "1",
+        "budget": "0"
+      }
+    },
+    "txSignatures": [
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    ]
+  }
+}

@@ -142,12 +142,12 @@ func StructTagFromString(s string) (*StructTag, error) {
 	var typeArgs []TypeTag
 	address, err := StrToAddress(addressStr)
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("address: %s", addressStr))
+		return nil, errors.Wrapf(err, "address: %s", addressStr)
 	}
 	for _, s := range typeArgsStr {
 		tt, err := TypeTagFromString(s)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("type arg: %s", s))
+			return nil, errors.Wrapf(err, "type arg: %s", s)
 		}
 		typeArgs = append(typeArgs, *tt)
 	}
@@ -508,7 +508,7 @@ func (s *TypeTag) SerializeBCS(v json.RawMessage) ([]byte, error) {
 		}
 		serde.Encode(buf, &addr)
 	} else if s.Signer {
-		panic("not implelemented Signer decode: " + decodeString())
+		panic(errors.Errorf("not implemented Signer decode: %s", decodeString()))
 	} else if s.Vector != nil {
 		if s.Vector.U8 && len(v) > 0 && v[0] == '"' {
 			// special case: json may be a string
@@ -529,7 +529,7 @@ func (s *TypeTag) SerializeBCS(v json.RawMessage) ([]byte, error) {
 			}
 		}
 	} else if s.Struct != nil {
-		panic("not supported Struct decode: " + decodeString())
+		panic(errors.Errorf("not supported Struct decode: %s", decodeString()))
 	} else if s.U16 {
 		i, err := strconv.ParseUint(string(v), 10, 16)
 		if err != nil {
@@ -593,14 +593,14 @@ func PureValueFromJSON(value json.RawMessage, valueType *TypeTag) *PureValue {
 
 func (s *PureValue) ValueType() *TypeTag {
 	if s.json == nil {
-		panic("no type information provided")
+		panic(errors.New("no type information provided"))
 	}
 	return s.json.ValueType
 }
 
 func (s *PureValue) ValueJSON() json.RawMessage {
 	if s.json == nil {
-		panic("no type information provided")
+		panic(errors.New("no type information provided"))
 	}
 	return s.json.Value
 }

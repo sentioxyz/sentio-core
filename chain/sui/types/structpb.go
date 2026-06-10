@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"reflect"
 
+	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"sentioxyz/sentio-core/common/utils"
@@ -199,7 +200,7 @@ func (s Upgrade) MarshalStructpb() *structpb.Value {
 
 func (s MovePackage) MarshalStructpb() *structpb.Value {
 	if s.Disassembled == nil {
-		panic("disassembled is nil")
+		panic(errors.New("disassembled is nil"))
 	}
 	return utils.MarshalStructpb(&movePackageJSON{
 		Disassembled: s.Disassembled,
@@ -252,13 +253,13 @@ func (s CallArg) MarshalStructpb() *structpb.Value {
 		}
 		return utils.MarshalStructpb(j)
 	default:
-		panic("invalid CallArg")
+		panic(errors.New("invalid CallArg"))
 	}
 }
 
 func (s PureValue) MarshalStructpb() *structpb.Value {
 	if s.json == nil {
-		panic("no type information in PureValue")
+		panic(errors.New("no type information in PureValue"))
 	}
 	var v interface{}
 	err := json.Unmarshal(s.json.Value, &v)

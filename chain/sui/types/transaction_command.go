@@ -156,11 +156,6 @@ type MoveCall struct {
 	Args     []Argument `json:"arguments,omitempty"`
 }
 
-type TransferObject struct {
-	Recipient Address   `json:"recipient"`
-	ObjectRef ObjectRef `json:"objectRef"`
-}
-
 type ArgumentsO2M struct {
 	First   Argument
 	Oprands []Argument

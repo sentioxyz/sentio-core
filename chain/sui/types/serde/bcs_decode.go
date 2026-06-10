@@ -27,12 +27,24 @@ func Unmarshal(data []byte, v any) error {
 // Decoder takes an [io.Reader] and decodes value from it.
 type Decoder struct {
 	r io.Reader
+	// selector picks per-chain `bcs` tag variants (e.g. "sui"/"iota"); the empty
+	// string means position-based enums and unscoped tags only (legacy behavior).
+	selector string
 }
 
 // NewDecoder creates a new [Decoder] from an [io.Reader]
 func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
 		r: r,
+	}
+}
+
+// NewDecoderForSelector creates a [Decoder] that resolves per-selector `bcs`
+// tags (enumNum/optional/ignore) for the given selector.
+func NewDecoderForSelector(r io.Reader, selector string) *Decoder {
+	return &Decoder{
+		r:        r,
+		selector: selector,
 	}
 }
 
@@ -217,16 +229,16 @@ func (d *Decoder) decodeStruct(v reflect.Value) error {
 		if !field.CanInterface() {
 			continue
 		}
-		tag, err := parseTagValue(t.Field(i).Tag.Get(tagName))
+		tag, err := parseTag(t.Field(i).Tag.Get(tagName))
 		if err != nil {
 			return err
 		}
 		// ignored
-		if tag&tagValueIgnore != 0 {
+		if tag.isIgnored(d.selector) {
 			continue
 		}
 		// optional
-		if tag&tagValueOptional != 0 {
+		if tag.isOptional(d.selector) {
 			present, err := d.readByte()
 			if err != nil {
 				return err
@@ -260,15 +272,32 @@ func (d *Decoder) decodeEnum(v reflect.Value) error {
 		return err
 	}
 
-	if enumID >= v.NumField() {
-		return errors.Errorf("invalid enum id %d, max %d, type is %s", enumID, v.NumField(), v.Type())
+	layout, err := enumLayoutFor(v.Type(), d.selector)
+	if err != nil {
+		return err
 	}
-	field := v.Field(enumID)
+	if !layout.tagged {
+		// position mode (legacy): variant index == exported-field position
+		if enumID >= v.NumField() {
+			return errors.Errorf("invalid enum id %d, max %d, type is %s", enumID, v.NumField(), v.Type())
+		}
+		if Trace {
+			log.Debugf("decode variant, name %s", v.Type().Field(enumID).Name)
+		}
+		return d.decode(v.Field(enumID))
+	}
+	// tag mode: the type declares enumNum tags
+	if len(layout.byVariant) == 0 {
+		return errors.Errorf("type %s uses enumNum tags but selector %q resolves no variant", v.Type(), d.selector)
+	}
+	fieldIdx, ok := layout.byVariant[enumID]
+	if !ok {
+		return errors.Errorf("variant %d not defined for selector %q on %s", enumID, d.selector, v.Type())
+	}
 	if Trace {
-		log.Debugf("decode variant, name %s", v.Type().Field(enumID).Name)
+		log.Debugf("decode variant, name %s", v.Type().Field(fieldIdx).Name)
 	}
-
-	return d.decode(field)
+	return d.decode(v.Field(fieldIdx))
 }
 
 func ReadByteSlice(r io.Reader) ([]byte, error) {

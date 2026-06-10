@@ -155,6 +155,7 @@ func Test_suiRpc(t *testing.T) {
 
 	ext := sui.NewExtServerDimension(
 		cli,
+		suitypes.VariationSUI,
 		true,  // enableJSONRPC
 		true,  // skipValidate
 		false, // enableGrpc

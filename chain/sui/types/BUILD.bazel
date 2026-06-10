@@ -44,7 +44,6 @@ go_test(
         "structpb_test.go",
         "transaction_command_test.go",
         "transaction_data_v1_test.go",
-        "transaction_expiration_test.go",
         "transaction_kind_roundtrip_test.go",
         "transaction_test.go",
     ],

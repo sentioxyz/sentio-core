@@ -14,7 +14,15 @@ import (
 	"sentioxyz/sentio-core/common/log"
 )
 
-var testDataFile = "testdata/sui/txs-v1.json"
+// transactionBundleFile is a curated corpus of 60 real sui-mainnet
+// TransactionResponseV1 replies (mostly diverse ProgrammableTransactions, plus a
+// few system txs and one errored tx). It drives the JSON/structpb/BCS coverage
+// tests that need breadth a single per-kind sample can't provide:
+// TestDecodeV1TransactionFromBCSToJSON, TestDecodeV1TransactionFromJSONToBCS
+// (here), TestTransactionResponseV1JSON (rpc_types_test.go) and
+// TestTransactionResponseV1Structpb (structpb_test.go). Per-kind byte-exact
+// round-trips live in transaction_kind_roundtrip_test.go instead.
+var transactionBundleFile = "testdata/sui/transactions-bundle.json"
 
 func unresolvePureValueTypes(j string) string {
 	var m map[string]interface{}
@@ -60,7 +68,7 @@ func containsStruct(tt *TypeTag) bool {
 }
 
 func TestDecodeV1TransactionFromBCSToJSON(t *testing.T) {
-	b, _ := os.ReadFile(testDataFile)
+	b, _ := os.ReadFile(transactionBundleFile)
 	var rawTxs []json.RawMessage
 	err := json.Unmarshal(b, &rawTxs)
 	if err != nil {
@@ -130,7 +138,7 @@ func TestDecodeV1TransactionFromJSONToBCS(t *testing.T) {
 	log.ManuallySetLevel(zapcore.DebugLevel)
 	log.BindFlag()
 	unresolvedValues := []bool{false}
-	b, _ := os.ReadFile(testDataFile)
+	b, _ := os.ReadFile(transactionBundleFile)
 	var rawTxs []json.RawMessage
 	err := json.Unmarshal(b, &rawTxs)
 	if err != nil {
@@ -369,9 +377,9 @@ func TestUnmarshalEndOfEpochTransaction2(t *testing.T) {
 	assert.NotNil(t, txn.Transaction.Data.V1.Kind.EndOfEpochTransaction.Transactions[0].ChangeEpochV2)
 }
 
-// Test_decode is an accumulator-settlement system PTB (FundsWithdrawal / nested
-// accumulator move calls) that previously could not be decoded; it now round-trips.
-func Test_decode(t *testing.T) {
+// TestDecodeAccumulatorSettlementPTB decodes an accumulator-settlement system PTB
+// (nested accumulator move calls) that previously could not be decoded.
+func TestDecodeAccumulatorSettlementPTB(t *testing.T) {
 	rawTxStr := "AQAAAAAKBAEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACszPrT8mAAAAAAEACNsDAAAAAAAAAAgYAAAAAAAAAAAIAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACFmFjY3VtdWxhdG9yX3NldHRsZW1lbnQTc2V0dGxlbWVudF9wcm9sb2d1ZQAGAQAAAQEAAQIAAQMAAQMAAQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACFGFjY3VtdWxhdG9yX21ldGFkYXRhIXJlY29yZF9hY2N1bXVsYXRvcl9vYmplY3RfY2hhbmdlcwADAQAAAQMAAQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAABYQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 	rawTx, err := base64.StdEncoding.DecodeString(rawTxStr)
 	assert.NoError(t, err)

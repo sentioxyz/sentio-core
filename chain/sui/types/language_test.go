@@ -253,7 +253,9 @@ func TestPureValueWithNoType(t *testing.T) {
 	ja.Assertf(string(j), rawJSON)
 }
 
-func Test_xxx(t *testing.T) {
+// TestPureValueJSONEscaping checks that a pure string value containing a U+2028
+// line separator is JSON-escaped (Go's encoding/json escapes it as  ).
+func TestPureValueJSONEscaping(t *testing.T) {
 	// sui-mainnet transaction with seq number 10076320 has value below:
 	//
 	//value := json.RawMessage{

@@ -12,7 +12,9 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 )
 
-func Test_inputsMarshal(t *testing.T) {
+// TestCallArgFundsWithdrawalJSON checks CallArg.FundsWithdrawal json round-trips
+// and that optional sub-fields are omitted when nil.
+func TestCallArgFundsWithdrawalJSON(t *testing.T) {
 	raw := `
 [
     {

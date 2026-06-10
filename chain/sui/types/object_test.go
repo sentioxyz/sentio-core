@@ -55,9 +55,9 @@ func TestObjectOwnerJsonENDE(t *testing.T) {
 	}
 }
 
-func TestNewAddressFromHex(t *testing.T) {
-	addr, err := StrToObjectID("0xc16ecefaeeeba3d9d1ccce47751e266e0e362ee418796d2f494bf843c7855e92")
-	assert.Nil(t, err)
-
-	t.Log(addr)
+func TestObjectIDFromFullHex(t *testing.T) {
+	const s = "0xc16ecefaeeeba3d9d1ccce47751e266e0e362ee418796d2f494bf843c7855e92"
+	id, err := StrToObjectID(s)
+	assert.NoError(t, err)
+	assert.Equal(t, s, id.String())
 }

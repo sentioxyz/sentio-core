@@ -37,6 +37,7 @@ go_test(
     srcs = [
         "address_test.go",
         "digest_test.go",
+        "event_test.go",
         "language_test.go",
         "object_test.go",
         "rpc_types_test.go",

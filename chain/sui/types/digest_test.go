@@ -1,15 +1,16 @@
 package types
 
 import (
-	"encoding/hex"
-	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestDecodeDigest(t *testing.T) {
-	d, err := StrToDigest("13PrnWn4KTma3AyMATzP255eKu8XZkkm4v1nGMGtWV5G")
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(d.String(), hex.EncodeToString(d[:]))
+func TestDigestStringRoundTrip(t *testing.T) {
+	const s = "13PrnWn4KTma3AyMATzP255eKu8XZkkm4v1nGMGtWV5G"
+	d, err := StrToDigest(s)
+	assert.NoError(t, err)
+	assert.Len(t, d, DigestLength)
+	// base58 decode then re-encode must reproduce the original string
+	assert.Equal(t, s, d.String())
 }

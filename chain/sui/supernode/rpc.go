@@ -546,18 +546,29 @@ func (s *SuperService) GetObjectStat(
 		s.slotCache,
 		func(st *sui.Slot) ([]sui.ObjectStat, error) {
 			var result sui.ObjectStat
-			for _, tx := range st.Transactions {
-				for _, oc := range tx.ObjectChanges {
-					if oc.GetObjectID() != objectID {
-						continue
+			merge := func(version uint64) {
+				result = result.Merge(sui.ObjectStat{
+					Count:            1,
+					MinObjectVersion: version,
+					MinCheckpoint:    st.GetNumber(),
+					MaxObjectVersion: version,
+					MaxCheckpoint:    st.GetNumber(),
+				})
+			}
+			// prefer grpc data; fall back to json-rpc when the slot has no grpc data (e.g. iota)
+			if st.GrpcCheckpoint != nil {
+				st.IterGrpcObjectChanges(func(objID string, version uint64) {
+					if objID == objectID {
+						merge(version)
 					}
-					result = result.Merge(sui.ObjectStat{
-						Count:            1,
-						MinObjectVersion: oc.Version.Uint64(),
-						MinCheckpoint:    st.GetNumber(),
-						MaxObjectVersion: oc.Version.Uint64(),
-						MaxCheckpoint:    st.GetNumber(),
-					})
+				})
+			} else {
+				for _, tx := range st.Transactions {
+					for _, oc := range tx.ObjectChanges {
+						if oc.GetObjectID() == objectID {
+							merge(oc.Version.Uint64())
+						}
+					}
 				}
 			}
 			if result.Count == 0 {
@@ -599,19 +610,29 @@ func (s *SuperService) GetObjectsStat(
 		s.slotCache,
 		func(st *sui.Slot) ([]map[string]sui.ObjectStat, error) {
 			result := make(map[string]sui.ObjectStat)
-			for _, tx := range st.Transactions {
-				for _, oc := range tx.ObjectChanges {
-					objID := oc.GetObjectID()
-					if !objectIDSet.Contains(objID) {
-						continue
+			merge := func(objID string, version uint64) {
+				result[objID] = result[objID].Merge(sui.ObjectStat{
+					Count:            1,
+					MinObjectVersion: version,
+					MinCheckpoint:    st.GetNumber(),
+					MaxObjectVersion: version,
+					MaxCheckpoint:    st.GetNumber(),
+				})
+			}
+			// prefer grpc data; fall back to json-rpc when the slot has no grpc data (e.g. iota)
+			if st.GrpcCheckpoint != nil {
+				st.IterGrpcObjectChanges(func(objID string, version uint64) {
+					if objectIDSet.Contains(objID) {
+						merge(objID, version)
 					}
-					result[objID] = result[objID].Merge(sui.ObjectStat{
-						Count:            1,
-						MinObjectVersion: oc.Version.Uint64(),
-						MinCheckpoint:    st.GetNumber(),
-						MaxObjectVersion: oc.Version.Uint64(),
-						MaxCheckpoint:    st.GetNumber(),
-					})
+				})
+			} else {
+				for _, tx := range st.Transactions {
+					for _, oc := range tx.ObjectChanges {
+						if objID := oc.GetObjectID(); objectIDSet.Contains(objID) {
+							merge(objID, oc.Version.Uint64())
+						}
+					}
 				}
 			}
 			if len(result) == 0 {

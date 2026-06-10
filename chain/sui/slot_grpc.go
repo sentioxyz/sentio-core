@@ -143,3 +143,21 @@ func (s ObjectSet) Put(objs ...*rpcv2.Object) {
 		utils.PutIntoK2Map(s, obj.GetObjectId(), obj.GetVersion(), obj)
 	}
 }
+
+// IterGrpcObjectChanges calls fn for every changed object in the grpc checkpoint,
+// passing the object id and its effective version (output version, falling back to
+// the transaction's lamport version when absent). This mirrors how chv4 storage
+// records one object row per changed object, so the in-memory ObjectStat result is
+// consistent with StorageGRPC.QueryObjectsStat.
+func (s *Slot) IterGrpcObjectChanges(fn func(objectID string, version uint64)) {
+	for _, tx := range s.GrpcCheckpoint.GetTransactions() {
+		lamport := tx.GetEffects().GetLamportVersion()
+		for _, co := range tx.GetEffects().GetChangedObjects() {
+			version := co.GetOutputVersion()
+			if version == 0 {
+				version = lamport
+			}
+			fn(co.GetObjectId(), version)
+		}
+	}
+}

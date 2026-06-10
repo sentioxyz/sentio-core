@@ -1,7 +1,14 @@
 # Design: per-chain BCS enum selector for Sui / IOTA transaction types
 
-Status: proposal
+Status: implemented (this document is the design record; the live reference is
+the code in `chain/sui/types` + `chain/sui/types/serde` and `CLAUDE.md`).
 Scope: `chain/sui/types` and `chain/sui/types/serde`
+
+> Implemented: the per-selector `enumNum`/`optional`/`-` tags + decoder/encoder
+> selector described below are in place and in use. All transaction kinds are
+> modeled and validated by real-data round-trips except `Genesis` (still in
+> `uncompletedKindsByVariation`). Sections in future tense below are kept as the
+> original design rationale.
 
 ## 1. Background
 
@@ -16,7 +23,7 @@ if !bytes.Equal(encodedBCS, tx.RawTransaction.Data()) { /* fail */ }
 ```
 
 So any field that is mis-typed, mis-ordered, missing, or whose optionality is
-wrong makes the round-trip fail. That failure is what `uncompletedKinds`
+wrong makes the round-trip fail. That failure is what `uncompletedKindsByVariation`
 (`chain/sui/extserver.go`) works around: transaction kinds whose Go structs are
 not yet byte-exact are **skipped** (no `DeriveAuxInformationFromBCSV1` /
 `TxSanityCheck`) instead of failing slot loading.
@@ -51,7 +58,7 @@ Sources: Sui `crates/sui-types/src/transaction.rs`; IOTA
 
 Only index `0` (programmable) matches between the two chains — which is why the
 common case decodes for both and **every system transaction is in
-`uncompletedKinds`**. The current single struct is implicitly modeled after Sui;
+`uncompletedKindsByVariation`**. The current single struct is implicitly modeled after Sui;
 the `ConsensusCommitPrologueV1` field at Go index 10 (commented "iota-mainnet has
 this") is actually wrong: IOTA's CCPV1 is index 2, and Sui's index 10 is
 `ProgrammableSystemTransaction`.
@@ -87,7 +94,7 @@ and only then add chain-specific handling for that one spot.
 Goals:
 - Decode/encode `TransactionKind` (and any other divergent enum) correctly for
   **both Sui and IOTA** with a single Go type, byte-exact, so the
-  `uncompletedKinds` skip list can shrink toward empty.
+  `uncompletedKindsByVariation` skip list can shrink toward empty.
 - Keep the divergence **declarative** (in struct tags), not scattered across
   hand-written branches.
 - Stay backward compatible: enums without the new tags keep position semantics.
@@ -348,11 +355,11 @@ Known payloads to complete (from upstream, must be verified by round-trip):
 - `ProgrammableSystemTransaction` (sui index 10): same payload as
   `ProgrammableTransaction`.
 
-## 5. Emptying `uncompletedKinds`
+## 5. Emptying `uncompletedKindsByVariation`
 
 For each kind, once its payload is byte-exact AND its per-chain `enumNum` tags
 are set AND verified by a real-data round-trip, remove it from
-`uncompletedKinds`. Suggested order by sampling ease:
+`uncompletedKindsByVariation`. Suggested order by sampling ease:
 1. ConsensusCommitPrologue family + `ProgrammableSystemTransaction` + enum-order
    fix (present in every checkpoint — abundant samples, both chains).
 2. `RandomnessStateUpdate` (frequent).
@@ -390,7 +397,7 @@ For each variant, validate against **real chain bytes** (do not trust prose):
   tests proving position-mode unchanged); no behavior change to callers yet.
 - PR 2: tag `TransactionKind`, add `ProgrammableSystemTransaction`, fix the
   enum, complete the Sui CCP family payloads, thread the selector from `getSlot`
-  for Sui, drop the relevant entries from `uncompletedKinds`. Verify with Sui
+  for Sui, drop the relevant entries from `uncompletedKindsByVariation`. Verify with Sui
   samples.
 - PR 3: IOTA variant payloads (`IotaConsensusCommitPrologueV1`,
   `ConsensusDeterminedVersionAssignments`, …), iota selector plumbing, verify
@@ -450,7 +457,7 @@ conflict in `CLAUDE.md`. Do not build this until it is actually needed.
 
 ### Scope note
 
-These divergent kinds are in `uncompletedKinds` (BCS-skipped today) but their
+These divergent kinds are in `uncompletedKindsByVariation` (BCS-skipped today) but their
 **JSON values are still decoded and served to drivers**. Completing a kind thus
 has two independent correctness aspects — the BCS round-trip (§3–§4 selector) and
 JSON field routing (this section) — and both must be verified against real

@@ -14,9 +14,15 @@ variant indices. "Looks decoded fine" is not enough — it must re-encode to the
 identical bytes.
 
 When a type is not yet exact, its transaction kind is added to
-`uncompletedKinds` (`chain/sui/extserver.go`) so it is **skipped** rather than
-failing slot loading. The long-term goal is to complete the types and empty that
-list. See `bcs_enum_selector_design.md` for the dual-chain plan.
+`uncompletedKindsByVariation` (`chain/sui/extserver.go`) so it is **skipped**
+(stored from the json reply without BCS validation) rather than failing slot
+loading. That skip is only safe when nothing *served* is derived from the tx BCS.
+Today the only entry is `Genesis` on both chains (its object changes come from the
+reply's `objectChanges`, not the tx BCS, and its `GenesisTransaction` payload is
+unmodeled). Every other kind is modeled per-chain and validated by a real-data
+round-trip (`transaction_kind_roundtrip_test.go` + the transactions bundle), so a
+BCS mismatch there must halt slot loading, not be skipped. See
+`bcs_enum_selector_design.md` for the dual-chain mechanism.
 
 ## BCS facts you must keep in mind
 
@@ -60,6 +66,16 @@ list. See `bcs_enum_selector_design.md` for the dual-chain plan.
   *current* shape and are a good cross-check for which fields exist (but proto
   field numbers ≠ BCS variant indices; proto enums are 1-offset because of an
   `UNKNOWN = 0`).
+- **Most authoritative for exact BCS layout**: the serde-reflection staged
+  snapshots — `MystenLabs/sui` `crates/sui-types/tests/snapshots/format__sui.yaml.snap`
+  and `iotaledger/iota` `crates/iota-core/tests/staged/iota.yaml`. They give every
+  enum's exact variant index and every struct's field order/types (e.g. the
+  `EndOfEpochTransactionKind` index order, which does NOT match the json-rpc-types
+  enum order). Prefer these over reading `.rs` declaration order when in doubt.
+- For **JSON field completeness**, cross-check the json-rpc-types structs
+  (`crates/sui-json-rpc-types/src/sui_transaction.rs`, iota equivalent) — note
+  they may rename/merge variants vs BCS (e.g. IOTA collapses ChangeEpoch
+  V2/V3/V4 into one `"ChangeEpochV2"` json kind).
 
 Fetch source without auth via the GitHub raw URL or `gh api repos/<org>/<repo>/contents/<path> --jq .content | base64 -d`.
 
@@ -78,7 +94,7 @@ A transaction reaches `TransactionResponseV1` two ways:
 - **BCS** — `rawTransaction` is BCS-decoded by `serde` and must re-encode
   byte-for-byte (`TxSanityCheck`). Strict, and the index *positions* genuinely
   differ per variation, so this path needs the per-selector `enumNum` mechanism
-  (the decoder/encoder selector). This is what `uncompletedKinds` guards.
+  (the decoder/encoder selector). This is what `uncompletedKindsByVariation` guards.
 - **JSON** — the json-rpc reply is `json.Unmarshal`ed into the same types
   (`getSlot`), dispatching on a `kind` discriminator (`TransactionKind.UnmarshalJSON`).
   Keyed by names, which don't collide between variations, and `encoding/json` is
@@ -93,13 +109,15 @@ replies.
 
 ## Sui and IOTA are NOT the same enum layout (BCS)
 
-`TransactionKind` (and possibly other enums) have **different variant orders and
-payloads** on Sui vs IOTA — see the table in `bcs_enum_selector_design.md`. Do
-not assume a single position-based struct can serve both. The planned mechanism
-is per-field `bcs:"enumNum[sui]=..,enumNum[iota]=.."` tags + a selector on the
-decoder/encoder. Until that lands, only variants that coincide (programmable =
-index 0 on both) are safe to decode chain-agnostically; the rest stay in
-`uncompletedKinds`.
+`TransactionKind` and `EndOfEpochTransactionKind` have **different variant orders
+and payloads** on Sui vs IOTA — see the table in `bcs_enum_selector_design.md`.
+Do not assume a single position-based struct can serve both, and do not assume
+the Go field order equals the BCS variant index. This is handled by per-field
+`bcs:"enumNum[sui]=..,enumNum[iota]=.."` tags + a selector on the decoder/encoder
+(`NewDecoderForSelector`/`NewEncoderForSelector`), which is implemented and in
+use; the selector comes from `ExtServerDimension.variation`. Every divergent kind
+is tagged per chain and validated, so always set the index from the authoritative
+BCS source (the staged snapshot, below), never from Go field position.
 
 ## Procedure: updating a type to follow an upstream change
 
@@ -125,7 +143,7 @@ index 0 on both) are safe to decode chain-agnostically; the rest stay in
    non-constant-format-string vet findings unrelated to this work, so `-vet=off`
    when iterating).
 7. If the change makes a kind fully exact for a chain, remove it from
-   `uncompletedKinds` (`chain/sui/extserver.go`) and verify the super node /
+   `uncompletedKindsByVariation` (`chain/sui/extserver.go`) and verify the super node /
    syncer for that chain stops skipping it.
 8. Prefer making unknown enum variants **error** rather than silently produce an
    empty value, so the next upstream addition fails loudly instead of corrupting
@@ -139,7 +157,7 @@ index 0 on both) are safe to decode chain-agnostically; the rest stay in
       divergent enums).
 - [ ] `MarshalBCS` and `UnmarshalBCS` agree (symmetric); unknown variants error.
 - [ ] Real-data round-trip test added and passing.
-- [ ] `uncompletedKinds` updated if a kind became exact.
+- [ ] `uncompletedKindsByVariation` updated if a kind became exact.
 - [ ] JSON behavior preserved for fields the platform serves (`json` tags).
 
 ## Gotchas seen in practice
@@ -152,3 +170,14 @@ index 0 on both) are safe to decode chain-agnostically; the rest stay in
 - `ConsensusCommitPrologue` naming: Sui's index-3 `ConsensusCommitPrologue` *is*
   V1; IOTA's `ConsensusCommitPrologueV1` is index 2 with more fields. Different
   structs — keep them separate.
+- `EndOfEpochTransactionKind` BCS variant order ≠ the json-rpc-types enum order:
+  use the staged snapshot (BridgeStateCreate=5, BridgeCommitteeInit=6,
+  StoreExecutionTimeObservations=7, WriteAccumulatorStorageCost=12). Several of
+  its variants are bare-string *units* in the json reply but carry a real BCS
+  payload (`StoreExecutionTimeObservations`, `WriteAccumulatorStorageCost`); those
+  payloads are `json:"-"` and filled in `DeriveAuxInformationFromBCSV1`. Every
+  recent Sui end-of-epoch tx contains them.
+- A non-pointer enum-valued struct field is NOT detected as an enum (the
+  reflection check needs the field to be a pointer, since `IsBcsEnum` is a
+  pointer receiver). Model nested enum fields as pointers (e.g.
+  `ExecutionTimeObservation.Key *ExecutionTimeObservationKey`).

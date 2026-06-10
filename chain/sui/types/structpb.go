@@ -284,6 +284,13 @@ func (s Signature) MarshalStructpb() *structpb.Value {
 	return structpb.NewStringValue(base64.StdEncoding.EncodeToString(s))
 }
 
+// MarshalStructpb serves the shared-object mutability as a bool, mirroring the
+// json-rpc representation: only Mutable is reported as true (see the type doc on
+// SharedObjectMutability).
+func (m SharedObjectMutability) MarshalStructpb() *structpb.Value {
+	return structpb.NewBoolValue(m == SharedObjectMutable)
+}
+
 func (s Event) MarshalStructpb() *structpb.Value {
 	type eventStructpb struct {
 		ID                EventID                `json:"id"`
@@ -337,6 +344,7 @@ func init() {
 	utils.RegisterSpecialType(reflect.TypeOf(CallArg{}))
 	utils.RegisterSpecialType(reflect.TypeOf(PureValue{}))
 	utils.RegisterSpecialType(reflect.TypeOf(Signature{}))
+	utils.RegisterSpecialType(reflect.TypeOf(SharedObjectMutability(0)))
 	utils.RegisterSpecialType(reflect.TypeOf(Event{}))
 	utils.RegisterSpecialType(reflect.TypeOf(EndOfEpochTransactionSingle{}))
 }

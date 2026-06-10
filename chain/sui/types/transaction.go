@@ -13,9 +13,49 @@ import (
 )
 
 type SharedObject struct {
-	ObjectID             ObjectID `json:"objectId"`
-	InitialSharedVersion Number   `json:"initialSharedVersion"`
-	Mutable              bool     `json:"mutable"`
+	ObjectID             ObjectID               `json:"objectId"`
+	InitialSharedVersion Number                 `json:"initialSharedVersion"`
+	Mutability           SharedObjectMutability `json:"mutable"`
+}
+
+// SharedObjectMutability mirrors upstream `SharedObjectMutability` (sui-types
+// transaction.rs). It used to be a plain `bool`, but Sui turned it into an enum
+// while keeping the first two variants binary-compatible with the old bool
+// (0x00/0x01). A third variant (0x02, NonExclusiveWrite) now appears in
+// settlement / system transactions, so a Go `bool` can no longer round-trip the
+// BCS byte-for-byte.
+//
+// BCS: a plain Rust enum, i.e. a ULEB128 variant index; for the 3 variants here
+// that is a single byte, matching how serde encodes this `uint8`.
+//
+// JSON: the json-rpc reply (and what we serve) collapses this back to a bool
+// exactly as upstream sui-json-rpc-types does — only Mutable is reported as
+// `true`; Immutable and NonExclusiveWrite are `false`. Because that mapping is
+// lossy, the exact variant for the BCS re-encode is restored from the decoded
+// raw transaction in DeriveAuxInformationFromBCSV1.
+type SharedObjectMutability uint8
+
+const (
+	SharedObjectImmutable         SharedObjectMutability = 0
+	SharedObjectMutable           SharedObjectMutability = 1
+	SharedObjectNonExclusiveWrite SharedObjectMutability = 2
+)
+
+func (m SharedObjectMutability) MarshalJSON() ([]byte, error) {
+	return json.Marshal(m == SharedObjectMutable)
+}
+
+func (m *SharedObjectMutability) UnmarshalJSON(b []byte) error {
+	var mutable bool
+	if err := json.Unmarshal(b, &mutable); err != nil {
+		return err
+	}
+	if mutable {
+		*m = SharedObjectMutable
+	} else {
+		*m = SharedObjectImmutable
+	}
+	return nil
 }
 
 type ObjectArg struct {

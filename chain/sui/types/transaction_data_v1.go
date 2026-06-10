@@ -215,6 +215,18 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 				return errors.New("targetIsPure != decodedIsPure")
 			}
 			if !targetIsPure {
+				// Object inputs: the json reply collapses a shared object's
+				// mutability to a bool (NonExclusiveWrite becomes false, see
+				// SharedObjectMutability), so the exact variant is only available
+				// from the decoded BCS. Restore it so the re-encode round-trips.
+				targetObj := targetTx.Inputs[i].Object
+				decodedObj := decodedTx.Inputs[i].Object
+				if (targetObj == nil) != (decodedObj == nil) {
+					return errors.New("targetObj nil mismatch with decodedObj")
+				}
+				if targetObj != nil && targetObj.SharedObject != nil && decodedObj.SharedObject != nil {
+					targetObj.SharedObject.Mutability = decodedObj.SharedObject.Mutability
+				}
 				continue
 			}
 			// Derive raw bytes from BCS.

@@ -1,6 +1,6 @@
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel:ts-rules.bzl", "es_proto", "ts_proto")
+load("//bazel:ts-rules.bzl", "es_proto")
 load("//bazel/golang:go_proto_library.bzl", "go_proto_library")
 
 proto_library(
@@ -43,18 +43,8 @@ go_library(
     ],
 )
 
-# TypeScript (ts-proto) codegen of the common protos for the sentio-sdk. Moved
-# here from sentio's //app:common_protos_ts_proto so SDK proto generation lives
-# next to the proto definitions. Consumed by the sentio-sdk //sentio-sdk:write_gen.
-ts_proto(
-    name = "common_protos_ts_proto",
-    esm = True,
-    protos = [":protos_proto"],
-    visibility = ["//visibility:public"],
-)
-
-# protobuf-es (protoc-gen-es) drop-in for `common_protos_ts_proto`. Generates
-# `common_pb.ts` for the protobuf-es migration of the sentio-sdk.
+# TypeScript protobuf-es codegen of the common protos for the sentio-sdk.
+# Consumed by the sentio-sdk //sentio-sdk:write_gen target.
 es_proto(
     name = "common_protos_es_proto",
     protos = [":protos_proto"],
@@ -63,8 +53,8 @@ es_proto(
 
 # common.proto uses grpc-gateway openapiv2 MethodOptions/JSONSchema extensions, so
 # the protobuf-es output of common registers protoc-gen-openapiv2/options as a file
-# dependency (descriptor-faithful; ts-proto silently dropped custom options). Unlike
-# ts-proto, protobuf-es therefore needs these option protos generated and importable.
+# dependency (descriptor-faithful; the previous generator silently dropped custom
+# options). protobuf-es therefore needs these option protos generated and importable.
 es_proto(
     name = "openapiv2_options_es_proto",
     protos = ["@grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2/options:options_proto"],

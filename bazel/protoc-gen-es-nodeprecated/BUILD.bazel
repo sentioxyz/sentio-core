@@ -1,8 +1,7 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary")
 
 # protoc plugin: stock protoc-gen-es with deprecated elements stripped from the
-# descriptor first. Wired as a proto_plugin() tool in //bazel:BUILD.bazel,
-# mirroring how //bazel:ts_proto_bin (@sentio/ts-proto) is provided.
+# descriptor first. Wired as a proto_plugin() tool in //bazel:BUILD.bazel.
 js_binary(
     name = "protoc_gen_es_nodeprecated",
     data = [

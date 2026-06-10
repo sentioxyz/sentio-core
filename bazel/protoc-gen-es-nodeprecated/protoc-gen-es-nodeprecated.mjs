@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 /*
- * protoc-gen-es-nodeprecated — reproduces @sentio/ts-proto's `removeDeprecated`
- * under protobuf-es.
+ * protoc-gen-es-nodeprecated — removes deprecated descriptor elements before
+ * delegating to protobuf-es.
  *
  * Strategy: stock @bufbuild/protoc-gen-es plus an optional `remove_deprecated`
  * pass, controlled by a plugin option of the same name (set by the `es_proto`
- * Bazel rule's `remove_deprecated` attr — the protobuf-es counterpart of
- * `ts_proto`). When set, strip `[deprecated=true]` elements from the
- * CodeGeneratorRequest's FileDescriptorProtos before delegating; otherwise pass
- * through unchanged. Output is identical to stock protoc-gen-es, just minus the
- * deprecated elements when requested — and they also disappear from the embedded
- * base64 descriptor, so the user-facing copy stays wire-compatible with the runtime
- * copy that keeps them (the field is simply an unknown field for this copy).
+ * Bazel rule's `remove_deprecated` attr). When set, strip `[deprecated=true]`
+ * elements from the CodeGeneratorRequest's FileDescriptorProtos before
+ * delegating; otherwise pass through unchanged. Output is identical to stock
+ * protoc-gen-es, just minus the deprecated elements when requested — and they
+ * also disappear from the embedded base64 descriptor, so the user-facing copy
+ * stays wire-compatible with the runtime copy that keeps them (the field is
+ * simply an unknown field for this copy).
  *
  * Scope (matches what processor.proto uses + the safe subset):
  *   removed: deprecated fields, whole messages, whole enums, services, methods, extensions
- *   KEPT:    individual enum VALUES (avoids the ts-proto enum-value type-conflict class)
+ *   KEPT:    individual enum VALUES (avoids enum-value type-conflict issues)
  *            oneof declarations (kept so surviving fields' oneofIndex stays valid)
  *
  * NOT implemented (fails loudly — see assertNoOrphanedOneof): removing a field that
@@ -108,7 +108,7 @@ function takeRemoveDeprecated(req) {
 // grpc-gateway's openapiv2 annotations, google.api.http/field_behavior/visibility).
 // protobuf-es is descriptor-faithful, so it emits a file-descriptor dependency +
 // import for every imported .proto — which would force generating those option
-// protos too (ts-proto silently dropped all custom options, so it never did).
+  // protos too (legacy codegen silently dropped all custom options, so it never did).
 //
 // Since NO message/field references a TYPE from these option-only files (they appear
 // only in options), we can drop them from each FileDescriptorProto's `dependency`

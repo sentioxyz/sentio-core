@@ -10,71 +10,6 @@ load(
     "proto_compile",
 )
 
-BASE_OPTIONS = [
-    "forceLong=bigint",
-    "exportCommonSymbols=false",
-    "esModuleInterop=true",
-    "outputServices=generic-definitions",
-    "useExactTypes=false",
-]
-
-GRPC_OPTIONS = [
-    "outputServices=nice-grpc",
-]
-
-ESM_OPTIONS = ["importSuffix=.js"]
-
-def ts_proto_compile_impl(ctx):
-    options = [] + BASE_OPTIONS
-    if ctx.attr.esm:
-        options += ESM_OPTIONS
-    if ctx.attr.grpc:
-        options += GRPC_OPTIONS
-    if ctx.attr.remove_deprecated:
-        options += ["removeDeprecated=true"]
-    options += ctx.attr.options
-
-    extra_protoc_args = getattr(ctx.attr, "extra_protoc_args", [])
-    extra_protoc_files = ctx.files.extra_protoc_files
-
-    plugin_options = {
-        "*": options,
-    }
-
-    return proto_compile(ctx, plugin_options, extra_protoc_args, extra_protoc_files)
-
-ts_proto = rule(
-    implementation = ts_proto_compile_impl,
-    attrs = dict(
-        proto_compile_attrs,
-        esm = attr.bool(
-            default = False,
-            doc = "Whether to generate ESM modules",
-        ),
-        grpc = attr.bool(
-            default = False,
-            doc = "Whether to generate gRPC services stub",
-        ),
-        options = attr.string_list(
-            default = [],
-            doc = "Additional options to pass to protoc",
-        ),
-        remove_deprecated = attr.bool(
-            default = False,
-            doc = "Whether to remove deprecated fields",
-        ),
-        _plugins = attr.label_list(
-            providers = [ProtoPluginInfo],
-            default = [
-                Label("//bazel:ts-proto-plugin"),
-            ],
-            cfg = "exec",
-            doc = "List of protoc plugins to apply",
-        ),
-    ),
-    toolchains = proto_compile_toolchains,
-)
-
 ts_grpcgateway = rule(
     implementation = proto_compile_impl,
     attrs = dict(
@@ -91,11 +26,10 @@ ts_grpcgateway = rule(
     toolchains = proto_compile_toolchains,
 )
 
-# protobuf-es (protoc-gen-es) drop-in replacement for `ts_proto`. Always ESM
+# protobuf-es (protoc-gen-es) TypeScript codegen. Always ESM
 # (import_extension=js). `remove_deprecated = True` strips `[deprecated=true]`
-# elements — the protobuf-es counterpart of ts_proto's removeDeprecated. No `grpc`
-# attr is needed: protoc-gen-es always emits a GenService descriptor for every
-# service (consumed directly by connect-es); there is no nice-grpc-style toggle.
+# elements. No `grpc` attr is needed: protoc-gen-es always emits a GenService
+# descriptor for every service (consumed directly by connect-es).
 ES_BASE_OPTIONS = [
     "target=ts",
     "import_extension=js",
@@ -104,8 +38,9 @@ ES_BASE_OPTIONS = [
 
 # Imports that exist purely to declare custom-option extensions (annotations), never
 # referenced as message/field TYPES. protobuf-es would otherwise emit a file-descriptor
-# dependency + import for each (forcing those option protos to be generated too); ts-proto
-# silently dropped all custom options, so it never did. The es-proto-plugin drops these
+# dependency + import for each (forcing those option protos to be generated too);
+# the previous generator silently dropped all custom options, so it never did.
+# The es-proto-plugin drops these
 # from each FileDescriptorProto's `dependency` list (the option bytes remain as harmless
 # unknown fields). Override per-target via the `strip_imports` attr.
 ES_STRIP_IMPORTS = [
@@ -135,7 +70,7 @@ es_proto = rule(
         proto_compile_attrs,
         remove_deprecated = attr.bool(
             default = False,
-            doc = "Strip [deprecated=true] fields/messages/enums/services/methods from the generated code (protobuf-es counterpart of ts_proto's remove_deprecated)",
+            doc = "Strip [deprecated=true] fields/messages/enums/services/methods from the generated code",
         ),
         strip_imports = attr.string_list(
             default = ES_STRIP_IMPORTS,

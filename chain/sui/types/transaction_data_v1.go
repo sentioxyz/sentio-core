@@ -249,6 +249,21 @@ func DeriveAuxInformationFromBCSV1(data *TransactionDataV1, rawTransaction []byt
 		}
 		return nil
 	}
+
+	// Current sui json-rpc reports both a regular PTB (BCS variant 0) and a system
+	// PTB (BCS variant 10, ProgrammableSystemTransaction) under the same
+	// "ProgrammableTransaction" kind, so json alone can't tell them apart. Align
+	// the json-parsed kind to the decoded BCS variant so the subsequent aux
+	// derivation and the TxSanityCheck re-encode use the correct variant.
+	switch {
+	case data.Kind.ProgrammableTransaction != nil && decodedV1.Kind.ProgrammableSystemTransaction != nil:
+		data.Kind.ProgrammableSystemTransaction = data.Kind.ProgrammableTransaction
+		data.Kind.ProgrammableTransaction = nil
+	case data.Kind.ProgrammableSystemTransaction != nil && decodedV1.Kind.ProgrammableTransaction != nil:
+		data.Kind.ProgrammableTransaction = data.Kind.ProgrammableSystemTransaction
+		data.Kind.ProgrammableSystemTransaction = nil
+	}
+
 	switch {
 	case data.Kind.ChangeEpoch != nil:
 		if decodedV1.Kind.ChangeEpoch == nil {

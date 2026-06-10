@@ -42,11 +42,13 @@ Notes:
   `GenesisTransaction` payload (every genesis object) is not modeled, so the
   samples are trimmed (object list shortened, `rawTransaction` dropped) and only
   checked for json decode + `Kind()`.
-- `ProgrammableSystemTransaction` (Sui variant 10) is modeled (same payload as
-  ProgrammableTransaction) but has no captured sample yet. It is NOT skipped: if
-  one is encountered it goes through DeriveAux + TxSanityCheck like a normal
-  programmable tx, and a round-trip failure halts slot loading rather than
-  persisting unvalidated data.
+- `ProgrammableSystemTransaction` (Sui BCS variant 10) appears on every recent
+  sui checkpoint, but current sui json-rpc reports it under the **same**
+  `"ProgrammableTransaction"` kind as a regular PTB (so it's indistinguishable in
+  json). `programmable-system.json` is such a sample (json kind
+  `ProgrammableTransaction`, BCS variant 10). DeriveAux aligns the json-parsed
+  kind to the decoded BCS variant, and Kind()/MarshalJSON present it as
+  `ProgrammableTransaction` to match the node.
 
 ## Refreshing / adding a sample
 

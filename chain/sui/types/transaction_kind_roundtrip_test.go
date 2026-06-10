@@ -31,6 +31,9 @@ func TestTransactionKindRoundTrip(t *testing.T) {
 		bcsValidated bool
 	}{
 		{"testdata/sui/programmable.json", VariationSUI, "ProgrammableTransaction", true},
+		// BCS variant 10 (ProgrammableSystemTransaction); json-rpc reports it under
+		// the regular "ProgrammableTransaction" kind.
+		{"testdata/sui/programmable-system.json", VariationSUI, "ProgrammableTransaction", true},
 		{"testdata/sui/change-epoch.json", VariationSUI, "ChangeEpoch", true},
 		{"testdata/sui/consensus-commit-prologue.json", VariationSUI, "ConsensusCommitPrologue", true},
 		{"testdata/sui/consensus-commit-prologue-v2.json", VariationSUI, "ConsensusCommitPrologueV2", true},

@@ -790,7 +790,10 @@ func (s *TransactionKind) Kind() string {
 	case s.ProgrammableTransaction != nil:
 		return "ProgrammableTransaction"
 	case s.ProgrammableSystemTransaction != nil:
-		return "ProgrammableSystemTransaction"
+		// Current sui json-rpc reports the system PTB (BCS variant 10) under the
+		// same "ProgrammableTransaction" kind as a regular PTB; present it the same
+		// way (the variant is an internal BCS distinction, see DeriveAux).
+		return "ProgrammableTransaction"
 	case s.ChangeEpoch != nil:
 		return "ChangeEpoch"
 	case s.Genesis != nil:
@@ -868,11 +871,12 @@ func (s TransactionKind) MarshalJSON() ([]byte, error) {
 			ProgrammableTransaction: s.ProgrammableTransaction,
 		}
 	case s.ProgrammableSystemTransaction != nil:
+		// Present the system PTB under the same json kind as a regular PTB (see Kind()).
 		j = &struct {
 			Kind string `json:"kind"`
 			*ProgrammableTransaction
 		}{
-			Kind:                    "ProgrammableSystemTransaction",
+			Kind:                    "ProgrammableTransaction",
 			ProgrammableTransaction: s.ProgrammableSystemTransaction,
 		}
 	case s.ChangeEpoch != nil:

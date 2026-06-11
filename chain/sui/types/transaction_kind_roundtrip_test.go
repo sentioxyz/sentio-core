@@ -46,6 +46,9 @@ func TestTransactionKindRoundTrip(t *testing.T) {
 		{"testdata/sui/consensus-commit-prologue-v2.json", VariationSUI, "ConsensusCommitPrologueV2", true},
 		{"testdata/sui/consensus-commit-prologue-v3.json", VariationSUI, "ConsensusCommitPrologueV3", true},
 		{"testdata/sui/consensus-commit-prologue-v4.json", VariationSUI, "ConsensusCommitPrologueV4", true},
+		// V4 carrying a non-empty CancelledTransactionsV2 list; the json-rpc encodes
+		// these version assignments as positional tuples, not objects.
+		{"testdata/sui/consensus-commit-prologue-v4-cancelled.json", VariationSUI, "ConsensusCommitPrologueV4", true},
 		{"testdata/sui/randomness-state-update.json", VariationSUI, "RandomnessStateUpdate", true},
 		{"testdata/sui/authenticator-state-update.json", VariationSUI, "AuthenticatorStateUpdate", true},
 		{"testdata/sui/end-of-epoch.json", VariationSUI, "EndOfEpochTransaction", true},

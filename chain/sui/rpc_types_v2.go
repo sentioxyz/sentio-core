@@ -265,7 +265,7 @@ func (t *ExtendedGrpcTransaction) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (t *ExtendedGrpcTransaction) GetSimpleCheckpoint() SimpleCheckpoint {
+func (t ExtendedGrpcTransaction) GetSimpleCheckpoint() SimpleCheckpoint {
 	return SimpleCheckpoint{
 		Checkpoint:  t.Checkpoint,
 		Digest:      t.CheckpointDigest,
@@ -330,7 +330,7 @@ func (o *ExtendedGrpcChangedObject) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (t *ExtendedGrpcChangedObject) GetSimpleCheckpoint() SimpleCheckpoint {
+func (t ExtendedGrpcChangedObject) GetSimpleCheckpoint() SimpleCheckpoint {
 	return SimpleCheckpoint{
 		Checkpoint:  t.Checkpoint,
 		Digest:      t.CheckpointDigest,

@@ -46,6 +46,9 @@ func TestTransactionKindRoundTrip(t *testing.T) {
 		{"testdata/sui/consensus-commit-prologue-v2.json", VariationSUI, "ConsensusCommitPrologueV2", true},
 		{"testdata/sui/consensus-commit-prologue-v3.json", VariationSUI, "ConsensusCommitPrologueV3", true},
 		{"testdata/sui/consensus-commit-prologue-v4.json", VariationSUI, "ConsensusCommitPrologueV4", true},
+		// V4 carrying a non-empty CancelledTransactionsV2 list; the json-rpc encodes
+		// these version assignments as positional tuples, not objects.
+		{"testdata/sui/consensus-commit-prologue-v4-cancelled.json", VariationSUI, "ConsensusCommitPrologueV4", true},
 		{"testdata/sui/randomness-state-update.json", VariationSUI, "RandomnessStateUpdate", true},
 		{"testdata/sui/authenticator-state-update.json", VariationSUI, "AuthenticatorStateUpdate", true},
 		{"testdata/sui/end-of-epoch.json", VariationSUI, "EndOfEpochTransaction", true},
@@ -86,6 +89,19 @@ func TestTransactionKindRoundTrip(t *testing.T) {
 			kindJSON, err := json.Marshal(tx.Transaction.Data.V1.Kind)
 			require.NoError(t, err)
 			jsonassert.New(t).Assertf(string(kindJSON), "%s", string(orig.Transaction.Data.Transaction))
+
+			// Full data-level fidelity (covers gasData/sender/messageVersion, which
+			// the kind-only check above misses — e.g. SuiObjectRef.version is a
+			// json number while SuiObjectArg versions are strings).
+			var origData struct {
+				Transaction struct {
+					Data json.RawMessage `json:"data"`
+				} `json:"transaction"`
+			}
+			require.NoError(t, json.Unmarshal(data, &origData))
+			dataJSON, err := json.Marshal(tx.Transaction.Data)
+			require.NoError(t, err)
+			jsonassert.New(t).Assertf(string(dataJSON), "%s", string(origData.Transaction.Data))
 
 			raw := tx.RawTransaction.Data()
 			require.NotEmpty(t, raw)

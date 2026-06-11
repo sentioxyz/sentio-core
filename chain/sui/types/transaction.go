@@ -501,6 +501,100 @@ type VersionAssignmentV2 struct {
 	Version      Number
 }
 
+// The json-rpc encodes these consensus version-assignment types as positional
+// tuples (mirroring their Rust tuple/struct shapes), not json objects, so each
+// needs explicit (un)marshalling:
+//   - VersionAssignment   : [objectId, version]
+//   - CanceledTransaction : [txDigest, [VersionAssignment...]]
+//   - VersionAssignmentV2 : [[objectId, startVersion], version]
+//   - CanceledTransactionV2: [txDigest, [VersionAssignmentV2...]]
+// (BCS is unaffected — these stay field-position structs there, and a nested
+// tuple is BCS-equivalent to the flattened fields.)
+
+func (v VersionAssignment) MarshalJSON() ([]byte, error) {
+	// Versions are emitted as bare json numbers (BigInt), not Number's quoted
+	// string form, to match the json-rpc reply.
+	return json.Marshal([]any{v.ObjectID, v.Version.BigInt()})
+}
+
+func (v *VersionAssignment) UnmarshalJSON(b []byte) error {
+	var t []json.RawMessage
+	if err := json.Unmarshal(b, &t); err != nil {
+		return err
+	}
+	if len(t) != 2 {
+		return errors.Errorf("VersionAssignment expects [objectId, version], got %s", b)
+	}
+	if err := json.Unmarshal(t[0], &v.ObjectID); err != nil {
+		return err
+	}
+	return json.Unmarshal(t[1], &v.Version)
+}
+
+func (c CanceledTransaction) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]any{c.TxDigest, c.VersionAssignments})
+}
+
+func (c *CanceledTransaction) UnmarshalJSON(b []byte) error {
+	var t []json.RawMessage
+	if err := json.Unmarshal(b, &t); err != nil {
+		return err
+	}
+	if len(t) != 2 {
+		return errors.Errorf("CanceledTransaction expects [txDigest, versionAssignments], got %s", b)
+	}
+	if err := json.Unmarshal(t[0], &c.TxDigest); err != nil {
+		return err
+	}
+	return json.Unmarshal(t[1], &c.VersionAssignments)
+}
+
+func (v VersionAssignmentV2) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]any{[]any{v.ObjectID, v.StartVersion.BigInt()}, v.Version.BigInt()})
+}
+
+func (v *VersionAssignmentV2) UnmarshalJSON(b []byte) error {
+	var t []json.RawMessage
+	if err := json.Unmarshal(b, &t); err != nil {
+		return err
+	}
+	if len(t) != 2 {
+		return errors.Errorf("VersionAssignmentV2 expects [[objectId, startVersion], version], got %s", b)
+	}
+	var inner []json.RawMessage
+	if err := json.Unmarshal(t[0], &inner); err != nil {
+		return err
+	}
+	if len(inner) != 2 {
+		return errors.Errorf("VersionAssignmentV2 inner expects [objectId, startVersion], got %s", t[0])
+	}
+	if err := json.Unmarshal(inner[0], &v.ObjectID); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(inner[1], &v.StartVersion); err != nil {
+		return err
+	}
+	return json.Unmarshal(t[1], &v.Version)
+}
+
+func (c CanceledTransactionV2) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]any{c.TxDigest, c.VersionAssignments})
+}
+
+func (c *CanceledTransactionV2) UnmarshalJSON(b []byte) error {
+	var t []json.RawMessage
+	if err := json.Unmarshal(b, &t); err != nil {
+		return err
+	}
+	if len(t) != 2 {
+		return errors.Errorf("CanceledTransactionV2 expects [txDigest, versionAssignments], got %s", b)
+	}
+	if err := json.Unmarshal(t[0], &c.TxDigest); err != nil {
+		return err
+	}
+	return json.Unmarshal(t[1], &c.VersionAssignments)
+}
+
 func (s *ConsensusDeterminedVersionAssignments) UnmarshalJSON(data []byte) error {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(data, &m); err != nil {

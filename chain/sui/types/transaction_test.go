@@ -138,3 +138,37 @@ func TestConsensusDeterminedVersionAssignmentsJSON(t *testing.T) {
 	var bad ConsensusDeterminedVersionAssignments
 	assert.Error(t, json.Unmarshal([]byte(`{"Whatever":[]}`), &bad))
 }
+
+// TestCancelledTransactionsTupleJSON locks in the positional-tuple json shape the
+// json-rpc uses for the version-assignment payloads (objects would fail to
+// unmarshal, which previously broke ConsensusCommitPrologue parsing on
+// checkpoints with cancelled transactions). Versions are bare json numbers.
+func TestCancelledTransactionsTupleJSON(t *testing.T) {
+	// V1: {"CancelledTransactions": [ [digest, [[objectId, version], ...]] ]}
+	v1 := `{"CancelledTransactions":[["E19GFcJn1GVk7J74xTpj16fACPr15aDWb7rz11qJzC3R",[["0x0000000000000000000000000000000000000000000000000000000000000006",1126]]]]}`
+	var c1 ConsensusDeterminedVersionAssignments
+	require.NoError(t, json.Unmarshal([]byte(v1), &c1))
+	require.NotNil(t, c1.CanceledTransactions)
+	require.Len(t, c1.CanceledTransactions.Transactions, 1)
+	tx1 := c1.CanceledTransactions.Transactions[0]
+	assert.Equal(t, "E19GFcJn1GVk7J74xTpj16fACPr15aDWb7rz11qJzC3R", tx1.TxDigest.String())
+	require.Len(t, tx1.VersionAssignments, 1)
+	assert.Equal(t, uint64(1126), tx1.VersionAssignments[0].Version.Uint64())
+	out1, err := json.Marshal(c1)
+	require.NoError(t, err)
+	assert.JSONEq(t, v1, string(out1))
+
+	// V2: {"CancelledTransactionsV2": [ [digest, [[[objectId, startVersion], version], ...]] ]}
+	v2 := `{"CancelledTransactionsV2":[["E19GFcJn1GVk7J74xTpj16fACPr15aDWb7rz11qJzC3R",[[["0x0000000000000000000000000000000000000000000000000000000000000006",1],9223372036854775808]]]]}`
+	var c2 ConsensusDeterminedVersionAssignments
+	require.NoError(t, json.Unmarshal([]byte(v2), &c2))
+	require.NotNil(t, c2.CanceledTransactionsV2)
+	require.Len(t, c2.CanceledTransactionsV2.Transactions, 1)
+	va := c2.CanceledTransactionsV2.Transactions[0].VersionAssignments
+	require.Len(t, va, 1)
+	assert.Equal(t, uint64(1), va[0].StartVersion.Uint64())
+	assert.Equal(t, uint64(9223372036854775808), va[0].Version.Uint64())
+	out2, err := json.Marshal(c2)
+	require.NoError(t, err)
+	assert.JSONEq(t, v2, string(out2))
+}

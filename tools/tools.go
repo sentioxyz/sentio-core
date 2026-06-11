@@ -4,5 +4,5 @@
 package tools
 
 import (
-	_ "github.com/grpc-ecosystem/protoc-gen-grpc-gateway-ts"
+	_ "github.com/dpup/protoc-gen-grpc-gateway-ts"
 )

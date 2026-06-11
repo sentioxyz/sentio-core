@@ -1,7 +1,8 @@
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@rules_proto_grpc//:defs.bzl", "proto_plugin")
 
-# https://github.com/grpc-ecosystem/protoc-gen-grpc-gateway-ts
+# https://github.com/dpup/protoc-gen-grpc-gateway-ts (maintained fork of the
+# archived grpc-ecosystem/protoc-gen-grpc-gateway-ts)
 proto_plugin(
     name = "ts-grpcgateway-plugin",
     options = [
@@ -11,7 +12,7 @@ proto_plugin(
         "{protopath}.pb.ts",
         #        "/../fetch.pb.ts",
     ],
-    tool = "@com_github_grpc_ecosystem_protoc_gen_grpc_gateway_ts//:protoc-gen-grpc-gateway-ts",
+    tool = "@com_github_dpup_protoc_gen_grpc_gateway_ts//:protoc-gen-grpc-gateway-ts",
     visibility = ["//visibility:public"],
 )
 

@@ -213,7 +213,17 @@ go_tool_deps = use_extension(
     isolate = True,
 )
 go_tool_deps.from_file(go_mod = "//tools:go.mod")
-use_repo(go_tool_deps, "com_github_grpc_ecosystem_protoc_gen_grpc_gateway_ts")
+
+# The dpup fork vendors google/api protos under test/integration/protos; gazelle's
+# generated proto rules there don't resolve. Disable proto rule generation and use
+# the checked-in .pb.go files instead (the plugin binary doesn't need the tests).
+go_tool_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/dpup/protoc-gen-grpc-gateway-ts",
+)
+use_repo(go_tool_deps, "com_github_dpup_protoc_gen_grpc_gateway_ts")
 
 ## Nodejs
 node = use_extension(

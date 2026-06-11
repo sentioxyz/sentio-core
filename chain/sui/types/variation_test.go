@@ -15,21 +15,6 @@ func TestVariationString(t *testing.T) {
 	assert.Equal(t, "iota", string(VariationIOTA))
 }
 
-func TestVariationFromNetwork(t *testing.T) {
-	cases := map[string]Variation{
-		"sui-mainnet":  VariationSUI,
-		"sui-testnet":  VariationSUI,
-		"sui":          VariationSUI,
-		"iota-mainnet": VariationIOTA,
-		"iota-testnet": VariationIOTA,
-		"iota":         VariationIOTA,
-		"":             VariationSUI,
-	}
-	for network, want := range cases {
-		assert.Equal(t, want, VariationFromNetwork(network), "network=%q", network)
-	}
-}
-
 func TestVariationFromChainID(t *testing.T) {
 	cases := map[chains.SuiChainID]Variation{
 		chains.SuiMainnetID:  VariationSUI,

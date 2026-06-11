@@ -23,18 +23,6 @@ const (
 // String returns the serde selector for this variation.
 func (v Variation) String() string { return string(v) }
 
-// VariationFromNetwork resolves the chain variation from a network name. IOTA
-// networks (e.g. "iota-mainnet", "iota-testnet") are VariationIOTA; every other
-// sui-chain-type network defaults to VariationSUI. This is the single source of
-// truth for the sui/iota distinction — callers (e.g. the launcher) should use it
-// rather than re-checking the network name.
-func VariationFromNetwork(network string) Variation {
-	if strings.HasPrefix(network, "iota") {
-		return VariationIOTA
-	}
-	return VariationSUI
-}
-
 // VariationFromChainID resolves the chain variation from a sui-chain-type chain
 // id. IOTA chain ids map to VariationIOTA; everything else (sui mainnet/testnet)
 // defaults to VariationSUI.

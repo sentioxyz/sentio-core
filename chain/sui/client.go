@@ -56,10 +56,13 @@ func (c ClientConfig) Trim() ClientConfig {
 	// be keyed with the variation's real method names.
 	variation := c.Variation()
 	methodTimeout := utils.CopyMap(c.MethodTimeout)
-	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_getLatestCheckpointSequenceNumber"), time.Second*3)
-	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_getCheckpoint"), time.Second*3)
-	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_multiGetTransactionBlocks"), time.Second*30)
-	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_tryMultiGetPastObjects"), time.Second*30)
+	setDefaultTimeout := func(baseSuiMethod string, timeout time.Duration) {
+		utils.PutIfNotExist(methodTimeout, variation.RPCMethod(baseSuiMethod), timeout)
+	}
+	setDefaultTimeout("sui_getLatestCheckpointSequenceNumber", time.Second*3)
+	setDefaultTimeout("sui_getCheckpoint", time.Second*3)
+	setDefaultTimeout("sui_multiGetTransactionBlocks", time.Second*30)
+	setDefaultTimeout("sui_tryMultiGetPastObjects", time.Second*30)
 	return ClientConfig{
 		Endpoint:            strings.TrimSpace(c.Endpoint),
 		AdditionalEndpoints: utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),

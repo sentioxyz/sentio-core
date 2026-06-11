@@ -90,6 +90,19 @@ func TestTransactionKindRoundTrip(t *testing.T) {
 			require.NoError(t, err)
 			jsonassert.New(t).Assertf(string(kindJSON), "%s", string(orig.Transaction.Data.Transaction))
 
+			// Full data-level fidelity (covers gasData/sender/messageVersion, which
+			// the kind-only check above misses — e.g. SuiObjectRef.version is a
+			// json number while SuiObjectArg versions are strings).
+			var origData struct {
+				Transaction struct {
+					Data json.RawMessage `json:"data"`
+				} `json:"transaction"`
+			}
+			require.NoError(t, json.Unmarshal(data, &origData))
+			dataJSON, err := json.Marshal(tx.Transaction.Data)
+			require.NoError(t, err)
+			jsonassert.New(t).Assertf(string(dataJSON), "%s", string(origData.Transaction.Data))
+
 			raw := tx.RawTransaction.Data()
 			require.NotEmpty(t, raw)
 

@@ -159,6 +159,58 @@ is out of the BCS round-trip and not part of this audit.
 To fetch the snapshots: `gh api repos/MystenLabs/sui/contents/crates/sui-types/tests/snapshots/format__sui.yaml.snap -q .content | base64 -d`
 and `gh api repos/iotaledger/iota/contents/crates/iota-core/tests/staged/iota.yaml -q .content | base64 -d`.
 
+## The JSON path has its own authority — audit it separately from BCS
+
+`rawTransaction` (BCS) and the json reply are two independent wire formats; a
+field can be right in one and wrong in the other (the `CancelledTransactionsV2`
+bug round-tripped fine in BCS but the json shape was an object where the reply is
+a positional tuple). So audit JSON against its own source of truth — **NOT** the
+BCS snapshot:
+
+- **Sui**: `crates/sui-json-rpc-types/src/sui_transaction.rs` (`Sui*` types) plus,
+  for newer system kinds it embeds directly, the core serde in
+  `sui-types/src/messages_consensus.rs`.
+- **IOTA**: `crates/iota-json-rpc-types/src/iota_transaction.rs` (`Iota*` types).
+
+Walk the whole `TransactionDataV1` json subtree (transaction/sender/gasData; the
+kind and every payload; PTB inputs/commands; cancelled-tx assignments; JWKs) and
+compare each field's *serde shape*, not just enum variants. Gotchas that bit us
+or nearly did:
+
+- **`rename_all` is per-type, not uniform.** `SuiTransactionBlockDataV1` is
+  camelCase (`gasData`), but `SuiChangeEpoch` / `SuiConsensusCommitPrologue*` keep
+  **snake_case** (`storage_charge`, `commit_timestamp_ms`). `SuiCallArg` /
+  `SuiObjectArg` / `SuiPureValue` are camelCase (`valueType`, `initialSharedVersion`).
+- **u64 is a json string or number depending on serde_as.** `BigInt<u64>` /
+  `DisplayFromStr` ⇒ **string** (model as `Number`). A plain `SequenceNumber`
+  with no `serde_as` ⇒ **number** (`SuiObjectRef.version` in gasData,
+  `BridgeCommitteeUpdate`, the versions inside cancelled-tx tuples — model as
+  `uint64` / emit via `BigInt()`). `AsSequenceNumber` ⇒ **string** (`SuiObjectArg`
+  versions). So the same logical "version" is a number in one place and a string
+  in another — don't assume.
+- **Enum tagging differs.** Internally tagged: `TransactionKind` (`tag="kind"`),
+  `SuiCallArg` (`tag="type"`), `SuiObjectArg` (`tag="objectType"`). Externally
+  tagged / default: `SuiCommand`, `SuiArgument`, `SuiEndOfEpochTransactionKind`,
+  `ConsensusDeterminedVersionAssignments` — units serialize as a **bare string**
+  (`"GasCoin"`, `"AuthenticatorStateCreate"`), payloads as `{"Variant": ...}`,
+  and several carry **positional-tuple** payloads (`SuiCommand::SplitCoins` etc.,
+  cancelled-tx assignments) that need hand-written tuple (un)marshal.
+- **json drops fields BCS keeps.** `SuiChangeEpoch` omits protocol_version /
+  non_refundable_storage_fee / system_packages; `SuiCommand::Publish`/`Upgrade`
+  drop the module bytecodes; `TransactionDataV1` json has no `expiration`; the
+  `*_obj_initial_shared_version` and V4 `adjust_rewards_by_score` are BCS-only.
+  Mark these `json:"-"` and fill them from BCS in `DeriveAuxInformationFromBCSV1`.
+- **json also collapses BCS distinctions.** IOTA reports BCS ChangeEpoch V2/V3/V4
+  all under the one `"ChangeEpochV2"` json kind (disambiguated by which optional
+  fields appear); `SharedObjectMutability` collapses to a bool.
+
+The kind round-trip test (`transaction_kind_roundtrip_test.go`) asserts json
+fidelity for the **full `transaction.data`** (not just the kind), so gasData and
+sender are covered — but only for the kinds/sub-shapes a real sample exercises.
+Coverage of sample *shapes* is the weak point (the cancelled-tx tuple slipped
+through because no sample had a non-empty list and the unit test used `[]`); when
+touching a json shape, add a sample that actually exercises it.
+
 ## Procedure: updating a type to follow an upstream change
 
 1. **Find the authoritative Rust definition** for the exact version/branch in

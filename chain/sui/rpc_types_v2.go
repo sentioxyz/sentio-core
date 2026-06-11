@@ -265,6 +265,14 @@ func (t *ExtendedGrpcTransaction) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (t *ExtendedGrpcTransaction) GetSimpleCheckpoint() SimpleCheckpoint {
+	return SimpleCheckpoint{
+		Checkpoint:  t.Checkpoint,
+		Digest:      t.CheckpointDigest,
+		TimestampMS: t.TimestampMs,
+	}
+}
+
 func (o ExtendedGrpcChangedObject) MarshalJSON() ([]byte, error) {
 	changed := json.RawMessage("null")
 	if o.ChangedObject != nil {
@@ -320,6 +328,14 @@ func (o *ExtendedGrpcChangedObject) UnmarshalJSON(data []byte) error {
 		o.ChangedObject = msg
 	}
 	return nil
+}
+
+func (t *ExtendedGrpcChangedObject) GetSimpleCheckpoint() SimpleCheckpoint {
+	return SimpleCheckpoint{
+		Checkpoint:  t.Checkpoint,
+		Digest:      t.CheckpointDigest,
+		TimestampMS: t.TimestampMs,
+	}
 }
 
 // CommandFilter has 3 parts and linked AND

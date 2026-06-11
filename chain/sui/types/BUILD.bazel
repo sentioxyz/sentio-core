@@ -21,6 +21,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//chain/sui/types/serde",
+        "//common/chains",
         "//common/log",
         "//common/utils",
         "@com_github_ethereum_go_ethereum//common/hexutil",
@@ -54,6 +55,7 @@ go_test(
     embed = [":types"],
     deps = [
         "//chain/sui/types/serde",
+        "//common/chains",
         "//common/log",
         "//common/utils",
         "@com_github_goccy_go_json//:go-json",

@@ -20,6 +20,7 @@ import (
 
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/chain/sui/types"
+	"sentioxyz/sentio-core/common/chains"
 	"sentioxyz/sentio-core/common/concurrency"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/log"
@@ -33,8 +34,12 @@ type ClientConfig struct {
 	GrpcEndpoint       string `json:"sui_grpc_endpoint" yaml:"sui_grpc_endpoint"`
 	MaxCallRecvMsgSize int    `json:"sui_grpc_max_msg_size" yaml:"sui_grpc_max_msg_size"`
 
-	// for iota mainnet/testnet SpecialMethodPrefix need to set to `iota`
-	SpecialMethodPrefix string `json:"sui_special_method_prefix" yaml:"sui_special_method_prefix"`
+	// ChainID decides the sui variation (sui vs iota), which in turn decides the
+	// json-rpc special method prefix and the MethodTimeout method names. For iota
+	// mainnet/testnet this makes the client issue iota-prefixed methods
+	// automatically (the leading "sui" is replaced by "iota", e.g. sui_* -> iota_*
+	// and suix_* -> iotax_*).
+	ChainID chains.SuiChainID `json:"sui_chain_id" yaml:"sui_chain_id"`
 
 	KeepWatch     time.Duration            `json:"keep_watch" yaml:"keep_watch"`
 	MethodTimeout map[string]time.Duration `json:"method_timeout" yaml:"method_timeout"`
@@ -47,17 +52,22 @@ type ClientConfig struct {
 }
 
 func (c ClientConfig) Trim() ClientConfig {
+	// The variation (derived from ChainID) decides the actual method names, so
+	// the default timeouts land on the right keys (e.g. iota_getCheckpoint for
+	// IOTA). MethodTimeout is looked up after the method is rewritten, so it must
+	// be keyed with the variation's real method names.
+	variation := c.Variation()
 	methodTimeout := utils.CopyMap(c.MethodTimeout)
-	utils.PutIfNotExist(methodTimeout, "sui_getLatestCheckpointSequenceNumber", time.Second*3)
-	utils.PutIfNotExist(methodTimeout, "sui_getCheckpoint", time.Second*3)
-	utils.PutIfNotExist(methodTimeout, "sui_multiGetTransactionBlocks", time.Second*30)
-	utils.PutIfNotExist(methodTimeout, "sui_tryMultiGetPastObjects", time.Second*30)
+	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_getLatestCheckpointSequenceNumber"), time.Second*3)
+	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_getCheckpoint"), time.Second*3)
+	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_multiGetTransactionBlocks"), time.Second*30)
+	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_tryMultiGetPastObjects"), time.Second*30)
 	return ClientConfig{
 		Endpoint:            strings.TrimSpace(c.Endpoint),
 		AdditionalEndpoints: utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
 		GrpcEndpoint:        strings.TrimSpace(c.GrpcEndpoint),
 		MaxCallRecvMsgSize:  utils.Select(c.MaxCallRecvMsgSize == 0, 1024*1024*100, c.MaxCallRecvMsgSize), // default 100M
-		SpecialMethodPrefix: strings.TrimSpace(c.SpecialMethodPrefix),
+		ChainID:             c.ChainID,
 		KeepWatch:           utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
 		MethodTimeout:       methodTimeout,
 		MethodBlackList:     c.MethodBlackList,
@@ -65,17 +75,20 @@ func (c ClientConfig) Trim() ClientConfig {
 	}
 }
 
-func (c ClientConfig) SetSpecialMethodPrefix(specialMethodPrefix string) ClientConfig {
-	r := c
-	r.SpecialMethodPrefix = strings.TrimSpace(specialMethodPrefix)
-	if r.SpecialMethodPrefix != "" {
-		r.MethodTimeout = utils.CopyMap(c.MethodTimeout)
-		utils.PutIfNotExist(r.MethodTimeout, r.SpecialMethodPrefix+"_getLatestCheckpointSequenceNumber", time.Second*3)
-		utils.PutIfNotExist(r.MethodTimeout, r.SpecialMethodPrefix+"_getCheckpoint", time.Second*3)
-		utils.PutIfNotExist(r.MethodTimeout, r.SpecialMethodPrefix+"_multiGetTransactionBlocks", time.Second*30)
-		utils.PutIfNotExist(r.MethodTimeout, r.SpecialMethodPrefix+"_tryMultiGetPastObjects", time.Second*30)
-	}
-	return r
+func (c ClientConfig) SetChainID(chainID chains.SuiChainID) ClientConfig {
+	c.ChainID = chainID
+	return c
+}
+
+// Variation returns the sui variation implied by ChainID.
+func (c ClientConfig) Variation() types.Variation {
+	return types.VariationFromChainID(c.ChainID)
+}
+
+// SpecialMethodPrefix is the json-rpc method prefix implied by ChainID
+// (empty for sui, "iota" for iota).
+func (c ClientConfig) SpecialMethodPrefix() string {
+	return c.Variation().SpecialMethodPrefix()
 }
 
 func (c ClientConfig) SupportGRPC() bool {
@@ -273,10 +286,9 @@ func (c *Client) CallContext(
 	method string,
 	args ...any,
 ) clientpool.Result {
-	// rewrite method by c.config.SpecialMethodPrefix
-	if c.config.SpecialMethodPrefix != "" && strings.HasPrefix(method, "sui") {
-		method = c.config.SpecialMethodPrefix + strings.TrimPrefix(method, "sui")
-	}
+	// rewrite the method to the variation's actual name per ChainID (for iota the
+	// leading "sui" becomes "iota", e.g. sui_* -> iota_*, suix_* -> iotax_*)
+	method = c.config.Variation().RPCMethod(method)
 	if len(c.config.MethodBlackList) > 0 && utils.IndexOf(c.config.MethodBlackList, method) >= 0 {
 		return clientpool.Result{
 			Err:           errors.New("method in blacklist"),

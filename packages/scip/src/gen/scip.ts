@@ -1,8 +1,10 @@
 /* eslint-disable */
 // @ts-nocheck
-/*
-* This file is a generated Typescript file for GRPC Gateway, DO NOT MODIFY
-*/
+
+/**
+ * This file is a generated Typescript file for GRPC Gateway, DO NOT MODIFY
+ */
+
 
 export enum ProtocolVersion {
   UnspecifiedProtocolVersion = "UnspecifiedProtocolVersion",
@@ -305,83 +307,83 @@ export enum SymbolInformationKind {
 }
 
 export type Index = {
-  metadata?: Metadata
-  documents?: Document[]
-  externalSymbols?: SymbolInformation[]
-}
+  metadata?: Metadata;
+  documents?: Document[];
+  externalSymbols?: SymbolInformation[];
+};
 
 export type Metadata = {
-  version?: ProtocolVersion
-  toolInfo?: ToolInfo
-  projectRoot?: string
-  textDocumentEncoding?: TextEncoding
-}
+  version?: ProtocolVersion;
+  toolInfo?: ToolInfo;
+  projectRoot?: string;
+  textDocumentEncoding?: TextEncoding;
+};
 
 export type ToolInfo = {
-  name?: string
-  version?: string
-  arguments?: string[]
-}
+  name?: string;
+  version?: string;
+  arguments?: string[];
+};
 
 export type Document = {
-  language?: string
-  relativePath?: string
-  occurrences?: Occurrence[]
-  symbols?: SymbolInformation[]
-  text?: string
-  positionEncoding?: PositionEncoding
-}
+  language?: string;
+  relativePath?: string;
+  occurrences?: Occurrence[];
+  symbols?: SymbolInformation[];
+  text?: string;
+  positionEncoding?: PositionEncoding;
+};
 
 export type Symbol = {
-  scheme?: string
-  package?: Package
-  descriptors?: Descriptor[]
-}
+  scheme?: string;
+  package?: Package;
+  descriptors?: Descriptor[];
+};
 
 export type Package = {
-  manager?: string
-  name?: string
-  version?: string
-}
+  manager?: string;
+  name?: string;
+  version?: string;
+};
 
 export type Descriptor = {
-  name?: string
-  disambiguator?: string
-  suffix?: DescriptorSuffix
-}
+  name?: string;
+  disambiguator?: string;
+  suffix?: DescriptorSuffix;
+};
 
 export type SymbolInformation = {
-  symbol?: string
-  documentation?: string[]
-  relationships?: Relationship[]
-  kind?: SymbolInformationKind
-  displayName?: string
-  signatureDocumentation?: Document
-  enclosingSymbol?: string
-}
+  symbol?: string;
+  documentation?: string[];
+  relationships?: Relationship[];
+  kind?: SymbolInformationKind;
+  displayName?: string;
+  signatureDocumentation?: Document;
+  enclosingSymbol?: string;
+};
 
 export type Relationship = {
-  symbol?: string
-  isReference?: boolean
-  isImplementation?: boolean
-  isTypeDefinition?: boolean
-  isDefinition?: boolean
-}
+  symbol?: string;
+  isReference?: boolean;
+  isImplementation?: boolean;
+  isTypeDefinition?: boolean;
+  isDefinition?: boolean;
+};
 
 export type Occurrence = {
-  range?: number[]
-  symbol?: string
-  symbolRoles?: number
-  overrideDocumentation?: string[]
-  syntaxKind?: SyntaxKind
-  diagnostics?: Diagnostic[]
-  enclosingRange?: number[]
-}
+  range?: number[];
+  symbol?: string;
+  symbolRoles?: number;
+  overrideDocumentation?: string[];
+  syntaxKind?: SyntaxKind;
+  diagnostics?: Diagnostic[];
+  enclosingRange?: number[];
+};
 
 export type Diagnostic = {
-  severity?: Severity
-  code?: string
-  message?: string
-  source?: string
-  tags?: DiagnosticTag[]
-}
+  severity?: Severity;
+  code?: string;
+  message?: string;
+  source?: string;
+  tags?: DiagnosticTag[];
+};

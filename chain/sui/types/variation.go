@@ -45,7 +45,7 @@ func (v Variation) SpecialMethodPrefix() string {
 	return ""
 }
 
-// RPCMethod maps a base "sui_*" json-rpc method name to this variation's actual
+// RPCMethod maps a base "sui*" json-rpc method name to this variation's actual
 // method name (e.g. "sui_getCheckpoint" -> "iota_getCheckpoint" for IOTA). Names
 // that don't start with "sui", or variations with no prefix, are returned as-is.
 func (v Variation) RPCMethod(baseSuiMethod string) string {

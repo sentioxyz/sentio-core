@@ -36,7 +36,9 @@ type ClientConfig struct {
 
 	// ChainID decides the sui variation (sui vs iota), which in turn decides the
 	// json-rpc special method prefix and the MethodTimeout method names. For iota
-	// mainnet/testnet this makes the client issue `iota_*` methods automatically.
+	// mainnet/testnet this makes the client issue iota-prefixed methods
+	// automatically (the leading "sui" is replaced by "iota", e.g. sui_* -> iota_*
+	// and suix_* -> iotax_*).
 	ChainID chains.SuiChainID `json:"sui_chain_id" yaml:"sui_chain_id"`
 
 	KeepWatch     time.Duration            `json:"keep_watch" yaml:"keep_watch"`
@@ -284,7 +286,8 @@ func (c *Client) CallContext(
 	method string,
 	args ...any,
 ) clientpool.Result {
-	// rewrite the method to the variation's actual name (e.g. iota_*) per ChainID
+	// rewrite the method to the variation's actual name per ChainID (for iota the
+	// leading "sui" becomes "iota", e.g. sui_* -> iota_*, suix_* -> iotax_*)
 	method = c.config.Variation().RPCMethod(method)
 	if len(c.config.MethodBlackList) > 0 && utils.IndexOf(c.config.MethodBlackList, method) >= 0 {
 		return clientpool.Result{

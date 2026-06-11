@@ -36,8 +36,9 @@ func VariationFromChainID(chainID chains.SuiChainID) Variation {
 }
 
 // SpecialMethodPrefix is the json-rpc method-name prefix for this variation. The
-// base sui methods are named "sui_*"; IOTA serves the same methods as "iota_*",
-// so SUI has an empty prefix (no rewrite) and IOTA rewrites "sui" -> "iota".
+// base sui methods start with "sui" (e.g. "sui_*" and "suix_*"); IOTA serves the
+// same methods with the leading "sui" replaced by "iota" (e.g. "iota_*" and
+// "iotax_*"), so SUI has an empty prefix (no rewrite) and IOTA's is "iota".
 func (v Variation) SpecialMethodPrefix() string {
 	if v == VariationIOTA {
 		return "iota"
@@ -45,9 +46,11 @@ func (v Variation) SpecialMethodPrefix() string {
 	return ""
 }
 
-// RPCMethod maps a base "sui*" json-rpc method name to this variation's actual
-// method name (e.g. "sui_getCheckpoint" -> "iota_getCheckpoint" for IOTA). Names
-// that don't start with "sui", or variations with no prefix, are returned as-is.
+// RPCMethod maps a base "sui"-prefixed json-rpc method name to this variation's
+// actual method name by replacing the leading "sui" with the variation's prefix:
+// e.g. for IOTA "sui_getCheckpoint" -> "iota_getCheckpoint" and
+// "suix_queryEvents" -> "iotax_queryEvents". Names that don't start with "sui",
+// or variations with no prefix (SUI), are returned unchanged.
 func (v Variation) RPCMethod(baseSuiMethod string) string {
 	prefix := v.SpecialMethodPrefix()
 	if prefix == "" || !strings.HasPrefix(baseSuiMethod, "sui") {

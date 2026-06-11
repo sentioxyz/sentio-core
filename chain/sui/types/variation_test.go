@@ -34,8 +34,9 @@ func TestVariationSpecialMethodPrefixAndRPCMethod(t *testing.T) {
 
 	// SUI leaves method names untouched.
 	assert.Equal(t, "sui_getCheckpoint", VariationSUI.RPCMethod("sui_getCheckpoint"))
-	// IOTA rewrites the "sui" prefix to "iota".
+	// IOTA replaces the leading "sui" with "iota" — for both "sui_*" and "suix_*".
 	assert.Equal(t, "iota_getCheckpoint", VariationIOTA.RPCMethod("sui_getCheckpoint"))
+	assert.Equal(t, "iotax_queryEvents", VariationIOTA.RPCMethod("suix_queryEvents"))
 	// Non-"sui" methods are returned as-is for both.
 	assert.Equal(t, "rpc_discover", VariationIOTA.RPCMethod("rpc_discover"))
 }

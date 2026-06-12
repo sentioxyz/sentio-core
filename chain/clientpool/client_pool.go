@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/cenkalti/backoff/v4"
-	"github.com/pkg/errors"
 	"math"
 	"math/rand"
 	"reflect"
@@ -18,6 +16,9 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
+	"github.com/pkg/errors"
 )
 
 type entryStatus[CLIENT pool.Status] struct {
@@ -349,7 +350,7 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 				continue
 			}
 			if latest.Number == es.LatestBlock.Number {
-				logger.Warnf("client latest block stopped from %s to %s", es.LatestBlock, latest)
+				logger.Debugf("client latest block stopped from %s to %s", es.LatestBlock, latest)
 			} else {
 				logger.Debugf("client latest block increased from %s to %s", es.LatestBlock, latest)
 			}

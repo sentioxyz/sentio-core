@@ -1,7 +1,7 @@
 import {
   ScipSolidity,
   Source,
-  SymbolInformationKind as SIK,
+  SymbolInformation_Kind as SIK,
   Definition,
   Occurrence,
   FileRange,

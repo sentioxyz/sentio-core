@@ -3,9 +3,9 @@ import {
   Index,
   Occurrence,
   SymbolInformation,
-  SymbolInformationKind,
+  SymbolInformation_Kind,
   SymbolRole
-} from './gen/scip'
+} from './gen/scip_pb'
 
 // TODO used shared types
 export interface Source {
@@ -23,7 +23,7 @@ export interface Definition {
 }
 
 export function hoverContent(s: SymbolInformation) {
-  return `${s.kind?.toLowerCase()} ${s.signatureDocumentation?.text?.split('\n')[0]}`
+  return `${SymbolInformation_Kind[s.kind]?.toLowerCase()} ${s.signatureDocumentation?.text.split('\n')[0]}`
 }
 
 export interface OutlineTree extends Definition {
@@ -43,11 +43,11 @@ export class ScipSolidity {
     this.sources = sources
 
     const documentMap = new Map<string, Document>()
-    for (const sym of this.index.externalSymbols || []) {
+    for (const sym of this.index.externalSymbols) {
       if (sym.symbol) {
         this.defMap.set(sym.symbol, {
           symbol: sym,
-          sourcePath: sym.documentation?.[0] || '', // URL
+          sourcePath: sym.documentation[0] || '', // URL
           signatureHash: extractSighash(sym),
           range: undefined,
           implementations: []
@@ -55,8 +55,8 @@ export class ScipSolidity {
       }
     }
 
-    for (const doc of this.index.documents || []) {
-      documentMap.set(doc.relativePath!, doc)
+    for (const doc of this.index.documents) {
+      documentMap.set(doc.relativePath, doc)
     }
 
     const implementationMap = new Map<string, Definition[]>()
@@ -72,7 +72,7 @@ export class ScipSolidity {
       this.fileScip.set(source.sourcePath, fileScip)
 
       // build symbol map
-      for (const sym of doc.symbols || []) {
+      for (const sym of doc.symbols) {
         if (sym.symbol) {
           const occur = fileScip.getSymbolOccurrence(sym.symbol)
           if (occur) {
@@ -80,12 +80,12 @@ export class ScipSolidity {
               symbol: sym,
               sourcePath: source.sourcePath,
               signatureHash: extractSighash(sym),
-              range: getRange(occur.range!),
+              range: getRange(occur.range),
               implementations: []
             }
             this.defMap.set(sym.symbol, def)
 
-            for (const relation of sym.relationships || []) {
+            for (const relation of sym.relationships) {
               if (relation.isImplementation && relation.symbol) {
                 let inheritances = implementationMap.get(relation.symbol)
                 if (!inheritances) {
@@ -108,34 +108,34 @@ export class ScipSolidity {
       }
 
       // build reference map
-      for (const occur of doc.occurrences || []) {
+      for (const occur of doc.occurrences) {
         let role = SymbolRole.UnspecifiedSymbolRole
-        if (hasRole(occur.symbolRoles!, SymbolRole.Definition)) {
+        if (hasRole(occur.symbolRoles, SymbolRole.Definition)) {
           role = SymbolRole.Definition
         }
-        if (hasRole(occur.symbolRoles!, SymbolRole.WriteAccess)) {
+        if (hasRole(occur.symbolRoles, SymbolRole.WriteAccess)) {
           role = SymbolRole.WriteAccess
         }
-        if (hasRole(occur.symbolRoles!, SymbolRole.ReadAccess)) {
+        if (hasRole(occur.symbolRoles, SymbolRole.ReadAccess)) {
           role = SymbolRole.ReadAccess
         }
-        const range = getRange(occur.range!)
-        let references = this.referencesMap.get(occur.symbol!)
+        const range = getRange(occur.range)
+        let references = this.referencesMap.get(occur.symbol)
         if (!references) {
           references = []
-          this.referencesMap.set(occur.symbol!, references)
+          this.referencesMap.set(occur.symbol, references)
         }
         references.push({
           ...range,
           role,
-          sourcePath: doc.relativePath!
+          sourcePath: doc.relativePath
         })
       }
     }
 
     for (const definition of this.definitions()) {
       definition.implementations =
-        implementationMap.get(definition.symbol.symbol || '') || []
+        implementationMap.get(definition.symbol.symbol) || []
     }
   }
 
@@ -193,7 +193,7 @@ export class ScipSolidity {
     const implementations = []
     // iterate all symbols that overrides it
     for (const inherit of def?.implementations || []) {
-      const def = this.defMap.get(inherit.symbol.symbol!)
+      const def = this.defMap.get(inherit.symbol.symbol)
       if (def?.range) {
         implementations.push({
           ...def.range,
@@ -225,7 +225,7 @@ export class ScipSolidity {
   definitions() {
     const res: Definition[] = []
     for (const def of this.defMap.values()) {
-      if (def.symbol.kind === SymbolInformationKind.File) {
+      if (def.symbol.kind === SymbolInformation_Kind.File) {
         continue
       }
       res.push(def)
@@ -259,17 +259,17 @@ class FileScipSolidityManager {
     for (let i = 0; i < this.lines.length; i++) {
       this.occurrencesByLine.push([])
     }
-    for (const occur of this.document.occurrences || []) {
-      const line = occur.range![0]
+    for (const occur of this.document.occurrences) {
+      const line = occur.range[0]
       this.occurrencesByLine[line].push(occur)
     }
     for (const occurs of this.occurrencesByLine) {
-      occurs.sort((a, b) => a.range![1] - b.range![1])
+      occurs.sort((a, b) => a.range[1] - b.range[1])
     }
 
-    for (const occur of this.document.occurrences || []) {
+    for (const occur of this.document.occurrences) {
       if (occur.symbol) {
-        if (hasRole(occur.symbolRoles || 0, SymbolRole.Definition)) {
+        if (hasRole(occur.symbolRoles, SymbolRole.Definition)) {
           this.symbolOccurrence.set(occur.symbol, occur)
         }
       }
@@ -287,7 +287,7 @@ class FileScipSolidityManager {
   locateOccurrence(line: number, character: number): Occurrence | undefined {
     const occurs = this.occurrencesByLine[line]
     for (const occur of occurs) {
-      if (character >= occur.range![1] && character < occur.range![2]) {
+      if (character >= occur.range[1] && character < occur.range[2]) {
         return occur
       }
     }
@@ -303,8 +303,8 @@ class FileScipSolidityManager {
     const roots: OutlineTree[] = []
     let fileSymbol = ''
 
-    for (const sym of this.document.symbols || []) {
-      if (!sym.symbol || sym.kind === SymbolInformationKind.File) {
+    for (const sym of this.document.symbols) {
+      if (!sym.symbol || sym.kind === SymbolInformation_Kind.File) {
         if (sym.symbol) {
           fileSymbol = sym.symbol
         }
@@ -312,7 +312,7 @@ class FileScipSolidityManager {
       }
       if (
         isLocalSymbol(sym.symbol) &&
-        sym.kind === SymbolInformationKind.Variable
+        sym.kind === SymbolInformation_Kind.Variable
       ) {
         continue
       }
@@ -326,7 +326,7 @@ class FileScipSolidityManager {
         symbol: sym,
         signatureHash: extractSighash(sym),
         sourcePath: this.source.sourcePath,
-        range: getRange(occur.range!),
+        range: getRange(occur.range),
         implementations: [],
         children: []
       }
@@ -354,7 +354,7 @@ class FileScipSolidityManager {
 
   getSymbols(): { symbol: SymbolInformation; occur: Occurrence }[] {
     const symbols: { symbol: SymbolInformation; occur: Occurrence }[] = []
-    for (const sym of this.document.symbols || []) {
+    for (const sym of this.document.symbols) {
       if (sym.symbol && !isLocalSymbol(sym.symbol)) {
         const occur = this.getSymbolOccurrence(sym.symbol)
         if (!occur) {
@@ -416,30 +416,18 @@ function isLocalSymbol(symbol: string): boolean {
   return symbol.startsWith('local')
 }
 
-const roleValues = Object.values(SymbolRole)
-
-const roleToMask = new Map<SymbolRole, number>()
-for (const [i, role] of roleValues.entries()) {
-  if (i > 0) {
-    roleToMask.set(role, 1 << (i - 1))
-  }
-}
-
-// function getSymbolRoleEnum(mask: number) {
-//   // TODO need to handle more
-//   return roleValues[mask]
-// }
-
+// SymbolRole is a bitmask enum in scip.proto, so the enum values can be
+// tested against the symbol_roles field directly.
 function hasRole(mask: number, role: SymbolRole) {
-  return (mask & roleToMask.get(role)!) !== 0
+  return (mask & role) !== 0
 }
 
 export function extractSighash(symbol: SymbolInformation) {
-  if (symbol.kind !== SymbolInformationKind.Function) {
+  if (symbol.kind !== SymbolInformation_Kind.Function) {
     return undefined
   }
   if (
-    isLocalSymbol(symbol.symbol || '') ||
+    isLocalSymbol(symbol.symbol) ||
     symbol.signatureDocumentation?.text === undefined
   ) {
     return undefined

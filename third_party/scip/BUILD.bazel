@@ -1,6 +1,6 @@
 # gazelle:ignore
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
-load("//bazel:ts-rules.bzl", "ts_grpcgateway")
+load("//bazel:ts-rules.bzl", "es_proto")
 
 genrule(
     name = "scip_proto_fixed",
@@ -16,8 +16,8 @@ proto_library(
     visibility = ["//visibility:public"],
 )
 
-ts_grpcgateway(
-    name = "scip_ts_gateway_proto",
+es_proto(
+    name = "scip_es_proto",
     protos = [":scip_proto"],
     visibility = ["//visibility:public"],
 )

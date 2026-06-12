@@ -360,6 +360,10 @@ importers:
         version: 8.50.0(eslint@9.37.0(jiti@2.7.0))(typescript@6.0.3)
 
   packages/scip:
+    dependencies:
+      '@bufbuild/protobuf':
+        specifier: ^2.12.0
+        version: 2.12.0
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

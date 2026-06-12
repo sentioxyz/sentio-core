@@ -1,4 +1,10 @@
-import { Definition, FileRange, Occurrence, getRange } from '@sentio/scip'
+import {
+  Definition,
+  FileRange,
+  Occurrence,
+  SymbolInformation_Kind,
+  getRange
+} from '@sentio/scip'
 import { useEffect, useRef, ReactNode, useMemo, useCallback } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { LinkifyText, Button } from '@sentio/ui-core'
@@ -113,8 +119,10 @@ export const HoverContextWidget = ({
   const occurrenceRef = useRef<Occurrence | undefined>(occurrence)
   occurrenceRef.current = occurrence
   const decorationRef = useRef<monaco.editor.IEditorDecorationsCollection>()
-  const { symbol = {} } = data || {}
-  const { signatureDocumentation, documentation, displayName } = symbol
+  const symbol = data?.symbol
+  const signatureDocumentation = symbol?.signatureDocumentation
+  const documentation = symbol?.documentation
+  const displayName = symbol?.displayName
   const description = signatureDocumentation?.text || displayName
   const abortControllerRef = useRef<AbortController[]>([])
 
@@ -302,7 +310,10 @@ export const HoverContextWidget = ({
   const storageKey = useMemo(() => {
     if (data?.symbol) {
       const { enclosingSymbol, kind, displayName } = data.symbol
-      if (kind === 'Variable' && enclosingSymbol?.startsWith('contract ')) {
+      if (
+        kind === SymbolInformation_Kind.Variable &&
+        enclosingSymbol?.startsWith('contract ')
+      ) {
         return displayName
       }
     }
@@ -311,7 +322,7 @@ export const HoverContextWidget = ({
   return (
     <div>
       <div
-        className="dark:bg-sentio-gray-100 text-text-foreground absolute z-10 hidden rounded-sm border bg-white text-xs shadow-xs"
+        className="dark:bg-sentio-gray-100 text-text-foreground shadow-xs absolute z-10 hidden rounded-sm border bg-white text-xs"
         ref={nodeRef}
       >
         <SyntaxHighlighter

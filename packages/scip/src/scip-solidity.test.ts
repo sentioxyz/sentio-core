@@ -6,7 +6,14 @@ import {
   OutlineTree,
   ScipSolidity
 } from './scip-solidity'
-import { SymbolInformationKind } from './gen/scip'
+import { create, type MessageInitShape } from '@bufbuild/protobuf'
+import {
+  IndexSchema,
+  ProtocolVersion,
+  SymbolInformation_Kind,
+  SymbolInformationSchema,
+  TextEncoding
+} from './gen/scip_pb'
 
 describe('Test Scip Solidity', () => {
   test('check weth9', () => {
@@ -17,7 +24,7 @@ describe('Test Scip Solidity', () => {
           sourcePath: 'WETH9.sol'
         }
       ],
-      WethIndex.index as any
+      create(IndexSchema, WethIndex.index)
     )
 
     const outlines = scip.getOutline('WETH9.sol')
@@ -52,13 +59,15 @@ describe('Test Scip Solidity', () => {
   test('test sighash', () => {
     const documentText = 'Multicall.multicall(bytes[]) returns (bytes[])'
     assert.equal(
-      extractSighash({
-        symbol: documentText,
-        kind: SymbolInformationKind.Function,
-        signatureDocumentation: {
-          text: documentText + '\n0xac9650d8'
-        }
-      }),
+      extractSighash(
+        create(SymbolInformationSchema, {
+          symbol: documentText,
+          kind: SymbolInformation_Kind.Function,
+          signatureDocumentation: {
+            text: documentText + '\n0xac9650d8'
+          }
+        })
+      ),
       '0xac9650d8'
     )
   })
@@ -842,13 +851,12 @@ Public License instead of this License.  But first, please read
 
 `
 
-const WethIndex = {
+const WethIndex: { index: MessageInitShape<typeof IndexSchema> } = {
   index: {
     metadata: {
-      version: 'UnspecifiedProtocolVersion',
-      toolInfo: null,
+      version: ProtocolVersion.UnspecifiedProtocolVersion,
       projectRoot: 'ethereum://0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2@1/',
-      textDocumentEncoding: 'UnspecifiedTextEncoding'
+      textDocumentEncoding: TextEncoding.UnspecifiedTextEncoding
     },
     documents: [
       {
@@ -860,7 +868,6 @@ const WethIndex = {
             symbol: 'contract WETH9',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [21, 1, 80, 1]
           },
@@ -869,7 +876,6 @@ const WethIndex = {
             symbol: 'variable string storage ref name',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [22, 4, 44]
           },
@@ -878,7 +884,6 @@ const WethIndex = {
             symbol: 'variable string storage ref symbol',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [23, 4, 35]
           },
@@ -887,7 +892,6 @@ const WethIndex = {
             symbol: 'variable uint8 decimals',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [24, 4, 31]
           },
@@ -896,7 +900,6 @@ const WethIndex = {
             symbol: 'event Approval(address,address,uint256)',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [26, 4, 72]
           },
@@ -905,7 +908,6 @@ const WethIndex = {
             symbol: 'local 12',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [26, 20, 39]
           },
@@ -914,7 +916,6 @@ const WethIndex = {
             symbol: 'local 14',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [26, 41, 60]
           },
@@ -923,7 +924,6 @@ const WethIndex = {
             symbol: 'local 16',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [26, 62, 70]
           },
@@ -932,7 +932,6 @@ const WethIndex = {
             symbol: 'event Transfer(address,address,uint256)',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [27, 4, 72]
           },
@@ -941,7 +940,6 @@ const WethIndex = {
             symbol: 'local 20',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [27, 20, 39]
           },
@@ -950,7 +948,6 @@ const WethIndex = {
             symbol: 'local 22',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [27, 41, 60]
           },
@@ -959,7 +956,6 @@ const WethIndex = {
             symbol: 'local 24',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [27, 62, 70]
           },
@@ -968,7 +964,6 @@ const WethIndex = {
             symbol: 'event Deposit(address,uint256)',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [28, 4, 50]
           },
@@ -977,7 +972,6 @@ const WethIndex = {
             symbol: 'local 28',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [28, 19, 38]
           },
@@ -986,7 +980,6 @@ const WethIndex = {
             symbol: 'local 30',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [28, 40, 48]
           },
@@ -995,7 +988,6 @@ const WethIndex = {
             symbol: 'event Withdrawal(address,uint256)',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [29, 4, 53]
           },
@@ -1004,7 +996,6 @@ const WethIndex = {
             symbol: 'local 34',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [29, 22, 41]
           },
@@ -1013,7 +1004,6 @@ const WethIndex = {
             symbol: 'local 36',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [29, 43, 51]
           },
@@ -1022,7 +1012,6 @@ const WethIndex = {
             symbol: 'variable mapping(address => uint256) balanceOf',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [31, 4, 69]
           },
@@ -1032,7 +1021,6 @@ const WethIndex = {
               'variable mapping(address => mapping(address => uint256)) allowance',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [32, 4, 69]
           },
@@ -1041,7 +1029,6 @@ const WethIndex = {
             symbol: 'function ()',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [34, 4, 36, 5]
           },
@@ -1050,7 +1037,6 @@ const WethIndex = {
             symbol: 'function deposit()',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [37, 4, 40, 5]
           },
@@ -1059,7 +1045,6 @@ const WethIndex = {
             symbol: 'function withdraw(uint256)',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [41, 4, 46, 5]
           },
@@ -1068,7 +1053,6 @@ const WethIndex = {
             symbol: 'local 76',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [41, 22, 30]
           },
@@ -1077,7 +1061,6 @@ const WethIndex = {
             symbol: 'function totalSupply()',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [48, 4, 50, 5]
           },
@@ -1086,7 +1069,6 @@ const WethIndex = {
             symbol: 'function approve(address,uint256)',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [52, 4, 56, 5]
           },
@@ -1095,7 +1077,6 @@ const WethIndex = {
             symbol: 'local 121',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [52, 21, 32]
           },
@@ -1104,7 +1085,6 @@ const WethIndex = {
             symbol: 'local 123',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [52, 34, 42]
           },
@@ -1113,7 +1093,6 @@ const WethIndex = {
             symbol: 'function transfer(address,uint256)',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [58, 4, 60, 5]
           },
@@ -1122,7 +1101,6 @@ const WethIndex = {
             symbol: 'local 149',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [58, 22, 33]
           },
@@ -1131,7 +1109,6 @@ const WethIndex = {
             symbol: 'local 151',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [58, 35, 43]
           },
@@ -1140,7 +1117,6 @@ const WethIndex = {
             symbol: 'function transferFrom(address,address,uint256)',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [62, 4, 79, 5]
           },
@@ -1149,7 +1125,6 @@ const WethIndex = {
             symbol: 'local 166',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [62, 26, 37]
           },
@@ -1158,7 +1133,6 @@ const WethIndex = {
             symbol: 'local 168',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [62, 39, 50]
           },
@@ -1167,7 +1141,6 @@ const WethIndex = {
             symbol: 'local 170',
             symbolRoles: 1,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: [62, 52, 60]
           },
@@ -1176,7 +1149,6 @@ const WethIndex = {
             symbol: 'function deposit()',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1185,7 +1157,6 @@ const WethIndex = {
             symbol: 'variable mapping(address => uint256) balanceOf',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1194,7 +1165,6 @@ const WethIndex = {
             symbol: 'event Deposit(address,uint256)',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1203,7 +1173,6 @@ const WethIndex = {
             symbol: 'variable mapping(address => uint256) balanceOf',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1212,7 +1181,6 @@ const WethIndex = {
             symbol: 'local 76',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1221,7 +1189,6 @@ const WethIndex = {
             symbol: 'variable mapping(address => uint256) balanceOf',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1230,7 +1197,6 @@ const WethIndex = {
             symbol: 'local 76',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1239,7 +1205,6 @@ const WethIndex = {
             symbol: 'local 76',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1248,7 +1213,6 @@ const WethIndex = {
             symbol: 'local 76',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1257,7 +1221,6 @@ const WethIndex = {
             symbol: 'event Withdrawal(address,uint256)',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1266,7 +1229,6 @@ const WethIndex = {
             symbol: 'this',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1276,7 +1238,6 @@ const WethIndex = {
               'variable mapping(address => mapping(address => uint256)) allowance',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1285,7 +1246,6 @@ const WethIndex = {
             symbol: 'local 121',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1294,7 +1254,6 @@ const WethIndex = {
             symbol: 'local 123',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1303,7 +1262,6 @@ const WethIndex = {
             symbol: 'local 121',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1312,7 +1270,6 @@ const WethIndex = {
             symbol: 'local 123',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1321,7 +1278,6 @@ const WethIndex = {
             symbol: 'event Approval(address,address,uint256)',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1330,7 +1286,6 @@ const WethIndex = {
             symbol: 'local 149',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1339,7 +1294,6 @@ const WethIndex = {
             symbol: 'local 151',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1348,7 +1302,6 @@ const WethIndex = {
             symbol: 'function transferFrom(address,address,uint256)',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1357,7 +1310,6 @@ const WethIndex = {
             symbol: 'variable mapping(address => uint256) balanceOf',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1366,7 +1318,6 @@ const WethIndex = {
             symbol: 'local 166',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1375,7 +1326,6 @@ const WethIndex = {
             symbol: 'local 170',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1384,7 +1334,6 @@ const WethIndex = {
             symbol: 'local 166',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1394,7 +1343,6 @@ const WethIndex = {
               'variable mapping(address => mapping(address => uint256)) allowance',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1403,7 +1351,6 @@ const WethIndex = {
             symbol: 'local 166',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1413,7 +1360,6 @@ const WethIndex = {
               'variable mapping(address => mapping(address => uint256)) allowance',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1422,7 +1368,6 @@ const WethIndex = {
             symbol: 'local 166',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1431,7 +1376,6 @@ const WethIndex = {
             symbol: 'local 170',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1441,7 +1385,6 @@ const WethIndex = {
               'variable mapping(address => mapping(address => uint256)) allowance',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1450,7 +1393,6 @@ const WethIndex = {
             symbol: 'local 166',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1459,7 +1401,6 @@ const WethIndex = {
             symbol: 'local 170',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1468,7 +1409,6 @@ const WethIndex = {
             symbol: 'variable mapping(address => uint256) balanceOf',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1477,7 +1417,6 @@ const WethIndex = {
             symbol: 'local 166',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1486,7 +1425,6 @@ const WethIndex = {
             symbol: 'local 170',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1495,7 +1433,6 @@ const WethIndex = {
             symbol: 'variable mapping(address => uint256) balanceOf',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1504,7 +1441,6 @@ const WethIndex = {
             symbol: 'local 168',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1513,7 +1449,6 @@ const WethIndex = {
             symbol: 'local 170',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1522,7 +1457,6 @@ const WethIndex = {
             symbol: 'local 166',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1531,7 +1465,6 @@ const WethIndex = {
             symbol: 'local 168',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1540,7 +1473,6 @@ const WethIndex = {
             symbol: 'local 170',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           },
@@ -1549,7 +1481,6 @@ const WethIndex = {
             symbol: 'event Transfer(address,address,uint256)',
             symbolRoles: 8,
             overrideDocumentation: [],
-            syntaxKind: 'UnspecifiedSyntaxKind',
             diagnostics: [],
             enclosingRange: []
           }
@@ -1559,7 +1490,7 @@ const WethIndex = {
             symbol: 'contract WETH9',
             documentation: [],
             relationships: [],
-            kind: 'Contract',
+            kind: SymbolInformation_Kind.Contract,
             displayName: 'WETH9',
             signatureDocumentation: {
               language: 'solidity',
@@ -1574,7 +1505,7 @@ const WethIndex = {
             symbol: 'variable string storage ref name',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'name',
             signatureDocumentation: {
               language: 'solidity',
@@ -1589,7 +1520,7 @@ const WethIndex = {
             symbol: 'variable string storage ref symbol',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'symbol',
             signatureDocumentation: {
               language: 'solidity',
@@ -1604,7 +1535,7 @@ const WethIndex = {
             symbol: 'variable uint8 decimals',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'decimals',
             signatureDocumentation: {
               language: 'solidity',
@@ -1619,7 +1550,7 @@ const WethIndex = {
             symbol: 'event Approval(address,address,uint256)',
             documentation: [],
             relationships: [],
-            kind: 'Event',
+            kind: SymbolInformation_Kind.Event,
             displayName: 'Approval',
             signatureDocumentation: {
               language: 'solidity',
@@ -1634,7 +1565,7 @@ const WethIndex = {
             symbol: 'local 12',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'src',
             signatureDocumentation: {
               language: 'solidity',
@@ -1649,7 +1580,7 @@ const WethIndex = {
             symbol: 'local 14',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'guy',
             signatureDocumentation: {
               language: 'solidity',
@@ -1664,7 +1595,7 @@ const WethIndex = {
             symbol: 'local 16',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'wad',
             signatureDocumentation: {
               language: 'solidity',
@@ -1679,7 +1610,7 @@ const WethIndex = {
             symbol: 'event Transfer(address,address,uint256)',
             documentation: [],
             relationships: [],
-            kind: 'Event',
+            kind: SymbolInformation_Kind.Event,
             displayName: 'Transfer',
             signatureDocumentation: {
               language: 'solidity',
@@ -1694,7 +1625,7 @@ const WethIndex = {
             symbol: 'local 20',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'src',
             signatureDocumentation: {
               language: 'solidity',
@@ -1709,7 +1640,7 @@ const WethIndex = {
             symbol: 'local 22',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'dst',
             signatureDocumentation: {
               language: 'solidity',
@@ -1724,7 +1655,7 @@ const WethIndex = {
             symbol: 'local 24',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'wad',
             signatureDocumentation: {
               language: 'solidity',
@@ -1739,7 +1670,7 @@ const WethIndex = {
             symbol: 'event Deposit(address,uint256)',
             documentation: [],
             relationships: [],
-            kind: 'Event',
+            kind: SymbolInformation_Kind.Event,
             displayName: 'Deposit',
             signatureDocumentation: {
               language: 'solidity',
@@ -1754,7 +1685,7 @@ const WethIndex = {
             symbol: 'local 28',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'dst',
             signatureDocumentation: {
               language: 'solidity',
@@ -1769,7 +1700,7 @@ const WethIndex = {
             symbol: 'local 30',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'wad',
             signatureDocumentation: {
               language: 'solidity',
@@ -1784,7 +1715,7 @@ const WethIndex = {
             symbol: 'event Withdrawal(address,uint256)',
             documentation: [],
             relationships: [],
-            kind: 'Event',
+            kind: SymbolInformation_Kind.Event,
             displayName: 'Withdrawal',
             signatureDocumentation: {
               language: 'solidity',
@@ -1799,7 +1730,7 @@ const WethIndex = {
             symbol: 'local 34',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'src',
             signatureDocumentation: {
               language: 'solidity',
@@ -1814,7 +1745,7 @@ const WethIndex = {
             symbol: 'local 36',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'wad',
             signatureDocumentation: {
               language: 'solidity',
@@ -1829,7 +1760,7 @@ const WethIndex = {
             symbol: 'variable mapping(address => uint256) balanceOf',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'balanceOf',
             signatureDocumentation: {
               language: 'solidity',
@@ -1845,7 +1776,7 @@ const WethIndex = {
               'variable mapping(address => mapping(address => uint256)) allowance',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'allowance',
             signatureDocumentation: {
               language: 'solidity',
@@ -1860,7 +1791,7 @@ const WethIndex = {
             symbol: 'function ()',
             documentation: [],
             relationships: [],
-            kind: 'Function',
+            kind: SymbolInformation_Kind.Function,
             displayName: '',
             signatureDocumentation: {
               language: 'solidity',
@@ -1875,7 +1806,7 @@ const WethIndex = {
             symbol: 'function deposit()',
             documentation: [],
             relationships: [],
-            kind: 'Function',
+            kind: SymbolInformation_Kind.Function,
             displayName: 'deposit',
             signatureDocumentation: {
               language: 'solidity',
@@ -1890,7 +1821,7 @@ const WethIndex = {
             symbol: 'function withdraw(uint256)',
             documentation: [],
             relationships: [],
-            kind: 'Function',
+            kind: SymbolInformation_Kind.Function,
             displayName: 'withdraw',
             signatureDocumentation: {
               language: 'solidity',
@@ -1905,7 +1836,7 @@ const WethIndex = {
             symbol: 'local 76',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'wad',
             signatureDocumentation: {
               language: 'solidity',
@@ -1920,7 +1851,7 @@ const WethIndex = {
             symbol: 'function totalSupply()',
             documentation: [],
             relationships: [],
-            kind: 'Function',
+            kind: SymbolInformation_Kind.Function,
             displayName: 'totalSupply',
             signatureDocumentation: {
               language: 'solidity',
@@ -1935,7 +1866,7 @@ const WethIndex = {
             symbol: 'function approve(address,uint256)',
             documentation: [],
             relationships: [],
-            kind: 'Function',
+            kind: SymbolInformation_Kind.Function,
             displayName: 'approve',
             signatureDocumentation: {
               language: 'solidity',
@@ -1950,7 +1881,7 @@ const WethIndex = {
             symbol: 'local 121',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'guy',
             signatureDocumentation: {
               language: 'solidity',
@@ -1965,7 +1896,7 @@ const WethIndex = {
             symbol: 'local 123',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'wad',
             signatureDocumentation: {
               language: 'solidity',
@@ -1980,7 +1911,7 @@ const WethIndex = {
             symbol: 'function transfer(address,uint256)',
             documentation: [],
             relationships: [],
-            kind: 'Function',
+            kind: SymbolInformation_Kind.Function,
             displayName: 'transfer',
             signatureDocumentation: {
               language: 'solidity',
@@ -1995,7 +1926,7 @@ const WethIndex = {
             symbol: 'local 149',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'dst',
             signatureDocumentation: {
               language: 'solidity',
@@ -2010,7 +1941,7 @@ const WethIndex = {
             symbol: 'local 151',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'wad',
             signatureDocumentation: {
               language: 'solidity',
@@ -2025,7 +1956,7 @@ const WethIndex = {
             symbol: 'function transferFrom(address,address,uint256)',
             documentation: [],
             relationships: [],
-            kind: 'Function',
+            kind: SymbolInformation_Kind.Function,
             displayName: 'transferFrom',
             signatureDocumentation: {
               language: 'solidity',
@@ -2040,7 +1971,7 @@ const WethIndex = {
             symbol: 'local 166',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'src',
             signatureDocumentation: {
               language: 'solidity',
@@ -2055,7 +1986,7 @@ const WethIndex = {
             symbol: 'local 168',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'dst',
             signatureDocumentation: {
               language: 'solidity',
@@ -2070,7 +2001,7 @@ const WethIndex = {
             symbol: 'local 170',
             documentation: [],
             relationships: [],
-            kind: 'Variable',
+            kind: SymbolInformation_Kind.Variable,
             displayName: 'wad',
             signatureDocumentation: {
               language: 'solidity',

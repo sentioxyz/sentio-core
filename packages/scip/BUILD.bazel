@@ -7,7 +7,7 @@ load("@npm//:defs.bzl", "npm_link_all_packages")
 write_source_files(
     name = "write_gen",
     files = {
-        "src/gen/scip.ts": "//third_party/scip:scip_ts_gateway_proto",
+        "src/gen/scip_pb.ts": "//third_party/scip:scip_es_proto",
     },
 )
 

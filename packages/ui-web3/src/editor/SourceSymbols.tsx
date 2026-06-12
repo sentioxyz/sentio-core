@@ -1,12 +1,12 @@
 import { FlatTree, DataNode, classNames } from '@sentio/ui-core'
-import { OutlineTree, SymbolInformationKind as SIK } from '@sentio/scip'
-import { memo, useMemo, useState } from 'react'
+import { OutlineTree, SymbolInformation_Kind as SIK } from '@sentio/scip'
+import { memo, useMemo, useState, type ReactNode } from 'react'
 import { DocumentTextIcon } from '@heroicons/react/20/solid'
 import { DebounceInput } from 'react-debounce-input'
 import { useResizeDetector } from 'react-resize-detector'
 import * as monaco from 'monaco-editor'
 
-export const SymbolIcons = {
+export const SymbolIcons: Partial<Record<SIK, ReactNode>> = {
   [SIK.Array]: (
     <span
       className="bg-daybreak-blue-600 inline-block h-4 w-4 rounded-full text-center text-white"
@@ -549,7 +549,7 @@ const SourceSymbols = ({ data, onClick }: Props) => {
         key: symbol,
         title: (
           <div className="group flex w-full cursor-pointer items-center gap-2">
-            <span className="flex-0">{kind ? SymbolIcons[kind] : null}</span>
+            <span className="flex-0">{SymbolIcons[kind] ?? null}</span>
             <span
               className={classNames(
                 'flex-0 underline-offset-2 group-hover:underline',
@@ -612,7 +612,7 @@ const SourceSymbols = ({ data, onClick }: Props) => {
     <div ref={ref}>
       <div className="w-fit min-w-full">
         <div
-          className="dark:bg-sentio-gray-100 sticky left-0 top-0 z-1 space-y-2 bg-white py-2"
+          className="dark:bg-sentio-gray-100 z-1 sticky left-0 top-0 space-y-2 bg-white py-2"
           style={{ width }}
         >
           <div className="relative px-2">

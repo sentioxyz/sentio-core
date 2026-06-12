@@ -42,7 +42,7 @@ bazel run //sentio-sdk:write_gen
 
 # NOTE: common.proto imports the grpc-gateway openapiv2 options (used only as
 # MethodOptions/JSONSchema extensions, never as field types). The es-proto-plugin
-# (see //bazel/protoc-gen-es-nodeprecated, driven by the es_proto rule's strip_imports
+# (see //bazel/protoc-gen-es, driven by the es_proto rule's strip_imports
 # attr) drops those options-only import dependencies from the generated descriptor at
 # codegen time, so common_pb.ts has no openapiv2 import and no post-processing is needed.
 #

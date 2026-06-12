@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
- * protoc-gen-es-nodeprecated — filters descriptor elements before delegating
- * to protobuf-es.
+ * protoc-gen-es — sentio's wrapper around stock @bufbuild/protoc-gen-es that
+ * filters descriptor elements before delegating.
  *
  * Strategy: stock @bufbuild/protoc-gen-es plus optional descriptor-rewrite
  * passes, each controlled by a plugin option set by the `es_proto` Bazel rule:
@@ -49,7 +49,7 @@ function assertNoOrphanedOneof(msg, fqName) {
           ? 'synthetic oneof of a proto3 `optional` field'
           : 'oneof'
       throw new Error(
-        `protoc-gen-es-nodeprecated: dropping deprecated fields emptied the ${kind} ` +
+        `protoc-gen-es: dropping deprecated fields emptied the ${kind} ` +
           `'${o.name}' in message '${fqName}'. Pruning + reindexing oneofs is not ` +
           `implemented (this plugin is scoped to processor.proto). Implement it before ` +
           `marking a proto3 'optional' field — or every member of a oneof — deprecated.`
@@ -230,7 +230,7 @@ function visibilityLevelOf(restriction, where) {
     const idx = VISIBILITY_LEVELS.indexOf(label)
     if (idx === -1) {
       throw new Error(
-        `protoc-gen-es-nodeprecated: unknown google.api visibility restriction ` +
+        `protoc-gen-es: unknown google.api visibility restriction ` +
           `'${label}' on ${where}; known levels: ${VISIBILITY_LEVELS.join(' < ')}`
       )
     }
@@ -269,7 +269,7 @@ function takeVisibilityLevel(req) {
       level = VISIBILITY_LEVELS.indexOf(value ?? '')
       if (level === -1) {
         throw new Error(
-          `protoc-gen-es-nodeprecated: invalid visibility_level '${value}'; ` +
+          `protoc-gen-es: invalid visibility_level '${value}'; ` +
             `expected one of: ${VISIBILITY_LEVELS.join(', ')}`
         )
       }

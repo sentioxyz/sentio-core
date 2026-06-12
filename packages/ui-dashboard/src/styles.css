@@ -1,0 +1,27 @@
+/*
+  ui-dashboard styles.
+  Theme tokens (the --primary-*, --gray-*, --text-* CSS variables) are NOT
+  defined here — they are provided at runtime by @sentio/ui-core's style.css,
+  which consumers must import alongside this file:
+
+    import '@sentio/ui-core/dist/style.css'
+    import '@sentio/ui-dashboard/dist/style.css'
+
+  We only emit the Tailwind utilities used by dashboard components, resolved
+  against ui-core's theme via the shared tailwind.config.js.
+*/
+
+@import 'tailwindcss';
+
+@config '../tailwind.config.js';
+
+/* Tailwind v4 border-color compatibility (mirrors @sentio/ui-core). */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: rgba(var(--border-color));
+  }
+}

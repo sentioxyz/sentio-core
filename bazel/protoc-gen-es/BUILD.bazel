@@ -1,0 +1,15 @@
+load("@aspect_rules_js//js:defs.bzl", "js_binary")
+
+# protoc plugin: sentio's wrapper around stock @bufbuild/protoc-gen-es, adding
+# optional descriptor-filter passes (remove_deprecated, strip_imports,
+# visibility_level). Wired as a proto_plugin() tool in //bazel:BUILD.bazel.
+js_binary(
+    name = "protoc_gen_es",
+    data = [
+        "//:node_modules/@bufbuild/protobuf",
+        "//:node_modules/@bufbuild/protoc-gen-es",
+        "//:node_modules/@bufbuild/protoplugin",
+    ],
+    entry_point = "protoc-gen-es.mjs",
+    visibility = ["//visibility:public"],
+)

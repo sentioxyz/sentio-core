@@ -63,6 +63,14 @@ export {
 } from './common/menu/SubMenu'
 export type { IMenuItem, OnSelectMenuItem } from './common/menu/types'
 
+// Popover / combo inputs
+export { PopoverButton } from './common/popper/PopoverButton'
+export { ComboInput } from './common/input/ComboInput'
+export {
+  ComboSelect,
+  type Props as ComboSelectProps
+} from './common/select/ComboSelect'
+
 // Features
 export { TimeInput, type TimeInputProps } from './features/timerange/TimeInput'
 export { TimeRangeLabel } from './features/timerange/TimeRangeLabel'

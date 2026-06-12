@@ -1,7 +1,8 @@
 {
   "private": false,
-  "name": "@sentio/ui-core",
-  "version": "0.3.0",
+  "name": "@sentio/ui-dashboard",
+  "version": "0.0.1",
+  "description": "Dashboard UI components for the Sentio platform, decoupled from backend services.",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -30,45 +31,22 @@
   ],
   "types": "dist/index.d.ts",
   "dependencies": {
-    "@floating-ui/core": "^1.7.3",
-    "@floating-ui/react": "^0.27.16",
-    "@headlessui/react": "1.7.7",
-    "@heroicons/react": "^2.2.0",
-    "@sentio/bigdecimal": "9.1.1-patch.3",
-    "@tanstack/react-table": "^8.5.15",
-    "@tanstack/react-virtual": "^3.2.0",
-    "class-variance-authority": "^0.7.1",
-    "copy-to-clipboard": "^3.3.3",
-    "dompurify": "^3.3.1",
-    "linkify-html": "^4.3.2",
-    "linkifyjs": "^4.3.2",
-    "lodash": "^4.17.21",
-    "pluralize": "^8.0.0",
-    "react-icons": "^5.5.0",
-    "react-laag": "^2.0.5",
-    "react-resize-detector": "^12.3.0",
-    "react-spinners": "^0.15.0"
+    "@sentio/ui-core": "workspace:*"
   },
   "peerDependencies": {
-    "dayjs": ">=1.11",
     "react": ">=18",
     "react-dom": ">=18"
   },
   "devDependencies": {
-    "@ladle/react": "^5.1.1",
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/postcss": "^4.3.0",
-    "@types/lodash": "^4.17.20",
     "@types/node": "^24.0.0",
-    "@types/pluralize": "^0.0.33",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "concurrently": "^9.2.1",
-    "dayjs": "^1.11.2",
     "postcss": "^8.5.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-hook-form": "^7.69.0",
     "tailwindcss": "^4.3.0",
     "tsup": "^8.0.0",
     "typescript": "^6.0.3"

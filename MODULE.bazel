@@ -3,13 +3,8 @@ module(
     version = "1.0",
 )
 
-# wasmer-go: sentioxyz fork consumed as a Bazel module (Bazel-9-ready), not go_deps
+# wasmer-go: sentioxyz fork consumed from the Bazel registry.
 bazel_dep(name = "wasmer_go", version = "1.0.4")
-git_override(
-    module_name = "wasmer_go",
-    commit = "477807e833107d0b0aa0203721c6c55cdf32fa6c",
-    remote = "https://github.com/sentioxyz/wasmer-go",
-)
 
 # scip.proto is published in the root scip-code/scip repository, while this
 # package only needs the single proto file for TypeScript generation.

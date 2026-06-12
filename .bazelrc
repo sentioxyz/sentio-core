@@ -1,5 +1,8 @@
 startup --max_idle_secs=0
 
+common --registry=https://bcr.bazel.build
+common --registry=https://raw.githubusercontent.com/sentioxyz/bazel-registry/main/
+
 build --verbose_failures
 build --incompatible_enable_cc_toolchain_resolution
 build --java_runtime_version=remotejdk_11 --tool_java_runtime_version=remotejdk_11

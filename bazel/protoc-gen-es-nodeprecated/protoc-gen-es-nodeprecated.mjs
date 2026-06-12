@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /*
- * protoc-gen-es-nodeprecated — removes deprecated descriptor elements before
- * delegating to protobuf-es.
+ * protoc-gen-es-nodeprecated — filters descriptor elements before delegating
+ * to protobuf-es.
  *
- * Strategy: stock @bufbuild/protoc-gen-es plus an optional `remove_deprecated`
- * pass, controlled by a plugin option of the same name (set by the `es_proto`
- * Bazel rule's `remove_deprecated` attr). When set, strip `[deprecated=true]`
- * elements from the CodeGeneratorRequest's FileDescriptorProtos before
- * delegating; otherwise pass through unchanged. Output is identical to stock
- * protoc-gen-es, just minus the deprecated elements when requested — and they
+ * Strategy: stock @bufbuild/protoc-gen-es plus optional descriptor-rewrite
+ * passes, each controlled by a plugin option set by the `es_proto` Bazel rule:
+ *   remove_deprecated  strip `[deprecated=true]` elements
+ *   strip_imports      drop options-only imports from dependency lists
+ *   visibility_level   drop methods below a google.api visibility level
+ * Each pass rewrites the CodeGeneratorRequest's FileDescriptorProtos before
+ * delegating; with no options the request passes through unchanged. Output is
+ * identical to stock protoc-gen-es, just minus the filtered elements — and they
  * also disappear from the embedded base64 descriptor, so the user-facing copy
  * stays wire-compatible with the runtime copy that keeps them (the field is
  * simply an unknown field for this copy).
@@ -26,6 +28,7 @@
  * throws instead of emitting a malformed descriptor. Implement reindexing if needed.
  */
 import { runNodeJs } from '@bufbuild/protoplugin'
+import { BinaryReader, WireType } from '@bufbuild/protobuf/wire'
 // @bufbuild/protoc-gen-es ships CJS only and does not expose protocGenEs on its
 // package export map; this is the exact module its own bin/protoc-gen-es loads.
 // Node's ESM->CJS interop resolves the named export. Pinned by the lockfile.
@@ -172,6 +175,112 @@ function takeStripImports(req) {
   return toStrip
 }
 
+// --- filter methods by google.api visibility level ---------------------------
+//
+// Methods can be annotated with `(google.api.method_visibility).restriction`
+// (google/api/visibility.proto). We use the labels as an ascending audience
+// hierarchy: INTERNAL < PREVIEW < PUBLIC, where an unannotated method is PUBLIC.
+// The `visibility_level` plugin option (set by the `es_proto` rule's attr of the
+// same name) names the audience to generate for: a method is kept iff its level
+// is >= the configured level. The default/absent level is INTERNAL (the lowest),
+// which keeps everything — same as the openapi generator's behavior when no
+// `visibility_restriction_selectors` are passed — and skips the pass entirely,
+// so default builds stay byte-identical and never trip restriction validation.
+//
+// `restriction` is a comma-separated label list per google/api/visibility.proto
+// ("INTERNAL,PREVIEW" = visible to both audiences); a multi-label method's level
+// is its highest label. Unknown labels fail loudly — a typo must not silently
+// add a method to (or hide it from) a public surface.
+//
+// Scope: METHODS only. field_/message_/enum_/value_/api_visibility are left
+// untouched (filtering messages/enums could orphan type references; add field
+// support alongside the deprecated-field oneof handling if ever needed). A
+// service whose every method is filtered still emits an (empty) GenService.
+//
+// google/api/visibility.proto is normally in ES_STRIP_IMPORTS, so the extension
+// is never registered — the option bytes sit in MethodOptions.$unknown, and we
+// read them from there (extension field 72295727, a VisibilityRule message whose
+// field 2 is `restriction`; field 1 `selector` is unused in option position).
+const VISIBILITY_LEVELS = ['INTERNAL', 'PREVIEW', 'PUBLIC']
+const VISIBILITY_EXT_FIELD = 72295727
+
+// Returns the restriction string of a method, or undefined when unannotated.
+function methodRestriction(method) {
+  let restriction
+  for (const f of method.options?.$unknown ?? []) {
+    if (f.no !== VISIBILITY_EXT_FIELD || f.wireType !== WireType.LengthDelimited) continue
+    // f.data is the length-prefixed VisibilityRule bytes. A repeated occurrence
+    // of this singular extension merges per proto rules: last `restriction` wins.
+    const rule = new BinaryReader(new BinaryReader(f.data).bytes())
+    while (rule.pos < rule.len) {
+      const [no, wt] = rule.tag()
+      if (no === 2 && wt === WireType.LengthDelimited) restriction = rule.string()
+      else rule.skip(wt, no)
+    }
+  }
+  return restriction
+}
+
+// Maps a restriction label list to its level index; empty list = PUBLIC.
+function visibilityLevelOf(restriction, where) {
+  let level = -1
+  for (const part of restriction.split(',')) {
+    const label = part.trim()
+    if (!label) continue
+    const idx = VISIBILITY_LEVELS.indexOf(label)
+    if (idx === -1) {
+      throw new Error(
+        `protoc-gen-es-nodeprecated: unknown google.api visibility restriction ` +
+          `'${label}' on ${where}; known levels: ${VISIBILITY_LEVELS.join(' < ')}`
+      )
+    }
+    if (idx > level) level = idx
+  }
+  return level === -1 ? VISIBILITY_LEVELS.indexOf('PUBLIC') : level
+}
+
+function stripHiddenMethods(req, minLevel) {
+  const filterFile = (fd) => {
+    const prefix = fd.package ? `${fd.package}.` : ''
+    for (const svc of fd.service ?? []) {
+      svc.method = (svc.method ?? []).filter((m) => {
+        const restriction = methodRestriction(m)
+        if (restriction === undefined) return true
+        return visibilityLevelOf(restriction, `${prefix}${svc.name}.${m.name}`) >= minLevel
+      })
+    }
+  }
+  ;(req.protoFile ?? []).forEach(filterFile)
+  ;(req.sourceFileDescriptors ?? []).forEach(filterFile)
+  return req
+}
+
+// Consume the custom `visibility_level` option from the protoc parameter string
+// (stock protoc-gen-es rejects unknown options). Returns the level index, or
+// undefined when absent.
+function takeVisibilityLevel(req) {
+  const kept = []
+  let level
+  for (const part of (req.parameter ?? '').split(',')) {
+    const opt = part.trim()
+    if (!opt) continue
+    const [key, value] = opt.split('=')
+    if (key === 'visibility_level') {
+      level = VISIBILITY_LEVELS.indexOf(value ?? '')
+      if (level === -1) {
+        throw new Error(
+          `protoc-gen-es-nodeprecated: invalid visibility_level '${value}'; ` +
+            `expected one of: ${VISIBILITY_LEVELS.join(', ')}`
+        )
+      }
+    } else {
+      kept.push(opt)
+    }
+  }
+  req.parameter = kept.join(',')
+  return level
+}
+
 runNodeJs({
   name: protocGenEs.name,
   version: protocGenEs.version,
@@ -179,6 +288,8 @@ runNodeJs({
     if (takeRemoveDeprecated(req)) stripDeprecated(req)
     const toStrip = takeStripImports(req)
     if (toStrip.size > 0) stripImports(req, toStrip)
+    const minVisibility = takeVisibilityLevel(req)
+    if (minVisibility !== undefined && minVisibility > 0) stripHiddenMethods(req, minVisibility)
     return protocGenEs.run(req)
   }
 })

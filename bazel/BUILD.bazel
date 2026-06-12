@@ -15,10 +15,11 @@ proto_plugin(
     visibility = ["//visibility:public"],
 )
 
-# protobuf-es codegen (protoc-gen-es) with an optional remove_deprecated pass. The
-# tool wraps stock @bufbuild/protoc-gen-es; see //bazel/protoc-gen-es-nodeprecated.
-# Options (target=ts, import_extension=js, keep_empty_files=true, and optional
-# remove_deprecated=true) are supplied dynamically by the `es_proto` rule.
+# protobuf-es codegen (protoc-gen-es) with optional descriptor-filter passes
+# (remove_deprecated, strip_imports, visibility_level). The tool wraps stock
+# @bufbuild/protoc-gen-es; see //bazel/protoc-gen-es-nodeprecated. All options
+# (target=ts, import_extension=js, keep_empty_files=true, and the optional
+# filter passes) are supplied dynamically by the `es_proto` rule.
 proto_plugin(
     name = "es-proto-plugin",
     env = {

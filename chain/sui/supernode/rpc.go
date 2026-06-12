@@ -74,7 +74,7 @@ type SuperService struct {
 	storageJSONRPC         StorageJSONRPC
 	storageGRPC            StorageGRPC
 	// storageShared serves the format-agnostic queries; it is whichever of
-	// storageGRPC / storageJSONRPC is configured (grpc preferred when both exist).
+	// storageGRPC / storageJSONRPC is configured (json-rpc preferred when both exist).
 	storageShared StorageShared
 }
 
@@ -91,10 +91,10 @@ func NewSuperService(
 	// but it must have at least one.
 	var storageShared StorageShared
 	switch {
-	case storageGRPC != nil:
-		storageShared = storageGRPC
 	case storageJSONRPC != nil:
 		storageShared = storageJSONRPC
+	case storageGRPC != nil:
+		storageShared = storageGRPC
 	default:
 		panic("supernode: at least one of storageJSONRPC / storageGRPC must be provided")
 	}

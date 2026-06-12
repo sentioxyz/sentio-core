@@ -45,12 +45,22 @@ js_test(
     entry_point = "dist/src/scip-solidity.test.js",
 )
 
+# npm_package forwards NpmPackageStoreInfo gathered from JsInfo srcs; when this
+# package is injected into another workspace via npm_replace_package, those
+# store infos collide with the consumer's lockfile-driven dependency links
+# (same node_modules symlink, different store target). Strip the JsInfo by
+# passing plain files — the consumer's lockfile provides the dependency edges.
+filegroup(
+    name = "scip-js",
+    srcs = [":scip-ts"],
+)
+
 # make this library available via node_modules
 npm_package(
     name = "pkg",
     srcs = [
         "package.json",
-        ":scip-ts",
+        ":scip-js",
     ],
     include_runfiles = False,
     replace_prefixes = {

@@ -7,7 +7,8 @@
  * passes, each controlled by a plugin option set by the `es_proto` Bazel rule:
  *   remove_deprecated  strip `[deprecated=true]` elements
  *   strip_imports      drop options-only imports from dependency lists
- *   visibility_level   drop methods below a google.api visibility level
+ *   visibility_level   generate only the API surface visible at a google.api
+ *                      visibility level (see visibility-surface.mjs)
  * Each pass rewrites the CodeGeneratorRequest's FileDescriptorProtos before
  * delegating; with no options the request passes through unchanged. Output is
  * identical to stock protoc-gen-es, just minus the filtered elements — and they
@@ -15,32 +16,42 @@
  * stays wire-compatible with the runtime copy that keeps them (the field is
  * simply an unknown field for this copy).
  *
- * Scope (matches what processor.proto uses + the safe subset):
+ * remove_deprecated scope (matches what processor.proto uses + the safe subset):
  *   removed: deprecated fields, whole messages, whole enums, services, methods, extensions
  *   KEPT:    individual enum VALUES (avoids enum-value type-conflict issues)
  *            oneof declarations (kept so surviving fields' oneofIndex stays valid)
  *
- * NOT implemented (fails loudly — see assertNoOrphanedOneof): removing a field that
- * empties a oneof. The two ways that happens are (a) a deprecated proto3 `optional`
- * field, whose synthetic oneof `_field` would be orphaned, and (b) a oneof whose
- * every member is deprecated. Either needs pruning the oneof_decl AND reindexing the
- * oneof_index of surviving fields. processor.proto has neither today, so this plugin
- * throws instead of emitting a malformed descriptor. Implement reindexing if needed.
+ * NOT implemented for remove_deprecated (fails loudly — see assertNoOrphanedOneof):
+ * removing a field that empties a oneof. The two ways that happens are (a) a
+ * deprecated proto3 `optional` field, whose synthetic oneof `_field` would be
+ * orphaned, and (b) a oneof whose every member is deprecated. Either needs pruning
+ * the oneof_decl AND reindexing the oneof_index of surviving fields. processor.proto
+ * has neither today, so this plugin throws instead of emitting a malformed
+ * descriptor. (The visibility pass DOES implement oneof pruning + reindexing — and
+ * source-info path remapping, which this pass historically lacks; combining the two
+ * passes is rejected rather than compounding stale indices, and deprecated+internal
+ * co-annotated elements are handled by the visibility pass alone.)
  */
 import { runNodeJs } from '@bufbuild/protoplugin'
-import { BinaryReader, WireType } from '@bufbuild/protobuf/wire'
 // @bufbuild/protoc-gen-es ships CJS only and does not expose protocGenEs on its
 // package export map; this is the exact module its own bin/protoc-gen-es loads.
 // Node's ESM->CJS interop resolves the named export. Pinned by the lockfile.
 import { protocGenEs } from '@bufbuild/protoc-gen-es/dist/cjs/src/protoc-gen-es-plugin.js'
+import {
+  VISIBILITY_LEVELS,
+  applyVisibilitySurface
+} from './visibility-surface.mjs'
 
 const isDeprecated = (d) => !!(d && d.options && d.options.deprecated === true)
 
 // Fail loudly if dropping deprecated fields left a oneof with no members.
+// NB: protobuf-es exposes unset fields as their zero value via the prototype,
+// so presence of oneof_index must be tested with Object.hasOwn — `!== undefined`
+// would count every plain field as a member of oneof 0.
 function assertNoOrphanedOneof(msg, fqName) {
   const referenced = new Set()
   for (const f of msg.field ?? []) {
-    if (f.oneofIndex !== undefined) referenced.add(f.oneofIndex)
+    if (Object.hasOwn(f, 'oneofIndex')) referenced.add(f.oneofIndex)
   }
   ;(msg.oneofDecl ?? []).forEach((o, i) => {
     if (!referenced.has(i)) {
@@ -111,7 +122,7 @@ function takeRemoveDeprecated(req) {
 // grpc-gateway's openapiv2 annotations, google.api.http/field_behavior/visibility).
 // protobuf-es is descriptor-faithful, so it emits a file-descriptor dependency +
 // import for every imported .proto — which would force generating those option
-  // protos too (legacy codegen silently dropped all custom options, so it never did).
+// protos too (legacy codegen silently dropped all custom options, so it never did).
 //
 // Since NO message/field references a TYPE from these option-only files (they appear
 // only in options), we can drop them from each FileDescriptorProto's `dependency`
@@ -135,16 +146,22 @@ function stripImportsFromFile(fd, toStrip) {
   })
   fd.dependency = deps.filter((_, i) => !removed.has(i))
   if (fd.publicDependency) {
-    fd.publicDependency = fd.publicDependency.filter((i) => !removed.has(i)).map((i) => remap.get(i))
+    fd.publicDependency = fd.publicDependency
+      .filter((i) => !removed.has(i))
+      .map((i) => remap.get(i))
   }
   if (fd.weakDependency) {
-    fd.weakDependency = fd.weakDependency.filter((i) => !removed.has(i)).map((i) => remap.get(i))
+    fd.weakDependency = fd.weakDependency
+      .filter((i) => !removed.has(i))
+      .map((i) => remap.get(i))
   }
 }
 
 function stripImports(req, toStrip) {
   ;(req.protoFile ?? []).forEach((fd) => stripImportsFromFile(fd, toStrip))
-  ;(req.sourceFileDescriptors ?? []).forEach((fd) => stripImportsFromFile(fd, toStrip))
+  ;(req.sourceFileDescriptors ?? []).forEach((fd) =>
+    stripImportsFromFile(fd, toStrip)
+  )
   return req
 }
 
@@ -175,85 +192,23 @@ function takeStripImports(req) {
   return toStrip
 }
 
-// --- filter methods by google.api visibility level ---------------------------
+// --- generate the surface visible at a google.api visibility level -----------
 //
-// Methods can be annotated with `(google.api.method_visibility).restriction`
-// (google/api/visibility.proto). We use the labels as an ascending audience
-// hierarchy: INTERNAL < PREVIEW < PUBLIC, where an unannotated method is PUBLIC.
 // The `visibility_level` plugin option (set by the `es_proto` rule's attr of the
-// same name) names the audience to generate for: a method is kept iff its level
-// is >= the configured level. The default/absent level is INTERNAL (the lowest),
-// which keeps everything — same as the openapi generator's behavior when no
-// `visibility_restriction_selectors` are passed — and skips the pass entirely,
-// so default builds stay byte-identical and never trip restriction validation.
+// same name) names the audience to generate for: INTERNAL < PREVIEW < PUBLIC,
+// unannotated = PUBLIC. The default/absent level is INTERNAL (the lowest), which
+// skips the pass entirely, so default builds stay byte-identical and never trip
+// restriction validation. Above that, applyVisibilitySurface() (see
+// visibility-surface.mjs) removes everything the audience must not see:
+// restricted services/methods/fields/enum values, types unreachable from the
+// surviving methods, extension declarations, custom option bytes other than
+// google.api.http, and `(-- internal --)` comment spans — failing loudly on
+// contradictions instead of leaking.
 //
-// `restriction` is a comma-separated label list per google/api/visibility.proto
-// ("INTERNAL,PREVIEW" = visible to both audiences); a multi-label method's level
-// is its highest label. Unknown labels fail loudly — a typo must not silently
-// add a method to (or hide it from) a public surface.
-//
-// Scope: METHODS only. field_/message_/enum_/value_/api_visibility are left
-// untouched (filtering messages/enums could orphan type references; add field
-// support alongside the deprecated-field oneof handling if ever needed). A
-// service whose every method is filtered still emits an (empty) GenService.
-//
-// google/api/visibility.proto is normally in ES_STRIP_IMPORTS, so the extension
-// is never registered — the option bytes sit in MethodOptions.$unknown, and we
-// read them from there (extension field 72295727, a VisibilityRule message whose
-// field 2 is `restriction`; field 1 `selector` is unused in option position).
-const VISIBILITY_LEVELS = ['INTERNAL', 'PREVIEW', 'PUBLIC']
-const VISIBILITY_EXT_FIELD = 72295727
-
-// Returns the restriction string of a method, or undefined when unannotated.
-function methodRestriction(method) {
-  let restriction
-  for (const f of method.options?.$unknown ?? []) {
-    if (f.no !== VISIBILITY_EXT_FIELD || f.wireType !== WireType.LengthDelimited) continue
-    // f.data is the length-prefixed VisibilityRule bytes. A repeated occurrence
-    // of this singular extension merges per proto rules: last `restriction` wins.
-    const rule = new BinaryReader(new BinaryReader(f.data).bytes())
-    while (rule.pos < rule.len) {
-      const [no, wt] = rule.tag()
-      if (no === 2 && wt === WireType.LengthDelimited) restriction = rule.string()
-      else rule.skip(wt, no)
-    }
-  }
-  return restriction
-}
-
-// Maps a restriction label list to its level index; empty list = PUBLIC.
-function visibilityLevelOf(restriction, where) {
-  let level = -1
-  for (const part of restriction.split(',')) {
-    const label = part.trim()
-    if (!label) continue
-    const idx = VISIBILITY_LEVELS.indexOf(label)
-    if (idx === -1) {
-      throw new Error(
-        `protoc-gen-es: unknown google.api visibility restriction ` +
-          `'${label}' on ${where}; known levels: ${VISIBILITY_LEVELS.join(' < ')}`
-      )
-    }
-    if (idx > level) level = idx
-  }
-  return level === -1 ? VISIBILITY_LEVELS.indexOf('PUBLIC') : level
-}
-
-function stripHiddenMethods(req, minLevel) {
-  const filterFile = (fd) => {
-    const prefix = fd.package ? `${fd.package}.` : ''
-    for (const svc of fd.service ?? []) {
-      svc.method = (svc.method ?? []).filter((m) => {
-        const restriction = methodRestriction(m)
-        if (restriction === undefined) return true
-        return visibilityLevelOf(restriction, `${prefix}${svc.name}.${m.name}`) >= minLevel
-      })
-    }
-  }
-  ;(req.protoFile ?? []).forEach(filterFile)
-  ;(req.sourceFileDescriptors ?? []).forEach(filterFile)
-  return req
-}
+// The pass runs BEFORE strip_imports: it recomputes each generated file's
+// dependency list from the surviving type references (which already drops the
+// options-only imports strip_imports targets), and the SourceCodeInfo path
+// remapping it performs must see the arrays in their original order.
 
 // Consume the custom `visibility_level` option from the protoc parameter string
 // (stock protoc-gen-es rejects unknown options). Returns the level index, or
@@ -285,11 +240,22 @@ runNodeJs({
   name: protocGenEs.name,
   version: protocGenEs.version,
   run: (req) => {
-    if (takeRemoveDeprecated(req)) stripDeprecated(req)
+    const removeDeprecated = takeRemoveDeprecated(req)
     const toStrip = takeStripImports(req)
-    if (toStrip.size > 0) stripImports(req, toStrip)
     const minVisibility = takeVisibilityLevel(req)
-    if (minVisibility !== undefined && minVisibility > 0) stripHiddenMethods(req, minVisibility)
+    if (minVisibility !== undefined && minVisibility > 0) {
+      if (removeDeprecated) {
+        throw new Error(
+          'protoc-gen-es: remove_deprecated cannot be combined with visibility_level ' +
+            '(the deprecated pass does not remap SourceCodeInfo paths; annotate ' +
+            'deprecated elements with a visibility restriction instead)'
+        )
+      }
+      applyVisibilitySurface(req, minVisibility)
+    } else if (removeDeprecated) {
+      stripDeprecated(req)
+    }
+    if (toStrip.size > 0) stripImports(req, toStrip)
     return protocGenEs.run(req)
   }
 })

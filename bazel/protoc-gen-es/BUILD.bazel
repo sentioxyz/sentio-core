@@ -1,4 +1,8 @@
-load("@aspect_rules_js//js:defs.bzl", "js_binary")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_test")
+
+# The tests package holds hand-written fixture protos and golden outputs;
+# keep gazelle from generating proto/Go rules for them.
+# gazelle:exclude tests
 
 # protoc plugin: sentio's wrapper around stock @bufbuild/protoc-gen-es, adding
 # optional descriptor-filter passes (remove_deprecated, strip_imports,
@@ -6,10 +10,22 @@ load("@aspect_rules_js//js:defs.bzl", "js_binary")
 js_binary(
     name = "protoc_gen_es",
     data = [
+        "visibility-surface.mjs",
         "//:node_modules/@bufbuild/protobuf",
         "//:node_modules/@bufbuild/protoc-gen-es",
         "//:node_modules/@bufbuild/protoplugin",
     ],
     entry_point = "protoc-gen-es.mjs",
     visibility = ["//visibility:public"],
+)
+
+# Unit tests for the visibility-surface pass; the golden end-to-end tests live
+# in //bazel/protoc-gen-es/tests.
+js_test(
+    name = "visibility_surface_test",
+    data = [
+        "visibility-surface.mjs",
+        "//:node_modules/@bufbuild/protobuf",
+    ],
+    entry_point = "visibility-surface.test.mjs",
 )

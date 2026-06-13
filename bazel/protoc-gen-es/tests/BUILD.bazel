@@ -1,0 +1,71 @@
+load("@aspect_bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@bazel_skylib//rules:select_file.bzl", "select_file")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("//bazel:ts-rules.bzl", "es_proto")
+
+# End-to-end golden tests for es_proto's visibility_level: fixture protos mix
+# restricted and public elements; the checked-in golden outputs double as the
+# review artifact for exactly what a published surface contains. Refresh with
+#   bazel run //bazel/protoc-gen-es/tests:write_golden
+# (the generated *_test targets then diff the goldens against fresh output).
+
+proto_library(
+    name = "fixture_proto",
+    srcs = [
+        "protos/dep.proto",
+        "protos/internal_only.proto",
+        "protos/public_service.proto",
+    ],
+    deps = [
+        "@googleapis//google/api:annotations_proto",
+        "@googleapis//google/api:visibility_proto",
+    ],
+)
+
+# The whole surface in ONE target: visibility pruning is computed per
+# compilation (see the visibility_level doc in //bazel:ts-rules.bzl).
+es_proto(
+    name = "fixture_public_es",
+    protos = [":fixture_proto"],
+    visibility_level = "PUBLIC",
+)
+
+es_proto(
+    name = "fixture_preview_es",
+    protos = [":fixture_proto"],
+    visibility_level = "PREVIEW",
+)
+
+select_file(
+    name = "public_public_service",
+    srcs = ":fixture_public_es",
+    subpath = "protos/public_service_pb.ts",
+)
+
+select_file(
+    name = "public_dep",
+    srcs = ":fixture_public_es",
+    subpath = "protos/dep_pb.ts",
+)
+
+select_file(
+    name = "public_internal_only",
+    srcs = ":fixture_public_es",
+    subpath = "protos/internal_only_pb.ts",
+)
+
+select_file(
+    name = "preview_public_service",
+    srcs = ":fixture_preview_es",
+    subpath = "protos/public_service_pb.ts",
+)
+
+write_source_files(
+    name = "write_golden",
+    files = {
+        "golden/preview/public_service_pb.ts": ":preview_public_service",
+        "golden/public/dep_pb.ts": ":public_dep",
+        "golden/public/internal_only_pb.ts": ":public_internal_only",
+        "golden/public/public_service_pb.ts": ":public_public_service",
+    },
+)

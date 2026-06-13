@@ -1,0 +1,15 @@
+// Fixture dependency that is NOT in file_to_generate (no golden output): a
+// bystander between two generated files, referencing a type that the PUBLIC
+// surface prunes (estest.AdminRequest -> Watcher -> estest.hidden.ReadRequest).
+// The pass must prune the bystander's in-memory copy to the same closure —
+// otherwise codegen's registry build fails on the dangling reference — while
+// the generated goldens stay byte-identical, proving it leaves no trace.
+syntax = "proto3";
+
+package estest.by;
+
+import "bazel/protoc-gen-es/tests/protos/internal_only.proto";
+
+message Watcher {
+  estest.hidden.ReadRequest req = 1;
+}

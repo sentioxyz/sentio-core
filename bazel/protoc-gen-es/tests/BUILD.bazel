@@ -10,13 +10,29 @@ load("//bazel:ts-rules.bzl", "es_proto")
 # (the generated *_test targets then diff the goldens against fresh output).
 
 proto_library(
+    name = "internal_only_proto",
+    srcs = ["protos/internal_only.proto"],
+    deps = [
+        "@googleapis//google/api:visibility_proto",
+    ],
+)
+
+# In the dependency closure but NOT in the es_proto targets' protos: no output
+# is generated for it, exercising the in-memory pruning of bystander deps.
+proto_library(
+    name = "bystander_proto",
+    srcs = ["protos/bystander.proto"],
+    deps = [":internal_only_proto"],
+)
+
+proto_library(
     name = "fixture_proto",
     srcs = [
         "protos/dep.proto",
-        "protos/internal_only.proto",
         "protos/public_service.proto",
     ],
     deps = [
+        ":bystander_proto",
         "@googleapis//google/api:annotations_proto",
         "@googleapis//google/api:visibility_proto",
     ],
@@ -26,13 +42,19 @@ proto_library(
 # compilation (see the visibility_level doc in //bazel:ts-rules.bzl).
 es_proto(
     name = "fixture_public_es",
-    protos = [":fixture_proto"],
+    protos = [
+        ":fixture_proto",
+        ":internal_only_proto",
+    ],
     visibility_level = "PUBLIC",
 )
 
 es_proto(
     name = "fixture_preview_es",
-    protos = [":fixture_proto"],
+    protos = [
+        ":fixture_proto",
+        ":internal_only_proto",
+    ],
     visibility_level = "PREVIEW",
 )
 

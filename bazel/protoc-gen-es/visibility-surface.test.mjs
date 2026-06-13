@@ -442,13 +442,55 @@ test('import public is rejected', () => {
   )
 })
 
-test('files not in file_to_generate are left untouched', () => {
+test('files not in file_to_generate are pruned in-memory to the same closure', () => {
   const req = makeReq()
   req.fileToGenerate = ['svc.proto']
   applyVisibilitySurface(req, PUBLIC)
-  // dep.proto keeps everything, including the unreferenced Orphan
-  assert.deepEqual(names(req.protoFile[1].messageType), ['Shared', 'Orphan'])
+  // dep.proto is not emitted, but its in-memory copy is pruned all the same so
+  // the registry protoc-gen-es builds from the request stays consistent
+  assert.deepEqual(names(req.protoFile[1].messageType), ['Shared'])
   // and svc.proto still keeps its dependency on it
+  assert.deepEqual(req.protoFile[0].dependency, ['dep.proto'])
+})
+
+test('bystander dep referencing a pruned generated type is pruned, not dangling', () => {
+  // Production shape: gen web imports non-gen project imports gen common; the
+  // public surface reaches none of project's types, but project's fields
+  // reference common types that pruning removes. The bystander must be pruned
+  // too, or protoc-gen-es's registry build dies on the dangling reference.
+  const req = makeReq()
+  req.protoFile[0].dependency.push('bystander.proto')
+  req.protoFile.push({
+    name: 'bystander.proto',
+    package: 'estest.by',
+    dependency: ['svc.proto'],
+    messageType: [
+      {
+        name: 'Watcher',
+        // references a type that the PUBLIC surface prunes from svc.proto
+        field: [msgField('admin', 1, '.estest.AdminReq')],
+        nestedType: [],
+        enumType: [],
+        oneofDecl: [],
+        extension: []
+      }
+    ],
+    enumType: [],
+    service: [
+      // a bystander's service is never emitted: dropped outright, so its
+      // method types do not anchor anything into the closure
+      {
+        name: 'WatcherApi',
+        method: [method('Watch', '.estest.by.Watcher', '.estest.by.Watcher')]
+      }
+    ],
+    extension: []
+  })
+  applyVisibilitySurface(req, PUBLIC)
+  const by = req.protoFile.at(-1)
+  assert.deepEqual(names(by.messageType), [])
+  assert.deepEqual(names(by.service), [])
+  // the generated file no longer depends on the emptied bystander
   assert.deepEqual(req.protoFile[0].dependency, ['dep.proto'])
 })
 

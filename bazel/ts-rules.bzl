@@ -34,6 +34,10 @@ ES_BASE_OPTIONS = [
     "target=ts",
     "import_extension=js",
     "keep_empty_files=true",
+    # Emit the `*Json` type for every message (the protojson shape: string
+    # timestamps/int64, flat oneofs, string enums) alongside the message type,
+    # so consumers can type fromJson/toJson boundaries against the JSON form.
+    "json_types=true",
 ]
 
 # Imports that exist purely to declare custom-option extensions (annotations), never

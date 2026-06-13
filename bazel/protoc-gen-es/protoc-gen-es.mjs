@@ -210,6 +210,27 @@ function takeStripImports(req) {
 // options-only imports strip_imports targets), and the SourceCodeInfo path
 // remapping it performs must see the arrays in their original order.
 
+// Consume the custom `require_http` option: drop methods without a
+// (google.api.http) binding from the visibility surface (REST surfaces cannot
+// reach unbound methods; internal gRPC-only methods routinely carry no
+// visibility annotation). Only meaningful together with visibility_level.
+function takeRequireHttp(req) {
+  const kept = []
+  let requireHttp = false
+  for (const part of (req.parameter ?? '').split(',')) {
+    const opt = part.trim()
+    if (!opt) continue
+    const [key, value] = opt.split('=')
+    if (key === 'require_http') {
+      requireHttp = value === undefined || value === 'true' || value === '1'
+    } else {
+      kept.push(opt)
+    }
+  }
+  req.parameter = kept.join(',')
+  return requireHttp
+}
+
 // Consume the custom `visibility_level` option from the protoc parameter string
 // (stock protoc-gen-es rejects unknown options). Returns the level index, or
 // undefined when absent.
@@ -242,6 +263,7 @@ runNodeJs({
   run: (req) => {
     const removeDeprecated = takeRemoveDeprecated(req)
     const toStrip = takeStripImports(req)
+    const requireHttp = takeRequireHttp(req)
     const minVisibility = takeVisibilityLevel(req)
     if (minVisibility !== undefined && minVisibility > 0) {
       if (removeDeprecated) {
@@ -251,7 +273,12 @@ runNodeJs({
             'deprecated elements with a visibility restriction instead)'
         )
       }
-      applyVisibilitySurface(req, minVisibility)
+      applyVisibilitySurface(req, minVisibility, { requireHttp })
+    } else if (requireHttp) {
+      throw new Error(
+        'protoc-gen-es: require_http only applies to a visibility surface; ' +
+          'set visibility_level (above INTERNAL) as well'
+      )
     } else if (removeDeprecated) {
       stripDeprecated(req)
     }

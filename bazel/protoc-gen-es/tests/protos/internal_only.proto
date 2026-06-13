@@ -1,0 +1,22 @@
+// Fixture file with no public content at all: the filtered build must emit an
+// empty module (keep_empty_files), leaking nothing but the file name.
+syntax = "proto3";
+
+package estest.hidden;
+
+import "google/api/visibility.proto";
+
+// Internal-audience service.
+service HiddenApi {
+  option (google.api.api_visibility).restriction = "INTERNAL";
+
+  rpc Read(ReadRequest) returns (ReadResponse);
+}
+
+message ReadRequest {
+  string q = 1;
+}
+
+message ReadResponse {
+  string r = 1;
+}

@@ -1,0 +1,107 @@
+// Fixture for the visibility-surface golden tests: one file mixing every kind
+// of restricted element with the public surface that must survive.
+syntax = "proto3";
+
+package estest;
+
+import "bazel/protoc-gen-es/tests/protos/dep.proto";
+import "google/api/annotations.proto";
+import "google/api/visibility.proto";
+
+// The public service. (-- Internal operator notes that must not publish. --)
+service PublicApi {
+  // Fetches a thing. (-- Calls the internal foo backend. --)
+  rpc GetThing(GetThingRequest) returns (Thing) {
+    option (google.api.http) = {get: "/v1/things/{id}"};
+  }
+  // A preview-audience method.
+  rpc PreviewThing(GetThingRequest) returns (Thing) {
+    option (google.api.http) = {get: "/v1/preview/things/{id}"};
+    option (google.api.method_visibility).restriction = "PREVIEW";
+  }
+  // Internal admin method.
+  rpc AdminThing(AdminRequest) returns (Thing) {
+    option (google.api.http) = {
+      post: "/v1/admin/things"
+      body: "*"
+    };
+    option (google.api.method_visibility).restriction = "INTERNAL";
+  }
+}
+
+// Internal-audience service.
+service InternalApi {
+  option (google.api.api_visibility).restriction = "INTERNAL";
+
+  rpc ListSecrets(GetThingRequest) returns (Thing);
+}
+
+// Unrestricted service whose every method is internal: must vanish entirely.
+service OpsApi {
+  rpc Sweep(AdminRequest) returns (Thing) {
+    option (google.api.method_visibility).restriction = "INTERNAL";
+  }
+}
+
+// Request for GetThing. (-- The selector drives the internal router. --)
+message GetThingRequest {
+  // The thing id.
+  string id = 1;
+  // Internal debugging knob.
+  string debug_flag = 2 [(google.api.field_visibility).restriction = "INTERNAL"];
+
+  oneof selector {
+    // Select by name.
+    string name = 3;
+    // Internal selector expression.
+    InternalSelector internal_selector = 4 [(google.api.field_visibility).restriction = "INTERNAL"];
+  }
+
+  // Internal optional field (its synthetic oneof must be pruned).
+  optional string trace_id = 5 [(google.api.field_visibility).restriction = "INTERNAL"];
+  // Public optional field (its synthetic oneof must be reindexed).
+  optional string locale = 6;
+  // Labels keyed by shared dependency type.
+  map<string, estest.dep.Shared> labels = 7;
+}
+
+// A thing.
+message Thing {
+  string id = 1;
+  Kind kind = 2;
+  // Parent thing (recursive reference).
+  Thing parent = 3;
+  Meta meta = 4;
+
+  // Referenced nested type.
+  message Meta {
+    string etag = 1;
+  }
+
+  // Unreferenced nested type: pruned.
+  message Draft {
+    string body = 1;
+  }
+}
+
+// Thing kinds.
+enum Kind {
+  KIND_UNSPECIFIED = 0;
+  KIND_BASIC = 1;
+  // Internal kind.
+  KIND_SECRET = 2 [(google.api.value_visibility).restriction = "INTERNAL"];
+}
+
+// Internal-only request type: pruned together with its closure.
+message AdminRequest {
+  string token = 1;
+  AdminDetail detail = 2;
+}
+
+message AdminDetail {
+  string secret_backend = 1;
+}
+
+message InternalSelector {
+  string expression = 1;
+}

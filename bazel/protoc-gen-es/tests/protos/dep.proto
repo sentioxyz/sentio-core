@@ -1,0 +1,19 @@
+// Fixture dependency file: only types reachable from the public surface of
+// public_service.proto may survive its visibility-filtered build.
+syntax = "proto3";
+
+package estest.dep;
+
+// Shared label value (referenced from the public surface).
+message Shared {
+  string value = 1;
+}
+
+// Unreferenced in the public surface: pruned together with its closure.
+message Orphan {
+  Secret secret = 1;
+}
+
+message Secret {
+  string payload = 1;
+}

@@ -34,10 +34,6 @@ ES_BASE_OPTIONS = [
     "target=ts",
     "import_extension=js",
     "keep_empty_files=true",
-    # Emit the `*Json` type for every message (the protojson shape: string
-    # timestamps/int64, flat oneofs, string enums) alongside the message type,
-    # so consumers can type fromJson/toJson boundaries against the JSON form.
-    "json_types=true",
 ]
 
 # Imports that exist purely to declare custom-option extensions (annotations), never
@@ -76,6 +72,8 @@ def es_proto_compile_impl(ctx):
         options += ["visibility_level=" + ctx.attr.visibility_level]
     if ctx.attr.require_http_bindings:
         options += ["require_http=true"]
+    if ctx.attr.json_types:
+        options += ["json_types=true"]
     options += ctx.attr.options
 
     extra_protoc_args = getattr(ctx.attr, "extra_protoc_args", [])
@@ -124,6 +122,13 @@ es_proto = rule(
                   "carry no visibility annotation — this keeps them (and their type closures) " +
                   "out fail-closed, mirroring the openapi generator's effective rule " +
                   "(included iff http-bound and visible). Requires visibility_level.",
+        ),
+        json_types = attr.bool(
+            default = True,
+            doc = "Emit the `*Json` type for every message (the protojson shape: string " +
+                  "timestamps/int64, flat oneofs, string enums) alongside the message type, and " +
+                  "stamp each GenMessage with its `{jsonType}`, so consumers can type fromJson/toJson " +
+                  "boundaries against the JSON form. Defaults to True; set False to suppress.",
         ),
         options = attr.string_list(
             default = [],

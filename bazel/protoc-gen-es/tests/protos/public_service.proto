@@ -28,6 +28,9 @@ service PublicApi {
     };
     option (google.api.method_visibility).restriction = "INTERNAL";
   }
+  // Visibility-public but with no REST binding: require_http_bindings keeps it
+  // (and its request closure) off the published surface.
+  rpc PingGrpc(AdminRequest) returns (Thing);
 }
 
 // Internal-audience service.

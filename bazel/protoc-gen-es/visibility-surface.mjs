@@ -225,7 +225,17 @@ function filterUnknownOptions(options, keepExts) {
 
 // --- the pass --------------------------------------------------------------------
 
-export function applyVisibilitySurface(req, minLevel) {
+// Options: `requireHttp` additionally drops methods without a (google.api.http)
+// binding. A REST surface (the published SDK calls through the grpc-gateway
+// dialect) cannot reach unbound methods anyway, and internal gRPC-only methods
+// routinely carry no visibility annotation — without this, they and their type
+// closures would ship. This mirrors the openapi generator's effective rule:
+// included ⟺ http-bound AND visible at the level.
+export function applyVisibilitySurface(
+  req,
+  minLevel,
+  { requireHttp = false } = {}
+) {
   const genFiles = new Set(req.fileToGenerate ?? [])
   const files = req.protoFile ?? []
 
@@ -286,6 +296,12 @@ export function applyVisibilitySurface(req, minLevel) {
       for (const m of svc.method ?? []) {
         const where = `${svcWhere}.${m.name}`
         if (levelOf(m.options, where) < minLevel) continue
+        if (
+          requireHttp &&
+          !(m.options?.$unknown ?? []).some((f) => f.no === HTTP_EXT_FIELD)
+        ) {
+          continue
+        }
         methods.add(m.name)
         roots.push([m.inputType, where], [m.outputType, where])
       }

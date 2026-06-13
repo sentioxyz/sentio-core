@@ -504,6 +504,18 @@ test('a service whose every method is internal disappears, name and all', () => 
   assert.equal(out.includes('my_ext'), false)
 })
 
+test('requireHttp drops methods without a google.api.http binding', () => {
+  const req = makeReq()
+  // public visibility, but no REST binding: must not ship on a REST surface
+  req.protoFile[0].service[0].method.push(
+    method('GrpcOnly', '.estest.AdminReq', '.estest.Resp')
+  )
+  applyVisibilitySurface(req, PUBLIC, { requireHttp: true })
+  assert.deepEqual(names(req.protoFile[0].service[0].method), ['Get'])
+  // and its request closure is pruned with it
+  assert.deepEqual(names(req.protoFile[0].messageType), ['Req', 'Resp'])
+})
+
 test('restrictionOf reads the last restriction of merged option bytes', () => {
   const options = { $unknown: [vis('INTERNAL'), vis('PREVIEW')] }
   assert.equal(restrictionOf(options), 'PREVIEW')

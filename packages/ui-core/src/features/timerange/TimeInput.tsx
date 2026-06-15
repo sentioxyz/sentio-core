@@ -27,7 +27,14 @@ export function TimeInput({ value, disabled, onChange }: TimeInputProps) {
   }, [value])
 
   useEffect(() => {
-    onChange(`${hour}:${minute}`)
+    const next = `${hour}:${minute}`
+    // Only report genuine user edits. When `hour`/`minute` were just synced
+    // from the `value` prop (above), echoing them back through onChange creates
+    // a feedback loop with the parent — which, for non-idempotent transforms
+    // like timezone shifts with fractional offsets, oscillates indefinitely.
+    if (next !== value) {
+      onChange(next)
+    }
   }, [hour, minute])
 
   const onChangeHour = (e: React.ChangeEvent<HTMLInputElement>) => {

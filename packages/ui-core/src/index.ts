@@ -63,11 +63,22 @@ export {
 } from './common/menu/SubMenu'
 export type { IMenuItem, OnSelectMenuItem } from './common/menu/types'
 
+// Popover / combo inputs
+export { PopoverButton } from './common/popper/PopoverButton'
+export { ComboInput } from './common/input/ComboInput'
+export {
+  ComboSelect,
+  type Props as ComboSelectProps
+} from './common/select/ComboSelect'
+
 // Features
 export { TimeInput, type TimeInputProps } from './features/timerange/TimeInput'
 export { TimeRangeLabel } from './features/timerange/TimeRangeLabel'
 export { DateInput, DATE_FORMAT } from './features/timerange/DateInput'
 export { PresetPicker } from './features/timerange/PresetPicker'
+export { default as Calendar } from './features/timerange/Calendar'
+export { DatePicker } from './features/timerange/DatePicker'
+export { TimeZonePicker } from './features/timerange/TimeZonePicker'
 export {
   formatTimeRange,
   applyTz,

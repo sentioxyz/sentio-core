@@ -45,7 +45,7 @@ require (
 	github.com/sentioxyz/fuel-go v0.0.0-20250319130329-e48479a24cd9
 	github.com/sentioxyz/golang-lru v0.0.0-20221206101024-a094e96c5283
 	github.com/sentioxyz/qs v0.0.0-20250901053804-ecf034c91d44
-	github.com/sentioxyz/sui-apis v0.0.0-20260130063639-b30aa79134d1
+	github.com/sentioxyz/sui-apis v0.0.0-20260615031045-85b304377661
 	github.com/shopspring/decimal v1.4.0
 	github.com/soheilhy/cmux v0.1.5
 	github.com/stretchr/testify v1.11.1

@@ -572,8 +572,8 @@ github.com/sentioxyz/golang-lru v0.0.0-20221206101024-a094e96c5283 h1:I3mVT0+9g7
 github.com/sentioxyz/golang-lru v0.0.0-20221206101024-a094e96c5283/go.mod h1:GzV0jkSUAWo11voePIXdNOnMWgdUHAnUBnjP0CDmDZ8=
 github.com/sentioxyz/qs v0.0.0-20250901053804-ecf034c91d44 h1:1eYtfxCw+INqKfzBOt1tkeT9RaZZBnf+uw5/Hm7RgzE=
 github.com/sentioxyz/qs v0.0.0-20250901053804-ecf034c91d44/go.mod h1:uRR/31AqKz+bqPK54NyQavCaUQtqDs9qbTAIGLsPXcM=
-github.com/sentioxyz/sui-apis v0.0.0-20260130063639-b30aa79134d1 h1:+qEXL0jDFEhVTyD7ZCIOFmGUGmCHoMS9q6Fj4EpuQqI=
-github.com/sentioxyz/sui-apis v0.0.0-20260130063639-b30aa79134d1/go.mod h1:viEFfgDm5wIAI56AiFYIA4WqHyWb159aEsz9/2uBdYk=
+github.com/sentioxyz/sui-apis v0.0.0-20260615031045-85b304377661 h1:7Bqrn+tmD9c2AAJ+qgkTfjXFAfuPXft4bQbQ/jg96As=
+github.com/sentioxyz/sui-apis v0.0.0-20260615031045-85b304377661/go.mod h1:viEFfgDm5wIAI56AiFYIA4WqHyWb159aEsz9/2uBdYk=
 github.com/sentioxyz/wasmer-go v1.0.5-0.20260530143627-477807e83310 h1:mhGWb+O2Ld5+AidGs43cWvTlQ33bdpVn4Fj0yuv7kPA=
 github.com/sentioxyz/wasmer-go v1.0.5-0.20260530143627-477807e83310/go.mod h1:SNz0kSlXON2kkfLZbdtMt721+M0fBSXjSon7rIuHf7Q=
 github.com/shirou/gopsutil v3.21.11+incompatible h1:+1+c1VGhc88SSonWP6foOcLhvnKlUeu/erjjvaPEYiI=

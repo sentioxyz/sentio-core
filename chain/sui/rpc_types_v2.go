@@ -338,6 +338,61 @@ func (t ExtendedGrpcChangedObject) GetSimpleCheckpoint() SimpleCheckpoint {
 	}
 }
 
+// GrpcObjectResult wraps *rpcv2.GetObjectResult so it can cross the JSON-RPC
+// boundary between the super node and the driver. GetObjectResult.Result is a
+// protobuf oneof (Object | Error) and the default encoding/json cannot round-trip
+// it — the driver side fails with "cannot unmarshal object into Go struct field
+// GetObjectResult.Result of type rpcv2.isGetObjectResult_Result". As with
+// ExtendedGrpcTransaction / ExtendedGrpcChangedObject, we route the proto member
+// through protojson instead.
+type GrpcObjectResult struct {
+	*rpcv2.GetObjectResult
+}
+
+func (r GrpcObjectResult) MarshalJSON() ([]byte, error) {
+	if r.GetObjectResult == nil {
+		return []byte("null"), nil
+	}
+	b, err := protojson.Marshal(r.GetObjectResult)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal grpc GetObjectResult")
+	}
+	return b, nil
+}
+
+func (r *GrpcObjectResult) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		r.GetObjectResult = nil
+		return nil
+	}
+	msg := &rpcv2.GetObjectResult{}
+	if err := protojson.Unmarshal(data, msg); err != nil {
+		return errors.Wrap(err, "unmarshal grpc GetObjectResult")
+	}
+	r.GetObjectResult = msg
+	return nil
+}
+
+// WrapGrpcObjectResults / UnwrapGrpcObjectResults convert between the raw proto
+// slice used internally and the JSON-RPC-safe wrapper slice exchanged over RPC.
+func WrapGrpcObjectResults(results []*rpcv2.GetObjectResult) []*GrpcObjectResult {
+	wrapped := make([]*GrpcObjectResult, len(results))
+	for i, r := range results {
+		wrapped[i] = &GrpcObjectResult{GetObjectResult: r}
+	}
+	return wrapped
+}
+
+func UnwrapGrpcObjectResults(wrapped []*GrpcObjectResult) []*rpcv2.GetObjectResult {
+	results := make([]*rpcv2.GetObjectResult, len(wrapped))
+	for i, w := range wrapped {
+		if w != nil {
+			results[i] = w.GetObjectResult
+		}
+	}
+	return results
+}
+
 // CommandFilter has 3 parts and linked AND
 type CommandFilter struct {
 	CallPackage  *string

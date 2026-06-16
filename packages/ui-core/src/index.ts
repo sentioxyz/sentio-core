@@ -41,6 +41,12 @@ export {
 export { SearchInput } from './common/SearchInput'
 export { Checkbox } from './common/Checkbox'
 export { ProgressBar } from './common/ProgressBar'
+export { LineNumber } from './common/LineNumber'
+export { HelpIcon } from './common/HelpIcon'
+export { ErrorIcon } from './common/ErrorIcon'
+export { default as NewButtonGroup } from './common/NewButtonGroup'
+export { NewMultipleSelect } from './common/select/NewMultipleSelect'
+export { DurationInput, type DurationLike } from './common/input/DurationInput'
 export { Descriptions, type DataType } from './common/Descriptions'
 export { Notification } from './common/Notification'
 

@@ -497,14 +497,20 @@ func (s *SuperService) GetGrpcObjects(
 	reqs []*rpcv2.GetObjectRequest,
 	concurrency int,
 	batchSize int,
-) ([]*rpcv2.GetObjectResult, error) {
+) ([]*sui.GrpcObjectResult, error) {
 	if err := s.requireGRPC(); err != nil {
 		return nil, err
 	}
 	const theme = "proxy.GetGrpcObjects.grpc_BatchGetObjects"
 	concurrency = min(concurrency, 10)
 	batchSize = min(batchSize, 50)
-	return s.client.GetGrpcObjectsByPage(ctx, theme, theme, concurrency, batchSize, reqs)
+	results, err := s.client.GetGrpcObjectsByPage(ctx, theme, theme, concurrency, batchSize, reqs)
+	if err != nil {
+		return nil, err
+	}
+	// Wrap raw proto results so the oneof-bearing GetObjectResult round-trips over
+	// JSON-RPC via protojson (see sui.GrpcObjectResult).
+	return sui.WrapGrpcObjectResults(results), nil
 }
 
 func (s *SuperService) GetObjectCreation(ctx context.Context, objectID string) (*sui.ObjectCreation, error) {

@@ -325,8 +325,8 @@ export function NewMultipleSelect<T>({
             {!focusOnClickLabels && (
               <div
                 className={classNames(
-                  'flex items-center gap-1 border-0 p-0 px-1',
-                  disabled ? 'bg-gray-100' : 'bg-default-bg'
+                  'bg-default-bg flex items-center gap-1 border-0 p-0 px-1',
+                  disabled ? 'opacity-80' : ''
                 )}
               >
                 {labels}
@@ -343,8 +343,8 @@ export function NewMultipleSelect<T>({
                 }}
                 as="div"
                 className={classNames(
-                  'inline-flex h-full w-full flex-wrap items-center gap-1 border-0 p-0 align-text-top',
-                  disabled ? 'bg-gray-100' : 'bg-default-bg'
+                  'bg-default-bg inline-flex h-full w-full flex-wrap items-center gap-1 border-0 p-0 align-text-top',
+                  disabled ? 'opacity-80' : ''
                 )}
               >
                 {focusOnClickLabels && labels}
@@ -366,10 +366,8 @@ export function NewMultipleSelect<T>({
                   }
                   onKeyDown={(e) => onInputKeyDown(e, activeIndex)}
                   className={classNames(
-                    'text-icontent focus:outline-hidden h-full w-full px-2',
-                    disabled
-                      ? 'dark:bg-default! bg-gray-100!'
-                      : 'bg-default-bg',
+                    'text-icontent focus:outline-hidden bg-default-bg h-full px-2',
+                    disabled ? 'opacity-80' : '',
                     inputClassName
                   )}
                   autoComplete="off"

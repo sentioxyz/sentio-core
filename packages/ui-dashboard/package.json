@@ -24,6 +24,7 @@
     "dev": "concurrently \"pnpm:dev:css\" \"pnpm:dev:js\"",
     "dev:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --watch",
     "dev:js": "tsup --watch",
+    "ladle": "pnpm build:css && ladle serve",
     "publish:npm": "pnpm build && npm publish --access public"
   },
   "sideEffects": [
@@ -44,6 +45,7 @@
     "react-dom": ">=18"
   },
   "devDependencies": {
+    "@ladle/react": "^5.1.1",
     "@tailwindcss/cli": "^4.3.0",
     "@tailwindcss/postcss": "^4.3.0",
     "@types/lodash": "^4.17.0",

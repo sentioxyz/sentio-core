@@ -6,7 +6,7 @@ import { DurationInput, type DurationLike } from './DurationInput'
 export const Basic: Story = () => {
   const [value, setValue] = useState<DurationLike>({ value: 5, unit: 'm' })
   return (
-    <div className="w-72 p-8">
+    <div>
       <DurationInput value={value} onChange={setValue} />
       <p className="text-text-foreground-secondary mt-4 text-sm">
         {value.value} {value.unit}

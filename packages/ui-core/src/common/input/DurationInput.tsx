@@ -58,25 +58,33 @@ export function DurationInput({
   const hint = optionHint && optionHint(value?.unit || '')
 
   return (
-    <div className={(className || '') + ' relative'}>
+    <div
+      className={classNames(
+        className,
+        'border-main hover:border-primary-600 focus-within:border-primary focus-within:ring-3 focus-within:ring-primary-600/30 flex w-fit items-center gap-2 rounded-md border'
+      )}
+    >
       <input
         type="number"
         name="duration"
         min={0}
         step={1}
         disabled={disabled}
-        className={classNames('py-0 pr-28', inputClassName)}
+        className={classNames(
+          'border-0 focus:border-0 focus:ring-0',
+          inputClassName
+        )}
         value={disabled ? '' : value?.value}
         onChange={(e) => setDuration(parseInt(e.target.value), value?.unit)}
       />
-      <div className="absolute inset-y-0 right-0 flex items-center">
+      <div className="inline-flex items-center">
         <label htmlFor="unit" className="sr-only">
           unit
         </label>
         <select
           id="unit"
           name="unit"
-          className="text-text-foreground text-icontent h-full border-transparent bg-transparent py-0 pl-2 pr-6"
+          className="text-text-foreground text-icontent h-full border-transparent bg-transparent py-0 pl-2 focus:border-transparent focus:ring-0"
           value={value?.unit}
           disabled={disabled}
           onChange={(e) => value && setDuration(value.value!, e.target.value)}

@@ -386,33 +386,32 @@ export function NewMultipleSelect<T>({
                   <div className="ring-border-color shadow-xs rounded ring-1">
                     <Combobox.Options
                       className={classNames(
-                        'text-icontent focus:outline-hidden bg-default-bg overflow-auto py-1 sm:text-sm',
+                        'text-icontent focus:outline-hidden bg-default-bg overflow-auto pb-1 sm:text-sm',
                         'scrollbar-thin rounded-sm',
-                        optionsClassName
+                        optionsClassName,
+                        activeTopLevelFilter || topLevelOptions.length > 0
+                          ? ''
+                          : 'pt-1'
                       )}
                       style={{
                         maxHeight: maxOptionsHeight,
                         width: autoOptionsWidth ? width : undefined
                       }}
                     >
-                      {/* Back row — return to top-level options when drilled into a filter */}
+                      {/* Back row — return to top-level options when drilled into a filter.
+                          Sticky so it stays pinned while the options list scrolls. */}
                       {activeTopLevelFilter && (
-                        <>
-                          <div
-                            role="option"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={handleBackClick}
-                            className="hover:bg-hover relative flex cursor-pointer select-none items-center gap-2 px-3 py-2 text-xs font-medium"
-                          >
-                            <LuChevronLeft className="text-text-foreground-secondary h-4 w-4" />
-                            <span className="block truncate">
-                              {activeTopLevelFilter.label}
-                            </span>
-                          </div>
-                          {filteredOptions.length > 0 && (
-                            <div className="border-border-color my-1 border-t" />
-                          )}
-                        </>
+                        <div
+                          role="option"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={handleBackClick}
+                          className="bg-default-bg border-border-color hover:bg-hover sticky top-0 z-10 flex cursor-pointer select-none items-center gap-2 border-b px-3 py-2 text-xs font-medium"
+                        >
+                          <LuChevronLeft className="text-text-foreground-secondary h-4 w-4" />
+                          <span className="block truncate">
+                            {activeTopLevelFilter.label}
+                          </span>
+                        </div>
                       )}
                       {/* Show top-level options only when no top-level filter is active */}
                       {!activeTopLevelFilter && topLevelOptions.length > 0 && (

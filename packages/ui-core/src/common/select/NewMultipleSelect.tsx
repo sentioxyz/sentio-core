@@ -294,7 +294,7 @@ export function NewMultipleSelect<T>({
     inputRef.current?.focus()
   }
 
-  const handleBackClick = (evt: React.MouseEvent<HTMLButtonElement>) => {
+  const handleBackClick = (evt: React.MouseEvent) => {
     evt.stopPropagation()
     evt.preventDefault()
     setActiveTopLevelFilter(null)
@@ -348,61 +348,33 @@ export function NewMultipleSelect<T>({
                 )}
               >
                 {focusOnClickLabels && labels}
-                {hasTopLevel ? (
-                  <div className="relative w-full">
-                    {activeTopLevelFilter && (
-                      <button
-                        type="button"
-                        onClick={handleBackClick}
-                        className="text-text-foreground-secondary hover:text-text-foreground absolute left-0 top-1/2 inline-flex -translate-y-1/2 items-center px-1 py-1"
-                      >
-                        <LuChevronLeft className="h-4.5 w-4.5" />
-                      </button>
-                    )}
-                    <input
-                      disabled={disabled}
-                      onChange={(e) => setFilter(e.target.value)}
-                      value={filterString}
-                      size={inputSize}
-                      placeholder={
-                        value.length == 0 || filterString.length == 0
-                          ? activeTopLevelFilter
-                            ? `Search ${activeTopLevelFilter.label}...`
-                            : unSelectedText
-                          : ''
-                      }
-                      onKeyDown={(e) => onInputKeyDown(e, activeIndex)}
-                      className={classNames(
-                        'text-icontent focus:outline-hidden ml-1 h-full min-w-fit pr-6',
-                        disabled
-                          ? 'dark:bg-default! bg-gray-100!'
-                          : 'bg-default-bg',
-                        activeTopLevelFilter ? 'pl-6' : '',
-                        inputClassName
-                      )}
-                      autoComplete="off"
-                      ref={inputRef}
-                    />
-                  </div>
-                ) : (
-                  <input
-                    disabled={disabled}
-                    onChange={(e) => setFilter(e.target.value)}
-                    value={filterString}
-                    size={inputSize}
-                    placeholder={value.length == 0 ? unSelectedText : ''}
-                    onKeyDown={(e) => onInputKeyDown(e, activeIndex)}
-                    className={classNames(
-                      'text-icontent focus:outline-hidden ml-1 h-full min-w-fit pr-6',
-                      disabled
-                        ? 'dark:bg-default! bg-gray-100!'
-                        : 'bg-default-bg',
-                      inputClassName
-                    )}
-                    autoComplete="off"
-                    ref={inputRef}
-                  />
-                )}
+                <input
+                  disabled={disabled}
+                  onChange={(e) => setFilter(e.target.value)}
+                  value={filterString}
+                  size={inputSize}
+                  placeholder={
+                    hasTopLevel
+                      ? value.length == 0 || filterString.length == 0
+                        ? activeTopLevelFilter
+                          ? `Search ${activeTopLevelFilter.label}...`
+                          : unSelectedText
+                        : ''
+                      : value.length == 0
+                        ? unSelectedText
+                        : ''
+                  }
+                  onKeyDown={(e) => onInputKeyDown(e, activeIndex)}
+                  className={classNames(
+                    'text-icontent focus:outline-hidden h-full w-full px-2',
+                    disabled
+                      ? 'dark:bg-default! bg-gray-100!'
+                      : 'bg-default-bg',
+                    inputClassName
+                  )}
+                  autoComplete="off"
+                  ref={inputRef}
+                />
               </Combobox.Input>
             </Combobox.Button>
             {open &&
@@ -423,6 +395,25 @@ export function NewMultipleSelect<T>({
                         width: autoOptionsWidth ? width : undefined
                       }}
                     >
+                      {/* Back row — return to top-level options when drilled into a filter */}
+                      {activeTopLevelFilter && (
+                        <>
+                          <div
+                            role="option"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={handleBackClick}
+                            className="hover:bg-hover relative flex cursor-pointer select-none items-center gap-2 px-3 py-2 text-xs font-medium"
+                          >
+                            <LuChevronLeft className="text-text-foreground-secondary h-4 w-4" />
+                            <span className="block truncate">
+                              {activeTopLevelFilter.label}
+                            </span>
+                          </div>
+                          {filteredOptions.length > 0 && (
+                            <div className="border-border-color my-1 border-t" />
+                          )}
+                        </>
+                      )}
                       {/* Show top-level options only when no top-level filter is active */}
                       {!activeTopLevelFilter && topLevelOptions.length > 0 && (
                         <>

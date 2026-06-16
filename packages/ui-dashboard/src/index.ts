@@ -37,6 +37,10 @@ export type {
 } from './types'
 
 // ──────────────────────────────────────────────────────────────────────────
-// Components are added in subsequent changes (timeseries, charts, dashboard
-// shells, then the decoupled dialogs/panels).
+// Components
+//
+// timeseries: the metrics-query form (aggregate / labels / functions inputs)
+// plus its domain helpers (function definitions, system labels, label-search
+// context). charts / dashboard shells / decoupled dialogs are added later.
 // ──────────────────────────────────────────────────────────────────────────
+export * from './timeseries'

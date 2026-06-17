@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "contract",
+    srcs = ["contract.go"],
+    importpath = "sentioxyz/sentio-core/common/contract",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/https",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "contract_test",
+    srcs = ["contract_test.go"],
+    embed = [":contract"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

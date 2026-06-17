@@ -91,7 +91,7 @@ export function FunctionInput({ value, onChange }: Props) {
         onChangeFunction={changeFunction}
       />
       <div className="inline-flex items-center">
-        <div className="h-0.5 w-2.5 self-center bg-gray-300"></div>
+        <div className="bg-border-color h-px w-2.5 self-center"></div>
         <Popover className="relative">
           {({ open }) => (
             <>
@@ -157,7 +157,7 @@ function Functions({
         const def = FunctionMap[f.name!]
         return (
           <div key={f.name} className="inline-flex items-center">
-            <div className="h-0.5 w-2.5 self-center bg-gray-300"></div>
+            <div className="bg-border-color h-px w-2.5 self-center"></div>
             <div
               className={classNames(
                 'text-ilabel focus:outline-hidden text-text-foreground-secondary relative inline-flex items-center pl-2 font-normal',

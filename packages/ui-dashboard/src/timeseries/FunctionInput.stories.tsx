@@ -10,7 +10,7 @@ export const Basic: Story = () => {
   })
   return (
     <div className="w-[36rem] p-8">
-      <div className="flex flex-wrap items-center">
+      <div className="flex flex-wrap items-center gap-y-2">
         <FunctionInput value={value} onChange={setValue} />
       </div>
       <pre className="text-text-foreground-secondary mt-4 text-xs">

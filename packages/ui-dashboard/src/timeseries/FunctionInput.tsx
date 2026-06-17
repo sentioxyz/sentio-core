@@ -1,5 +1,5 @@
 import { Popover } from '@headlessui/react'
-import { LuX as XIcon, LuChevronDown } from 'react-icons/lu'
+import { LuX, LuChevronDown } from 'react-icons/lu'
 import { useFloating, autoPlacement } from '@floating-ui/react'
 import { produce } from 'immer'
 import isEqual from 'lodash/isEqual'
@@ -100,10 +100,10 @@ export function FunctionInput({ value, onChange }: Props) {
                 aria-label="Add function"
                 className={classNames(
                   'text-ilabel focus:border-primary-600 focus:ring-primary-600/30 focus:ring-3 relative -ml-px inline-flex h-8 items-center space-x-2 rounded-md',
-                  'border-main hover:border-primary-600 border bg-gray-100 px-4 font-normal',
+                  'border-main hover:border-primary-600 border px-4 font-normal',
                   open
-                    ? 'text-text-foreground ring-1'
-                    : 'text-text-foreground-disabled hover:text-text-foreground'
+                    ? 'text-primary-600 ring-1'
+                    : 'text-text-foreground-secondary hover:text-text-foreground'
                 )}
               >
                 <span className="flex text-sm">f(x)</span>
@@ -186,7 +186,7 @@ function Functions({
               </PopoverButton>
               {def.arguments.map((arg, i) => (
                 <ArgumentInput
-                  className="sm:text-ilabel hover:border-primary-600 focus:ring-3 focus:ring-primary-600/30 block w-full border border-transparent pl-4"
+                  className="sm:text-ilabel block w-full pl-4"
                   key={'arg_' + i}
                   argument={arg}
                   value={f.arguments && f.arguments[i]}
@@ -196,12 +196,12 @@ function Functions({
               <button
                 type={'button'}
                 className={
-                  'text-text-foreground-disabled hover:text-foreground h-full rounded-r-md px-2 hover:bg-gray-100'
+                  'text-text-foreground-disabled hover:text-text-foreground hover:bg-hover h-full rounded-r-md px-2'
                 }
                 aria-label="remove function"
                 onClick={() => onRemove(f)}
               >
-                <XIcon className="h-4.5 w-4.5" aria-hidden="true" />
+                <LuX className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
           </div>

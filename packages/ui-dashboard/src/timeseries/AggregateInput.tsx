@@ -69,10 +69,10 @@ export function AggregateInput({ metric, value, onChange }: Props) {
   }
 
   return (
-    <div className="min-h-8 flex grow items-center ">
+    <div className="min-h-8 flex grow items-center justify-stretch">
       <select
         value={value.aggregate?.op || ''}
-        className="sm:text-ilabel border-main text-text-foreground inline-flex h-full items-center rounded-l-md border border-r-0 bg-gray-50 p-0 pl-4 pr-7 focus:border-0 focus:ring-inset"
+        className="sm:text-ilabel border-main text-text-foreground inline-flex h-8 items-center rounded-l-md border border-r-0 bg-gray-50 py-1 pl-4 pr-7 focus:border-0 focus:ring-inset"
         onChange={(e) => onSelectFunc(e.target.value)}
         aria-label="aggregate"
       >
@@ -89,7 +89,7 @@ export function AggregateInput({ metric, value, onChange }: Props) {
       </select>
       <NewMultipleSelect<Label>
         disabled={!value.aggregate}
-        className="border-main flex h-full grow overflow-hidden rounded-r-md border"
+        className="border-main flex h-8 grow overflow-hidden rounded-r-md border"
         options={labels || []}
         value={selectedLabels}
         onChange={onSelectLabel}

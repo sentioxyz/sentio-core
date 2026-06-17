@@ -9,7 +9,15 @@ const metric: MetricInfoLike = {
   chainId: ['1', '137'],
   labels: {
     method: { values: ['transfer', 'approve', 'mint'] },
-    status: { values: ['ok', 'fail'] }
+    status: { values: ['ok', 'fail'] },
+    from: { values: ['0xabc123', '0xdef456', '0xghi789'] },
+    to: { values: ['0x987654', '0x543210', '0xabcdef'] },
+    token: { values: ['ETH', 'DAI', 'USDC'] },
+    event: { values: ['swap', 'stake', 'withdraw'] },
+    network: { values: ['mainnet', 'polygon', 'optimism'] },
+    role: { values: ['sender', 'receiver', 'operator'] },
+    action: { values: ['create', 'update', 'delete'] },
+    source: { values: ['web', 'api', 'bot'] }
   }
 }
 

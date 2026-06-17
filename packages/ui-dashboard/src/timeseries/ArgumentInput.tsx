@@ -15,7 +15,10 @@ export function ArgumentInput({ className, argument, value, onChange }: Props) {
       return (
         <input
           type="text"
-          className={className}
+          className={classNames(
+            className,
+            'hover:border-primary-600 focus:border-primary-600 focus:ring-3 focus:ring-primary-600/30 border border-transparent'
+          )}
           value={value?.stringValue}
           onChange={(v) =>
             onChange && onChange({ stringValue: v.target.value })
@@ -26,7 +29,10 @@ export function ArgumentInput({ className, argument, value, onChange }: Props) {
       return (
         <input
           type="number"
-          className={className}
+          className={classNames(
+            className,
+            'hover:border-primary-600 focus:border-primary-600 focus:ring-3 focus:ring-primary-600/30 border border-transparent'
+          )}
           value={value?.doubleValue}
           step="any"
           onChange={(v) =>
@@ -39,7 +45,10 @@ export function ArgumentInput({ className, argument, value, onChange }: Props) {
         <input
           step="1"
           type="number"
-          className={className}
+          className={classNames(
+            className,
+            'hover:border-primary-600 focus:border-primary-600 focus:ring-3 focus:ring-primary-600/30 border border-transparent'
+          )}
           value={value?.intValue}
           onChange={(v) =>
             onChange && onChange({ intValue: parseInt(v.target.value) })
@@ -50,7 +59,10 @@ export function ArgumentInput({ className, argument, value, onChange }: Props) {
       return (
         <input
           type="checkbox"
-          className={className}
+          className={classNames(
+            className,
+            'hover:border-primary-600 focus:border-primary-600 focus:ring-3 focus:ring-primary-600/30 border border-transparent'
+          )}
           checked={value?.boolValue}
           onChange={(e) =>
             onChange && onChange({ boolValue: e.target.value == 'true' })

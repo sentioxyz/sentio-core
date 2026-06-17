@@ -16,7 +16,7 @@ const metric: MetricInfoLike = {
 export const Basic: Story = () => {
   const [value, setValue] = useState<QueryLike>({ query: 'erc20.transfer' })
   return (
-    <div className="w-[32rem] p-8">
+    <div className="w-[32rem] p-8 text-sm">
       <AggregateInput metric={metric} value={value} onChange={setValue} />
       <pre className="text-text-foreground-secondary mt-4 text-xs">
         {JSON.stringify(value.aggregate ?? {}, null, 2)}

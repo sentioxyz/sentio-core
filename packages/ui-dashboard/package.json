@@ -1,7 +1,7 @@
 {
   "private": false,
   "name": "@sentio/ui-dashboard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dashboard UI components for the Sentio platform, decoupled from backend services.",
   "exports": {
     ".": {
@@ -25,7 +25,7 @@
     "dev:css": "tailwindcss -i ./src/styles.css -o ./dist/style.css --watch",
     "dev:js": "tsup --watch",
     "ladle": "pnpm build:css && ladle serve",
-    "publish:npm": "pnpm build && npm publish --access public"
+    "publish:npm": "pnpm build && pnpm publish --access public --no-git-checks"
   },
   "sideEffects": [
     "**/*.css"
@@ -34,8 +34,8 @@
   "dependencies": {
     "@floating-ui/react": "^0.27.16",
     "@headlessui/react": "1.7.7",
-    "@sentio/chain": "workspace:*",
-    "@sentio/ui-core": "workspace:*",
+    "@sentio/chain": "workspace:^",
+    "@sentio/ui-core": "workspace:^",
     "immer": "^11.1.8",
     "lodash": "^4.17.21",
     "react-icons": "^5.5.0"

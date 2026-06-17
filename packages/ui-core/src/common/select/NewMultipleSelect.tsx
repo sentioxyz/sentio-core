@@ -343,7 +343,7 @@ export function NewMultipleSelect<T>({
                 }}
                 as="div"
                 className={classNames(
-                  'bg-default-bg inline-flex h-full w-full flex-wrap items-center gap-1 border-0 p-0 align-text-top',
+                  'bg-default-bg inline-flex h-fit w-full flex-wrap items-center gap-1 border-0 p-0 align-text-top',
                   disabled ? 'opacity-80' : ''
                 )}
               >

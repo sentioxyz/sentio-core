@@ -14,6 +14,9 @@ export { ChartLegend } from './ChartLegend'
 // Refresh affordance
 export { RefreshContext, RefreshButton } from './RefreshContext'
 
+// Option panels
+export * from './options'
+
 // Theme
 export { sentioColors } from './theme/sentio-colors'
 export { sentioTheme, sentioThemeDark } from './theme/sentio-theme'

@@ -8,7 +8,7 @@ import (
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/driver/controller"
-	chain "sentioxyz/sentio-core/driver/controller/config"
+	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data"
 	"sentioxyz/sentio-core/driver/controller/data/sui"
 	"sentioxyz/sentio-core/driver/controller/fetcher"
@@ -32,7 +32,7 @@ type HandlerController struct {
 func NewHandlerController(
 	processor *models.Processor,
 	initResult *protos.InitResponse,
-	chainConfig *chain.ConfigV2,
+	chainConfig *config.ChainConfig,
 	client sui.Client,
 	processorClients []protos.ProcessorV3Client,
 ) *HandlerController {

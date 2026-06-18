@@ -12,7 +12,7 @@ import (
 	chainFuel "sentioxyz/sentio-core/chain/fuel"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/driver/controller"
-	chain "sentioxyz/sentio-core/driver/controller/config"
+	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data"
 	"sentioxyz/sentio-core/driver/controller/data/fuel"
 	"sentioxyz/sentio-core/driver/controller/fetcher"
@@ -32,7 +32,7 @@ type HandlerController struct {
 func NewHandlerController(
 	processor *models.Processor,
 	initResult *protos.InitResponse,
-	chainConfig *chain.ConfigV2,
+	chainConfig *config.ChainConfig,
 	client fuel.Client,
 	processorClients []protos.ProcessorV3Client,
 ) *HandlerController {

@@ -10,7 +10,7 @@ import (
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
-	chain "sentioxyz/sentio-core/driver/controller/config"
+	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data/sui"
 	"sentioxyz/sentio-core/driver/controller/standard"
 	"sentioxyz/sentio-core/processor"
@@ -28,7 +28,7 @@ import (
 func BuildSuiAgents(
 	ctx context.Context,
 	config standard.HandlerConfig,
-	chainConfig *chain.ConfigV2,
+	chainConfig *config.ChainConfig,
 	sdkVersion string,
 	client sui.Client,
 	first uint64,

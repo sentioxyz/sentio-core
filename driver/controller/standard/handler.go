@@ -12,7 +12,7 @@ import (
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
-	chain "sentioxyz/sentio-core/driver/controller/config"
+	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data"
 	"sentioxyz/sentio-core/driver/timeseries"
 	"sentioxyz/sentio-core/processor/protos"
@@ -51,7 +51,7 @@ func (c HandlerConfig) String() string {
 type BaseHandlerController[CLI controller.Client, BKD controller.BlockHeader, HA HandlerAgent[BKD]] struct {
 	Processor   *models.Processor
 	InitResult  *protos.InitResponse
-	ChainConfig *chain.ConfigV2
+	ChainConfig *config.ChainConfig
 	Client      CLI
 
 	Config HandlerConfig // result of SetTemplates
@@ -71,7 +71,7 @@ type BaseHandlerController[CLI controller.Client, BKD controller.BlockHeader, HA
 func NewBaseHandlerController[CLI controller.Client, BKD controller.BlockHeader, HA HandlerAgent[BKD]](
 	processor *models.Processor,
 	initResult *protos.InitResponse,
-	chainConfig *chain.ConfigV2,
+	chainConfig *config.ChainConfig,
 	client CLI,
 	processorClients []protos.ProcessorV3Client,
 ) *BaseHandlerController[CLI, BKD, HA] {

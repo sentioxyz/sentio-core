@@ -12,7 +12,7 @@ import (
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
-	chain "sentioxyz/sentio-core/driver/controller/config"
+	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data"
 	"sentioxyz/sentio-core/driver/controller/data/evm"
 	"sentioxyz/sentio-core/driver/controller/fetcher"
@@ -38,7 +38,7 @@ const (
 
 type HandlerController struct {
 	processor    *models.Processor
-	chainConfig  *chain.ConfigV2
+	chainConfig  *config.ChainConfig
 	client       evm.Client
 	ipfsShell    *shell.Shell
 	manifest     *manifest.Manifest
@@ -58,7 +58,7 @@ type HandlerController struct {
 func NewHandlerController(
 	ctx context.Context,
 	processor *models.Processor,
-	chainConfig *chain.ConfigV2,
+	chainConfig *config.ChainConfig,
 	client evm.Client,
 	ipfsShell *shell.Shell,
 	manifest *manifest.Manifest,

@@ -24,7 +24,7 @@ import (
 	"sentioxyz/sentio-core/common/tracker"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
-	chain "sentioxyz/sentio-core/driver/controller/config"
+	"sentioxyz/sentio-core/driver/controller/config"
 	entitychs "sentioxyz/sentio-core/driver/entity/clickhouse"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
@@ -50,7 +50,7 @@ type baseStartupController struct {
 	registryClient protosregistry.DatabaseRegistryServiceClient
 
 	processor    *models.Processor
-	chainConfigs map[string]*chain.ConfigV2
+	chainConfigs map[string]*config.ChainConfig
 
 	pubSubTopic *pubsub.Topic
 
@@ -131,8 +131,8 @@ func (c *baseStartupController) connectToDBRegistryService(ctx context.Context) 
 
 func (c *baseStartupController) loadChainsConfig(ctx context.Context) (err error) {
 	_, logger := log.FromContext(ctx)
-	c.chainConfigs, err = chain.LoadChainsConfigV2(
-		c.config.ChainConfigFile, chain.PatchChainsConfigEnv, c.processor.NetworkOverrides)
+	c.chainConfigs, err = config.LoadChainsConfig(
+		c.config.ChainConfigFile, config.PatchChainsConfigEnv, c.processor.NetworkOverrides)
 	if err == nil {
 		logger.Info("loaded chain config")
 	}

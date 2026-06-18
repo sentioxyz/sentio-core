@@ -7,7 +7,7 @@ import (
 	evmchain "sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/chains"
 	"sentioxyz/sentio-core/driver/controller"
-	chain "sentioxyz/sentio-core/driver/controller/config"
+	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data/evm"
 	"sentioxyz/sentio-core/driver/controller/subgraph"
 	"sentioxyz/sentio-core/driver/exitcode"
@@ -43,9 +43,9 @@ func (c *subgraphStartupController) buildMainControllers(ctx context.Context) (
 	// chainID and chainConfig and client
 	chainID, endpoint, _ := manifest.GetChainID(mf.GetNetwork(), false)
 	var client evm.Client
-	var chainConfig *chain.ConfigV2
+	var chainConfig *config.ChainConfig
 	if chainID == manifest.CustomizedChainID {
-		chainConfig = chain.NewCustomizedChainConfigV2(manifest.CustomizedChainID, endpoint)
+		chainConfig = config.NewCustomizedChainConfig(manifest.CustomizedChainID, endpoint)
 	} else if chains.IsEVMChains(chainID) {
 		var has bool
 		chainConfig, has = c.chainConfigs[chainID]

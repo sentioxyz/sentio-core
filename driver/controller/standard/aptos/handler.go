@@ -14,7 +14,7 @@ import (
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
-	chain "sentioxyz/sentio-core/driver/controller/config"
+	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data"
 	"sentioxyz/sentio-core/driver/controller/data/aptos"
 	"sentioxyz/sentio-core/driver/controller/fetcher"
@@ -34,7 +34,7 @@ type HandlerController struct {
 func NewHandlerController(
 	processor *models.Processor,
 	initResult *protos.InitResponse,
-	chainConfig *chain.ConfigV2,
+	chainConfig *config.ChainConfig,
 	client aptos.Client,
 	processorClients []protos.ProcessorV3Client,
 ) *HandlerController {

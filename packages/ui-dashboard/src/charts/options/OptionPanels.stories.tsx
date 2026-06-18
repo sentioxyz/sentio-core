@@ -4,11 +4,13 @@ import { LineControls } from './LineControls'
 import { LabelControls } from './LabelControls'
 import { PieChartControls } from './PieChartControls'
 import { BarGaugeControls } from './BarGaugeControls'
+import { ValueControls } from './ValueControls'
 import type {
   LineConfigLike,
   LabelConfigLike,
   PieConfigLike,
-  BarGaugeConfigLike
+  BarGaugeConfigLike,
+  ValueConfigLike
 } from '../../types'
 
 function Frame({
@@ -80,3 +82,25 @@ export const BarGauge: Story = () => {
   )
 }
 BarGauge.meta = { description: 'Bar-gauge direction/calculation/sort options' }
+
+export const Value: Story = () => {
+  const [config, setConfig] = useState<ValueConfigLike>({
+    valueFormatter: 'NumberFormatter',
+    style: 'Standard',
+    maxFractionDigits: 2
+  })
+  return (
+    <Frame value={config}>
+      <ValueControls
+        config={config}
+        onChange={setConfig}
+        defaultOpen
+        showPrefix
+        showSuffix
+      />
+    </Frame>
+  )
+}
+Value.meta = {
+  description: 'Value formatter (number/date/string mapping) + prefix/suffix'
+}

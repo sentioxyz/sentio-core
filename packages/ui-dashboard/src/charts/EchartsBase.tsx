@@ -45,9 +45,9 @@ import { LegendComponentOption, LegendOption } from 'echarts/types/dist/shared'
 import { BarLoading } from '@sentio/ui-core'
 import { ChartLegend } from './ChartLegend'
 import { isMobile } from '../utils/is-mobile'
-import './theme/register'
+import { registerSentioTheme } from './theme/register'
 import { useDarkMode } from '../utils/use-dark-mode'
-import { sansFontFamily } from './theme/sentioTheme'
+import { sansFontFamily } from './theme/sentio-theme'
 
 // Register the required components
 use([
@@ -70,6 +70,10 @@ use([
   SVGRenderer,
   VisualMapComponent
 ])
+
+// Register the 'sentio' / 'sentio-dark' themes (idempotent). A function call,
+// not a bare side-effect import, so it survives tree-shaking.
+registerSentioTheme()
 
 // Combine an Option type with only required components and charts via ComposeOption
 export type EChartsOption = ComposeOption<

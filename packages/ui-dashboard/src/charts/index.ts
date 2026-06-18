@@ -15,8 +15,8 @@ export { ChartLegend } from './ChartLegend'
 export { RefreshContext, RefreshButton } from './RefreshContext'
 
 // Theme
-export { sentioColors } from './theme/sentioColors'
-export { sentioTheme, sentioThemeDark } from './theme/sentioTheme'
+export { sentioColors } from './theme/sentio-colors'
+export { sentioTheme, sentioThemeDark } from './theme/sentio-theme'
 
 // Chart-type icons
 export { default as LineIcon } from './icons/LineIcon'

@@ -144,10 +144,12 @@ func (c *baseStartupController) getProcessor(ctx context.Context) error {
 	req := &protossvc.GetProcessorRequest{ProcessorId: c.config.ProcessorID}
 	response, err := c.processorClient.GetProcessorWithProject(ctx, req)
 	if err != nil {
+		logger.Errorfe(err, "get processor failed")
 		return err
 	}
 	var p models.Processor
 	if err = p.FromPB(response.Processor); err != nil {
+		logger.Errorfe(err, "get processor failed")
 		return err
 	}
 	p.Project = &commonmodels.Project{}
@@ -573,7 +575,7 @@ func Main(config Config) {
 	const retryInterval = time.Second * 30
 	ctx, logger := log.FromContext(concurrency.NewSignalContext(context.Background()), "processorID", config.ProcessorID)
 	for {
-		exitCode, _ := main(ctx, config)
+		exitCode, err := main(ctx, config)
 		if exitCode < 0 {
 			logger.Warnf("do not use all streaming mode")
 			return
@@ -583,7 +585,7 @@ func Main(config Config) {
 			os.Exit(int(exitCode))
 		}
 
-		logger.Infof("startup failed, will retry after %s", retryInterval.String())
+		logger.Infofe(err, "startup failed, will retry after %s", retryInterval.String())
 		select {
 		case <-time.After(retryInterval):
 		case <-ctx.Done():

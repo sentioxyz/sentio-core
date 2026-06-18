@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "window",
+    srcs = ["window.go"],
+    importpath = "sentioxyz/sentio-core/common/window",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_x_exp//constraints"],
+)
+
+go_test(
+    name = "window_test",
+    srcs = ["window_test.go"],
+    embed = [":window"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

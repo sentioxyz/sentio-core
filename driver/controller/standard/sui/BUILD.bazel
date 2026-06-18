@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sui",
+    srcs = [
+        "agents.go",
+        "block_data.go",
+        "handler.go",
+        "handler_change.go",
+        "handler_event.go",
+        "handler_function.go",
+        "handler_interval.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/standard/sui",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/move",
+        "//chain/sui",
+        "//chain/sui/types",
+        "//common/compress",
+        "//common/envconf",
+        "//common/errgroup",
+        "//common/log",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/config",
+        "//driver/controller/data",
+        "//driver/controller/data/sui",
+        "//driver/controller/fetcher",
+        "//driver/controller/standard",
+        "//processor",
+        "//processor/protos",
+        "//service/processor/models",
+        "@com_github_pkg_errors//:errors",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "sui_test",
+    srcs = ["handler_interval_test.go"],
+    embed = [":sui"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

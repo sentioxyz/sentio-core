@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aptos",
+    srcs = [
+        "block.go",
+        "change.go",
+        "client.go",
+        "resource.go",
+        "transaction.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/data/aptos",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/aptos",
+        "//common/concurrency",
+        "//common/errgroup",
+        "//common/https",
+        "//common/log",
+        "//common/set",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/data",
+        "//driver/controller/fetcher",
+        "@com_github_aptos_labs_aptos_go_sdk//:aptos-go-sdk",
+        "@com_github_aptos_labs_aptos_go_sdk//api",
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "aptos_test",
+    srcs = ["transaction_test.go"],
+    embed = [":aptos"],
+    deps = [
+        "//chain/aptos",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

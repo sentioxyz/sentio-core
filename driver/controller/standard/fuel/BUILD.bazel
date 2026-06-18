@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fuel",
+    srcs = [
+        "block_data.go",
+        "handler.go",
+        "handler_interval.go",
+        "handler_receipt.go",
+        "handler_transaction.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/standard/fuel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/fuel",
+        "//common/log",
+        "//common/protojson",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/config",
+        "//driver/controller/data",
+        "//driver/controller/data/fuel",
+        "//driver/controller/fetcher",
+        "//driver/controller/standard",
+        "//processor/protos",
+        "//service/processor/models",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_fuel_go//types",
+        "@org_golang_google_protobuf//types/known/structpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

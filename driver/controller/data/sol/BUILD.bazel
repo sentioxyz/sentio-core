@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sol",
+    srcs = [
+        "block.go",
+        "block_main.go",
+        "client.go",
+        "native_client.go",
+        "transaction.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/data/sol",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/sol",
+        "//common/concurrency",
+        "//common/https",
+        "//common/log",
+        "//common/set",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/data",
+        "//driver/controller/fetcher",
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_gagliardetto_solana_go//:solana-go",
+        "@com_github_gagliardetto_solana_go//rpc",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "sol_test",
+    srcs = ["client_test.go"],
+    embed = [":sol"],
+    deps = [
+        "//driver/controller/data",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

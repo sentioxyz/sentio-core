@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "compress",
+    srcs = ["compress.go"],
+    importpath = "sentioxyz/sentio-core/common/compress",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_pkg_errors//:errors"],
+)
+
+go_test(
+    name = "compress_test",
+    srcs = ["compress_test.go"],
+    embed = [":compress"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

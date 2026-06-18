@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "aptos",
+    srcs = [
+        "block_data.go",
+        "handler.go",
+        "handler_change.go",
+        "handler_event.go",
+        "handler_function.go",
+        "handler_interval.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/standard/aptos",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/aptos",
+        "//chain/move",
+        "//common/log",
+        "//common/set",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/config",
+        "//driver/controller/data",
+        "//driver/controller/data/aptos",
+        "//driver/controller/fetcher",
+        "//driver/controller/standard",
+        "//processor/protos",
+        "//service/processor/models",
+        "@com_github_aptos_labs_aptos_go_sdk//:aptos-go-sdk",
+        "@com_github_pkg_errors//:errors",
+    ],
+)

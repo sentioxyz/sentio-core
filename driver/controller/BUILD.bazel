@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "controller",
+    srcs = [
+        "analyse.go",
+        "block_builder.go",
+        "checkpoint.go",
+        "config.go",
+        "entity.go",
+        "errors.go",
+        "handler.go",
+        "main.go",
+        "notifier.go",
+        "quota.go",
+        "range.go",
+        "timeseries.go",
+        "webhook.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/concurrency",
+        "//common/envconf",
+        "//common/errgroup",
+        "//common/log",
+        "//common/sparsify",
+        "//common/timer",
+        "//common/timewin",
+        "//common/utils",
+        "//driver/entity/persistent",
+        "//driver/entity/schema",
+        "//driver/timeseries",
+        "//service/processor/models",
+        "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "controller_test",
+    srcs = [
+        "checkpoint_test.go",
+        "errors_test.go",
+        "main_test.go",
+        "range_test.go",
+    ],
+    embed = [":controller"],
+    deps = [
+        "//common/errgroup",
+        "//common/log",
+        "//common/utils",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

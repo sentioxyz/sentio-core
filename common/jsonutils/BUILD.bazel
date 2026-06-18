@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jsonutils",
+    srcs = ["jsonutils.go"],
+    importpath = "sentioxyz/sentio-core/common/jsonutils",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "jsonutils_test",
+    srcs = ["jsonutils_test.go"],
+    embed = [":jsonutils"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

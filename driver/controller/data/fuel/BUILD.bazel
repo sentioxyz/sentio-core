@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fuel",
+    srcs = [
+        "block.go",
+        "block_main.go",
+        "client.go",
+        "transaction.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/data/fuel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/fuel",
+        "//common/concurrency",
+        "//common/https",
+        "//common/log",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/data",
+        "//driver/controller/fetcher",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_fuel_go//types",
+    ],
+)

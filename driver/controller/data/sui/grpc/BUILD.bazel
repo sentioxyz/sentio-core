@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "grpc",
+    srcs = [
+        "block.go",
+        "object_change.go",
+        "transaction.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/data/sui/grpc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/sui",
+        "//common/errgroup",
+        "//driver/controller",
+        "//driver/controller/data",
+        "//driver/controller/data/sui",
+        "//driver/controller/fetcher",
+    ],
+)

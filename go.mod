@@ -4,6 +4,7 @@ go 1.26.3
 
 require (
 	cloud.google.com/go/bigquery v1.67.0
+	cloud.google.com/go/pubsub v1.49.0
 	github.com/BurntSushi/toml v1.5.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.42.0
 	github.com/DmitriyVTitov/size v1.5.0
@@ -151,6 +152,7 @@ require (
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.etcd.io/bbolt v1.3.5 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
+	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/ratelimit v0.3.1 // indirect
 	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
@@ -256,7 +258,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	golang.org/x/crypto v0.51.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect

@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "data",
+    srcs = [
+        "block_cache.go",
+        "contract.go",
+        "errors.go",
+        "interval.go",
+        "statistics.go",
+        "subscribe.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/data",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/envconf",
+        "//common/log",
+        "//common/queue",
+        "//common/timehist",
+        "//common/timewin",
+        "//common/utils",
+        "//common/window",
+        "//driver/controller",
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_golang_lru//:golang-lru",
+        "@org_golang_x_sync//singleflight",
+    ],
+)
+
+go_test(
+    name = "data_test",
+    srcs = [
+        "block_cache_test.go",
+        "contract_test.go",
+        "statistics_test.go",
+    ],
+    embed = [":data"],
+    deps = [
+        "@com_github_pkg_errors//:errors",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

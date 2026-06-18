@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "evm",
+    srcs = [
+        "block_data.go",
+        "handler.go",
+        "handler_interval.go",
+        "handler_log.go",
+        "handler_trace.go",
+        "handler_transaction.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/standard/evm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/config",
+        "//driver/controller/data",
+        "//driver/controller/data/evm",
+        "//driver/controller/fetcher",
+        "//driver/controller/standard",
+        "//processor/protos",
+        "//service/processor/models",
+        "@com_github_ethereum_go_ethereum//core/types",
+        "@com_github_pkg_errors//:errors",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

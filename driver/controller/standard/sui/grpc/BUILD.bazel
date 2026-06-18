@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "grpc",
+    srcs = [
+        "block_data.go",
+        "handler.go",
+        "handler_change.go",
+        "handler_event.go",
+        "handler_function.go",
+        "handler_interval.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/standard/sui/grpc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/sui",
+        "//chain/sui/types",
+        "//common/envconf",
+        "//common/errgroup",
+        "//common/log",
+        "//common/protojson",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/config",
+        "//driver/controller/data",
+        "//driver/controller/data/sui",
+        "//driver/controller/data/sui/grpc",
+        "//driver/controller/fetcher",
+        "//driver/controller/standard",
+        "//driver/controller/standard/sui",
+        "//processor/protos",
+        "//service/processor/models",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
+        "@org_golang_google_protobuf//types/known/fieldmaskpb",
+        "@org_golang_google_protobuf//types/known/structpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "grpc_test",
+    srcs = ["handler_test.go"],
+    embed = [":grpc"],
+    deps = [
+        "//chain/sui",
+        "//common/set",
+        "//driver/controller/data/sui",
+        "//driver/controller/data/sui/grpc",
+        "//driver/controller/standard/sui",
+        "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

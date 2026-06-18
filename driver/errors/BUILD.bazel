@@ -5,5 +5,4 @@ go_library(
     srcs = ["errors.go"],
     importpath = "sentioxyz/sentio-core/driver/errors",
     visibility = ["//visibility:public"],
-    deps = ["//common/log"],
 )

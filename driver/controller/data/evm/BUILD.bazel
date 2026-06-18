@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "evm",
+    srcs = [
+        "block.go",
+        "block_extend.go",
+        "block_main.go",
+        "client.go",
+        "log.go",
+        "trace.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/data/evm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/evm",
+        "//common/concurrency",
+        "//common/contract",
+        "//common/envconf",
+        "//common/errgroup",
+        "//common/https",
+        "//common/log",
+        "//common/set",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/data",
+        "//driver/controller/fetcher",
+        "@com_github_ethereum_go_ethereum//:go-ethereum",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_ethereum_go_ethereum//core/types",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_golang_lru//:golang-lru",
+    ],
+)
+
+go_test(
+    name = "evm_test",
+    srcs = ["log_test.go"],
+    embed = [":evm"],
+    deps = [
+        "//common/set",
+        "//driver/controller",
+        "@com_github_ethereum_go_ethereum//core/types",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

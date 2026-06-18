@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sui",
+    srcs = [
+        "block.go",
+        "client.go",
+        "object_change.go",
+        "transaction.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/data/sui",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//chain/sui",
+        "//chain/sui/types",
+        "//common/concurrency",
+        "//common/errgroup",
+        "//common/https",
+        "//common/log",
+        "//common/set",
+        "//common/utils",
+        "//driver/controller",
+        "//driver/controller/data",
+        "//driver/controller/fetcher",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_golang_lru//:golang-lru",
+        "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
+    ],
+)
+
+go_test(
+    name = "sui_test",
+    srcs = ["block_test.go"],
+    embed = [":sui"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

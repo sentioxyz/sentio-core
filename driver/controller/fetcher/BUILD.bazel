@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "fetcher",
+    srcs = [
+        "fetcher.go",
+        "merge.go",
+        "retry.go",
+        "stat.go",
+        "transfer.go",
+        "utils.go",
+    ],
+    importpath = "sentioxyz/sentio-core/driver/controller/fetcher",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//common/log",
+        "//common/timehist",
+        "//common/timewin",
+        "//common/utils",
+        "//driver/controller",
+        "@com_github_pkg_errors//:errors",
+        "@org_golang_x_exp//constraints",
+    ],
+)
+
+go_test(
+    name = "fetcher_test",
+    srcs = [
+        "fetcher_test.go",
+        "transfer_test.go",
+    ],
+    embed = [":fetcher"],
+    deps = [
+        "//common/log",
+        "//driver/controller",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_zap//:zap",
+    ],
+)

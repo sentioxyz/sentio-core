@@ -44,3 +44,7 @@ export type {
 // context). charts / dashboard shells / decoupled dialogs are added later.
 // ──────────────────────────────────────────────────────────────────────────
 export * from './timeseries'
+
+// charts: ECharts base/legend/refresh + theme + chart-type icons (phase 3a).
+// Render charts and option panels follow in later phases.
+export * from './charts'

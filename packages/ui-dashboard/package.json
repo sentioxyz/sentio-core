@@ -1,7 +1,7 @@
 {
   "private": false,
   "name": "@sentio/ui-dashboard",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Dashboard UI components for the Sentio platform, decoupled from backend services.",
   "exports": {
     ".": {
@@ -36,9 +36,11 @@
     "@headlessui/react": "1.7.7",
     "@sentio/chain": "workspace:^",
     "@sentio/ui-core": "workspace:^",
+    "echarts": "^6.0.0",
     "immer": "^11.1.8",
     "lodash": "^4.17.21",
-    "react-icons": "^5.5.0"
+    "react-icons": "^5.5.0",
+    "react-resize-detector": "^12.3.0"
   },
   "peerDependencies": {
     "react": ">=18",

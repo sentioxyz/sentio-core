@@ -41,7 +41,6 @@ export const LineControls = ({ config, defaultOpen, onChange }: Props) => {
         <ButtonGroup
           buttons={lineStyles}
           value={config?.style || 'Solid'}
-          theme="light"
           onChange={setStyle}
         />
         <Checkbox

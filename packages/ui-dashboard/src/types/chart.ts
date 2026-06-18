@@ -1,9 +1,18 @@
+import type { DurationLike } from '@sentio/ui-core'
 import type {
   ChartTypeLike,
   DataSourceTypeLike,
   NoteFontSizeLike,
   NoteAlignmentLike,
-  NoteVerticalAlignmentLike
+  NoteVerticalAlignmentLike,
+  CalculationLike,
+  DirectionLike,
+  MarkerTypeLike,
+  SortByLike,
+  ValueFormatterLike,
+  ValueStyleLike,
+  PieTypeLike,
+  LineStyleLike
 } from './enums'
 // Type-only import; the chart <-> dashboard type cycle is erased at compile time.
 import type { GroupLike } from './dashboard'
@@ -11,11 +20,17 @@ import type { GroupLike } from './dashboard'
 /*
  * Chart-level shapes (chart / note / chart config / overlay graph).
  *
- * NOTE: ChartConfigLike is intentionally a MINIMAL subset for now. The full set
- * of fields (xAxis, tableConfig, pieConfig, valueConfig, mapping rules, color
- * themes, etc.) is fleshed out alongside the chart-rendering components, adding
- * only the fields those components actually read.
+ * ChartConfigLike and its sub-interfaces are structural mirrors of the proto
+ * `ChartConfig` message tree (all fields optional) — they back the chart render
+ * components and the per-chart option panels. Deep payloads that the option
+ * panels don't edit (e.g. an overridden TimeRange) are kept opaque (`unknown`).
  */
+
+/** Sort key + direction (x-axis, bar-gauge). */
+export interface SortLike {
+  sortBy?: SortByLike
+  orderDesc?: boolean
+}
 
 /** Y-axis configuration. */
 export interface YAxisConfigLike {
@@ -27,9 +42,171 @@ export interface YAxisConfigLike {
   name?: string
 }
 
-/** Minimal subset of a chart's config. Extended alongside chart components. */
+/** X-axis configuration. */
+export interface XAxisConfigLike {
+  type?: string
+  min?: string
+  max?: string
+  scale?: boolean
+  name?: string
+  column?: string
+  sort?: SortLike
+  format?: string
+}
+
+/** Text/background color overrides for value + mapping rules. */
+export interface ColorThemeLike {
+  textColor?: string
+  backgroundColor?: string
+  themeType?: string
+}
+
+/** A value→text/color mapping rule. */
+export interface MappingRuleLike {
+  comparison?: string
+  value?: number | 'NaN' | 'Infinity' | '-Infinity'
+  text?: string
+  colorTheme?: ColorThemeLike
+}
+
+/** Number/string/date value formatting. */
+export interface ValueConfigLike {
+  valueFormatter?: ValueFormatterLike
+  showValueLabel?: boolean
+  maxSignificantDigits?: number
+  dateFormat?: string
+  mappingRules?: MappingRuleLike[]
+  style?: ValueStyleLike
+  maxFractionDigits?: number
+  precision?: number
+  currencySymbol?: string
+  tooltipTotal?: boolean
+  prefix?: string
+  suffix?: string
+}
+
+/** Line chart style. */
+export interface LineConfigLike {
+  style?: LineStyleLike
+  smooth?: boolean
+}
+
+/** Pie/donut config. */
+export interface PieConfigLike {
+  pieType?: PieTypeLike
+  showPercent?: boolean
+  showValue?: boolean
+  calculation?: CalculationLike
+  absValue?: boolean
+}
+
+/** Bar-gauge config. */
+export interface BarGaugeConfigLike {
+  direction?: DirectionLike
+  calculation?: CalculationLike
+  sort?: SortLike
+}
+
+/** Query-value (single big number) config. */
+export interface QueryValueConfigLike {
+  colorTheme?: ColorThemeLike
+  showBackgroundChart?: boolean
+  calculation?: CalculationLike
+  seriesCalculation?: CalculationLike
+}
+
+/** Per-column label config (event/log tables). */
+export interface LabelConfigColumnLike {
+  name?: string
+  showLabel?: boolean
+  showValue?: boolean
+}
+
+/** Series label config. */
+export interface LabelConfigLike {
+  columns?: LabelConfigColumnLike[]
+  alias?: string
+}
+
+/** Scatter chart config. */
+export interface ScatterConfigLike {
+  symbolSize?: string
+  color?: string
+  minSize?: number
+  maxSize?: number
+}
+
+/** A mark line/area on a chart. */
+export interface MarkerLike {
+  type?: MarkerTypeLike
+  value?: number | 'NaN' | 'Infinity' | '-Infinity'
+  color?: string
+  label?: string
+  valueX?: string
+}
+
+/** Series count limit. */
+export interface DataConfigLike {
+  seriesLimit?: number
+}
+
+/** Per-series override (currently just chart type). */
+export interface SeriesConfigSeriesLike {
+  type?: ChartTypeLike
+}
+
+/** Per-series config keyed by series id. */
+export interface SeriesConfigLike {
+  series?: { [key: string]: SeriesConfigSeriesLike }
+}
+
+/** Table column sort entry. */
+export interface ColumnSortLike {
+  column?: string
+  orderDesc?: boolean
+}
+
+/** Table chart config. */
+export interface TableConfigLike {
+  calculation?: CalculationLike
+  showColumns?: { [key: string]: boolean }
+  sortColumns?: ColumnSortLike[]
+  columnOrders?: string[]
+  columnWidths?: { [key: string]: number }
+  showPlainData?: boolean
+  calculations?: { [key: string]: CalculationLike }
+  valueConfigs?: { [key: string]: ValueConfigLike }
+  rowLimit?: number
+}
+
+/** Compare-to-previous-period offset. */
+export interface CompareTimeLike {
+  ago?: DurationLike
+}
+
+/** Per-chart time-range override. `timeRange` payload kept opaque. */
+export interface TimeRangeOverrideLike {
+  enabled?: boolean
+  timeRange?: unknown
+  compareTime?: CompareTimeLike
+}
+
+/** A chart's full config — structural mirror of proto `ChartConfig`. */
 export interface ChartConfigLike {
   yAxis?: YAxisConfigLike
+  xAxis?: XAxisConfigLike
+  lineConfig?: LineConfigLike
+  valueConfig?: ValueConfigLike
+  pieConfig?: PieConfigLike
+  barGauge?: BarGaugeConfigLike
+  queryValueConfig?: QueryValueConfigLike
+  tableConfig?: TableConfigLike
+  labelConfig?: LabelConfigLike
+  scatterConfig?: ScatterConfigLike
+  seriesConfig?: SeriesConfigLike
+  dataConfig?: DataConfigLike
+  timeRangeOverride?: TimeRangeOverrideLike
+  markers?: MarkerLike[]
 }
 
 /** A note (text) panel's content and styling. */

@@ -47,3 +47,29 @@ export type NoteAlignmentLike = 'LEFT' | 'CENTER' | 'RIGHT'
 
 /** Note panel vertical alignment. */
 export type NoteVerticalAlignmentLike = 'TOP' | 'MIDDLE' | 'BOTTOM'
+
+// ── chart-config enums (mirror proto ChartConfig.* enums) ──────────────────
+
+/** Series/value aggregation calculation. */
+export type CalculationLike = 'LAST' | 'FIRST' | 'MEAN' | 'TOTAL' | 'ALL' | 'MIN' | 'MAX'
+
+/** Bar-gauge layout direction. */
+export type DirectionLike = 'HORIZONTAL' | 'VERTICAL'
+
+/** Mark type for chart markers. */
+export type MarkerTypeLike = 'LINE' | 'AREA' | 'LINEX'
+
+/** Sort key for axis/bar ordering. */
+export type SortByLike = 'ByName' | 'ByValue'
+
+/** Value formatter family. */
+export type ValueFormatterLike = 'NumberFormatter' | 'DateFormatter' | 'StringFormatter'
+
+/** Number value display style. */
+export type ValueStyleLike = 'Standard' | 'Compact' | 'Scientific' | 'Percent' | 'Currency' | 'None'
+
+/** Pie vs donut. */
+export type PieTypeLike = 'Pie' | 'Donut'
+
+/** Line style. */
+export type LineStyleLike = 'Solid' | 'Dotted'

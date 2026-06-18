@@ -127,7 +127,7 @@ export function BarGaugeControls({ config, defaultOpen, onChange }: Props) {
         </div>
 
         <div className="shadow-xs flex rounded-md">
-          <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md  border bg-gray-50 px-3 ">
+          <span className="sm:text-ilabel border-main inline-flex items-center whitespace-nowrap  rounded-l-md border bg-gray-50 px-3">
             Sort by
           </span>
           <select

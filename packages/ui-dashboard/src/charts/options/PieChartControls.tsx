@@ -99,16 +99,19 @@ export function PieChartControls({ config, defaultOpen, onChange }: Props) {
           checked={config?.showValue}
           onChange={(v) => toggle('showValue', v)}
           label="Show value"
+          labelClassName="whitespace-nowrap"
         />
         <Checkbox
           checked={config?.showPercent}
           onChange={(v) => toggle('showPercent', v)}
           label="Show percent"
+          labelClassName="whitespace-nowrap"
         />
         <Checkbox
           checked={config?.absValue}
           onChange={(v) => toggle('absValue', v)}
           label="Use absolute values"
+          labelClassName="whitespace-nowrap"
         />
       </div>
     </DisclosurePanel>

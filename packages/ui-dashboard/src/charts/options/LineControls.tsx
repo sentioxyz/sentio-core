@@ -42,6 +42,7 @@ export const LineControls = ({ config, defaultOpen, onChange }: Props) => {
           buttons={lineStyles}
           value={config?.style || 'Solid'}
           onChange={setStyle}
+          small
         />
         <Checkbox
           label="Smooth Curves"

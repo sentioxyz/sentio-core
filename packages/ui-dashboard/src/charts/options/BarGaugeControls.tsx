@@ -87,12 +87,12 @@ export function BarGaugeControls({ config, defaultOpen, onChange }: Props) {
     >
       <div className="flex items-center gap-4">
         <div className="shadow-xs  flex rounded-md">
-          <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md  border bg-gray-50 px-3 ">
+          <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md border border-r-0 bg-gray-50 px-3 ">
             Direction
           </span>
           <select
             value={config.direction}
-            className="sm:text-ilabel border-main text-text-foreground inline-flex items-center rounded-r-md border  border-l-0   pl-4 pr-7"
+            className="sm:text-ilabel border-main text-text-foreground hover:border-primary-600 focus:ring-3 focus:ring-primary-600/30 focus:border-primary-600 inline-flex items-center rounded-r-md border pl-4 pr-7"
             onChange={(e) => onDirectionChange(e.target.value as DirectionLike)}
           >
             {directionItems.map((d) => {
@@ -106,12 +106,12 @@ export function BarGaugeControls({ config, defaultOpen, onChange }: Props) {
         </div>
 
         <div className="shadow-xs flex rounded-md">
-          <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md  border bg-gray-50 px-3 ">
+          <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md border border-r-0 bg-gray-50 px-3 ">
             Calculation
           </span>
           <select
             value={config.calculation}
-            className="sm:text-ilabel border-main text-text-foreground inline-flex items-center rounded-r-md border  border-l-0   pl-4 pr-7"
+            className="sm:text-ilabel border-main text-text-foreground hover:border-primary-600 focus:ring-3 focus:ring-primary-600/30 focus:border-primary-600 inline-flex items-center rounded-r-md border pl-4 pr-7"
             onChange={(e) =>
               onCalculationChange(e.target.value as CalculationLike)
             }
@@ -127,12 +127,12 @@ export function BarGaugeControls({ config, defaultOpen, onChange }: Props) {
         </div>
 
         <div className="shadow-xs flex rounded-md">
-          <span className="sm:text-ilabel border-main inline-flex items-center whitespace-nowrap  rounded-l-md border bg-gray-50 px-3">
+          <span className="sm:text-ilabel border-main inline-flex items-center whitespace-nowrap  rounded-l-md border border-r-0 bg-gray-50 px-3">
             Sort by
           </span>
           <select
             value={config?.sort?.sortBy}
-            className="sm:text-ilabel border-main text-text-foreground inline-flex items-center border    border-l-0   pl-4 pr-7"
+            className="sm:text-ilabel border-main text-text-foreground hover:border-primary-600 focus:ring-3 focus:ring-primary-600/30 focus:border-primary-600 inline-flex items-center border pl-4 pr-7"
             onChange={(e) => onSortByChange(e.target.value as SortByLike)}
           >
             {sortByItems.map((d) => {
@@ -145,7 +145,7 @@ export function BarGaugeControls({ config, defaultOpen, onChange }: Props) {
           </select>
           <select
             value={config?.sort?.orderDesc + ''}
-            className="sm:text-ilabel border-main text-text-foreground inline-flex items-center rounded-r-md border  border-l-0   pl-4 pr-7"
+            className="sm:text-ilabel border-main text-text-foreground hover:border-primary-600 focus:ring-3 focus:ring-primary-600/30 focus:border-primary-600 inline-flex items-center rounded-r-md border border-l-0 pl-4 pr-7"
             onChange={(e) => onOrderChange(e.target.value === 'true')}
           >
             {orderItems.map((d) => {

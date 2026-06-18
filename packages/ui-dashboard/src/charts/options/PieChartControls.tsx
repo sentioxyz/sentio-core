@@ -76,12 +76,12 @@ export function PieChartControls({ config, defaultOpen, onChange }: Props) {
           />
         </div>
         <div className="shadow-xs flex rounded-md">
-          <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md  border bg-gray-50 px-3 ">
+          <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md border border-r-0 bg-gray-50 px-3 ">
             Calculation
           </span>
           <select
             value={config.calculation}
-            className="sm:text-ilabel text-text-foreground border-main inline-flex items-center rounded-r-md border  border-l-0   pl-4 pr-7"
+            className="sm:text-ilabel text-text-foreground border-main hover:border-primary-600 focus:ring-3 focus:ring-primary-600/30 focus:border-primary-600 inline-flex items-center rounded-r-md border pl-4 pr-7"
             onChange={(e) =>
               onCalculationChange(e.target.value as CalculationLike)
             }

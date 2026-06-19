@@ -3,10 +3,11 @@ package clientpool
 import (
 	"context"
 	"encoding/json"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/pkg/errors"
 	"regexp"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/pkg/errors"
 )
 
 var invalidEVMMethodErrorMatcher = []*regexp.Regexp{
@@ -30,6 +31,7 @@ var missDataErrorMatcher = []*regexp.Regexp{
 	regexp.MustCompile("unexpected error"),
 	regexp.MustCompile("internal error"),
 	regexp.MustCompile("transaction sent to quarantine by sls"), // more: https://ar5iv.labs.arxiv.org/html/2405.01819
+	regexp.MustCompile("block requested not found"),
 }
 
 var brokenMsgErrorMatcher = []*regexp.Regexp{

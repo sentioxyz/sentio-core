@@ -23,6 +23,8 @@ export { ScatterChartTooltip } from './ScatterChartTooltip'
 
 // Render charts (presentational — app injects computed series + formatter)
 export { PieChart, type PieChartProps, type PieSeriesInput } from './PieChart'
+export { BarGaugeChart, type BarGaugeChartProps } from './BarGaugeChart'
+export { QueryValueChart, type QueryValueChartProps } from './QueryValueChart'
 
 // Option panels
 export * from './options'

@@ -1,5 +1,5 @@
 // Chart option panels (phase 3b). Data-coupled panels (Data/Series/TimeRange/
-// Table/Scatter/Yaxis/Xaxis, value-formatting trio) follow in later slices.
+// Table/Scatter/Yaxis/Xaxis) follow in later slices.
 export { LineControls } from './LineControls'
 export { LabelControls } from './LabelControls'
 export {
@@ -10,3 +10,14 @@ export {
   BarGaugeControls,
   defaultConfig as defaultBarGaugeConfig
 } from './BarGaugeControls'
+export {
+  ValueOptions,
+  ValueFormatters,
+  defaultConfig as defaultValueConfig,
+  type ValueFormatter
+} from './ValueOptions'
+export {
+  ValueControls,
+  defaultConfig as defaultValueControlsConfig
+} from './ValueControls'
+export { ValueStringMapping } from './ValueStringMapping'

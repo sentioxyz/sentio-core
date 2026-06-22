@@ -21,7 +21,7 @@ function Frame({
   value: unknown
 }) {
   return (
-    <div className="w-[40rem] p-8">
+    <div className="w-full p-8">
       {children}
       <pre className="text-text-foreground-secondary mt-4 text-xs">
         {JSON.stringify(value, null, 2)}

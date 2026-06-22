@@ -394,6 +394,60 @@ func (p *ClientPool) UseGRPCConnection(
 	)
 }
 
+// GrpcMaxBatchSize is the upstream BatchGetObjects / BatchGetTransactions per-call
+// limit. A single GetGrpcObjects / GetGrpcTransactions request must stay within it;
+// callers that have more must page themselves (see the driver-side fetchers). The
+// super node rejects oversized requests rather than paging on their behalf.
+const GrpcMaxBatchSize = 50
+
+// grpcMaxConcurrency caps the parallel upstream batches the page helper issues.
+const grpcMaxConcurrency = 10
+
+// GetGrpcObjects fetches up to GrpcMaxBatchSize objects in a single upstream
+// BatchGetObjects call (no paging). It errors if the request exceeds the limit.
+func (p *ClientPool) GetGrpcObjects(
+	ctx context.Context,
+	theme string,
+	method string,
+	requests []*rpcv2.GetObjectRequest,
+) ([]*rpcv2.GetObjectResult, error) {
+	if len(requests) > GrpcMaxBatchSize {
+		return nil, errors.Errorf("too many objects in one request: %d (max %d)", len(requests), GrpcMaxBatchSize)
+	}
+	var resp *rpcv2.BatchGetObjectsResponse
+	r := p.UseClient(
+		ctx,
+		theme,
+		func(ctx context.Context, cli *Client) clientpool.Result {
+			return cli.UseGRPCConnection(ctx, method,
+				func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
+					req := &rpcv2.BatchGetObjectsRequest{
+						Requests: requests,
+						ReadMask: &fieldmaskpb.FieldMask{Paths: []string{"*"}},
+					}
+					var getErr error
+					resp, getErr = rpcv2.NewLedgerServiceClient(conn).BatchGetObjects(ctx, req)
+					return clientpool.Result{
+						Err:           getErr,
+						BrokenForTask: getErr != nil, // always retry using other client
+					}
+				},
+			)
+		},
+		clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
+	)
+	if r.Err != nil {
+		return nil, errors.Wrapf(r.Err, "load objects %s failed", utils.MustJSONMarshal(requests))
+	}
+	if len(resp.GetObjects()) != len(requests) {
+		return nil, errors.Errorf("should get %d objects but got %d", len(requests), len(resp.GetObjects()))
+	}
+	return resp.GetObjects(), nil
+}
+
+// GetGrpcObjectsByPage is a server-side bulk helper that pages a large object list
+// into GrpcMaxBatchSize chunks and fetches them concurrently. It is for in-process
+// bulk loads (e.g. the ext server); the driver→super-node path does not use it.
 func (p *ClientPool) GetGrpcObjectsByPage(
 	ctx context.Context,
 	theme string,
@@ -404,90 +458,58 @@ func (p *ClientPool) GetGrpcObjectsByPage(
 ) ([]*rpcv2.GetObjectResult, error) {
 	return concurrency.TraverseByPage(
 		ctx,
-		getConcurrency,
-		getBatchSize,
+		min(getConcurrency, grpcMaxConcurrency),
+		min(getBatchSize, GrpcMaxBatchSize),
 		requests,
 		func(ctx context.Context, page concurrency.Page, reqs []*rpcv2.GetObjectRequest) ([]*rpcv2.GetObjectResult, error) {
-			var resp *rpcv2.BatchGetObjectsResponse
-			r := p.UseClient(
-				ctx,
-				fmt.Sprintf("%s/P#%d[%d-%d)", theme, page.Num, page.Start, page.End),
-				func(ctx context.Context, cli *Client) clientpool.Result {
-					return cli.UseGRPCConnection(ctx, method,
-						func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
-							req := &rpcv2.BatchGetObjectsRequest{
-								Requests: reqs,
-								ReadMask: &fieldmaskpb.FieldMask{Paths: []string{"*"}},
-							}
-							var getErr error
-							resp, getErr = rpcv2.NewLedgerServiceClient(conn).BatchGetObjects(ctx, req)
-							return clientpool.Result{
-								Err:           getErr,
-								BrokenForTask: getErr != nil, // always retry using other client
-							}
-						},
-					)
-				},
-				clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
-			)
-			if r.Err != nil {
-				return nil, errors.Wrapf(r.Err, "load objects %s failed", utils.MustJSONMarshal(reqs))
-			}
-			if len(resp.GetObjects()) != len(reqs) {
-				return nil, errors.Errorf("should get %d objects but got %d", len(reqs), len(resp.GetObjects()))
-			}
-			return resp.GetObjects(), nil
+			pageTheme := fmt.Sprintf("%s/P#%d[%d-%d)", theme, page.Num, page.Start, page.End)
+			return p.GetGrpcObjects(ctx, pageTheme, method, reqs)
 		},
 	)
 }
 
-// GetGrpcTransactionsByPage fetches transactions by digest in grpc format. The
-// read mask is supplied by the caller so it only pays for the fields it needs
-// (e.g. just digest + effects.changed_objects for package-history walking).
-func (p *ClientPool) GetGrpcTransactionsByPage(
+// GetGrpcTransactions fetches up to GrpcMaxBatchSize transactions by digest in a
+// single upstream BatchGetTransactions call (no paging). The read mask is supplied
+// by the caller so it only pays for the fields it needs (e.g. just digest +
+// effects.changed_objects for package-history walking). It errors if the request
+// exceeds the limit.
+func (p *ClientPool) GetGrpcTransactions(
 	ctx context.Context,
 	theme string,
 	method string,
-	getConcurrency int,
-	getBatchSize int,
 	digests []string,
 	readMask *fieldmaskpb.FieldMask,
 ) ([]*rpcv2.GetTransactionResult, error) {
-	return concurrency.TraverseByPage(
+	if len(digests) > GrpcMaxBatchSize {
+		return nil, errors.Errorf("too many transactions in one request: %d (max %d)", len(digests), GrpcMaxBatchSize)
+	}
+	var resp *rpcv2.BatchGetTransactionsResponse
+	r := p.UseClient(
 		ctx,
-		getConcurrency,
-		getBatchSize,
-		digests,
-		func(ctx context.Context, page concurrency.Page, reqs []string) ([]*rpcv2.GetTransactionResult, error) {
-			var resp *rpcv2.BatchGetTransactionsResponse
-			r := p.UseClient(
-				ctx,
-				fmt.Sprintf("%s/P#%d[%d-%d)", theme, page.Num, page.Start, page.End),
-				func(ctx context.Context, cli *Client) clientpool.Result {
-					return cli.UseGRPCConnection(ctx, method,
-						func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
-							req := &rpcv2.BatchGetTransactionsRequest{
-								Digests:  reqs,
-								ReadMask: readMask,
-							}
-							var getErr error
-							resp, getErr = rpcv2.NewLedgerServiceClient(conn).BatchGetTransactions(ctx, req)
-							return clientpool.Result{
-								Err:           getErr,
-								BrokenForTask: getErr != nil, // always retry using other client
-							}
-						},
-					)
+		theme,
+		func(ctx context.Context, cli *Client) clientpool.Result {
+			return cli.UseGRPCConnection(ctx, method,
+				func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
+					req := &rpcv2.BatchGetTransactionsRequest{
+						Digests:  digests,
+						ReadMask: readMask,
+					}
+					var getErr error
+					resp, getErr = rpcv2.NewLedgerServiceClient(conn).BatchGetTransactions(ctx, req)
+					return clientpool.Result{
+						Err:           getErr,
+						BrokenForTask: getErr != nil, // always retry using other client
+					}
 				},
-				clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
 			)
-			if r.Err != nil {
-				return nil, errors.Wrapf(r.Err, "load transactions %s failed", utils.MustJSONMarshal(reqs))
-			}
-			if len(resp.GetTransactions()) != len(reqs) {
-				return nil, errors.Errorf("should get %d transactions but got %d", len(reqs), len(resp.GetTransactions()))
-			}
-			return resp.GetTransactions(), nil
 		},
+		clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
 	)
+	if r.Err != nil {
+		return nil, errors.Wrapf(r.Err, "load transactions %s failed", utils.MustJSONMarshal(digests))
+	}
+	if len(resp.GetTransactions()) != len(digests) {
+		return nil, errors.Errorf("should get %d transactions but got %d", len(digests), len(resp.GetTransactions()))
+	}
+	return resp.GetTransactions(), nil
 }

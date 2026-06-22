@@ -495,19 +495,18 @@ func (s *SuperService) FilterGrpcChangedObjects(
 	)
 }
 
+// GetGrpcObjects forwards a single bounded batch to the upstream grpc node. It does
+// not page: a request over sui.GrpcMaxBatchSize is rejected (by the client pool),
+// and the caller (driver) is responsible for chunking large object lists.
 func (s *SuperService) GetGrpcObjects(
 	ctx context.Context,
 	reqs []*rpcv2.GetObjectRequest,
-	concurrency int,
-	batchSize int,
 ) ([]*sui.GrpcObjectResult, error) {
 	if err := s.requireGRPC(); err != nil {
 		return nil, err
 	}
 	const theme = "proxy.GetGrpcObjects.grpc_BatchGetObjects"
-	concurrency = min(concurrency, 10)
-	batchSize = min(batchSize, 50)
-	results, err := s.client.GetGrpcObjectsByPage(ctx, theme, theme, concurrency, batchSize, reqs)
+	results, err := s.client.GetGrpcObjects(ctx, theme, theme, reqs)
 	if err != nil {
 		return nil, err
 	}
@@ -516,27 +515,24 @@ func (s *SuperService) GetGrpcObjects(
 	return sui.WrapGrpcObjectResults(results), nil
 }
 
-// GetGrpcTransactionsByDigest fetches transactions by digest in grpc format,
-// forwarding straight to the upstream grpc node (like GetGrpcObjects). The read
-// mask is chosen by the caller (driver), so the super node stays a thin proxy.
+// GetGrpcTransactionsByDigest forwards a single bounded batch to the upstream grpc
+// node. Like GetGrpcObjects it does not page: a request over sui.GrpcMaxBatchSize is
+// rejected and the caller (driver) chunks large digest lists. The read mask is
+// chosen by the caller, so the super node stays a thin proxy.
 func (s *SuperService) GetGrpcTransactionsByDigest(
 	ctx context.Context,
 	digests []string,
 	readMaskPaths []string,
-	concurrency int,
-	batchSize int,
 ) ([]*sui.GrpcTransactionResult, error) {
 	if err := s.requireGRPC(); err != nil {
 		return nil, err
 	}
 	const theme = "proxy.GetGrpcTransactionsByDigest.grpc_BatchGetTransactions"
-	concurrency = min(concurrency, 10)
-	batchSize = min(batchSize, 50)
 	var readMask *fieldmaskpb.FieldMask
 	if len(readMaskPaths) > 0 {
 		readMask = &fieldmaskpb.FieldMask{Paths: readMaskPaths}
 	}
-	results, err := s.client.GetGrpcTransactionsByPage(ctx, theme, theme, concurrency, batchSize, digests, readMask)
+	results, err := s.client.GetGrpcTransactions(ctx, theme, theme, digests, readMask)
 	if err != nil {
 		return nil, err
 	}

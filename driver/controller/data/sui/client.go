@@ -44,6 +44,11 @@ type Client interface {
 		filter sui.TransactionFilter,
 		fetchConfig sui.TransactionFetchConfig,
 	) (map[uint64][]types.TransactionResponseV1, error)
+	TryMultiGetPastObjects(
+		ctx context.Context,
+		requests []types.SuiGetPastObjectRequest,
+		options types.SuiObjectDataOptions,
+	) ([]types.SuiPastObjectResponse, error)
 
 	// grpc-format counterparts (super node DriverVersion[2]); used by the suigrpc handler path.
 	GetGrpcTransactions(
@@ -63,11 +68,6 @@ type Client interface {
 		concurrency, batchSize int,
 	) ([]*rpcv2.GetObjectResult, error)
 
-	TryMultiGetPastObjects(
-		ctx context.Context,
-		requests []types.SuiGetPastObjectRequest,
-		options types.SuiObjectDataOptions,
-	) ([]types.SuiPastObjectResponse, error)
 	GetObjectStat(ctx context.Context, fromBlock, toBlock uint64, objectID string) (sui.ObjectStat, error)
 	GetObjectsStat(ctx context.Context, fromBlock, toBlock uint64, objectIDList []string) ([]sui.ObjectStat, error)
 
@@ -248,21 +248,31 @@ func (c *client) GetGrpcObjectChanges(
 	}), err
 }
 
-// GetGrpcObjects fetches objects by id+version in grpc format. The super node batches/parallelizes
-// server-side per the concurrency/batchSize args, so no client-side paging is needed.
+// GetGrpcObjects fetches objects by id+version in grpc format. The super node
+// rejects oversized batches, so paging is the caller's job: the request is split
+// into sui.GrpcMaxBatchSize chunks fetched concurrently, one sui_getGrpcObjects
+// call per chunk.
 func (c *client) GetGrpcObjects(
 	ctx context.Context,
 	reqs []*rpcv2.GetObjectRequest,
-	concurrency, batchSize int,
+	getConcurrency, getBatchSize int,
 ) ([]*rpcv2.GetObjectResult, error) {
-	// GetObjectResult carries a protobuf oneof, which the JSON-RPC transport's
-	// encoding/json can't round-trip; decode into the protojson-backed wrapper
-	// (sui.GrpcObjectResult) and unwrap back to the raw proto for callers.
-	var wrapped []*sui.GrpcObjectResult
-	if err := c.callContext(ctx, &wrapped, 0, "sui_getGrpcObjects", reqs, concurrency, batchSize); err != nil {
-		return nil, err
-	}
-	return sui.UnwrapGrpcObjectResults(wrapped), nil
+	return concurrency.TraverseByPage(
+		ctx,
+		getConcurrency,
+		min(getBatchSize, sui.GrpcMaxBatchSize),
+		reqs,
+		func(ctx context.Context, _ concurrency.Page, pageReqs []*rpcv2.GetObjectRequest) ([]*rpcv2.GetObjectResult, error) {
+			// GetObjectResult carries a protobuf oneof, which the JSON-RPC transport's
+			// encoding/json can't round-trip; decode into the protojson-backed wrapper
+			// (sui.GrpcObjectResult) and unwrap back to the raw proto for callers.
+			var wrapped []*sui.GrpcObjectResult
+			if err := c.callContext(ctx, &wrapped, 0, "sui_getGrpcObjects", pageReqs); err != nil {
+				return nil, err
+			}
+			return sui.UnwrapGrpcObjectResults(wrapped), nil
+		},
+	)
 }
 
 const QueryObjectsPageSize = 50 // Max number of objects to request in a single call
@@ -637,31 +647,39 @@ func (c *client) getGrpcTransactionByDigest(ctx context.Context, digest string) 
 // getGrpcTransactionsByDigest fetches transactions by digest over grpc, unwrapping
 // the JSON-RPC-safe result and surfacing per-transaction errors.
 func (c *client) getGrpcTransactionsByDigest(ctx context.Context, digests []string) ([]*rpcv2.ExecutedTransaction, error) {
-	const concurrency, batchSize = 10, 50
-	var wrapped []*sui.GrpcTransactionResult
-	if err := c.callContext(ctx, &wrapped, 0, "sui_getGrpcTransactionsByDigest",
-		digests, grpcPackageHistoryTxReadMask, concurrency, batchSize); err != nil {
-		return nil, err
-	}
-	results := sui.UnwrapGrpcTransactionResults(wrapped)
-	if len(results) != len(digests) {
-		return nil, errors.Errorf("get %d transactions but got %d", len(digests), len(results))
-	}
-	txs := make([]*rpcv2.ExecutedTransaction, len(results))
-	for i, r := range results {
-		if r == nil {
-			return nil, errors.Errorf("get transaction %s failed: empty result", digests[i])
-		}
-		if st := r.GetError(); st != nil {
-			return nil, errors.Errorf("get transaction %s failed: %s", digests[i], st.GetMessage())
-		}
-		tx := r.GetTransaction()
-		if tx == nil {
-			return nil, errors.Errorf("get transaction %s failed: no transaction in result", digests[i])
-		}
-		txs[i] = tx
-	}
-	return txs, nil
+	const txFetchConcurrency = 10
+	return concurrency.TraverseByPage(
+		ctx,
+		txFetchConcurrency,
+		sui.GrpcMaxBatchSize,
+		digests,
+		func(ctx context.Context, _ concurrency.Page, pageDigests []string) ([]*rpcv2.ExecutedTransaction, error) {
+			var wrapped []*sui.GrpcTransactionResult
+			if err := c.callContext(ctx, &wrapped, 0, "sui_getGrpcTransactionsByDigest",
+				pageDigests, grpcPackageHistoryTxReadMask); err != nil {
+				return nil, err
+			}
+			results := sui.UnwrapGrpcTransactionResults(wrapped)
+			if len(results) != len(pageDigests) {
+				return nil, errors.Errorf("get %d transactions but got %d", len(pageDigests), len(results))
+			}
+			txs := make([]*rpcv2.ExecutedTransaction, len(results))
+			for i, r := range results {
+				if r == nil {
+					return nil, errors.Errorf("get transaction %s failed: empty result", pageDigests[i])
+				}
+				if st := r.GetError(); st != nil {
+					return nil, errors.Errorf("get transaction %s failed: %s", pageDigests[i], st.GetMessage())
+				}
+				tx := r.GetTransaction()
+				if tx == nil {
+					return nil, errors.Errorf("get transaction %s failed: no transaction in result", pageDigests[i])
+				}
+				txs[i] = tx
+			}
+			return txs, nil
+		},
+	)
 }
 
 func (c *client) GetObjectCreation(ctx context.Context, objectID string, start uint64) (uint64, bool, error) {

@@ -14,6 +14,9 @@ export { ChartLegend } from './ChartLegend'
 // Refresh affordance
 export { RefreshContext, RefreshButton } from './RefreshContext'
 
+// Chart-type selector
+export { ChartTypeButtonGroup } from './ChartTypeButtonGroup'
+
 // Option panels
 export * from './options'
 

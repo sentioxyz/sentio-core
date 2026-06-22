@@ -11,13 +11,15 @@ const series = [
     seriesId: 'a',
     seriesName: 'Volume',
     value: [t0, 1234.5],
-    marker: '<span style="color:#5470c6">●</span>'
+    marker:
+      '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:#5470f0;"/>'
   },
   {
     seriesId: 'b',
     seriesName: 'TVL',
     value: [t0, 980],
-    marker: '<span style="color:#91cc75">●</span>'
+    marker:
+      '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:#91cc75;"/>'
   }
 ]
 const compare = [
@@ -25,13 +27,15 @@ const compare = [
     seriesId: 'a_compare',
     seriesName: 'Volume',
     value: [t0, 1000],
-    marker: '<span style="color:#5470c6">○</span>'
+    marker:
+      '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;border:1px solid #5470f0;"/>'
   },
   {
     seriesId: 'b_compare',
     seriesName: 'TVL',
     value: [t0, 1100],
-    marker: '<span style="color:#91cc75">○</span>'
+    marker:
+      '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;border:1px solid #91cc75;"/>'
   }
 ]
 
@@ -66,7 +70,8 @@ export const Scatter: Story = () => (
           seriesId: 'a',
           seriesName: 'Pool',
           value: [t0, 42, 7],
-          marker: '<span style="color:#5470c6">●</span>'
+          marker:
+            '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:#5470f0;"/>'
         }
       ]}
       numberFormatter={fmt}

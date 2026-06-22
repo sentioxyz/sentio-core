@@ -39,7 +39,6 @@ go_test(
     embed = [":sui"],
     deps = [
         "@com_github_pkg_errors//:errors",
-        "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
         "@com_github_stretchr_testify//require",
     ],
 )

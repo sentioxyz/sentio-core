@@ -23,3 +23,4 @@ export {
 export { ValueStringMapping } from './ValueStringMapping'
 export { default as YaxisControls } from './YaxisControls'
 export { XAxisControls } from './XaxisControls'
+export { MarkerControls } from './MarkerControls'

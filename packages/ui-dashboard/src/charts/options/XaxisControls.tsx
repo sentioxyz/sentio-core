@@ -131,12 +131,12 @@ export const XAxisControls = ({
         )}
         {supportSort && isXAixsNoneTime && (
           <span className="inline-flex h-8">
-            <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border bg-gray-50 px-2">
+            <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border border-r-0 bg-gray-50 px-2">
               Sort By
             </span>
             <SortSelect
               className="h-8 w-20 leading-8"
-              buttonClassName="h-full border-l-0 border-main rounded-none inline-flex items-center"
+              buttonClassName="h-full border-main rounded-none inline-flex items-center"
               options={sortByItems}
               value={xAxis?.sort?.sortBy as string}
               onChange={(value: string) => {
@@ -149,7 +149,7 @@ export const XAxisControls = ({
             />
             <OrderSelect
               className="h-8 w-40 leading-8"
-              buttonClassName="h-full border-main rounded-l-none inline-flex items-center"
+              buttonClassName="h-full border-l-0 border-main rounded-l-none inline-flex items-center"
               options={orderItems}
               value={xAxis?.sort?.orderDesc}
               onChange={(value) => {

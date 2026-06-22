@@ -41,7 +41,7 @@ const stubSelect = ({
   onChange: (v: string) => void
 }) => (
   <input
-    className="border-main h-full w-40 rounded-r-md border"
+    className="border-main text-icontent h-full w-40 rounded-r-md border px-2"
     value={value || ''}
     placeholder="column"
     onChange={(e) => onChange(e.target.value)}

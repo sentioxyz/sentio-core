@@ -1,6 +1,7 @@
 import { produce } from 'immer'
 import { defaults } from 'lodash'
 import { DisclosurePanel } from '@sentio/ui-core'
+import { AddonLabel } from './controls-ui'
 import type { ChartConfigLike, DataConfigLike } from '../../types'
 
 interface Props {
@@ -57,9 +58,9 @@ export function DataControls({
       containerClassName="w-full bg-default-bg"
     >
       <div className="flex h-8">
-        <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border border-r-0 bg-gray-50 px-3">
+        <AddonLabel className="rounded-l-md border border-r-0 px-3">
           Max Series Limit
-        </span>
+        </AddonLabel>
         <input
           type="number"
           max={1000}

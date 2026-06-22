@@ -5,6 +5,7 @@ import {
   PopoverTooltip,
   Select
 } from '@sentio/ui-core'
+import { AddonLabel } from './controls-ui'
 import { LuInfo } from 'react-icons/lu'
 import type { SortByLike, XAxisConfigLike } from '../../types'
 
@@ -66,9 +67,9 @@ export const XAxisControls = ({
       <div className="text-icontent flex flex-wrap gap-[10px]">
         {supportName && (
           <label className="inline-flex h-8">
-            <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border border-r-0 bg-gray-50 px-2">
+            <AddonLabel className="rounded-l-md border border-r-0 px-2">
               Name
-            </span>
+            </AddonLabel>
             <input
               type="text"
               className="sm:text-icontent border-main hover:border-primary-600 focus:ring-3 focus:ring-primary-600/30 focus:border-primary-600 w-40 rounded-r-md"
@@ -123,17 +124,15 @@ export const XAxisControls = ({
         )}
         {columnSelect && (
           <span className="inline-flex h-8">
-            <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border bg-gray-50 px-2">
-              Column
-            </span>
+            <AddonLabel className="rounded-l-md border px-2">Column</AddonLabel>
             {columnSelect}
           </span>
         )}
         {supportSort && isXAixsNoneTime && (
           <span className="inline-flex h-8">
-            <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border border-r-0 bg-gray-50 px-2">
+            <AddonLabel className="rounded-l-md border border-r-0 px-2">
               Sort By
-            </span>
+            </AddonLabel>
             <SortSelect
               className="h-8 w-20 leading-8"
               buttonClassName="h-full border-main rounded-none inline-flex items-center"

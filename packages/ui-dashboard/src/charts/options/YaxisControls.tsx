@@ -1,6 +1,7 @@
 import { defaults } from 'lodash'
 import type { ReactNode } from 'react'
 import { Button, Checkbox, DisclosurePanel } from '@sentio/ui-core'
+import { AddonLabel } from './controls-ui'
 import type { YAxisConfigLike } from '../../types'
 
 interface Props {
@@ -73,9 +74,9 @@ export default function YaxisControls({
       <div className="text-icontent flex flex-wrap gap-[10px]">
         {supportSetName && (
           <label className="inline-flex h-8">
-            <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border  border-r-0 bg-gray-50 px-2">
+            <AddonLabel className="rounded-l-md border border-r-0 px-2">
               Name
-            </span>
+            </AddonLabel>
             <input
               type="text"
               className="focus:border-primary-500 sm:text-icontent border-main hover:border-primary-600 focus:ring-3 focus:ring-primary-600/30 w-40 rounded-r-md border"
@@ -87,9 +88,7 @@ export default function YaxisControls({
         )}
         {columnSelect && (
           <span className="inline-flex h-8">
-            <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border bg-gray-50 px-2">
-              Column
-            </span>
+            <AddonLabel className="rounded-l-md border px-2">Column</AddonLabel>
             {columnSelect}
           </span>
         )}

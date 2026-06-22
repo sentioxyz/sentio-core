@@ -2,6 +2,7 @@ import { produce } from 'immer'
 import { defaults } from 'lodash'
 import { useCallback, type ReactNode } from 'react'
 import { DisclosurePanel } from '@sentio/ui-core'
+import { AddonLabel } from './controls-ui'
 import type { ScatterConfigLike } from '../../types'
 
 interface Props {
@@ -76,9 +77,9 @@ export function ScatterControls({
       <div className="flex items-center gap-4">
         {columnSelect && (
           <div className="inline-flex h-8">
-            <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border bg-gray-50 px-2">
+            <AddonLabel className="rounded-l-md border border-r-0 px-2">
               Size By Column
-            </span>
+            </AddonLabel>
             {columnSelect({
               value: config.symbolSize,
               onChange: onSymbolSizeColumnChange
@@ -87,9 +88,9 @@ export function ScatterControls({
         )}
         {colorPicker && (
           <div className="inline-flex h-8">
-            <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border bg-gray-50 px-2">
+            <AddonLabel className="rounded-l-md border border-r-0 px-2">
               Size Color Mapping
-            </span>
+            </AddonLabel>
             {colorPicker({
               value: config.color,
               onChange: onSymbolColorChange
@@ -97,13 +98,13 @@ export function ScatterControls({
           </div>
         )}
         <div className="inline-flex h-8">
-          <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border bg-gray-50 px-2">
+          <AddonLabel className="rounded-l-md border border-r-0 px-2">
             Min Size
-          </span>
+          </AddonLabel>
           <input
             name="minSize"
             type="number"
-            className="focus:ring-primary-500 focus:border-primary-500 border-main h-8 w-24 rounded-r-md border border-l-0 px-2 text-sm focus:ring-1"
+            className="focus:ring-primary-600/30 focus:border-primary-600 border-main text-icontent focus:ring-3 h-8 w-24 rounded-r-md border px-2"
             value={config.minSize || 5}
             onChange={onMinSizeChange}
             min="1"
@@ -111,13 +112,13 @@ export function ScatterControls({
           />
         </div>
         <div className="inline-flex h-8">
-          <span className="sm:text-icontent border-main inline-flex items-center rounded-l-md border bg-gray-50 px-2">
+          <AddonLabel className="rounded-l-md border border-r-0 px-2">
             Max Size
-          </span>
+          </AddonLabel>
           <input
             name="maxSize"
             type="number"
-            className="focus:ring-primary-500 focus:border-primary-500 border-main h-8 w-24 rounded-r-md border border-l-0 px-2 text-sm focus:ring-1"
+            className="focus:ring-primary-600/30 focus:border-primary-600 border-main focus:ring-3 h-8 w-24 rounded-r-md border px-2 text-sm"
             value={config.maxSize || 30}
             onChange={onMaxSizeChange}
             min="1"

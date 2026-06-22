@@ -33,6 +33,7 @@ func BuildSuiAgents(
 	client sui.Client,
 	first uint64,
 	getAddressStart func(ctx context.Context, address string, start uint64) (uint64, error),
+	getPackageHistory func(ctx context.Context, pkgID string) ([]string, error),
 	emit func(SuiHandlerAgent),
 ) *controller.ExternalError {
 	_, logger := log.FromContext(ctx)
@@ -149,7 +150,7 @@ func BuildSuiAgents(
 		var pkgHistory []string // used for search real event type
 		if contractAddress != "" {
 			if !chainConfig.KeepSuiEventTypePackage && len(contractConfig.GetMoveEventConfigs()) > 0 {
-				if pkgHistory, err = client.GetPackageHistory(ctx, contractAddress); err != nil {
+				if pkgHistory, err = getPackageHistory(ctx, contractAddress); err != nil {
 					return controller.NewExternalError(controller.ErrCodeFetchDataFailed,
 						errors.Wrapf(err, "get package history for contract %s failed", contractAddress))
 				}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/sui"
@@ -56,6 +57,8 @@ func NewSuperNode(
 					return jsonrpc.CallMethod(superSvr.FilterGrpcChangedObjects, ctx, params)
 				case "sui_getGrpcObjects": // DriverVersion[2]
 					return jsonrpc.CallMethod(superSvr.GetGrpcObjects, ctx, params)
+				case "sui_getGrpcTransactionsByDigest": // DriverVersion[2]
+					return jsonrpc.CallMethod(superSvr.GetGrpcTransactionsByDigest, ctx, params)
 				default:
 					return next(ctx, method, params)
 				}
@@ -492,25 +495,50 @@ func (s *SuperService) FilterGrpcChangedObjects(
 	)
 }
 
+// GetGrpcObjects forwards a single bounded batch to the upstream grpc node. It does
+// not page: a request over sui.GrpcMaxBatchSize is rejected (by the client pool),
+// and the caller (driver) is responsible for chunking large object lists.
 func (s *SuperService) GetGrpcObjects(
 	ctx context.Context,
 	reqs []*rpcv2.GetObjectRequest,
-	concurrency int,
-	batchSize int,
 ) ([]*sui.GrpcObjectResult, error) {
 	if err := s.requireGRPC(); err != nil {
 		return nil, err
 	}
 	const theme = "proxy.GetGrpcObjects.grpc_BatchGetObjects"
-	concurrency = min(concurrency, 10)
-	batchSize = min(batchSize, 50)
-	results, err := s.client.GetGrpcObjectsByPage(ctx, theme, theme, concurrency, batchSize, reqs)
+	results, err := s.client.GetGrpcObjects(ctx, theme, theme, reqs)
 	if err != nil {
 		return nil, err
 	}
 	// Wrap raw proto results so the oneof-bearing GetObjectResult round-trips over
 	// JSON-RPC via protojson (see sui.GrpcObjectResult).
 	return sui.WrapGrpcObjectResults(results), nil
+}
+
+// GetGrpcTransactionsByDigest forwards a single bounded batch to the upstream grpc
+// node. Like GetGrpcObjects it does not page: a request over sui.GrpcMaxBatchSize is
+// rejected and the caller (driver) chunks large digest lists. The read mask is
+// chosen by the caller, so the super node stays a thin proxy.
+func (s *SuperService) GetGrpcTransactionsByDigest(
+	ctx context.Context,
+	digests []string,
+	readMaskPaths []string,
+) ([]*sui.GrpcTransactionResult, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
+	const theme = "proxy.GetGrpcTransactionsByDigest.grpc_BatchGetTransactions"
+	var readMask *fieldmaskpb.FieldMask
+	if len(readMaskPaths) > 0 {
+		readMask = &fieldmaskpb.FieldMask{Paths: readMaskPaths}
+	}
+	results, err := s.client.GetGrpcTransactions(ctx, theme, theme, digests, readMask)
+	if err != nil {
+		return nil, err
+	}
+	// Wrap raw proto results so the oneof-bearing GetTransactionResult round-trips
+	// over JSON-RPC via protojson (see sui.GrpcTransactionResult).
+	return sui.WrapGrpcTransactionResults(results), nil
 }
 
 func (s *SuperService) GetObjectCreation(ctx context.Context, objectID string) (*sui.ObjectCreation, error) {

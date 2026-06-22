@@ -21,6 +21,9 @@ export { ChartTypeButtonGroup } from './ChartTypeButtonGroup'
 export { ChartTooltip } from './ChartTooltip'
 export { ScatterChartTooltip } from './ScatterChartTooltip'
 
+// Render charts (presentational — app injects computed series + formatter)
+export { PieChart, type PieChartProps, type PieSeriesInput } from './PieChart'
+
 // Option panels
 export * from './options'
 

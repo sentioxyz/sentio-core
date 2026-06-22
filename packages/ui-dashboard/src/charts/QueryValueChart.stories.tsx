@@ -2,7 +2,7 @@ import type { Story } from '@ladle/react'
 import { QueryValueChart } from './QueryValueChart'
 
 export const Basic: Story = () => (
-  <div className="h-48 w-80 rounded-md border">
+  <div className="w-80 rounded-md border">
     <QueryValueChart series={[]} valueText="$4.2M" textColor="#2563EB" />
   </div>
 )
@@ -11,7 +11,7 @@ Basic.meta = {
 }
 
 export const WithBackground: Story = () => (
-  <div className="h-48 w-80 rounded-md border">
+  <div className="w-80 rounded-md border">
     <QueryValueChart
       series={[]}
       valueText="98.6%"

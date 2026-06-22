@@ -1,7 +1,7 @@
 {
   "private": false,
   "name": "@sentio/ui-dashboard",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Dashboard UI components for the Sentio platform, decoupled from backend services.",
   "exports": {
     ".": {
@@ -34,8 +34,10 @@
   "dependencies": {
     "@floating-ui/react": "^0.27.16",
     "@headlessui/react": "1.7.7",
+    "@sentio/bigdecimal": "9.1.1-patch.3",
     "@sentio/chain": "workspace:^",
     "@sentio/ui-core": "workspace:^",
+    "dayjs": "^1.11.2",
     "echarts": "^6.0.0",
     "immer": "^11.1.8",
     "lodash": "^4.17.21",

@@ -635,51 +635,28 @@ func (c *client) getGrpcObject(ctx context.Context, objectID string, version *ui
 	return obj, nil
 }
 
-// getGrpcTransactionByDigest fetches a single transaction over grpc.
+// getGrpcTransactionByDigest fetches a single transaction over grpc, unwrapping the
+// JSON-RPC-safe result and surfacing the per-transaction error. The package-history
+// walk only ever needs one tx at a time, so this sends a single-element batch to the
+// (batch-capable, bounded) sui_getGrpcTransactionsByDigest endpoint.
 func (c *client) getGrpcTransactionByDigest(ctx context.Context, digest string) (*rpcv2.ExecutedTransaction, error) {
-	txs, err := c.getGrpcTransactionsByDigest(ctx, []string{digest})
-	if err != nil {
+	var wrapped []*sui.GrpcTransactionResult
+	if err := c.callContext(ctx, &wrapped, 0, "sui_getGrpcTransactionsByDigest",
+		[]string{digest}, grpcPackageHistoryTxReadMask); err != nil {
 		return nil, err
 	}
-	return txs[0], nil
-}
-
-// getGrpcTransactionsByDigest fetches transactions by digest over grpc, unwrapping
-// the JSON-RPC-safe result and surfacing per-transaction errors.
-func (c *client) getGrpcTransactionsByDigest(ctx context.Context, digests []string) ([]*rpcv2.ExecutedTransaction, error) {
-	const txFetchConcurrency = 10
-	return concurrency.TraverseByPage(
-		ctx,
-		txFetchConcurrency,
-		sui.GrpcMaxBatchSize,
-		digests,
-		func(ctx context.Context, _ concurrency.Page, pageDigests []string) ([]*rpcv2.ExecutedTransaction, error) {
-			var wrapped []*sui.GrpcTransactionResult
-			if err := c.callContext(ctx, &wrapped, 0, "sui_getGrpcTransactionsByDigest",
-				pageDigests, grpcPackageHistoryTxReadMask); err != nil {
-				return nil, err
-			}
-			results := sui.UnwrapGrpcTransactionResults(wrapped)
-			if len(results) != len(pageDigests) {
-				return nil, errors.Errorf("get %d transactions but got %d", len(pageDigests), len(results))
-			}
-			txs := make([]*rpcv2.ExecutedTransaction, len(results))
-			for i, r := range results {
-				if r == nil {
-					return nil, errors.Errorf("get transaction %s failed: empty result", pageDigests[i])
-				}
-				if st := r.GetError(); st != nil {
-					return nil, errors.Errorf("get transaction %s failed: %s", pageDigests[i], st.GetMessage())
-				}
-				tx := r.GetTransaction()
-				if tx == nil {
-					return nil, errors.Errorf("get transaction %s failed: no transaction in result", pageDigests[i])
-				}
-				txs[i] = tx
-			}
-			return txs, nil
-		},
-	)
+	results := sui.UnwrapGrpcTransactionResults(wrapped)
+	if len(results) != 1 || results[0] == nil {
+		return nil, errors.Errorf("get transaction %s failed: empty result", digest)
+	}
+	if st := results[0].GetError(); st != nil {
+		return nil, errors.Errorf("get transaction %s failed: %s", digest, st.GetMessage())
+	}
+	tx := results[0].GetTransaction()
+	if tx == nil {
+		return nil, errors.Errorf("get transaction %s failed: no transaction in result", digest)
+	}
+	return tx, nil
 }
 
 func (c *client) GetObjectCreation(ctx context.Context, objectID string, start uint64) (uint64, bool, error) {

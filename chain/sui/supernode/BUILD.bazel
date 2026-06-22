@@ -20,6 +20,7 @@ go_library(
         "//common/utils",
         "@com_github_pkg_errors//:errors",
         "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
+        "@org_golang_google_protobuf//types/known/fieldmaskpb",
     ],
 )
 

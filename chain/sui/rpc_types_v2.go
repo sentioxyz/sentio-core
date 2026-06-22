@@ -393,6 +393,60 @@ func UnwrapGrpcObjectResults(wrapped []*GrpcObjectResult) []*rpcv2.GetObjectResu
 	return results
 }
 
+// GrpcTransactionResult wraps *rpcv2.GetTransactionResult so it can cross the
+// JSON-RPC boundary between the super node and the driver. Just like
+// GrpcObjectResult, GetTransactionResult.Result is a protobuf oneof
+// (Transaction | Error) that the default encoding/json cannot round-trip, so we
+// route the proto member through protojson instead.
+type GrpcTransactionResult struct {
+	*rpcv2.GetTransactionResult
+}
+
+func (r GrpcTransactionResult) MarshalJSON() ([]byte, error) {
+	if r.GetTransactionResult == nil {
+		return []byte("null"), nil
+	}
+	b, err := protojson.Marshal(r.GetTransactionResult)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal grpc GetTransactionResult")
+	}
+	return b, nil
+}
+
+func (r *GrpcTransactionResult) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		r.GetTransactionResult = nil
+		return nil
+	}
+	msg := &rpcv2.GetTransactionResult{}
+	if err := protojson.Unmarshal(data, msg); err != nil {
+		return errors.Wrap(err, "unmarshal grpc GetTransactionResult")
+	}
+	r.GetTransactionResult = msg
+	return nil
+}
+
+// WrapGrpcTransactionResults / UnwrapGrpcTransactionResults convert between the
+// raw proto slice used internally and the JSON-RPC-safe wrapper slice exchanged
+// over RPC.
+func WrapGrpcTransactionResults(results []*rpcv2.GetTransactionResult) []*GrpcTransactionResult {
+	wrapped := make([]*GrpcTransactionResult, len(results))
+	for i, r := range results {
+		wrapped[i] = &GrpcTransactionResult{GetTransactionResult: r}
+	}
+	return wrapped
+}
+
+func UnwrapGrpcTransactionResults(wrapped []*GrpcTransactionResult) []*rpcv2.GetTransactionResult {
+	results := make([]*rpcv2.GetTransactionResult, len(wrapped))
+	for i, w := range wrapped {
+		if w != nil {
+			results[i] = w.GetTransactionResult
+		}
+	}
+	return results
+}
+
 // CommandFilter has 3 parts and linked AND
 type CommandFilter struct {
 	CallPackage  *string

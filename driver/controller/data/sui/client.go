@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"sentioxyz/sentio-core/chain/move"
 	"sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/concurrency"
@@ -67,16 +68,14 @@ type Client interface {
 		requests []types.SuiGetPastObjectRequest,
 		options types.SuiObjectDataOptions,
 	) ([]types.SuiPastObjectResponse, error)
-	MultiGetTransactionBlocks(
-		ctx context.Context,
-		txDigests []string,
-		options map[string]any,
-	) ([]types.TransactionResponseV1, error)
 	GetObjectStat(ctx context.Context, fromBlock, toBlock uint64, objectID string) (sui.ObjectStat, error)
 	GetObjectsStat(ctx context.Context, fromBlock, toBlock uint64, objectIDList []string) ([]sui.ObjectStat, error)
-	GetObjectVersionHistory(ctx context.Context, objectID string) ([]types.ObjectChangeExtend, error)
 
+	// GetPackageHistory resolves the full package upgrade history via json-rpc; the
+	// suigrpc handler path uses GetGrpcPackageHistory, which walks the same history
+	// purely over grpc data (no upstream full-node json-rpc).
 	GetPackageHistory(ctx context.Context, pkgID string) ([]string, error)
+	GetGrpcPackageHistory(ctx context.Context, pkgID string) ([]string, error)
 	GetObjectCreation(ctx context.Context, objectID string, start uint64) (uint64, bool, error)
 
 	ResetCache(r controller.BlockRange)
@@ -297,7 +296,7 @@ func (c *client) TryMultiGetPastObjects(
 
 const QueryTxPageSize = 50 // Max number of txs to request in a single call
 
-func (c *client) MultiGetTransactionBlocks(
+func (c *client) multiGetTransactionBlocks(
 	ctx context.Context,
 	txDigests []string,
 	options map[string]any,
@@ -355,7 +354,7 @@ func (c *client) GetObjectsStat(
 	)
 }
 
-func (c *client) GetObjectVersionHistory(ctx context.Context, objectID string) ([]types.ObjectChangeExtend, error) {
+func (c *client) getObjectVersionHistory(ctx context.Context, objectID string) ([]types.ObjectChangeExtend, error) {
 	stat, err := c.GetObjectStat(ctx, 0, math.MaxUint64, objectID)
 	if err != nil {
 		return nil, err
@@ -425,7 +424,7 @@ func (c *client) GetPackageHistory(ctx context.Context, pkgID string) (history [
 	//         use super node to get all change records of the upgrade cap object,
 	//         which contains all package creating tx digest.
 	var upgradeCapHistory []types.ObjectChangeExtend
-	upgradeCapHistory, err = c.GetObjectVersionHistory(ctx, upgradeCapID)
+	upgradeCapHistory, err = c.getObjectVersionHistory(ctx, upgradeCapID)
 	if err != nil {
 		err = errors.Wrapf(err, "get the first tx of the upgrade cap object %s for package %s failed", upgradeCapID, pkgID)
 		return nil, err
@@ -439,7 +438,7 @@ func (c *client) GetPackageHistory(ctx context.Context, pkgID string) (history [
 	})
 	// step-4: now get the object changes of all history tx, all the package id is in it
 	var historyTxList []types.TransactionResponseV1
-	historyTxList, err = c.MultiGetTransactionBlocks(ctx, historyTxDigest, getTxOpt)
+	historyTxList, err = c.multiGetTransactionBlocks(ctx, historyTxDigest, getTxOpt)
 	if err != nil {
 		err = errors.Wrapf(err, "get history tx of the upgrade cap object %s for package %s failed", upgradeCapID, pkgID)
 		return nil, err
@@ -455,6 +454,197 @@ func (c *client) GetPackageHistory(ctx context.Context, pkgID string) (history [
 		history = append(history, pkgID)
 	}
 	return history, nil
+}
+
+// suiUpgradeCapType matches the UpgradeCap object change in a publish tx. It is a
+// move.Type (not a raw string) because grpc reports the full-length address form
+// (0x0000…0002::package::UpgradeCap) while json-rpc abbreviates it (0x2::…);
+// move.Type comparison normalizes the address so both forms match.
+var suiUpgradeCapType = mustBuildMoveType("0x2::package::UpgradeCap")
+
+func mustBuildMoveType(s string) move.Type {
+	t, err := move.BuildType(s)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+// suiPackageObjectType is the object_type grpc reports for a published Move
+// package. Different node versions encode a package publish either with this
+// literal type or with an OUTPUT_OBJECT_STATE_PACKAGE_WRITE change, so the walk
+// accepts both signals.
+const suiPackageObjectType = "package"
+
+// grpcPackageHistoryTxReadMask limits the grpc transaction fetch during package
+// history walking to just the fields it needs: the digest plus the effects'
+// changed objects (whose object id / type / input version drive the walk).
+var grpcPackageHistoryTxReadMask = []string{"digest", "effects.changed_objects"}
+
+// GetGrpcPackageHistory resolves the full package upgrade history using only grpc
+// data (no upstream full-node json-rpc). It is the grpc-data twin of
+// GetPackageHistory: starting from the package's UpgradeCap, it walks the cap's
+// whole version chain backwards via each change's input_version, collecting the
+// package id published in every upgrade transaction.
+func (c *client) GetGrpcPackageHistory(ctx context.Context, pkgID string) (history []string, err error) {
+	var has bool
+	if history, has = c.cachedPackageHistory.Get(pkgID); has {
+		return history, nil
+	}
+	history, err = resolveGrpcPackageHistory(
+		pkgID,
+		func(objectID string, version *uint64) (*rpcv2.Object, error) {
+			return c.getGrpcObject(ctx, objectID, version)
+		},
+		func(digest string) (*rpcv2.ExecutedTransaction, error) {
+			return c.getGrpcTransactionByDigest(ctx, digest)
+		},
+	)
+	if err == nil {
+		c.cachedPackageHistory.Add(pkgID, history)
+	}
+	return history, err
+}
+
+// resolveGrpcPackageHistory is the transport-agnostic core of GetGrpcPackageHistory,
+// taking object/transaction fetchers so the walk can be unit-tested without RPC.
+func resolveGrpcPackageHistory(
+	pkgID string,
+	getObject func(objectID string, version *uint64) (*rpcv2.Object, error),
+	getTransaction func(digest string) (*rpcv2.ExecutedTransaction, error),
+) (history []string, err error) {
+	// step-1: the package object is immutable, so it has a single version; fetch it
+	//         to learn the transaction that created it.
+	pkgObj, err := getObject(pkgID, nil)
+	if err != nil {
+		return nil, errors.Wrapf(err, "get package object %s failed", pkgID)
+	}
+	createTxDigest := pkgObj.GetPreviousTransaction()
+	if createTxDigest == "" {
+		return nil, errors.Errorf("package object %s has no previous transaction", pkgID)
+	}
+
+	// step-2: the creating tx publishes the package together with its UpgradeCap;
+	//         find the upgrade cap object id from that tx's object changes.
+	createTx, err := getTransaction(createTxDigest)
+	if err != nil {
+		return nil, errors.Wrapf(err, "get creation transaction %s for package %s failed", createTxDigest, pkgID)
+	}
+	var upgradeCapID string
+	for _, co := range createTx.GetEffects().GetChangedObjects() {
+		if suiUpgradeCapType.IncludeTypeString(co.ObjectType) {
+			upgradeCapID = co.GetObjectId()
+			break
+		}
+	}
+	if upgradeCapID == "" {
+		return []string{pkgID}, nil
+	}
+
+	// step-3+4: walk the upgrade cap's version chain backwards. Start from the cap's
+	//           latest version so the walk is independent of which version pkgID is;
+	//           each upgrade tx publishes one package version, so collecting the
+	//           Published change in every walked tx yields the full package history.
+	capLatest, err := getObject(upgradeCapID, nil)
+	if err != nil {
+		return nil, errors.Wrapf(err, "get upgrade cap object %s for package %s failed", upgradeCapID, pkgID)
+	}
+	seenTx := set.New[string]()
+	for txDigest := capLatest.GetPreviousTransaction(); txDigest != "" && !seenTx.Contains(txDigest); {
+		seenTx.Add(txDigest)
+		var tx *rpcv2.ExecutedTransaction
+		if tx, err = getTransaction(txDigest); err != nil {
+			return nil, errors.Wrapf(err, "get upgrade history tx %s for package %s failed", txDigest, pkgID)
+		}
+		var capChange *rpcv2.ChangedObject
+		for _, co := range tx.GetEffects().GetChangedObjects() {
+			if co.GetObjectType() == suiPackageObjectType || sui.GetChangeType(co) == types.ObjectChangeTypePublished {
+				history = append(history, co.GetObjectId())
+			}
+			if co.GetObjectId() == upgradeCapID {
+				capChange = co
+			}
+		}
+		if capChange == nil {
+			return nil, errors.Errorf("upgrade cap %s not found in its change tx %s", upgradeCapID, txDigest)
+		}
+		// the tx that created the cap has no prior version: the walk is done.
+		if capChange.GetInputState() == rpcv2.ChangedObject_INPUT_OBJECT_STATE_DOES_NOT_EXIST {
+			break
+		}
+		// hop to the tx that produced the cap's previous version.
+		inputVersion := capChange.GetInputVersion()
+		prevObj, getErr := getObject(upgradeCapID, &inputVersion)
+		if getErr != nil {
+			return nil, errors.Wrapf(getErr, "get upgrade cap %s at version %d failed", upgradeCapID, inputVersion)
+		}
+		txDigest = prevObj.GetPreviousTransaction()
+	}
+
+	if utils.IndexOf(history, pkgID) < 0 {
+		history = append(history, pkgID)
+	}
+	return history, nil
+}
+
+// getGrpcObject fetches a single object (latest version when version is nil) over
+// grpc and returns its proto, erroring on a not-found / error result.
+func (c *client) getGrpcObject(ctx context.Context, objectID string, version *uint64) (*rpcv2.Object, error) {
+	req := &rpcv2.GetObjectRequest{ObjectId: &objectID, Version: version}
+	results, err := c.GetGrpcObjects(ctx, []*rpcv2.GetObjectRequest{req}, 1, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 || results[0] == nil {
+		return nil, errors.Errorf("object %s not found", objectID)
+	}
+	if st := results[0].GetError(); st != nil {
+		return nil, errors.Errorf("get object %s failed: %s", objectID, st.GetMessage())
+	}
+	obj := results[0].GetObject()
+	if obj == nil {
+		return nil, errors.Errorf("object %s not found", objectID)
+	}
+	return obj, nil
+}
+
+// getGrpcTransactionByDigest fetches a single transaction over grpc.
+func (c *client) getGrpcTransactionByDigest(ctx context.Context, digest string) (*rpcv2.ExecutedTransaction, error) {
+	txs, err := c.getGrpcTransactionsByDigest(ctx, []string{digest})
+	if err != nil {
+		return nil, err
+	}
+	return txs[0], nil
+}
+
+// getGrpcTransactionsByDigest fetches transactions by digest over grpc, unwrapping
+// the JSON-RPC-safe result and surfacing per-transaction errors.
+func (c *client) getGrpcTransactionsByDigest(ctx context.Context, digests []string) ([]*rpcv2.ExecutedTransaction, error) {
+	const concurrency, batchSize = 10, 50
+	var wrapped []*sui.GrpcTransactionResult
+	if err := c.callContext(ctx, &wrapped, 0, "sui_getGrpcTransactionsByDigest",
+		digests, grpcPackageHistoryTxReadMask, concurrency, batchSize); err != nil {
+		return nil, err
+	}
+	results := sui.UnwrapGrpcTransactionResults(wrapped)
+	if len(results) != len(digests) {
+		return nil, errors.Errorf("get %d transactions but got %d", len(digests), len(results))
+	}
+	txs := make([]*rpcv2.ExecutedTransaction, len(results))
+	for i, r := range results {
+		if r == nil {
+			return nil, errors.Errorf("get transaction %s failed: empty result", digests[i])
+		}
+		if st := r.GetError(); st != nil {
+			return nil, errors.Errorf("get transaction %s failed: %s", digests[i], st.GetMessage())
+		}
+		tx := r.GetTransaction()
+		if tx == nil {
+			return nil, errors.Errorf("get transaction %s failed: no transaction in result", digests[i])
+		}
+		txs[i] = tx
+	}
+	return txs, nil
 }
 
 func (c *client) GetObjectCreation(ctx context.Context, objectID string, start uint64) (uint64, bool, error) {

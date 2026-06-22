@@ -440,3 +440,54 @@ func (p *ClientPool) GetGrpcObjectsByPage(
 		},
 	)
 }
+
+// GetGrpcTransactionsByPage fetches transactions by digest in grpc format. The
+// read mask is supplied by the caller so it only pays for the fields it needs
+// (e.g. just digest + effects.changed_objects for package-history walking).
+func (p *ClientPool) GetGrpcTransactionsByPage(
+	ctx context.Context,
+	theme string,
+	method string,
+	getConcurrency int,
+	getBatchSize int,
+	digests []string,
+	readMask *fieldmaskpb.FieldMask,
+) ([]*rpcv2.GetTransactionResult, error) {
+	return concurrency.TraverseByPage(
+		ctx,
+		getConcurrency,
+		getBatchSize,
+		digests,
+		func(ctx context.Context, page concurrency.Page, reqs []string) ([]*rpcv2.GetTransactionResult, error) {
+			var resp *rpcv2.BatchGetTransactionsResponse
+			r := p.UseClient(
+				ctx,
+				fmt.Sprintf("%s/P#%d[%d-%d)", theme, page.Num, page.Start, page.End),
+				func(ctx context.Context, cli *Client) clientpool.Result {
+					return cli.UseGRPCConnection(ctx, method,
+						func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
+							req := &rpcv2.BatchGetTransactionsRequest{
+								Digests:  reqs,
+								ReadMask: readMask,
+							}
+							var getErr error
+							resp, getErr = rpcv2.NewLedgerServiceClient(conn).BatchGetTransactions(ctx, req)
+							return clientpool.Result{
+								Err:           getErr,
+								BrokenForTask: getErr != nil, // always retry using other client
+							}
+						},
+					)
+				},
+				clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
+			)
+			if r.Err != nil {
+				return nil, errors.Wrapf(r.Err, "load transactions %s failed", utils.MustJSONMarshal(reqs))
+			}
+			if len(resp.GetTransactions()) != len(reqs) {
+				return nil, errors.Errorf("should get %d transactions but got %d", len(reqs), len(resp.GetTransactions()))
+			}
+			return resp.GetTransactions(), nil
+		},
+	)
+}

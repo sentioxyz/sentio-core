@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/sui"
@@ -56,6 +57,8 @@ func NewSuperNode(
 					return jsonrpc.CallMethod(superSvr.FilterGrpcChangedObjects, ctx, params)
 				case "sui_getGrpcObjects": // DriverVersion[2]
 					return jsonrpc.CallMethod(superSvr.GetGrpcObjects, ctx, params)
+				case "sui_getGrpcTransactionsByDigest": // DriverVersion[2]
+					return jsonrpc.CallMethod(superSvr.GetGrpcTransactionsByDigest, ctx, params)
 				default:
 					return next(ctx, method, params)
 				}
@@ -511,6 +514,35 @@ func (s *SuperService) GetGrpcObjects(
 	// Wrap raw proto results so the oneof-bearing GetObjectResult round-trips over
 	// JSON-RPC via protojson (see sui.GrpcObjectResult).
 	return sui.WrapGrpcObjectResults(results), nil
+}
+
+// GetGrpcTransactionsByDigest fetches transactions by digest in grpc format,
+// forwarding straight to the upstream grpc node (like GetGrpcObjects). The read
+// mask is chosen by the caller (driver), so the super node stays a thin proxy.
+func (s *SuperService) GetGrpcTransactionsByDigest(
+	ctx context.Context,
+	digests []string,
+	readMaskPaths []string,
+	concurrency int,
+	batchSize int,
+) ([]*sui.GrpcTransactionResult, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
+	const theme = "proxy.GetGrpcTransactionsByDigest.grpc_BatchGetTransactions"
+	concurrency = min(concurrency, 10)
+	batchSize = min(batchSize, 50)
+	var readMask *fieldmaskpb.FieldMask
+	if len(readMaskPaths) > 0 {
+		readMask = &fieldmaskpb.FieldMask{Paths: readMaskPaths}
+	}
+	results, err := s.client.GetGrpcTransactionsByPage(ctx, theme, theme, concurrency, batchSize, digests, readMask)
+	if err != nil {
+		return nil, err
+	}
+	// Wrap raw proto results so the oneof-bearing GetTransactionResult round-trips
+	// over JSON-RPC via protojson (see sui.GrpcTransactionResult).
+	return sui.WrapGrpcTransactionResults(results), nil
 }
 
 func (s *SuperService) GetObjectCreation(ctx context.Context, objectID string) (*sui.ObjectCreation, error) {

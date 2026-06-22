@@ -21,3 +21,5 @@ export {
   defaultConfig as defaultValueControlsConfig
 } from './ValueControls'
 export { ValueStringMapping } from './ValueStringMapping'
+export { default as YaxisControls } from './YaxisControls'
+export { XAxisControls } from './XaxisControls'

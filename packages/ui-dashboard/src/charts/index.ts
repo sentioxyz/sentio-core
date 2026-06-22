@@ -17,6 +17,10 @@ export { RefreshContext, RefreshButton } from './RefreshContext'
 // Chart-type selector
 export { ChartTypeButtonGroup } from './ChartTypeButtonGroup'
 
+// Tooltips
+export { ChartTooltip } from './ChartTooltip'
+export { ScatterChartTooltip } from './ScatterChartTooltip'
+
 // Option panels
 export * from './options'
 

@@ -6,6 +6,12 @@
 import '@sentio/ui-core/dist/style.css'
 import '../dist/style.css'
 
+// react-dom/server's CJS dev build references the Node `global` (the app's webpack
+// defines it; Vite does not). The TimeSeriesChart tooltip renders via
+// renderToString and would throw `global is not defined` on hover. Define it for
+// the dev server before any story loads.
+;(globalThis as any).global ||= globalThis
+
 import { useEffect } from 'react'
 import { useLadleContext, ThemeState, type GlobalProvider } from '@ladle/react'
 

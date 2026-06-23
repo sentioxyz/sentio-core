@@ -25,6 +25,13 @@ export { ScatterChartTooltip } from './ScatterChartTooltip'
 export { PieChart, type PieChartProps, type PieSeriesInput } from './PieChart'
 export { BarGaugeChart, type BarGaugeChartProps } from './BarGaugeChart'
 export { QueryValueChart, type QueryValueChartProps } from './QueryValueChart'
+export {
+  TimeSeriesChart,
+  type TimeSeriesChartProps,
+  type ViewActionContext,
+  type MarkLine,
+  type MarkArea
+} from './TimeSeriesChart'
 
 // Option panels
 export * from './options'

@@ -340,6 +340,21 @@ export const fixTimeSeries = (series: SeriesLike<Date>[]): void => {
   }
 }
 
+/**
+ * Context built by the presentational chart for a hovered/clicked series, handed
+ * out to the app so it can build the log/cohort URL + navigation. The app combines
+ * `value` (the data point, holding the timestamp) with its own time range.
+ */
+export interface ViewActionContext {
+  value: any
+  labels: Record<string, string>
+  name: string
+  id?: string
+  isEventSeries: boolean
+  eventName?: string
+  query?: { selectorExpr?: unknown }
+}
+
 export interface TimeSeriesChartProps {
   // ── Display / behaviour fields (Like-typed mirror of the app's ChartProps) ──
   group?: string
@@ -378,14 +393,34 @@ export interface TimeSeriesChartProps {
   overlay?: TimeSeriesOverlay
   /** Template-variable keys (replaces the app's template-variables atom). */
   templateVariableKeys?: string[]
-  /** Navigate to logs for a clicked series (replaces the app router + log-urls hook). */
-  onViewLogs?: (seriesId: string, seriesIndex: number) => void
-  /** Navigate to users/accounts for a clicked series (replaces cohort-query + router). */
-  onViewUsers?: (seriesId: string, seriesIndex: number) => void
-  /** Whether the "View Logs" action should be disabled for a series. */
-  viewLogDisabled?: (seriesId: string, seriesIndex: number) => boolean
-  /** Whether the "View Users" action should be disabled for a series. */
-  viewUsersDisabled?: (seriesId: string, seriesIndex: number) => boolean
+  /**
+   * Per-series metric labels, indexed by series index (the worker compute's
+   * `seriesToMetricLabels`; the original read `labelsRef.current[idx]`).
+   */
+  seriesToMetricLabels?: {
+    name: string
+    labels: Record<string, string>
+    id?: string
+  }[]
+  /** Map of series id → event name (the original `eventNameMapRef.current`). */
+  eventNameMap?: Map<string, string>
+  /** Map of series id → events query (the original `eventsQueryMapRef.current`). */
+  eventsQueryMap?: Map<string, { selectorExpr?: unknown }>
+  /**
+   * Navigate to logs for a clicked series. The presentational builds the context
+   * (from the hovered tooltip value + injected labels/event maps) and hands it out;
+   * the app maps it to a URL + navigation using its own time range.
+   */
+  onViewLogs?: (ctx: ViewActionContext) => void
+  /** Navigate to users/accounts for a clicked series (the app builds the cohort query). */
+  onViewUsers?: (ctx: ViewActionContext) => void
+  /**
+   * Whether the "View Logs" action should be disabled. The component computes the
+   * context (may be null) and passes it; the app decides disabled.
+   */
+  viewLogDisabled?: (ctx: ViewActionContext | null) => boolean
+  /** Whether the "View Users" action should be disabled. */
+  viewUsersDisabled?: (ctx: ViewActionContext | null) => boolean
   /** Counts of returned/total samples for the data-truncation banner. */
   returnedSeries?: number
   totalSeries?: number
@@ -422,6 +457,10 @@ const TimeSeriesChart = forwardRef<EChartsHandle, TimeSeriesChartProps>(
       legend: legendProp,
       numberFormatter,
       overlay,
+      templateVariableKeys: _templateVariableKeys,
+      seriesToMetricLabels,
+      eventNameMap,
+      eventsQueryMap,
       onViewLogs,
       onViewUsers,
       viewLogDisabled: viewLogDisabledProp,
@@ -429,6 +468,21 @@ const TimeSeriesChart = forwardRef<EChartsHandle, TimeSeriesChartProps>(
       returnedSeries,
       totalSeries
     } = props
+
+    void _templateVariableKeys
+
+    const seriesToMetricLabelsRef = useMemo(
+      () => seriesToMetricLabels ?? [],
+      [seriesToMetricLabels]
+    )
+    const eventNameMapRef = useMemo(
+      () => eventNameMap ?? new Map<string, string>(),
+      [eventNameMap]
+    )
+    const eventsQueryMapRef = useMemo(
+      () => eventsQueryMap ?? new Map<string, { selectorExpr?: unknown }>(),
+      [eventsQueryMap]
+    )
 
     const [yAxis, setYAxis] = useState(config?.yAxis || initialConfig.yAxis)
     const [xAxis, setXAxis] = useState(config?.xAxis || initialConfig.xAxis)
@@ -618,6 +672,114 @@ const TimeSeriesChart = forwardRef<EChartsHandle, TimeSeriesChartProps>(
 
     const tooltipParmsRef = useRef<any>({})
 
+    // Build the per-series context the app needs to construct the log/cohort URL
+    // and navigation. Sources the hovered/clicked data value from the internal
+    // tooltipParmsRef, and labels / event name / query from the injected props
+    // (the original read these from labelsRef / eventNameMapRef / eventsQueryMapRef).
+    const getSeriesContext = useCallback(
+      (seriesId: string, seriesIndex: number): ViewActionContext | null => {
+        const params = tooltipParmsRef.current?.data
+        if (!params || !seriesToMetricLabelsRef) {
+          return null
+        }
+
+        let value: any
+        let idx: number
+
+        // Find the correct series data
+        if (Array.isArray(params)) {
+          const param = params.find(
+            (p: any) => p.seriesId === seriesId || p.seriesIndex === seriesIndex
+          )
+          if (!param) return null
+          value = param.value
+          idx = param.seriesIndex
+        } else {
+          value = params.value
+          idx = seriesIndex
+        }
+
+        if (!value) return null
+
+        const {
+          labels = {},
+          name = '',
+          id
+        } = seriesToMetricLabelsRef[idx] || {}
+        const isEventSeries =
+          eventNameMapRef.has(id as string) || sourceType === 'ANALYTICS'
+
+        let eventName: string | undefined
+        if (sourceType === 'ANALYTICS') {
+          try {
+            const _eventName = getEventNameById?.(id)
+            eventName =
+              _eventName == undefined ? getEventName(name) : _eventName
+          } catch {
+            //do nothing
+          }
+        } else if (eventNameMapRef.has(id as string)) {
+          eventName = eventNameMapRef.get(id as string) || undefined
+        }
+
+        const query = eventsQueryMapRef.get(id as string)
+
+        return {
+          value,
+          labels,
+          name,
+          id,
+          isEventSeries,
+          eventName,
+          query
+        }
+      },
+      [
+        seriesToMetricLabelsRef,
+        eventNameMapRef,
+        eventsQueryMapRef,
+        sourceType,
+        getEventNameById
+      ]
+    )
+
+    // Internal handlers passed to ChartTooltip (which calls them with
+    // (seriesId, seriesIndex)). They build the context and delegate to the
+    // outward props; the app computes time ranges / URLs / navigation itself.
+    const handleViewLogs = useCallback(
+      (seriesId: string, seriesIndex: number) => {
+        const ctx = getSeriesContext(seriesId, seriesIndex)
+        if (!ctx) return
+        onViewLogs?.(ctx)
+      },
+      [getSeriesContext, onViewLogs]
+    )
+
+    const handleViewUsers = useCallback(
+      (seriesId: string, seriesIndex: number) => {
+        const ctx = getSeriesContext(seriesId, seriesIndex)
+        if (!ctx) return
+        onViewUsers?.(ctx)
+      },
+      [getSeriesContext, onViewUsers]
+    )
+
+    const getViewLogDisabled = useCallback(
+      (seriesId: string, seriesIndex: number) => {
+        const ctx = getSeriesContext(seriesId, seriesIndex)
+        return viewLogDisabledProp?.(ctx) ?? false
+      },
+      [getSeriesContext, viewLogDisabledProp]
+    )
+
+    const getViewUsersDisabled = useCallback(
+      (seriesId: string, seriesIndex: number) => {
+        const ctx = getSeriesContext(seriesId, seriesIndex)
+        return viewUsersDisabledProp?.(ctx) ?? false
+      },
+      [getSeriesContext, viewUsersDisabledProp]
+    )
+
     const tooltipFormatter = useCallback(
       (params: any /*ticket, callback*/) => {
         // Normalize params to always be an array for consistent handling
@@ -665,10 +827,12 @@ const TimeSeriesChart = forwardRef<EChartsHandle, TimeSeriesChartProps>(
             return numberFormatter(value) as string
           },
           showTotal: config?.valueConfig?.tooltipTotal,
-          onViewLogs,
-          viewLogDisabled: viewLogDisabledProp,
-          onViewUsers,
-          viewUsersDisabled: viewUsersDisabledProp,
+          // Gate on the outward props existing (same as the original gating on the
+          // handlers existing): no handler → button doesn't render.
+          onViewLogs: onViewLogs ? handleViewLogs : undefined,
+          viewLogDisabled: onViewLogs ? getViewLogDisabled : undefined,
+          onViewUsers: onViewUsers ? handleViewUsers : undefined,
+          viewUsersDisabled: onViewUsers ? getViewUsersDisabled : undefined,
           sizeTitle: config?.scatterConfig?.symbolSize
         }
         tooltipParmsRef.current = parmas
@@ -706,9 +870,11 @@ const TimeSeriesChart = forwardRef<EChartsHandle, TimeSeriesChartProps>(
         chartType,
         xLabelFormatter,
         onViewLogs,
-        viewLogDisabledProp,
+        handleViewLogs,
+        getViewLogDisabled,
         onViewUsers,
-        viewUsersDisabledProp,
+        handleViewUsers,
+        getViewUsersDisabled,
         seriesIdToYAxisName
       ]
     )
@@ -1071,9 +1237,8 @@ const TimeSeriesChart = forwardRef<EChartsHandle, TimeSeriesChartProps>(
     // the source even though they are wired via tooltipParmsRef.
     void switchSeries
     void selectedSeriesIndex
-    void getEventName
-    void sourceType
-    void getEventNameById
+    // `getEventName`, `sourceType`, and `getEventNameById` are now genuinely used
+    // by getSeriesContext.
 
     const noLegend = useMemo(() => {
       // hide legend for single series scatter chart

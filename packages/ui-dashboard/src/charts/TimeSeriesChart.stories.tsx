@@ -4,15 +4,19 @@ import type { ChartConfigLike, ChartTypeLike, SeriesLike } from '../types'
 
 // Build N points/series of mock time series, one point per hour.
 const t0 = Date.UTC(2024, 0, 1, 0, 0, 0)
+// Mirror what the app worker (lib/metrics/series getSeries) produces per chart
+// type: AREA is a line series carrying an `areaStyle`; the presentational chart
+// renders the fill from that, not from the chartType prop.
 function mockSeries(
   names: string[],
   points = 48,
-  type: 'line' | 'bar' = 'line'
+  kind: 'line' | 'bar' | 'area' = 'line'
 ): SeriesLike<Date>[] {
   return names.map((name, si) => ({
     id: name,
     name,
-    type,
+    type: kind === 'bar' ? 'bar' : 'line',
+    ...(kind === 'area' ? { areaStyle: {} } : {}),
     showSymbol: false,
     data: Array.from({ length: points }, (_, i) => {
       const base = 100 * (si + 1)
@@ -55,7 +59,7 @@ Line.meta = { description: 'Line chart — injected series + numberFormatter' }
 export const Area: Story = () => (
   <Frame>
     <TimeSeriesChart
-      series={mockSeries(['Volume', 'Fees'])}
+      series={mockSeries(['Volume', 'Fees'], 48, 'area')}
       legend={['Volume', 'Fees']}
       numberFormatter={fmt}
       chartType={'AREA' as ChartTypeLike}

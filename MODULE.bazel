@@ -206,14 +206,6 @@ use_repo(
     "org_uber_go_zap",
 )
 
-go_tool_deps = use_extension(
-    "@gazelle//:extensions.bzl",
-    "go_deps",
-    isolate = True,
-)
-go_tool_deps.from_file(go_mod = "//tools:go.mod")
-use_repo(go_tool_deps, "com_github_grpc_ecosystem_protoc_gen_grpc_gateway_ts")
-
 ## Nodejs
 node = use_extension(
     "@rules_nodejs//nodejs:extensions.bzl",

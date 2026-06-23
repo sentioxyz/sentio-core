@@ -36,12 +36,16 @@ gateway_grpc_compile_and_go_library(
 es_proto(
     name = "processor_es_proto",
     protos = [":protos_proto"],
+    # The SDK does not use the protojson (*Json) shapes; suppress them to keep the
+    # generated runtime copy lean.
+    json_types = False,
     visibility = ["//visibility:public"],
 )
 
 es_proto(
     name = "processor_es_no_deprecate",
     protos = [":protos_proto"],
+    json_types = False,
     remove_deprecated = True,
     visibility = ["//visibility:public"],
 )
@@ -52,5 +56,6 @@ es_proto(
 es_proto(
     name = "money_es_proto",
     protos = ["@googleapis//google/type:money_proto"],
+    json_types = False,
     visibility = ["//visibility:public"],
 )

@@ -4611,7 +4611,7 @@ type Data struct {
 	//	*Data_SuiCall_
 	//	*Data_SuiObject_
 	//	*Data_SuiObjectChange_
-	//	*Data_FuelLog
+	//	*Data_FuelReceipt_
 	//	*Data_FuelTransaction_
 	//	*Data_FuelBlock_
 	//	*Data_CosmosCall_
@@ -4767,10 +4767,10 @@ func (x *Data) GetSuiObjectChange() *Data_SuiObjectChange {
 	return nil
 }
 
-func (x *Data) GetFuelLog() *Data_FuelReceipt {
+func (x *Data) GetFuelReceipt() *Data_FuelReceipt {
 	if x != nil {
-		if x, ok := x.Value.(*Data_FuelLog); ok {
-			return x.FuelLog
+		if x, ok := x.Value.(*Data_FuelReceipt_); ok {
+			return x.FuelReceipt
 		}
 	}
 	return nil
@@ -4873,8 +4873,8 @@ type Data_SuiObjectChange_ struct {
 	SuiObjectChange *Data_SuiObjectChange `protobuf:"bytes,13,opt,name=sui_object_change,json=suiObjectChange,proto3,oneof"`
 }
 
-type Data_FuelLog struct {
-	FuelLog *Data_FuelReceipt `protobuf:"bytes,20,opt,name=fuel_log,json=fuelLog,proto3,oneof"`
+type Data_FuelReceipt_ struct {
+	FuelReceipt *Data_FuelReceipt `protobuf:"bytes,20,opt,name=fuel_receipt,json=fuelReceipt,proto3,oneof"`
 }
 
 type Data_FuelTransaction_ struct {
@@ -4921,7 +4921,7 @@ func (*Data_SuiObject_) isData_Value() {}
 
 func (*Data_SuiObjectChange_) isData_Value() {}
 
-func (*Data_FuelLog) isData_Value() {}
+func (*Data_FuelReceipt_) isData_Value() {}
 
 func (*Data_FuelTransaction_) isData_Value() {}
 
@@ -5724,7 +5724,6 @@ type EventTrackingResult struct {
 	Message          string                 `protobuf:"bytes,8,opt,name=message,proto3" json:"message,omitempty"`
 	RuntimeInfo      *RuntimeInfo           `protobuf:"bytes,5,opt,name=runtime_info,json=runtimeInfo,proto3" json:"runtime_info,omitempty"`
 	Attributes2      *protos.RichStruct     `protobuf:"bytes,9,opt,name=attributes2,proto3" json:"attributes2,omitempty"`
-	NoMetric         bool                   `protobuf:"varint,3,opt,name=no_metric,json=noMetric,proto3" json:"no_metric,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -5806,13 +5805,6 @@ func (x *EventTrackingResult) GetAttributes2() *protos.RichStruct {
 		return x.Attributes2
 	}
 	return nil
-}
-
-func (x *EventTrackingResult) GetNoMetric() bool {
-	if x != nil {
-		return x.NoMetric
-	}
-	return false
 }
 
 type TimeseriesResult struct {
@@ -8534,7 +8526,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\aHAS_ALL\x10\n" +
 	"\x12\v\n" +
 	"\aHAS_ANY\x10\vB\x04\n" +
-	"\x02op\"\xd2 \n" +
+	"\x02op\"\xda \n" +
 	"\x04Data\x121\n" +
 	"\aeth_log\x18\x02 \x01(\v2\x16.processor.Data.EthLogH\x00R\x06ethLog\x127\n" +
 	"\teth_block\x18\x03 \x01(\v2\x18.processor.Data.EthBlockH\x00R\bethBlock\x12I\n" +
@@ -8549,8 +8541,8 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\bsui_call\x18\v \x01(\v2\x17.processor.Data.SuiCallH\x00R\asuiCall\x12:\n" +
 	"\n" +
 	"sui_object\x18\f \x01(\v2\x19.processor.Data.SuiObjectH\x00R\tsuiObject\x12M\n" +
-	"\x11sui_object_change\x18\r \x01(\v2\x1f.processor.Data.SuiObjectChangeH\x00R\x0fsuiObjectChange\x128\n" +
-	"\bfuel_log\x18\x14 \x01(\v2\x1b.processor.Data.FuelReceiptH\x00R\afuelLog\x12L\n" +
+	"\x11sui_object_change\x18\r \x01(\v2\x1f.processor.Data.SuiObjectChangeH\x00R\x0fsuiObjectChange\x12@\n" +
+	"\ffuel_receipt\x18\x14 \x01(\v2\x1b.processor.Data.FuelReceiptH\x00R\vfuelReceipt\x12L\n" +
 	"\x10fuel_transaction\x18\x15 \x01(\v2\x1f.processor.Data.FuelTransactionH\x00R\x0ffuelTransaction\x12:\n" +
 	"\n" +
 	"fuel_block\x18\x12 \x01(\v2\x19.processor.Data.FuelBlockH\x00R\tfuelBlock\x12=\n" +
@@ -8725,7 +8717,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.processor.RecordMetaDataR\bmetadata\x129\n" +
 	"\fmetric_value\x18\x02 \x01(\v2\x16.processor.MetricValueR\vmetricValue\x12\x10\n" +
 	"\x03add\x18\x03 \x01(\bR\x03add\x129\n" +
-	"\fruntime_info\x18\x04 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo\"\x8c\x03\n" +
+	"\fruntime_info\x18\x04 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo\"\xef\x02\n" +
 	"\x13EventTrackingResult\x125\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.processor.RecordMetaDataR\bmetadata\x12,\n" +
 	"\x12distinct_entity_id\x18\x02 \x01(\tR\x10distinctEntityId\x127\n" +
@@ -8735,8 +8727,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\bseverity\x18\a \x01(\x0e2\x13.processor.LogLevelR\bseverity\x12\x18\n" +
 	"\amessage\x18\b \x01(\tR\amessage\x129\n" +
 	"\fruntime_info\x18\x05 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo\x124\n" +
-	"\vattributes2\x18\t \x01(\v2\x12.common.RichStructR\vattributes2\x12\x1b\n" +
-	"\tno_metric\x18\x03 \x01(\bR\bnoMetric\"\xa1\x02\n" +
+	"\vattributes2\x18\t \x01(\v2\x12.common.RichStructR\vattributes2\"\xa1\x02\n" +
 	"\x10TimeseriesResult\x125\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.processor.RecordMetaDataR\bmetadata\x12>\n" +
 	"\x04type\x18\x02 \x01(\x0e2*.processor.TimeseriesResult.TimeseriesTypeR\x04type\x12&\n" +
@@ -9069,7 +9060,7 @@ var file_processor_protos_processor_proto_depIdxs = []int32{
 	111, // 104: processor.Data.sui_call:type_name -> processor.Data.SuiCall
 	112, // 105: processor.Data.sui_object:type_name -> processor.Data.SuiObject
 	113, // 106: processor.Data.sui_object_change:type_name -> processor.Data.SuiObjectChange
-	114, // 107: processor.Data.fuel_log:type_name -> processor.Data.FuelReceipt
+	114, // 107: processor.Data.fuel_receipt:type_name -> processor.Data.FuelReceipt
 	115, // 108: processor.Data.fuel_transaction:type_name -> processor.Data.FuelTransaction
 	116, // 109: processor.Data.fuel_block:type_name -> processor.Data.FuelBlock
 	117, // 110: processor.Data.cosmos_call:type_name -> processor.Data.CosmosCall
@@ -9230,7 +9221,7 @@ func file_processor_protos_processor_proto_init() {
 		(*Data_SuiCall_)(nil),
 		(*Data_SuiObject_)(nil),
 		(*Data_SuiObjectChange_)(nil),
-		(*Data_FuelLog)(nil),
+		(*Data_FuelReceipt_)(nil),
 		(*Data_FuelTransaction_)(nil),
 		(*Data_FuelBlock_)(nil),
 		(*Data_CosmosCall_)(nil),

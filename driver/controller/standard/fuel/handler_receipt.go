@@ -57,8 +57,8 @@ func (a HandlerAgentReceipt) BuildBindingDataList(
 				TxIndex:      int(tx.TransactionIndex),
 				TxInnerIndex: receiptIndex,
 				Data: &protos.Data{
-					Value: &protos.Data_FuelLog{
-						FuelLog: &protos.Data_FuelReceipt{
+					Value: &protos.Data_FuelReceipt_{
+						FuelReceipt: &protos.Data_FuelReceipt{
 							Transaction:  bd.getTxPb(i),
 							ReceiptIndex: int64(receiptIndex),
 							Timestamp:    timestamppb.New(bd.GetBlockTime()),

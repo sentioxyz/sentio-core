@@ -1248,8 +1248,6 @@ const TimeSeriesChart = forwardRef<EChartsHandle, TimeSeriesChartProps>(
       return _noLegend
     }, [_noLegend, chartType, series?.length])
 
-    console.log('options', options)
-
     return (
       <div
         className="h-full w-full"

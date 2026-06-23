@@ -1,4 +1,5 @@
 import type { Story } from '@ladle/react'
+import dayjs from 'dayjs'
 import { TimeSeriesChart } from './TimeSeriesChart'
 import type { ChartConfigLike, ChartTypeLike, SeriesLike } from '../types'
 
@@ -28,8 +29,11 @@ function mockSeries(
 
 const fmt = (v: number) => v.toLocaleString()
 const series = mockSeries(['Ethereum', 'Arbitrum', 'Base'])
-const start = new Date(t0)
-const end = new Date(t0 + 47 * 3600_000)
+// The app passes DateTimeValue (dayjs | RelativeTime), not a raw Date — pass
+// dayjs so toDayjs/axis range resolve correctly (a raw Date yields an invalid
+// axis and a now→now brush).
+const start = dayjs(t0)
+const end = dayjs(t0 + 47 * 3600_000)
 
 function Frame({ children }: { children: React.ReactNode }) {
   return <div className="h-[26rem] w-full p-4">{children}</div>

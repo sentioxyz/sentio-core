@@ -495,9 +495,6 @@ importers:
       '@sentio/ui-core':
         specifier: workspace:^
         version: link:../ui-core
-      dayjs:
-        specifier: ^1.11.2
-        version: 1.11.19
       echarts:
         specifier: ^6.0.0
         version: 6.1.0
@@ -538,6 +535,9 @@ importers:
       concurrently:
         specifier: ^9.2.1
         version: 9.2.1
+      dayjs:
+        specifier: ^1.11.2
+        version: 1.11.19
       postcss:
         specifier: ^8.5.6
         version: 8.5.14

@@ -48,7 +48,6 @@ go_library(
 es_proto(
     name = "common_protos_es_proto",
     protos = [":protos_proto"],
-    json_types = False,
     visibility = ["//visibility:public"],
 )
 

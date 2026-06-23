@@ -88,7 +88,9 @@ export default function YaxisControls({
         )}
         {columnSelect && (
           <span className="inline-flex h-8">
-            <AddonLabel className="rounded-l-md border px-2">Column</AddonLabel>
+            <AddonLabel className="rounded-l-md border border-r-0 px-2">
+              Column
+            </AddonLabel>
             {columnSelect}
           </span>
         )}

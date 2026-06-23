@@ -25,3 +25,18 @@
     border-color: rgba(var(--border-color));
   }
 }
+
+/* Chart tooltip rows — used by ChartTooltip / ScatterChartTooltip (migrated from
+   the app's globals.css so the tooltip is self-contained in this package). */
+@layer components {
+  .sentio-tooltip-item {
+    padding: 0 10px;
+    @apply dark:text-text-foreground-secondary;
+  }
+  .sentio-tooltip-item.highlighted {
+    @apply dark:bg-sentio-gray-400 bg-gray-100;
+  }
+  .sentio-tooltip-item.highlighted .series-name {
+    @apply font-bold;
+  }
+}

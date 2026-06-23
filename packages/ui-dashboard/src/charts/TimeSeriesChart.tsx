@@ -36,11 +36,7 @@ import { sentioColors } from './theme/sentio-colors'
 import { useDarkMode } from '../utils/use-dark-mode'
 import { ChartTooltip } from './ChartTooltip'
 import { ScatterChartTooltip } from './ScatterChartTooltip'
-// Use the browser server renderer: the default `react-dom/server` entry pulls the
-// Node build which references `global` (undefined in the browser / Vite-built
-// consumers like Storybook). `server.browser` renders the tooltip HTML the same
-// way without that dependency, and works under webpack (app) too.
-import { renderToString } from 'react-dom/server.browser'
+import ReactDOMServer from 'react-dom/server'
 import { defaults, isArray, isEqual, isNumber, uniq } from 'lodash'
 import {
   flip,
@@ -843,7 +839,7 @@ const TimeSeriesChart = forwardRef<EChartsHandle, TimeSeriesChartProps>(
 
         // Use specialized component for scatter charts
         if (chartType === 'SCATTER') {
-          return renderToString(
+          return ReactDOMServer.renderToString(
             <ScatterChartTooltip
               {...parmas}
               onViewLogs={undefined}
@@ -854,7 +850,7 @@ const TimeSeriesChart = forwardRef<EChartsHandle, TimeSeriesChartProps>(
             />
           )
         } else {
-          return renderToString(
+          return ReactDOMServer.renderToString(
             <ChartTooltip
               {...parmas}
               onViewLogs={undefined}

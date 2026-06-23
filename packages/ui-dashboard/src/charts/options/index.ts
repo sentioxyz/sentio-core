@@ -21,3 +21,14 @@ export {
   defaultConfig as defaultValueControlsConfig
 } from './ValueControls'
 export { ValueStringMapping } from './ValueStringMapping'
+export { default as YaxisControls } from './YaxisControls'
+export { XAxisControls } from './XaxisControls'
+export { MarkerControls } from './MarkerControls'
+export {
+  DataControls,
+  defaultConfig as defaultDataConfig
+} from './DataControls'
+export {
+  ScatterControls,
+  defaultConfig as defaultScatterConfig
+} from './ScatterControls'

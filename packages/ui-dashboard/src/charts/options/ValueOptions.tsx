@@ -1,5 +1,6 @@
 import { produce } from 'immer'
 import { ComboInput, classNames } from '@sentio/ui-core'
+import { AddonLabel as BaseAddonLabel } from './controls-ui'
 import { ValueStringMapping } from './ValueStringMapping'
 import type {
   MappingRuleLike,
@@ -51,8 +52,8 @@ const CurrencySymbols = [
   { label: 'ETH', value: 'Ξ' }
 ]
 
-// Inline addon label sitting flush against a select/input. `className` carries
-// the per-use border-side / rounded variant.
+// Value panel labels use px-3; thin adapter over the shared AddonLabel so call
+// sites keep passing only the border/rounded variant.
 const AddonLabel = ({
   className,
   children
@@ -60,14 +61,9 @@ const AddonLabel = ({
   className?: string
   children: React.ReactNode
 }) => (
-  <span
-    className={classNames(
-      'sm:text-ilabel border-main inline-flex items-center whitespace-nowrap bg-gray-50 px-3',
-      className
-    )}
-  >
+  <BaseAddonLabel className={classNames('px-3', className)}>
     {children}
-  </span>
+  </BaseAddonLabel>
 )
 
 export const ValueOptions = ({

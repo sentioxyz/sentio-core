@@ -67,6 +67,8 @@ func TestEventHandlerGrpcBinding(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(se.GetRawEvent()), &ev))
 	assert.Equal(t, "0x2::m::E", ev["eventType"])
 	assert.Equal(t, "m", ev["module"])
+	// grpc events carry no on-chain sequence, so the binding attaches the index.
+	assert.EqualValues(t, 0, ev["eventSeq"])
 
 	// raw_transaction is the flattened grpc ExtendedGrpcTransaction shape: the embedded
 	// ExecutedTransaction fields at the top level, plus ext*-prefixed header fields.
@@ -75,6 +77,40 @@ func TestEventHandlerGrpcBinding(t *testing.T) {
 	assert.Contains(t, tx, "extCheckpoint")
 	assert.Contains(t, tx, "digest")
 	assert.NotContains(t, tx, "executedTransaction")
+}
+
+func TestEventHandlerGrpcEventSeq(t *testing.T) {
+	mkEvent := func(mod string) *rpcv2.Event {
+		return &rpcv2.Event{
+			PackageId: proto.String("0x0000000000000000000000000000000000000000000000000000000000000002"),
+			Module:    proto.String(mod),
+			EventType: proto.String("0x2::m::E"),
+			Sender:    proto.String("0xabc"),
+		}
+	}
+	tx := &chainsui.ExtendedGrpcTransaction{
+		ExecutedTransaction: &rpcv2.ExecutedTransaction{
+			Digest:  proto.String("tx1"),
+			Effects: &rpcv2.TransactionEffects{Status: &rpcv2.ExecutionStatus{Success: proto.Bool(true)}},
+			Events:  &rpcv2.TransactionEvents{Events: []*rpcv2.Event{mkEvent("m0"), mkEvent("m1")}},
+		},
+	}
+	agent := HandlerAgentEvent{suihandler.HandlerAgentEvent{
+		Filter:      matchAnyFilter(),
+		FetchConfig: chainsui.TransactionFetchConfig{NeedAllEvents: true},
+	}}
+	result, err := agent.BuildBindingDataList(context.Background(), newBlockData(tx))
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+
+	// each event's index within the tx is attached as eventSeq and used as the
+	// binding's TxInnerIndex.
+	for i, r := range result {
+		assert.Equal(t, i, r.TxInnerIndex)
+		var ev map[string]any
+		require.NoError(t, json.Unmarshal([]byte(r.Data.GetSuiEvent().GetRawEvent()), &ev))
+		assert.EqualValues(t, i, ev["eventSeq"])
+	}
 }
 
 func TestFunctionHandlerGrpcBinding(t *testing.T) {

@@ -33,19 +33,22 @@ func (a HandlerAgentEvent) BuildBindingDataList(
 			return nil, err
 		}
 		eventChecker := sui.BuildEventChecker(a.Filter.EventFilters)
-		for evIndex, ev := range tx.Events {
+		for _, ev := range tx.Events {
 			if !eventChecker(ev) {
 				continue
 			}
+			// tx.Events is the filtered/pruned event list, so its slice position is
+			// not the event's real index — use the on-chain id.eventSeq instead.
+			eventSeq := ev.ID.EventSeq.Uint64()
 			var rawEvent []byte
 			if rawEvent, err = json.Marshal(ev); err != nil {
 				return nil, errors.Wrapf(err, "marshal sui event #%d in tx %d/%s in block %d failed",
-					evIndex, tx.TransactionPosition, tx.Digest.String(), bd.GetBlockNumber())
+					eventSeq, tx.TransactionPosition, tx.Digest.String(), bd.GetBlockNumber())
 			}
 			result = append(result, standard.BindingDataInner{
 				HandlerType:  protos.HandlerType_SUI_EVENT,
 				TxIndex:      txIndex,
-				TxInnerIndex: evIndex,
+				TxInnerIndex: int(eventSeq),
 				Data: &protos.Data{
 					Value: &protos.Data_SuiEvent_{
 						SuiEvent: &protos.Data_SuiEvent{

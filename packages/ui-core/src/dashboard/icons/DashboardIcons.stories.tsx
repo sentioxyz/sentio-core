@@ -39,9 +39,9 @@ const icons: Array<[string, React.ReactNode]> = [
 export const AllIcons = () => (
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
     {icons.map(([name, node]) => (
-      <div key={name} style={{ textAlign: 'center', width: 96 }}>
+      <div key={name} className="flex w-24 flex-col items-center">
         {node}
-        <div style={{ fontSize: 11, marginTop: 4 }}>{name}</div>
+        <div className="text-icontent mt-1 text-center">{name}</div>
       </div>
     ))}
   </div>

@@ -107,3 +107,6 @@ export { useBoolean } from './utils/use-boolean'
 export * from './utils/extension-context'
 export { classNames } from './utils/classnames'
 export { NavSizeContext } from './utils/nav-size-context'
+
+// Dashboard panel-type picker icons (presentational SVGs)
+export * from './dashboard/icons'

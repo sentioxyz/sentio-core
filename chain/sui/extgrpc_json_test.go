@@ -86,3 +86,45 @@ func TestExtendedGrpcTransactionJSONFlatten(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, s, string(b2))
 }
+
+func TestExtendedGrpcTransactionGetEventSeq(t *testing.T) {
+	// no EventIndexes (full event list): the slice position is the on-chain index.
+	full := &ExtendedGrpcTransaction{}
+	assert.Equal(t, 0, full.GetEventSeq(0))
+	assert.Equal(t, 3, full.GetEventSeq(3))
+
+	// filtered: EventIndexes maps each slice position to its original on-chain index.
+	pruned := &ExtendedGrpcTransaction{EventIndexes: []int{1, 2, 5}}
+	assert.Equal(t, 1, pruned.GetEventSeq(0))
+	assert.Equal(t, 2, pruned.GetEventSeq(1))
+	assert.Equal(t, 5, pruned.GetEventSeq(2))
+	// out of range falls back to the slice position (defensive).
+	assert.Equal(t, 9, pruned.GetEventSeq(9))
+}
+
+func TestExtendedGrpcTransactionJSONEventIndexes(t *testing.T) {
+	digest := "tx1"
+	// EventIndexes must survive JSON: the super node prunes (setting it) before
+	// serializing the tx back to the driver, where the handler reads it.
+	tx := &ExtendedGrpcTransaction{
+		Checkpoint:          7,
+		EventIndexes:        []int{1, 2},
+		ExecutedTransaction: &rpcv2.ExecutedTransaction{Digest: &digest},
+	}
+	b, err := json.Marshal(tx)
+	require.NoError(t, err)
+	assert.Contains(t, string(b), `"extEventIndexes":[1,2]`)
+
+	var rt ExtendedGrpcTransaction
+	require.NoError(t, json.Unmarshal(b, &rt))
+	assert.Equal(t, []int{1, 2}, rt.EventIndexes)
+
+	// nil EventIndexes (full event list) is omitted from the wire form.
+	full := &ExtendedGrpcTransaction{Checkpoint: 7, ExecutedTransaction: &rpcv2.ExecutedTransaction{Digest: &digest}}
+	fb, err := json.Marshal(full)
+	require.NoError(t, err)
+	assert.NotContains(t, string(fb), "extEventIndexes")
+	var frt ExtendedGrpcTransaction
+	require.NoError(t, json.Unmarshal(fb, &frt))
+	assert.Nil(t, frt.EventIndexes)
+}

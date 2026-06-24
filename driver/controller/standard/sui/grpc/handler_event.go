@@ -10,6 +10,7 @@ import (
 	"sentioxyz/sentio-core/processor/protos"
 
 	"github.com/pkg/errors"
+	"github.com/tidwall/sjson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -37,15 +38,23 @@ func (a HandlerAgentEvent) BuildBindingDataList(
 			if !eventChecker(ev) {
 				continue
 			}
+			// grpc events carry no on-chain sequence (unlike json-rpc's id.eventSeq);
+			// GetEventSeq maps the slice position to the real on-chain event index.
+			eventSeq := tx.GetEventSeq(evIndex)
 			var rawEvent []byte
 			if rawEvent, err = cprotojson.Marshal(ev); err != nil {
 				return nil, errors.Wrapf(err, "marshal grpc sui event #%d in tx %d in block %d failed",
-					evIndex, txIndex, bd.GetBlockNumber())
+					eventSeq, txIndex, bd.GetBlockNumber())
+			}
+			// The SDK reads this `eventSeq` to populate meta.log_index.
+			if rawEvent, err = sjson.SetBytes(rawEvent, "eventSeq", eventSeq); err != nil {
+				return nil, errors.Wrapf(err, "set eventSeq for grpc sui event #%d in tx %d in block %d failed",
+					eventSeq, txIndex, bd.GetBlockNumber())
 			}
 			result = append(result, standard.BindingDataInner{
 				HandlerType:  protos.HandlerType_SUI_EVENT,
 				TxIndex:      txIndex,
-				TxInnerIndex: evIndex,
+				TxInnerIndex: eventSeq,
 				Data: &protos.Data{
 					Value: &protos.Data_SuiEvent_{
 						SuiEvent: &protos.Data_SuiEvent{

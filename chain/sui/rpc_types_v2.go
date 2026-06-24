@@ -14,6 +14,7 @@ import (
 
 	"github.com/pkg/errors"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+	"github.com/tidwall/sjson"
 )
 
 // ObjectChangeOwnerFilter need the objects which id in OwnerID
@@ -208,44 +209,50 @@ type ExtendedGrpcChangedObject struct {
 // encoding/json would promote and serialize that embedded message with Go's
 // reflection rules, which is wrong for protobuf (enums become numbers instead of
 // their string names, oneofs / well-known types / 64-bit ints are mis-encoded).
-// So we marshal the proto member through protojson (enum-as-string etc.) and
-// keep it nested under its own key rather than flattened, so the wrapper's
-// scalar header fields can never collide with proto field names.
+// So we marshal the proto member through protojson (enum-as-string etc.).
+//
+// Both wrappers are FLATTENED: the embedded proto message's protojson fields
+// (e.g. ExecutedTransaction's digest/transaction/events, ChangedObject's
+// objectId/objectType/...) sit at the top level so SDK consumers can read them
+// directly as the corresponding sui type. Each wrapper's own header fields are
+// emitted under ext*-prefixed keys so they can never collide with proto field
+// names (notably the proto's own "checkpoint").
 
 func (t ExtendedGrpcTransaction) MarshalJSON() ([]byte, error) {
-	executed := json.RawMessage("null")
+	obj := []byte("{}")
 	if t.ExecutedTransaction != nil {
 		b, err := protojson.Marshal(t.ExecutedTransaction)
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal grpc ExecutedTransaction")
 		}
-		executed = b
+		obj = b
 	}
-	return json.Marshal(struct {
-		Checkpoint          uint64          `json:"checkpoint"`
-		CheckpointDigest    string          `json:"checkpointDigest"`
-		TimestampMs         uint64          `json:"timestampMs"`
-		Epoch               uint64          `json:"epoch"`
-		TxIndex             uint64          `json:"txIndex"`
-		ExecutedTransaction json.RawMessage `json:"executedTransaction"`
-	}{
-		Checkpoint:          t.Checkpoint,
-		CheckpointDigest:    t.CheckpointDigest,
-		TimestampMs:         t.TimestampMs,
-		Epoch:               t.Epoch,
-		TxIndex:             t.TxIndex,
-		ExecutedTransaction: executed,
-	})
+	var err error
+	if obj, err = sjson.SetBytes(obj, "extCheckpoint", t.Checkpoint); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extCheckpointDigest", t.CheckpointDigest); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extTimestampMs", t.TimestampMs); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extEpoch", t.Epoch); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extTxIndex", t.TxIndex); err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
 
 func (t *ExtendedGrpcTransaction) UnmarshalJSON(data []byte) error {
 	var aux struct {
-		Checkpoint          uint64          `json:"checkpoint"`
-		CheckpointDigest    string          `json:"checkpointDigest"`
-		TimestampMs         uint64          `json:"timestampMs"`
-		Epoch               uint64          `json:"epoch"`
-		TxIndex             uint64          `json:"txIndex"`
-		ExecutedTransaction json.RawMessage `json:"executedTransaction"`
+		Checkpoint       uint64 `json:"extCheckpoint"`
+		CheckpointDigest string `json:"extCheckpointDigest"`
+		TimestampMs      uint64 `json:"extTimestampMs"`
+		Epoch            uint64 `json:"extEpoch"`
+		TxIndex          uint64 `json:"extTxIndex"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -255,13 +262,14 @@ func (t *ExtendedGrpcTransaction) UnmarshalJSON(data []byte) error {
 	t.TimestampMs = aux.TimestampMs
 	t.Epoch = aux.Epoch
 	t.TxIndex = aux.TxIndex
-	if len(aux.ExecutedTransaction) > 0 && !bytes.Equal(aux.ExecutedTransaction, []byte("null")) {
-		msg := &rpcv2.ExecutedTransaction{}
-		if err := protojson.Unmarshal(aux.ExecutedTransaction, msg); err != nil {
-			return errors.Wrap(err, "unmarshal grpc ExecutedTransaction")
-		}
-		t.ExecutedTransaction = msg
+
+	// The remaining (flattened) fields belong to the embedded ExecutedTransaction.
+	// protojson here discards unknown fields, so the ext* header keys are ignored.
+	msg := &rpcv2.ExecutedTransaction{}
+	if err := protojson.Unmarshal(data, msg); err != nil {
+		return errors.Wrap(err, "unmarshal grpc ExecutedTransaction")
 	}
+	t.ExecutedTransaction = msg
 	return nil
 }
 
@@ -274,42 +282,44 @@ func (t ExtendedGrpcTransaction) GetSimpleCheckpoint() SimpleCheckpoint {
 }
 
 func (o ExtendedGrpcChangedObject) MarshalJSON() ([]byte, error) {
-	changed := json.RawMessage("null")
+	obj := []byte("{}")
 	if o.ChangedObject != nil {
 		b, err := protojson.Marshal(o.ChangedObject)
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal grpc ChangedObject")
 		}
-		changed = b
+		obj = b
 	}
-	return json.Marshal(struct {
-		Checkpoint       uint64          `json:"checkpoint"`
-		CheckpointDigest string          `json:"checkpointDigest"`
-		TimestampMs      uint64          `json:"timestampMs"`
-		Epoch            uint64          `json:"epoch"`
-		TxIndex          uint64          `json:"txIndex"`
-		TxDigest         string          `json:"txDigest"`
-		ChangedObject    json.RawMessage `json:"changedObject"`
-	}{
-		Checkpoint:       o.Checkpoint,
-		CheckpointDigest: o.CheckpointDigest,
-		TimestampMs:      o.TimestampMs,
-		Epoch:            o.Epoch,
-		TxIndex:          o.TxIndex,
-		TxDigest:         o.TxDigest,
-		ChangedObject:    changed,
-	})
+	var err error
+	if obj, err = sjson.SetBytes(obj, "extCheckpoint", o.Checkpoint); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extCheckpointDigest", o.CheckpointDigest); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extTimestampMs", o.TimestampMs); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extEpoch", o.Epoch); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extTxIndex", o.TxIndex); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extTxDigest", o.TxDigest); err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
 
 func (o *ExtendedGrpcChangedObject) UnmarshalJSON(data []byte) error {
 	var aux struct {
-		Checkpoint       uint64          `json:"checkpoint"`
-		CheckpointDigest string          `json:"checkpointDigest"`
-		TimestampMs      uint64          `json:"timestampMs"`
-		Epoch            uint64          `json:"epoch"`
-		TxIndex          uint64          `json:"txIndex"`
-		TxDigest         string          `json:"txDigest"`
-		ChangedObject    json.RawMessage `json:"changedObject"`
+		Checkpoint       uint64 `json:"extCheckpoint"`
+		CheckpointDigest string `json:"extCheckpointDigest"`
+		TimestampMs      uint64 `json:"extTimestampMs"`
+		Epoch            uint64 `json:"extEpoch"`
+		TxIndex          uint64 `json:"extTxIndex"`
+		TxDigest         string `json:"extTxDigest"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -320,13 +330,14 @@ func (o *ExtendedGrpcChangedObject) UnmarshalJSON(data []byte) error {
 	o.Epoch = aux.Epoch
 	o.TxIndex = aux.TxIndex
 	o.TxDigest = aux.TxDigest
-	if len(aux.ChangedObject) > 0 && !bytes.Equal(aux.ChangedObject, []byte("null")) {
-		msg := &rpcv2.ChangedObject{}
-		if err := protojson.Unmarshal(aux.ChangedObject, msg); err != nil {
-			return errors.Wrap(err, "unmarshal grpc ChangedObject")
-		}
-		o.ChangedObject = msg
+
+	// The remaining (flattened) fields belong to the embedded ChangedObject.
+	// protojson here discards unknown fields, so the ext* header keys are ignored.
+	msg := &rpcv2.ChangedObject{}
+	if err := protojson.Unmarshal(data, msg); err != nil {
+		return errors.Wrap(err, "unmarshal grpc ChangedObject")
 	}
+	o.ChangedObject = msg
 	return nil
 }
 

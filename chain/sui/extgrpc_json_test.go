@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 )
 
 func TestExtendedGrpcChangedObjectJSON(t *testing.T) {
@@ -26,13 +26,15 @@ func TestExtendedGrpcChangedObjectJSON(t *testing.T) {
 	require.NoError(t, err)
 	s := string(b)
 	t.Logf("json: %s", s)
-	// nested, not flattened
-	assert.Contains(t, s, `"changedObject":`)
+	// flattened: the embedded ChangedObject fields sit at the top level, no
+	// "changedObject" wrapper key.
+	assert.NotContains(t, s, `"changedObject":`)
+	assert.Contains(t, s, `"objectId":`)
 	// enum as string name, not number
 	assert.Contains(t, s, "CREATED")
 	assert.NotContains(t, s, `"idOperation":1`)
-	// header present
-	assert.Contains(t, s, `"txDigest":"5TLHCn2S"`)
+	// header under ext* keys (no collision with proto field names)
+	assert.Contains(t, s, `"extTxDigest":"5TLHCn2S"`)
 
 	// round-trip
 	var rt ExtendedGrpcChangedObject
@@ -48,13 +50,39 @@ func TestExtendedGrpcChangedObjectJSON(t *testing.T) {
 	_ = strings.TrimSpace
 }
 
-func TestExtendedGrpcTransactionJSONNil(t *testing.T) {
-	// nil embedded proto must not panic and round-trips
-	tx := &ExtendedGrpcTransaction{Checkpoint: 1, Epoch: 2}
+func TestExtendedGrpcTransactionJSONFlatten(t *testing.T) {
+	digest := "5TLHCn2S"
+	tx := &ExtendedGrpcTransaction{
+		Checkpoint:          285612737,
+		CheckpointDigest:    "abc",
+		TimestampMs:         1781106452163,
+		Epoch:               1154,
+		TxIndex:             3,
+		ExecutedTransaction: &rpcv2.ExecutedTransaction{Digest: &digest},
+	}
 	b, err := json.Marshal(tx)
 	require.NoError(t, err)
+	s := string(b)
+	t.Logf("json: %s", s)
+	// flattened: the embedded ExecutedTransaction fields sit at the top level,
+	// no "executedTransaction" wrapper key.
+	assert.Contains(t, s, `"digest":"5TLHCn2S"`)
+	assert.NotContains(t, s, `"executedTransaction"`)
+	// header under ext* keys (no collision with the proto's own "checkpoint")
+	assert.Contains(t, s, `"extCheckpoint":285612737`)
+	assert.Contains(t, s, `"extTxIndex":3`)
+
+	// round-trip
 	var rt ExtendedGrpcTransaction
 	require.NoError(t, json.Unmarshal(b, &rt))
-	assert.Equal(t, uint64(1), rt.Checkpoint)
-	assert.Nil(t, rt.ExecutedTransaction)
+	assert.Equal(t, tx.Checkpoint, rt.Checkpoint)
+	assert.Equal(t, tx.CheckpointDigest, rt.CheckpointDigest)
+	assert.Equal(t, tx.TimestampMs, rt.TimestampMs)
+	assert.Equal(t, tx.Epoch, rt.Epoch)
+	assert.Equal(t, tx.TxIndex, rt.TxIndex)
+	require.NotNil(t, rt.ExecutedTransaction)
+	assert.Equal(t, digest, rt.ExecutedTransaction.GetDigest())
+	b2, err := json.Marshal(&rt)
+	require.NoError(t, err)
+	assert.JSONEq(t, s, string(b2))
 }

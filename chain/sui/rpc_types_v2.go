@@ -263,19 +263,7 @@ func (t *ExtendedGrpcTransaction) UnmarshalJSON(data []byte) error {
 	t.Epoch = aux.Epoch
 	t.TxIndex = aux.TxIndex
 
-	// Detect whether an embedded ExecutedTransaction is present by stripping the
-	// ext* header keys; if nothing else remains, leave it nil.
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-	for _, k := range []string{"extCheckpoint", "extCheckpointDigest", "extTimestampMs", "extEpoch", "extTxIndex"} {
-		delete(fields, k)
-	}
-	if len(fields) == 0 {
-		t.ExecutedTransaction = nil
-		return nil
-	}
+	// The remaining (flattened) fields belong to the embedded ExecutedTransaction.
 	// protojson here discards unknown fields, so the ext* header keys are ignored.
 	msg := &rpcv2.ExecutedTransaction{}
 	if err := protojson.Unmarshal(data, msg); err != nil {
@@ -343,19 +331,7 @@ func (o *ExtendedGrpcChangedObject) UnmarshalJSON(data []byte) error {
 	o.TxIndex = aux.TxIndex
 	o.TxDigest = aux.TxDigest
 
-	// Detect whether an embedded ChangedObject is present by stripping the ext*
-	// header keys; if nothing else remains, leave it nil.
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-	for _, k := range []string{"extCheckpoint", "extCheckpointDigest", "extTimestampMs", "extEpoch", "extTxIndex", "extTxDigest"} {
-		delete(fields, k)
-	}
-	if len(fields) == 0 {
-		o.ChangedObject = nil
-		return nil
-	}
+	// The remaining (flattened) fields belong to the embedded ChangedObject.
 	// protojson here discards unknown fields, so the ext* header keys are ignored.
 	msg := &rpcv2.ChangedObject{}
 	if err := protojson.Unmarshal(data, msg); err != nil {

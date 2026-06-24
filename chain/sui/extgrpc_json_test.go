@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 )
 
 func TestExtendedGrpcChangedObjectJSON(t *testing.T) {
@@ -85,15 +85,4 @@ func TestExtendedGrpcTransactionJSONFlatten(t *testing.T) {
 	b2, err := json.Marshal(&rt)
 	require.NoError(t, err)
 	assert.JSONEq(t, s, string(b2))
-}
-
-func TestExtendedGrpcTransactionJSONNil(t *testing.T) {
-	// nil embedded proto must not panic and round-trips
-	tx := &ExtendedGrpcTransaction{Checkpoint: 1, Epoch: 2}
-	b, err := json.Marshal(tx)
-	require.NoError(t, err)
-	var rt ExtendedGrpcTransaction
-	require.NoError(t, json.Unmarshal(b, &rt))
-	assert.Equal(t, uint64(1), rt.Checkpoint)
-	assert.Nil(t, rt.ExecutedTransaction)
 }

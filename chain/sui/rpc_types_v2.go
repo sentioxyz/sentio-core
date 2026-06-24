@@ -14,6 +14,7 @@ import (
 
 	"github.com/pkg/errors"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+	"github.com/tidwall/sjson"
 )
 
 // ObjectChangeOwnerFilter need the objects which id in OwnerID
@@ -208,44 +209,51 @@ type ExtendedGrpcChangedObject struct {
 // encoding/json would promote and serialize that embedded message with Go's
 // reflection rules, which is wrong for protobuf (enums become numbers instead of
 // their string names, oneofs / well-known types / 64-bit ints are mis-encoded).
-// So we marshal the proto member through protojson (enum-as-string etc.) and
-// keep it nested under its own key rather than flattened, so the wrapper's
-// scalar header fields can never collide with proto field names.
+// So we marshal the proto member through protojson (enum-as-string etc.).
+//
+// ExtendedGrpcTransaction is FLATTENED: the embedded ExecutedTransaction's
+// protojson fields (digest, transaction, events, ...) sit at the top level so
+// SDK consumers can read it directly as a sui ExecutedTransaction (e.g.
+// `ctx.transaction.digest`). The wrapper's own header fields are emitted under
+// ext*-prefixed keys so they can never collide with proto field names (notably
+// the proto's own "checkpoint"). ExtendedGrpcChangedObject keeps the nested
+// layout (see below), since the SDK object-change path consumes it differently.
 
 func (t ExtendedGrpcTransaction) MarshalJSON() ([]byte, error) {
-	executed := json.RawMessage("null")
+	obj := []byte("{}")
 	if t.ExecutedTransaction != nil {
 		b, err := protojson.Marshal(t.ExecutedTransaction)
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal grpc ExecutedTransaction")
 		}
-		executed = b
+		obj = b
 	}
-	return json.Marshal(struct {
-		Checkpoint          uint64          `json:"checkpoint"`
-		CheckpointDigest    string          `json:"checkpointDigest"`
-		TimestampMs         uint64          `json:"timestampMs"`
-		Epoch               uint64          `json:"epoch"`
-		TxIndex             uint64          `json:"txIndex"`
-		ExecutedTransaction json.RawMessage `json:"executedTransaction"`
-	}{
-		Checkpoint:          t.Checkpoint,
-		CheckpointDigest:    t.CheckpointDigest,
-		TimestampMs:         t.TimestampMs,
-		Epoch:               t.Epoch,
-		TxIndex:             t.TxIndex,
-		ExecutedTransaction: executed,
-	})
+	var err error
+	if obj, err = sjson.SetBytes(obj, "extCheckpoint", t.Checkpoint); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extCheckpointDigest", t.CheckpointDigest); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extTimestampMs", t.TimestampMs); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extEpoch", t.Epoch); err != nil {
+		return nil, err
+	}
+	if obj, err = sjson.SetBytes(obj, "extTxIndex", t.TxIndex); err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
 
 func (t *ExtendedGrpcTransaction) UnmarshalJSON(data []byte) error {
 	var aux struct {
-		Checkpoint          uint64          `json:"checkpoint"`
-		CheckpointDigest    string          `json:"checkpointDigest"`
-		TimestampMs         uint64          `json:"timestampMs"`
-		Epoch               uint64          `json:"epoch"`
-		TxIndex             uint64          `json:"txIndex"`
-		ExecutedTransaction json.RawMessage `json:"executedTransaction"`
+		Checkpoint       uint64 `json:"extCheckpoint"`
+		CheckpointDigest string `json:"extCheckpointDigest"`
+		TimestampMs      uint64 `json:"extTimestampMs"`
+		Epoch            uint64 `json:"extEpoch"`
+		TxIndex          uint64 `json:"extTxIndex"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -255,13 +263,26 @@ func (t *ExtendedGrpcTransaction) UnmarshalJSON(data []byte) error {
 	t.TimestampMs = aux.TimestampMs
 	t.Epoch = aux.Epoch
 	t.TxIndex = aux.TxIndex
-	if len(aux.ExecutedTransaction) > 0 && !bytes.Equal(aux.ExecutedTransaction, []byte("null")) {
-		msg := &rpcv2.ExecutedTransaction{}
-		if err := protojson.Unmarshal(aux.ExecutedTransaction, msg); err != nil {
-			return errors.Wrap(err, "unmarshal grpc ExecutedTransaction")
-		}
-		t.ExecutedTransaction = msg
+
+	// Detect whether an embedded ExecutedTransaction is present by stripping the
+	// ext* header keys; if nothing else remains, leave it nil.
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
 	}
+	for _, k := range []string{"extCheckpoint", "extCheckpointDigest", "extTimestampMs", "extEpoch", "extTxIndex"} {
+		delete(fields, k)
+	}
+	if len(fields) == 0 {
+		t.ExecutedTransaction = nil
+		return nil
+	}
+	// protojson here discards unknown fields, so the ext* header keys are ignored.
+	msg := &rpcv2.ExecutedTransaction{}
+	if err := protojson.Unmarshal(data, msg); err != nil {
+		return errors.Wrap(err, "unmarshal grpc ExecutedTransaction")
+	}
+	t.ExecutedTransaction = msg
 	return nil
 }
 

@@ -68,11 +68,13 @@ func TestEventHandlerGrpcBinding(t *testing.T) {
 	assert.Equal(t, "0x2::m::E", ev["eventType"])
 	assert.Equal(t, "m", ev["module"])
 
-	// raw_transaction is the grpc ExtendedGrpcTransaction shape: header fields + nested executedTransaction.
+	// raw_transaction is the flattened grpc ExtendedGrpcTransaction shape: the embedded
+	// ExecutedTransaction fields at the top level, plus ext*-prefixed header fields.
 	var tx map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(se.GetRawTransaction()), &tx))
-	assert.Contains(t, tx, "checkpoint")
-	assert.Contains(t, tx, "executedTransaction")
+	assert.Contains(t, tx, "extCheckpoint")
+	assert.Contains(t, tx, "digest")
+	assert.NotContains(t, tx, "executedTransaction")
 }
 
 func TestFunctionHandlerGrpcBinding(t *testing.T) {
@@ -88,8 +90,9 @@ func TestFunctionHandlerGrpcBinding(t *testing.T) {
 	require.NotNil(t, sc)
 	var tx map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(sc.GetRawTransaction()), &tx))
-	assert.Contains(t, tx, "checkpoint")
-	assert.Contains(t, tx, "executedTransaction")
+	assert.Contains(t, tx, "extCheckpoint")
+	assert.Contains(t, tx, "digest")
+	assert.NotContains(t, tx, "executedTransaction")
 }
 
 func TestChangeHandlerGrpcBinding(t *testing.T) {

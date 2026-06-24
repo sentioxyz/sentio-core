@@ -86,3 +86,30 @@ func TestExtendedGrpcTransactionJSONFlatten(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, s, string(b2))
 }
+
+func TestExtendedGrpcTransactionJSONEventIndexes(t *testing.T) {
+	digest := "tx1"
+	// EventIndexes must survive JSON: the super node prunes (setting it) before
+	// serializing the tx back to the driver, where the handler reads it.
+	tx := &ExtendedGrpcTransaction{
+		Checkpoint:          7,
+		EventIndexes:        []int{1, 2},
+		ExecutedTransaction: &rpcv2.ExecutedTransaction{Digest: &digest},
+	}
+	b, err := json.Marshal(tx)
+	require.NoError(t, err)
+	assert.Contains(t, string(b), `"extEventIndexes":[1,2]`)
+
+	var rt ExtendedGrpcTransaction
+	require.NoError(t, json.Unmarshal(b, &rt))
+	assert.Equal(t, []int{1, 2}, rt.EventIndexes)
+
+	// nil EventIndexes (full event list) is omitted from the wire form.
+	full := &ExtendedGrpcTransaction{Checkpoint: 7, ExecutedTransaction: &rpcv2.ExecutedTransaction{Digest: &digest}}
+	fb, err := json.Marshal(full)
+	require.NoError(t, err)
+	assert.NotContains(t, string(fb), "extEventIndexes")
+	var frt ExtendedGrpcTransaction
+	require.NoError(t, json.Unmarshal(fb, &frt))
+	assert.Nil(t, frt.EventIndexes)
+}

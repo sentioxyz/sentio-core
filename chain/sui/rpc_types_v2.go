@@ -194,9 +194,10 @@ type ExtendedGrpcTransaction struct {
 	// on-chain position of Events[i]. It is populated by PruneGrpcTransaction when
 	// events are filtered, so consumers can recover the true event index even
 	// though grpc events carry no intrinsic sequence (json-rpc events have
-	// id.eventSeq; grpc events do not). It is an in-process hint and is not part
-	// of the JSON wire form. nil means the events are the full, unfiltered list,
-	// in which case the slice position already is the on-chain index.
+	// id.eventSeq; grpc events do not). It is carried through the JSON wire form
+	// because the super node prunes before serializing the transaction back to the
+	// driver. nil means the events are the full, unfiltered list, in which case the
+	// slice position already is the on-chain index.
 	EventIndexes []int
 
 	*rpcv2.ExecutedTransaction
@@ -253,6 +254,12 @@ func (t ExtendedGrpcTransaction) MarshalJSON() ([]byte, error) {
 	if obj, err = sjson.SetBytes(obj, "extTxIndex", t.TxIndex); err != nil {
 		return nil, err
 	}
+	// Only emitted when events were filtered; nil (full list) is left off the wire.
+	if len(t.EventIndexes) > 0 {
+		if obj, err = sjson.SetBytes(obj, "extEventIndexes", t.EventIndexes); err != nil {
+			return nil, err
+		}
+	}
 	return obj, nil
 }
 
@@ -263,6 +270,7 @@ func (t *ExtendedGrpcTransaction) UnmarshalJSON(data []byte) error {
 		TimestampMs      uint64 `json:"extTimestampMs"`
 		Epoch            uint64 `json:"extEpoch"`
 		TxIndex          uint64 `json:"extTxIndex"`
+		EventIndexes     []int  `json:"extEventIndexes,omitempty"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
@@ -272,6 +280,7 @@ func (t *ExtendedGrpcTransaction) UnmarshalJSON(data []byte) error {
 	t.TimestampMs = aux.TimestampMs
 	t.Epoch = aux.Epoch
 	t.TxIndex = aux.TxIndex
+	t.EventIndexes = aux.EventIndexes
 
 	// The remaining (flattened) fields belong to the embedded ExecutedTransaction.
 	// protojson here discards unknown fields, so the ext* header keys are ignored.

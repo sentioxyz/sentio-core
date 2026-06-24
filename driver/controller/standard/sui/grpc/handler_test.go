@@ -122,9 +122,11 @@ func TestChangeHandlerGrpcBinding(t *testing.T) {
 	assert.Equal(t, 3, result[0].TxIndex)
 	require.Len(t, soc.GetRawChanges(), 1)
 
-	// raw_changes[0] is the ExtendedGrpcChangedObject shape: header fields + nested changedObject.
+	// raw_changes[0] is the flattened ExtendedGrpcChangedObject shape: the embedded
+	// ChangedObject fields at the top level, plus ext*-prefixed header fields.
 	var change map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal([]byte(soc.GetRawChanges()[0]), &change))
-	assert.Contains(t, change, "checkpoint")
-	assert.Contains(t, change, "changedObject")
+	assert.Contains(t, change, "extCheckpoint")
+	assert.Contains(t, change, "objectId")
+	assert.NotContains(t, change, "changedObject")
 }

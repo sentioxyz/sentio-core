@@ -26,13 +26,15 @@ func TestExtendedGrpcChangedObjectJSON(t *testing.T) {
 	require.NoError(t, err)
 	s := string(b)
 	t.Logf("json: %s", s)
-	// nested, not flattened
-	assert.Contains(t, s, `"changedObject":`)
+	// flattened: the embedded ChangedObject fields sit at the top level, no
+	// "changedObject" wrapper key.
+	assert.NotContains(t, s, `"changedObject":`)
+	assert.Contains(t, s, `"objectId":`)
 	// enum as string name, not number
 	assert.Contains(t, s, "CREATED")
 	assert.NotContains(t, s, `"idOperation":1`)
-	// header present
-	assert.Contains(t, s, `"txDigest":"5TLHCn2S"`)
+	// header under ext* keys (no collision with proto field names)
+	assert.Contains(t, s, `"extTxDigest":"5TLHCn2S"`)
 
 	// round-trip
 	var rt ExtendedGrpcChangedObject

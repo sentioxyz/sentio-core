@@ -210,6 +210,11 @@ func (c *standardStartupController) buildMainControllers(ctx context.Context) (
 	return
 }
 
+// SuiEnableGRPC grpc-format data is supported only for the sui variation (not iota) at DriverVersion >= 2.
+func SuiEnableGRPC(chainID string, driverVersion int32) bool {
+	return driverVersion >= 2 && suitypes.VariationFromChainID(chains.SuiChainID(chainID)) == suitypes.VariationSUI
+}
+
 func (c *standardStartupController) buildMainController(
 	ctx context.Context,
 	chainID string,
@@ -271,9 +276,7 @@ func (c *standardStartupController) buildMainController(
 		if newClientErr != nil {
 			return nil, exitcode.NeverRetry, errors.Wrapf(newClientErr, "build sui client failed")
 		}
-		// grpc-format data is supported only for the sui variation (not iota) at DriverVersion >= 2.
-		if suitypes.VariationFromChainID(chains.SuiChainID(chainID)) == suitypes.VariationSUI &&
-			c.processor.DriverVersion >= 2 {
+		if SuiEnableGRPC(chainID, c.processor.DriverVersion) {
 			handlerCtrl = suigrpc.NewHandlerController(c.processor, c.initResult, chainConfig, suiCli, c.processorClients)
 		} else {
 			handlerCtrl = sui.NewHandlerController(c.processor, c.initResult, chainConfig, suiCli, c.processorClients)

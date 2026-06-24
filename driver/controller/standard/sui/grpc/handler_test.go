@@ -67,8 +67,10 @@ func TestEventHandlerGrpcBinding(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(se.GetRawEvent()), &ev))
 	assert.Equal(t, "0x2::m::E", ev["eventType"])
 	assert.Equal(t, "m", ev["module"])
-	// grpc events carry no on-chain sequence, so the binding attaches the index.
-	assert.EqualValues(t, 0, ev["eventSeq"])
+	// grpc events carry no on-chain sequence, so the binding reports the index in
+	// the EventSeq proto field (not stuffed into raw_event).
+	assert.EqualValues(t, 0, se.GetEventSeq())
+	assert.NotContains(t, ev, "eventSeq")
 
 	// raw_transaction is the flattened grpc ExtendedGrpcTransaction shape: the embedded
 	// ExecutedTransaction fields at the top level, plus ext*-prefixed header fields.
@@ -103,13 +105,11 @@ func TestEventHandlerGrpcEventSeq(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 
-	// each event's index within the tx is attached as eventSeq and used as the
+	// each event's index within the tx is reported via EventSeq and used as the
 	// binding's TxInnerIndex.
 	for i, r := range result {
 		assert.Equal(t, i, r.TxInnerIndex)
-		var ev map[string]any
-		require.NoError(t, json.Unmarshal([]byte(r.Data.GetSuiEvent().GetRawEvent()), &ev))
-		assert.EqualValues(t, i, ev["eventSeq"])
+		assert.EqualValues(t, i, r.Data.GetSuiEvent().GetEventSeq())
 	}
 }
 
@@ -148,13 +148,11 @@ func TestEventHandlerGrpcEventSeqPruned(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 
-	// the binding reports the original on-chain index (1, 2), not the pruned
-	// slice position (0, 1).
+	// the binding reports the original on-chain index (1, 2) via EventSeq, not the
+	// pruned slice position (0, 1).
 	for i, wantSeq := range []int{1, 2} {
 		assert.Equal(t, wantSeq, result[i].TxInnerIndex)
-		var ev map[string]any
-		require.NoError(t, json.Unmarshal([]byte(result[i].Data.GetSuiEvent().GetRawEvent()), &ev))
-		assert.EqualValues(t, wantSeq, ev["eventSeq"])
+		assert.EqualValues(t, wantSeq, result[i].Data.GetSuiEvent().GetEventSeq())
 	}
 }
 

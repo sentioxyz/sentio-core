@@ -7531,6 +7531,7 @@ type Data_SuiEvent struct {
 	RawTransaction string                 `protobuf:"bytes,5,opt,name=raw_transaction,json=rawTransaction,proto3" json:"raw_transaction,omitempty"`
 	Timestamp      *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	Slot           uint64                 `protobuf:"varint,3,opt,name=slot,proto3" json:"slot,omitempty"`
+	EventSeq       int32                  `protobuf:"varint,6,opt,name=event_seq,json=eventSeq,proto3" json:"event_seq,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -7589,6 +7590,13 @@ func (x *Data_SuiEvent) GetTimestamp() *timestamppb.Timestamp {
 func (x *Data_SuiEvent) GetSlot() uint64 {
 	if x != nil {
 		return x.Slot
+	}
+	return 0
+}
+
+func (x *Data_SuiEvent) GetEventSeq() int32 {
+	if x != nil {
+		return x.EventSeq
 	}
 	return 0
 }
@@ -8526,7 +8534,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\aHAS_ALL\x10\n" +
 	"\x12\v\n" +
 	"\aHAS_ANY\x10\vB\x04\n" +
-	"\x02op\"\xda \n" +
+	"\x02op\"\xf7 \n" +
 	"\x04Data\x121\n" +
 	"\aeth_log\x18\x02 \x01(\v2\x16.processor.Data.EthLogH\x00R\x06ethLog\x127\n" +
 	"\teth_block\x18\x03 \x01(\v2\x18.processor.Data.EthBlockH\x00R\bethBlock\x12I\n" +
@@ -8610,12 +8618,13 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\vAptResource\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\x03R\aversion\x12(\n" +
 	"\x0ftimestampMicros\x18\x05 \x01(\x03R\x0ftimestampMicros\x12#\n" +
-	"\rraw_resources\x18\x06 \x03(\tR\frawResources\x1a\x9e\x01\n" +
+	"\rraw_resources\x18\x06 \x03(\tR\frawResources\x1a\xbb\x01\n" +
 	"\bSuiEvent\x12\x1b\n" +
 	"\traw_event\x18\x04 \x01(\tR\brawEvent\x12'\n" +
 	"\x0fraw_transaction\x18\x05 \x01(\tR\x0erawTransaction\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x12\n" +
-	"\x04slot\x18\x03 \x01(\x04R\x04slot\x1a\x80\x01\n" +
+	"\x04slot\x18\x03 \x01(\x04R\x04slot\x12\x1b\n" +
+	"\tevent_seq\x18\x06 \x01(\x05R\beventSeq\x1a\x80\x01\n" +
 	"\aSuiCall\x12'\n" +
 	"\x0fraw_transaction\x18\x04 \x01(\tR\x0erawTransaction\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x12\n" +

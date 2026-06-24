@@ -300,6 +300,19 @@ func (t ExtendedGrpcTransaction) GetSimpleCheckpoint() SimpleCheckpoint {
 	}
 }
 
+// GetEventSeq returns the on-chain index of the event at position evIndex in
+// ExecutedTransaction.Events. grpc events carry no intrinsic sequence (unlike
+// json-rpc's id.eventSeq), so when events were filtered EventIndexes holds each
+// kept event's original index and we return that; otherwise the events are the
+// full, unfiltered list and the slice position already is the on-chain index.
+// See the EventIndexes field doc for how it is populated.
+func (t ExtendedGrpcTransaction) GetEventSeq(evIndex int) int {
+	if evIndex < len(t.EventIndexes) {
+		return t.EventIndexes[evIndex]
+	}
+	return evIndex
+}
+
 func (o ExtendedGrpcChangedObject) MarshalJSON() ([]byte, error) {
 	obj := []byte("{}")
 	if o.ChangedObject != nil {

@@ -38,15 +38,9 @@ func (a HandlerAgentEvent) BuildBindingDataList(
 			if !eventChecker(ev) {
 				continue
 			}
-			// grpc events carry no on-chain sequence (unlike json-rpc's id.eventSeq),
-			// so we report the event's index within the tx. When events were filtered
-			// (allEvents=false) the slice position is not the real index, so prefer the
-			// original index preserved by PruneGrpcTransaction; otherwise the events are
-			// the full list and the slice position is the index.
-			eventSeq := evIndex
-			if evIndex < len(tx.EventIndexes) {
-				eventSeq = tx.EventIndexes[evIndex]
-			}
+			// grpc events carry no on-chain sequence (unlike json-rpc's id.eventSeq);
+			// GetEventSeq maps the slice position to the real on-chain event index.
+			eventSeq := tx.GetEventSeq(evIndex)
 			var rawEvent []byte
 			if rawEvent, err = cprotojson.Marshal(ev); err != nil {
 				return nil, errors.Wrapf(err, "marshal grpc sui event #%d in tx %d in block %d failed",

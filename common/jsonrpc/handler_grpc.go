@@ -1,9 +1,11 @@
 package jsonrpc
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -190,8 +192,12 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
-	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
-		http.Error(w, "Content-Type must start with application/grpc", http.StatusUnsupportedMediaType)
+	// Resolve the client's wire format (native gRPC vs gRPC-web). The proxy always
+	// speaks native gRPC to the upstream; the response is re-encoded to match the
+	// client. Only grpc+proto and grpc-web+proto are supported today.
+	wire := wireForContentType(r.Header.Get("Content-Type"))
+	if wire == nil {
+		http.Error(w, "unsupported gRPC Content-Type", http.StatusUnsupportedMediaType)
 		return
 	}
 
@@ -200,7 +206,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 	if h.probe != nil {
 		probeCtx, err := h.probe.OnRequest(ctx, method, r)
 		if err != nil {
-			grpcWriteError(w, err)
+			grpcWriteError(w, wire, err)
 			return
 		}
 		if probeCtx != nil {
@@ -221,7 +227,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 			grpc.ForceCodec(grpcRawCodec{}),
 		)
 		if err != nil {
-			grpcWriteError(w, err)
+			grpcWriteError(w, wire, err)
 			return clientpool.Result{Err: err}
 		}
 
@@ -230,7 +236,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 		// cancelled (which happens when ServeHTTP returns).
 		go func() {
 			for {
-				frame, err := grpcReadFrame(r.Body)
+				frame, err := wire.readMessage(r.Body)
 				if err != nil {
 					_ = cs.CloseSend()
 					return
@@ -245,13 +251,18 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 		// the RPC failed before the backend produced any response.
 		hdr, err := cs.Header()
 		if err != nil {
-			grpcWriteError(w, err)
+			grpcWriteError(w, wire, err)
 			return clientpool.Result{Err: err}
 		}
 
-		// Write HTTP response status and headers.
-		w.Header().Set("Content-Type", "application/grpc")
+		// Write HTTP response status and headers. Use the client's wire-format
+		// content-type and skip the upstream's content-type (always native gRPC,
+		// which would mislead a gRPC-web client).
+		w.Header().Set("Content-Type", wire.responseContentType())
 		for k, vs := range hdr {
+			if textproto.CanonicalMIMEHeaderKey(k) == "Content-Type" {
+				continue
+			}
 			for _, v := range vs {
 				w.Header().Add(k, v)
 			}
@@ -277,7 +288,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 				h.probe.OnResponseMsg(ctx, method, msgCount)
 			}
 			msgCount++
-			if err := grpcWriteFrame(w, frame); err != nil {
+			if err := wire.writeMessage(w, frame); err != nil {
 				break
 			}
 			if f, ok := w.(http.Flusher); ok {
@@ -290,17 +301,14 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 			h.probe.OnFinish(ctx, method, msgCount, streamErr)
 		}
 
-		// Forward backend trailing metadata.
-		for k, vs := range cs.Trailer() {
-			w.Header()[http.TrailerPrefix+textproto.CanonicalMIMEHeaderKey(k)] = vs
+		// Forward backend trailing metadata + final status in the client's wire
+		// format (native: HTTP/2 trailers; gRPC-web: in-body trailer frame).
+		st := status.New(codes.OK, "")
+		if streamErr != nil {
+			st = status.Convert(streamErr)
 		}
-		// Ensure Grpc-Status is always present in the trailers.
-		if _, ok := cs.Trailer()["grpc-status"]; !ok {
-			st, _ := status.FromError(streamErr)
-			w.Header()[http.TrailerPrefix+"Grpc-Status"] = []string{strconv.Itoa(int(st.Code()))}
-			if msg := st.Message(); msg != "" {
-				w.Header()[http.TrailerPrefix+"Grpc-Message"] = []string{msg}
-			}
+		if err := wire.writeTrailer(w, w.Header(), cs.Trailer(), st); err != nil {
+			logger.Debugw("write trailer failed", "err", err)
 		}
 
 		return clientpool.Result{}
@@ -308,7 +316,7 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 
 	if errors.Is(report.Err, clientpool.ErrNoValidClient) {
 		grpcErr := status.Errorf(codes.Unavailable, "no healthy backend")
-		grpcWriteError(w, grpcErr)
+		grpcWriteError(w, wire, grpcErr)
 		// Probe: OnFinish for pool-miss.
 		if h.probe != nil {
 			h.probe.OnFinish(ctx, method, 0, grpcErr)
@@ -364,15 +372,128 @@ func grpcWriteFrame(w io.Writer, data []byte) error {
 	return err
 }
 
-// grpcWriteError writes a terminal gRPC error as HTTP/2 response headers
-// (no body).  Used when the stream fails before any backend response is
+// grpcWriteError writes a terminal gRPC error (no message frames) to the client
+// in its wire format.  Used when the stream fails before any backend response is
 // available.
-func grpcWriteError(w http.ResponseWriter, err error) {
+func grpcWriteError(w http.ResponseWriter, wire grpcWire, err error) {
 	st, _ := status.FromError(err)
+	wire.writeStatusOnly(w, st)
+}
+
+// ── Client wire format (native gRPC vs gRPC-web) ────────────────────────────
+//
+// The proxy always speaks native gRPC to the upstream (via grpc-go); toward the
+// client it must speak whatever the client used.  grpcWire abstracts that wire
+// format. Native gRPC and gRPC-web share the same length-prefixed message frame
+// ([1-byte flag][4-byte big-endian length][payload]) and differ only in:
+//   - the response Content-Type, and
+//   - how trailing metadata (grpc-status/message) is delivered: native uses
+//     HTTP/2 trailers, gRPC-web a trailer frame (flag 0x80) in the response body
+//     that fetch-based clients can read.
+//
+// Only the +proto encodings are handled today; +json / grpc-web-text are
+// rejected with 415 (see wireForContentType). New formats only need a new
+// grpcWire implementation.
+type grpcWire interface {
+	// responseContentType is the Content-Type set on the response.
+	responseContentType() string
+	// readMessage reads one request message frame from the client.
+	readMessage(r io.Reader) ([]byte, error)
+	// writeMessage writes one response message frame to the client.
+	writeMessage(w io.Writer, msg []byte) error
+	// writeTrailer flushes trailing metadata + final status after the message
+	// stream.  h is the response header (native HTTP/2 trailers); w is the
+	// response body (gRPC-web in-body trailer frame).
+	writeTrailer(w io.Writer, h http.Header, trailer metadata.MD, st *status.Status) error
+	// writeStatusOnly writes a trailers-only response (an error before any
+	// message frame), including the Content-Type.
+	writeStatusOnly(w http.ResponseWriter, st *status.Status)
+}
+
+// wireForContentType resolves the client wire format from the request
+// Content-Type, or returns nil for unsupported types (caller responds 415).
+func wireForContentType(ct string) grpcWire {
+	ct = strings.TrimSpace(ct)
+	if i := strings.IndexByte(ct, ';'); i >= 0 { // strip params, e.g. "; charset=..."
+		ct = strings.TrimSpace(ct[:i])
+	}
+	switch ct {
+	case "application/grpc", "application/grpc+proto":
+		return nativeWire{}
+	case "application/grpc-web", "application/grpc-web+proto":
+		return webWire{}
+	default:
+		return nil
+	}
+}
+
+// nativeWire is the standard HTTP/2 gRPC wire format.
+type nativeWire struct{}
+
+func (nativeWire) responseContentType() string                { return "application/grpc" }
+func (nativeWire) readMessage(r io.Reader) ([]byte, error)    { return grpcReadFrame(r) }
+func (nativeWire) writeMessage(w io.Writer, msg []byte) error { return grpcWriteFrame(w, msg) }
+
+func (nativeWire) writeTrailer(_ io.Writer, h http.Header, trailer metadata.MD, st *status.Status) error {
+	for k, vs := range trailer {
+		h[http.TrailerPrefix+textproto.CanonicalMIMEHeaderKey(k)] = vs
+	}
+	if _, ok := trailer["grpc-status"]; !ok {
+		h[http.TrailerPrefix+"Grpc-Status"] = []string{strconv.Itoa(int(st.Code()))}
+		if msg := st.Message(); msg != "" {
+			h[http.TrailerPrefix+"Grpc-Message"] = []string{msg}
+		}
+	}
+	return nil
+}
+
+func (nativeWire) writeStatusOnly(w http.ResponseWriter, st *status.Status) {
 	w.Header().Set("Content-Type", "application/grpc")
 	w.Header().Set("Grpc-Status", strconv.Itoa(int(st.Code())))
 	if msg := st.Message(); msg != "" {
 		w.Header().Set("Grpc-Message", msg)
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// webWire is the gRPC-web wire format (binary +proto).  Trailing metadata is
+// sent as a trailer frame in the response body instead of HTTP/2 trailers, so
+// fetch-based clients (which can't read HTTP/2 trailers) can consume it.
+type webWire struct{}
+
+func (webWire) responseContentType() string                { return "application/grpc-web+proto" }
+func (webWire) readMessage(r io.Reader) ([]byte, error)    { return grpcReadFrame(r) }
+func (webWire) writeMessage(w io.Writer, msg []byte) error { return grpcWriteFrame(w, msg) }
+
+func (wf webWire) writeTrailer(w io.Writer, _ http.Header, trailer metadata.MD, st *status.Status) error {
+	var buf bytes.Buffer
+	for k, vs := range trailer {
+		for _, v := range vs {
+			buf.WriteString(strings.ToLower(k))
+			buf.WriteString(": ")
+			buf.WriteString(v)
+			buf.WriteString("\r\n")
+		}
+	}
+	if _, ok := trailer["grpc-status"]; !ok {
+		fmt.Fprintf(&buf, "grpc-status: %d\r\n", st.Code())
+		if msg := st.Message(); msg != "" {
+			fmt.Fprintf(&buf, "grpc-message: %s\r\n", msg)
+		}
+	}
+	// gRPC-web trailer frame: the 0x80 flag bit marks the frame as trailers.
+	var hdr [5]byte
+	hdr[0] = 0x80
+	binary.BigEndian.PutUint32(hdr[1:], uint32(buf.Len()))
+	if _, err := w.Write(hdr[:]); err != nil {
+		return err
+	}
+	_, err := w.Write(buf.Bytes())
+	return err
+}
+
+func (wf webWire) writeStatusOnly(w http.ResponseWriter, st *status.Status) {
+	w.Header().Set("Content-Type", "application/grpc-web+proto")
+	w.WriteHeader(http.StatusOK)
+	_ = wf.writeTrailer(w, w.Header(), metadata.MD{}, st)
 }

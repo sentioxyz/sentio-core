@@ -1,7 +1,9 @@
 package jsonrpc
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
@@ -9,10 +11,13 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
+	"io"
 	"net"
 	"net/http"
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/common/log"
+	"strings"
 	"testing"
 	"time"
 )
@@ -165,6 +170,66 @@ func subscribe(t *testing.T, ctx context.Context, ep string, round int) {
 	}
 }
 
+// grpcWebGetServiceInfo issues a unary GetServiceInfo call using the raw
+// gRPC-web wire format (a fetch-style client over HTTP) and verifies that the
+// proxy responds with a gRPC-web response: application/grpc-web+proto
+// Content-Type, a message frame, and an in-body trailer frame carrying
+// grpc-status: 0.
+func grpcWebGetServiceInfo(t *testing.T, ctx context.Context, ep string) {
+	reqMsg, err := proto.Marshal(&rpcv2.GetServiceInfoRequest{})
+	if !assert.NoError(t, err) {
+		return
+	}
+	var body bytes.Buffer
+	var hdr [5]byte
+	binary.BigEndian.PutUint32(hdr[1:], uint32(len(reqMsg)))
+	body.Write(hdr[:])
+	body.Write(reqMsg)
+
+	url := "http://" + ep + "/sui.rpc.v2.LedgerService/GetServiceInfo"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &body)
+	if !assert.NoError(t, err) {
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/grpc-web+proto")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	assert.Equal(t, "application/grpc-web+proto", resp.Header.Get("Content-Type"))
+
+	respBody, err := io.ReadAll(resp.Body)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	var sawMessage, sawTrailer bool
+	for off := 0; off+5 <= len(respBody); {
+		flag := respBody[off]
+		n := int(binary.BigEndian.Uint32(respBody[off+1 : off+5]))
+		off += 5
+		if off+n > len(respBody) {
+			break
+		}
+		payload := respBody[off : off+n]
+		off += n
+		if flag&0x80 != 0 {
+			sawTrailer = true
+			assert.Contains(t, string(payload), "grpc-status: 0")
+			log.Infof("grpc-web trailer (%s): %s", ep, strings.TrimSpace(string(payload)))
+		} else {
+			sawMessage = true
+			var info rpcv2.GetServiceInfoResponse
+			assert.NoError(t, proto.Unmarshal(payload, &info))
+			assert.Equal(t, "testnet", info.GetChain())
+		}
+	}
+	assert.True(t, sawMessage, "expected a gRPC-web message frame")
+	assert.True(t, sawTrailer, "expected a gRPC-web trailer frame")
+}
+
 func Test_grpcHandler(t *testing.T) {
 	log.ManuallySetLevel(zap.DebugLevel)
 	log.BindFlag()
@@ -204,6 +269,10 @@ func Test_grpcHandler(t *testing.T) {
 	// Verify the same calls routed through the proxy work.
 	getServiceInfo(t, ctx, proxyAddr)
 	subscribe(t, ctx, proxyAddr, 10)
+
+	// Verify a gRPC-web client (e.g. a browser/fetch-based SDK) is served the
+	// gRPC-web wire format rather than native application/grpc.
+	grpcWebGetServiceInfo(t, ctx, proxyAddr)
 
 	time.Sleep(time.Second)
 	b, _ := json.MarshalIndent(proxyHandler.Snapshot(), "", "  ")

@@ -38,24 +38,29 @@ func (a HandlerAgentEvent) BuildBindingDataList(
 			if !eventChecker(ev) {
 				continue
 			}
+			// grpc events carry no on-chain sequence (unlike json-rpc's id.eventSeq),
+			// so we report the event's index within the tx. When events were filtered
+			// (allEvents=false) the slice position is not the real index, so prefer the
+			// original index preserved by PruneGrpcTransaction; otherwise the events are
+			// the full list and the slice position is the index.
+			eventSeq := evIndex
+			if evIndex < len(tx.EventIndexes) {
+				eventSeq = tx.EventIndexes[evIndex]
+			}
 			var rawEvent []byte
 			if rawEvent, err = cprotojson.Marshal(ev); err != nil {
 				return nil, errors.Wrapf(err, "marshal grpc sui event #%d in tx %d in block %d failed",
-					evIndex, txIndex, bd.GetBlockNumber())
+					eventSeq, txIndex, bd.GetBlockNumber())
 			}
-			// grpc events carry no on-chain sequence, so attach the event's index
-			// within the transaction. The sui event fetch config defaults to
-			// allEvents=true, so the events here are the full (unpruned) list and
-			// evIndex is the true on-chain index. The SDK reads this `eventSeq` to
-			// populate meta.log_index (mirrors the json-rpc event's id.eventSeq).
-			if rawEvent, err = sjson.SetBytes(rawEvent, "eventSeq", evIndex); err != nil {
+			// The SDK reads this `eventSeq` to populate meta.log_index.
+			if rawEvent, err = sjson.SetBytes(rawEvent, "eventSeq", eventSeq); err != nil {
 				return nil, errors.Wrapf(err, "set eventSeq for grpc sui event #%d in tx %d in block %d failed",
-					evIndex, txIndex, bd.GetBlockNumber())
+					eventSeq, txIndex, bd.GetBlockNumber())
 			}
 			result = append(result, standard.BindingDataInner{
 				HandlerType:  protos.HandlerType_SUI_EVENT,
 				TxIndex:      txIndex,
-				TxInnerIndex: evIndex,
+				TxInnerIndex: eventSeq,
 				Data: &protos.Data{
 					Value: &protos.Data_SuiEvent_{
 						SuiEvent: &protos.Data_SuiEvent{

@@ -113,6 +113,51 @@ func TestEventHandlerGrpcEventSeq(t *testing.T) {
 	}
 }
 
+func TestEventHandlerGrpcEventSeqPruned(t *testing.T) {
+	mkEvent := func(sender string) *rpcv2.Event {
+		return &rpcv2.Event{
+			PackageId: proto.String("0x0000000000000000000000000000000000000000000000000000000000000002"),
+			Module:    proto.String("m"),
+			EventType: proto.String("0x2::m::E"),
+			Sender:    proto.String(sender),
+		}
+	}
+	full := &chainsui.ExtendedGrpcTransaction{
+		ExecutedTransaction: &rpcv2.ExecutedTransaction{
+			Digest:  proto.String("tx1"),
+			Effects: &rpcv2.TransactionEffects{Status: &rpcv2.ExecutionStatus{Success: proto.Bool(true)}},
+			Events: &rpcv2.TransactionEvents{Events: []*rpcv2.Event{
+				mkEvent("s0"), mkEvent("keep"), mkEvent("keep"),
+			}},
+		},
+	}
+	// allEvents=false: only the matching events survive, and PruneGrpcTransaction
+	// records their original on-chain indices.
+	keep := "keep"
+	fc := chainsui.TransactionFetchConfig{NeedAllEvents: false}
+	filters := []chainsui.EventFilterV2{{Sender: &keep}}
+	pruned := fc.PruneGrpcTransaction(full, filters)
+	require.Equal(t, []int{1, 2}, pruned.EventIndexes)
+	require.Len(t, pruned.GetEvents().GetEvents(), 2)
+
+	agent := HandlerAgentEvent{suihandler.HandlerAgentEvent{
+		Filter:      chainsui.TransactionFilter{EventFilters: filters},
+		FetchConfig: fc,
+	}}
+	result, err := agent.BuildBindingDataList(context.Background(), newBlockData(pruned))
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+
+	// the binding reports the original on-chain index (1, 2), not the pruned
+	// slice position (0, 1).
+	for i, wantSeq := range []int{1, 2} {
+		assert.Equal(t, wantSeq, result[i].TxInnerIndex)
+		var ev map[string]any
+		require.NoError(t, json.Unmarshal([]byte(result[i].Data.GetSuiEvent().GetRawEvent()), &ev))
+		assert.EqualValues(t, wantSeq, ev["eventSeq"])
+	}
+}
+
 func TestFunctionHandlerGrpcBinding(t *testing.T) {
 	agent := HandlerAgentFunction{suihandler.HandlerAgentFunction{
 		Filter:      matchAnyFilter(),

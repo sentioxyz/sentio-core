@@ -189,6 +189,16 @@ type ExtendedGrpcTransaction struct {
 
 	TxIndex uint64
 
+	// EventIndexes, when non-nil, holds the original (full-list) index of each
+	// event currently in ExecutedTransaction.Events, i.e. EventIndexes[i] is the
+	// on-chain position of Events[i]. It is populated by PruneGrpcTransaction when
+	// events are filtered, so consumers can recover the true event index even
+	// though grpc events carry no intrinsic sequence (json-rpc events have
+	// id.eventSeq; grpc events do not). It is an in-process hint and is not part
+	// of the JSON wire form. nil means the events are the full, unfiltered list,
+	// in which case the slice position already is the on-chain index.
+	EventIndexes []int
+
 	*rpcv2.ExecutedTransaction
 }
 
@@ -842,12 +852,22 @@ func (f TransactionFetchConfig) PruneGrpcTransaction(
 		BalanceChanges: src.BalanceChanges,
 		Objects:        src.Objects,
 	}
+	var eventIndexes []int
 	if !f.NeedAllEvents {
 		checker := BuildGrpcEventChecker(eventFilters)
+		full := src.GetEvents().GetEvents()
+		kept := make([]*rpcv2.Event, 0, len(full))
+		eventIndexes = make([]int, 0, len(full))
+		for i, ev := range full {
+			if checker(ev) {
+				kept = append(kept, ev)
+				eventIndexes = append(eventIndexes, i)
+			}
+		}
 		pruned.Events = &rpcv2.TransactionEvents{
 			Bcs:    src.GetEvents().GetBcs(),
 			Digest: src.GetEvents().Digest,
-			Events: utils.FilterArr(src.GetEvents().GetEvents(), checker),
+			Events: kept,
 		}
 	}
 	if !f.NeedInputs {
@@ -870,6 +890,7 @@ func (f TransactionFetchConfig) PruneGrpcTransaction(
 	}
 	r := *tx
 	r.ExecutedTransaction = pruned
+	r.EventIndexes = eventIndexes
 	return &r
 }
 

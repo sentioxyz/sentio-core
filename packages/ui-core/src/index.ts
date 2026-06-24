@@ -110,3 +110,6 @@ export { NavSizeContext } from './utils/nav-size-context'
 
 // Dashboard panel-type picker icons (presentational SVGs)
 export * from './dashboard/icons'
+
+// Dashboard group drop-zone primitives (jotai atoms + hit-test helpers)
+export * from './dashboard/group-drop-zones'

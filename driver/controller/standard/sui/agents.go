@@ -13,7 +13,6 @@ import (
 	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data/sui"
 	"sentioxyz/sentio-core/driver/controller/standard"
-	"sentioxyz/sentio-core/processor"
 	"sentioxyz/sentio-core/processor/protos"
 
 	"github.com/pkg/errors"
@@ -29,7 +28,6 @@ func BuildSuiAgents(
 	ctx context.Context,
 	config standard.HandlerConfig,
 	chainConfig *config.ChainConfig,
-	sdkVersion string,
 	client sui.Client,
 	first uint64,
 	getAddressStart func(ctx context.Context, address string, start uint64) (uint64, error),
@@ -37,12 +35,7 @@ func BuildSuiAgents(
 	emit func(SuiHandlerAgent),
 ) *controller.ExternalError {
 	_, logger := log.FromContext(ctx)
-
-	processorVersion, err := processor.ParseVersion(sdkVersion)
-	if err != nil {
-		return controller.NewExternalError(controller.ErrCodeUnexpectedProcessorConfig,
-			errors.Wrapf(err, "parse processor sdk version %q failed", sdkVersion))
-	}
+	var err error
 
 	for dataSourceID, accountConfig := range config.AccountConfigs {
 		accountAddress := standard.AdjustAddress(accountConfig.GetAddress())
@@ -166,15 +159,10 @@ func BuildSuiAgents(
 					FailedIsOK: eventConfig.GetFetchConfig().GetIncludeFailedTransaction(),
 				},
 				FetchConfig: chainsui.TransactionFetchConfig{
-					NeedInputs:    true,
-					NeedEffects:   true,
+					NeedInputs:    eventConfig.GetFetchConfig().GetInputs(),
+					NeedEffects:   eventConfig.GetFetchConfig().GetResourceChanges(),
 					NeedAllEvents: eventConfig.GetFetchConfig().GetAllEvents(),
 				},
-			}
-			// sdk before v2.32, includeInputs and includeResourceChanges always be true
-			if processorVersion.Major > 2 || (processorVersion.Major == 2 && processorVersion.Minor >= 32) {
-				agent.FetchConfig.NeedInputs = eventConfig.GetFetchConfig().GetInputs()
-				agent.FetchConfig.NeedEffects = eventConfig.GetFetchConfig().GetResourceChanges()
 			}
 			for _, f := range eventConfig.GetFilters() {
 				var ff chainsui.EventFilterV2

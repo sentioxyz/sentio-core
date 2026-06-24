@@ -95,7 +95,7 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, _ uint64) *c
 	_, logger := log.FromContext(ctx)
 	c.Agents = nil
 	extErr := BuildSuiAgents(
-		ctx, c.Config, c.ChainConfig, c.Processor.SdkVersion, c.Client, first, c.getAddressStart,
+		ctx, c.Config, c.ChainConfig, c.Client, first, c.getAddressStart,
 		c.Client.GetPackageHistory,
 		func(agent SuiHandlerAgent) {
 			c.Agents = append(c.Agents, agent)

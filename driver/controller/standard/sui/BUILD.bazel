@@ -28,7 +28,6 @@ go_library(
         "//driver/controller/data/sui",
         "//driver/controller/fetcher",
         "//driver/controller/standard",
-        "//processor",
         "//processor/protos",
         "//service/processor/models",
         "@com_github_pkg_errors//:errors",

@@ -6,12 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
 	"net/http"
@@ -20,6 +14,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 )
 
 // singleConnPool is a minimal ConnectionPool for tests that wraps one connection.

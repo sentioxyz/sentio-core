@@ -67,6 +67,7 @@ go_test(
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_protobuf//proto",
         "@org_uber_go_zap//:zap",
     ],
 )

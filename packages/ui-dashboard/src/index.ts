@@ -33,7 +33,10 @@ export type {
   DashboardExtraLike,
   GroupLike,
   PanelLike,
-  DashboardLike
+  DashboardLike,
+  ComputeStatsLike,
+  SharingConfigLike,
+  DashboardSharingLike
 } from './types'
 
 // ──────────────────────────────────────────────────────────────────────────

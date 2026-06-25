@@ -48,3 +48,7 @@ export * from './timeseries'
 // charts: ECharts base/legend/refresh + theme + chart-type icons (phase 3a).
 // Render charts and option panels follow in later phases.
 export * from './charts'
+
+// dashboard: presentational dialogs/shells (router & data wired via callbacks,
+// proto types via *Like).
+export * from './dashboard'

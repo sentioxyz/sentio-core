@@ -12,7 +12,8 @@ import type {
   ValueFormatterLike,
   ValueStyleLike,
   PieTypeLike,
-  LineStyleLike
+  LineStyleLike,
+  ColumnTypeLike
 } from './enums'
 // Type-only import; the chart <-> dashboard type cycle is erased at compile time.
 import type { GroupLike } from './dashboard'
@@ -177,6 +178,22 @@ export interface TableConfigLike {
   calculations?: { [key: string]: CalculationLike }
   valueConfigs?: { [key: string]: ValueConfigLike }
   rowLimit?: number
+}
+
+/**
+ * Minimal shape of the query result TableControls inspects to enumerate
+ * columns — either a SQL result (column types) or metrics results (series
+ * with labels). Mirrors the fields read from the proto MetricsQueryResponse /
+ * SyncExecuteSQLResponse, so a consumer can pass either response directly.
+ */
+export interface TableDataLike {
+  /** SQL path: column name → column type. */
+  result?: { columnTypes?: { [name: string]: ColumnTypeLike } }
+  /** Metrics path: one entry per query, each with its matrix samples. */
+  results?: Array<{
+    alias?: string
+    matrix?: { samples?: Array<{ metric?: { labels?: { [k: string]: string }; displayName?: string } }> }
+  }>
 }
 
 /** Compare-to-previous-period offset. */

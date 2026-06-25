@@ -32,3 +32,8 @@ export {
   ScatterControls,
   defaultConfig as defaultScatterConfig
 } from './ScatterControls'
+export {
+  TableControls,
+  getDefaultValueConfig,
+  defaultConfig as defaultTableConfig
+} from './TableControls'

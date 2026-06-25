@@ -33,7 +33,8 @@ export type {
   DashboardExtraLike,
   GroupLike,
   PanelLike,
-  DashboardLike
+  DashboardLike,
+  ComputeStatsLike
 } from './types'
 
 // ──────────────────────────────────────────────────────────────────────────

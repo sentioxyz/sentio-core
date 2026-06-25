@@ -75,3 +75,10 @@ export interface DashboardLike {
   editPanels?: string[]
   sharing?: unknown
 }
+
+// Compute freshness stats for a dashboard's data (proto common.ComputeStats).
+// computedAt is the RFC3339 timestamp string from the JSON wire format.
+export interface ComputeStatsLike {
+  computedAt?: string
+  isRefreshing?: boolean
+}

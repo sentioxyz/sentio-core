@@ -501,9 +501,6 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.2.0
         version: 3.13.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      echarts:
-        specifier: ^6.0.0
-        version: 6.1.0
       immer:
         specifier: ^11.1.8
         version: 11.1.8
@@ -544,6 +541,9 @@ importers:
       dayjs:
         specifier: ^1.11.2
         version: 1.11.19
+      echarts:
+        specifier: ^6.0.0
+        version: 6.1.0
       postcss:
         specifier: ^8.5.6
         version: 8.5.14

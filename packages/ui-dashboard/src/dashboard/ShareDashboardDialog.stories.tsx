@@ -18,7 +18,10 @@ export const Basic: Story = () => {
         open={open}
         initData={{ id: 'abc123', config }}
         onClose={() => setOpen(false)}
-        onUnshare={() => setOpen(false)}
+        onUnshare={() => {
+          setOpen(false)
+          alert('Unshared')
+        }}
         onConfigChange={setConfig}
       />
     </div>

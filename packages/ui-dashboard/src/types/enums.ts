@@ -53,6 +53,9 @@ export type NoteVerticalAlignmentLike = 'TOP' | 'MIDDLE' | 'BOTTOM'
 /** Series/value aggregation calculation. */
 export type CalculationLike = 'LAST' | 'FIRST' | 'MEAN' | 'TOTAL' | 'ALL' | 'MIN' | 'MAX'
 
+/** Tabular-data column type (proto common.TabularData.ColumnType). */
+export type ColumnTypeLike = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'LIST' | 'TIME' | 'MAP' | 'JSON' | 'TOKEN' | 'DYNAMIC'
+
 /** Bar-gauge layout direction. */
 export type DirectionLike = 'HORIZONTAL' | 'VERTICAL'
 

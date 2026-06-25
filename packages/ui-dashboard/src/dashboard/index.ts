@@ -7,4 +7,8 @@ export {
   defaultConfig as defaultTimeRangeOverrideConfig
 } from './TimeRangeOverride'
 export { SeriesControls } from './SeriesControls'
+export {
+  QueryValueControls,
+  defaultConfig as defaultQueryValueConfig
+} from './QueryValueControls'
 export * from './group-styles'

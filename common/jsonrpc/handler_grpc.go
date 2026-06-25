@@ -202,6 +202,18 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The proxy forwards message payloads verbatim and never decompresses, so a
+	// request that declares a non-identity message compression cannot be handled.
+	// Reject it up front (per the gRPC spec) with UNIMPLEMENTED, advertising
+	// identity as the only accepted encoding, instead of failing later on the
+	// first compressed frame. (grpc-accept-encoding needs no such check: identity
+	// is always acceptable and responses are always sent uncompressed.)
+	if enc := r.Header.Get("Grpc-Encoding"); enc != "" && enc != "identity" {
+		w.Header().Set("Grpc-Accept-Encoding", "identity")
+		grpcWriteError(w, wire, status.Errorf(codes.Unimplemented, "grpc-encoding %q is not supported", enc))
+		return
+	}
+
 	// Probe: OnRequest — gives the caller a chance to reject early and to
 	// enrich the context with request-scoped data (e.g. resolved endpoint).
 	if h.probe != nil {
@@ -366,7 +378,11 @@ var errCompressedFrame = errors.New("compressed gRPC message frames are not supp
 // therefore cannot be re-framed correctly — it would be sent upstream as if
 // uncompressed and break decoding — so it is rejected with errCompressedFrame
 // rather than silently corrupted. (Responses are decompressed by grpc-go's
-// RecvMsg before reaching us, so only this read path needs the guard.) If
+// RecvMsg before reaching us, so only this read path needs the guard.)
+//
+// A conformant client declares compression via the grpc-encoding header, which
+// serveGRPC rejects up front with UNIMPLEMENTED; this per-frame check is
+// defense-in-depth for a client that sets the flag without that header. If
 // per-message compression is ever required, decompress here first.
 func grpcReadFrame(r io.Reader) ([]byte, error) {
 	hdr := make([]byte, 5)

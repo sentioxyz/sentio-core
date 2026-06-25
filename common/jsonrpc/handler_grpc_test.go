@@ -246,6 +246,31 @@ func Test_encodeGrpcMessage(t *testing.T) {
 	}
 }
 
+// grpcWebExpectCompressionRejected sends a request declaring an unsupported
+// grpc-encoding and verifies the proxy rejects it up front with UNIMPLEMENTED
+// (code 12) and advertises identity as the accepted encoding.
+func grpcWebExpectCompressionRejected(t *testing.T, ctx context.Context, ep string) {
+	var body bytes.Buffer
+	body.Write([]byte{0, 0, 0, 0, 0}) // an (empty) frame; should never be read
+	url := "http://" + ep + "/sui.rpc.v2.LedgerService/GetServiceInfo"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &body)
+	if !assert.NoError(t, err) {
+		return
+	}
+	req.Header.Set("Content-Type", "application/grpc-web+proto")
+	req.Header.Set("Grpc-Encoding", "gzip")
+
+	resp, err := http.DefaultClient.Do(req)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	assert.Equal(t, "identity", resp.Header.Get("Grpc-Accept-Encoding"))
+	respBody, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Contains(t, string(respBody), "grpc-status: 12") // codes.Unimplemented
+}
+
 func Test_grpcReadFrame_rejectsCompressed(t *testing.T) {
 	// Compressed-Flag set (0x01): the proxy can't re-frame a compressed payload,
 	// so it must reject rather than forward it as if uncompressed.
@@ -305,6 +330,9 @@ func Test_grpcHandler(t *testing.T) {
 	// response Content-Type echoes the request's (both +proto and bare forms).
 	grpcWebGetServiceInfo(t, ctx, proxyAddr, "application/grpc-web+proto")
 	grpcWebGetServiceInfo(t, ctx, proxyAddr, "application/grpc-web")
+
+	// A request declaring an unsupported compression is rejected up front.
+	grpcWebExpectCompressionRejected(t, ctx, proxyAddr)
 
 	time.Sleep(time.Second)
 	b, _ := json.MarshalIndent(proxyHandler.Snapshot(), "", "  ")

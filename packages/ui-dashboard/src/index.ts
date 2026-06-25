@@ -30,6 +30,8 @@ export type {
   TimeLike,
   TimeRangeLike,
   TimeRangeOverrideLike,
+  SeriesConfigLike,
+  QueryValueConfigLike,
   // dashboard
   TemplateVariableLike,
   TemplateViewLike,

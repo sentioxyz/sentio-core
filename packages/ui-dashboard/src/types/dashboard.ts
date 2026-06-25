@@ -82,3 +82,14 @@ export interface ComputeStatsLike {
   computedAt?: string
   isRefreshing?: boolean
 }
+
+// Dashboard share-link config + state (proto DashboardSharing / SharingConfig).
+export interface SharingConfigLike {
+  isReadonly?: boolean
+  hideModifiers?: boolean
+}
+
+export interface DashboardSharingLike {
+  id?: string
+  config?: SharingConfigLike
+}

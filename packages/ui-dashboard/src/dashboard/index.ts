@@ -1,4 +1,5 @@
 export { EditDashboardDialog } from './EditDashboardDialog'
 export { EditGroupDialog } from './EditGroupDialog'
 export { DashboardRefresh } from './DashboardRefresh'
+export { ShareDashboardDialog } from './ShareDashboardDialog'
 export * from './group-styles'

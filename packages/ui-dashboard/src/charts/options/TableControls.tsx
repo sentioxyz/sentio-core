@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { produce } from 'immer'
 import { defaults } from 'lodash'
-import { DisclosurePanel, classNames } from '@sentio/ui-core'
+import { Checkbox, DisclosurePanel, classNames } from '@sentio/ui-core'
 import type {
   CalculationLike,
   ColumnTypeLike,
@@ -62,14 +62,19 @@ const CalculationItems = [
 ]
 
 export function TableControls({ config, defaultOpen, onChange, data }: Props) {
-  config = defaults(config, defaultConfig)
+  config = defaults({}, config, defaultConfig)
 
   function onCalculationChange(col: string, cal: CalculationLike) {
     config &&
       onChange(
         produce(config, (draft) => {
-          draft.calculations = draft.calculations || {}
-          draft.calculations[col] = cal
+          if (col === '') {
+            delete draft.calculations
+            draft.calculation = cal
+          } else {
+            draft.calculations = draft.calculations || {}
+            draft.calculations[col] = cal
+          }
         })
       )
   }
@@ -84,14 +89,9 @@ export function TableControls({ config, defaultOpen, onChange, data }: Props) {
       )
   }
 
-  function onMapSeriesAsColumnsChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function onMapSeriesAsColumnsChange(checked: boolean) {
     config &&
-      onChange(
-        produce(
-          config,
-          (draft) => void (draft.showPlainData = e.target.checked)
-        )
-      )
+      onChange(produce(config, (draft) => void (draft.showPlainData = checked)))
   }
 
   const calculations = useMemo(() => {
@@ -146,31 +146,25 @@ export function TableControls({ config, defaultOpen, onChange, data }: Props) {
       containerClassName="w-full bg-default-bg"
     >
       {!isSql && (
-        <div className="mt-1 flex gap-4">
-          <div
-            className={classNames(
-              'text-text-foreground mx-2 inline-flex items-center sm:text-sm'
-            )}
-          >
-            <input
-              type="checkbox"
-              className="border-main mr-1 rounded-sm"
+        <div className="min-h-8 flex items-center">
+          <div className="w-48 px-2">
+            <Checkbox
               checked={config?.showPlainData}
               onChange={onMapSeriesAsColumnsChange}
+              label="Show plain data"
             />
-            Show plain data
           </div>
           {config?.showPlainData && (
             <div className="flex">
-              <span className="border-main inline-flex items-center rounded-l-md border  bg-gray-50 px-3  sm:text-sm">
+              <span className="border-main sm:text-icontent inline-flex items-center rounded-l-md border border-r-0 bg-gray-50 px-3">
                 Calculation
               </span>
               <select
                 value={config.calculation}
-                className="border-main text-text-foreground-secondary inline-flex items-center rounded-r-md border  border-l-0  pl-4  pr-7 sm:text-sm"
-                onChange={(e) =>
+                className="border-main text-text-foreground sm:text-icontent focus:border-primary-600 hover:border-primary-600 inline-flex items-center rounded-r-md border pl-4 pr-7 focus:ring-0"
+                onChange={(e) => {
                   onCalculationChange('', e.target.value as CalculationLike)
-                }
+                }}
               >
                 {calculations.map((d) => {
                   return (
@@ -189,10 +183,10 @@ export function TableControls({ config, defaultOpen, onChange, data }: Props) {
       <div className="divide-border-color flex flex-col gap-2 divide-y">
         {columns.map(({ columnId, column }) => (
           <div className="flex items-start pb-2" key={columnId}>
-            <h4 className="text-text-foreground w-48 px-2 text-sm font-medium leading-[30px]">
+            <h4 className="text-text-foreground text-icontent leading-7.5 w-48 px-2 font-medium">
               {column.name}
             </h4>
-            <div className="flex flex-1 flex-wrap items-start gap-x-2 rounded-md">
+            <div className="flex flex-1 flex-wrap items-start gap-2 rounded-md">
               {!isSql && (
                 <div className="flex">
                   <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md  border bg-gray-50 px-3">

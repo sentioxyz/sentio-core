@@ -19,7 +19,7 @@ interface Props {
 
 const renderTreeLine = (index: number, isLast: boolean) => {
   return (
-    <div className="mr-2 flex h-12 w-3 flex-col items-center justify-center">
+    <div className="mr-2 flex w-3 flex-col items-center justify-center">
       <div className="flex h-full w-full items-center">
         <div
           className={classNames(
@@ -32,7 +32,6 @@ const renderTreeLine = (index: number, isLast: boolean) => {
           )}
         ></div>
         <div className="h-px w-3 bg-gray-300"></div>
-        {/* <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div> */}
       </div>
     </div>
   )
@@ -69,16 +68,16 @@ export function ValueStringMapping({ rules, onChange }: Props) {
   }
 
   return (
-    <div className="flex w-full flex-col rounded-md py-2">
+    <div className="flex w-full flex-col gap-2 rounded-md">
       {(rules || []).map((rule, index) => {
         const isLast = index === (rules || []).length - 1
         return (
           <div
             key={index}
-            className="text-text-foreground flex h-10 items-center py-1"
+            className="text-text-foreground flex h-8 items-center"
           >
             {renderTreeLine(index, isLast)}
-            <span className="sm:text-ilabel  inline-flex h-full items-center pr-3 font-medium">
+            <span className="sm:text-ilabel inline-flex h-full items-center pr-2 font-medium">
               If value is
             </span>
             <select
@@ -105,7 +104,7 @@ export function ValueStringMapping({ rules, onChange }: Props) {
                 changeRule(index, 'value', e.target.value)
               }}
             />
-            <span className="sm:text-ilabel  inline-flex h-full items-center  rounded-none px-3 font-medium">
+            <span className="sm:text-ilabel  inline-flex h-full items-center  rounded-none px-2 font-medium">
               , then show
             </span>
             <input
@@ -134,14 +133,11 @@ export function ValueStringMapping({ rules, onChange }: Props) {
             <div className="flex-1"></div> */}
             <button
               type="button"
-              className="mx-2"
+              className="text-text-foreground-disabled hover:text-primary-600 mx-2 cursor-pointer"
               aria-label="remove"
               onClick={() => removeRule(index)}
             >
-              <LuTrash2
-                className={'icon text-text-foreground-disabled'}
-                aria-hidden="true"
-              />
+              <LuTrash2 className="icon" aria-hidden="true" />
             </button>
           </div>
         )
@@ -149,11 +145,11 @@ export function ValueStringMapping({ rules, onChange }: Props) {
       <Button
         type="button"
         role="secondary"
-        className="mt-1 w-fit flex-none"
+        className="w-fit flex-none py-1.5"
         aria-label="remove"
         onClick={addRule}
+        icon={<LuPlus />}
       >
-        <LuPlus className={classNames('h-4 w-4')} aria-hidden="true" />
         Add Formatting Rule
       </Button>
     </div>

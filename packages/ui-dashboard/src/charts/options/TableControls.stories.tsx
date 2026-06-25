@@ -32,13 +32,16 @@ const sqlData: TableDataLike = {
 export const Metrics: Story = () => {
   const [config, setConfig] = useState<TableConfigLike>({})
   return (
-    <div className="w-[36rem] p-8">
+    <div className="w-full p-8">
       <TableControls
         config={config}
         defaultOpen
         onChange={setConfig}
         data={metricsData}
       />
+      <pre className="text-text-foreground-secondary mt-4 text-xs">
+        {JSON.stringify(config, null, 2)}
+      </pre>
     </div>
   )
 }
@@ -46,13 +49,16 @@ export const Metrics: Story = () => {
 export const Sql: Story = () => {
   const [config, setConfig] = useState<TableConfigLike>({})
   return (
-    <div className="w-[36rem] p-8">
+    <div className="w-full p-8">
       <TableControls
         config={config}
         defaultOpen
         onChange={setConfig}
         data={sqlData}
       />
+      <pre className="text-text-foreground-secondary mt-4 text-xs">
+        {JSON.stringify(config, null, 2)}
+      </pre>
     </div>
   )
 }

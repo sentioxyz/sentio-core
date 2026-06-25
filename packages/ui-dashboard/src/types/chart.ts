@@ -201,10 +201,26 @@ export interface CompareTimeLike {
   ago?: DurationLike
 }
 
-/** Per-chart time-range override. `timeRange` payload kept opaque. */
+/** A point in time — absolute (unix seconds string) or relative. Structural
+ * mirror of proto `TimeRange.TimeLike`. */
+export interface TimeLike {
+  absoluteTime?: string
+  relativeTime?: { unit?: string; value?: number; align?: string }
+}
+
+/** A time range. `interval` payload passed through opaquely. */
+export interface TimeRangeLike {
+  start?: TimeLike
+  end?: TimeLike
+  step?: string
+  interval?: unknown
+  timezone?: string
+}
+
+/** Per-chart time-range override. */
 export interface TimeRangeOverrideLike {
   enabled?: boolean
-  timeRange?: unknown
+  timeRange?: TimeRangeLike
   compareTime?: CompareTimeLike
 }
 

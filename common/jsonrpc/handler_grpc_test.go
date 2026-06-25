@@ -246,6 +246,20 @@ func Test_encodeGrpcMessage(t *testing.T) {
 	}
 }
 
+func Test_grpcReadFrame_rejectsCompressed(t *testing.T) {
+	// Compressed-Flag set (0x01): the proxy can't re-frame a compressed payload,
+	// so it must reject rather than forward it as if uncompressed.
+	frame := []byte{0x01, 0, 0, 0, 3, 'a', 'b', 'c'}
+	_, err := grpcReadFrame(bytes.NewReader(frame))
+	assert.ErrorIs(t, err, errCompressedFrame)
+
+	// Uncompressed (0x00) reads back the payload.
+	frame[0] = 0x00
+	data, err := grpcReadFrame(bytes.NewReader(frame))
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("abc"), data)
+}
+
 func Test_grpcHandler(t *testing.T) {
 	log.ManuallySetLevel(zap.DebugLevel)
 	log.BindFlag()

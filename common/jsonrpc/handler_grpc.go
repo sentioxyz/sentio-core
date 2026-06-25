@@ -239,6 +239,12 @@ func (h *GRPCProxyHandler) serveGRPC(w http.ResponseWriter, r *http.Request) {
 			for {
 				frame, err := wire.readMessage(r.Body)
 				if err != nil {
+					// io.EOF is the normal "client done sending" signal; anything
+					// else (e.g. a rejected compressed frame) fails the request, so
+					// surface it in the log before closing the send direction.
+					if !errors.Is(err, io.EOF) {
+						logger.Debugw("read request frame failed", "err", err)
+					}
 					_ = cs.CloseSend()
 					return
 				}
@@ -345,20 +351,30 @@ func grpcMetadataFromHTTPHeaders(h http.Header) metadata.MD {
 	return md
 }
 
+// errCompressedFrame is returned by grpcReadFrame for a message frame whose
+// Compressed-Flag is set (or otherwise non-zero).
+var errCompressedFrame = errors.New("compressed gRPC message frames are not supported")
+
 // grpcReadFrame reads one length-prefixed gRPC message frame from r.
 //
 // Wire format: [1 byte compressed flag][4 bytes big-endian length][<length> bytes data].
 // Returns io.EOF if the stream ended cleanly before the frame header.
 //
-// NOTE: the compressed flag is ignored and the payload is forwarded verbatim
-// (see grpcWriteFrame). The proxy negotiates no compression, so in practice
-// clients send uncompressed frames; a per-message-compressed frame would be
-// forwarded with its flag dropped and break decoding upstream. If per-message
-// compression is ever needed, this passthrough must decompress here first.
+// The proxy negotiates no compression and forwards message payloads verbatim
+// (grpc-go's SendMsg never decompresses its input, and grpcWriteFrame always
+// emits Compressed-Flag 0). A request frame with a non-zero Compressed-Flag
+// therefore cannot be re-framed correctly — it would be sent upstream as if
+// uncompressed and break decoding — so it is rejected with errCompressedFrame
+// rather than silently corrupted. (Responses are decompressed by grpc-go's
+// RecvMsg before reaching us, so only this read path needs the guard.) If
+// per-message compression is ever required, decompress here first.
 func grpcReadFrame(r io.Reader) ([]byte, error) {
 	hdr := make([]byte, 5)
 	if _, err := io.ReadFull(r, hdr); err != nil {
 		return nil, err
+	}
+	if hdr[0] != 0 {
+		return nil, errCompressedFrame
 	}
 	n := binary.BigEndian.Uint32(hdr[1:5])
 	data := make([]byte, n)

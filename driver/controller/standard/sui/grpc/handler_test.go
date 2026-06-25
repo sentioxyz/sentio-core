@@ -209,3 +209,49 @@ func TestChangeHandlerGrpcBinding(t *testing.T) {
 	assert.Contains(t, change, "objectId")
 	assert.NotContains(t, change, "changedObject")
 }
+
+// grpcTxAt builds a single-event tx with the given on-chain TxIndex and a
+// distinct digest, so a binding can be traced back to its source tx.
+func grpcTxAt(txIndex uint64, digest string) *chainsui.ExtendedGrpcTransaction {
+	tx := grpcTxWithEvent()
+	tx.TxIndex = txIndex
+	tx.ExecutedTransaction.Digest = proto.String(digest)
+	return tx
+}
+
+// The controller orders bindings by (block, TxIndex, ...) to enforce strict
+// on-chain order, so BindingDataInner.TxIndex must be the tx's on-chain
+// checkpoint position (tx.TxIndex), not its index in mainData.Txs — the data
+// layer does not guarantee mainData.Txs is in checkpoint order (e.g. the
+// json-rpc store returns digest order). Feed the txs slice in non-canonical
+// order and assert TxIndex follows tx.TxIndex, not the slice index.
+func TestGrpcBindingTxIndexIsOnChainPosition(t *testing.T) {
+	// slice order [pos=5, pos=1]; canonical order would be [1, 5].
+	txs := []*chainsui.ExtendedGrpcTransaction{grpcTxAt(5, "txAt5"), grpcTxAt(1, "txAt1")}
+
+	t.Run("event", func(t *testing.T) {
+		agent := HandlerAgentEvent{suihandler.HandlerAgentEvent{
+			Filter:      matchAnyFilter(),
+			FetchConfig: chainsui.TransactionFetchConfig{NeedAllEvents: true},
+		}}
+		result, err := agent.BuildBindingDataList(context.Background(), newBlockData(txs...))
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		// Bindings stay in slice order here (sorting happens later in the controller);
+		// what matters is each carries its tx's on-chain TxIndex, not the slice index.
+		assert.Equal(t, 5, result[0].TxIndex)
+		assert.Equal(t, 1, result[1].TxIndex)
+	})
+
+	t.Run("function", func(t *testing.T) {
+		agent := HandlerAgentFunction{suihandler.HandlerAgentFunction{
+			Filter:      matchAnyFilter(),
+			FetchConfig: chainsui.TransactionFetchConfig{NeedAllEvents: true},
+		}}
+		result, err := agent.BuildBindingDataList(context.Background(), newBlockData(txs...))
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		assert.Equal(t, 5, result[0].TxIndex)
+		assert.Equal(t, 1, result[1].TxIndex)
+	})
+}

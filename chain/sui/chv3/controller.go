@@ -360,7 +360,11 @@ func (c *Controller) queryTransactions(
 ) (result []types.TransactionResponseV1, err error) {
 	fieldFilter := objectx.HasTag("clickhouse").And(objectx.AnyHasTagEqualTo("required", "true"))
 	columns := objectx.CollectTagValue(&CHUTransaction{}, "clickhouse", fieldFilter)
-	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s",
+	// ORDER BY checkpoint, transaction_position so a checkpoint's transactions are
+	// returned in on-chain order. Without it the result follows the table sort key
+	// (checkpoint, ..., digest) = digest order within a checkpoint, which is not the
+	// on-chain order (chv4 likewise orders by checkpoint, tx_index).
+	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s ORDER BY checkpoint, transaction_position",
 		strings.Join(columns, "`,`"),
 		c.ctrl.FullLogicName(tableNameTransactions),
 		where)

@@ -48,8 +48,12 @@ func (a HandlerAgentEvent) BuildBindingDataList(
 					eventSeq, txIndex, bd.GetBlockNumber())
 			}
 			result = append(result, standard.BindingDataInner{
-				HandlerType:  protos.HandlerType_SUI_EVENT,
-				TxIndex:      txIndex,
+				HandlerType: protos.HandlerType_SUI_EVENT,
+				// On-chain checkpoint position (tx.TxIndex), not the mainData.Txs
+				// slice index: the controller orders bindings by (block, TxIndex, ...)
+				// to enforce strict on-chain order, and mainData.Txs is not guaranteed
+				// to be in checkpoint order.
+				TxIndex:      int(tx.TxIndex),
 				TxInnerIndex: eventSeq,
 				Data: &protos.Data{
 					Value: &protos.Data_SuiEvent_{

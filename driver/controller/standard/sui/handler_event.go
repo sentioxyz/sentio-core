@@ -46,8 +46,13 @@ func (a HandlerAgentEvent) BuildBindingDataList(
 					eventSeq, tx.TransactionPosition, tx.Digest.String(), bd.GetBlockNumber())
 			}
 			result = append(result, standard.BindingDataInner{
-				HandlerType:  protos.HandlerType_SUI_EVENT,
-				TxIndex:      txIndex,
+				HandlerType: protos.HandlerType_SUI_EVENT,
+				// TxIndex must be the transaction's on-chain position within the
+				// checkpoint, not its index in mainData.Txs: the controller orders
+				// bindings by (block, TxIndex, ...) to enforce strict on-chain order,
+				// and the data layer does not guarantee mainData.Txs is in checkpoint
+				// order (the json-rpc store returns digest order).
+				TxIndex:      tx.TransactionPosition,
 				TxInnerIndex: int(eventSeq),
 				Data: &protos.Data{
 					Value: &protos.Data_SuiEvent_{

@@ -31,7 +31,9 @@ func (a HandlerAgentFunction) BuildBindingDataList(
 			return nil, err
 		}
 		result = append(result, standard.BindingDataInner{
-			TxIndex:     txIndex,
+			// On-chain checkpoint position, not the mainData.Txs slice index — see
+			// the note in handler_event.go's BuildBindingDataList.
+			TxIndex:     tx.TransactionPosition,
 			HandlerType: protos.HandlerType_SUI_CALL,
 			Data: &protos.Data{
 				Value: &protos.Data_SuiCall_{

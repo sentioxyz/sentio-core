@@ -189,7 +189,7 @@ export function TableControls({ config, defaultOpen, onChange, data }: Props) {
             <div className="flex flex-1 flex-wrap items-start gap-2 rounded-md">
               {!isSql && (
                 <div className="flex">
-                  <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md  border bg-gray-50 px-3">
+                  <span className="sm:text-ilabel border-main inline-flex items-center rounded-l-md border border-r-0 bg-gray-50 px-3">
                     Calculation
                   </span>
                   <select
@@ -198,7 +198,7 @@ export function TableControls({ config, defaultOpen, onChange, data }: Props) {
                         config?.calculations[columnId]) ||
                       'LAST'
                     }
-                    className="sm:text-ilabel border-main text-text-foreground inline-flex h-full items-center rounded-r-md border border-l-0 py-1.5 pl-4 pr-7"
+                    className="border-main text-text-foreground sm:text-icontent focus:border-primary-600 hover:border-primary-600 inline-flex items-center rounded-r-md border pl-4 pr-7 focus:ring-0"
                     onChange={(e) =>
                       onCalculationChange(
                         columnId,

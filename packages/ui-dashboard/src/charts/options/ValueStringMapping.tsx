@@ -145,7 +145,7 @@ export function ValueStringMapping({ rules, onChange }: Props) {
       <Button
         type="button"
         role="secondary"
-        className="w-fit flex-none py-1.5"
+        className="py-1.5! w-fit flex-none"
         aria-label="remove"
         onClick={addRule}
         icon={<LuPlus />}

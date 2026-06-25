@@ -231,6 +231,20 @@ func grpcWebGetServiceInfo(t *testing.T, ctx context.Context, ep string) {
 	assert.True(t, sawTrailer, "expected a gRPC-web trailer frame")
 }
 
+func Test_encodeGrpcMessage(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"", ""},
+		{"ok", "ok"},
+		{"plain ASCII message.", "plain ASCII message."},
+		{"100%", "100%25"},
+		{"line\nbreak", "line%0Abreak"},
+		{"héllo", "h%C3%A9llo"}, // non-ASCII UTF-8 bytes escaped per-byte
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, encodeGrpcMessage(c.in), "encodeGrpcMessage(%q)", c.in)
+	}
+}
+
 func Test_grpcHandler(t *testing.T) {
 	log.ManuallySetLevel(zap.DebugLevel)
 	log.BindFlag()

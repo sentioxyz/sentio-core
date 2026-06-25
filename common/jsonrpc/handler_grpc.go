@@ -349,6 +349,12 @@ func grpcMetadataFromHTTPHeaders(h http.Header) metadata.MD {
 //
 // Wire format: [1 byte compressed flag][4 bytes big-endian length][<length> bytes data].
 // Returns io.EOF if the stream ended cleanly before the frame header.
+//
+// NOTE: the compressed flag is ignored and the payload is forwarded verbatim
+// (see grpcWriteFrame). The proxy negotiates no compression, so in practice
+// clients send uncompressed frames; a per-message-compressed frame would be
+// forwarded with its flag dropped and break decoding upstream. If per-message
+// compression is ever needed, this passthrough must decompress here first.
 func grpcReadFrame(r io.Reader) ([]byte, error) {
 	hdr := make([]byte, 5)
 	if _, err := io.ReadFull(r, hdr); err != nil {
@@ -362,7 +368,8 @@ func grpcReadFrame(r io.Reader) ([]byte, error) {
 	return data, nil
 }
 
-// grpcWriteFrame writes one uncompressed length-prefixed gRPC message frame to w.
+// grpcWriteFrame writes one uncompressed length-prefixed gRPC message frame to w
+// (compressed flag always 0; the proxy never compresses, matching grpcReadFrame).
 func grpcWriteFrame(w io.Writer, data []byte) error {
 	hdr := [5]byte{} // hdr[0] = 0: not compressed
 	binary.BigEndian.PutUint32(hdr[1:], uint32(len(data)))
@@ -379,6 +386,33 @@ func grpcWriteFrame(w io.Writer, data []byte) error {
 func grpcWriteError(w http.ResponseWriter, wire grpcWire, err error) {
 	st, _ := status.FromError(err)
 	wire.writeStatusOnly(w, st)
+}
+
+// encodeGrpcMessage percent-encodes a status message for the grpc-message
+// header/trailer per the gRPC-over-HTTP/2 spec: any byte outside printable
+// ASCII (0x20–0x7E), plus '%' itself, is escaped as %XX. grpc-go applies this
+// to statuses it emits, but this proxy writes the trailer by hand and so must
+// encode the message itself; an unescaped non-ASCII byte would otherwise be an
+// illegal header value.
+func encodeGrpcMessage(msg string) string {
+	for i := 0; i < len(msg); i++ {
+		if c := msg[i]; c < 0x20 || c > 0x7E || c == '%' {
+			return encodeGrpcMessageUnchecked(msg)
+		}
+	}
+	return msg
+}
+
+func encodeGrpcMessageUnchecked(msg string) string {
+	var sb strings.Builder
+	for i := 0; i < len(msg); i++ {
+		if c := msg[i]; c >= 0x20 && c <= 0x7E && c != '%' {
+			sb.WriteByte(c)
+		} else {
+			fmt.Fprintf(&sb, "%%%02X", c)
+		}
+	}
+	return sb.String()
 }
 
 // ── Client wire format (native gRPC vs gRPC-web) ────────────────────────────
@@ -442,7 +476,7 @@ func (nativeWire) writeTrailer(_ io.Writer, h http.Header, trailer metadata.MD, 
 	if _, ok := trailer["grpc-status"]; !ok {
 		h[http.TrailerPrefix+"Grpc-Status"] = []string{strconv.Itoa(int(st.Code()))}
 		if msg := st.Message(); msg != "" {
-			h[http.TrailerPrefix+"Grpc-Message"] = []string{msg}
+			h[http.TrailerPrefix+"Grpc-Message"] = []string{encodeGrpcMessage(msg)}
 		}
 	}
 	return nil
@@ -466,7 +500,7 @@ func (webWire) responseContentType() string                { return "application
 func (webWire) readMessage(r io.Reader) ([]byte, error)    { return grpcReadFrame(r) }
 func (webWire) writeMessage(w io.Writer, msg []byte) error { return grpcWriteFrame(w, msg) }
 
-func (wf webWire) writeTrailer(w io.Writer, _ http.Header, trailer metadata.MD, st *status.Status) error {
+func (webWire) writeTrailer(w io.Writer, _ http.Header, trailer metadata.MD, st *status.Status) error {
 	var buf bytes.Buffer
 	for k, vs := range trailer {
 		for _, v := range vs {
@@ -479,7 +513,7 @@ func (wf webWire) writeTrailer(w io.Writer, _ http.Header, trailer metadata.MD, 
 	if _, ok := trailer["grpc-status"]; !ok {
 		fmt.Fprintf(&buf, "grpc-status: %d\r\n", st.Code())
 		if msg := st.Message(); msg != "" {
-			fmt.Fprintf(&buf, "grpc-message: %s\r\n", msg)
+			fmt.Fprintf(&buf, "grpc-message: %s\r\n", encodeGrpcMessage(msg))
 		}
 	}
 	// gRPC-web trailer frame: the 0x80 flag bit marks the frame as trailers.
@@ -493,8 +527,8 @@ func (wf webWire) writeTrailer(w io.Writer, _ http.Header, trailer metadata.MD, 
 	return err
 }
 
-func (wf webWire) writeStatusOnly(w http.ResponseWriter, st *status.Status) {
+func (webWire) writeStatusOnly(w http.ResponseWriter, st *status.Status) {
 	w.Header().Set("Content-Type", "application/grpc-web+proto")
 	w.WriteHeader(http.StatusOK)
-	_ = wf.writeTrailer(w, w.Header(), metadata.MD{}, st)
+	_ = webWire{}.writeTrailer(w, w.Header(), metadata.MD{}, st)
 }

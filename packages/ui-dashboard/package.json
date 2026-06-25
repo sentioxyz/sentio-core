@@ -1,7 +1,7 @@
 {
   "private": false,
   "name": "@sentio/ui-dashboard",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "Dashboard UI components for the Sentio platform, decoupled from backend services.",
   "exports": {
     ".": {

@@ -27,6 +27,9 @@ export type {
   NoteLike,
   OverlayGraphLike,
   ChartLike,
+  TimeLike,
+  TimeRangeLike,
+  TimeRangeOverrideLike,
   // dashboard
   TemplateVariableLike,
   TemplateViewLike,

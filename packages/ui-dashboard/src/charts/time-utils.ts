@@ -17,6 +17,7 @@ import {
   type DurationLike
 } from '@sentio/ui-core'
 import { durationToSeconds } from './series-utils'
+import type { TimeLike } from '../types/chart'
 
 /** Window [currentTime, currentTime + interval] picked by a fixed interval. */
 export function pickRangeByInterval(
@@ -90,5 +91,33 @@ export function timeBefore(
   } else {
     const t = toDayjs(time)
     return t.subtract(durationValue, TimeUnitShortNames[duration.unit!])
+  }
+}
+
+// TimeLike (absolute/relative) ⇄ DateTimeValue. Ported proto-free from the
+// app's lib/time; operates on the structural `TimeLike` instead of the proto
+// `TimeRange.TimeLike` message.
+export function fromTimeLike(tl?: TimeLike): DateTimeValue | undefined {
+  if (!tl) {
+    return undefined
+  }
+  if (tl.relativeTime) {
+    const value = tl.relativeTime.value || 0
+    return {
+      value: Math.abs(value),
+      unit: tl.relativeTime.unit as RelativeTime['unit'],
+      sign: value < 0 ? -1 : 1
+    }
+  }
+  return dayjs.unix(parseInt(tl.absoluteTime || ''))
+}
+
+export function toTimeLike(t?: DateTimeValue): TimeLike {
+  if (dayjs.isDayjs(t)) {
+    return { absoluteTime: `${t.unix()}` }
+  }
+  const rt = t as RelativeTime
+  return {
+    relativeTime: { unit: rt.unit, value: rt.sign * rt.value, align: rt.align }
   }
 }

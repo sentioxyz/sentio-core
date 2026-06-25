@@ -6,4 +6,5 @@ export {
   TimeRangeOverride,
   defaultConfig as defaultTimeRangeOverrideConfig
 } from './TimeRangeOverride'
+export { SeriesControls } from './SeriesControls'
 export * from './group-styles'

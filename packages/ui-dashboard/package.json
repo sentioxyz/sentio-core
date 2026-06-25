@@ -37,6 +37,7 @@
     "@sentio/bigdecimal": "9.1.1-patch.3",
     "@sentio/chain": "workspace:^",
     "@sentio/ui-core": "workspace:^",
+    "@tanstack/react-virtual": "^3.2.0",
     "echarts": "^6.0.0",
     "immer": "^11.1.8",
     "lodash": "^4.17.21",

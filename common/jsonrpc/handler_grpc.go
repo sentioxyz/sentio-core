@@ -430,7 +430,10 @@ func encodeGrpcMessageUnchecked(msg string) string {
 // rejected with 415 (see wireForContentType). New formats only need a new
 // grpcWire implementation.
 type grpcWire interface {
-	// responseContentType is the Content-Type set on the response.
+	// responseContentType is the Content-Type set on the response. It echoes the
+	// request's Content-Type (within the supported set) so a client that sent an
+	// explicit "+proto" suffix gets it back verbatim, avoiding any mismatch with
+	// strict exact-match content-type validators (e.g. @protobuf-ts/grpcweb).
 	responseContentType() string
 	// readMessage reads one request message frame from the client.
 	readMessage(r io.Reader) ([]byte, error)
@@ -454,22 +457,23 @@ func wireForContentType(ct string) grpcWire {
 	}
 	switch ct {
 	case "application/grpc", "application/grpc+proto":
-		return nativeWire{}
+		return nativeWire{contentType: ct}
 	case "application/grpc-web", "application/grpc-web+proto":
-		return webWire{}
+		return webWire{contentType: ct}
 	default:
 		return nil
 	}
 }
 
-// nativeWire is the standard HTTP/2 gRPC wire format.
-type nativeWire struct{}
+// nativeWire is the standard HTTP/2 gRPC wire format. contentType is the
+// (param-stripped) request Content-Type, echoed back on the response.
+type nativeWire struct{ contentType string }
 
-func (nativeWire) responseContentType() string                { return "application/grpc" }
-func (nativeWire) readMessage(r io.Reader) ([]byte, error)    { return grpcReadFrame(r) }
-func (nativeWire) writeMessage(w io.Writer, msg []byte) error { return grpcWriteFrame(w, msg) }
+func (n nativeWire) responseContentType() string                { return n.contentType }
+func (n nativeWire) readMessage(r io.Reader) ([]byte, error)    { return grpcReadFrame(r) }
+func (n nativeWire) writeMessage(w io.Writer, msg []byte) error { return grpcWriteFrame(w, msg) }
 
-func (nativeWire) writeTrailer(_ io.Writer, h http.Header, trailer metadata.MD, st *status.Status) error {
+func (n nativeWire) writeTrailer(_ io.Writer, h http.Header, trailer metadata.MD, st *status.Status) error {
 	for k, vs := range trailer {
 		h[http.TrailerPrefix+textproto.CanonicalMIMEHeaderKey(k)] = vs
 	}
@@ -482,11 +486,11 @@ func (nativeWire) writeTrailer(_ io.Writer, h http.Header, trailer metadata.MD, 
 	return nil
 }
 
-func (nativeWire) writeStatusOnly(w http.ResponseWriter, st *status.Status) {
-	w.Header().Set("Content-Type", "application/grpc")
+func (n nativeWire) writeStatusOnly(w http.ResponseWriter, st *status.Status) {
+	w.Header().Set("Content-Type", n.contentType)
 	w.Header().Set("Grpc-Status", strconv.Itoa(int(st.Code())))
 	if msg := st.Message(); msg != "" {
-		w.Header().Set("Grpc-Message", msg)
+		w.Header().Set("Grpc-Message", encodeGrpcMessage(msg))
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -494,13 +498,14 @@ func (nativeWire) writeStatusOnly(w http.ResponseWriter, st *status.Status) {
 // webWire is the gRPC-web wire format (binary +proto).  Trailing metadata is
 // sent as a trailer frame in the response body instead of HTTP/2 trailers, so
 // fetch-based clients (which can't read HTTP/2 trailers) can consume it.
-type webWire struct{}
+// contentType is the (param-stripped) request Content-Type, echoed back.
+type webWire struct{ contentType string }
 
-func (webWire) responseContentType() string                { return "application/grpc-web+proto" }
-func (webWire) readMessage(r io.Reader) ([]byte, error)    { return grpcReadFrame(r) }
-func (webWire) writeMessage(w io.Writer, msg []byte) error { return grpcWriteFrame(w, msg) }
+func (wf webWire) responseContentType() string                { return wf.contentType }
+func (wf webWire) readMessage(r io.Reader) ([]byte, error)    { return grpcReadFrame(r) }
+func (wf webWire) writeMessage(w io.Writer, msg []byte) error { return grpcWriteFrame(w, msg) }
 
-func (webWire) writeTrailer(w io.Writer, _ http.Header, trailer metadata.MD, st *status.Status) error {
+func (wf webWire) writeTrailer(w io.Writer, _ http.Header, trailer metadata.MD, st *status.Status) error {
 	var buf bytes.Buffer
 	for k, vs := range trailer {
 		for _, v := range vs {
@@ -527,8 +532,8 @@ func (webWire) writeTrailer(w io.Writer, _ http.Header, trailer metadata.MD, st 
 	return err
 }
 
-func (webWire) writeStatusOnly(w http.ResponseWriter, st *status.Status) {
-	w.Header().Set("Content-Type", "application/grpc-web+proto")
+func (wf webWire) writeStatusOnly(w http.ResponseWriter, st *status.Status) {
+	w.Header().Set("Content-Type", wf.contentType)
 	w.WriteHeader(http.StatusOK)
-	_ = webWire{}.writeTrailer(w, w.Header(), metadata.MD{}, st)
+	_ = wf.writeTrailer(w, w.Header(), metadata.MD{}, st)
 }

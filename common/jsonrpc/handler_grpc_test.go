@@ -176,7 +176,7 @@ func subscribe(t *testing.T, ctx context.Context, ep string, round int) {
 // proxy responds with a gRPC-web response: application/grpc-web+proto
 // Content-Type, a message frame, and an in-body trailer frame carrying
 // grpc-status: 0.
-func grpcWebGetServiceInfo(t *testing.T, ctx context.Context, ep string) {
+func grpcWebGetServiceInfo(t *testing.T, ctx context.Context, ep, reqContentType string) {
 	reqMsg, err := proto.Marshal(&rpcv2.GetServiceInfoRequest{})
 	if !assert.NoError(t, err) {
 		return
@@ -192,14 +192,15 @@ func grpcWebGetServiceInfo(t *testing.T, ctx context.Context, ep string) {
 	if !assert.NoError(t, err) {
 		return
 	}
-	httpReq.Header.Set("Content-Type", "application/grpc-web+proto")
+	httpReq.Header.Set("Content-Type", reqContentType)
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if !assert.NoError(t, err) {
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
-	assert.Equal(t, "application/grpc-web+proto", resp.Header.Get("Content-Type"))
+	// The response Content-Type echoes the request's (within the gRPC-web set).
+	assert.Equal(t, reqContentType, resp.Header.Get("Content-Type"))
 
 	respBody, err := io.ReadAll(resp.Body)
 	if !assert.NoError(t, err) {
@@ -286,8 +287,10 @@ func Test_grpcHandler(t *testing.T) {
 	subscribe(t, ctx, proxyAddr, 10)
 
 	// Verify a gRPC-web client (e.g. a browser/fetch-based SDK) is served the
-	// gRPC-web wire format rather than native application/grpc.
-	grpcWebGetServiceInfo(t, ctx, proxyAddr)
+	// gRPC-web wire format rather than native application/grpc, and that the
+	// response Content-Type echoes the request's (both +proto and bare forms).
+	grpcWebGetServiceInfo(t, ctx, proxyAddr, "application/grpc-web+proto")
+	grpcWebGetServiceInfo(t, ctx, proxyAddr, "application/grpc-web")
 
 	time.Sleep(time.Second)
 	b, _ := json.MarshalIndent(proxyHandler.Snapshot(), "", "  ")

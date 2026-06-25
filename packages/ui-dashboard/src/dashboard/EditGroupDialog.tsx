@@ -37,8 +37,7 @@ function StyleCard({ selected, label, onClick, preview }: StyleCardProps) {
       type="button"
       onClick={onClick}
       className={classNames(
-        'flex flex-col items-stretch overflow-hidden rounded-lg border bg-white text-left transition-colors',
-        'dark:bg-default-bg',
+        'flex flex-col items-stretch overflow-hidden rounded-lg border text-left transition-colors',
         selected
           ? 'border-primary-600 ring-primary-600/30 ring-3 shadow-sm'
           : 'border-main hover:border-primary-400'

@@ -324,25 +324,21 @@ func (c *supernodeClient) FindTransactions(
 	return result, nil
 }
 
-// GetContractStartBlock asks the super node for the contract's earliest appearance block, then maps
-// it to [start, latest]: an appearance before start clamps to start; an appearance after latest (or
-// no appearance) is treated as not yet in range.
+// GetContractStartBlock asks the super node for the contract's earliest appearance block at or after
+// start (the floor), and treats an appearance after latest (or no appearance) as not yet in range.
 func (c *supernodeClient) GetContractStartBlock(
 	ctx context.Context,
 	address solana.PublicKey,
 	start, latest uint64,
 ) (uint64, bool, error) {
-	// Pass start as the floor: the super node will not look (or bill BigQuery) below it and clamps the
-	// result to it; we still clamp here too, since an older super node ignores the extra argument.
+	// Pass start as the floor so the super node bounds the backtrace to it (and won't bill BigQuery
+	// below it) and clamps the result to it.
 	var result solcore.GetContractStartBlockResult
 	if err := c.callContext(ctx, &result, 0, "sol_getContractStartBlock", address, start); err != nil {
 		return 0, false, err
 	}
 	if !result.Found || result.Slot > latest {
 		return 0, false, nil
-	}
-	if result.Slot < start {
-		return start, true, nil
 	}
 	return result.Slot, true, nil
 }

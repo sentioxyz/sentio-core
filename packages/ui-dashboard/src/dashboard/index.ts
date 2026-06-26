@@ -12,3 +12,4 @@ export {
   defaultConfig as defaultQueryValueConfig
 } from './QueryValueControls'
 export * from './group-styles'
+export { ImportPanelDialog } from './ImportPanelDialog'

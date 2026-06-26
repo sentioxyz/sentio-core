@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"sentioxyz/sentio-core/chain/sol"
 	rg "sentioxyz/sentio-core/common/range"
 )
 
@@ -16,10 +15,13 @@ import (
 // called by firstSlot, so the embedded nil interface is fine.
 type fakeArchiveStore struct {
 	Storage
-	permErr error
+	permErr  error
+	checkErr error
 }
 
-func (f fakeArchiveStore) CheckPermission(context.Context) error { return f.permErr }
+func (f fakeArchiveStore) CheckPermission(context.Context) (error, error) {
+	return f.permErr, f.checkErr
+}
 
 type fakeRangeStore struct{ start uint64 }
 
@@ -41,16 +43,15 @@ func TestFirstSlot(t *testing.T) {
 	})
 
 	t.Run("clean denial floors at the ClickHouse range start", func(t *testing.T) {
-		denied := errors.Wrap(sol.ErrArchiveAccessDenied, "tier FREE not permitted")
-		svc := &RPCService{bqStore: fakeArchiveStore{permErr: denied}, rangeStore: rng}
+		svc := &RPCService{bqStore: fakeArchiveStore{permErr: errors.New("tier FREE not permitted")}, rangeStore: rng}
 		got, err := svc.firstSlot(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, uint64(chStart), got)
 	})
 
-	t.Run("transient permission error is propagated, not treated as denial", func(t *testing.T) {
+	t.Run("transient check error is propagated, not treated as denial", func(t *testing.T) {
 		boom := errors.New("tier db down")
-		svc := &RPCService{bqStore: fakeArchiveStore{permErr: boom}, rangeStore: rng}
+		svc := &RPCService{bqStore: fakeArchiveStore{checkErr: boom}, rangeStore: rng}
 		_, err := svc.firstSlot(ctx)
 		require.ErrorIs(t, err, boom)
 	})

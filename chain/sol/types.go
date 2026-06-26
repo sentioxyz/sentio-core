@@ -14,15 +14,6 @@ import (
 // GetLatestHeaderResult.CheckAPIVersion), mirroring the sui super node.
 const APIVersion = 1
 
-// ErrArchiveAccessDenied marks a *clean* denial of the BigQuery archival tier — the caller is
-// identified but not entitled. A bq.PermissionChecker (surfaced via bq.Store.CheckPermission) should
-// wrap it for every such denial, and return any other (unwrapped) error for a transient failure of
-// the check itself (e.g. a tier-DB outage). The super node relies on this distinction: a clean denial
-// maps to a non-archival first slot, while a transient error is propagated so the driver retries
-// instead of being silently downgraded. It lives here (not in chain/sol/bq) because the super node
-// must reference it and bq already imports the super node package.
-var ErrArchiveAccessDenied = errors.New("bigquery archive access denied")
-
 // SimpleBlock is the minimal block header returned by sol_getLatestHeader: just enough to satisfy
 // the driver's controller.BlockHeader (slot, hashes, time) without materializing a full block. Its
 // JSON keys match Block's so the two header shapes are interchangeable on the wire.

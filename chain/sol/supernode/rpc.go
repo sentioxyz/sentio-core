@@ -3,7 +3,6 @@ package supernode
 import (
 	"context"
 	"encoding/json"
-	stderrors "errors"
 	"math"
 	"sort"
 
@@ -133,16 +132,16 @@ func (s *RPCService) bqFindTxLoader(
 
 // permissionGated is implemented by a Storage that restricts access per caller (the BigQuery
 // archival tier). The super node uses it to decide, without running a query, whether the caller may
-// reach the older history below the ClickHouse range.
+// reach the older history below the ClickHouse range. CheckPermission returns (permErr, checkErr):
+// permErr is a clean denial, checkErr a transient check failure; both nil means allowed.
 type permissionGated interface {
-	CheckPermission(ctx context.Context) error
+	CheckPermission(ctx context.Context) (permErr, checkErr error)
 }
 
 // callerMayUseArchive reports whether the caller in ctx may use the BigQuery archival tier. It
-// returns (false, nil) for a clean denial — no tier configured, or the gate cleanly denies this
-// caller (sol.ErrArchiveAccessDenied) — and (false, err) when the permission check itself failed
-// transiently (e.g. a tier-DB outage): the decision is unknown, so the caller should retry rather
-// than be silently treated as denied.
+// returns (false, nil) for a clean denial (no tier configured, or the gate denies this caller) and
+// (false, checkErr) when the permission check itself failed transiently (e.g. a tier-DB outage): the
+// decision is unknown, so the caller should retry rather than be silently treated as denied.
 func (s *RPCService) callerMayUseArchive(ctx context.Context) (bool, error) {
 	if s.bqStore == nil {
 		return false, nil
@@ -151,14 +150,11 @@ func (s *RPCService) callerMayUseArchive(ctx context.Context) (bool, error) {
 	if !ok {
 		return true, nil
 	}
-	switch err := pg.CheckPermission(ctx); {
-	case err == nil:
-		return true, nil
-	case stderrors.Is(err, sol.ErrArchiveAccessDenied):
-		return false, nil
-	default:
-		return false, err
+	permErr, checkErr := pg.CheckPermission(ctx)
+	if checkErr != nil {
+		return false, checkErr
 	}
+	return permErr == nil, nil
 }
 
 // firstSlot is the earliest slot the caller may index: 0 when it may use the BigQuery archival tier

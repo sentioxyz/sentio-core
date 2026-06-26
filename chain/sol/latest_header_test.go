@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,49 +14,37 @@ func unixTime(t int64) *solana.UnixTimeSeconds {
 	return &v
 }
 
-// A new GetLatestHeaderResult must decode into the pre-SimpleBlock driver's Block (header fields),
-// and an old bare Block response must decode into GetLatestHeaderResult — so a driver/super-node
-// rolling upgrade survives in both directions.
-func TestGetLatestHeaderResult_WireCompatWithBlock(t *testing.T) {
+func TestGetLatestHeaderResult_JSON(t *testing.T) {
 	hash := solana.Hash{1, 2, 3}
 	parent := solana.Hash{4, 5, 6}
+	resp := GetLatestHeaderResult{
+		SimpleBlock: SimpleBlock{Slot: 1234, Blockhash: hash, PreviousBlockhash: parent, BlockTime: unixTime(1700000000)},
+		FirstSlot:   1000,
+		APIVersion:  APIVersion,
+	}
 
-	t.Run("new result decodes into old Block", func(t *testing.T) {
-		resp := GetLatestHeaderResult{
-			SimpleBlock: SimpleBlock{Slot: 1234, Blockhash: hash, PreviousBlockhash: parent, BlockTime: unixTime(1700000000)},
-			FirstSlot:   1000,
-			APIVersion:  APIVersion,
-		}
-		raw, err := json.Marshal(resp)
-		require.NoError(t, err)
+	raw, err := json.Marshal(resp)
+	require.NoError(t, err)
+	// The slot key must be lowercase "slot", consistent with the other header fields (regression: it
+	// was once serialized as the untagged, capitalized "Slot").
+	var keyed map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw, &keyed))
+	assert.Contains(t, keyed, "slot")
+	assert.NotContains(t, keyed, "Slot")
+	assert.Contains(t, keyed, "firstSlot")
+	assert.Contains(t, keyed, "apiVersion")
 
-		var blk Block
-		require.NoError(t, json.Unmarshal(raw, &blk))
-		assert.Equal(t, uint64(1234), blk.Slot)
-		require.NotNil(t, blk.GetBlockResult)
-		assert.Equal(t, hash, blk.Blockhash)
-		assert.Equal(t, parent, blk.PreviousBlockhash)
-	})
+	var got GetLatestHeaderResult
+	require.NoError(t, json.Unmarshal(raw, &got))
+	assert.Equal(t, resp, got)
 
-	t.Run("old bare Block decodes into new result", func(t *testing.T) {
-		old := Block{Slot: 1234, GetBlockResult: &rpc.GetBlockResult{
-			Blockhash:         hash,
-			PreviousBlockhash: parent,
-			BlockTime:         unixTime(1700000000),
-		}}
-		raw, err := json.Marshal(old)
-		require.NoError(t, err)
-
-		var resp GetLatestHeaderResult
-		require.NoError(t, json.Unmarshal(raw, &resp))
-		assert.Equal(t, uint64(1234), resp.Slot)
-		assert.Equal(t, hash, resp.Blockhash)
-		assert.Equal(t, parent, resp.PreviousBlockhash)
-		// An old super node sends neither field; both must default safely.
-		assert.Equal(t, uint64(0), resp.FirstSlot)
-		assert.Equal(t, 0, resp.APIVersion)
-		assert.NoError(t, resp.CheckAPIVersion()) // 0 <= APIVersion ⇒ no forced upgrade
-	})
+	// SimpleBlock shares Block's JSON keys, so a header is interchangeable between the two shapes.
+	var blk Block
+	require.NoError(t, json.Unmarshal(raw, &blk))
+	assert.Equal(t, uint64(1234), blk.Slot)
+	require.NotNil(t, blk.GetBlockResult)
+	assert.Equal(t, hash, blk.Blockhash)
+	assert.Equal(t, parent, blk.PreviousBlockhash)
 }
 
 func TestGetLatestHeaderResult_CheckAPIVersion(t *testing.T) {

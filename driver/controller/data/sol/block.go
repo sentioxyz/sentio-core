@@ -7,7 +7,7 @@ import (
 )
 
 type Block struct {
-	Slot uint64
+	Slot uint64 `json:"slot"`
 	*rpc.GetBlockResult
 }
 

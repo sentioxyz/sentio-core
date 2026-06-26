@@ -16,11 +16,9 @@ const APIVersion = 1
 
 // SimpleBlock is the minimal block header returned by sol_getLatestHeader: just enough to satisfy
 // the driver's controller.BlockHeader (slot, hashes, time) without materializing a full block. Its
-// JSON keys deliberately match Block's (Slot uppercase, the rest from the embedded GetBlockResult)
-// so a driver/super-node rolling upgrade decodes either shape — an older driver still reads it as a
-// Block, and a newer driver still reads an older super node's bare Block as a SimpleBlock.
+// JSON keys match Block's so the two header shapes are interchangeable on the wire.
 type SimpleBlock struct {
-	Slot              uint64                  `json:"Slot"`
+	Slot              uint64                  `json:"slot"`
 	Blockhash         solana.Hash             `json:"blockhash"`
 	PreviousBlockhash solana.Hash             `json:"previousBlockhash"`
 	BlockTime         *solana.UnixTimeSeconds `json:"blockTime"`
@@ -66,7 +64,7 @@ func (r GetLatestHeaderResult) CheckAPIVersion() error {
 // that Block.Skipped() reports true. sol_getBlock fills only the header; sol_getBlocksByInterval
 // additionally fills the transaction signatures.
 type Block struct {
-	Slot uint64
+	Slot uint64 `json:"slot"`
 	*rpc.GetBlockResult
 }
 

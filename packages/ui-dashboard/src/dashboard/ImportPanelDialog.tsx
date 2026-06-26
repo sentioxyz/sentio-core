@@ -104,7 +104,9 @@ export const ImportPanelDialog = ({
           ref={textareaRef}
           className={classNames(
             'text-icontent text-text-foreground h-[60vh] w-full rounded-sm border',
-            isInvalid ? 'border-rose-600! ring-rose-600!' : ''
+            isInvalid
+              ? 'border-rose-600! ring-rose-600! focus:border-rose-600! focus:[box-shadow:0_0_0_1px_rgb(225_29_72)]!'
+              : ''
           )}
           rows={10}
           onChange={(evt) => debouncedValidate(evt.target.value)}

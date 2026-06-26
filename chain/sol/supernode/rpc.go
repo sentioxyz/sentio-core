@@ -3,6 +3,7 @@ package supernode
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"math"
 	"sort"
 
@@ -137,23 +138,40 @@ type permissionGated interface {
 	CheckPermission(ctx context.Context) error
 }
 
-// callerMayUseArchive reports whether the caller in ctx may use the BigQuery archival tier: the tier
-// must be configured and, when it gates access per caller, must permit this caller.
-func (s *RPCService) callerMayUseArchive(ctx context.Context) bool {
+// callerMayUseArchive reports whether the caller in ctx may use the BigQuery archival tier. It
+// returns (false, nil) for a clean denial — no tier configured, or the gate cleanly denies this
+// caller (sol.ErrArchiveAccessDenied) — and (false, err) when the permission check itself failed
+// transiently (e.g. a tier-DB outage): the decision is unknown, so the caller should retry rather
+// than be silently treated as denied.
+func (s *RPCService) callerMayUseArchive(ctx context.Context) (bool, error) {
 	if s.bqStore == nil {
-		return false
+		return false, nil
 	}
-	if pg, ok := s.bqStore.(permissionGated); ok {
-		return pg.CheckPermission(ctx) == nil
+	pg, ok := s.bqStore.(permissionGated)
+	if !ok {
+		return true, nil
 	}
-	return true
+	switch err := pg.CheckPermission(ctx); {
+	case err == nil:
+		return true, nil
+	case stderrors.Is(err, sol.ErrArchiveAccessDenied):
+		return false, nil
+	default:
+		return false, err
+	}
 }
 
 // firstSlot is the earliest slot the caller may index: 0 when it may use the BigQuery archival tier
 // (the full history is reachable), otherwise the start of the ClickHouse range (the oldest slot the
-// caller can actually read). The driver uses it to clamp the agent's start block.
+// caller can actually read). The driver uses it to clamp the agent's start block. A transient
+// permission-check failure is propagated (not silently mapped to the ClickHouse start), so the driver
+// retries instead of indexing from the wrong floor.
 func (s *RPCService) firstSlot(ctx context.Context) (uint64, error) {
-	if s.callerMayUseArchive(ctx) {
+	mayUse, err := s.callerMayUseArchive(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if mayUse {
 		return 0, nil
 	}
 	r, err := s.rangeStore.Get(ctx)

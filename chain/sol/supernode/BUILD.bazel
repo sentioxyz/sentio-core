@@ -20,7 +20,10 @@ go_library(
 
 go_test(
     name = "supernode_test",
-    srcs = ["rpc_test.go"],
+    srcs = [
+        "first_slot_test.go",
+        "rpc_test.go",
+    ],
     embed = [":supernode"],
     # Hits external public mainnet RPC endpoints; excluded from `bazel test //...`
     # and CI. Run explicitly: `bazel test //chain/sol/supernode:supernode_test`.
@@ -31,7 +34,10 @@ go_test(
         "//common/errgroup",
         "//common/jsonrpc",
         "//common/log",
+        "//common/range",
+        "@com_github_pkg_errors//:errors",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_zap//zapcore",
     ],
 )

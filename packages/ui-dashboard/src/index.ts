@@ -38,6 +38,7 @@ export type {
   DashboardExtraLike,
   GroupLike,
   PanelLike,
+  UserInfoLike,
   DashboardLike,
   ComputeStatsLike,
   SharingConfigLike,

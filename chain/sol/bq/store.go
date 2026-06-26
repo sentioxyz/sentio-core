@@ -168,6 +168,13 @@ func (s *Store) checkPermission(ctx context.Context) error {
 	return nil
 }
 
+// CheckPermission reports whether the caller in ctx may use the BigQuery archival tier (nil =
+// permitted). The super node calls this to decide archival eligibility (sol_getLatestHeader's
+// FirstSlot, and whether sol_getContractStartBlock should consult BigQuery) without running a query.
+func (s *Store) CheckPermission(ctx context.Context) error {
+	return s.checkPermission(ctx)
+}
+
 var _ supernode.Storage = (*Store)(nil)
 
 func (s *Store) Close() error { return s.client.Close() }

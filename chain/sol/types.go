@@ -6,10 +6,60 @@ import (
 
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/pkg/errors"
 )
 
-// APIVersion is the version of the super node sol_* protocol.
+// APIVersion is the version of the super node sol_* protocol. The driver compares it against the
+// version reported by sol_getLatestHeader and restarts to upgrade when the super node is newer (see
+// GetLatestHeaderResult.CheckAPIVersion), mirroring the sui super node.
 const APIVersion = 1
+
+// SimpleBlock is the minimal block header returned by sol_getLatestHeader: just enough to satisfy
+// the driver's controller.BlockHeader (slot, hashes, time) without materializing a full block. Its
+// JSON keys deliberately match Block's (Slot uppercase, the rest from the embedded GetBlockResult)
+// so a driver/super-node rolling upgrade decodes either shape — an older driver still reads it as a
+// Block, and a newer driver still reads an older super node's bare Block as a SimpleBlock.
+type SimpleBlock struct {
+	Slot              uint64                  `json:"Slot"`
+	Blockhash         solana.Hash             `json:"blockhash"`
+	PreviousBlockhash solana.Hash             `json:"previousBlockhash"`
+	BlockTime         *solana.UnixTimeSeconds `json:"blockTime"`
+}
+
+// NewSimpleBlock builds a SimpleBlock from a (non-skipped) slot.
+func NewSimpleBlock(s *Slot) SimpleBlock {
+	return SimpleBlock{
+		Slot:              s.SlotNumber,
+		Blockhash:         s.Blockhash,
+		PreviousBlockhash: s.PreviousBlockhash,
+		BlockTime:         s.BlockTime,
+	}
+}
+
+func (b SimpleBlock) GetBlockNumber() uint64     { return b.Slot }
+func (b SimpleBlock) GetBlockHash() string       { return b.Blockhash.String() }
+func (b SimpleBlock) GetBlockParentHash() string { return b.PreviousBlockhash.String() }
+func (b SimpleBlock) GetBlockTime() time.Time    { return b.BlockTime.Time() }
+
+// GetLatestHeaderResult is the response of sol_getLatestHeader. It carries the latest non-skipped
+// header (flattened SimpleBlock fields), the earliest slot the caller may index (FirstSlot: 0 when
+// the caller may use the BigQuery archival tier, otherwise the start of the ClickHouse range), and
+// the super node's APIVersion.
+type GetLatestHeaderResult struct {
+	SimpleBlock
+	FirstSlot  uint64 `json:"firstSlot"`
+	APIVersion int    `json:"apiVersion"`
+}
+
+// CheckAPIVersion reports whether the super node is newer than this client understands, in which case
+// the driver should restart to upgrade. An older/absent version (e.g. a pre-SimpleBlock super node
+// that returns 0) is always accepted.
+func (r GetLatestHeaderResult) CheckAPIVersion() error {
+	if r.APIVersion <= APIVersion {
+		return nil
+	}
+	return errors.Errorf("remote sol api version %d is greater than %d", r.APIVersion, APIVersion)
+}
 
 // Block is the response of sol_getBlock / an element of sol_getBlocksByInterval. It is
 // JSON-compatible with the driver's Block: a skipped slot is encoded with a nil GetBlockResult so

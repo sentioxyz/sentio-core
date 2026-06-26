@@ -497,59 +497,38 @@ func (s *RPCService) GetContractStartBlock(
 	if err != nil {
 		return sol.GetContractStartBlockResult{}, err
 	}
-
-	earliest, found, err := s.store.EarliestProgramSlot(ctx, address)
-	if err != nil {
-		return sol.GetContractStartBlockResult{}, err
-	}
-	switch {
-	case found:
-		// ClickHouse has it. Only when the program appears at the very lower bound might it extend
-		// below into the (older, costlier) archive; above the bound chMin is already the global earliest.
-		if earliest <= r.Start {
-			bqMin, bqFound, bqErr := s.archiveEarliest(ctx, address, r, startFrom)
-			if bqErr != nil {
-				return sol.GetContractStartBlockResult{}, bqErr
-			}
-			if bqFound && bqMin < earliest {
-				earliest = bqMin
-			}
-		}
-	default:
-		// Absent from ClickHouse: the program may live entirely in the older archive, or be brand-new
-		// and not yet synced (still only in the latest-slot cache).
-		if earliest, found, err = s.archiveEarliest(ctx, address, r, startFrom); err != nil {
-			return sol.GetContractStartBlockResult{}, err
-		}
-		if !found {
-			if earliest, found, err = s.cacheEarliest(ctx, address); err != nil {
-				return sol.GetContractStartBlockResult{}, err
-			}
-		}
-	}
-
-	if !found {
-		return sol.GetContractStartBlockResult{}, nil
-	}
 	// The caller indexes from startFrom at the earliest, so never report a slot below it.
-	return sol.GetContractStartBlockResult{Slot: max(earliest, startFrom), Found: true}, nil
-}
-
-// archiveEarliest returns the earliest BigQuery (archival) slot at which address appears. It skips
-// the query — returning (0, false) — when the archive cannot help this request: it is disabled, the
-// ClickHouse range is empty, or the caller's floor is at/above the range start (so nothing below it
-// is wanted, and the floored caller may not have archive permission anyway). The archive only holds
-// slots below the ClickHouse range start.
-func (s *RPCService) archiveEarliest(
-	ctx context.Context,
-	address solana.PublicKey,
-	r rg.Range,
-	startFrom uint64,
-) (uint64, bool, error) {
-	if s.bqStore == nil || r.IsEmpty() || startFrom >= r.Start {
-		return 0, false, nil
+	result := func(slot uint64) sol.GetContractStartBlockResult {
+		return sol.GetContractStartBlockResult{Slot: max(slot, startFrom), Found: true}
 	}
-	return s.bqStore.EarliestProgramSlot(ctx, address)
+
+	// Search oldest data first, so the first hit is the global earliest. The BigQuery archive holds
+	// only slots below the ClickHouse range start (which are always earlier than any ClickHouse slot),
+	// so consult it only when the caller wants — and may read — history that far back (startFrom <
+	// r.Start); a caller floored at/above the range never reaches it (which also avoids a BigQuery
+	// permission error for callers without archive access).
+	if s.bqStore != nil && !r.IsEmpty() && startFrom < r.Start {
+		bqMin, found, bqErr := s.bqStore.EarliestProgramSlot(ctx, address)
+		if bqErr != nil {
+			return sol.GetContractStartBlockResult{}, bqErr
+		}
+		if found {
+			return result(bqMin), nil
+		}
+	}
+	// Then ClickHouse (the bulk of the retained history)...
+	if chMin, found, chErr := s.store.EarliestProgramSlot(ctx, address); chErr != nil {
+		return sol.GetContractStartBlockResult{}, chErr
+	} else if found {
+		return result(chMin), nil
+	}
+	// ...then the latest-slot cache (a brand-new program not yet synced to ClickHouse).
+	if cacheMin, found, cacheErr := s.cacheEarliest(ctx, address); cacheErr != nil {
+		return sol.GetContractStartBlockResult{}, cacheErr
+	} else if found {
+		return result(cacheMin), nil
+	}
+	return sol.GetContractStartBlockResult{}, nil
 }
 
 // cacheEarliest scans the latest-slot cache for the earliest non-skipped slot invoking address, used

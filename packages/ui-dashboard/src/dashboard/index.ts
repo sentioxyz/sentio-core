@@ -14,3 +14,4 @@ export {
 } from './QueryValueControls'
 export * from './group-styles'
 export { ImportPanelDialog } from './ImportPanelDialog'
+export { ExportDashboardDialog } from './ExportDashboardDialog'

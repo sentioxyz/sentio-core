@@ -42,7 +42,15 @@ export interface GroupLike {
   highlightColor?: string
 }
 
-/** A dashboard panel. `creator`/`updater` user info kept opaque for now. */
+/** Minimal user-info shape for owner/creator display. */
+export interface UserInfoLike {
+  username?: string
+  picture?: string
+  firstName?: string
+  lastName?: string
+}
+
+/** A dashboard panel. */
 export interface PanelLike {
   id?: string
   name?: string
@@ -50,8 +58,8 @@ export interface PanelLike {
   chart?: ChartLike
   /** Non-empty => renders inside the group panel with this id. */
   groupId?: string
-  creator?: unknown
-  updater?: unknown
+  creator?: UserInfoLike
+  updater?: UserInfoLike
 }
 
 /** A dashboard. `sharing` kept opaque until the share dialog is migrated. */

@@ -1,4 +1,5 @@
 export { EditDashboardDialog } from './EditDashboardDialog'
+export { ErrorChart } from './ErrorChart'
 export { EditGroupDialog } from './EditGroupDialog'
 export { DashboardRefresh } from './DashboardRefresh'
 export { ShareDashboardDialog } from './ShareDashboardDialog'
@@ -12,3 +13,4 @@ export {
   defaultConfig as defaultQueryValueConfig
 } from './QueryValueControls'
 export * from './group-styles'
+export { ImportPanelDialog } from './ImportPanelDialog'

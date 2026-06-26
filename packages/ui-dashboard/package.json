@@ -1,7 +1,7 @@
 {
   "private": false,
   "name": "@sentio/ui-dashboard",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "description": "Dashboard UI components for the Sentio platform, decoupled from backend services.",
   "exports": {
     ".": {
@@ -34,6 +34,7 @@
   "dependencies": {
     "@floating-ui/react": "^0.27.16",
     "@headlessui/react": "1.7.7",
+    "@monaco-editor/react": "^4.7.0",
     "@sentio/bigdecimal": "9.1.1-patch.3",
     "@sentio/chain": "workspace:^",
     "@sentio/ui-core": "workspace:^",
@@ -46,6 +47,7 @@
   "peerDependencies": {
     "dayjs": ">=1.11",
     "echarts": ">=6",
+    "monaco-editor": ">=0.40",
     "react": ">=18",
     "react-dom": ">=18"
   },
@@ -60,6 +62,7 @@
     "concurrently": "^9.2.1",
     "dayjs": "^1.11.2",
     "echarts": "^6.0.0",
+    "monaco-editor": "^0.55.1",
     "postcss": "^8.5.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

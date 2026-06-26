@@ -79,9 +79,10 @@ type Config struct {
 	// billed, the BigQuery on-demand cost driver). The launcher uses it to emit metrics with its own
 	// attributes (network, server name, ...). Optional.
 	Notifier Notifier
-	// PermissionChecker, when set, is called before every BigQuery query; a non-nil error rejects the
-	// request (no query is run). The launcher supplies one that gates access by the caller's project
-	// tier (a cost guard on who may use the BigQuery tier). Optional (nil = allow all).
+	// PermissionChecker, when set, is consulted before every BigQuery query; a non-nil permErr or
+	// checkErr rejects the request (no query is run). The launcher supplies one that gates access by
+	// the caller's project tier (a cost guard on who may use the BigQuery tier). Optional (nil = allow
+	// all).
 	PermissionChecker PermissionChecker
 }
 
@@ -91,11 +92,18 @@ type Config struct {
 // adds bytes billed to an OpenTelemetry counter with richer attributes (network, server name).
 type Notifier func(ctx context.Context, method, source string, used time.Duration, count int, bytesBilled int64)
 
-// PermissionChecker decides whether the caller in ctx may use the BigQuery tier; a non-nil error
-// rejects the query before it runs. The bq store stays decoupled from project/tier lookups; the
-// launcher supplies one that resolves the caller's project (from jsonrpc.CtxData.ReqSrc.Labels) to
-// its owner's tier and rejects tiers outside the configured allow-set.
-type PermissionChecker func(ctx context.Context) error
+// PermissionChecker decides whether the caller in ctx may use the BigQuery tier. It returns two
+// orthogonal errors (at most one non-nil):
+//
+//   - permErr  — a clean denial: the caller is identified but not entitled (carries a descriptive
+//     reason). The super node maps this to a non-archival first slot.
+//   - checkErr — the check itself failed transiently (e.g. a tier-DB outage); the decision is unknown.
+//     The super node propagates this so the driver retries instead of being silently downgraded.
+//
+// Both nil means allowed. The bq store stays decoupled from project/tier lookups; the launcher
+// supplies one that resolves the caller's project (from jsonrpc.CtxData.ReqSrc.Labels) to its owner's
+// tier and denies tiers outside the configured allow-set.
+type PermissionChecker func(ctx context.Context) (permErr, checkErr error)
 
 // ProgramStart is the cached EarliestProgramSlot result for one program address. When Found, Slot is
 // the (immutable) earliest slot. When not Found, SearchedThrough records that the program has no
@@ -160,12 +168,25 @@ func NewStore(ctx context.Context, cfg Config) (*Store, error) {
 	return s, nil
 }
 
-// checkPermission gates a BigQuery query on the configured PermissionChecker (no-op when unset).
-func (s *Store) checkPermission(ctx context.Context) error {
-	if s.permissionChecker != nil {
-		return s.permissionChecker(ctx)
+// CheckPermission reports the caller's BigQuery eligibility (permErr, checkErr); both nil = permitted.
+// The super node calls it to decide archival eligibility (sol_getLatestHeader's FirstSlot, and
+// whether sol_getContractStartBlock should consult BigQuery) without running a query, distinguishing
+// a clean denial (permErr) from a transient check failure (checkErr). Allow-all when unset.
+func (s *Store) CheckPermission(ctx context.Context) (permErr, checkErr error) {
+	if s.permissionChecker == nil {
+		return nil, nil
 	}
-	return nil
+	return s.permissionChecker(ctx)
+}
+
+// checkPermission gates a BigQuery query: either a clean denial or a transient check failure rejects
+// it, so the two CheckPermission errors collapse to one (no-op when no checker is set).
+func (s *Store) checkPermission(ctx context.Context) error {
+	permErr, checkErr := s.CheckPermission(ctx)
+	if checkErr != nil {
+		return checkErr
+	}
+	return permErr
 }
 
 var _ supernode.Storage = (*Store)(nil)

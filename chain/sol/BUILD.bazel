@@ -25,11 +25,15 @@ go_library(
 
 go_test(
     name = "sol_test",
-    srcs = ["sol_test.go"],
+    srcs = [
+        "latest_header_test.go",
+        "sol_test.go",
+    ],
     embed = [":sol"],
     deps = [
         "@com_github_gagliardetto_solana_go//:solana-go",
         "@com_github_gagliardetto_solana_go//rpc",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

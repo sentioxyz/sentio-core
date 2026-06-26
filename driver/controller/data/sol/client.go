@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -75,8 +74,6 @@ type supernodeClient struct {
 	cli *ethrpc.Client
 
 	cachedHeaders *data.BlockCache[Block]
-
-	savedLatestBlockNumber atomic.Uint64
 }
 
 // NewClient selects the data client for a sol chain. It uses the native Solana RPC client when the
@@ -246,26 +243,29 @@ func (c *supernodeClient) getBlock(ctx context.Context, blockNumber uint64) (Blo
 }
 
 // getLatestHeader long-polls the super node for the latest non-skipped block header with slot > gt.
-// The super node blocks until such a block exists, so the driver never has to poll, and the
-// returned header is guaranteed non-skipped (BlockTime set).
-func (c *supernodeClient) getLatestHeader(ctx context.Context, gt uint64) (Block, error) {
-	var blk Block
-	if err := c.callContext(ctx, &blk, 0, "sol_getLatestHeader", gt); err != nil {
-		return Block{}, err
-	}
-	c.savedLatestBlockNumber.Store(blk.Slot)
-	return blk, nil
-}
-
-// GetLatest returns the latest non-skipped header. first is 0: the super node serves the full
-// available history (ClickHouse + BigQuery) and bounds the start range itself, so the driver imposes
-// no client-side first block (the processor's own start / GetContractStartBlock decide it).
-func (c *supernodeClient) GetLatest(ctx context.Context) (latest controller.BlockHeader, first uint64, err error) {
-	blk, err := c.getLatestHeader(ctx, 0)
-	if err != nil {
+// The super node blocks until such a block exists, so the driver never has to poll, and the returned
+// header is guaranteed non-skipped (BlockTime set). It also returns the caller's first indexable slot
+// (0 when the BigQuery archival tier is reachable, else the ClickHouse range start) and verifies the
+// super node is not newer than this driver.
+func (c *supernodeClient) getLatestHeader(
+	ctx context.Context,
+	gt uint64,
+) (latest controller.BlockHeader, first uint64, err error) {
+	var resp solcore.GetLatestHeaderResult
+	if err = c.callContext(ctx, &resp, 0, "sol_getLatestHeader", gt); err != nil {
 		return nil, 0, err
 	}
-	return blk, 0, nil
+	if err = resp.CheckAPIVersion(); err != nil {
+		return nil, 0, errors.Wrapf(controller.ErrInternalNeedUpgrade, err.Error())
+	}
+	return resp.SimpleBlock, resp.FirstSlot, nil
+}
+
+// GetLatest returns the latest non-skipped header and the caller's first indexable slot, which the
+// driver uses to clamp the agent's start block (the super node reports 0 when the caller may read the
+// full BigQuery + ClickHouse history, otherwise the start of the ClickHouse range).
+func (c *supernodeClient) GetLatest(ctx context.Context) (latest controller.BlockHeader, first uint64, err error) {
+	return c.getLatestHeader(ctx, 0)
 }
 
 func (c *supernodeClient) Subscribe(
@@ -278,11 +278,11 @@ func (c *supernodeClient) Subscribe(
 		c.watchLatestInterval,
 		from,
 		func(ctx context.Context, blockNumberGt uint64) (latest controller.BlockHeader, broken, err error) {
-			blk, err := c.getLatestHeader(ctx, blockNumberGt)
+			latest, _, err = c.getLatestHeader(ctx, blockNumberGt)
 			if err != nil {
 				return nil, nil, err
 			}
-			return blk, nil, nil
+			return latest, nil, nil
 		},
 		callback)
 }
@@ -324,23 +324,21 @@ func (c *supernodeClient) FindTransactions(
 	return result, nil
 }
 
-// GetContractStartBlock asks the super node for the contract's earliest appearance block, then maps
-// it to [start, latest]: an appearance before start clamps to start; an appearance after latest (or
-// no appearance) is treated as not yet in range.
+// GetContractStartBlock asks the super node for the contract's earliest appearance block at or after
+// start (the floor), and treats an appearance after latest (or no appearance) as not yet in range.
 func (c *supernodeClient) GetContractStartBlock(
 	ctx context.Context,
 	address solana.PublicKey,
 	start, latest uint64,
 ) (uint64, bool, error) {
+	// Pass start as the floor so the super node bounds the backtrace to it (and won't bill BigQuery
+	// below it) and clamps the result to it.
 	var result solcore.GetContractStartBlockResult
-	if err := c.callContext(ctx, &result, 0, "sol_getContractStartBlock", address); err != nil {
+	if err := c.callContext(ctx, &result, 0, "sol_getContractStartBlock", address, start); err != nil {
 		return 0, false, err
 	}
 	if !result.Found || result.Slot > latest {
 		return 0, false, nil
-	}
-	if result.Slot < start {
-		return start, true, nil
 	}
 	return result.Slot, true, nil
 }
@@ -370,9 +368,8 @@ func (c *supernodeClient) Snapshot() any {
 			"endpoint":            c.endpoint,
 			"watchLatestInterval": c.watchLatestInterval.String(),
 		},
-		"savedLatestBlockNumber": c.savedLatestBlockNumber.Load(),
-		"resourceManager":        c.resMgr.Snapshot(),
-		"statistics":             c.stat.Snapshot(),
+		"resourceManager": c.resMgr.Snapshot(),
+		"statistics":      c.stat.Snapshot(),
 		"cache": map[string]any{
 			"cachedHeaders": c.cachedHeaders.Snapshot(10, func(block Block) string {
 				if block.Skipped() {

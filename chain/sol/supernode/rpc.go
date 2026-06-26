@@ -53,8 +53,6 @@ func NewSuperNode(
 		func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 			return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
 				switch method {
-				case "sol_getLatestBlockNumber":
-					return svc.GetLatestBlockNumber(ctx)
 				case "sol_getLatestHeader":
 					return jsonrpc.CallMethod(svc.GetLatestHeader, ctx, params)
 				case "sol_getBlock":
@@ -132,37 +130,82 @@ func (s *RPCService) bqFindTxLoader(
 	}
 }
 
-func (s *RPCService) GetLatestBlockNumber(ctx context.Context) (uint64, error) {
-	r, err := s.slotCache.GetRange(ctx)
+// permissionGated is implemented by a Storage that restricts access per caller (the BigQuery
+// archival tier). The super node uses it to decide, without running a query, whether the caller may
+// reach the older history below the ClickHouse range. CheckPermission returns (permErr, checkErr):
+// permErr is a clean denial, checkErr a transient check failure; both nil means allowed.
+type permissionGated interface {
+	CheckPermission(ctx context.Context) (permErr, checkErr error)
+}
+
+// callerMayUseArchive reports whether the caller in ctx may use the BigQuery archival tier. It
+// returns (false, nil) for a clean denial (no tier configured, or the gate denies this caller) and
+// (false, checkErr) when the permission check itself failed transiently (e.g. a tier-DB outage): the
+// decision is unknown, so the caller should retry rather than be silently treated as denied.
+func (s *RPCService) callerMayUseArchive(ctx context.Context) (bool, error) {
+	if s.bqStore == nil {
+		return false, nil
+	}
+	pg, ok := s.bqStore.(permissionGated)
+	if !ok {
+		return true, nil
+	}
+	permErr, checkErr := pg.CheckPermission(ctx)
+	if checkErr != nil {
+		return false, checkErr
+	}
+	return permErr == nil, nil
+}
+
+// firstSlot is the earliest slot the caller may index: 0 when it may use the BigQuery archival tier
+// (the full history is reachable), otherwise the start of the ClickHouse range (the oldest slot the
+// caller can actually read). The driver uses it to clamp the agent's start block. A transient
+// permission-check failure is propagated (not silently mapped to the ClickHouse start), so the driver
+// retries instead of indexing from the wrong floor.
+func (s *RPCService) firstSlot(ctx context.Context) (uint64, error) {
+	mayUse, err := s.callerMayUseArchive(ctx)
 	if err != nil {
 		return 0, err
 	}
-	if r.End == nil {
-		return 0, errors.Errorf("latest slot is not ready")
+	if mayUse {
+		return 0, nil
 	}
-	return *r.End, nil
+	r, err := s.rangeStore.Get(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return r.Start, nil
 }
 
 // GetLatestHeader blocks until the latest-slot cache holds a non-skipped block with slot strictly
-// greater than slotGt, then returns its header (without signatures). This long-poll lets the driver
+// greater than slotGt, then returns its header as a SimpleBlock (no signatures), along with the
+// caller's first indexable slot and the super node's APIVersion. This long-poll lets the driver
 // subscribe by waiting instead of polling (data.SubscribeUsingWaiting). The head slot may itself be
 // skipped, so the latest non-skipped block at or below the cache head is returned; when the newest
 // slots are all skipped (or none is yet beyond slotGt) it waits for the cache to advance before
 // re-checking, so it never busy-loops.
-func (s *RPCService) GetLatestHeader(ctx context.Context, slotGt uint64) (sol.Block, error) {
+func (s *RPCService) GetLatestHeader(ctx context.Context, slotGt uint64) (sol.GetLatestHeaderResult, error) {
 	jsonrpc.GetCtxData(ctx).NotSlowRequest = true
+	first, err := s.firstSlot(ctx)
+	if err != nil {
+		return sol.GetLatestHeaderResult{}, err
+	}
 	waitGt := slotGt
 	for {
 		latest, err := s.slotCache.Wait(ctx, waitGt)
 		if err != nil {
-			return sol.Block{}, err
+			return sol.GetLatestHeaderResult{}, err
 		}
 		head, err := s.latestUnskipped(ctx)
 		if err != nil {
-			return sol.Block{}, err
+			return sol.GetLatestHeaderResult{}, err
 		}
 		if head != nil && head.SlotNumber > slotGt {
-			return head.ToBlock(false), nil
+			return sol.GetLatestHeaderResult{
+				SimpleBlock: sol.NewSimpleBlock(head),
+				FirstSlot:   first,
+				APIVersion:  sol.APIVersion,
+			}, nil
 		}
 		waitGt = latest
 	}
@@ -447,60 +490,73 @@ func (s *RPCService) FindTransactions(
 	return result, nil
 }
 
-// GetContractStartBlock returns the earliest block at which address (a program) appears, over all
-// available data. The caller maps this against its own start/latest range (clamp to start, treat an
-// appearance after latest or no appearance as out of range). ClickHouse holds the older history, so
-// its earliest is the global earliest when present; the cache is consulted only when the program is
-// absent from ClickHouse (a brand-new program not yet synced).
+// GetContractStartBlock returns the earliest block at which address (a program) appears at or after
+// startFrom, over all data the caller may reach. startFrom is the caller's floor (its agent start
+// block): the result is never below it, and it bounds how far back the super node looks.
+//
+// The BigQuery archival tier only holds slots below the ClickHouse range start, so it is consulted
+// only when startFrom is below that start (startFrom < range.Start) — a caller floored at or above
+// the ClickHouse range (e.g. one without BigQuery access, whose floor is the range start) never
+// triggers a BigQuery query, which also avoids a permission-denied error for such callers. ClickHouse
+// holds the rest of the history, so its earliest is the global earliest at/above the range start; the
+// cache is consulted only when the program is absent from ClickHouse (a brand-new program not yet
+// synced). The caller still maps the result against its own latest (an appearance after latest or no
+// appearance is treated as out of range).
 func (s *RPCService) GetContractStartBlock(
 	ctx context.Context,
 	address solana.PublicKey,
+	startFrom uint64,
 ) (sol.GetContractStartBlockResult, error) {
-	chMin, chFound, err := s.store.EarliestProgramSlot(ctx, address)
+	r, err := s.rangeStore.Get(ctx)
 	if err != nil {
 		return sol.GetContractStartBlockResult{}, err
 	}
-	if chFound {
-		// If the program first appears strictly above the ClickHouse lower bound, ClickHouse already
-		// covers earlier slots without it, so chMin is the global earliest — no need to scan the
-		// older (and more expensive) BigQuery history. Only when it appears exactly at the lower
-		// bound might it extend below into BigQuery.
-		r, rangeErr := s.rangeStore.Get(ctx)
-		if rangeErr != nil {
-			return sol.GetContractStartBlockResult{}, rangeErr
-		}
-		if s.bqStore != nil && !r.IsEmpty() && chMin <= r.Start {
-			bqMin, bqFound, bqErr := s.bqStore.EarliestProgramSlot(ctx, address)
-			if bqErr != nil {
-				return sol.GetContractStartBlockResult{}, bqErr
-			}
-			if bqFound && bqMin < chMin {
-				return sol.GetContractStartBlockResult{Slot: bqMin, Found: true}, nil
-			}
-		}
-		return sol.GetContractStartBlockResult{Slot: chMin, Found: true}, nil
+	// The caller indexes from startFrom at the earliest, so never report a slot below it.
+	result := func(slot uint64) sol.GetContractStartBlockResult {
+		return sol.GetContractStartBlockResult{Slot: max(slot, startFrom), Found: true}
 	}
-	// Absent from ClickHouse: the program may live entirely in the older BigQuery history.
-	if s.bqStore != nil {
-		bqMin, bqFound, bqErr := s.bqStore.EarliestProgramSlot(ctx, address)
+
+	// Search oldest data first, so the first hit is the global earliest. The BigQuery archive holds
+	// only slots below the ClickHouse range start (which are always earlier than any ClickHouse slot),
+	// so consult it only when the caller wants — and may read — history that far back (startFrom <
+	// r.Start); a caller floored at/above the range never reaches it (which also avoids a BigQuery
+	// permission error for callers without archive access).
+	if s.bqStore != nil && !r.IsEmpty() && startFrom < r.Start {
+		bqMin, found, bqErr := s.bqStore.EarliestProgramSlot(ctx, address)
 		if bqErr != nil {
 			return sol.GetContractStartBlockResult{}, bqErr
 		}
-		if bqFound {
-			return sol.GetContractStartBlockResult{Slot: bqMin, Found: true}, nil
+		if found {
+			return result(bqMin), nil
 		}
 	}
-	programSet := map[string]struct{}{address.String(): {}}
-	var cacheMin uint64
-	var cacheFound bool
-	if _, err = s.slotCache.Traverse(ctx, rg.Range{},
-		func(ctx context.Context, st *sol.Slot) error {
-			if !cacheFound && !st.Skipped && st.InvokesAnyProgram(programSet) {
-				cacheMin, cacheFound = st.SlotNumber, true
-			}
-			return nil
-		}); err != nil {
-		return sol.GetContractStartBlockResult{}, err
+	// Then ClickHouse (the bulk of the retained history)...
+	if chMin, found, chErr := s.store.EarliestProgramSlot(ctx, address); chErr != nil {
+		return sol.GetContractStartBlockResult{}, chErr
+	} else if found {
+		return result(chMin), nil
 	}
-	return sol.GetContractStartBlockResult{Slot: cacheMin, Found: cacheFound}, nil
+	// ...then the latest-slot cache (a brand-new program not yet synced to ClickHouse).
+	if cacheMin, found, cacheErr := s.cacheEarliest(ctx, address); cacheErr != nil {
+		return sol.GetContractStartBlockResult{}, cacheErr
+	} else if found {
+		return result(cacheMin), nil
+	}
+	return sol.GetContractStartBlockResult{}, nil
+}
+
+// cacheEarliest scans the latest-slot cache for the earliest non-skipped slot invoking address, used
+// when the program is not yet in ClickHouse (brand-new). The cache is dense and ascending, so the
+// first match is the earliest.
+func (s *RPCService) cacheEarliest(ctx context.Context, address solana.PublicKey) (uint64, bool, error) {
+	programSet := map[string]struct{}{address.String(): {}}
+	var earliest uint64
+	var found bool
+	_, err := s.slotCache.Traverse(ctx, rg.Range{}, func(ctx context.Context, st *sol.Slot) error {
+		if !found && !st.Skipped && st.InvokesAnyProgram(programSet) {
+			earliest, found = st.SlotNumber, true
+		}
+		return nil
+	})
+	return earliest, found, err
 }

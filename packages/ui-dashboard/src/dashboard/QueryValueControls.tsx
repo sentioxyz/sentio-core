@@ -78,12 +78,12 @@ export function QueryValueControls({
     >
       <div className="flex flex-wrap items-center gap-4">
         <div className="shadow-xs flex h-8 rounded-md">
-          <span className="sm:text-ilabel border-main text-text-foreground inline-flex items-center whitespace-nowrap rounded-l-md border bg-gray-50 px-3">
+          <span className="sm:text-ilabel border-main text-text-foreground inline-flex items-center whitespace-nowrap rounded-l-md border border-r-0 bg-gray-50 px-3">
             For each series, calculate the
           </span>
           <select
             value={config?.calculation}
-            className="sm:text-ilabel border-main text-text-foreground inline-flex items-center border border-x-0 py-0.5 pl-4 pr-7"
+            className="sm:text-ilabel border-main text-text-foreground hover:border-primary-600 focus:border-primary-600 focus:ring-3 focus:ring-primary-600/30 inline-flex items-center border py-0.5 pl-4 pr-7 focus:relative focus:z-10 focus:outline-none"
             onChange={(e) =>
               onCalculationChange(e.target.value as CalculationLike)
             }
@@ -94,12 +94,12 @@ export function QueryValueControls({
               </option>
             ))}
           </select>
-          <span className="sm:text-ilabel border-main text-text-foreground inline-flex items-center whitespace-nowrap border bg-gray-50 px-3">
+          <span className="sm:text-ilabel border-main text-text-foreground inline-flex items-center whitespace-nowrap border border-x-0 bg-gray-50 px-3">
             value, then show the
           </span>
           <select
             value={config?.seriesCalculation}
-            className="sm:text-ilabel border-main text-text-foreground inline-flex items-center border border-x-0 py-0.5 pl-4 pr-7"
+            className="sm:text-ilabel border-main text-text-foreground hover:border-primary-600 focus:border-primary-600 focus:ring-3 focus:ring-primary-600/30 inline-flex items-center border py-0.5 pl-4 pr-7 focus:relative focus:z-10 focus:outline-none"
             onChange={(e) =>
               onSeriesCalculationChange(e.target.value as CalculationLike)
             }
@@ -110,7 +110,7 @@ export function QueryValueControls({
               </option>
             ))}
           </select>
-          <span className="sm:text-ilabel border-main text-text-foreground inline-flex items-center whitespace-nowrap rounded-r-md border bg-gray-50 px-3">
+          <span className="sm:text-ilabel border-main text-text-foreground inline-flex items-center whitespace-nowrap rounded-r-md border-b border-r border-t bg-gray-50 px-3">
             value of multiple series
           </span>
         </div>

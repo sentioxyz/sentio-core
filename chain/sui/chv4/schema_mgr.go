@@ -4,10 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
-	"github.com/pkg/errors"
-	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 	"math/big"
 	"reflect"
 	"sentioxyz/sentio-core/chain/clickhouse"
@@ -20,6 +16,11 @@ import (
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
 	"strings"
+
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
+	"github.com/pkg/errors"
+	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 )
 
 type ClickhouseSchemaMgr struct {
@@ -194,7 +195,7 @@ func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint,
 		// index fields in tx.GetEvents()
 		for ei, ev := range tx.GetEvents().GetEvents() {
 			evTitle := fmt.Sprintf("%d/%d event %s", ei, len(tx.GetEvents().GetEvents()), place)
-			evType := move.MustBuildType("type of "+evTitle, ev.GetEventType())
+			evType := move.MustBuildType(ev.GetEventType(), "type of "+evTitle)
 
 			chtx.EventsPackageID = append(chtx.EventsPackageID, ev.GetPackageId())
 			chtx.EventsModule = append(chtx.EventsModule, ev.GetModule())
@@ -218,7 +219,7 @@ func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint,
 		// index fields in tx.GetBalanceChanges()
 		for bi, bc := range tx.GetBalanceChanges() {
 			bcTitle := fmt.Sprintf("%d/%d balance change %s", bi, len(tx.GetBalanceChanges()), place)
-			coinType := move.MustBuildType("coin type of "+bcTitle, bc.GetCoinType())
+			coinType := move.MustBuildType(bc.GetCoinType(), "coin type of "+bcTitle)
 			amount, ok := new(big.Int).SetString(bc.GetAmount(), 10)
 			if !ok {
 				err = errors.Errorf("parse amount %q of %s failed", bc.GetAmount(), bcTitle)
@@ -295,7 +296,7 @@ func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint,
 				return
 			}
 			objTitle := fmt.Sprintf("object %s/%d %s", obj.ObjectID, obj.ObjectVersion, place)
-			objType := move.MustBuildType("type of "+objTitle, fullObj.GetObjectType())
+			objType := move.MustBuildType(fullObj.GetObjectType(), "type of "+objTitle)
 			obj.ObjectType = objType.String()
 			obj.ObjectMainType = objType.Main()
 			if obj.ObjectMainType == "0x2::coin::Coin" {

@@ -6709,7 +6709,6 @@ type DBRequest_DBUpsert struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Entity        []string               `protobuf:"bytes,1,rep,name=entity,proto3" json:"entity,omitempty"`
 	Id            []string               `protobuf:"bytes,2,rep,name=id,proto3" json:"id,omitempty"`
-	Data          []*structpb.Struct     `protobuf:"bytes,3,rep,name=data,proto3" json:"data,omitempty"`
 	EntityData    []*protos.RichStruct   `protobuf:"bytes,4,rep,name=entity_data,json=entityData,proto3" json:"entity_data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -6755,13 +6754,6 @@ func (x *DBRequest_DBUpsert) GetEntity() []string {
 func (x *DBRequest_DBUpsert) GetId() []string {
 	if x != nil {
 		return x.Id
-	}
-	return nil
-}
-
-func (x *DBRequest_DBUpsert) GetData() []*structpb.Struct {
-	if x != nil {
-		return x.Data
 	}
 	return nil
 }
@@ -8482,7 +8474,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\ttemplates\x18\x01 \x03(\v2\x1b.processor.TemplateInstanceR\ttemplates\x12\x16\n" +
 	"\x06remove\x18\x02 \x01(\bR\x06remove\"<\n" +
 	"\tTSRequest\x12/\n" +
-	"\x04data\x18\x01 \x03(\v2\x1b.processor.TimeseriesResultR\x04data\"\xcb\b\n" +
+	"\x04data\x18\x01 \x03(\v2\x1b.processor.TimeseriesResultR\x04data\"\x9d\b\n" +
 	"\tDBRequest\x12\x13\n" +
 	"\x05op_id\x18\x01 \x01(\x04R\x04opId\x12.\n" +
 	"\x03get\x18\x02 \x01(\v2\x1a.processor.DBRequest.DBGetH\x00R\x03get\x127\n" +
@@ -8499,11 +8491,10 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x06cursor\x18\x05 \x01(\tR\x06cursor\x12 \n" +
 	"\tpage_size\x18\x06 \x01(\rH\x00R\bpageSize\x88\x01\x01B\f\n" +
 	"\n" +
-	"_page_size\x1a\x94\x01\n" +
+	"_page_size\x1ag\n" +
 	"\bDBUpsert\x12\x16\n" +
 	"\x06entity\x18\x01 \x03(\tR\x06entity\x12\x0e\n" +
-	"\x02id\x18\x02 \x03(\tR\x02id\x12+\n" +
-	"\x04data\x18\x03 \x03(\v2\x17.google.protobuf.StructR\x04data\x123\n" +
+	"\x02id\x18\x02 \x03(\tR\x02id\x123\n" +
 	"\ventity_data\x18\x04 \x03(\v2\x12.common.RichStructR\n" +
 	"entityData\x1ap\n" +
 	"\bDBUpdate\x12\x16\n" +
@@ -9118,54 +9109,53 @@ var file_processor_protos_processor_proto_depIdxs = []int32{
 	9,   // 153: processor.EntityUpdateData.FieldValue.op:type_name -> processor.EntityUpdateData.Operator
 	93,  // 154: processor.EntityUpdateData.FieldsEntry.value:type_name -> processor.EntityUpdateData.FieldValue
 	100, // 155: processor.DBRequest.DBList.filters:type_name -> processor.DBRequest.DBFilter
-	121, // 156: processor.DBRequest.DBUpsert.data:type_name -> google.protobuf.Struct
-	123, // 157: processor.DBRequest.DBUpsert.entity_data:type_name -> common.RichStruct
-	62,  // 158: processor.DBRequest.DBUpdate.entity_data:type_name -> processor.EntityUpdateData
-	10,  // 159: processor.DBRequest.DBFilter.op:type_name -> processor.DBRequest.DBOperator
-	127, // 160: processor.DBRequest.DBFilter.value:type_name -> common.RichValueList
-	122, // 161: processor.Data.EthLog.timestamp:type_name -> google.protobuf.Timestamp
-	122, // 162: processor.Data.EthTransaction.timestamp:type_name -> google.protobuf.Timestamp
-	122, // 163: processor.Data.EthTrace.timestamp:type_name -> google.protobuf.Timestamp
-	122, // 164: processor.Data.SolBlock.timestamp:type_name -> google.protobuf.Timestamp
-	122, // 165: processor.Data.SuiEvent.timestamp:type_name -> google.protobuf.Timestamp
-	122, // 166: processor.Data.SuiCall.timestamp:type_name -> google.protobuf.Timestamp
-	122, // 167: processor.Data.SuiObject.timestamp:type_name -> google.protobuf.Timestamp
-	122, // 168: processor.Data.SuiObjectChange.timestamp:type_name -> google.protobuf.Timestamp
-	121, // 169: processor.Data.FuelReceipt.transaction:type_name -> google.protobuf.Struct
-	122, // 170: processor.Data.FuelReceipt.timestamp:type_name -> google.protobuf.Timestamp
-	121, // 171: processor.Data.FuelTransaction.transaction:type_name -> google.protobuf.Struct
-	122, // 172: processor.Data.FuelTransaction.timestamp:type_name -> google.protobuf.Timestamp
-	121, // 173: processor.Data.FuelBlock.block:type_name -> google.protobuf.Struct
-	122, // 174: processor.Data.FuelBlock.timestamp:type_name -> google.protobuf.Timestamp
-	121, // 175: processor.Data.CosmosCall.transaction:type_name -> google.protobuf.Struct
-	122, // 176: processor.Data.CosmosCall.timestamp:type_name -> google.protobuf.Timestamp
-	121, // 177: processor.Data.StarknetEvent.result:type_name -> google.protobuf.Struct
-	122, // 178: processor.Data.StarknetEvent.timestamp:type_name -> google.protobuf.Timestamp
-	30,  // 179: processor.Processor.Start:input_type -> processor.StartRequest
-	128, // 180: processor.Processor.Stop:input_type -> google.protobuf.Empty
-	14,  // 181: processor.Processor.GetConfig:input_type -> processor.ProcessConfigRequest
-	52,  // 182: processor.Processor.ProcessBindings:input_type -> processor.ProcessBindingsRequest
-	54,  // 183: processor.Processor.ProcessBindingsStream:input_type -> processor.ProcessStreamRequest
-	57,  // 184: processor.Processor.PreprocessBindingsStream:input_type -> processor.PreprocessStreamRequest
-	30,  // 185: processor.ProcessorV3.Start:input_type -> processor.StartRequest
-	14,  // 186: processor.ProcessorV3.GetConfig:input_type -> processor.ProcessConfigRequest
-	29,  // 187: processor.ProcessorV3.UpdateTemplates:input_type -> processor.UpdateTemplatesRequest
-	54,  // 188: processor.ProcessorV3.ProcessBindingsStream:input_type -> processor.ProcessStreamRequest
-	128, // 189: processor.Processor.Start:output_type -> google.protobuf.Empty
-	128, // 190: processor.Processor.Stop:output_type -> google.protobuf.Empty
-	15,  // 191: processor.Processor.GetConfig:output_type -> processor.ProcessConfigResponse
-	53,  // 192: processor.Processor.ProcessBindings:output_type -> processor.ProcessBindingResponse
-	55,  // 193: processor.Processor.ProcessBindingsStream:output_type -> processor.ProcessStreamResponse
-	58,  // 194: processor.Processor.PreprocessBindingsStream:output_type -> processor.PreprocessStreamResponse
-	128, // 195: processor.ProcessorV3.Start:output_type -> google.protobuf.Empty
-	15,  // 196: processor.ProcessorV3.GetConfig:output_type -> processor.ProcessConfigResponse
-	128, // 197: processor.ProcessorV3.UpdateTemplates:output_type -> google.protobuf.Empty
-	56,  // 198: processor.ProcessorV3.ProcessBindingsStream:output_type -> processor.ProcessStreamResponseV3
-	189, // [189:199] is the sub-list for method output_type
-	179, // [179:189] is the sub-list for method input_type
-	179, // [179:179] is the sub-list for extension type_name
-	179, // [179:179] is the sub-list for extension extendee
-	0,   // [0:179] is the sub-list for field type_name
+	123, // 156: processor.DBRequest.DBUpsert.entity_data:type_name -> common.RichStruct
+	62,  // 157: processor.DBRequest.DBUpdate.entity_data:type_name -> processor.EntityUpdateData
+	10,  // 158: processor.DBRequest.DBFilter.op:type_name -> processor.DBRequest.DBOperator
+	127, // 159: processor.DBRequest.DBFilter.value:type_name -> common.RichValueList
+	122, // 160: processor.Data.EthLog.timestamp:type_name -> google.protobuf.Timestamp
+	122, // 161: processor.Data.EthTransaction.timestamp:type_name -> google.protobuf.Timestamp
+	122, // 162: processor.Data.EthTrace.timestamp:type_name -> google.protobuf.Timestamp
+	122, // 163: processor.Data.SolBlock.timestamp:type_name -> google.protobuf.Timestamp
+	122, // 164: processor.Data.SuiEvent.timestamp:type_name -> google.protobuf.Timestamp
+	122, // 165: processor.Data.SuiCall.timestamp:type_name -> google.protobuf.Timestamp
+	122, // 166: processor.Data.SuiObject.timestamp:type_name -> google.protobuf.Timestamp
+	122, // 167: processor.Data.SuiObjectChange.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 168: processor.Data.FuelReceipt.transaction:type_name -> google.protobuf.Struct
+	122, // 169: processor.Data.FuelReceipt.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 170: processor.Data.FuelTransaction.transaction:type_name -> google.protobuf.Struct
+	122, // 171: processor.Data.FuelTransaction.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 172: processor.Data.FuelBlock.block:type_name -> google.protobuf.Struct
+	122, // 173: processor.Data.FuelBlock.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 174: processor.Data.CosmosCall.transaction:type_name -> google.protobuf.Struct
+	122, // 175: processor.Data.CosmosCall.timestamp:type_name -> google.protobuf.Timestamp
+	121, // 176: processor.Data.StarknetEvent.result:type_name -> google.protobuf.Struct
+	122, // 177: processor.Data.StarknetEvent.timestamp:type_name -> google.protobuf.Timestamp
+	30,  // 178: processor.Processor.Start:input_type -> processor.StartRequest
+	128, // 179: processor.Processor.Stop:input_type -> google.protobuf.Empty
+	14,  // 180: processor.Processor.GetConfig:input_type -> processor.ProcessConfigRequest
+	52,  // 181: processor.Processor.ProcessBindings:input_type -> processor.ProcessBindingsRequest
+	54,  // 182: processor.Processor.ProcessBindingsStream:input_type -> processor.ProcessStreamRequest
+	57,  // 183: processor.Processor.PreprocessBindingsStream:input_type -> processor.PreprocessStreamRequest
+	30,  // 184: processor.ProcessorV3.Start:input_type -> processor.StartRequest
+	14,  // 185: processor.ProcessorV3.GetConfig:input_type -> processor.ProcessConfigRequest
+	29,  // 186: processor.ProcessorV3.UpdateTemplates:input_type -> processor.UpdateTemplatesRequest
+	54,  // 187: processor.ProcessorV3.ProcessBindingsStream:input_type -> processor.ProcessStreamRequest
+	128, // 188: processor.Processor.Start:output_type -> google.protobuf.Empty
+	128, // 189: processor.Processor.Stop:output_type -> google.protobuf.Empty
+	15,  // 190: processor.Processor.GetConfig:output_type -> processor.ProcessConfigResponse
+	53,  // 191: processor.Processor.ProcessBindings:output_type -> processor.ProcessBindingResponse
+	55,  // 192: processor.Processor.ProcessBindingsStream:output_type -> processor.ProcessStreamResponse
+	58,  // 193: processor.Processor.PreprocessBindingsStream:output_type -> processor.PreprocessStreamResponse
+	128, // 194: processor.ProcessorV3.Start:output_type -> google.protobuf.Empty
+	15,  // 195: processor.ProcessorV3.GetConfig:output_type -> processor.ProcessConfigResponse
+	128, // 196: processor.ProcessorV3.UpdateTemplates:output_type -> google.protobuf.Empty
+	56,  // 197: processor.ProcessorV3.ProcessBindingsStream:output_type -> processor.ProcessStreamResponseV3
+	188, // [188:198] is the sub-list for method output_type
+	178, // [178:188] is the sub-list for method input_type
+	178, // [178:178] is the sub-list for extension type_name
+	178, // [178:178] is the sub-list for extension extendee
+	0,   // [0:178] is the sub-list for field type_name
 }
 
 func init() { file_processor_protos_processor_proto_init() }

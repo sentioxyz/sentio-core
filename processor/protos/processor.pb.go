@@ -5054,8 +5054,10 @@ func (x *StateResult) GetError() string {
 }
 
 type ProcessResult struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Gauges           []*GaugeResult         `protobuf:"bytes,1,rep,name=gauges,proto3" json:"gauges,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
+	Gauges []*GaugeResult `protobuf:"bytes,1,rep,name=gauges,proto3" json:"gauges,omitempty"`
+	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 	Counters         []*CounterResult       `protobuf:"bytes,2,rep,name=counters,proto3" json:"counters,omitempty"`
 	Events           []*EventTrackingResult `protobuf:"bytes,4,rep,name=events,proto3" json:"events,omitempty"`
 	Exports          []*ExportResult        `protobuf:"bytes,5,rep,name=exports,proto3" json:"exports,omitempty"`
@@ -5095,6 +5097,7 @@ func (*ProcessResult) Descriptor() ([]byte, []int) {
 	return file_processor_protos_processor_proto_rawDescGZIP(), []int{57}
 }
 
+// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 func (x *ProcessResult) GetGauges() []*GaugeResult {
 	if x != nil {
 		return x.Gauges
@@ -5102,6 +5105,7 @@ func (x *ProcessResult) GetGauges() []*GaugeResult {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 func (x *ProcessResult) GetCounters() []*CounterResult {
 	if x != nil {
 		return x.Counters
@@ -5587,6 +5591,7 @@ func (x *RuntimeInfo) GetFrom() HandlerType {
 	return HandlerType_UNKNOWN
 }
 
+// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 type GaugeResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *RecordMetaData        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -5647,6 +5652,7 @@ func (x *GaugeResult) GetRuntimeInfo() *RuntimeInfo {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 type CounterResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *RecordMetaData        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -8664,10 +8670,10 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\vStateResult\x12%\n" +
 	"\x0econfig_updated\x18\x01 \x01(\bR\rconfigUpdated\x12\x19\n" +
 	"\x05error\x18\x02 \x01(\tH\x00R\x05error\x88\x01\x01B\b\n" +
-	"\x06_error\"\xda\x02\n" +
-	"\rProcessResult\x12.\n" +
-	"\x06gauges\x18\x01 \x03(\v2\x16.processor.GaugeResultR\x06gauges\x124\n" +
-	"\bcounters\x18\x02 \x03(\v2\x18.processor.CounterResultR\bcounters\x126\n" +
+	"\x06_error\"\xe2\x02\n" +
+	"\rProcessResult\x122\n" +
+	"\x06gauges\x18\x01 \x03(\v2\x16.processor.GaugeResultB\x02\x18\x01R\x06gauges\x128\n" +
+	"\bcounters\x18\x02 \x03(\v2\x18.processor.CounterResultB\x02\x18\x01R\bcounters\x126\n" +
 	"\x06events\x18\x04 \x03(\v2\x1e.processor.EventTrackingResultR\x06events\x121\n" +
 	"\aexports\x18\x05 \x03(\v2\x17.processor.ExportResultR\aexports\x12.\n" +
 	"\x06states\x18\x06 \x01(\v2\x16.processor.StateResultR\x06states\x12H\n" +
@@ -8708,16 +8714,16 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"bigIntegerB\a\n" +
 	"\x05value\"9\n" +
 	"\vRuntimeInfo\x12*\n" +
-	"\x04from\x18\x01 \x01(\x0e2\x16.processor.HandlerTypeR\x04from\"\xba\x01\n" +
+	"\x04from\x18\x01 \x01(\x0e2\x16.processor.HandlerTypeR\x04from\"\xbe\x01\n" +
 	"\vGaugeResult\x125\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.processor.RecordMetaDataR\bmetadata\x129\n" +
 	"\fmetric_value\x18\x02 \x01(\v2\x16.processor.MetricValueR\vmetricValue\x129\n" +
-	"\fruntime_info\x18\x03 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo\"\xce\x01\n" +
+	"\fruntime_info\x18\x03 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo:\x02\x18\x01\"\xd2\x01\n" +
 	"\rCounterResult\x125\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.processor.RecordMetaDataR\bmetadata\x129\n" +
 	"\fmetric_value\x18\x02 \x01(\v2\x16.processor.MetricValueR\vmetricValue\x12\x10\n" +
 	"\x03add\x18\x03 \x01(\bR\x03add\x129\n" +
-	"\fruntime_info\x18\x04 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo\"\xef\x02\n" +
+	"\fruntime_info\x18\x04 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo:\x02\x18\x01\"\xef\x02\n" +
 	"\x13EventTrackingResult\x125\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.processor.RecordMetaDataR\bmetadata\x12,\n" +
 	"\x12distinct_entity_id\x18\x02 \x01(\tR\x10distinctEntityId\x127\n" +
@@ -8793,14 +8799,14 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x04INFO\x10\x01\x12\v\n" +
 	"\aWARNING\x10\x02\x12\t\n" +
 	"\x05ERROR\x10\x03\x12\f\n" +
-	"\bCRITICAL\x10\x042\xef\x03\n" +
+	"\bCRITICAL\x10\x042\xf4\x03\n" +
 	"\tProcessor\x128\n" +
 	"\x05Start\x12\x17.processor.StartRequest\x1a\x16.google.protobuf.Empty\x126\n" +
 	"\x04Stop\x12\x16.google.protobuf.Empty\x1a\x16.google.protobuf.Empty\x12N\n" +
 	"\tGetConfig\x12\x1f.processor.ProcessConfigRequest\x1a .processor.ProcessConfigResponse\x12W\n" +
 	"\x0fProcessBindings\x12!.processor.ProcessBindingsRequest\x1a!.processor.ProcessBindingResponse\x12^\n" +
 	"\x15ProcessBindingsStream\x12\x1f.processor.ProcessStreamRequest\x1a .processor.ProcessStreamResponse(\x010\x01\x12g\n" +
-	"\x18PreprocessBindingsStream\x12\".processor.PreprocessStreamRequest\x1a#.processor.PreprocessStreamResponse(\x010\x012\xc7\x02\n" +
+	"\x18PreprocessBindingsStream\x12\".processor.PreprocessStreamRequest\x1a#.processor.PreprocessStreamResponse(\x010\x01\x1a\x03\x88\x02\x012\xc7\x02\n" +
 	"\vProcessorV3\x128\n" +
 	"\x05Start\x12\x17.processor.StartRequest\x1a\x16.google.protobuf.Empty\x12N\n" +
 	"\tGetConfig\x12\x1f.processor.ProcessConfigRequest\x1a .processor.ProcessConfigResponse\x12L\n" +

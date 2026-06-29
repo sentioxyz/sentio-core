@@ -31,6 +31,8 @@ const (
 // ProcessorClient is the client API for Processor service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Deprecated: Do not use.
 type ProcessorClient interface {
 	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Stop(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -44,6 +46,7 @@ type processorClient struct {
 	cc grpc.ClientConnInterface
 }
 
+// Deprecated: Do not use.
 func NewProcessorClient(cc grpc.ClientConnInterface) ProcessorClient {
 	return &processorClient{cc}
 }
@@ -117,6 +120,8 @@ type Processor_PreprocessBindingsStreamClient = grpc.BidiStreamingClient[Preproc
 // ProcessorServer is the server API for Processor service.
 // All implementations must embed UnimplementedProcessorServer
 // for forward compatibility.
+//
+// Deprecated: Do not use.
 type ProcessorServer interface {
 	Start(context.Context, *StartRequest) (*emptypb.Empty, error)
 	Stop(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
@@ -162,6 +167,7 @@ type UnsafeProcessorServer interface {
 	mustEmbedUnimplementedProcessorServer()
 }
 
+// Deprecated: Do not use.
 func RegisterProcessorServer(s grpc.ServiceRegistrar, srv ProcessorServer) {
 	// If the following call pancis, it indicates UnimplementedProcessorServer was
 	// embedded by pointer and is nil.  This will cause panics if an

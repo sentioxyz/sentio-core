@@ -5002,9 +5002,10 @@ func (x *DataBinding) GetChainId() string {
 }
 
 type StateResult struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ConfigUpdated bool                   `protobuf:"varint,1,opt,name=config_updated,json=configUpdated,proto3" json:"config_updated,omitempty"`
-	Error         *string                `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
+	ConfigUpdated bool    `protobuf:"varint,1,opt,name=config_updated,json=configUpdated,proto3" json:"config_updated,omitempty"`
+	Error         *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5039,6 +5040,7 @@ func (*StateResult) Descriptor() ([]byte, []int) {
 	return file_processor_protos_processor_proto_rawDescGZIP(), []int{56}
 }
 
+// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 func (x *StateResult) GetConfigUpdated() bool {
 	if x != nil {
 		return x.ConfigUpdated
@@ -8669,9 +8671,9 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\fhandler_type\x18\x03 \x01(\x0e2\x16.processor.HandlerTypeR\vhandlerType\x12\x1f\n" +
 	"\vhandler_ids\x18\x04 \x03(\x05R\n" +
 	"handlerIds\x12\x19\n" +
-	"\bchain_id\x18\x05 \x01(\tR\achainId\"Y\n" +
-	"\vStateResult\x12%\n" +
-	"\x0econfig_updated\x18\x01 \x01(\bR\rconfigUpdated\x12\x19\n" +
+	"\bchain_id\x18\x05 \x01(\tR\achainId\"]\n" +
+	"\vStateResult\x12)\n" +
+	"\x0econfig_updated\x18\x01 \x01(\bB\x02\x18\x01R\rconfigUpdated\x12\x19\n" +
 	"\x05error\x18\x02 \x01(\tH\x00R\x05error\x88\x01\x01B\b\n" +
 	"\x06_error\"\xe6\x02\n" +
 	"\rProcessResult\x122\n" +

@@ -464,28 +464,10 @@ func (s *Store) growthAggregation(ctx context.Context, chain string, curBlockTim
 }
 
 func (s *Store) reorgInTable(ctx context.Context, blockNumber int64, chain string, table string) (uint64, error) {
-	sql := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s > ? AND %s = ?",
-		s.fullName(table),
-		quote(genBlockNumberFieldName),
-		quote(genBlockChainFieldName))
-	exists, err := s.ctrl.QueryCount(SelectCtx(ctx), sql, blockNumber, chain)
-	if err != nil {
-		return 0, fmt.Errorf("query rows in %s to delete failed: %w", table, err)
-	}
-	if exists == 0 {
-		return 0, nil
-	}
-	sql = fmt.Sprintf("DELETE FROM %s WHERE %s > ? AND %s = ?",
-		s.fullName(table),
-		quote(genBlockNumberFieldName),
-		quote(genBlockChainFieldName))
-	if enableClickhouseLightDelete {
-		ctx = chx.LightDeleteCtx(ctx)
-	}
-	if err = s.ctrl.Exec(ctx, sql, blockNumber, chain); err != nil {
-		return 0, fmt.Errorf("delete rows in %s failed: %w", table, err)
-	}
-	return exists, nil
+	condition := fmt.Sprintf("%s > %d AND %s = '%s'",
+		quote(genBlockNumberFieldName), blockNumber,
+		quote(genBlockChainFieldName), chain)
+	return s.ctrl.Delete(chx.LightDeleteCtx(ctx, selectCtxSettings), s.fullName(table), condition)
 }
 
 func (s *Store) reorgInVersionedLatestTable(

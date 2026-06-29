@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"reflect"
 	"sentioxyz/sentio-core/common/chx"
+	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/schema"
 	"strings"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
 	clickhouselib "github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
@@ -35,7 +35,6 @@ var (
 		1000, envconf.WithMin(10), envconf.WithMax(2000))
 	defaultHugeIDSetSize = envconf.LoadUInt64("SENTIO_DEFAULT_ENTITY_HUGE_ID_SET_SIZE",
 		1000, envconf.WithMin(10), envconf.WithMax(2000))
-	enableClickhouseLightDelete = envconf.LoadBool("SENTIO_ENABLE_CLICKHOUSE_LIGHT_DELETE", true)
 
 	// TODO should depend on the actually number of replicas
 	versionedCollapsingInsertQuorum = envconf.LoadUInt64("SENTIO_VERSIONED_COLLAPSING_INSERT_QUORUM", 1, envconf.WithMin(1))
@@ -48,9 +47,7 @@ var DefaultCreateTableOption = TableOption{
 }
 
 func init() {
-	if enableClickhouseLightDelete {
-		chx.WithLightDeleteTableSettings(DefaultCreateTableOption.TableSettings)
-	}
+	chx.WithLightDeleteTableSettings(DefaultCreateTableOption.TableSettings)
 }
 
 type Features struct {
@@ -134,7 +131,7 @@ var (
 )
 
 func SelectCtx(parent context.Context) context.Context {
-	return clickhouse.Context(parent, clickhouse.WithSettings(selectCtxSettings))
+	return ckhmanager.ContextMergeSettings(parent, selectCtxSettings)
 }
 
 const schemaHashSalt = "2"

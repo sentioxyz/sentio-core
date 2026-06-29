@@ -1,7 +1,7 @@
 {
   "private": false,
   "name": "@sentio/ui-dashboard",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "description": "Dashboard UI components for the Sentio platform, decoupled from backend services.",
   "exports": {
     ".": {
@@ -40,6 +40,7 @@
     "@tanstack/react-virtual": "^3.2.0",
     "immer": "^11.1.8",
     "lodash": "^4.17.21",
+    "react-dropzone": "^14.2.2",
     "react-icons": "^5.5.0",
     "react-resize-detector": "^12.3.0"
   },

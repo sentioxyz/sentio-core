@@ -554,11 +554,10 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 		s.ctrl.FullLogicName(tableNameBalances),
 		strings.Join(objectx.CollectTagValue(&Balance{}, "clickhouse"), "`,`"),
 	)
-	idx := 0
 	fieldFilter := objectx.HasTag("clickhouse")
 	const insertBatchSize = 100000
 	err = s.ctrl.BatchInsert(ctx, sql, insertBatchSize, chx.NewGetter(records, func(record Balance) []any {
-		return objectx.CollectFieldValues(&records[idx-1], fieldFilter)
+		return objectx.CollectFieldValues(&record, fieldFilter)
 	}))
 	if err != nil {
 		return 0, errors.Wrapf(err, "insert balance records in [%d,%d] failed", from, to)

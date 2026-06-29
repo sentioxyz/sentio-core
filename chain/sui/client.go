@@ -249,12 +249,12 @@ func (c *Client) getLatest(ctx context.Context, src string) (clientpool.Block, e
 	}
 
 	var latestNum types.Number
-	r := c.CallContext(ctx, &latestNum, src, "sui_getLatestCheckpointSequenceNumber")
+	r := c.callContext(ctx, &latestNum, src, "sui_getLatestCheckpointSequenceNumber")
 	if r.Err != nil {
 		return clientpool.Block{}, r.Err
 	}
 	var latest *types.CheckpointResponse
-	r = c.CallContext(ctx, &latest, src, "sui_getCheckpoint", latestNum)
+	r = c.callContext(ctx, &latest, src, "sui_getCheckpoint", latestNum)
 	if r.Err != nil {
 		return clientpool.Block{}, r.Err
 	}
@@ -289,20 +289,22 @@ func (c *Client) CallContext(
 	// rewrite the method to the variation's actual name per ChainID (for iota the
 	// leading "sui" becomes "iota", e.g. sui_* -> iota_*, suix_* -> iotax_*)
 	method = c.config.Variation().RPCMethod(method)
-	if len(c.config.MethodBlackList) > 0 && utils.IndexOf(c.config.MethodBlackList, method) >= 0 {
-		return clientpool.Result{
-			Err:           errors.New("method in blacklist"),
-			BrokenForTask: true,
-			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
-		}
+	if r := clientpool.CheckMethod(method, c.config.MethodBlackList, c.config.MethodWhiteList); r.Err != nil {
+		return r
 	}
-	if len(c.config.MethodWhiteList) > 0 && utils.IndexOf(c.config.MethodWhiteList, method) < 0 {
-		return clientpool.Result{
-			Err:           errors.New("method not in whitelist"),
-			BrokenForTask: true,
-			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
-		}
-	}
+	return c.callContext(ctx, result, src, method, args...)
+}
+
+func (c *Client) callContext(
+	ctx context.Context,
+	result any,
+	src string,
+	method string,
+	args ...any,
+) clientpool.Result {
+	// rewrite the method to the variation's actual name per ChainID (for iota the
+	// leading "sui" becomes "iota", e.g. sui_* -> iota_*, suix_* -> iotax_*)
+	method = c.config.Variation().RPCMethod(method)
 	if timeout, has := c.config.MethodTimeout[method]; has && timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)

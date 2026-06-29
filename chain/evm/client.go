@@ -5,10 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
 	"math"
 	"net/http"
 	"net/url"
@@ -22,6 +18,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
 )
 
 type ClientConfig struct {
@@ -137,7 +138,7 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 	// check chain id
 	if c.config.ChainID > 0 {
 		var result hexutil.Uint64
-		r := c.CallContext(ctx, &result, "init", "eth_chainId")
+		r := c.callContext(ctx, &result, "init", "eth_chainId")
 		if r.Err != nil {
 			return clientpool.Block{}, r.Err
 		}
@@ -173,7 +174,7 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 		noStateLimit = 10000
 	)
 	tryGetBalance := func(ctx context.Context, addr string, bn hexutil.Uint64) error {
-		return c.CallContext(ctx, nil, "init", "eth_getBalance", addr, bn).Err
+		return c.callContext(ctx, nil, "init", "eth_getBalance", addr, bn).Err
 	}
 	missBlock, missErr, getErr := getMissStateBlock(ctx, retryTimes, hexutil.Uint64(latest.Number), tryGetBalance)
 	if getErr != nil {
@@ -359,7 +360,7 @@ func (c *Client) strictDataIntegrityCheck(ctx context.Context, src string) error
 		return nil
 	}
 	var raw json.RawMessage
-	r := c.CallContext(ctx, &raw, src, "eth_syncing")
+	r := c.callContext(ctx, &raw, src, "eth_syncing")
 	if r.Err != nil {
 		return errors.Wrapf(r.Err, "calling eth_syncing failed")
 	}
@@ -375,7 +376,7 @@ func (c *Client) getLatest(ctx context.Context, src string) (clientpool.Block, e
 	if c.config.UseFinalizedAsLatest {
 		blockTag = rpc.FinalizedBlockNumber
 	}
-	r := c.CallContext(ctx, &block, src, "eth_getBlockByNumber", blockTag, false)
+	r := c.callContext(ctx, &block, src, "eth_getBlockByNumber", blockTag, false)
 	if r.Err != nil {
 		return clientpool.Block{}, r.Err
 	}
@@ -443,24 +444,8 @@ func (c *Client) CallContext(
 	method string,
 	args ...any,
 ) clientpool.Result {
-	if len(c.config.MethodBlackList) > 0 && utils.IndexOf(c.config.MethodBlackList, method) >= 0 {
-		return clientpool.Result{
-			Err:           errors.New("method in blacklist"),
-			BrokenForTask: true,
-			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
-		}
-	}
-	if len(c.config.MethodWhiteList) > 0 && utils.IndexOf(c.config.MethodWhiteList, method) < 0 {
-		return clientpool.Result{
-			Err:           errors.New("method not in whitelist"),
-			BrokenForTask: true,
-			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
-		}
-	}
-	if timeout, has := c.config.MethodTimeout[method]; has && timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
+	if r := clientpool.CheckMethod(method, c.config.MethodBlackList, c.config.MethodWhiteList); r.Err != nil {
+		return r
 	}
 	// for all state-related method, checking block number in args to detect missing state data
 	if c.hasStateDataFrom > 0 {
@@ -497,6 +482,21 @@ func (c *Client) CallContext(
 				}
 			}
 		}
+	}
+	return c.callContext(ctx, result, src, method, args...)
+}
+
+func (c *Client) callContext(
+	ctx context.Context,
+	result any,
+	src string,
+	method string,
+	args ...any,
+) clientpool.Result {
+	if timeout, has := c.config.MethodTimeout[method]; has && timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
 	return c.use(ctx, src+"."+method, func(ctx context.Context) clientpool.Result {
 		return clientpool.CallContext(c.rpcClient, ctx, result, method, args...)

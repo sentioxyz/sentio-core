@@ -117,7 +117,7 @@ func (c *Client) getLatest(ctx context.Context, src string) (clientpool.Block, c
 
 	// first get latest block, without block time
 	var latest *rpc.GetLatestBlockhashResult
-	r := c.CallContext(ctx, &latest, src, "getLatestBlockhash", getLatestFinalizedSlotParam)
+	r := c.callContext(ctx, &latest, src, "getLatestBlockhash", getLatestFinalizedSlotParam)
 	if r.Err != nil {
 		return clientpool.Block{}, r
 	}
@@ -129,7 +129,7 @@ func (c *Client) getLatest(ctx context.Context, src string) (clientpool.Block, c
 
 	// then get the block time
 	var blockTime *solana.UnixTimeSeconds
-	r = c.CallContext(ctx, &blockTime, src, "getBlockTime", latest.Context.Slot)
+	r = c.callContext(ctx, &blockTime, src, "getBlockTime", latest.Context.Slot)
 	if r.Err != nil {
 		return clientpool.Block{}, r
 	}
@@ -229,21 +229,20 @@ func (c *Client) CallContext(
 	method string,
 	args ...any,
 ) clientpool.Result {
-	if len(c.config.MethodBlackList) > 0 && utils.IndexOf(c.config.MethodBlackList, method) >= 0 {
-		return clientpool.Result{
-			Err:           errors.New("method in blacklist"),
-			BrokenForTask: true,
-			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
-		}
+	if r := clientpool.CheckMethod(method, c.config.MethodBlackList, c.config.MethodWhiteList); r.Err != nil {
+		return r
 	}
-	if len(c.config.MethodWhiteList) > 0 && utils.IndexOf(c.config.MethodWhiteList, method) < 0 {
-		return clientpool.Result{
-			Err:           errors.New("method not in whitelist"),
-			BrokenForTask: true,
-			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
-		}
-	}
-	if timeout, has := c.config.MethodTimeout[method]; has {
+	return c.callContext(ctx, result, src, method, args...)
+}
+
+func (c *Client) callContext(
+	ctx context.Context,
+	result any,
+	src string,
+	method string,
+	args ...any,
+) clientpool.Result {
+	if timeout, has := c.config.MethodTimeout[method]; has && timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()

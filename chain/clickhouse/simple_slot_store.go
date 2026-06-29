@@ -500,7 +500,14 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 		}
 		// execute delete sql
 		startAt := time.Now()
-		count, err := s.ctrl.Delete(chx.LightDeleteCtx(ctx), table.Table.Name, where)
+		// Lightweight delete conflicts with projections: the patch parts it
+		// produces make the subsequent projection rebuild fail. Only use it
+		// for tables without projections; fall back to a regular delete otherwise.
+		delCtx := ctx
+		if len(table.Table.Projections) == 0 {
+			delCtx = chx.LightDeleteCtx(ctx)
+		}
+		count, err := s.ctrl.Delete(delCtx, table.Table.Name, where)
 		tableLogger := logger.With("table", table.Table.Name, "used", time.Since(startAt).String())
 		if err != nil {
 			tableLogger.Errorfe(err, "delete in range failed")

@@ -784,7 +784,8 @@ message ProcessResult {
   repeated GaugeResult gauges = 1 [deprecated = true];
   // Deprecated: legacy metric results, superseded by timeseries_result.
   repeated CounterResult counters = 2 [deprecated = true];
-  repeated EventTrackingResult events = 4;
+  // Deprecated: legacy event-tracking results, superseded by timeseries_result.
+  repeated EventTrackingResult events = 4 [deprecated = true];
   repeated ExportResult exports = 5;
   StateResult states = 6;
   repeated TimeseriesResult timeseries_result = 7;
@@ -900,7 +901,10 @@ enum LogLevel {
   CRITICAL = 4;
 }
 
+// Deprecated: legacy event-tracking result, superseded by TimeseriesResult.
 message EventTrackingResult {
+  option deprecated = true;
+
   RecordMetaData metadata = 1;
   string distinct_entity_id = 2;
   google.protobuf.Struct attributes = 6;

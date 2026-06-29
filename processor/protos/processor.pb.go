@@ -5058,7 +5058,8 @@ type ProcessResult struct {
 	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 	Gauges []*GaugeResult `protobuf:"bytes,1,rep,name=gauges,proto3" json:"gauges,omitempty"`
 	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
-	Counters         []*CounterResult       `protobuf:"bytes,2,rep,name=counters,proto3" json:"counters,omitempty"`
+	Counters []*CounterResult `protobuf:"bytes,2,rep,name=counters,proto3" json:"counters,omitempty"`
+	// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 	Events           []*EventTrackingResult `protobuf:"bytes,4,rep,name=events,proto3" json:"events,omitempty"`
 	Exports          []*ExportResult        `protobuf:"bytes,5,rep,name=exports,proto3" json:"exports,omitempty"`
 	States           *StateResult           `protobuf:"bytes,6,opt,name=states,proto3" json:"states,omitempty"`
@@ -5113,6 +5114,7 @@ func (x *ProcessResult) GetCounters() []*CounterResult {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 func (x *ProcessResult) GetEvents() []*EventTrackingResult {
 	if x != nil {
 		return x.Events
@@ -5721,6 +5723,7 @@ func (x *CounterResult) GetRuntimeInfo() *RuntimeInfo {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in processor/protos/processor.proto.
 type EventTrackingResult struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Metadata         *RecordMetaData        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -8670,11 +8673,11 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\vStateResult\x12%\n" +
 	"\x0econfig_updated\x18\x01 \x01(\bR\rconfigUpdated\x12\x19\n" +
 	"\x05error\x18\x02 \x01(\tH\x00R\x05error\x88\x01\x01B\b\n" +
-	"\x06_error\"\xe2\x02\n" +
+	"\x06_error\"\xe6\x02\n" +
 	"\rProcessResult\x122\n" +
 	"\x06gauges\x18\x01 \x03(\v2\x16.processor.GaugeResultB\x02\x18\x01R\x06gauges\x128\n" +
-	"\bcounters\x18\x02 \x03(\v2\x18.processor.CounterResultB\x02\x18\x01R\bcounters\x126\n" +
-	"\x06events\x18\x04 \x03(\v2\x1e.processor.EventTrackingResultR\x06events\x121\n" +
+	"\bcounters\x18\x02 \x03(\v2\x18.processor.CounterResultB\x02\x18\x01R\bcounters\x12:\n" +
+	"\x06events\x18\x04 \x03(\v2\x1e.processor.EventTrackingResultB\x02\x18\x01R\x06events\x121\n" +
 	"\aexports\x18\x05 \x03(\v2\x17.processor.ExportResultR\aexports\x12.\n" +
 	"\x06states\x18\x06 \x01(\v2\x16.processor.StateResultR\x06states\x12H\n" +
 	"\x11timeseries_result\x18\a \x03(\v2\x1b.processor.TimeseriesResultR\x10timeseriesResult\"_\n" +
@@ -8723,7 +8726,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.processor.RecordMetaDataR\bmetadata\x129\n" +
 	"\fmetric_value\x18\x02 \x01(\v2\x16.processor.MetricValueR\vmetricValue\x12\x10\n" +
 	"\x03add\x18\x03 \x01(\bR\x03add\x129\n" +
-	"\fruntime_info\x18\x04 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo:\x02\x18\x01\"\xef\x02\n" +
+	"\fruntime_info\x18\x04 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo:\x02\x18\x01\"\xf3\x02\n" +
 	"\x13EventTrackingResult\x125\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.processor.RecordMetaDataR\bmetadata\x12,\n" +
 	"\x12distinct_entity_id\x18\x02 \x01(\tR\x10distinctEntityId\x127\n" +
@@ -8733,7 +8736,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\bseverity\x18\a \x01(\x0e2\x13.processor.LogLevelR\bseverity\x12\x18\n" +
 	"\amessage\x18\b \x01(\tR\amessage\x129\n" +
 	"\fruntime_info\x18\x05 \x01(\v2\x16.processor.RuntimeInfoR\vruntimeInfo\x124\n" +
-	"\vattributes2\x18\t \x01(\v2\x12.common.RichStructR\vattributes2\"\xa1\x02\n" +
+	"\vattributes2\x18\t \x01(\v2\x12.common.RichStructR\vattributes2:\x02\x18\x01\"\xa1\x02\n" +
 	"\x10TimeseriesResult\x125\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x19.processor.RecordMetaDataR\bmetadata\x12>\n" +
 	"\x04type\x18\x02 \x01(\x0e2*.processor.TimeseriesResult.TimeseriesTypeR\x04type\x12&\n" +

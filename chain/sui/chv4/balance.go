@@ -277,19 +277,20 @@ func (s *balanceController) reload(
 	for _, pair := range missing {
 		notCreated[pair] = struct{}{}
 	}
+	// Pick the latest row (by (checkpoint, tx_index)) per (address, coin_type) deterministically.
+	// Do NOT rely on last_value() over a subquery ORDER BY: ClickHouse does not guarantee that an
+	// aggregate sees rows in the subquery's order (parts/threads are merged in arbitrary order), so
+	// last_value() could return a stale row's balance and corrupt the rebuild base. argMax over the
+	// (checkpoint, tx_index) tuple is order-independent and always selects the true latest row.
 	sql := fmt.Sprintf("SELECT"+
 		" address,"+
 		" coin_type,"+
-		" last_value(checkpoint),"+
-		" last_value(tx_index),"+
-		" last_value(tx_digest),"+
-		" last_value(balance) "+
-		"FROM ("+
-		"SELECT checkpoint, tx_index, tx_digest, balance, address, coin_type "+
+		" argMax(checkpoint, (checkpoint, tx_index)),"+
+		" argMax(tx_index, (checkpoint, tx_index)),"+
+		" argMax(tx_digest, (checkpoint, tx_index)),"+
+		" argMax(balance, (checkpoint, tx_index)) "+
 		"FROM %s "+
 		"WHERE (address, coin_type) IN [%s] AND checkpoint < %d "+
-		"ORDER BY address, coin_type, checkpoint, tx_index"+ // to make sure that the query will use the projection `holder`
-		") "+
 		"GROUP BY address, coin_type", s.ctrl.FullLogicName(tableNameBalances), missSet, checkpoint)
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var addr, coinType string

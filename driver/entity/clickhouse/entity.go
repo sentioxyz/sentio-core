@@ -467,7 +467,7 @@ func (s *Store) reorgInTable(ctx context.Context, blockNumber int64, chain strin
 	condition := fmt.Sprintf("%s > %d AND %s = '%s'",
 		quote(genBlockNumberFieldName), blockNumber,
 		quote(genBlockChainFieldName), chain)
-	return s.ctrl.Delete(chx.LightDeleteCtx(ctx, selectCtxSettings), s.fullName(table), condition)
+	return s.ctrl.Delete(chx.LightDeleteCtx(ctx, selectCtxSettings), table, condition)
 }
 
 func (s *Store) reorgInVersionedLatestTable(

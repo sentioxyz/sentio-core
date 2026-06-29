@@ -242,7 +242,7 @@ func (c *Client) callContext(
 	method string,
 	args ...any,
 ) clientpool.Result {
-	if timeout, has := c.config.MethodTimeout[method]; has {
+	if timeout, has := c.config.MethodTimeout[method]; has && timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()

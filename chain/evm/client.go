@@ -444,19 +444,8 @@ func (c *Client) CallContext(
 	method string,
 	args ...any,
 ) clientpool.Result {
-	if len(c.config.MethodBlackList) > 0 && utils.IndexOf(c.config.MethodBlackList, method) >= 0 {
-		return clientpool.Result{
-			Err:           errors.New("method in blacklist"),
-			BrokenForTask: true,
-			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
-		}
-	}
-	if len(c.config.MethodWhiteList) > 0 && utils.IndexOf(c.config.MethodWhiteList, method) < 0 {
-		return clientpool.Result{
-			Err:           errors.New("method not in whitelist"),
-			BrokenForTask: true,
-			AddTags:       []string{clientpool.MethodNotSupportedTag(method)},
-		}
+	if r := clientpool.CheckMethod(method, c.config.MethodBlackList, c.config.MethodWhiteList); r.Err != nil {
+		return r
 	}
 	// for all state-related method, checking block number in args to detect missing state data
 	if c.hasStateDataFrom > 0 {

@@ -8,6 +8,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
+
+	"sentioxyz/sentio-core/common/utils"
 )
 
 var invalidEVMMethodErrorMatcher = []*regexp.Regexp{
@@ -192,4 +194,22 @@ func CallContext(
 		r.AddTags = []string{MethodNotSupportedTag(method)}
 	}
 	return r
+}
+
+func CheckMethod(method string, blackList, whiteList []string) Result {
+	if len(blackList) > 0 && utils.IndexOf(blackList, method) >= 0 {
+		return Result{
+			Err:           errors.New("method in blacklist"),
+			BrokenForTask: true,
+			AddTags:       []string{MethodNotSupportedTag(method)},
+		}
+	}
+	if len(whiteList) > 0 && utils.IndexOf(whiteList, method) < 0 {
+		return Result{
+			Err:           errors.New("method not in whitelist"),
+			BrokenForTask: true,
+			AddTags:       []string{MethodNotSupportedTag(method)},
+		}
+	}
+	return Result{}
 }

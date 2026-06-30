@@ -16,6 +16,7 @@ import (
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/objectx"
+	"sentioxyz/sentio-core/common/pager"
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/timehist"
 	"sentioxyz/sentio-core/common/utils"
@@ -420,6 +421,12 @@ func (s *balanceController) flushStore() error {
 	return nil
 }
 
+// rebuildPaging sizes each rebuild page to yield roughly 50k balance-change records, so the fixed
+// per-page overhead (transaction query + delete probe + insert round-trip) is amortized across both
+// dense and sparse checkpoint ranges. Page size stays on a 100-checkpoint grid and within
+// [100, 5000]; see common/pager.
+var rebuildPaging = pager.Config{Target: 50000, Min: 100, Max: 5000, Step: 100, Initial: 500}
+
 func (s *balanceController) rebuild(ctx context.Context, from, to uint64) (err error) {
 	_, logger := log.FromContext(ctx)
 	logger.Warnf("will rebuild balance in clickhouse in [%d,%d]", from, to)
@@ -437,43 +444,57 @@ func (s *balanceController) rebuild(ctx context.Context, from, to uint64) (err e
 		}
 	}
 
-	const maxPageSize = 500
 	const flushInterval = time.Minute * 5
 	lastFlush := time.Now()
-	for cur := from; cur <= to; cur += maxPageSize {
-		end := min(cur+maxPageSize-1, to)
-		page := fmt.Sprintf("%d-%d", cur, end)
-		if from < cur {
+	return pager.Walk(from, to, rebuildPaging, func(start, end uint64) (uint64, bool, error) {
+		page := fmt.Sprintf("%d-%d", start, end)
+		if from < start {
 			page = fmt.Sprintf("%d..%s", from, page)
 		}
 		if end < to {
 			page = fmt.Sprintf("%s..%d", page, to)
 		}
 
-		var updated int
-		updated, err = s.rebuildBalancePage(ctx, cur, end)
-		if err != nil {
-			return errors.Wrapf(err, "rebuild balance in page [%s] failed", page)
+		updated, tooBig, pageErr := s.rebuildBalancePage(ctx, start, end)
+		if pageErr != nil {
+			return 0, false, errors.Wrapf(pageErr, "rebuild balance in page [%s] failed", page)
 		}
-		logger.Infof("rebuilt %d balances in page [%s]", updated, page)
+		if tooBig {
+			logger.Infof("rebuild page [%s] (pageSize=%d) exceeded record cap, will retry smaller", page, end-start+1)
+			return 0, true, nil
+		}
+		logger.Infof("rebuilt %d balances in page [%s] (pageSize=%d)", updated, page, end-start+1)
 
 		if time.Since(lastFlush) > flushInterval {
-			if err = s.Done(rg.NewRange(cur, end)); err != nil {
-				return err
+			if flushErr := s.Done(rg.NewRange(from, end)); flushErr != nil {
+				return 0, false, flushErr
 			}
 			lastFlush = time.Now()
 		}
-	}
-	return nil
+		return uint64(updated), false, nil
+	})
 }
 
-func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uint64) (int, error) {
+// maxRebuildRecordsPerPage bounds how many balance records a single rebuild page materializes in
+// memory. When a page's balance changes exceed this, rebuildBalancePage bails early with
+// tooBig == true so the pager can split the span and retry, keeping the in-memory records slice and
+// the insert batch bounded regardless of how dense a checkpoint range turns out to be.
+const maxRebuildRecordsPerPage = 200000
+
+// errRebuildPageTooBig is a sentinel used to abort the phase-1 query early once the page exceeds
+// maxRebuildRecordsPerPage; it never escapes rebuildBalancePage.
+var errRebuildPageTooBig = errors.New("rebuild page exceeds max records")
+
+func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uint64) (updated int, tooBig bool, err error) {
 	startAt := time.Now()
 	defer func() {
 		s.recordRebuild(time.Since(startAt))
 	}()
 
-	// 1. Query all balance change records in [from, to) in transaction table order by (checkpoint, tx_index)
+	// 1. Query all balance change records in [from, to) in transaction table order by (checkpoint, tx_index).
+	// Bail out early (tooBig) once the page would materialize more than maxRebuildRecordsPerPage records,
+	// unless the span is a single checkpoint (which cannot be split and must be processed as-is).
+	splittable := to > from
 	where := fmt.Sprintf("checkpoint >= %d AND checkpoint <= %d", from, to)
 	var records []Balance
 	sql := fmt.Sprintf(
@@ -482,7 +503,7 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 		s.ctrl.FullLogicName(tableNameTransactions), where,
 	)
 	pre := Transaction{CheckpointIndex: CheckpointIndex{Checkpoint: math.MaxUint64}}
-	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
+	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var tx Transaction
 		scanErr := rows.Scan(
 			&tx.Checkpoint, &tx.CheckpointDigest, &tx.Timestamp, &tx.Epoch,
@@ -523,10 +544,16 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 				Amount:           amount,
 			})
 		}
+		if splittable && len(records) > maxRebuildRecordsPerPage {
+			return errRebuildPageTooBig // abort the scan; the pager will retry with a smaller span
+		}
 		return nil
 	}, sql)
+	if errors.Is(err, errRebuildPageTooBig) {
+		return 0, true, nil
+	}
 	if err != nil {
-		return 0, errors.Wrapf(err, "query transactions in [%d,%d] failed", from, to)
+		return 0, false, errors.Wrapf(err, "query transactions in [%d,%d] failed", from, to)
 	}
 
 	// 2. Sequentially compute correct balance values using the store state, updating the store along the way.
@@ -538,7 +565,7 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 			r.Amount,
 		)
 		if err != nil {
-			return 0, errors.Wrapf(err, "compute balance for %s/%s at %d/%d/%s failed",
+			return 0, false, errors.Wrapf(err, "compute balance for %s/%s at %d/%d/%s failed",
 				r.Address, r.CoinType, r.Checkpoint, r.TxIndex, r.TxDigest)
 		}
 	}
@@ -553,7 +580,7 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 	// skips the DELETE entirely when no rows match, so this stays a no-op for the common case of
 	// rebuilding an already-empty range.
 	if _, err = s.ctrl.Delete(ctx, tableNameBalances, where); err != nil {
-		return 0, errors.Wrapf(err, "delete balance records in [%d,%d] failed", from, to)
+		return 0, false, errors.Wrapf(err, "delete balance records in [%d,%d] failed", from, to)
 	}
 
 	// 4. Insert new records with corrected balance values
@@ -568,15 +595,15 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 		return objectx.CollectFieldValues(&record, fieldFilter)
 	}))
 	if err != nil {
-		return 0, errors.Wrapf(err, "insert balance records in [%d,%d] failed", from, to)
+		return 0, false, errors.Wrapf(err, "insert balance records in [%d,%d] failed", from, to)
 	}
 
 	// 5. Increase current in store
 	if err = s.IncrCursor(to); err != nil {
-		return 0, err
+		return 0, false, err
 	}
 
-	return len(records), nil
+	return len(records), false, nil
 }
 
 func doByPage(

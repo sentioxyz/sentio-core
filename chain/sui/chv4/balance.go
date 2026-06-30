@@ -543,8 +543,16 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 		}
 	}
 
-	// 3. Delete old records from clickhouse
-	if _, err = s.ctrl.Delete(chx.LightDeleteCtx(ctx), tableNameBalances, where); err != nil {
+	// 3. Delete old records from clickhouse.
+	// Use a heavyweight delete (default alter_update mode) instead of a lightweight/patch delete:
+	// the balances table carries a projection (`holder`), and on ClickHouse 25.8 patch parts from
+	// lightweight deletes cannot be merged/materialized on a projection table (the projection
+	// rebuild during patch application fails with NOT_FOUND_COLUMN). During a full rebuild over
+	// existing data those patch parts therefore accumulate without bound and trip the 30 GiB
+	// max_uncompressed_bytes_in_patches cap (code 755), deadlocking the rebuild. Controller.Delete
+	// skips the DELETE entirely when no rows match, so this stays a no-op for the common case of
+	// rebuilding an already-empty range.
+	if _, err = s.ctrl.Delete(ctx, tableNameBalances, where); err != nil {
 		return 0, errors.Wrapf(err, "delete balance records in [%d,%d] failed", from, to)
 	}
 

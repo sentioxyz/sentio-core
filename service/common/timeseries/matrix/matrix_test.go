@@ -81,6 +81,10 @@ func (m *mockRows) ColumnNames() []string {
 	return m.columns
 }
 
+func (m *mockRows) HasData() bool {
+	return true
+}
+
 func TestDynamicScanType(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -21,6 +21,7 @@ import (
 	"github.com/pkg/errors"
 	lru "github.com/sentioxyz/golang-lru"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 type Client interface {
@@ -65,6 +66,7 @@ type Client interface {
 	GetGrpcObjects(
 		ctx context.Context,
 		reqs []*rpcv2.GetObjectRequest,
+		readMask *fieldmaskpb.FieldMask,
 		concurrency, batchSize int,
 	) ([]*rpcv2.GetObjectResult, error)
 
@@ -251,10 +253,13 @@ func (c *client) GetGrpcObjectChanges(
 // GetGrpcObjects fetches objects by id+version in grpc format. The super node
 // rejects oversized batches, so paging is the caller's job: the request is split
 // into sui.GrpcMaxBatchSize chunks fetched concurrently, one sui_getGrpcObjects
-// call per chunk.
+// call per chunk. readMask selects the object fields to fetch (the upstream node
+// honors only this batch-level mask, not per-request masks); a narrow mask keeps the
+// large, unused object bcs / contents blob off the wire.
 func (c *client) GetGrpcObjects(
 	ctx context.Context,
 	reqs []*rpcv2.GetObjectRequest,
+	readMask *fieldmaskpb.FieldMask,
 	getConcurrency, getBatchSize int,
 ) ([]*rpcv2.GetObjectResult, error) {
 	return concurrency.TraverseByPage(
@@ -266,8 +271,9 @@ func (c *client) GetGrpcObjects(
 			// GetObjectResult carries a protobuf oneof, which the JSON-RPC transport's
 			// encoding/json can't round-trip; decode into the protojson-backed wrapper
 			// (sui.GrpcObjectResult) and unwrap back to the raw proto for callers.
+			batchReq := &rpcv2.BatchGetObjectsRequest{Requests: pageReqs, ReadMask: readMask}
 			var wrapped []*sui.GrpcObjectResult
-			if err := c.callContext(ctx, &wrapped, 0, "sui_getGrpcObjects", pageReqs); err != nil {
+			if err := c.callContext(ctx, &wrapped, 0, "sui_getGrpcObjects", batchReq); err != nil {
 				return nil, err
 			}
 			return sui.UnwrapGrpcObjectResults(wrapped), nil
@@ -614,11 +620,18 @@ func (c *client) getTransactionBlock(ctx context.Context, digest string) (*types
 	return tx, nil
 }
 
+// grpcObjectPrevTxReadMask limits the package-history object lookup to the fields the
+// walk reads (just previous_transaction, alongside the implicit object id/version/digest),
+// so the fetch never pulls the large, unused object bcs / contents blob.
+var grpcObjectPrevTxReadMask = &fieldmaskpb.FieldMask{
+	Paths: []string{"object_id", "version", "digest", "previous_transaction"},
+}
+
 // getGrpcObject fetches a single object (latest version when version is nil) over
 // grpc and returns its proto, erroring on a not-found / error result.
 func (c *client) getGrpcObject(ctx context.Context, objectID string, version *uint64) (*rpcv2.Object, error) {
 	req := &rpcv2.GetObjectRequest{ObjectId: &objectID, Version: version}
-	results, err := c.GetGrpcObjects(ctx, []*rpcv2.GetObjectRequest{req}, 1, 1)
+	results, err := c.GetGrpcObjects(ctx, []*rpcv2.GetObjectRequest{req}, grpcObjectPrevTxReadMask, 1, 1)
 	if err != nil {
 		return nil, err
 	}

@@ -39,6 +39,7 @@ const (
 // (SuiParsedData) — the grpc handler binds the whole rpcv2.Object (see RawSelf below), so the mask
 // must include every field that object carries: object_type and has_public_transfer (NOT present in
 // the rendered json), owner, and json itself. object_type additionally drives the dynamic-object check.
+// It is passed as the batch-level read mask to GetGrpcObjects (the only mask the upstream node honors).
 var objectReadMask = &fieldmaskpb.FieldMask{
 	Paths: []string{"object_id", "version", "digest", "object_type", "has_public_transfer", "owner", "json"},
 }
@@ -134,7 +135,7 @@ func (a HandlerAgentInterval) BuildBindingDataList(
 	contents := make(map[string]grpcObject)
 	for len(requests) > 0 {
 		var resp []*rpcv2.GetObjectResult
-		if resp, err = a.Client.GetGrpcObjects(ctx, requests, grpcObjectsConcurrency, grpcObjectsBatchSize); err != nil {
+		if resp, err = a.Client.GetGrpcObjects(ctx, requests, objectReadMask, grpcObjectsConcurrency, grpcObjectsBatchSize); err != nil {
 			return
 		}
 		var wrappedObjectIDList []string
@@ -271,11 +272,13 @@ func (a HandlerAgentInterval) BuildBindingDataList(
 	return
 }
 
+// newObjectRequest builds a by-id+version object request. The read mask is set once at
+// the batch level by GetGrpcObjects (objectReadMask), since the upstream node ignores
+// per-request masks, so it is intentionally omitted here.
 func newObjectRequest(objectID string, version uint64) *rpcv2.GetObjectRequest {
 	return &rpcv2.GetObjectRequest{
 		ObjectId: utils.WrapPointer(objectID),
 		Version:  utils.WrapPointer(version),
-		ReadMask: objectReadMask,
 	}
 }
 

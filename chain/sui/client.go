@@ -407,14 +407,20 @@ const grpcMaxConcurrency = 10
 
 // GetGrpcObjects fetches up to GrpcMaxBatchSize objects in a single upstream
 // BatchGetObjects call (no paging). It errors if the request exceeds the limit.
+//
+// The upstream node honors only the batch-level req.ReadMask and ignores any per-request
+// GetObjectRequest.ReadMask, so callers must set the fields they need on req.ReadMask. A
+// nil/empty mask defaults to object_id,version,digest only; pass "*" to fetch all fields
+// (e.g. the slot loader). Narrowing the mask is what keeps the large, never-consumed object
+// `bcs` / `contents` blob off the wire.
 func (p *ClientPool) GetGrpcObjects(
 	ctx context.Context,
 	theme string,
 	method string,
-	requests []*rpcv2.GetObjectRequest,
+	req *rpcv2.BatchGetObjectsRequest,
 ) ([]*rpcv2.GetObjectResult, error) {
-	if len(requests) > GrpcMaxBatchSize {
-		return nil, errors.Errorf("too many objects in one request: %d (max %d)", len(requests), GrpcMaxBatchSize)
+	if len(req.GetRequests()) > GrpcMaxBatchSize {
+		return nil, errors.Errorf("too many objects in one request: %d (max %d)", len(req.GetRequests()), GrpcMaxBatchSize)
 	}
 	var resp *rpcv2.BatchGetObjectsResponse
 	r := p.UseClient(
@@ -423,10 +429,6 @@ func (p *ClientPool) GetGrpcObjects(
 		func(ctx context.Context, cli *Client) clientpool.Result {
 			return cli.UseGRPCConnection(ctx, method,
 				func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
-					req := &rpcv2.BatchGetObjectsRequest{
-						Requests: requests,
-						ReadMask: &fieldmaskpb.FieldMask{Paths: []string{"*"}},
-					}
 					var getErr error
 					resp, getErr = rpcv2.NewLedgerServiceClient(conn).BatchGetObjects(ctx, req)
 					return clientpool.Result{
@@ -439,21 +441,23 @@ func (p *ClientPool) GetGrpcObjects(
 		clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
 	)
 	if r.Err != nil {
-		return nil, errors.Wrapf(r.Err, "load objects %s failed", utils.MustJSONMarshal(requests))
+		return nil, errors.Wrapf(r.Err, "load objects %s failed", utils.MustJSONMarshal(req.GetRequests()))
 	}
-	if len(resp.GetObjects()) != len(requests) {
-		return nil, errors.Errorf("should get %d objects but got %d", len(requests), len(resp.GetObjects()))
+	if len(resp.GetObjects()) != len(req.GetRequests()) {
+		return nil, errors.Errorf("should get %d objects but got %d", len(req.GetRequests()), len(resp.GetObjects()))
 	}
 	return resp.GetObjects(), nil
 }
 
 // GetGrpcObjectsByPage is a server-side bulk helper that pages a large object list
-// into GrpcMaxBatchSize chunks and fetches them concurrently. It is for in-process
-// bulk loads (e.g. the ext server); the driver→super-node path does not use it.
+// into GrpcMaxBatchSize chunks and fetches them concurrently, applying readMask to
+// every chunk. It is for in-process bulk loads (e.g. the ext server); the
+// driver→super-node path does not use it.
 func (p *ClientPool) GetGrpcObjectsByPage(
 	ctx context.Context,
 	theme string,
 	method string,
+	readMask *fieldmaskpb.FieldMask,
 	getConcurrency int,
 	getBatchSize int,
 	requests []*rpcv2.GetObjectRequest,
@@ -465,7 +469,7 @@ func (p *ClientPool) GetGrpcObjectsByPage(
 		requests,
 		func(ctx context.Context, page concurrency.Page, reqs []*rpcv2.GetObjectRequest) ([]*rpcv2.GetObjectResult, error) {
 			pageTheme := fmt.Sprintf("%s/P#%d[%d-%d)", theme, page.Num, page.Start, page.End)
-			return p.GetGrpcObjects(ctx, pageTheme, method, reqs)
+			return p.GetGrpcObjects(ctx, pageTheme, method, &rpcv2.BatchGetObjectsRequest{Requests: reqs, ReadMask: readMask})
 		},
 	)
 }

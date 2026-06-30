@@ -296,6 +296,9 @@ func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot,
 		ctx,
 		fmt.Sprintf("ext.GetSlot.ObjectsPart.grpc_BatchGetObjects/%d", sn),
 		"ext.GetSlot.ObjectsPart.grpc_BatchGetObjects",
+		// the slot loader needs the full object (owner/type enrich changed objects); bcs is
+		// dropped right after by Slot.removeBcs, so "*" here costs only the single ingest fetch.
+		&fieldmaskpb.FieldMask{Paths: []string{"*"}},
 		d.loadObjectsConcurrency,
 		d.loadObjectsBatchSize,
 		objReqs,

@@ -497,16 +497,18 @@ func (s *SuperService) FilterGrpcChangedObjects(
 
 // GetGrpcObjects forwards a single bounded batch to the upstream grpc node. It does
 // not page: a request over sui.GrpcMaxBatchSize is rejected (by the client pool),
-// and the caller (driver) is responsible for chunking large object lists.
+// and the caller (driver) is responsible for chunking large object lists. The caller
+// also owns the read mask: it travels on req.ReadMask (the only mask the upstream node
+// honors), so the super node stays a thin proxy and never forces all-fields / bcs.
 func (s *SuperService) GetGrpcObjects(
 	ctx context.Context,
-	reqs []*rpcv2.GetObjectRequest,
+	req *rpcv2.BatchGetObjectsRequest,
 ) ([]*sui.GrpcObjectResult, error) {
 	if err := s.requireGRPC(); err != nil {
 		return nil, err
 	}
 	const theme = "proxy.GetGrpcObjects.grpc_BatchGetObjects"
-	results, err := s.client.GetGrpcObjects(ctx, theme, theme, reqs)
+	results, err := s.client.GetGrpcObjects(ctx, theme, theme, req)
 	if err != nil {
 		return nil, err
 	}

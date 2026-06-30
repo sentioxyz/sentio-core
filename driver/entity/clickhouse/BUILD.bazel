@@ -26,7 +26,6 @@ go_library(
         "//driver/entity/schema",
         "//driver/entity/schema/exp",
         "//driver/entity/schema/interval",
-        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
         "@com_github_clickhouse_clickhouse_go_v2//lib/chcol",
         "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
         "@com_github_graph_gophers_graphql_go//types",

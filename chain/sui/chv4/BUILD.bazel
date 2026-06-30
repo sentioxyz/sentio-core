@@ -22,6 +22,7 @@ go_library(
         "//common/jsonrpc",
         "//common/log",
         "//common/objectx",
+        "//common/pager",
         "//common/range",
         "//common/set",
         "//common/timehist",

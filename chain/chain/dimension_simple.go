@@ -150,11 +150,11 @@ func (d *SimpleDimension[SLOT]) Delete(ctx context.Context, targetRange rg.Range
 		return curRange.Remove(targetRange).First()
 	})
 	if err != nil {
-		logger.Warne(err, "delete %s failed: update range failed", targetRange)
+		logger.Warnfe(err, "delete %s failed: update range failed", targetRange)
 		return err
 	}
 	if err = d.SimpleSlotStore.Delete(ctx, targetRange); err != nil {
-		logger.Warne(err, "delete %s failed: clean in simple slot store failed", targetRange)
+		logger.Warnfe(err, "delete %s failed: clean in simple slot store failed", targetRange)
 		return err
 	}
 	logger.Infof("delete %s succeed, curRange is %s", targetRange, after)

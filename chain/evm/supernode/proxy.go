@@ -3,20 +3,24 @@ package supernode
 import (
 	"context"
 	"encoding/json"
-	"github.com/cenkalti/backoff/v4"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/set"
 	"strings"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/pkg/errors"
 )
 
 func NewProxyMiddleware(client *evm.ClientPool) jsonrpc.Middleware {
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (interface{}, error) {
+			if jsonrpc.GetCtxData(ctx).WebsocketSession != nil {
+				return next(ctx, method, params)
+			}
 			args, err := jsonrpc.ParseParams(params)
 			if err != nil {
 				return nil, err

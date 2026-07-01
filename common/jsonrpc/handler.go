@@ -247,14 +247,6 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rid := s.requestCounter.Add(1)
 	ctx, logger := log.FromContextWithTrace(r.Context(), "svr", s.name, "rid", rid, "src", src)
 
-	// check body length
-	if r.ContentLength > MaxRequestContentLength {
-		err := fmt.Errorf("content length too large (%d>%d)", r.ContentLength, MaxRequestContentLength)
-		logger.Debugfe(err, "request failed")
-		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
-		return
-	}
-
 	// print error log if panic
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
@@ -262,6 +254,42 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			panic(panicErr)
 		}
 	}()
+
+	// handle websocket upgrade requests before anything else: a websocket
+	// upgrade is never a jsonrpc/http request and carries no body, so classify
+	// it up front before reading the request body.
+	if websocket.IsWebSocketUpgrade(r) {
+		if s.websocketSvr == nil {
+			// this handler is configured to not accept websocket connections,
+			// reject the upgrade explicitly.
+			logger.Debugf("reject websocket connection: not accepted")
+			http.Error(w, "websocket connections are not supported", http.StatusBadRequest)
+			return
+		}
+		if conn, upgradeErr := upgrader.Upgrade(w, r, nil); upgradeErr == nil {
+			if s.debug {
+				logger.Debugw("[ACCESS] websocket connection")
+				for hk, hv := range r.Header {
+					logger.Debugf("Header[%s]: %v", hk, hv)
+				}
+			}
+			logger.Debugf("accept websocket connection")
+			defer func() {
+				_ = conn.Close()
+			}()
+			s.websocketSvr.handleConnection(ctx, rid, src, conn)
+		}
+		// whether or not the upgrade succeeded, the response has been handled.
+		return
+	}
+
+	// check body length
+	if r.ContentLength > MaxRequestContentLength {
+		err := fmt.Errorf("content length too large (%d>%d)", r.ContentLength, MaxRequestContentLength)
+		logger.Debugfe(err, "request failed")
+		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+		return
+	}
 
 	// get raw request body
 	rawBody, err := io.ReadAll(io.LimitReader(r.Body, MaxRequestContentLength))
@@ -282,22 +310,6 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		isJSONRPCRequest = false
-		if s.websocketSvr != nil {
-			if conn, upgradeErr := upgrader.Upgrade(w, r, nil); upgradeErr == nil {
-				if s.debug {
-					logger.Debugw("[ACCESS] websocket connection")
-					for hk, hv := range r.Header {
-						logger.Debugf("Header[%s]: %v", hk, hv)
-					}
-				}
-				logger.Debugf("accept websocket connection")
-				defer func() {
-					_ = conn.Close()
-				}()
-				s.websocketSvr.handleConnection(ctx, rid, src, conn)
-				return
-			}
-		}
 	}
 
 	if isJSONRPCRequest {

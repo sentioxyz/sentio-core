@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"net/http"
 	"net/url"
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/common/utils"
+
+	"github.com/pkg/errors"
 )
 
 const UpstreamHeaderKey = "X-Sentio-Proxy-Endpoint"
@@ -152,6 +153,9 @@ func NewJSONRPCProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jso
 ) Middleware {
 	return func(next MethodHandler) MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
+			if GetCtxData(ctx).WebsocketSession != nil {
+				return next(ctx, method, params)
+			}
 			args, err := ParseParams(params)
 			if err != nil {
 				return nil, err

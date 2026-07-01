@@ -266,20 +266,25 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "websocket connections are not supported", http.StatusBadRequest)
 			return
 		}
-		if conn, upgradeErr := upgrader.Upgrade(w, r, nil); upgradeErr == nil {
-			if s.debug {
-				logger.Debugw("[ACCESS] websocket connection")
-				for hk, hv := range r.Header {
-					logger.Debugf("Header[%s]: %v", hk, hv)
-				}
-			}
-			logger.Debugf("accept websocket connection")
-			defer func() {
-				_ = conn.Close()
-			}()
-			s.websocketSvr.handleConnection(ctx, rid, src, conn)
+		conn, upgradeErr := upgrader.Upgrade(w, r, nil)
+		if upgradeErr != nil {
+			// upgrader.Error is a no-op, so write the failure response ourselves
+			// instead of letting the request return a bare 200.
+			logger.Debugfe(upgradeErr, "websocket upgrade failed")
+			http.Error(w, "websocket upgrade failed", http.StatusBadRequest)
+			return
 		}
-		// whether or not the upgrade succeeded, the response has been handled.
+		if s.debug {
+			logger.Debugw("[ACCESS] websocket connection")
+			for hk, hv := range r.Header {
+				logger.Debugf("Header[%s]: %v", hk, hv)
+			}
+		}
+		logger.Debugf("accept websocket connection")
+		defer func() {
+			_ = conn.Close()
+		}()
+		s.websocketSvr.handleConnection(ctx, rid, src, conn)
 		return
 	}
 

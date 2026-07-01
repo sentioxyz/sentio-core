@@ -107,7 +107,7 @@ func tableToMeta(
 
 	meta.Type, meta.Name, err = timeseries.CutTableName(table.Name)
 	if err != nil {
-		logger.Debuge(err, "invalid table name %q", table.Name)
+		logger.Debugfe(err, "invalid table name %q", table.Name)
 		return meta, errInvalidTableName
 	}
 

@@ -283,6 +283,10 @@ func (s *balanceController) reload(
 	// aggregate sees rows in the subquery's order (parts/threads are merged in arbitrary order), so
 	// last_value() could return a stale row's balance and corrupt the rebuild base. argMax over the
 	// (checkpoint, tx_index) tuple is order-independent and always selects the true latest row.
+	// reorg(checkpoint) keeps state through checkpoint inclusive (collect only pulls items last
+	// changed in [checkpoint+1, INF)), so the restore base must include the row at exactly checkpoint:
+	// use `<=`, not `<`, otherwise a balance change landing on the reorg checkpoint is dropped and the
+	// item is rebuilt from a stale value (or deleted when no earlier row exists).
 	sql := fmt.Sprintf("SELECT"+
 		" address,"+
 		" coin_type,"+
@@ -291,7 +295,7 @@ func (s *balanceController) reload(
 		" argMax(tx_digest, (checkpoint, tx_index)),"+
 		" argMax(balance, (checkpoint, tx_index)) "+
 		"FROM %s "+
-		"WHERE (address, coin_type) IN [%s] AND checkpoint < %d "+
+		"WHERE (address, coin_type) IN [%s] AND checkpoint <= %d "+
 		"GROUP BY address, coin_type", s.ctrl.FullLogicName(tableNameBalances), missSet, checkpoint)
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var addr, coinType string

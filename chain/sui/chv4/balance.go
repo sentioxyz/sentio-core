@@ -690,6 +690,19 @@ func (s *balanceController) reorg(ctx context.Context, checkpoint uint64) (err e
 	return nil
 }
 
+// ResetToGenesis clears the balance store so checkpoint 0 can be applied from an empty base.
+// There is no checkpoint before genesis to Align to (ck-1 would underflow uint64 into a huge
+// rebuild target), and a failed convert(0) retry still needs its partial writes rolled back;
+// delAll both empties the store and drops the current cursor (getCurrent -> has=false).
+func (s *balanceController) ResetToGenesis(ctx context.Context) error {
+	if !s.enable {
+		return nil
+	}
+	_, logger := log.FromContext(ctx)
+	logger.Warnf("will reset balance store to empty for genesis checkpoint")
+	return s.delAll()
+}
+
 func (s *balanceController) Align(ctx context.Context, checkpoint uint64) error {
 	if !s.enable {
 		return nil

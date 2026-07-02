@@ -12,8 +12,9 @@ import (
 )
 
 // ChainConfig is the per-chain configuration consumed by the streaming
-// (driver v3/v4) controller. The legacy driver v2 configuration (chain.Config)
-// stays in the sentio repository.
+// (driver v3/v4) controller. This is distinct from processor.ChainConfig,
+// which is the shape the TypeScript SDK reads from the chains-config.json
+// handed to processor-runner.
 type ChainConfig struct {
 	ChainID                  string
 	Endpoint                 string

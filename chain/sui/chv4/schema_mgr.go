@@ -141,8 +141,15 @@ func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint,
 	}()
 	// Normally, all checkpoints will call convert sequentially.
 	// If failed midway, the segment at the tail will be restarted, and the saved balance data will need to be rollback.
-	if err = m.balanceCtrl.Align(ctx, ck.GetSequenceNumber()-1); err != nil {
-		err = errors.Wrapf(err, "align balance store for checkpoint %d failed", ck.GetSequenceNumber())
+	// Genesis checkpoint 0 has no predecessor to Align to (ck-1 would underflow uint64), so reset the store to empty
+	// instead, which also rolls back any partial write left by a failed convert(0) retry.
+	if seq := ck.GetSequenceNumber(); seq == 0 {
+		if err = m.balanceCtrl.ResetToGenesis(ctx); err != nil {
+			err = errors.Wrapf(err, "reset balance store for genesis checkpoint failed")
+			return
+		}
+	} else if err = m.balanceCtrl.Align(ctx, seq-1); err != nil {
+		err = errors.Wrapf(err, "align balance store for checkpoint %d failed", seq)
 		return
 	}
 	// === checkpoint

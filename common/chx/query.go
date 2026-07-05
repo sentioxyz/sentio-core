@@ -119,6 +119,15 @@ func (c Controller) BatchInsert(
 }
 
 func (c Controller) Delete(ctx context.Context, table string, condition string, light bool) (uint64, error) {
+	if !light {
+		// A previous interrupted call (ctx timeout, network cut) may have left its DELETE mutation
+		// still running server-side. Wait it out BEFORE probing and submitting: the probe then sees
+		// the settled state, so a retry converges to a no-op instead of stacking one more mutation
+		// onto the table on every attempt.
+		if err := c.waitDeleteMutations(ctx, table); err != nil {
+			return 0, errors.Wrapf(err, "wait for previous delete mutation on %s failed", table)
+		}
+	}
 	sql := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s", c.FullLogicName(table), condition)
 	count, err := c.QueryCount(DisableProjectionCtx(ctx), sql)
 	if err != nil {
@@ -183,13 +192,21 @@ func (c Controller) Delete(ctx context.Context, table string, condition string, 
 
 // waitDeleteMutations blocks until the table has no unfinished DELETE mutation, polling
 // system.mutations. Transient poll failures are tolerated (the mutation keeps running server-side
-// regardless), so the wait survives network hiccups and is bounded only by ctx. A mutation that
-// reports a failure reason is surfaced as an error instead of waiting forever on it.
+// regardless), so the wait survives network hiccups and is bounded only by ctx. A mutation failure
+// reason is transient too at first — ClickHouse retries failed mutations automatically, and hiccups
+// like a lock conflict resolve on their own — so it is only surfaced as an error after persisting
+// for several consecutive polls (a stuck mutation must be reported rather than waited on forever).
 func (c Controller) waitDeleteMutations(ctx context.Context, table string) error {
 	const pollInterval = time.Second * 5
+	// ~1 minute of a persisting failure reason before giving up on the mutation.
+	const failReportThreshold = 12
 	startAt := time.Now()
+	failStreak := 0
+	// `LIKE '%DELETE%WHERE%'` covers both mutation command forms, `DELETE WHERE ...` and
+	// `DELETE IN PARTITION ... WHERE ...`, while still excluding the lightweight
+	// `UPDATE _row_exists = 0 WHERE ...` form and projection/column commands.
 	sql := "SELECT count(), max(latest_fail_reason) FROM system.mutations " +
-		"WHERE database = ? AND table = ? AND NOT is_done AND command LIKE '%DELETE WHERE%'"
+		"WHERE database = ? AND table = ? AND NOT is_done AND command LIKE '%DELETE%WHERE%'"
 	for {
 		var pending uint64
 		var failReason string
@@ -197,9 +214,6 @@ func (c Controller) waitDeleteMutations(ctx context.Context, table string) error
 			return rows.Scan(&pending, &failReason)
 		}, sql, c.database, c.tableNamePrefix+table)
 		if err == nil {
-			if failReason != "" {
-				return errors.Errorf("delete mutation on %s keeps failing: %s", table, failReason)
-			}
 			if pending == 0 {
 				used := time.Since(startAt)
 				if used >= slowQueryLimit {
@@ -207,6 +221,16 @@ func (c Controller) waitDeleteMutations(ctx context.Context, table string) error
 					logger.Warnf("delete mutation done, but waited > %s", slowQueryLimit)
 				}
 				return nil
+			}
+			if failReason != "" {
+				failStreak++
+				if failStreak >= failReportThreshold {
+					return errors.Errorf("delete mutation on %s keeps failing: %s", table, failReason)
+				}
+				_, logger := log.FromContext(ctx, "table", table, "failStreak", failStreak)
+				logger.Warnf("delete mutation reported a failure, keep waiting: %s", failReason)
+			} else {
+				failStreak = 0
 			}
 		} else if ctx.Err() != nil {
 			return ctx.Err()

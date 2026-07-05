@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/cockroachdb/pebble"
-	"github.com/pkg/errors"
 	"math"
 	"math/big"
 	"os"
@@ -23,6 +20,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/cockroachdb/pebble"
+	"github.com/pkg/errors"
 )
 
 type balanceItem struct {
@@ -575,15 +576,16 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 	}
 
 	// 3. Delete old records from clickhouse.
-	// Use a heavyweight delete (default alter_update mode) instead of a lightweight/patch delete:
-	// the balances table carries a projection (`holder`), and on ClickHouse 25.8 patch parts from
-	// lightweight deletes cannot be merged/materialized on a projection table (the projection
-	// rebuild during patch application fails with NOT_FOUND_COLUMN). During a full rebuild over
-	// existing data those patch parts therefore accumulate without bound and trip the 30 GiB
+	// Use a heavyweight ALTER DELETE instead of a lightweight/patch delete: the balances table
+	// carries a projection (`holder`), and lightweight deletes never touch projection data — the
+	// base table hides the deleted rows while the projection keeps serving them. On ClickHouse 25.8
+	// the patch-mode variant is even worse: patch parts cannot be merged/materialized on a projection
+	// table (the projection rebuild during patch application fails with NOT_FOUND_COLUMN), so during
+	// a full rebuild over existing data they accumulate without bound and trip the 30 GiB
 	// max_uncompressed_bytes_in_patches cap (code 755), deadlocking the rebuild. Controller.Delete
 	// skips the DELETE entirely when no rows match, so this stays a no-op for the common case of
 	// rebuilding an already-empty range.
-	if _, err = s.ctrl.Delete(ctx, tableNameBalances, where); err != nil {
+	if _, err = s.ctrl.Delete(ctx, tableNameBalances, where, false); err != nil {
 		return 0, false, errors.Wrapf(err, "delete balance records in [%d,%d] failed", from, to)
 	}
 

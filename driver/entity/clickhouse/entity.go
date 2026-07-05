@@ -467,7 +467,9 @@ func (s *Store) reorgInTable(ctx context.Context, blockNumber int64, chain strin
 	condition := fmt.Sprintf("%s > %d AND %s = '%s'",
 		quote(genBlockNumberFieldName), blockNumber,
 		quote(genBlockChainFieldName), chain)
-	return s.ctrl.Delete(chx.LightDeleteCtx(ctx, selectCtxSettings), table, condition)
+	// SelectCtx keeps select_sequential_consistency on Delete's row-count probe: after a replica
+	// failover the probe could otherwise read a lagging replica, see 0 rows and skip the delete.
+	return s.ctrl.Delete(SelectCtx(ctx), table, condition, true)
 }
 
 func (s *Store) reorgInVersionedLatestTable(

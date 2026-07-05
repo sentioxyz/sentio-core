@@ -149,6 +149,15 @@ func (c Controller) Delete(ctx context.Context, table string, condition string, 
 		//     atomically replaces the old one. Base and projection always come from the same write,
 		//     so no base-updated-but-projection-stale state is ever observable.
 		//
+		// Note that a plain `DELETE FROM` WITHOUT the LightDeleteCtx settings is not a middle
+		// ground: the statement form, not the settings, decides the delete's nature. Under the
+		// default lightweight_delete_mode='alter_update' it is rewritten into an
+		// `UPDATE _row_exists = 0` mutation — a mutation, but still a masking one: parts are
+		// rewritten with only the mask column added (data columns are hardlinked, rows stay), and
+		// the projection rebuild reads the part's physical rows with the mask ignored, so
+		// projections keep serving the deleted rows just the same. Only `ALTER TABLE ... DELETE`
+		// physically drops rows and rebuilds projections from the survivors.
+		//
 		// That per-part atomicity also means a failure of any kind (mutation failing halfway, KILL
 		// MUTATION, client disconnect) is only ever a PROGRESS problem, never a consistency problem:
 		// every active part is either the old one (rows still present in both base and projection)

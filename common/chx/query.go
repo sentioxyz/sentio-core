@@ -132,12 +132,35 @@ func (c Controller) Delete(ctx context.Context, table string, condition string, 
 			return 0, errors.Wrapf(err, "delete from %s failed", table)
 		}
 	} else {
-		// A heavyweight ALTER DELETE rewrites every matching part (and its projections), which on a
-		// large table can far exceed the client-side read timeout. Waiting on the statement itself
-		// would then time out client-side while the server keeps executing, and a retry would submit
-		// yet another mutation on top of the running one. Submit asynchronously instead (the statement
-		// returns once the mutation is queued) and poll system.mutations until it finishes: each poll
-		// is a cheap short query, so the total wait is bounded only by ctx.
+		// Heavyweight `ALTER TABLE ... DELETE` differs from the lightweight `DELETE FROM` above in
+		// WHERE the delete happens, and that difference is what makes it mandatory for tables with
+		// projections:
+		//
+		//   - `DELETE FROM` (lightweight) never touches the stored rows. It only attaches a
+		//     _row_exists mask (or patch parts) that the BASE read path applies on the fly.
+		//     Projections have no mask concept, so on a table with projections they keep serving
+		//     the deleted rows forever — even lightweight_mutation_projection_mode='rebuild'
+		//     rebuilds the projection from the part's physical rows with the mask ignored. Base and
+		//     projection permanently diverge; lightweight is therefore only safe on tables without
+		//     projections.
+		//   - `ALTER TABLE ... DELETE` (heavyweight) deletes by atomically rewriting whole parts:
+		//     each affected part is rewritten from its surviving rows, the projections inside the
+		//     part are rebuilt from those same surviving rows in the same rewrite, and the new part
+		//     atomically replaces the old one. Base and projection always come from the same write,
+		//     so no base-updated-but-projection-stale state is ever observable.
+		//
+		// That per-part atomicity also means a failure of any kind (mutation failing halfway, KILL
+		// MUTATION, client disconnect) is only ever a PROGRESS problem, never a consistency problem:
+		// every active part is either the old one (rows still present in both base and projection)
+		// or the new one (rows deleted from both), and an unfinished mutation stays queued and
+		// retries server-side until done or killed.
+		//
+		// The mutation rewrites every matching part, which on a large table can far exceed the
+		// client-side read timeout. Waiting on the statement itself would then time out client-side
+		// while the server keeps executing, and a retry would submit yet another mutation on top of
+		// the running one. Submit asynchronously instead (the statement returns once the mutation is
+		// queued) and poll system.mutations until it finishes: each poll is a cheap short query, so
+		// the total wait is bounded only by ctx.
 		sql = fmt.Sprintf("ALTER TABLE %s DELETE WHERE %s", c.FullLogicName(table), condition)
 		if err = c.Exec(AsyncMutationCtx(ctx), sql); err != nil {
 			return 0, errors.Wrapf(err, "delete from %s failed", table)

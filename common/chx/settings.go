@@ -47,6 +47,17 @@ func InsertSelectCtx(ctx context.Context, otherSettings ...map[string]any) conte
 	return ckhmanager.ContextMergeSettings(ctx, settings)
 }
 
+// AsyncMutationCtx makes mutation statements (ALTER TABLE ... DELETE/UPDATE) return as soon as the
+// mutation is submitted instead of waiting for it to finish, so the statement never hits the
+// client-side read timeout no matter how long the mutation takes. Completion must then be tracked
+// separately by polling system.mutations.
+func AsyncMutationCtx(ctx context.Context, otherSettings ...map[string]any) context.Context {
+	settings := mergeSettings(mergeSettings(otherSettings...), map[string]any{
+		"mutations_sync": "0",
+	})
+	return ckhmanager.ContextMergeSettings(ctx, settings)
+}
+
 func WithLightDeleteTableSettings(settings map[string]string) {
 	settings["enable_block_number_column"] = "1"
 	settings["enable_block_offset_column"] = "1"

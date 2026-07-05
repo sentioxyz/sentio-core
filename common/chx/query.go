@@ -118,7 +118,7 @@ func (c Controller) BatchInsert(
 	return nil
 }
 
-func (c Controller) Delete(ctx context.Context, table string, condition string) (uint64, error) {
+func (c Controller) Delete(ctx context.Context, table string, condition string, light bool) (uint64, error) {
 	sql := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s", c.FullLogicName(table), condition)
 	count, err := c.QueryCount(DisableProjectionCtx(ctx), sql)
 	if err != nil {
@@ -126,11 +126,65 @@ func (c Controller) Delete(ctx context.Context, table string, condition string) 
 	} else if count == 0 {
 		return 0, nil
 	}
-	sql = fmt.Sprintf("DELETE FROM %s WHERE %s", c.FullLogicName(table), condition)
-	if err = c.Exec(ctx, sql); err != nil {
-		return 0, errors.Wrapf(err, "delete from %s failed", table)
+	if light {
+		sql = fmt.Sprintf("DELETE FROM %s WHERE %s", c.FullLogicName(table), condition)
+		if err = c.Exec(LightDeleteCtx(ctx), sql); err != nil {
+			return 0, errors.Wrapf(err, "delete from %s failed", table)
+		}
+	} else {
+		// A heavyweight ALTER DELETE rewrites every matching part (and its projections), which on a
+		// large table can far exceed the client-side read timeout. Waiting on the statement itself
+		// would then time out client-side while the server keeps executing, and a retry would submit
+		// yet another mutation on top of the running one. Submit asynchronously instead (the statement
+		// returns once the mutation is queued) and poll system.mutations until it finishes: each poll
+		// is a cheap short query, so the total wait is bounded only by ctx.
+		sql = fmt.Sprintf("ALTER TABLE %s DELETE WHERE %s", c.FullLogicName(table), condition)
+		if err = c.Exec(AsyncMutationCtx(ctx), sql); err != nil {
+			return 0, errors.Wrapf(err, "delete from %s failed", table)
+		}
+		if err = c.waitDeleteMutations(ctx, table); err != nil {
+			return 0, errors.Wrapf(err, "wait for delete mutation on %s failed", table)
+		}
 	}
 	return count, nil
+}
+
+// waitDeleteMutations blocks until the table has no unfinished DELETE mutation, polling
+// system.mutations. Transient poll failures are tolerated (the mutation keeps running server-side
+// regardless), so the wait survives network hiccups and is bounded only by ctx. A mutation that
+// reports a failure reason is surfaced as an error instead of waiting forever on it.
+func (c Controller) waitDeleteMutations(ctx context.Context, table string) error {
+	const pollInterval = time.Second * 5
+	startAt := time.Now()
+	sql := "SELECT count(), max(latest_fail_reason) FROM system.mutations " +
+		"WHERE database = ? AND table = ? AND NOT is_done AND command LIKE '%DELETE WHERE%'"
+	for {
+		var pending uint64
+		var failReason string
+		err := c.Query(ctx, func(rows driver.Rows) error {
+			return rows.Scan(&pending, &failReason)
+		}, sql, c.database, c.tableNamePrefix+table)
+		if err == nil {
+			if failReason != "" {
+				return errors.Errorf("delete mutation on %s keeps failing: %s", table, failReason)
+			}
+			if pending == 0 {
+				used := time.Since(startAt)
+				if used >= slowQueryLimit {
+					_, logger := log.FromContext(ctx, "table", table, "used", used.String())
+					logger.Warnf("delete mutation done, but waited > %s", slowQueryLimit)
+				}
+				return nil
+			}
+		} else if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pollInterval):
+		}
+	}
 }
 
 func (c Controller) AlterTable(ctx context.Context, table string, sql string, args ...any) error {

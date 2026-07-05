@@ -312,7 +312,7 @@ func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int
 				quote(item.meta.GetSlotNumberField().Name),
 				slotNumberGt,
 			)
-			deleted, err = s.ctrl.Delete(chx.LightDeleteCtx(ctx), item.meta.GetTableName(), where)
+			deleted, err = s.ctrl.Delete(ctx, item.meta.GetTableName(), where, true)
 		}
 		metaLogger := logger.With("meta", item.meta.GetFullName(), "used", time.Since(startAt).String())
 		if err != nil {

@@ -500,17 +500,13 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 		}
 		// execute delete sql
 		startAt := time.Now()
-		// The patch-based lightweight delete mode conflicts with projections:
-		// the patch parts it produces make the subsequent projection rebuild
-		// fail. Only enable it for tables without projections; for tables with
-		// projections, drop the patch-mode settings so Delete's DELETE FROM
-		// falls back to the default (mask-based) lightweight delete, which the
-		// projection rebuild can handle.
-		delCtx := ctx
-		if len(table.Table.Projections) == 0 {
-			delCtx = chx.LightDeleteCtx(ctx)
-		}
-		count, err := s.ctrl.Delete(delCtx, table.Table.Name, where)
+		// Lightweight deletes (patch- or mask-based) never touch projection data:
+		// the base table hides the deleted rows on read while every projection
+		// keeps serving them, permanently diverging until the parts are rewritten.
+		// So lightweight delete is only safe for tables without projections; for
+		// tables with projections use a heavyweight ALTER DELETE, which rewrites
+		// the matching parts and rebuilds their projections from surviving rows.
+		count, err := s.ctrl.Delete(ctx, table.Table.Name, where, len(table.Table.Projections) == 0)
 		tableLogger := logger.With("table", table.Table.Name, "used", time.Since(startAt).String())
 		if err != nil {
 			tableLogger.Errorfe(err, "delete in range failed")

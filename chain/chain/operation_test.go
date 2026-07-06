@@ -396,3 +396,62 @@ func TestSync_reorgAll(t *testing.T) {
 		assert.Equal(t, fmt.Sprintf("ca%d", n), store2.slots.GetWithDefault(n, nil).GetHash())
 	}
 }
+
+func TestSync_cutHeadResidue(t *testing.T) {
+	log.ManuallySetLevel(zapcore.DebugLevel)
+	log.BindFlag()
+
+	baseRange := rg.NewRange(0, 300)
+	baseSlots := newTestSlots(baseRange, "")
+
+	dim1, rs1, store1 := newTestDimension()
+	store1.initFillSlots(filterSlots(baseSlots, rg.NewRange(100, 199)))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
+
+	// The destination records range [100, 149] but its store also holds residue slots
+	// [10, 29] below the recorded start, simulating rows leaked by a partially failed
+	// delete after the range was already advanced. The head cut must reclaim them even
+	// though they sit below curRange.Start.
+	dim2, rs2, store2 := newTestDimension()
+	store2.initFillSlots(filterSlots(baseSlots, rg.NewRange(100, 149)))
+	store2.initFillSlots(filterSlots(baseSlots, rg.NewRange(10, 29)))
+	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 149)))
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		defer cancel()
+		for i := 0; i < 10; i++ {
+			time.Sleep(time.Second)
+			newRange := rg.NewRange(uint64(200+i*10), uint64(200+(i+1)*10-1))
+			store1.initFillSlots(filterSlots(baseSlots, newRange))
+			_, _ = rs1.Update(context.Background(), newRange.Cover)
+		}
+		time.Sleep(time.Second * 5)
+	}()
+
+	assert.Equal(
+		t,
+		context.Canceled,
+		Sync(
+			ctx,
+			dim1,
+			dim2,
+			SyncConfig{RoundInterval: time.Second, DstTargetLen: 100, DstLeftAlign: 10},
+		),
+	)
+
+	// Source ends at [100, 299]; with DstTargetLen=100 the destination keeps [200, 299].
+	r2, _ := rs2.Get(context.Background())
+	assert.Equal(t, rg.NewRange(200, 299), r2)
+
+	// Everything below the watermark is gone, including the residue below the old start.
+	var kept []uint64
+	store2.slots.Traverse(func(n uint64, _ *testSlot) {
+		kept = append(kept, n)
+	})
+	assert.Equal(t, 100, len(kept))
+	for _, n := range kept {
+		assert.GreaterOrEqual(t, n, uint64(200))
+	}
+}

@@ -2,12 +2,13 @@ package chain
 
 import (
 	"context"
-	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // Repair if data is missing for a saved slot in dst chain, it will get data from src chain to fix it
@@ -183,13 +184,19 @@ func Sync[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncC
 				if config.DstLeftAlign > 0 {
 					targetRangeLeft = targetRangeLeft / config.DstLeftAlign * config.DstLeftAlign
 				}
+				if targetRangeLeft == 0 {
+					continue
+				}
 				targetRange := rg.Range{Start: targetRangeLeft, End: curRange.End}
-				cutRange := curRange.Remove(targetRange).First()
-				if !cutRange.IsEmpty() {
-					roundLogger.Infof("destination now is %s, will delete %s and keep %s", curRange, cutRange, targetRange)
-					if err = dst.Delete(roundCtx, cutRange); err != nil {
-						roundLogger.Warnfe(err, "delete %s failed", cutRange)
-					}
+				// Cut the full head [0, targetRangeLeft) instead of [curRange.Start, targetRangeLeft):
+				// rows can leak below the recorded range start (e.g. a partially failed delete after
+				// the range was already advanced), and a cut bounded by curRange.Start would never
+				// reclaim them. Run the cut even when curRange.Start == targetRangeLeft for the same
+				// reason; when the head is already clean the delete converges to a no-op.
+				cutRange := rg.NewRange(0, targetRangeLeft-1)
+				roundLogger.Infof("destination now is %s, will delete %s and keep %s", curRange, cutRange, targetRange)
+				if err = dst.Delete(roundCtx, cutRange); err != nil {
+					roundLogger.Warnfe(err, "delete %s failed", cutRange)
 				}
 			}
 			continue

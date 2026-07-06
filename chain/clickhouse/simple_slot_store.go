@@ -506,7 +506,13 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 		// So lightweight delete is only safe for tables without projections; for
 		// tables with projections use a heavyweight ALTER DELETE, which rewrites
 		// the matching parts and rebuilds their projections from surviving rows.
-		count, err := s.ctrl.Delete(ctx, table.Table.Name, where, len(table.Table.Projections) == 0)
+		//
+		// Head trims (interval.Start == 0) also go heavyweight even without projections:
+		// each trim covers the whole history below the retention watermark and is re-run
+		// every round, so a masking delete would keep piling mask/patch data onto those
+		// parts while the dead rows wait for background merges to be reclaimed. The
+		// heavyweight rewrite drops them physically and re-runs converge to a no-op.
+		count, err := s.ctrl.Delete(ctx, table.Table.Name, where, interval.Start > 0 && len(table.Table.Projections) == 0)
 		tableLogger := logger.With("table", table.Table.Name, "used", time.Since(startAt).String())
 		if err != nil {
 			tableLogger.Errorfe(err, "delete in range failed")

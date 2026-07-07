@@ -119,7 +119,13 @@ func (c Controller) BatchInsert(
 }
 
 func (c Controller) Delete(ctx context.Context, table string, condition string, light bool) (uint64, error) {
-	if !light {
+	if light {
+		// Lightweight deletes leave patch parts behind that background merges may never reclaim;
+		// materialize the backlog once it piles up past a threshold (see the function comment).
+		if err := c.applyPatchesIfPiledUp(ctx, table); err != nil {
+			return 0, errors.Wrapf(err, "apply piled-up patch parts on %s failed", table)
+		}
+	} else {
 		// A previous interrupted call (ctx timeout, network cut) may have left its DELETE mutation
 		// still running server-side. Wait it out BEFORE probing and submitting: the probe then sees
 		// the settled state, so a retry converges to a no-op instead of stacking one more mutation
@@ -190,45 +196,127 @@ func (c Controller) Delete(ctx context.Context, table string, condition string, 
 	return count, nil
 }
 
-// waitDeleteMutations blocks until the table has no unfinished DELETE mutation, polling
-// system.mutations. Transient poll failures are tolerated (the mutation keeps running server-side
-// regardless), so the wait survives network hiccups and is bounded only by ctx. A mutation failure
-// reason is transient too at first — ClickHouse retries failed mutations automatically, and hiccups
-// like a lock conflict resolve on their own — so it is only surfaced as an error after persisting
-// for several consecutive polls (a stuck mutation must be reported rather than waited on forever).
+// Thresholds on a table's live patch-part backlog past which applyPatchesIfPiledUp materializes
+// it. The bytes threshold measures uncompressed bytes — the same metric the server cap
+// max_uncompressed_bytes_in_patches (30 GiB by default) is enforced on — and stays far enough
+// below the cap that the backlog is reclaimed long before lightweight deletes start being
+// rejected. The parts count threshold bounds read amplification: every SELECT on the table has to
+// apply all live patch parts on the fly.
+const (
+	applyPatchesPartsThreshold = 1000
+	applyPatchesBytesThreshold = 4 << 30
+)
+
+// applyPatchesIfPiledUp materializes the table's patch parts with `ALTER TABLE ... APPLY PATCHES`
+// once they pile up past a threshold.
+//
+// A lightweight `DELETE FROM` (under lightweight_delete_mode='lightweight_update', see
+// LightDeleteCtx) does not touch the stored rows: it writes small patch parts carrying just the
+// _row_exists mask, which every read applies on the fly, and relies on regular background merges
+// to fold into the base parts (apply_patches_on_merge). That reclamation only happens when base
+// parts merge, and merges are driven by inserts — so on a table (or an old, long-settled
+// partition) that no longer receives writes, patch parts can survive indefinitely. The backlog is
+// capped server-side by max_uncompressed_bytes_in_patches; a table that reaches the cap has every
+// further lightweight delete rejected (code 755), and a caller whose write path aborts on that
+// failure stops inserting too, so no merge ever materializes the backlog — a deadlock only manual
+// action used to break.
+//
+// Hence this probe before every lightweight delete: once the table's live patch parts exceed a
+// threshold, submit `ALTER TABLE ... APPLY PATCHES` — a mutation folding the patches into the
+// base parts (for delete patches only the _row_exists mask is applied, no full-column rewrite, so
+// it is fast) after which the patch parts are collected. Running BEFORE the delete rather than
+// after also makes the cap state self-healing: a table that already hit the cap gets its backlog
+// applied first, and the delete that kept being rejected then succeeds.
+//
+// APPLY PATCHES materializes base parts only — projections inside them are NOT rebuilt, so on a
+// table with projections it would leave them permanently diverged once the patch parts are
+// collected. Lightweight deletes are only safe on tables without projections in the first place
+// (see the comment in Delete), so hitting a projection table here means the caller is already
+// broken; skip the materialization to at least not widen the damage, and leave the backlog to
+// apply_patches_on_merge.
+func (c Controller) applyPatchesIfPiledUp(ctx context.Context, table string) error {
+	var parts, bytes uint64
+	// Patch parts live in synthetic partitions whose id is prefixed `patch-` (followed by a hash
+	// of the patched columns and the source partition id), and a part's name starts with its
+	// partition id.
+	sql := "SELECT count(), sum(data_uncompressed_bytes) FROM system.parts " +
+		"WHERE database = ? AND table = ? AND active AND startsWith(name, 'patch-')"
+	err := c.Query(ctx, func(rows driver.Rows) error {
+		return rows.Scan(&parts, &bytes)
+	}, sql, c.database, c.tableNamePrefix+table)
+	if err != nil {
+		return errors.Wrapf(err, "probe patch parts of %s failed", table)
+	}
+	if parts < applyPatchesPartsThreshold && bytes < applyPatchesBytesThreshold {
+		return nil
+	}
+	projections, err := c.QueryCount(ctx,
+		"SELECT count() FROM system.projections WHERE database = ? AND table = ?",
+		c.database, c.tableNamePrefix+table)
+	if err != nil {
+		return errors.Wrapf(err, "probe projections of %s failed", table)
+	}
+	_, logger := log.FromContext(ctx, "table", table, "patchParts", parts, "uncompressedBytes", bytes)
+	if projections > 0 {
+		logger.Errorf("patch parts piled up on a table with projections, " +
+			"where neither lightweight deletes nor APPLY PATCHES are safe; leaving them to merges")
+		return nil
+	}
+	logger.Infof("patch parts piled up, applying them")
+	// Async submit + poll, for the same reason as the heavyweight branch of Delete: the mutation
+	// can outlive the client-side read timeout.
+	sql = fmt.Sprintf("ALTER TABLE %s APPLY PATCHES", c.FullLogicName(table))
+	if err = c.Exec(AsyncMutationCtx(ctx), sql); err != nil {
+		return errors.Wrapf(err, "apply patches on %s failed", table)
+	}
+	return c.waitMutations(ctx, table, "apply patches", "%APPLY PATCHES%")
+}
+
+// waitDeleteMutations blocks until the table has no unfinished DELETE mutation.
 func (c Controller) waitDeleteMutations(ctx context.Context, table string) error {
+	// `LIKE '%DELETE%WHERE%'` covers both mutation command forms, `DELETE WHERE ...` and
+	// `DELETE IN PARTITION ... WHERE ...`, while still excluding the lightweight
+	// `UPDATE _row_exists = 0 WHERE ...` form and projection/column commands.
+	return c.waitMutations(ctx, table, "delete", "%DELETE%WHERE%")
+}
+
+// waitMutations blocks until the table has no unfinished mutation whose command matches
+// commandPattern, polling system.mutations. Transient poll failures are tolerated (the mutation
+// keeps running server-side regardless), so the wait survives network hiccups and is bounded only
+// by ctx. A mutation failure reason is transient too at first — ClickHouse retries failed
+// mutations automatically, and hiccups like a lock conflict resolve on their own — so it is only
+// surfaced as an error after persisting for several consecutive polls (a stuck mutation must be
+// reported rather than waited on forever).
+func (c Controller) waitMutations(ctx context.Context, table, kind, commandPattern string) error {
 	const pollInterval = time.Second * 5
 	// ~1 minute of a persisting failure reason before giving up on the mutation.
 	const failReportThreshold = 12
 	startAt := time.Now()
 	failStreak := 0
-	// `LIKE '%DELETE%WHERE%'` covers both mutation command forms, `DELETE WHERE ...` and
-	// `DELETE IN PARTITION ... WHERE ...`, while still excluding the lightweight
-	// `UPDATE _row_exists = 0 WHERE ...` form and projection/column commands.
 	sql := "SELECT count(), max(latest_fail_reason) FROM system.mutations " +
-		"WHERE database = ? AND table = ? AND NOT is_done AND command LIKE '%DELETE%WHERE%'"
+		"WHERE database = ? AND table = ? AND NOT is_done AND command LIKE ?"
 	for {
 		var pending uint64
 		var failReason string
 		err := c.Query(ctx, func(rows driver.Rows) error {
 			return rows.Scan(&pending, &failReason)
-		}, sql, c.database, c.tableNamePrefix+table)
+		}, sql, c.database, c.tableNamePrefix+table, commandPattern)
 		if err == nil {
 			if pending == 0 {
 				used := time.Since(startAt)
 				if used >= slowQueryLimit {
 					_, logger := log.FromContext(ctx, "table", table, "used", used.String())
-					logger.Warnf("delete mutation done, but waited > %s", slowQueryLimit)
+					logger.Warnf("%s mutation done, but waited > %s", kind, slowQueryLimit)
 				}
 				return nil
 			}
 			if failReason != "" {
 				failStreak++
 				if failStreak >= failReportThreshold {
-					return errors.Errorf("delete mutation on %s keeps failing: %s", table, failReason)
+					return errors.Errorf("%s mutation on %s keeps failing: %s", kind, table, failReason)
 				}
 				_, logger := log.FromContext(ctx, "table", table, "failStreak", failStreak)
-				logger.Warnf("delete mutation reported a failure, keep waiting: %s", failReason)
+				logger.Warnf("%s mutation reported a failure, keep waiting: %s", kind, failReason)
 			} else {
 				failStreak = 0
 			}

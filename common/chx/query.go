@@ -256,13 +256,13 @@ func (c Controller) applyPatchesIfPiledUp(ctx context.Context, table string) err
 	if err != nil {
 		return errors.Wrapf(err, "probe projections of %s failed", table)
 	}
-	_, logger := log.FromContext(ctx, "table", table, "patchParts", parts, "uncompressedBytes", bytes)
+	_, logger := log.FromContext(ctx, "table", table)
 	if projections > 0 {
-		logger.Errorf("patch parts piled up on a table with projections, " +
-			"where neither lightweight deletes nor APPLY PATCHES are safe; leaving them to merges")
+		logger.Errorf("%d patch parts (%d uncompressed bytes) piled up on a table with projections, "+
+			"where neither lightweight deletes nor APPLY PATCHES are safe; leaving them to merges", parts, bytes)
 		return nil
 	}
-	logger.Infof("patch parts piled up, applying them")
+	logger.Infof("%d patch parts (%d uncompressed bytes) piled up, applying them", parts, bytes)
 	// Async submit + poll, for the same reason as the heavyweight branch of Delete: the mutation
 	// can outlive the client-side read timeout.
 	sql = fmt.Sprintf("ALTER TABLE %s APPLY PATCHES", c.FullLogicName(table))

@@ -1287,7 +1287,7 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
   },
   [EthChainId.SENTIO_TESTNET]: {
     name: 'Sentio testnet',
-    slug: 'sentio-testnet',
+    slug: 'sentio-testnet-v1',
     chainId: EthChainId.SENTIO_TESTNET,
     nativeChainId: 7892101,
     variation: EthVariation.DEFAULT,
@@ -1304,7 +1304,7 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
   },
   [EthChainId.SENTIO_TESTNET_V2]: {
     name: 'Sentio testnet v2',
-    slug: 'sentio-testnet-v2',
+    slug: 'sentio-testnet',
     chainId: EthChainId.SENTIO_TESTNET_V2,
     nativeChainId: 7892102,
     variation: EthVariation.DEFAULT,

@@ -1378,11 +1378,11 @@ var ArcTestnetInfo = EthChainInfo{
 var SentioTestnetInfo = EthChainInfo{
   ChainInfo: ChainInfo{
     Name: "Sentio testnet",
-    Slug: "sentio-testnet",
+    Slug: "sentio-testnet-v1",
     AdditionalSlugs: []string{},
     MainnetChainID: ChainID(SentioTestnetID),
     ChainID: ChainID(SentioTestnetID),
-    ExplorerURL: "https://testnet-explorer.sentio.xyz",
+    ExplorerURL: "https://testnet-v1-explorer.sentio.xyz",
   },
   Variation: EthVariationDefault,
   TokenSymbol: "ETH",
@@ -1397,11 +1397,11 @@ var SentioTestnetInfo = EthChainInfo{
 var SentioTestnetV2Info = EthChainInfo{
   ChainInfo: ChainInfo{
     Name: "Sentio testnet v2",
-    Slug: "sentio-testnet-v2",
+    Slug: "sentio-testnet",
     AdditionalSlugs: []string{},
     MainnetChainID: ChainID(SentioTestnetV2ID),
     ChainID: ChainID(SentioTestnetV2ID),
-    ExplorerURL: "https://testnet-v2-explorer.sentio.xyz",
+    ExplorerURL: "https://testnet-explorer.sentio.xyz",
   },
   Variation: EthVariationDefault,
   TokenSymbol: "ETH",

@@ -219,8 +219,12 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 }
 
 var gethTracer = map[string]interface{}{
-	"tracer":  "callTracer",
-	"timeout": "30s", // 30s is enough
+	"tracer": "callTracer",
+	// tracing heavy historical blocks can take well over 30s (e.g. Optimism pre-bedrock block
+	// 13560073/0x2ebee31bcafb329bcdea1fda241314a4df6295b9d2ed6cee3c1ab5233fb919c6 needs ~58s on
+	// l2geth, whose callTracer is a JS tracer); the per-endpoint method_timeout still bounds the
+	// call on the client side
+	"timeout": "120s",
 }
 
 func traceTxMatch(trace GethTraceBlockResult, tx RPCTransaction) bool {

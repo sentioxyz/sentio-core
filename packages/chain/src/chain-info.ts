@@ -1285,6 +1285,23 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     lightIcon: 'https://assets.sentio.xyz/chains/megaeth.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/megaeth-dark.svg'
   },
+  [EthChainId.ROBINHOOD]: {
+    name: 'Robinhood Chain',
+    slug: 'robinhood',
+    chainId: EthChainId.ROBINHOOD,
+    nativeChainId: 4663,
+    variation: EthVariation.ARBITRUM,
+    priceTokenAddress: '0x0000000000000000000000000000000000000000',
+    tokenAddress: '0x0000000000000000000000000000000000000000',
+    wrappedTokenAddress: '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73',
+    tokenSymbol: 'ETH',
+    tokenDecimals: 18,
+    explorerApiType: ExplorerApiType.BLOCKSCOUT,
+    explorerUrl: 'https://robinhoodchain.blockscout.com',
+    blockscoutUrl: 'https://robinhoodchain.blockscout.com',
+    lightIcon: 'https://assets.sentio.xyz/chains/robinhood.svg',
+    darkIcon: 'https://assets.sentio.xyz/chains/robinhood-dark.svg'
+  },
   [EthChainId.SENTIO_TESTNET]: {
     name: 'Sentio testnet',
     slug: 'sentio-testnet-v1',

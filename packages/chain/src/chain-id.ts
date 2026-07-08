@@ -54,6 +54,7 @@ export enum EthChainId {
   KARAK = '2410',
   BEVM = '11501',
   MEGAETH = '4326',
+  ROBINHOOD = '4663',
   MANTLE = '5000',
   BASE = '8453',
   BASE_SEPOLIA = '84532',

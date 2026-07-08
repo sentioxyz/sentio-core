@@ -1287,7 +1287,7 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
   },
   [EthChainId.SENTIO_TESTNET]: {
     name: 'Sentio testnet',
-    slug: 'sentio-testnet',
+    slug: 'sentio-testnet-v1',
     chainId: EthChainId.SENTIO_TESTNET,
     nativeChainId: 7892101,
     variation: EthVariation.DEFAULT,
@@ -1297,14 +1297,14 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     tokenSymbol: 'ETH',
     tokenDecimals: 18,
     explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerUrl: 'https://testnet-explorer.sentio.xyz',
-    blockscoutUrl: 'https://testnet-explorer.sentio.xyz',
+    explorerUrl: 'https://testnet-v1-explorer.sentio.xyz',
+    blockscoutUrl: 'https://testnet-v1-explorer.sentio.xyz',
     lightIcon: 'https://assets.sentio.xyz/chains/sentio.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/sentio-dark.svg'
   },
   [EthChainId.SENTIO_TESTNET_V2]: {
     name: 'Sentio testnet v2',
-    slug: 'sentio-testnet-v2',
+    slug: 'sentio-testnet',
     chainId: EthChainId.SENTIO_TESTNET_V2,
     nativeChainId: 7892102,
     variation: EthVariation.DEFAULT,
@@ -1314,8 +1314,8 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     tokenSymbol: 'ETH',
     tokenDecimals: 18,
     explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerUrl: 'https://testnet-v2-explorer.sentio.xyz',
-    blockscoutUrl: 'https://testnet-v2-explorer.sentio.xyz',
+    explorerUrl: 'https://testnet-explorer.sentio.xyz',
+    blockscoutUrl: 'https://testnet-explorer.sentio.xyz',
     lightIcon: 'https://assets.sentio.xyz/chains/sentio.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/sentio-dark.svg'
   },

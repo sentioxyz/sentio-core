@@ -202,6 +202,10 @@ When working with on-chain state that needs Redis caching, use the `statemirror`
 - Time-series data follows specific schema patterns (see `driver/timeseries/`)
 - Entity data supports complex types including Decimal512 (see `driver/entity/clickhouse/`)
 
+## UI Dashboard Components
+
+When creating or modifying components under `packages/ui-dashboard/`, read `packages/ui-dashboard/DESIGN.md` first and follow it as the design system reference — colors, typography, spacing, dark mode tokens, and component patterns must stay consistent with what is defined there.
+
 ### Service Implementation
 
 - Services expose gRPC APIs defined in `*/protos/`

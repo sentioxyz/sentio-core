@@ -23,6 +23,10 @@ type NetworkOptions struct {
 	SupportTraceBlock bool
 	IgnoreExtraTraces bool
 	IgnoreMissTraces  bool
+	// TraceStartBlock is the first block number that has trace data. Blocks before it skip trace
+	// loading and get the MissTrace feature, for chains with a regenesis/migration boundary before
+	// which traces are unavailable (e.g. Optimism mainnet pre-bedrock, before block 105235063).
+	TraceStartBlock uint64
 }
 
 type ExtServerDimension struct {
@@ -249,6 +253,11 @@ func traceTxMatch(trace GethTraceBlockResult, tx RPCTransaction) bool {
 
 func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) (err error) {
 	if d.opts.DisableTrace {
+		return nil
+	}
+	if st.GetNumber() < d.opts.TraceStartBlock {
+		// returning before the deferred HaveTrace assignment keeps HaveTrace false,
+		// so the slot gets the MissTrace feature just like the DisableTrace path
 		return nil
 	}
 

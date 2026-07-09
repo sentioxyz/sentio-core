@@ -3,14 +3,14 @@ package ckhmanager
 type Role string
 
 const (
-	DefaultRole      Role = "default_viewer"
-	SmallEngineRole  Role = "small_viewer"
-	MediumEngineRole Role = "medium_viewer"
-	LargeEngineRole  Role = "large_viewer"
-	UltraEngineRole  Role = "ultra_viewer"
+	DefaultRole      Role = "default_readonly"
+	SmallEngineRole  Role = "small_readonly"
+	MediumEngineRole Role = "medium_readonly"
+	LargeEngineRole  Role = "large_readonly"
+	UltraEngineRole  Role = "ultra_readonly"
 
-	EmptyRole Role = "viewer"
-	AdminRole Role = ""
+	EmptyRole Role = "readonly"
+	AdminRole Role = "admin"
 )
 
 type Category string

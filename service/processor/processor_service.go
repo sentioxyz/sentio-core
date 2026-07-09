@@ -532,6 +532,15 @@ func (s *Service) ActivatePendingVersion(ctx context.Context, req *protos.Activa
 }
 
 func (s *Service) activateProcessor(ctx context.Context, processor *models.Processor, upgrade bool) error {
+	// Admission gate: run before any state changes so that blocking a bad new
+	// version leaves currently-running versions untouched. On a non-nil error
+	// the version is not started (and the hook is responsible for making the
+	// held processor visible); it is not treated as a hard failure.
+	if err := s.preActivateProcessor(ctx, processor); err != nil {
+		log.WithContext(ctx).Warnfe(err, "processor %s activation blocked by pre-activate hook", processor.ID)
+		return nil
+	}
+
 	var err error
 	if processor.VersionState == int32(protos.ProcessorVersionState_PENDING) {
 		// stop other pending versions
@@ -784,6 +793,13 @@ func (s *Service) saveStateHistory(ctx context.Context, processorID string, acti
 	if err := s.processorRepo.SaveProcessorStateHistory(ctx, history); err != nil {
 		log.Errorfe(err, "failed to save processor state history for %q action %q", processorID, action)
 	}
+}
+
+func (s *Service) preActivateProcessor(ctx context.Context, processor *models.Processor) error {
+	if s.lifecycleHook == nil {
+		return nil
+	}
+	return s.lifecycleHook.PreActivate(ctx, processor)
 }
 
 func (s *Service) notifyProcessorActivated(ctx context.Context, processor *models.Processor) error {

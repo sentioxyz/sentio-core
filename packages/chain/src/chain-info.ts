@@ -482,22 +482,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApi: 'https://api.etherscan.io/v2',
     lightIcon: 'https://assets.sentio.xyz/chains/katana.svg'
   },
-  [EthChainId.ZIRCUIT_GARFIELD_TESTNET]: {
-    name: 'Zircuit Garfield Testnet',
-    slug: 'zircuit-garfield-testnet',
-    chainId: EthChainId.ZIRCUIT_GARFIELD_TESTNET,
-    nativeChainId: 48898,
-    mainnetChainId: EthChainId.ZIRCUIT_MAINNET,
-    variation: EthVariation.OPTIMISM,
-    priceTokenAddress: '0x4200000000000000000000000000000000000006',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x4200000000000000000000000000000000000006',
-    tokenSymbol: 'ETH',
-    tokenDecimals: 18,
-    explorerUrl: 'https://explorer.garfield-testnet.zircuit.com',
-    lightIcon: 'https://assets.sentio.xyz/chains/zircuit-inverted-icon.svg',
-    darkIcon: 'https://assets.sentio.xyz/chains/zircuit-green-icon.svg'
-  },
   [EthChainId.ZIRCUIT_MAINNET]: {
     name: 'Zircuit Mainnet',
     slug: 'zircuit',

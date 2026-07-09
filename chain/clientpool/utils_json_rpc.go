@@ -34,6 +34,10 @@ var missDataErrorMatcher = []*regexp.Regexp{
 	regexp.MustCompile("internal error"),
 	regexp.MustCompile("transaction sent to quarantine by sls"), // more: https://ar5iv.labs.arxiv.org/html/2405.01819
 	regexp.MustCompile("block requested not found"),
+	// aggregator endpoints (e.g. dRPC) reporting that none of their upstreams holds the requested
+	// data range: "no available upstreams to process a request. Cause - ... Upstream lower height
+	// 42810022 of type RECEIPTS is greater than 35662252"
+	regexp.MustCompile("no available upstreams"),
 }
 
 var brokenMsgErrorMatcher = []*regexp.Regexp{
@@ -115,7 +119,13 @@ func isMissDataError(err error) bool {
 	}
 	var rpcErr rpc.Error
 	if errors.As(err, &rpcErr) {
-		if rpcErr.ErrorCode() > -32000 {
+		// Codes in (-32000, 0] are standard application-level JSON-RPC errors — never miss-data.
+		// Codes <= -32000 (server error range) go through message matching, and so do positive
+		// codes: those are non-standard vendor codes, e.g. dRPC reports "no available upstreams"
+		// with code 1 and X Layer legacy-range proxying reports "Temporary internal error" with
+		// code 19. The only standard positive code is 3 (execution reverted), whose message never
+		// matches missDataErrorMatcher.
+		if code := rpcErr.ErrorCode(); code > -32000 && code <= 0 {
 			return false
 		}
 		return isOneOf(err.Error(), missDataErrorMatcher)

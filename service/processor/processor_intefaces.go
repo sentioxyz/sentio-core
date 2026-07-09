@@ -24,6 +24,18 @@ type ProcessorFactory interface {
 
 // ProcessorLifecycleHook defines callbacks for processor lifecycle events.
 type ProcessorLifecycleHook interface {
+	// PreActivate runs before a processor version is activated, i.e. before its
+	// driver job is (re)started. It is the gate point for admission checks such
+	// as a security scan of the uploaded code.
+	//
+	// Returning a non-nil error aborts activation: the driver is NOT started
+	// and currently-running versions are left untouched (so a bad new version
+	// cannot take down a good running one). It is not treated as a hard failure
+	// of the enclosing request — the caller keeps the persisted processor row so
+	// it can be reviewed. Implementations that want the held processor to be
+	// visible (paused, annotated, notified) must do so before returning the
+	// error. Returning nil allows activation to proceed normally.
+	PreActivate(ctx context.Context, processor *models.Processor) error
 	OnActivate(ctx context.Context, processor *models.Processor) error
 	OnStop(ctx context.Context, processor *models.Processor) error
 	OnPause(ctx context.Context, processor *models.Processor) error

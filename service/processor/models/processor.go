@@ -185,41 +185,41 @@ const (
 	ProcessorStateActionObsolete ProcessorStateAction = "obsolete"
 )
 
-// ProcessorPauseKind classifies what a system-initiated pause was for, so that
+// ProcessorReasonKind classifies what a system-initiated pause was for, so that
 // automation (e.g. the over-quota auto-resume check) can decide from the
 // latest pause entry without parsing the free-form reason. User pauses carry
 // no kind (empty string).
-type ProcessorPauseKind string
+type ProcessorReasonKind string
 
 const (
-	ProcessorPauseKindBilling  ProcessorPauseKind = "billing"
-	ProcessorPauseKindSecurity ProcessorPauseKind = "security"
+	ProcessorReasonKindBilling  ProcessorReasonKind = "billing"
+	ProcessorReasonKindSecurity ProcessorReasonKind = "security"
 )
 
-// PauseKindFromPB converts the proto PauseKind to its model representation;
-// PAUSE_KIND_UNSPECIFIED maps to the empty string.
-func PauseKindFromPB(kind protos.PauseKind) ProcessorPauseKind {
+// ReasonKindFromPB converts the proto ReasonKind to its model representation;
+// UNSPECIFIED maps to the empty string.
+func ReasonKindFromPB(kind protos.ReasonKind) ProcessorReasonKind {
 	switch kind {
-	case protos.PauseKind_PAUSE_KIND_BILLING:
-		return ProcessorPauseKindBilling
-	case protos.PauseKind_PAUSE_KIND_SECURITY:
-		return ProcessorPauseKindSecurity
+	case protos.ReasonKind_BILLING:
+		return ProcessorReasonKindBilling
+	case protos.ReasonKind_SECURITY:
+		return ProcessorReasonKindSecurity
 	default:
 		return ""
 	}
 }
 
-// ToPB converts the pause kind to its proto representation; unknown values
+// ToPB converts the reason kind to its proto representation; unknown values
 // (including the empty string on user pauses, non-pause entries, and legacy
-// entries) map to PAUSE_KIND_UNSPECIFIED.
-func (k ProcessorPauseKind) ToPB() protos.PauseKind {
+// entries) map to UNSPECIFIED.
+func (k ProcessorReasonKind) ToPB() protos.ReasonKind {
 	switch k {
-	case ProcessorPauseKindBilling:
-		return protos.PauseKind_PAUSE_KIND_BILLING
-	case ProcessorPauseKindSecurity:
-		return protos.PauseKind_PAUSE_KIND_SECURITY
+	case ProcessorReasonKindBilling:
+		return protos.ReasonKind_BILLING
+	case ProcessorReasonKindSecurity:
+		return protos.ReasonKind_SECURITY
 	default:
-		return protos.PauseKind_PAUSE_KIND_UNSPECIFIED
+		return protos.ReasonKind_UNSPECIFIED
 	}
 }
 
@@ -227,15 +227,15 @@ func (k ProcessorPauseKind) ToPB() protos.PauseKind {
 // resume it: a security pause only by a security resume; a billing pause also
 // by an unspecified resume; kindless pauses (user pauses and entries recorded
 // before kinds existed) by anything.
-var pauseResumableBy = map[ProcessorPauseKind]map[ProcessorPauseKind]bool{
-	"":                         {"": true, ProcessorPauseKindBilling: true, ProcessorPauseKindSecurity: true},
-	ProcessorPauseKindBilling:  {"": true, ProcessorPauseKindBilling: true},
-	ProcessorPauseKindSecurity: {ProcessorPauseKindSecurity: true},
+var pauseResumableBy = map[ProcessorReasonKind]map[ProcessorReasonKind]bool{
+	"":                          {"": true, ProcessorReasonKindBilling: true, ProcessorReasonKindSecurity: true},
+	ProcessorReasonKindBilling:  {"": true, ProcessorReasonKindBilling: true},
+	ProcessorReasonKindSecurity: {ProcessorReasonKindSecurity: true},
 }
 
 // CanResumePause reports whether a resume declaring resumeKind may resume a
 // pause of pauseKind.
-func CanResumePause(pauseKind, resumeKind ProcessorPauseKind) bool {
+func CanResumePause(pauseKind, resumeKind ProcessorReasonKind) bool {
 	return pauseResumableBy[pauseKind][resumeKind]
 }
 
@@ -249,7 +249,7 @@ type ProcessorStateHistory struct {
 	// Kind is set on system-initiated "pause" entries and on internal "resume"
 	// entries (the kind of pause being resumed); empty for user pauses/resumes,
 	// other actions, and entries recorded before this column existed.
-	Kind      ProcessorPauseKind `gorm:"type:varchar(32)"`
+	Kind      ProcessorReasonKind `gorm:"type:varchar(32)"`
 	CreatedAt time.Time
 }
 

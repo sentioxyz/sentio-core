@@ -516,10 +516,10 @@ message ProcessorStateHistory {
   string reason = 6;
   google.protobuf.Timestamp created_at = 7;
   // Set on system-initiated "pause" entries and on internal "resume" entries
-  // (the kind of pause being resumed); PAUSE_KIND_UNSPECIFIED for user
+  // (the kind of pause being resumed); UNSPECIFIED for user
   // pauses/resumes, other actions, and entries recorded before this field
   // existed.
-  PauseKind kind = 8;
+  ReasonKind kind = 8;
 }
 
 message GetProcessorStateHistoryRequest { string processor_id = 1; }
@@ -637,16 +637,16 @@ message SetProcessorEntitySchemaRequest {
   string schema = 2;
 }
 
-// PauseKind classifies what a system-initiated pause was for, so that
+// ReasonKind classifies what a system-initiated pause was for, so that
 // automation (e.g. the over-quota auto-resume check) can decide from the
 // latest pause entry without parsing the free-form reason. User pauses carry
-// no kind (PAUSE_KIND_UNSPECIFIED).
-enum PauseKind {
-  PAUSE_KIND_UNSPECIFIED = 0;
+// no kind (UNSPECIFIED).
+enum ReasonKind {
+  UNSPECIFIED = 0;
   // paused by the system for billing reasons (e.g. project over quota)
-  PAUSE_KIND_BILLING = 1;
+  BILLING = 1;
   // paused by the system for security reasons
-  PAUSE_KIND_SECURITY = 2;
+  SECURITY = 2;
 }
 
 message PauseProcessorRequest {
@@ -655,7 +655,7 @@ message PauseProcessorRequest {
   // Classifies the pause. Only the internal route (PauseProcessorInternal)
   // may set it; the user-facing PauseProcessor rejects requests that specify
   // a kind.
-  PauseKind kind = 3;
+  ReasonKind kind = 3;
 }
 
 message ResumeProcessorInternalRequest {
@@ -671,7 +671,7 @@ message ResumeProcessorInternalRequest {
   // also by an unspecified resume, and pause entries without a kind (recorded
   // before kinds existed) by anything. Also recorded on the resume state
   // history entry.
-  PauseKind kind = 4;
+  ReasonKind kind = 4;
 }
 
 message RunProcessorRequest {

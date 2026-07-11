@@ -21,7 +21,7 @@ go_library(
 
 go_test(
     name = "models_test",
-    srcs = ["pause_kind_test.go"],
+    srcs = ["reason_kind_test.go"],
     embed = [":models"],
     deps = [
         "//service/processor/protos",

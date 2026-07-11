@@ -184,52 +184,52 @@ func (ProcessorVersionState) EnumDescriptor() ([]byte, []int) {
 	return file_service_processor_protos_processor_service_proto_rawDescGZIP(), []int{2}
 }
 
-type PauseKind int32
+type ReasonKind int32
 
 const (
-	PauseKind_PAUSE_KIND_UNSPECIFIED PauseKind = 0
-	PauseKind_PAUSE_KIND_BILLING     PauseKind = 1
-	PauseKind_PAUSE_KIND_SECURITY    PauseKind = 2
+	ReasonKind_UNSPECIFIED ReasonKind = 0
+	ReasonKind_BILLING     ReasonKind = 1
+	ReasonKind_SECURITY    ReasonKind = 2
 )
 
-// Enum value maps for PauseKind.
+// Enum value maps for ReasonKind.
 var (
-	PauseKind_name = map[int32]string{
-		0: "PAUSE_KIND_UNSPECIFIED",
-		1: "PAUSE_KIND_BILLING",
-		2: "PAUSE_KIND_SECURITY",
+	ReasonKind_name = map[int32]string{
+		0: "UNSPECIFIED",
+		1: "BILLING",
+		2: "SECURITY",
 	}
-	PauseKind_value = map[string]int32{
-		"PAUSE_KIND_UNSPECIFIED": 0,
-		"PAUSE_KIND_BILLING":     1,
-		"PAUSE_KIND_SECURITY":    2,
+	ReasonKind_value = map[string]int32{
+		"UNSPECIFIED": 0,
+		"BILLING":     1,
+		"SECURITY":    2,
 	}
 )
 
-func (x PauseKind) Enum() *PauseKind {
-	p := new(PauseKind)
+func (x ReasonKind) Enum() *ReasonKind {
+	p := new(ReasonKind)
 	*p = x
 	return p
 }
 
-func (x PauseKind) String() string {
+func (x ReasonKind) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (PauseKind) Descriptor() protoreflect.EnumDescriptor {
+func (ReasonKind) Descriptor() protoreflect.EnumDescriptor {
 	return file_service_processor_protos_processor_service_proto_enumTypes[3].Descriptor()
 }
 
-func (PauseKind) Type() protoreflect.EnumType {
+func (ReasonKind) Type() protoreflect.EnumType {
 	return &file_service_processor_protos_processor_service_proto_enumTypes[3]
 }
 
-func (x PauseKind) Number() protoreflect.EnumNumber {
+func (x ReasonKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use PauseKind.Descriptor instead.
-func (PauseKind) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use ReasonKind.Descriptor instead.
+func (ReasonKind) EnumDescriptor() ([]byte, []int) {
 	return file_service_processor_protos_processor_service_proto_rawDescGZIP(), []int{3}
 }
 
@@ -2303,7 +2303,7 @@ type ProcessorStateHistory struct {
 	OperatorSub   string                 `protobuf:"bytes,5,opt,name=operator_sub,json=operatorSub,proto3" json:"operator_sub,omitempty"`
 	Reason        string                 `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	Kind          PauseKind              `protobuf:"varint,8,opt,name=kind,proto3,enum=processor_service.PauseKind" json:"kind,omitempty"`
+	Kind          ReasonKind             `protobuf:"varint,8,opt,name=kind,proto3,enum=processor_service.ReasonKind" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2387,11 +2387,11 @@ func (x *ProcessorStateHistory) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *ProcessorStateHistory) GetKind() PauseKind {
+func (x *ProcessorStateHistory) GetKind() ReasonKind {
 	if x != nil {
 		return x.Kind
 	}
-	return PauseKind_PAUSE_KIND_UNSPECIFIED
+	return ReasonKind_UNSPECIFIED
 }
 
 type GetProcessorStateHistoryRequest struct {
@@ -2996,7 +2996,7 @@ type PauseProcessorRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProcessorId   string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
 	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
-	Kind          PauseKind              `protobuf:"varint,3,opt,name=kind,proto3,enum=processor_service.PauseKind" json:"kind,omitempty"`
+	Kind          ReasonKind             `protobuf:"varint,3,opt,name=kind,proto3,enum=processor_service.ReasonKind" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3045,11 +3045,11 @@ func (x *PauseProcessorRequest) GetReason() string {
 	return ""
 }
 
-func (x *PauseProcessorRequest) GetKind() PauseKind {
+func (x *PauseProcessorRequest) GetKind() ReasonKind {
 	if x != nil {
 		return x.Kind
 	}
-	return PauseKind_PAUSE_KIND_UNSPECIFIED
+	return ReasonKind_UNSPECIFIED
 }
 
 type ResumeProcessorInternalRequest struct {
@@ -3057,7 +3057,7 @@ type ResumeProcessorInternalRequest struct {
 	ProcessorId     string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
 	PrePauseStateId string                 `protobuf:"bytes,2,opt,name=pre_pause_state_id,json=prePauseStateId,proto3" json:"pre_pause_state_id,omitempty"`
 	Reason          string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
-	Kind            PauseKind              `protobuf:"varint,4,opt,name=kind,proto3,enum=processor_service.PauseKind" json:"kind,omitempty"`
+	Kind            ReasonKind             `protobuf:"varint,4,opt,name=kind,proto3,enum=processor_service.ReasonKind" json:"kind,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -3113,11 +3113,11 @@ func (x *ResumeProcessorInternalRequest) GetReason() string {
 	return ""
 }
 
-func (x *ResumeProcessorInternalRequest) GetKind() PauseKind {
+func (x *ResumeProcessorInternalRequest) GetKind() ReasonKind {
 	if x != nil {
 		return x.Kind
 	}
-	return PauseKind_PAUSE_KIND_UNSPECIFIED
+	return ReasonKind_UNSPECIFIED
 }
 
 type RunProcessorRequest struct {
@@ -4414,7 +4414,7 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\vobsolete_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"obsoleteAt\x128\n" +
 	"\bsnapshot\x18\x01 \x01(\v2\x1c.processor_service.ProcessorR\bsnapshot\x12\x0e\n" +
-	"\x02id\x18\x05 \x01(\tR\x02id\"\xab\x02\n" +
+	"\x02id\x18\x05 \x01(\tR\x02id\"\xac\x02\n" +
 	"\x15ProcessorStateHistory\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fprocessor_id\x18\x02 \x01(\tR\vprocessorId\x12\x16\n" +
@@ -4424,8 +4424,8 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\foperator_sub\x18\x05 \x01(\tR\voperatorSub\x12\x16\n" +
 	"\x06reason\x18\x06 \x01(\tR\x06reason\x129\n" +
 	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x120\n" +
-	"\x04kind\x18\b \x01(\x0e2\x1c.processor_service.PauseKindR\x04kind\"D\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x121\n" +
+	"\x04kind\x18\b \x01(\x0e2\x1d.processor_service.ReasonKindR\x04kind\"D\n" +
 	"\x1fGetProcessorStateHistoryRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\"j\n" +
 	" GetProcessorStateHistoryResponse\x12F\n" +
@@ -4511,16 +4511,16 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\"\\\n" +
 	"\x1fSetProcessorEntitySchemaRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x16\n" +
-	"\x06schema\x18\x02 \x01(\tR\x06schema\"\x84\x01\n" +
+	"\x06schema\x18\x02 \x01(\tR\x06schema\"\x85\x01\n" +
 	"\x15PauseProcessorRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason\x120\n" +
-	"\x04kind\x18\x03 \x01(\x0e2\x1c.processor_service.PauseKindR\x04kind\"\xba\x01\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\x121\n" +
+	"\x04kind\x18\x03 \x01(\x0e2\x1d.processor_service.ReasonKindR\x04kind\"\xbb\x01\n" +
 	"\x1eResumeProcessorInternalRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12+\n" +
 	"\x12pre_pause_state_id\x18\x02 \x01(\tR\x0fprePauseStateId\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\x120\n" +
-	"\x04kind\x18\x04 \x01(\x0e2\x1c.processor_service.PauseKindR\x04kind\"\xe8\x02\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x121\n" +
+	"\x04kind\x18\x04 \x01(\x0e2\x1d.processor_service.ReasonKindR\x04kind\"\xe8\x02\n" +
 	"\x13RunProcessorRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x19\n" +
 	"\bcode_url\x18\x02 \x01(\tR\acodeUrl\x12\x1f\n" +
@@ -4587,11 +4587,12 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\aPENDING\x10\x01\x12\n" +
 	"\n" +
 	"\x06ACTIVE\x10\x02\x12\f\n" +
-	"\bOBSOLETE\x10\x03*X\n" +
-	"\tPauseKind\x12\x1a\n" +
-	"\x16PAUSE_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
-	"\x12PAUSE_KIND_BILLING\x10\x01\x12\x17\n" +
-	"\x13PAUSE_KIND_SECURITY\x10\x022\xeb\x1b\n" +
+	"\bOBSOLETE\x10\x03*8\n" +
+	"\n" +
+	"ReasonKind\x12\x0f\n" +
+	"\vUNSPECIFIED\x10\x00\x12\v\n" +
+	"\aBILLING\x10\x01\x12\f\n" +
+	"\bSECURITY\x10\x022\xeb\x1b\n" +
 	"\x10ProcessorService\x12b\n" +
 	"\rGetProcessors\x12'.processor_service.GetProcessorsRequest\x1a(.processor_service.GetProcessorsResponse\x12_\n" +
 	"\fGetProcessor\x12&.processor_service.GetProcessorRequest\x1a'.processor_service.GetProcessorResponse\x12u\n" +
@@ -4672,7 +4673,7 @@ var file_service_processor_protos_processor_service_proto_goTypes = []any{
 	(StorageEngine)(0),           // 0: processor_service.StorageEngine
 	(FileType)(0),                // 1: processor_service.FileType
 	(ProcessorVersionState)(0),   // 2: processor_service.ProcessorVersionState
-	(PauseKind)(0),               // 3: processor_service.PauseKind
+	(ReasonKind)(0),              // 3: processor_service.ReasonKind
 	(ChainState_Status_State)(0), // 4: processor_service.ChainState.Status.State
 	(GetProcessorStatusRequestV2_VersionSelector)(0),      // 5: processor_service.GetProcessorStatusRequestV2.VersionSelector
 	(GetProcessorStatusResponse_ProcessorStatus_State)(0), // 6: processor_service.GetProcessorStatusResponse.ProcessorStatus.State
@@ -4773,14 +4774,14 @@ var file_service_processor_protos_processor_service_proto_depIdxs = []int32{
 	65, // 27: processor_service.ProcessorUpgradeHistory.obsolete_at:type_name -> google.protobuf.Timestamp
 	28, // 28: processor_service.ProcessorUpgradeHistory.snapshot:type_name -> processor_service.Processor
 	65, // 29: processor_service.ProcessorStateHistory.created_at:type_name -> google.protobuf.Timestamp
-	3,  // 30: processor_service.ProcessorStateHistory.kind:type_name -> processor_service.PauseKind
+	3,  // 30: processor_service.ProcessorStateHistory.kind:type_name -> processor_service.ReasonKind
 	30, // 31: processor_service.GetProcessorStateHistoryResponse.histories:type_name -> processor_service.ProcessorStateHistory
 	5,  // 32: processor_service.GetProcessorStatusRequestV2.version:type_name -> processor_service.GetProcessorStatusRequestV2.VersionSelector
 	61, // 33: processor_service.GetProcessorStatusResponse.processors:type_name -> processor_service.GetProcessorStatusResponse.ProcessorEx
 	28, // 34: processor_service.RemoveProcessorResponse.deleted:type_name -> processor_service.Processor
 	29, // 35: processor_service.GetProcessorUpgradeHistoryResponse.histories:type_name -> processor_service.ProcessorUpgradeHistory
-	3,  // 36: processor_service.PauseProcessorRequest.kind:type_name -> processor_service.PauseKind
-	3,  // 37: processor_service.ResumeProcessorInternalRequest.kind:type_name -> processor_service.PauseKind
+	3,  // 36: processor_service.PauseProcessorRequest.kind:type_name -> processor_service.ReasonKind
+	3,  // 37: processor_service.ResumeProcessorInternalRequest.kind:type_name -> processor_service.ReasonKind
 	65, // 38: processor_service.RunProcessorRequest.created_at:type_name -> google.protobuf.Timestamp
 	66, // 39: processor_service.GetLogsRequest.until:type_name -> common.Any
 	63, // 40: processor_service.GetLogsResponse.logs:type_name -> processor_service.GetLogsResponse.Log

@@ -7,8 +7,8 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 	commonerrors "sentioxyz/sentio-core/service/common/errors"
 	commonmodels "sentioxyz/sentio-core/service/common/models"
-	commonprotos "sentioxyz/sentio-core/service/common/protos"
 	"sentioxyz/sentio-core/service/common/preloader"
+	commonprotos "sentioxyz/sentio-core/service/common/protos"
 	"sentioxyz/sentio-core/service/common/storagesystem"
 	"sentioxyz/sentio-core/service/processor/driverjob"
 	"sentioxyz/sentio-core/service/processor/models"
@@ -642,14 +642,14 @@ func (s *Service) CreateOrUpdateProcessor(
 }
 
 func (s *Service) PauseProcessorInternal(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, models.PauseKindFromPB(req.Kind), "")
+	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, models.ReasonKindFromPB(req.Kind), "")
 }
 
 func (s *Service) PauseProcessor(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
 	// Only the internal route may classify a pause; a user pause carries no
 	// kind, so reject requests that try to specify one.
-	if req.Kind != protos.PauseKind_PAUSE_KIND_UNSPECIFIED {
-		return nil, status.Error(codes.InvalidArgument, "pause kind cannot be specified on this route")
+	if req.Kind != protos.ReasonKind_UNSPECIFIED {
+		return nil, status.Error(codes.InvalidArgument, "kind cannot be specified on this route")
 	}
 	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, "", "")
 }
@@ -674,7 +674,7 @@ func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorR
 // security resume, while a billing pause also accepts an unspecified resume,
 // and kindless pause entries accept anything.
 func (s *Service) ResumeProcessorInternal(ctx context.Context, req *protos.ResumeProcessorInternalRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, models.PauseKindFromPB(req.Kind), req.PrePauseStateId)
+	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, models.ReasonKindFromPB(req.Kind), req.PrePauseStateId)
 }
 
 func (s *Service) updateProcessorPause(
@@ -682,7 +682,7 @@ func (s *Service) updateProcessorPause(
 	processorID string,
 	pause bool,
 	reason string,
-	kind models.ProcessorPauseKind, // the pause's kind; on resume, the kind of pause being resumed
+	kind models.ProcessorReasonKind, // the pause's kind; on resume, the kind of pause being resumed
 	prePauseStateID string,
 ) (*emptypb.Empty, error) {
 	_, logger := log.FromContext(ctx, "processor_id", processorID)
@@ -767,7 +767,7 @@ func (s *Service) checkPauseFence(
 	ctx context.Context,
 	processorID string,
 	prePauseStateID string,
-	kind models.ProcessorPauseKind,
+	kind models.ProcessorReasonKind,
 ) error {
 	histories, err := s.processorRepo.ListProcessorStateHistory(ctx, processorID)
 	if err != nil {
@@ -783,7 +783,7 @@ func (s *Service) checkPauseFence(
 func verifyPauseFence(
 	histories []models.ProcessorStateHistory,
 	prePauseStateID string,
-	kind models.ProcessorPauseKind,
+	kind models.ProcessorReasonKind,
 ) error {
 	var latest *models.ProcessorStateHistory
 	for i := range histories {
@@ -802,7 +802,7 @@ func verifyPauseFence(
 	}
 	if !models.CanResumePause(latest.Kind, kind) {
 		return status.Errorf(codes.FailedPrecondition,
-			"pause kind mismatch: a %q pause is not resumable by a %q resume", latest.Kind, kind)
+			"reason kind mismatch: a %q pause is not resumable by a %q resume", latest.Kind, kind)
 	}
 	return nil
 }
@@ -816,7 +816,7 @@ func (s *Service) doSaveStateHistory(
 	processorID string,
 	action models.ProcessorStateAction,
 	reason string,
-	kind models.ProcessorPauseKind,
+	kind models.ProcessorReasonKind,
 ) {
 	identity := preloader.PreLoadedIdentity(ctx)
 	history := &models.ProcessorStateHistory{

@@ -230,8 +230,9 @@ type ProcessorStateHistory struct {
 	OperatorID  string               // Identity.UserID
 	OperatorSub string               // Identity.Sub
 	Reason      string               // optional, used for pause reason
-	// Kind is set on system-initiated "pause" entries; empty for user pauses,
-	// other actions, and pause entries recorded before this column existed.
+	// Kind is set on system-initiated "pause" entries and on internal "resume"
+	// entries (the kind of pause being resumed); empty for user pauses/resumes,
+	// other actions, and entries recorded before this column existed.
 	Kind      ProcessorPauseKind `gorm:"type:varchar(32)"`
 	CreatedAt time.Time
 }

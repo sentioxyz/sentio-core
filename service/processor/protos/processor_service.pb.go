@@ -3057,6 +3057,7 @@ type ResumeProcessorInternalRequest struct {
 	ProcessorId     string                 `protobuf:"bytes,1,opt,name=processor_id,json=processorId,proto3" json:"processor_id,omitempty"`
 	PrePauseStateId string                 `protobuf:"bytes,2,opt,name=pre_pause_state_id,json=prePauseStateId,proto3" json:"pre_pause_state_id,omitempty"`
 	Reason          string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	Kind            PauseKind              `protobuf:"varint,4,opt,name=kind,proto3,enum=processor_service.PauseKind" json:"kind,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -3110,6 +3111,13 @@ func (x *ResumeProcessorInternalRequest) GetReason() string {
 		return x.Reason
 	}
 	return ""
+}
+
+func (x *ResumeProcessorInternalRequest) GetKind() PauseKind {
+	if x != nil {
+		return x.Kind
+	}
+	return PauseKind_PAUSE_KIND_UNSPECIFIED
 }
 
 type RunProcessorRequest struct {
@@ -4507,11 +4515,12 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\x15PauseProcessorRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x120\n" +
-	"\x04kind\x18\x03 \x01(\x0e2\x1c.processor_service.PauseKindR\x04kind\"\x88\x01\n" +
+	"\x04kind\x18\x03 \x01(\x0e2\x1c.processor_service.PauseKindR\x04kind\"\xba\x01\n" +
 	"\x1eResumeProcessorInternalRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12+\n" +
 	"\x12pre_pause_state_id\x18\x02 \x01(\tR\x0fprePauseStateId\x12\x16\n" +
-	"\x06reason\x18\x03 \x01(\tR\x06reason\"\xe8\x02\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x120\n" +
+	"\x04kind\x18\x04 \x01(\x0e2\x1c.processor_service.PauseKindR\x04kind\"\xe8\x02\n" +
 	"\x13RunProcessorRequest\x12!\n" +
 	"\fprocessor_id\x18\x01 \x01(\tR\vprocessorId\x12\x19\n" +
 	"\bcode_url\x18\x02 \x01(\tR\acodeUrl\x12\x1f\n" +
@@ -4771,88 +4780,89 @@ var file_service_processor_protos_processor_service_proto_depIdxs = []int32{
 	28, // 34: processor_service.RemoveProcessorResponse.deleted:type_name -> processor_service.Processor
 	29, // 35: processor_service.GetProcessorUpgradeHistoryResponse.histories:type_name -> processor_service.ProcessorUpgradeHistory
 	3,  // 36: processor_service.PauseProcessorRequest.kind:type_name -> processor_service.PauseKind
-	65, // 37: processor_service.RunProcessorRequest.created_at:type_name -> google.protobuf.Timestamp
-	66, // 38: processor_service.GetLogsRequest.until:type_name -> common.Any
-	63, // 39: processor_service.GetLogsResponse.logs:type_name -> processor_service.GetLogsResponse.Log
-	66, // 40: processor_service.GetLogsResponse.until:type_name -> common.Any
-	7,  // 41: processor_service.ReconcileProcessorResponse.action:type_name -> processor_service.ReconcileProcessorResponse.Action
-	1,  // 42: processor_service.InitBatchUploadRequest.FileTypesEntry.value:type_name -> processor_service.FileType
-	14, // 43: processor_service.InitBatchUploadResponse.PayloadsEntry.value:type_name -> processor_service.UploadPayload
-	14, // 44: processor_service.FinishBatchUploadRequest.PayloadsEntry.value:type_name -> processor_service.UploadPayload
-	4,  // 45: processor_service.ChainState.Status.state:type_name -> processor_service.ChainState.Status.State
-	67, // 46: processor_service.ChainState.Status.error_record:type_name -> common.ErrorRecord
-	27, // 47: processor_service.GetProcessorStatusResponse.ProcessorEx.states:type_name -> processor_service.ChainState
-	68, // 48: processor_service.GetProcessorStatusResponse.ProcessorEx.uploaded_by:type_name -> common.UserInfo
-	65, // 49: processor_service.GetProcessorStatusResponse.ProcessorEx.uploaded_at:type_name -> google.protobuf.Timestamp
-	62, // 50: processor_service.GetProcessorStatusResponse.ProcessorEx.processor_status:type_name -> processor_service.GetProcessorStatusResponse.ProcessorStatus
-	2,  // 51: processor_service.GetProcessorStatusResponse.ProcessorEx.version_state:type_name -> processor_service.ProcessorVersionState
-	65, // 52: processor_service.GetProcessorStatusResponse.ProcessorEx.pause_at:type_name -> google.protobuf.Timestamp
-	10, // 53: processor_service.GetProcessorStatusResponse.ProcessorEx.network_overrides:type_name -> processor_service.NetworkOverride
-	6,  // 54: processor_service.GetProcessorStatusResponse.ProcessorStatus.state:type_name -> processor_service.GetProcessorStatusResponse.ProcessorStatus.State
-	67, // 55: processor_service.GetProcessorStatusResponse.ProcessorStatus.error_record:type_name -> common.ErrorRecord
-	65, // 56: processor_service.GetLogsResponse.Log.timestamp:type_name -> google.protobuf.Timestamp
-	69, // 57: processor_service.GetLogsResponse.Log.attributes:type_name -> google.protobuf.Struct
-	20, // 58: processor_service.ProcessorService.GetProcessors:input_type -> processor_service.GetProcessorsRequest
-	22, // 59: processor_service.ProcessorService.GetProcessor:input_type -> processor_service.GetProcessorRequest
-	22, // 60: processor_service.ProcessorService.GetProcessorWithProject:input_type -> processor_service.GetProcessorRequest
-	41, // 61: processor_service.ProcessorService.GetProjectVariables:input_type -> processor_service.GetProjectVariablesRequest
-	42, // 62: processor_service.ProcessorService.SetProcessorEntitySchema:input_type -> processor_service.SetProcessorEntitySchemaRequest
-	25, // 63: processor_service.ProcessorService.UpdateChainProcessorStatus:input_type -> processor_service.UpdateChainProcessorStatusRequest
-	18, // 64: processor_service.ProcessorService.DownloadProcessor:input_type -> processor_service.DownloadProcessorRequest
-	33, // 65: processor_service.ProcessorService.GetProcessorStatusInternal:input_type -> processor_service.GetProcessorStatusRequest
-	43, // 66: processor_service.ProcessorService.PauseProcessorInternal:input_type -> processor_service.PauseProcessorRequest
-	44, // 67: processor_service.ProcessorService.ResumeProcessorInternal:input_type -> processor_service.ResumeProcessorInternalRequest
-	34, // 68: processor_service.ProcessorService.GetProcessorStatusV2:input_type -> processor_service.GetProcessorStatusRequestV2
-	36, // 69: processor_service.ProcessorService.RemoveProcessor:input_type -> processor_service.ProcessorIdRequest
-	39, // 70: processor_service.ProcessorService.GetProcessorUpgradeHistories:input_type -> processor_service.GetProcessorUpgradeHistoryRequest
-	31, // 71: processor_service.ProcessorService.GetProcessorStateHistories:input_type -> processor_service.GetProcessorStateHistoryRequest
-	43, // 72: processor_service.ProcessorService.PauseProcessor:input_type -> processor_service.PauseProcessorRequest
-	22, // 73: processor_service.ProcessorService.ResumeProcessor:input_type -> processor_service.GetProcessorRequest
-	22, // 74: processor_service.ProcessorService.SetVersionActive:input_type -> processor_service.GetProcessorRequest
-	38, // 75: processor_service.ProcessorService.ActivatePendingVersion:input_type -> processor_service.ActivatePendingRequest
-	22, // 76: processor_service.ProcessorService.RestartProcessor:input_type -> processor_service.GetProcessorRequest
-	8,  // 77: processor_service.ProcessorService.InitUpload:input_type -> processor_service.InitUploadRequest
-	11, // 78: processor_service.ProcessorService.FinishUpload:input_type -> processor_service.FinishUploadRequest
-	13, // 79: processor_service.ProcessorService.InitBatchUpload:input_type -> processor_service.InitBatchUploadRequest
-	16, // 80: processor_service.ProcessorService.FinishBatchUpload:input_type -> processor_service.FinishBatchUploadRequest
-	45, // 81: processor_service.ProcessorRuntimeService.RunProcessor:input_type -> processor_service.RunProcessorRequest
-	46, // 82: processor_service.ProcessorRuntimeService.StopProcessor:input_type -> processor_service.StopProcessorRequest
-	33, // 83: processor_service.ProcessorRuntimeService.GetProcessorStatus:input_type -> processor_service.GetProcessorStatusRequest
-	47, // 84: processor_service.ProcessorRuntimeService.GetLogs:input_type -> processor_service.GetLogsRequest
-	49, // 85: processor_service.ProcessorRuntimeService.ReconcileProcessor:input_type -> processor_service.ReconcileProcessorRequest
-	21, // 86: processor_service.ProcessorService.GetProcessors:output_type -> processor_service.GetProcessorsResponse
-	23, // 87: processor_service.ProcessorService.GetProcessor:output_type -> processor_service.GetProcessorResponse
-	24, // 88: processor_service.ProcessorService.GetProcessorWithProject:output_type -> processor_service.GetProcessorWithProjectResponse
-	70, // 89: processor_service.ProcessorService.GetProjectVariables:output_type -> common.ProjectVariables
-	71, // 90: processor_service.ProcessorService.SetProcessorEntitySchema:output_type -> google.protobuf.Empty
-	26, // 91: processor_service.ProcessorService.UpdateChainProcessorStatus:output_type -> processor_service.UpdateChainProcessorStatusResponse
-	19, // 92: processor_service.ProcessorService.DownloadProcessor:output_type -> processor_service.DownloadProcessorResponse
-	35, // 93: processor_service.ProcessorService.GetProcessorStatusInternal:output_type -> processor_service.GetProcessorStatusResponse
-	71, // 94: processor_service.ProcessorService.PauseProcessorInternal:output_type -> google.protobuf.Empty
-	71, // 95: processor_service.ProcessorService.ResumeProcessorInternal:output_type -> google.protobuf.Empty
-	35, // 96: processor_service.ProcessorService.GetProcessorStatusV2:output_type -> processor_service.GetProcessorStatusResponse
-	37, // 97: processor_service.ProcessorService.RemoveProcessor:output_type -> processor_service.RemoveProcessorResponse
-	40, // 98: processor_service.ProcessorService.GetProcessorUpgradeHistories:output_type -> processor_service.GetProcessorUpgradeHistoryResponse
-	32, // 99: processor_service.ProcessorService.GetProcessorStateHistories:output_type -> processor_service.GetProcessorStateHistoryResponse
-	71, // 100: processor_service.ProcessorService.PauseProcessor:output_type -> google.protobuf.Empty
-	71, // 101: processor_service.ProcessorService.ResumeProcessor:output_type -> google.protobuf.Empty
-	71, // 102: processor_service.ProcessorService.SetVersionActive:output_type -> google.protobuf.Empty
-	71, // 103: processor_service.ProcessorService.ActivatePendingVersion:output_type -> google.protobuf.Empty
-	71, // 104: processor_service.ProcessorService.RestartProcessor:output_type -> google.protobuf.Empty
-	9,  // 105: processor_service.ProcessorService.InitUpload:output_type -> processor_service.InitUploadResponse
-	12, // 106: processor_service.ProcessorService.FinishUpload:output_type -> processor_service.FinishUploadResponse
-	15, // 107: processor_service.ProcessorService.InitBatchUpload:output_type -> processor_service.InitBatchUploadResponse
-	17, // 108: processor_service.ProcessorService.FinishBatchUpload:output_type -> processor_service.FinishBatchUploadResponse
-	28, // 109: processor_service.ProcessorRuntimeService.RunProcessor:output_type -> processor_service.Processor
-	71, // 110: processor_service.ProcessorRuntimeService.StopProcessor:output_type -> google.protobuf.Empty
-	35, // 111: processor_service.ProcessorRuntimeService.GetProcessorStatus:output_type -> processor_service.GetProcessorStatusResponse
-	48, // 112: processor_service.ProcessorRuntimeService.GetLogs:output_type -> processor_service.GetLogsResponse
-	50, // 113: processor_service.ProcessorRuntimeService.ReconcileProcessor:output_type -> processor_service.ReconcileProcessorResponse
-	86, // [86:114] is the sub-list for method output_type
-	58, // [58:86] is the sub-list for method input_type
-	58, // [58:58] is the sub-list for extension type_name
-	58, // [58:58] is the sub-list for extension extendee
-	0,  // [0:58] is the sub-list for field type_name
+	3,  // 37: processor_service.ResumeProcessorInternalRequest.kind:type_name -> processor_service.PauseKind
+	65, // 38: processor_service.RunProcessorRequest.created_at:type_name -> google.protobuf.Timestamp
+	66, // 39: processor_service.GetLogsRequest.until:type_name -> common.Any
+	63, // 40: processor_service.GetLogsResponse.logs:type_name -> processor_service.GetLogsResponse.Log
+	66, // 41: processor_service.GetLogsResponse.until:type_name -> common.Any
+	7,  // 42: processor_service.ReconcileProcessorResponse.action:type_name -> processor_service.ReconcileProcessorResponse.Action
+	1,  // 43: processor_service.InitBatchUploadRequest.FileTypesEntry.value:type_name -> processor_service.FileType
+	14, // 44: processor_service.InitBatchUploadResponse.PayloadsEntry.value:type_name -> processor_service.UploadPayload
+	14, // 45: processor_service.FinishBatchUploadRequest.PayloadsEntry.value:type_name -> processor_service.UploadPayload
+	4,  // 46: processor_service.ChainState.Status.state:type_name -> processor_service.ChainState.Status.State
+	67, // 47: processor_service.ChainState.Status.error_record:type_name -> common.ErrorRecord
+	27, // 48: processor_service.GetProcessorStatusResponse.ProcessorEx.states:type_name -> processor_service.ChainState
+	68, // 49: processor_service.GetProcessorStatusResponse.ProcessorEx.uploaded_by:type_name -> common.UserInfo
+	65, // 50: processor_service.GetProcessorStatusResponse.ProcessorEx.uploaded_at:type_name -> google.protobuf.Timestamp
+	62, // 51: processor_service.GetProcessorStatusResponse.ProcessorEx.processor_status:type_name -> processor_service.GetProcessorStatusResponse.ProcessorStatus
+	2,  // 52: processor_service.GetProcessorStatusResponse.ProcessorEx.version_state:type_name -> processor_service.ProcessorVersionState
+	65, // 53: processor_service.GetProcessorStatusResponse.ProcessorEx.pause_at:type_name -> google.protobuf.Timestamp
+	10, // 54: processor_service.GetProcessorStatusResponse.ProcessorEx.network_overrides:type_name -> processor_service.NetworkOverride
+	6,  // 55: processor_service.GetProcessorStatusResponse.ProcessorStatus.state:type_name -> processor_service.GetProcessorStatusResponse.ProcessorStatus.State
+	67, // 56: processor_service.GetProcessorStatusResponse.ProcessorStatus.error_record:type_name -> common.ErrorRecord
+	65, // 57: processor_service.GetLogsResponse.Log.timestamp:type_name -> google.protobuf.Timestamp
+	69, // 58: processor_service.GetLogsResponse.Log.attributes:type_name -> google.protobuf.Struct
+	20, // 59: processor_service.ProcessorService.GetProcessors:input_type -> processor_service.GetProcessorsRequest
+	22, // 60: processor_service.ProcessorService.GetProcessor:input_type -> processor_service.GetProcessorRequest
+	22, // 61: processor_service.ProcessorService.GetProcessorWithProject:input_type -> processor_service.GetProcessorRequest
+	41, // 62: processor_service.ProcessorService.GetProjectVariables:input_type -> processor_service.GetProjectVariablesRequest
+	42, // 63: processor_service.ProcessorService.SetProcessorEntitySchema:input_type -> processor_service.SetProcessorEntitySchemaRequest
+	25, // 64: processor_service.ProcessorService.UpdateChainProcessorStatus:input_type -> processor_service.UpdateChainProcessorStatusRequest
+	18, // 65: processor_service.ProcessorService.DownloadProcessor:input_type -> processor_service.DownloadProcessorRequest
+	33, // 66: processor_service.ProcessorService.GetProcessorStatusInternal:input_type -> processor_service.GetProcessorStatusRequest
+	43, // 67: processor_service.ProcessorService.PauseProcessorInternal:input_type -> processor_service.PauseProcessorRequest
+	44, // 68: processor_service.ProcessorService.ResumeProcessorInternal:input_type -> processor_service.ResumeProcessorInternalRequest
+	34, // 69: processor_service.ProcessorService.GetProcessorStatusV2:input_type -> processor_service.GetProcessorStatusRequestV2
+	36, // 70: processor_service.ProcessorService.RemoveProcessor:input_type -> processor_service.ProcessorIdRequest
+	39, // 71: processor_service.ProcessorService.GetProcessorUpgradeHistories:input_type -> processor_service.GetProcessorUpgradeHistoryRequest
+	31, // 72: processor_service.ProcessorService.GetProcessorStateHistories:input_type -> processor_service.GetProcessorStateHistoryRequest
+	43, // 73: processor_service.ProcessorService.PauseProcessor:input_type -> processor_service.PauseProcessorRequest
+	22, // 74: processor_service.ProcessorService.ResumeProcessor:input_type -> processor_service.GetProcessorRequest
+	22, // 75: processor_service.ProcessorService.SetVersionActive:input_type -> processor_service.GetProcessorRequest
+	38, // 76: processor_service.ProcessorService.ActivatePendingVersion:input_type -> processor_service.ActivatePendingRequest
+	22, // 77: processor_service.ProcessorService.RestartProcessor:input_type -> processor_service.GetProcessorRequest
+	8,  // 78: processor_service.ProcessorService.InitUpload:input_type -> processor_service.InitUploadRequest
+	11, // 79: processor_service.ProcessorService.FinishUpload:input_type -> processor_service.FinishUploadRequest
+	13, // 80: processor_service.ProcessorService.InitBatchUpload:input_type -> processor_service.InitBatchUploadRequest
+	16, // 81: processor_service.ProcessorService.FinishBatchUpload:input_type -> processor_service.FinishBatchUploadRequest
+	45, // 82: processor_service.ProcessorRuntimeService.RunProcessor:input_type -> processor_service.RunProcessorRequest
+	46, // 83: processor_service.ProcessorRuntimeService.StopProcessor:input_type -> processor_service.StopProcessorRequest
+	33, // 84: processor_service.ProcessorRuntimeService.GetProcessorStatus:input_type -> processor_service.GetProcessorStatusRequest
+	47, // 85: processor_service.ProcessorRuntimeService.GetLogs:input_type -> processor_service.GetLogsRequest
+	49, // 86: processor_service.ProcessorRuntimeService.ReconcileProcessor:input_type -> processor_service.ReconcileProcessorRequest
+	21, // 87: processor_service.ProcessorService.GetProcessors:output_type -> processor_service.GetProcessorsResponse
+	23, // 88: processor_service.ProcessorService.GetProcessor:output_type -> processor_service.GetProcessorResponse
+	24, // 89: processor_service.ProcessorService.GetProcessorWithProject:output_type -> processor_service.GetProcessorWithProjectResponse
+	70, // 90: processor_service.ProcessorService.GetProjectVariables:output_type -> common.ProjectVariables
+	71, // 91: processor_service.ProcessorService.SetProcessorEntitySchema:output_type -> google.protobuf.Empty
+	26, // 92: processor_service.ProcessorService.UpdateChainProcessorStatus:output_type -> processor_service.UpdateChainProcessorStatusResponse
+	19, // 93: processor_service.ProcessorService.DownloadProcessor:output_type -> processor_service.DownloadProcessorResponse
+	35, // 94: processor_service.ProcessorService.GetProcessorStatusInternal:output_type -> processor_service.GetProcessorStatusResponse
+	71, // 95: processor_service.ProcessorService.PauseProcessorInternal:output_type -> google.protobuf.Empty
+	71, // 96: processor_service.ProcessorService.ResumeProcessorInternal:output_type -> google.protobuf.Empty
+	35, // 97: processor_service.ProcessorService.GetProcessorStatusV2:output_type -> processor_service.GetProcessorStatusResponse
+	37, // 98: processor_service.ProcessorService.RemoveProcessor:output_type -> processor_service.RemoveProcessorResponse
+	40, // 99: processor_service.ProcessorService.GetProcessorUpgradeHistories:output_type -> processor_service.GetProcessorUpgradeHistoryResponse
+	32, // 100: processor_service.ProcessorService.GetProcessorStateHistories:output_type -> processor_service.GetProcessorStateHistoryResponse
+	71, // 101: processor_service.ProcessorService.PauseProcessor:output_type -> google.protobuf.Empty
+	71, // 102: processor_service.ProcessorService.ResumeProcessor:output_type -> google.protobuf.Empty
+	71, // 103: processor_service.ProcessorService.SetVersionActive:output_type -> google.protobuf.Empty
+	71, // 104: processor_service.ProcessorService.ActivatePendingVersion:output_type -> google.protobuf.Empty
+	71, // 105: processor_service.ProcessorService.RestartProcessor:output_type -> google.protobuf.Empty
+	9,  // 106: processor_service.ProcessorService.InitUpload:output_type -> processor_service.InitUploadResponse
+	12, // 107: processor_service.ProcessorService.FinishUpload:output_type -> processor_service.FinishUploadResponse
+	15, // 108: processor_service.ProcessorService.InitBatchUpload:output_type -> processor_service.InitBatchUploadResponse
+	17, // 109: processor_service.ProcessorService.FinishBatchUpload:output_type -> processor_service.FinishBatchUploadResponse
+	28, // 110: processor_service.ProcessorRuntimeService.RunProcessor:output_type -> processor_service.Processor
+	71, // 111: processor_service.ProcessorRuntimeService.StopProcessor:output_type -> google.protobuf.Empty
+	35, // 112: processor_service.ProcessorRuntimeService.GetProcessorStatus:output_type -> processor_service.GetProcessorStatusResponse
+	48, // 113: processor_service.ProcessorRuntimeService.GetLogs:output_type -> processor_service.GetLogsResponse
+	50, // 114: processor_service.ProcessorRuntimeService.ReconcileProcessor:output_type -> processor_service.ReconcileProcessorResponse
+	87, // [87:115] is the sub-list for method output_type
+	59, // [59:87] is the sub-list for method input_type
+	59, // [59:59] is the sub-list for extension type_name
+	59, // [59:59] is the sub-list for extension extendee
+	0,  // [0:59] is the sub-list for field type_name
 }
 
 func init() { file_service_processor_protos_processor_service_proto_init() }

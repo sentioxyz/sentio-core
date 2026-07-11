@@ -668,8 +668,16 @@ func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorR
 // over-quota event), the fence no longer matches and the call is rejected with
 // FailedPrecondition without doing anything. Intervening "active"/"obsolete"
 // actions are ignored on purpose, as they do not represent a pause decision.
+//
+// The caller must also declare the kind of pause it is resuming; the resume is
+// rejected unless the fenced pause entry has that kind (entries recorded before
+// kinds existed have no kind and are accepted).
 func (s *Service) ResumeProcessorInternal(ctx context.Context, req *protos.ResumeProcessorInternalRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, "", req.PrePauseStateId)
+	kind := models.PauseKindFromPB(req.Kind)
+	if kind == "" {
+		return nil, status.Error(codes.InvalidArgument, "pause kind is required")
+	}
+	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, kind, req.PrePauseStateId)
 }
 
 func (s *Service) updateProcessorPause(
@@ -677,7 +685,7 @@ func (s *Service) updateProcessorPause(
 	processorID string,
 	pause bool,
 	reason string,
-	kind models.ProcessorPauseKind, // only meaningful when pause is true
+	kind models.ProcessorPauseKind, // the pause's kind; on resume, the kind of pause being resumed
 	prePauseStateID string,
 ) (*emptypb.Empty, error) {
 	_, logger := log.FromContext(ctx, "processor_id", processorID)
@@ -709,7 +717,7 @@ func (s *Service) updateProcessorPause(
 			return nil
 		}
 		if prePauseStateID != "" {
-			if err := s.checkPauseFence(ctx, processorID, prePauseStateID); err != nil {
+			if err := s.checkPauseFence(ctx, processorID, prePauseStateID, kind); err != nil {
 				return err
 			}
 		}
@@ -724,11 +732,11 @@ func (s *Service) updateProcessorPause(
 		if err := s.processorRepo.SaveProcessor(ctx, processor); err != nil {
 			return err
 		}
+		action := models.ProcessorStateActionResume
 		if pause {
-			s.savePauseStateHistory(ctx, processorID, reason, kind)
-		} else {
-			s.saveStateHistory(ctx, processorID, models.ProcessorStateActionResume, reason)
+			action = models.ProcessorStateActionPause
 		}
+		s.doSaveStateHistory(ctx, processorID, action, reason, kind)
 		return nil
 	})
 	if err != nil {
@@ -760,9 +768,14 @@ func (s *Service) updateProcessorPause(
 // are skipped because they do not change the pause state.
 //
 // The history entry is immutable, so matching its id is the whole consistency
-// signal: whether that pause was made by the system or a user is the caller's
-// concern, not the fence's.
-func (s *Service) checkPauseFence(ctx context.Context, processorID, prePauseStateID string) error {
+// signal. On top of it, the fenced pause must carry the kind the caller declared
+// it is resuming; entries recorded before kinds existed have no kind and pass.
+func (s *Service) checkPauseFence(
+	ctx context.Context,
+	processorID string,
+	prePauseStateID string,
+	kind models.ProcessorPauseKind,
+) error {
 	histories, err := s.processorRepo.ListProcessorStateHistory(ctx, processorID)
 	if err != nil {
 		return err
@@ -782,20 +795,15 @@ func (s *Service) checkPauseFence(ctx context.Context, processorID, prePauseStat
 		latest.Action != models.ProcessorStateActionPause {
 		return status.Error(codes.FailedPrecondition, "processor pause state changed since observed")
 	}
+	if latest.Kind != "" && latest.Kind != kind {
+		return status.Errorf(codes.FailedPrecondition,
+			"pause kind mismatch: pause is %q, resume declared %q", latest.Kind, kind)
+	}
 	return nil
 }
 
 func (s *Service) saveStateHistory(ctx context.Context, processorID string, action models.ProcessorStateAction, reason string) {
 	s.doSaveStateHistory(ctx, processorID, action, reason, "")
-}
-
-func (s *Service) savePauseStateHistory(
-	ctx context.Context,
-	processorID string,
-	reason string,
-	kind models.ProcessorPauseKind,
-) {
-	s.doSaveStateHistory(ctx, processorID, models.ProcessorStateActionPause, reason, kind)
 }
 
 func (s *Service) doSaveStateHistory(

@@ -515,8 +515,9 @@ message ProcessorStateHistory {
   string operator_sub = 5;
   string reason = 6;
   google.protobuf.Timestamp created_at = 7;
-  // Set on system-initiated "pause" entries; PAUSE_KIND_UNSPECIFIED for user
-  // pauses, other actions, and pause entries recorded before this field
+  // Set on system-initiated "pause" entries and on internal "resume" entries
+  // (the kind of pause being resumed); PAUSE_KIND_UNSPECIFIED for user
+  // pauses/resumes, other actions, and entries recorded before this field
   // existed.
   PauseKind kind = 8;
 }
@@ -664,6 +665,11 @@ message ResumeProcessorInternalRequest {
   // action, i.e. no pause/resume happened since the caller observed it.
   string pre_pause_state_id = 2;
   string reason = 3;
+  // The kind of pause being resumed. Required: the resume is rejected unless
+  // the pause entry identified by pre_pause_state_id has this kind (entries
+  // recorded before kinds existed have no kind and are accepted). Also
+  // recorded on the resume state history entry.
+  PauseKind kind = 4;
 }
 
 message RunProcessorRequest {

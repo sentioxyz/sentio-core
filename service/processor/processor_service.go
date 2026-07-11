@@ -646,9 +646,12 @@ func (s *Service) PauseProcessorInternal(ctx context.Context, req *protos.PauseP
 }
 
 func (s *Service) PauseProcessor(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
-	// The user-facing route always records a user pause, regardless of what the
-	// client put in the request.
-	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, models.ProcessorPauseKindUser, "")
+	// Only the internal route may classify a pause; a user pause carries no
+	// kind, so reject requests that try to specify one.
+	if req.Kind != protos.PauseKind_PAUSE_KIND_UNSPECIFIED {
+		return nil, status.Error(codes.InvalidArgument, "pause kind can not be specified on this route")
+	}
+	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, "", "")
 }
 
 func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorRequest) (*emptypb.Empty, error) {

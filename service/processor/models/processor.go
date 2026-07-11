@@ -185,13 +185,13 @@ const (
 	ProcessorStateActionObsolete ProcessorStateAction = "obsolete"
 )
 
-// ProcessorPauseKind classifies who/what initiated a pause, so that automation
-// (e.g. the over-quota auto-resume check) can decide from the latest pause
-// entry without parsing the free-form reason.
+// ProcessorPauseKind classifies what a system-initiated pause was for, so that
+// automation (e.g. the over-quota auto-resume check) can decide from the
+// latest pause entry without parsing the free-form reason. User pauses carry
+// no kind (empty string).
 type ProcessorPauseKind string
 
 const (
-	ProcessorPauseKindUser     ProcessorPauseKind = "user"
 	ProcessorPauseKindBilling  ProcessorPauseKind = "billing"
 	ProcessorPauseKindSecurity ProcessorPauseKind = "security"
 )
@@ -200,8 +200,6 @@ const (
 // PAUSE_KIND_UNSPECIFIED maps to the empty string.
 func PauseKindFromPB(kind protos.PauseKind) ProcessorPauseKind {
 	switch kind {
-	case protos.PauseKind_PAUSE_KIND_USER:
-		return ProcessorPauseKindUser
 	case protos.PauseKind_PAUSE_KIND_BILLING:
 		return ProcessorPauseKindBilling
 	case protos.PauseKind_PAUSE_KIND_SECURITY:
@@ -212,12 +210,10 @@ func PauseKindFromPB(kind protos.PauseKind) ProcessorPauseKind {
 }
 
 // ToPB converts the pause kind to its proto representation; unknown values
-// (including the empty string on non-pause or legacy entries) map to
-// PAUSE_KIND_UNSPECIFIED.
+// (including the empty string on user pauses, non-pause entries, and legacy
+// entries) map to PAUSE_KIND_UNSPECIFIED.
 func (k ProcessorPauseKind) ToPB() protos.PauseKind {
 	switch k {
-	case ProcessorPauseKindUser:
-		return protos.PauseKind_PAUSE_KIND_USER
 	case ProcessorPauseKindBilling:
 		return protos.PauseKind_PAUSE_KIND_BILLING
 	case ProcessorPauseKindSecurity:
@@ -234,8 +230,8 @@ type ProcessorStateHistory struct {
 	OperatorID  string               // Identity.UserID
 	OperatorSub string               // Identity.Sub
 	Reason      string               // optional, used for pause reason
-	// Kind is set on "pause" entries; empty for other actions and for pause
-	// entries recorded before this column existed.
+	// Kind is set on system-initiated "pause" entries; empty for user pauses,
+	// other actions, and pause entries recorded before this column existed.
 	Kind      ProcessorPauseKind `gorm:"type:varchar(32)"`
 	CreatedAt time.Time
 }

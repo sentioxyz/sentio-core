@@ -188,24 +188,21 @@ type PauseKind int32
 
 const (
 	PauseKind_PAUSE_KIND_UNSPECIFIED PauseKind = 0
-	PauseKind_PAUSE_KIND_USER        PauseKind = 1
-	PauseKind_PAUSE_KIND_BILLING     PauseKind = 2
-	PauseKind_PAUSE_KIND_SECURITY    PauseKind = 3
+	PauseKind_PAUSE_KIND_BILLING     PauseKind = 1
+	PauseKind_PAUSE_KIND_SECURITY    PauseKind = 2
 )
 
 // Enum value maps for PauseKind.
 var (
 	PauseKind_name = map[int32]string{
 		0: "PAUSE_KIND_UNSPECIFIED",
-		1: "PAUSE_KIND_USER",
-		2: "PAUSE_KIND_BILLING",
-		3: "PAUSE_KIND_SECURITY",
+		1: "PAUSE_KIND_BILLING",
+		2: "PAUSE_KIND_SECURITY",
 	}
 	PauseKind_value = map[string]int32{
 		"PAUSE_KIND_UNSPECIFIED": 0,
-		"PAUSE_KIND_USER":        1,
-		"PAUSE_KIND_BILLING":     2,
-		"PAUSE_KIND_SECURITY":    3,
+		"PAUSE_KIND_BILLING":     1,
+		"PAUSE_KIND_SECURITY":    2,
 	}
 )
 
@@ -4581,12 +4578,11 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\aPENDING\x10\x01\x12\n" +
 	"\n" +
 	"\x06ACTIVE\x10\x02\x12\f\n" +
-	"\bOBSOLETE\x10\x03*m\n" +
+	"\bOBSOLETE\x10\x03*X\n" +
 	"\tPauseKind\x12\x1a\n" +
-	"\x16PAUSE_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +
-	"\x0fPAUSE_KIND_USER\x10\x01\x12\x16\n" +
-	"\x12PAUSE_KIND_BILLING\x10\x02\x12\x17\n" +
-	"\x13PAUSE_KIND_SECURITY\x10\x032\xeb\x1b\n" +
+	"\x16PAUSE_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12PAUSE_KIND_BILLING\x10\x01\x12\x17\n" +
+	"\x13PAUSE_KIND_SECURITY\x10\x022\xeb\x1b\n" +
 	"\x10ProcessorService\x12b\n" +
 	"\rGetProcessors\x12'.processor_service.GetProcessorsRequest\x1a(.processor_service.GetProcessorsResponse\x12_\n" +
 	"\fGetProcessor\x12&.processor_service.GetProcessorRequest\x1a'.processor_service.GetProcessorResponse\x12u\n" +

@@ -93,6 +93,28 @@ func TestVerifyPauseFence(t *testing.T) {
 			fenceID:   "p1",
 			kind:      models.ProcessorReasonKindBilling,
 		},
+		// Without a fence id (e.g. a user resume) the id match is skipped but
+		// the kind matrix still applies to the latest pause entry.
+		{
+			name:      "no fence id: user resume lifts a billing pause",
+			histories: []models.ProcessorStateHistory{pause("p1", models.ProcessorReasonKindBilling)},
+			kind:      "",
+		},
+		{
+			name:      "no fence id: user resume cannot lift a security pause",
+			histories: []models.ProcessorStateHistory{pause("p1", models.ProcessorReasonKindSecurity)},
+			kind:      "",
+			wantErr:   "not resumable",
+		},
+		{
+			name: "no fence id: no history at all is allowed",
+			kind: "",
+		},
+		{
+			name:      "no fence id: latest entry being a resume is allowed",
+			histories: []models.ProcessorStateHistory{resume("r1"), pause("p1", models.ProcessorReasonKindSecurity)},
+			kind:      "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

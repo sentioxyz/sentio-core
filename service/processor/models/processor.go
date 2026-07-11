@@ -187,8 +187,9 @@ const (
 
 // ProcessorReasonKind classifies what a system-initiated pause was for, so that
 // automation (e.g. the over-quota auto-resume check) can decide from the
-// latest pause entry without parsing the free-form reason. User pauses carry
-// no kind (empty string).
+// latest pause entry without parsing the free-form reason; internal resumes
+// declare it to state which kind of pause they are lifting. User pauses and
+// resumes carry no kind (empty string).
 type ProcessorReasonKind string
 
 const (

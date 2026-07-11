@@ -654,6 +654,9 @@ func (s *Service) PauseProcessor(ctx context.Context, req *protos.PauseProcessor
 	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, "", "")
 }
 
+// ResumeProcessor is the user-facing resume. It declares no kind, so per the
+// resume matrix (models.CanResumePause) it can lift user and billing pauses
+// but not a security pause.
 func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorRequest) (*emptypb.Empty, error) {
 	return s.updateProcessorPause(ctx, req.ProcessorId, false, "", "", "")
 }
@@ -713,7 +716,11 @@ func (s *Service) updateProcessorPause(
 			noop = true
 			return nil
 		}
-		if prePauseStateID != "" {
+		// Every resume goes through the fence so the kind matrix always applies
+		// (a user resume carries no fence id and no kind, and must still not
+		// lift e.g. a security pause); the id match itself is only enforced
+		// when the caller observed a pause entry.
+		if !pause {
 			if err := s.checkPauseFence(ctx, processorID, prePauseStateID, kind); err != nil {
 				return err
 			}
@@ -759,10 +766,11 @@ func (s *Service) updateProcessorPause(
 	return &emptypb.Empty{}, nil
 }
 
-// checkPauseFence verifies that the pause entry identified by prePauseStateID is
-// still the latest pause/resume action on the processor, i.e. nothing pause-
-// related has happened since the caller observed it. "active"/"obsolete" entries
-// are skipped because they do not change the pause state.
+// checkPauseFence guards every resume: it enforces the resume kind matrix
+// against the latest pause entry, and — when the caller observed a pause entry
+// (prePauseStateID set) — that this entry is still the latest pause/resume
+// action, i.e. nothing pause-related has happened since. "active"/"obsolete"
+// entries are skipped because they do not change the pause state.
 func (s *Service) checkPauseFence(
 	ctx context.Context,
 	processorID string,
@@ -776,10 +784,14 @@ func (s *Service) checkPauseFence(
 	return verifyPauseFence(histories, prePauseStateID, kind)
 }
 
-// verifyPauseFence checks a fenced resume against the processor's state history
-// (ordered newest first). The history entry is immutable, so matching its id is
-// the whole consistency signal. On top of it, the declared resume kind must be
-// allowed to resume the fenced pause entry's kind (see models.CanResumePause).
+// verifyPauseFence checks a resume against the processor's state history
+// (ordered newest first). When the caller observed a pause entry
+// (prePauseStateID is set), that entry must still be the latest pause/resume
+// action — the history entry is immutable, so matching its id is the whole
+// consistency signal. With or without a fence id, the declared resume kind
+// must be allowed to resume the latest pause entry's kind (see
+// models.CanResumePause); a processor paused without any pause entry (data
+// predating the state history) carries no kind to enforce.
 func verifyPauseFence(
 	histories []models.ProcessorStateHistory,
 	prePauseStateID string,
@@ -793,14 +805,17 @@ func verifyPauseFence(
 			break
 		}
 	}
-	// latest must be a pause (not a resume) whose id matches; if the latest
-	// pause/resume is a resume or a different pause, the state has changed.
-	if latest == nil ||
-		latest.ID != prePauseStateID ||
-		latest.Action != models.ProcessorStateActionPause {
-		return status.Error(codes.FailedPrecondition, "processor pause state changed since observed")
+	if prePauseStateID != "" {
+		// latest must be a pause (not a resume) whose id matches; if the latest
+		// pause/resume is a resume or a different pause, the state has changed.
+		if latest == nil ||
+			latest.ID != prePauseStateID ||
+			latest.Action != models.ProcessorStateActionPause {
+			return status.Error(codes.FailedPrecondition, "processor pause state changed since observed")
+		}
 	}
-	if !models.CanResumePause(latest.ReasonKind, kind) {
+	if latest != nil && latest.Action == models.ProcessorStateActionPause &&
+		!models.CanResumePause(latest.ReasonKind, kind) {
 		return status.Errorf(codes.FailedPrecondition,
 			"reason kind mismatch: a %q pause is not resumable by a %q resume", latest.ReasonKind, kind)
 	}

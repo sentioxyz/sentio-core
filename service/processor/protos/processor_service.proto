@@ -515,6 +515,10 @@ message ProcessorStateHistory {
   string operator_sub = 5;
   string reason = 6;
   google.protobuf.Timestamp created_at = 7;
+  // Set on system-initiated "pause" entries and on internal "resume" entries
+  // (the kind the resume declared); UNSPECIFIED for user pauses and resumes,
+  // other actions, and entries recorded before this field existed.
+  ReasonKind reason_kind = 8;
 }
 
 message GetProcessorStateHistoryRequest { string processor_id = 1; }
@@ -632,9 +636,26 @@ message SetProcessorEntitySchemaRequest {
   string schema = 2;
 }
 
+// ReasonKind classifies what a system-initiated pause was for, so that
+// automation (e.g. the over-quota auto-resume check) can decide from the
+// latest pause entry without parsing the free-form reason; internal resumes
+// declare it to state which kind of pause they are lifting. User pauses and
+// resumes carry no kind (UNSPECIFIED).
+enum ReasonKind {
+  UNSPECIFIED = 0;
+  // paused by the system for billing reasons (e.g. project over quota)
+  BILLING = 1;
+  // paused by the system for security reasons
+  SECURITY = 2;
+}
+
 message PauseProcessorRequest {
   string processor_id = 1;
   string reason = 2;
+  // Classifies the pause. Only the internal route (PauseProcessorInternal)
+  // may set it; the user-facing PauseProcessor rejects requests that specify
+  // a kind.
+  ReasonKind reason_kind = 3;
 }
 
 message ResumeProcessorInternalRequest {
@@ -644,6 +665,13 @@ message ResumeProcessorInternalRequest {
   // action, i.e. no pause/resume happened since the caller observed it.
   string pre_pause_state_id = 2;
   string reason = 3;
+  // The kind of pause the caller intends to resume. The resume is rejected
+  // unless this kind is allowed to resume the latest pause entry's kind: a
+  // security pause is only resumable by a security resume, a billing pause
+  // also by an unspecified resume, and pause entries without a kind (user
+  // pauses and entries recorded before kinds existed) by anything. Also
+  // recorded on the resume state history entry.
+  ReasonKind reason_kind = 4;
 }
 
 message RunProcessorRequest {

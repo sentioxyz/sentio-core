@@ -185,6 +185,61 @@ const (
 	ProcessorStateActionObsolete ProcessorStateAction = "obsolete"
 )
 
+// ProcessorReasonKind classifies what a system-initiated pause was for, so that
+// automation (e.g. the over-quota auto-resume check) can decide from the
+// latest pause entry without parsing the free-form reason; internal resumes
+// declare it to state which kind of pause they are lifting. User pauses and
+// resumes carry no kind (empty string).
+type ProcessorReasonKind string
+
+const (
+	ProcessorReasonKindBilling  ProcessorReasonKind = "billing"
+	ProcessorReasonKindSecurity ProcessorReasonKind = "security"
+)
+
+// ReasonKindFromPB converts the proto ReasonKind to its model representation;
+// UNSPECIFIED maps to the empty string.
+func ReasonKindFromPB(kind protos.ReasonKind) ProcessorReasonKind {
+	switch kind {
+	case protos.ReasonKind_BILLING:
+		return ProcessorReasonKindBilling
+	case protos.ReasonKind_SECURITY:
+		return ProcessorReasonKindSecurity
+	default:
+		return ""
+	}
+}
+
+// ToPB converts the reason kind to its proto representation; unknown values
+// (including the empty string on user pauses, non-pause entries, and legacy
+// entries) map to UNSPECIFIED.
+func (k ProcessorReasonKind) ToPB() protos.ReasonKind {
+	switch k {
+	case ProcessorReasonKindBilling:
+		return protos.ReasonKind_BILLING
+	case ProcessorReasonKindSecurity:
+		return protos.ReasonKind_SECURITY
+	default:
+		return protos.ReasonKind_UNSPECIFIED
+	}
+}
+
+// pauseResumableBy defines, per pause kind, which declared resume kinds may
+// resume it: a security pause only by a security resume; a billing pause also
+// by an unspecified resume; kindless pauses (user pauses and entries recorded
+// before kinds existed) by anything.
+var pauseResumableBy = map[ProcessorReasonKind]map[ProcessorReasonKind]bool{
+	"":                          {"": true, ProcessorReasonKindBilling: true, ProcessorReasonKindSecurity: true},
+	ProcessorReasonKindBilling:  {"": true, ProcessorReasonKindBilling: true},
+	ProcessorReasonKindSecurity: {ProcessorReasonKindSecurity: true},
+}
+
+// CanResumePause reports whether a resume declaring resumeKind may resume a
+// pause of pauseKind.
+func CanResumePause(pauseKind, resumeKind ProcessorReasonKind) bool {
+	return pauseResumableBy[pauseKind][resumeKind]
+}
+
 type ProcessorStateHistory struct {
 	ID          string               `gorm:"primaryKey"`
 	ProcessorID string               `gorm:"index"`
@@ -192,7 +247,12 @@ type ProcessorStateHistory struct {
 	OperatorID  string               // Identity.UserID
 	OperatorSub string               // Identity.Sub
 	Reason      string               // optional, used for pause reason
-	CreatedAt   time.Time
+	// ReasonKind is set on system-initiated "pause" entries and on internal
+	// "resume" entries (the kind the resume declared); empty for user
+	// pauses/resumes, other actions, and entries recorded before this column
+	// existed.
+	ReasonKind ProcessorReasonKind `gorm:"type:varchar(32)"`
+	CreatedAt  time.Time
 }
 
 func (h *ProcessorStateHistory) BeforeCreate(tx *gorm.DB) (err error) {
@@ -218,6 +278,7 @@ func (h *ProcessorStateHistory) ToPB() *protos.ProcessorStateHistory {
 		OperatorId:  h.OperatorID,
 		OperatorSub: h.OperatorSub,
 		Reason:      h.Reason,
+		ReasonKind:  h.ReasonKind.ToPB(),
 		CreatedAt:   timestamppb.New(h.CreatedAt),
 	}
 }

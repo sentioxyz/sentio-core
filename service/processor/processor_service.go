@@ -676,6 +676,29 @@ func (s *Service) updateProcessorPause(
 ) (*emptypb.Empty, error) {
 	_, logger := log.FromContext(ctx, "processor_id", processorID)
 
+	// When resuming, re-run the activation admission gate (e.g. the security
+	// scan) before un-pausing, so a version that was held for a security reason
+	// cannot be resumed without passing the gate again. The decision is delegated
+	// to the lifecycle hook, which owns the scan policy (and is a no-op when
+	// scanning is not required) and, on a block, persists the (re-)held state and
+	// notifies the project itself. It runs before the transaction on purpose: it
+	// may do slow I/O (a code scan), and on a block it writes the held state that
+	// must survive rather than roll back with the aborted resume. Only a
+	// currently-paused running version is gated; an already-running processor is a
+	// no-op resume handled inside the transaction below.
+	if !pause {
+		p, err := s.processorRepo.GetProcessor(ctx, processorID, false)
+		if err != nil {
+			return nil, err
+		}
+		if p.Pause && p.IsRunningVersion() && len(p.ReferenceProjectID) == 0 {
+			if err := s.preActivateProcessor(ctx, p); err != nil {
+				logger.Warnfe(err, "resume blocked by pre-activate hook")
+				return nil, status.Errorf(codes.FailedPrecondition, "resume blocked by activation gate: %v", err)
+			}
+		}
+	}
+
 	var processor *models.Processor
 	var noop bool
 	// Validate (including the fence check) and flip the pause flag atomically so a

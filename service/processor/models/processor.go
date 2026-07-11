@@ -223,6 +223,22 @@ func (k ProcessorPauseKind) ToPB() protos.PauseKind {
 	}
 }
 
+// pauseResumableBy defines, per pause kind, which declared resume kinds may
+// resume it: a security pause only by a security resume; a billing pause also
+// by an unspecified resume; kindless pauses (user pauses and entries recorded
+// before kinds existed) by anything.
+var pauseResumableBy = map[ProcessorPauseKind]map[ProcessorPauseKind]bool{
+	"":                         {"": true, ProcessorPauseKindBilling: true, ProcessorPauseKindSecurity: true},
+	ProcessorPauseKindBilling:  {"": true, ProcessorPauseKindBilling: true},
+	ProcessorPauseKindSecurity: {ProcessorPauseKindSecurity: true},
+}
+
+// CanResumePause reports whether a resume declaring resumeKind may resume a
+// pause of pauseKind.
+func CanResumePause(pauseKind, resumeKind ProcessorPauseKind) bool {
+	return pauseResumableBy[pauseKind][resumeKind]
+}
+
 type ProcessorStateHistory struct {
 	ID          string               `gorm:"primaryKey"`
 	ProcessorID string               `gorm:"index"`

@@ -665,10 +665,12 @@ message ResumeProcessorInternalRequest {
   // action, i.e. no pause/resume happened since the caller observed it.
   string pre_pause_state_id = 2;
   string reason = 3;
-  // The kind of pause being resumed. Required: the resume is rejected unless
-  // the pause entry identified by pre_pause_state_id has this kind (entries
-  // recorded before kinds existed have no kind and are accepted). Also
-  // recorded on the resume state history entry.
+  // The kind of pause being resumed. The resume is rejected unless this kind
+  // is allowed to resume the pause entry identified by pre_pause_state_id:
+  // a security pause is only resumable by a security resume, a billing pause
+  // also by an unspecified resume, and pause entries without a kind (recorded
+  // before kinds existed) by anything. Also recorded on the resume state
+  // history entry.
   PauseKind kind = 4;
 }
 

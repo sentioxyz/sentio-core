@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "models",
@@ -16,5 +16,15 @@ go_library(
         "@io_gorm_datatypes//:datatypes",
         "@io_gorm_gorm//:gorm",
         "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "models_test",
+    srcs = ["pause_kind_test.go"],
+    embed = [":models"],
+    deps = [
+        "//service/processor/protos",
+        "@com_github_stretchr_testify//assert",
     ],
 )

@@ -246,11 +246,11 @@ type ProcessorStateHistory struct {
 	OperatorID  string               // Identity.UserID
 	OperatorSub string               // Identity.Sub
 	Reason      string               // optional, used for pause reason
-	// Kind is set on system-initiated "pause" entries and on internal "resume"
+	// ReasonKind is set on system-initiated "pause" entries and on internal "resume"
 	// entries (the kind of pause being resumed); empty for user pauses/resumes,
 	// other actions, and entries recorded before this column existed.
-	Kind      ProcessorReasonKind `gorm:"type:varchar(32)"`
-	CreatedAt time.Time
+	ReasonKind ProcessorReasonKind `gorm:"type:varchar(32)"`
+	CreatedAt  time.Time
 }
 
 func (h *ProcessorStateHistory) BeforeCreate(tx *gorm.DB) (err error) {
@@ -276,7 +276,7 @@ func (h *ProcessorStateHistory) ToPB() *protos.ProcessorStateHistory {
 		OperatorId:  h.OperatorID,
 		OperatorSub: h.OperatorSub,
 		Reason:      h.Reason,
-		Kind:        h.Kind.ToPB(),
+		ReasonKind:  h.ReasonKind.ToPB(),
 		CreatedAt:   timestamppb.New(h.CreatedAt),
 	}
 }

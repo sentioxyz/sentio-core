@@ -642,13 +642,13 @@ func (s *Service) CreateOrUpdateProcessor(
 }
 
 func (s *Service) PauseProcessorInternal(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, models.ReasonKindFromPB(req.Kind), "")
+	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, models.ReasonKindFromPB(req.ReasonKind), "")
 }
 
 func (s *Service) PauseProcessor(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
 	// Only the internal route may classify a pause; a user pause carries no
 	// kind, so reject requests that try to specify one.
-	if req.Kind != protos.ReasonKind_UNSPECIFIED {
+	if req.ReasonKind != protos.ReasonKind_UNSPECIFIED {
 		return nil, status.Error(codes.InvalidArgument, "kind cannot be specified on this route")
 	}
 	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, "", "")
@@ -674,7 +674,7 @@ func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorR
 // security resume, while a billing pause also accepts an unspecified resume,
 // and kindless pause entries accept anything.
 func (s *Service) ResumeProcessorInternal(ctx context.Context, req *protos.ResumeProcessorInternalRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, models.ReasonKindFromPB(req.Kind), req.PrePauseStateId)
+	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, models.ReasonKindFromPB(req.ReasonKind), req.PrePauseStateId)
 }
 
 func (s *Service) updateProcessorPause(
@@ -800,9 +800,9 @@ func verifyPauseFence(
 		latest.Action != models.ProcessorStateActionPause {
 		return status.Error(codes.FailedPrecondition, "processor pause state changed since observed")
 	}
-	if !models.CanResumePause(latest.Kind, kind) {
+	if !models.CanResumePause(latest.ReasonKind, kind) {
 		return status.Errorf(codes.FailedPrecondition,
-			"reason kind mismatch: a %q pause is not resumable by a %q resume", latest.Kind, kind)
+			"reason kind mismatch: a %q pause is not resumable by a %q resume", latest.ReasonKind, kind)
 	}
 	return nil
 }
@@ -823,7 +823,7 @@ func (s *Service) doSaveStateHistory(
 		ProcessorID: processorID,
 		Action:      action,
 		Reason:      reason,
-		Kind:        kind,
+		ReasonKind:  kind,
 	}
 	if identity != nil {
 		history.OperatorID = identity.GetUserID()

@@ -519,7 +519,7 @@ message ProcessorStateHistory {
   // (the kind of pause being resumed); UNSPECIFIED for user
   // pauses/resumes, other actions, and entries recorded before this field
   // existed.
-  ReasonKind kind = 8;
+  ReasonKind reason_kind = 8;
 }
 
 message GetProcessorStateHistoryRequest { string processor_id = 1; }
@@ -655,7 +655,7 @@ message PauseProcessorRequest {
   // Classifies the pause. Only the internal route (PauseProcessorInternal)
   // may set it; the user-facing PauseProcessor rejects requests that specify
   // a kind.
-  ReasonKind kind = 3;
+  ReasonKind reason_kind = 3;
 }
 
 message ResumeProcessorInternalRequest {
@@ -671,7 +671,7 @@ message ResumeProcessorInternalRequest {
   // also by an unspecified resume, and pause entries without a kind (recorded
   // before kinds existed) by anything. Also recorded on the resume state
   // history entry.
-  ReasonKind kind = 4;
+  ReasonKind reason_kind = 4;
 }
 
 message RunProcessorRequest {

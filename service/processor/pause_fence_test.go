@@ -12,7 +12,7 @@ import (
 
 func TestVerifyPauseFence(t *testing.T) {
 	pause := func(id string, kind models.ProcessorReasonKind) models.ProcessorStateHistory {
-		return models.ProcessorStateHistory{ID: id, Action: models.ProcessorStateActionPause, Kind: kind}
+		return models.ProcessorStateHistory{ID: id, Action: models.ProcessorStateActionPause, ReasonKind: kind}
 	}
 	resume := func(id string) models.ProcessorStateHistory {
 		return models.ProcessorStateHistory{ID: id, Action: models.ProcessorStateActionResume}

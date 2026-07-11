@@ -664,15 +664,16 @@ func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorR
 // ResumeProcessorInternal resumes a processor that was paused by the system
 // (e.g. because the project was over quota), without any request identity.
 //
-// preStateId acts as a fence to guarantee consistency: the caller passes the id
-// of the pause state history entry it observed, and the resume only proceeds if
-// that entry is still the latest pause/resume action on the processor. If the
-// user resumed and/or re-paused in between (or the system re-paused due to a new
-// over-quota event), the fence no longer matches and the call is rejected with
-// FailedPrecondition without doing anything. Intervening "active"/"obsolete"
-// actions are ignored on purpose, as they do not represent a pause decision.
+// PrePauseStateId acts as a fence to guarantee consistency: the caller passes
+// the id of the pause state history entry it observed, and the resume only
+// proceeds if that entry is still the latest pause/resume action on the
+// processor. If the user resumed and/or re-paused in between (or the system
+// re-paused due to a new over-quota event), the fence no longer matches and the
+// call is rejected with FailedPrecondition without doing anything. Intervening
+// "active"/"obsolete" actions are ignored on purpose, as they do not represent
+// a pause decision.
 //
-// The declared kind must also be allowed to resume the fenced pause entry's
+// The declared kind must also be allowed to resume the latest pause entry's
 // kind (see models.CanResumePause): a security pause is only resumable by a
 // security resume, while a billing pause also accepts an unspecified resume,
 // and kindless pause entries accept anything.
@@ -685,7 +686,7 @@ func (s *Service) updateProcessorPause(
 	processorID string,
 	pause bool,
 	reason string,
-	kind models.ProcessorReasonKind, // the pause's kind; on resume, the kind of pause being resumed
+	kind models.ProcessorReasonKind, // recorded on the history entry; on resume, checked against the matrix
 	prePauseStateID string,
 ) (*emptypb.Empty, error) {
 	_, logger := log.FromContext(ctx, "processor_id", processorID)

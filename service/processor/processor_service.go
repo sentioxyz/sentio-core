@@ -642,15 +642,17 @@ func (s *Service) CreateOrUpdateProcessor(
 }
 
 func (s *Service) PauseProcessorInternal(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, "")
+	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, models.PauseKindFromPB(req.Kind), "")
 }
 
 func (s *Service) PauseProcessor(ctx context.Context, req *protos.PauseProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, "")
+	// The user-facing route always records a user pause, regardless of what the
+	// client put in the request.
+	return s.updateProcessorPause(ctx, req.ProcessorId, true, req.Reason, models.ProcessorPauseKindUser, "")
 }
 
 func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, false, "", "")
+	return s.updateProcessorPause(ctx, req.ProcessorId, false, "", "", "")
 }
 
 // ResumeProcessorInternal resumes a processor that was paused by the system
@@ -664,7 +666,7 @@ func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorR
 // FailedPrecondition without doing anything. Intervening "active"/"obsolete"
 // actions are ignored on purpose, as they do not represent a pause decision.
 func (s *Service) ResumeProcessorInternal(ctx context.Context, req *protos.ResumeProcessorInternalRequest) (*emptypb.Empty, error) {
-	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, req.PrePauseStateId)
+	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, "", req.PrePauseStateId)
 }
 
 func (s *Service) updateProcessorPause(
@@ -672,6 +674,7 @@ func (s *Service) updateProcessorPause(
 	processorID string,
 	pause bool,
 	reason string,
+	kind models.ProcessorPauseKind, // only meaningful when pause is true
 	prePauseStateID string,
 ) (*emptypb.Empty, error) {
 	_, logger := log.FromContext(ctx, "processor_id", processorID)
@@ -719,7 +722,7 @@ func (s *Service) updateProcessorPause(
 			return err
 		}
 		if pause {
-			s.saveStateHistory(ctx, processorID, models.ProcessorStateActionPause, reason)
+			s.savePauseStateHistory(ctx, processorID, reason, kind)
 		} else {
 			s.saveStateHistory(ctx, processorID, models.ProcessorStateActionResume, reason)
 		}
@@ -780,11 +783,31 @@ func (s *Service) checkPauseFence(ctx context.Context, processorID, prePauseStat
 }
 
 func (s *Service) saveStateHistory(ctx context.Context, processorID string, action models.ProcessorStateAction, reason string) {
+	s.doSaveStateHistory(ctx, processorID, action, reason, "")
+}
+
+func (s *Service) savePauseStateHistory(
+	ctx context.Context,
+	processorID string,
+	reason string,
+	kind models.ProcessorPauseKind,
+) {
+	s.doSaveStateHistory(ctx, processorID, models.ProcessorStateActionPause, reason, kind)
+}
+
+func (s *Service) doSaveStateHistory(
+	ctx context.Context,
+	processorID string,
+	action models.ProcessorStateAction,
+	reason string,
+	kind models.ProcessorPauseKind,
+) {
 	identity := preloader.PreLoadedIdentity(ctx)
 	history := &models.ProcessorStateHistory{
 		ProcessorID: processorID,
 		Action:      action,
 		Reason:      reason,
+		Kind:        kind,
 	}
 	if identity != nil {
 		history.OperatorID = identity.GetUserID()

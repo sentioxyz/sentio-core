@@ -515,6 +515,9 @@ message ProcessorStateHistory {
   string operator_sub = 5;
   string reason = 6;
   google.protobuf.Timestamp created_at = 7;
+  // Set on "pause" entries; PAUSE_KIND_UNSPECIFIED for other actions and for
+  // pause entries recorded before this field existed.
+  PauseKind kind = 8;
 }
 
 message GetProcessorStateHistoryRequest { string processor_id = 1; }
@@ -632,9 +635,26 @@ message SetProcessorEntitySchemaRequest {
   string schema = 2;
 }
 
+// PauseKind classifies who/what initiated a pause, so that automation (e.g.
+// the over-quota auto-resume check) can decide from the latest pause entry
+// without parsing the free-form reason.
+enum PauseKind {
+  PAUSE_KIND_UNSPECIFIED = 0;
+  // paused by a user
+  PAUSE_KIND_USER = 1;
+  // paused by the system for billing reasons (e.g. project over quota)
+  PAUSE_KIND_BILLING = 2;
+  // paused by the system for security reasons
+  PAUSE_KIND_SECURITY = 3;
+}
+
 message PauseProcessorRequest {
   string processor_id = 1;
   string reason = 2;
+  // Classifies the pause. Only honored on the internal route
+  // (PauseProcessorInternal); the user-facing PauseProcessor always records
+  // PAUSE_KIND_USER.
+  PauseKind kind = 3;
 }
 
 message ResumeProcessorInternalRequest {

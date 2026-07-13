@@ -3,7 +3,7 @@ package chains
 
 import "github.com/ethereum/go-ethereum/common"
 
-var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &CronosZkevmInfo, &ZksyncEraInfo, &CronosTestnetInfo, &AstarInfo, &DeriveInfo, &StableTestnetInfo, &StableMainnetInfo, &HyperEvmInfo, &PolygonZkevmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &MoonbeamInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &SwellTestnetInfo, &SwellMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MegaethInfo, &RobinhoodInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &MevCommitInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &MonadMainnetInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &BlastInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &ZklinkNovaInfo, &SepoliaInfo, &EtherlinkInfo, &CornMaizenetInfo, &AuroraInfo, &BlastSepoliaInfo, &AbstractInfo, &GoatMainnetInfo, &ArcTestnetInfo, &SentioTestnetInfo, &SentioTestnetV2Info, &SentioDevnetInfo, &TronInfo, &CustomInfo}
+var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &CronosZkevmInfo, &ZksyncEraInfo, &CronosTestnetInfo, &AstarInfo, &DeriveInfo, &StableTestnetInfo, &StableMainnetInfo, &HyperEvmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &MoonbeamInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &SwellTestnetInfo, &SwellMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MegaethInfo, &RobinhoodInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &MevCommitInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &MonadMainnetInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &BlastInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &ZklinkNovaInfo, &SepoliaInfo, &EtherlinkInfo, &CornMaizenetInfo, &AuroraInfo, &BlastSepoliaInfo, &AbstractInfo, &GoatMainnetInfo, &ArcTestnetInfo, &SentioTestnetInfo, &SentioTestnetV2Info, &SentioDevnetInfo, &TronInfo, &CustomInfo}
 
 var Chains = []*ChainInfo{}
 
@@ -461,25 +461,6 @@ var HyperEvmInfo = EthChainInfo{
   WrappedTokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
   ExplorerAPI: "https://hyperevmscan.io/v2",
   ExplorerAPIType: ExplorerAPITypeEtherscanV2,
-}
-
-var PolygonZkevmInfo = EthChainInfo{
-  ChainInfo: ChainInfo{
-    Name: "Polygon zkEVM",
-    Slug: "polygon-zkevm",
-    AdditionalSlugs: []string{},
-    MainnetChainID: ChainID(PolygonZkevmID),
-    ChainID: ChainID(PolygonZkevmID),
-    ExplorerURL: "https://polygon.blockscout.com",
-  },
-  Variation: EthVariationPolygonZkEVM,
-  TokenSymbol: "POL",
-  TokenDecimals: 18,
-  TokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
-  PriceTokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
-  WrappedTokenAddress: common.HexToAddress("0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9"),
-  ExplorerAPI: "https://polygon.blockscout.com",
-  ExplorerAPIType: ExplorerAPITypeBlockscout,
 }
 
 var ConfluxInfo = EthChainInfo{

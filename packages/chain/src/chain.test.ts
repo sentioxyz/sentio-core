@@ -7,7 +7,6 @@ import * as console from 'node:console'
 
 describe('Chain Test', () => {
   it('chain name', () => {
-    assert.equal(getChainName(ChainId.POLYGON_ZKEVM), 'Polygon zkEVM')
     assert.equal(getChainName(ChainId.ZKSYNC_ERA), 'zkSync Era')
     assert.equal(getChainName('592'), 'Astar')
   })

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"time"
 
 	chainsui "sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/chain/sui/types"
@@ -13,7 +12,6 @@ import (
 	cprotojson "sentioxyz/sentio-core/common/protojson"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller/data"
-	"sentioxyz/sentio-core/driver/controller/fetcher"
 	"sentioxyz/sentio-core/driver/controller/standard"
 	suihandler "sentioxyz/sentio-core/driver/controller/standard/sui"
 	"sentioxyz/sentio-core/processor/protos"
@@ -58,61 +56,20 @@ type grpcObject struct {
 // PushObjectLatestVersion overrides the embedded json-rpc implementation to track the latest object
 // versions from grpc object changes (sui_filterGrpcChangedObjects) instead of the json-rpc
 // sui_filterObjectChangesV2, keeping the interval handler on the grpc data source end to end (it later
-// fetches those versions via GetGrpcObjects). The version-tracking logic is otherwise identical.
+// fetches those versions via GetGrpcObjects). The version-tracking and adaptive paging logic is shared
+// with the json-rpc handler (suihandler.PushObjectLatestVersionPaged).
 func (a HandlerAgentInterval) PushObjectLatestVersion(
 	ctx context.Context,
 	blockNumber uint64,
 	dict *suihandler.ObjectDict,
 ) (suihandler.ObjectDict, error) {
-	_, logger := log.FromContext(ctx, "handler", a.HandlerID.String(), "filter", utils.MustJSONMarshal(a.Filter))
-	if dict != nil && dict.BlockNumber == blockNumber { // may be retried, so dict.BlockNumber may be equal to blockNumber
-		return *dict, nil
-	}
-	var from uint64
-	result := suihandler.ObjectDict{
-		BlockNumber:         blockNumber,
-		ObjectLatestVersion: make(map[string]uint64),
-	}
-	if dict != nil {
-		from = dict.BlockNumber + 1
-		result.ObjectLatestVersion = utils.CopyMap(dict.ObjectLatestVersion)
-	}
-	logger.Infof("will push grpc object latest version dict in [%d,%d]", from, blockNumber)
-	for from <= blockNumber {
-		startAt := time.Now()
-		end := min(blockNumber, from+suihandler.MaxQueryObjectChangeRangeSize-1)
-		changes, err := a.Client.GetGrpcObjectChanges(ctx, from, end, a.Filter)
-		if err != nil {
-			return suihandler.ObjectDict{}, err
-		}
-		beforeSize := len(result.ObjectLatestVersion)
-		var deleteCount, updateCount, createCount int
-		for _, bn := range utils.GetOrderedMapKeys(changes) {
-			for _, oc := range changes[bn] {
-				objectID, objectVersion := oc.GetObjectId(), oc.GetOutputVersion()
-				if chainsui.GetChangeType(oc.ChangedObject).IsDeleted() {
-					delete(result.ObjectLatestVersion, objectID)
-					deleteCount++
-				} else if _, has := result.ObjectLatestVersion[objectID]; has {
-					result.ObjectLatestVersion[objectID] = objectVersion
-					updateCount++
-				} else {
-					result.ObjectLatestVersion[objectID] = objectVersion
-					createCount++
-				}
-			}
-		}
-		logger.With("used", time.Since(startAt).String()).
-			Infof("pushed grpc object latest version dict in [%d,%d], size %d => %d, created %d and updated %d and deleted %d",
-				from, end, beforeSize, len(result.ObjectLatestVersion), createCount, updateCount, deleteCount)
-		from = end + 1
-	}
-	if size := len(result.ObjectLatestVersion); size > suihandler.MaxObjectDictLen {
-		err := errors.Errorf("object latest version dict size for handler %s with filter %s is too big: %d > %d",
-			a.HandlerID.String(), utils.MustJSONMarshal(a.Filter), size, suihandler.MaxObjectDictLen)
-		return suihandler.ObjectDict{}, fetcher.Permanent(err)
-	}
-	return result, nil
+	return suihandler.PushObjectLatestVersionPaged(ctx, a.HandlerAgentInterval, blockNumber, dict, "grpc object",
+		func(ctx context.Context, fromBlock, toBlock uint64) (map[uint64][]*chainsui.ExtendedGrpcChangedObject, error) {
+			return a.Client.GetGrpcObjectChanges(ctx, fromBlock, toBlock, a.Filter)
+		},
+		func(oc *chainsui.ExtendedGrpcChangedObject) (objectID string, version uint64, deleted bool) {
+			return oc.GetObjectId(), oc.GetOutputVersion(), chainsui.GetChangeType(oc.ChangedObject).IsDeleted()
+		})
 }
 
 func (a HandlerAgentInterval) BuildBindingDataList(
@@ -147,7 +104,7 @@ func (a HandlerAgentInterval) BuildBindingDataList(
 				message := fmt.Sprintf("object %s version %d not returned: %s",
 					req.GetObjectId(), req.GetVersion(), res.GetError().GetMessage())
 				if !ignoreNotExistObject {
-					return nil, errors.Errorf(message)
+					return nil, errors.New(message)
 				}
 				logger.Warnf("%s, will be ignored", message)
 				continue

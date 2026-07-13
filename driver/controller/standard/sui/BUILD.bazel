@@ -14,6 +14,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/driver/controller/standard/sui",
     visibility = ["//visibility:public"],
     deps = [
+        "//chain/chain",
         "//chain/move",
         "//chain/sui",
         "//chain/sui/types",
@@ -21,6 +22,7 @@ go_library(
         "//common/envconf",
         "//common/errgroup",
         "//common/log",
+        "//common/pager",
         "//common/utils",
         "//driver/controller",
         "//driver/controller/config",
@@ -39,5 +41,9 @@ go_test(
     name = "sui_test",
     srcs = ["handler_interval_test.go"],
     embed = [":sui"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//chain/chain",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

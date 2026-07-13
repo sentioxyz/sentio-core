@@ -157,7 +157,7 @@ func (s *RPCService) GetTransactions(
 			return txs, nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]fuel.WrappedTransaction, error) {
-			return s.store.QueryTransactions(ctx, queryRange.Start, *queryRange.End, param.Filters, limit)
+			return s.store.QueryTransactions(ctx, queryRange.Start, *queryRange.End, param.Filters, chain.StoreQueryLimit(limit))
 		}),
 	)
 	return chain.CheckTooManyResults(result, err, "transactions", limit, param.StartHeight, param.EndHeight)

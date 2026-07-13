@@ -53,6 +53,17 @@ func RangeQueryLimit(from, to uint64, limit int) int {
 	return limit
 }
 
+// StoreQueryLimit converts a response record cap into the fetch limit to pass to a storage query:
+// one extra record, so CheckTooManyResults can detect an over-cap query from the record count
+// alone while the storage layer stays a plain bounded fetch with no limit-checking of its own.
+// A disabled cap (limit <= 0) stays unlimited.
+func StoreQueryLimit(limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+	return limit + 1
+}
+
 // CheckTooManyResults finalizes a range query outcome against the caller-visible contract: the
 // TOTAL response may hold at most limit records, regardless of how the request was split
 // internally between the latest-slot cache and the store. A too-many-results error raised by an

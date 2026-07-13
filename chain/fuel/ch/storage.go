@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/pkg/errors"
-	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/fuel"
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/objectx"
-	"sentioxyz/sentio-core/common/utils"
 	"strings"
 	"time"
 )
@@ -151,25 +149,14 @@ func (s *Store) QueryTransactions(
 			whereArgs = append(whereArgs, logRdSet)
 		}
 	}
-	// limit+1 lets an over-limit query be detected without materializing an unbounded result; the
-	// check runs on the raw rows (before the Go-side post filter), which over-counts conservatively
-	sqlLimit := 0
-	if limit > 0 {
-		sqlLimit = limit + 1
-	}
 	startAt := time.Now()
-	result, err := s.queryTransactions(ctx, where, whereArgs, sqlLimit)
+	result, err := s.queryTransactions(ctx, func(tx fuel.WrappedTransaction) bool {
+		return fuel.CheckTransaction(tx, filters)
+	}, limit, where, whereArgs)
 	if err != nil {
 		return nil, err
 	}
 	s.recordQueryTx(ctx, time.Since(startAt), len(result))
-	if limit > 0 && len(result) > limit {
-		return nil, chain.NewTooManyResultsError("transactions", limit, startBlock, endBlock)
-	}
-	// post filter
-	result = utils.FilterArr(result, func(tx fuel.WrappedTransaction) bool {
-		return fuel.CheckTransaction(tx, filters)
-	})
 	return result, nil
 }
 
@@ -178,7 +165,7 @@ func (s *Store) QueryContractCreateTransaction(
 	contractID string,
 ) (*fuel.WrappedTransaction, error) {
 	startAt := time.Now()
-	result, err := s.queryTransactions(ctx, "is_create AND has(created_contracts, ?)", []any{contractID}, 1)
+	result, err := s.queryTransactions(ctx, nil, 1, "is_create AND has(created_contracts, ?)", []any{contractID})
 	if err != nil {
 		return nil, err
 	}
@@ -189,11 +176,17 @@ func (s *Store) QueryContractCreateTransaction(
 	return &result[0], nil
 }
 
+// queryTransactions returns at most limit (0 = unlimited) matching transactions; limit counts the
+// records that survive postFilter (nil = keep all), so a truncated result is always a prefix of
+// the full result. It never checks the limit itself — the super node passes its record cap + 1 and
+// detects an over-cap query from the record count (chain.StoreQueryLimit /
+// chain.CheckTooManyResults). Without a postFilter the limit is pushed down as a SQL LIMIT.
 func (s *Store) queryTransactions(
 	ctx context.Context,
+	postFilter func(fuel.WrappedTransaction) bool,
+	limit int,
 	where string,
 	args []any,
-	limit int,
 ) (result []fuel.WrappedTransaction, err error) {
 	fieldFilter := objectx.HasTag("clickhouse").And(objectx.AnyHasTagEqualTo("required", "true"))
 	columns := objectx.CollectTagValue(&ClickhouseTransaction{}, "clickhouse", fieldFilter)
@@ -201,7 +194,7 @@ func (s *Store) queryTransactions(
 		strings.Join(columns, "`,`"),
 		s.ctrl.FullLogicName(tableNameTransactions),
 		where)
-	if limit > 0 {
+	if limit > 0 && postFilter == nil {
 		sql += fmt.Sprintf(" LIMIT %d", limit)
 	}
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -213,7 +206,9 @@ func (s *Store) queryTransactions(
 		if parseErr != nil {
 			return errors.Wrapf(parseErr, "parse from %d/%s clickhouse transaction failed", tx.BlockHeight, tx.TransactionID)
 		}
-		result = append(result, res)
+		if (postFilter == nil || postFilter(res)) && (limit <= 0 || len(result) < limit) {
+			result = append(result, res)
+		}
 		return nil
 	}, sql, args...)
 	return result, err

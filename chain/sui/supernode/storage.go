@@ -22,9 +22,10 @@ type StorageJSONRPC interface {
 	QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) (sui.SimpleCheckpoint, error)
 
 	QueryTransactions(ctx context.Context, query *sui.TransactionQuery) ([]types.TransactionResponseV1, error)
-	// QueryTransactionsV2 returns chain.NewTooManyResultsError once more than limit matching
-	// records accumulate (limit <= 0 means unlimited), so an over-dense range aborts early
-	// instead of materializing an unbounded result.
+	// QueryTransactionsV2 returns at most limit (0 = unlimited) matching records, counted after
+	// post-filtering so a truncated result is always a prefix of the full result. It performs no
+	// limit check itself: the super node passes its record cap + 1 (chain.StoreQueryLimit) and
+	// detects an over-cap query from the record count.
 	QueryTransactionsV2(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
@@ -63,8 +64,7 @@ type StorageGRPC interface {
 	//  - CONSENSUS_COMMIT_PROLOGUE_V3
 	//  - CONSENSUS_COMMIT_PROLOGUE_V4
 	//  - PROGRAMMABLE_SYSTEM_TRANSACTION
-	// It returns chain.NewTooManyResultsError once more than limit matching records accumulate
-	// (limit <= 0 means unlimited).
+	// It returns at most limit (0 = unlimited) matching records, like StorageJSONRPC.QueryTransactionsV2.
 	QueryTransactions(
 		ctx context.Context,
 		fromBlock, toBlock uint64,

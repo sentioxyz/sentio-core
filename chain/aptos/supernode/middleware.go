@@ -12,6 +12,12 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 )
 
+// maxTransactionsV1 caps how many transactions a V1 range query (aptos_fullEvents /
+// aptos_functions / aptos_resourceChanges) may return in TOTAL; an over-cap query fails with
+// chain.NewTooManyResultsError ("exceeds the limit"), on which the legacy driver halves its query
+// range and retries. It keeps the value the storage layer historically enforced on these queries.
+const maxTransactionsV1 = 500
+
 type RPCService struct {
 	slotCache chain.LatestSlotCache[*aptos.Slot]
 	store     Storage
@@ -75,7 +81,8 @@ func (s *RPCService) LatestHeight(ctx context.Context) (uint64, error) {
 func (s *RPCService) FullEvents(ctx context.Context, req *aptos.GetEventsArgs) ([]*aptos.Transaction, error) {
 	eventsFilter := req.EventFilter()
 	changesFilter := req.ChangeFilter()
-	return splitRange(
+	limit := chain.RangeQueryLimit(req.FromVersion, req.ToVersion, maxTransactionsV1)
+	result, err := splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewRange(req.FromVersion, req.ToVersion),
@@ -102,14 +109,16 @@ func (s *RPCService) FullEvents(ctx context.Context, req *aptos.GetEventsArgs) (
 			subReq := *req
 			subReq.FromVersion = queryRange.Start
 			subReq.ToVersion = *queryRange.End
-			return s.store.FullEvents(ctx, subReq)
+			return s.store.FullEvents(ctx, subReq, chain.StoreQueryLimit(limit))
 		})
+	return chain.CheckTooManyResults(result, err, "transactions", limit, req.FromVersion, req.ToVersion)
 }
 
 func (s *RPCService) Functions(ctx context.Context, req *aptos.GetFunctionsArgs) ([]*aptos.Transaction, error) {
 	txFilter := req.TxnFilter()
 	changesFilter := req.ChangeFilter()
-	return splitRange(
+	limit := chain.RangeQueryLimit(req.FromVersion, req.ToVersion, maxTransactionsV1)
+	result, err := splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewRange(req.FromVersion, req.ToVersion),
@@ -135,13 +144,15 @@ func (s *RPCService) Functions(ctx context.Context, req *aptos.GetFunctionsArgs)
 			subReq := *req
 			subReq.FromVersion = queryRange.Start
 			subReq.ToVersion = *queryRange.End
-			return s.store.Functions(ctx, subReq)
+			return s.store.Functions(ctx, subReq, chain.StoreQueryLimit(limit))
 		})
+	return chain.CheckTooManyResults(result, err, "transactions", limit, req.FromVersion, req.ToVersion)
 }
 
 func (s *RPCService) ResourceChanges(ctx context.Context, req *aptos.ResourceChangeArgs) ([]*aptos.Transaction, error) {
 	changesFilter := req.ChangeFilter()
-	return splitRange(
+	limit := chain.RangeQueryLimit(req.FromVersion, req.ToVersion, maxTransactionsV1)
+	result, err := splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewRange(req.FromVersion, req.ToVersion),
@@ -158,8 +169,9 @@ func (s *RPCService) ResourceChanges(ctx context.Context, req *aptos.ResourceCha
 			subReq := *req
 			subReq.FromVersion = queryRange.Start
 			subReq.ToVersion = *queryRange.End
-			return s.store.ResourceChanges(ctx, subReq)
+			return s.store.ResourceChanges(ctx, subReq, chain.StoreQueryLimit(limit))
 		})
+	return chain.CheckTooManyResults(result, err, "transactions", limit, req.FromVersion, req.ToVersion)
 }
 
 func (s *RPCService) GetTransactionByVersion(ctx context.Context, _ string, version uint64) (*aptos.Transaction, error) {

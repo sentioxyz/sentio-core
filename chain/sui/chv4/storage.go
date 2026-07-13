@@ -76,10 +76,13 @@ func (s *Storage) QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) 
 	return sc, nil
 }
 
+// queryTransactions returns at most limit (0 = unlimited) matching transactions; limit counts the
+// records the converter keeps, so a truncated result is always a prefix of the full result. It
+// never checks the limit itself — the super node passes its record cap + 1 and detects an over-cap
+// query from the record count (chain.StoreQueryLimit / chain.CheckTooManyResults).
 func (s *Storage) queryTransactions(
 	ctx context.Context,
 	converter func(Transaction) (*sui.ExtendedGrpcTransaction, bool, error),
-	fromBlock, toBlock uint64,
 	limit int,
 	where string,
 	args ...any,
@@ -101,11 +104,7 @@ func (s *Storage) queryTransactions(
 		if convertErr != nil {
 			return convertErr
 		}
-		if need {
-			if limit > 0 && len(result) >= limit {
-				// abort the scan instead of materializing an unbounded result
-				return chain.NewTooManyResultsError("transactions", limit, fromBlock, toBlock)
-			}
+		if need && (limit <= 0 || len(result) < limit) {
 			result = append(result, r)
 		}
 		return nil
@@ -234,13 +233,14 @@ func (s *Storage) QueryTransactions(
 			return nil, false, nil
 		}
 		return fetchConfig.PruneGrpcTransaction(etx, filter.EventFilters), true, nil
-	}, fromBlock, toBlock, limit, strings.Join(conditions, " AND "), args...)
+	}, limit, strings.Join(conditions, " AND "), args...)
 }
 
+// queryObjectChanges applies limit like queryTransactions (a plain bounded fetch; the limit check
+// itself belongs to the super node).
 func (s *Storage) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(*sui.ExtendedGrpcChangedObject) bool,
-	fromBlock, toBlock uint64,
 	limit int,
 	where string,
 	args ...any,
@@ -262,11 +262,7 @@ func (s *Storage) queryObjectChanges(
 		}
 		res := oc.ToChangedObject()
 		// post filter
-		if postFilter(res) {
-			if limit > 0 && len(result) >= limit {
-				// abort the scan instead of materializing an unbounded result
-				return chain.NewTooManyResultsError("object changes", limit, fromBlock, toBlock)
-			}
+		if postFilter(res) && (limit <= 0 || len(result) < limit) {
 			result = append(result, res)
 		}
 		return nil
@@ -334,7 +330,7 @@ func (s *Storage) QueryObjectChanges(
 	checker := filter.CheckerGrpc()
 	return s.queryObjectChanges(ctx, func(co *sui.ExtendedGrpcChangedObject) bool {
 		return checker(co.ChangedObject)
-	}, fromBlock, toBlock, limit, strings.Join(conditions, " AND "), args...)
+	}, limit, strings.Join(conditions, " AND "), args...)
 }
 
 func (s *Storage) QueryObjectsStat(

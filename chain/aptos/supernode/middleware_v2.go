@@ -176,7 +176,7 @@ func (s *RPCServiceV2) GetResourceChanges(
 				FromVersion: queryRange.Start,
 				ToVersion:   *queryRange.End,
 				Filter:      req.Filter,
-			}, limit)
+			}, chain.StoreQueryLimit(limit))
 		},
 	)
 	return chain.CheckTooManyResults(result, err, "resource changes", limit, req.FromVersion, req.ToVersion)
@@ -204,7 +204,7 @@ func (s *RPCServiceV2) GetTransactions(ctx context.Context, req aptos.GetTransac
 				ToVersion:   *queryRange.End,
 				Filter:      req.Filter,
 				FetchConfig: req.FetchConfig,
-			}, limit)
+			}, chain.StoreQueryLimit(limit))
 		},
 	)
 	return chain.CheckTooManyResults(txs, err, "transactions", limit, req.FromVersion, req.ToVersion)

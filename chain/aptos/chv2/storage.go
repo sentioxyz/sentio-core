@@ -96,18 +96,17 @@ func (s *Store) checkInRange(ctx context.Context, txVersions ...uint64) error {
 	return nil
 }
 
-// getTransactionsMaxReturn is the record cap applied to the legacy (V1) transaction queries, which
-// predate the caller-supplied limit the V2 queries use.
-const getTransactionsMaxReturn = 500
-
-// queryTransactions loads at most limit matching transactions (limit <= 0 means unlimited) in
-// [fromVersion, toVersion]; when the query matches more it fails with
-// chain.NewTooManyResultsError so the caller shrinks the range and retries.
+// queryTransactions returns at most limit (0 = unlimited) matching transactions; limit counts the
+// records that survive postFilter (nil = keep all; it may mutate the transaction, e.g. to trim its
+// events/changes), so a truncated result is always a prefix of the full result. It never checks
+// the limit itself — the super node passes its record cap + 1 and detects an over-cap query from
+// the record count (chain.StoreQueryLimit / chain.CheckTooManyResults). Without a postFilter the
+// limit is pushed down as a SQL LIMIT.
 func (s *Store) queryTransactions(
 	ctx context.Context,
 	includeEvent bool,
 	includeChanges bool,
-	fromVersion, toVersion uint64,
+	postFilter func(*aptos.Transaction) bool,
 	limit int,
 	where string,
 	args ...any,
@@ -125,9 +124,8 @@ func (s *Store) queryTransactions(
 		strings.Join(selectFields, "`,`"),
 		s.ctrl.FullLogicName(tableNameTransactions),
 		where)
-	if limit > 0 {
-		// limit+1 lets an over-limit query be detected without materializing an unbounded result
-		sql += fmt.Sprintf(" LIMIT %d", limit+1)
+	if limit > 0 && postFilter == nil {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
 	}
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var tx Transaction
@@ -138,20 +136,24 @@ func (s *Store) queryTransactions(
 		if raw, err = tx.toRawTransaction(); err != nil {
 			return err
 		}
-		result = append(result, aptos.NewTransaction(&raw))
+		res := aptos.NewTransaction(&raw)
+		if (postFilter == nil || postFilter(&res)) && (limit <= 0 || len(result) < limit) {
+			result = append(result, res)
+		}
 		return nil
 	}, sql, args...)
 	if err != nil {
 		return nil, err
 	}
 	s.recordQueryTx(ctx, time.Since(startAt), len(result))
-	if limit > 0 && len(result) > limit {
-		return nil, chain.NewTooManyResultsError("transactions", limit, fromVersion, toVersion)
-	}
 	return result, nil
 }
 
-func (s *Store) Functions(ctx context.Context, req aptos.GetFunctionsArgs) ([]*aptos.Transaction, error) {
+func (s *Store) Functions(
+	ctx context.Context,
+	req aptos.GetFunctionsArgs,
+	limit int,
+) ([]*aptos.Transaction, error) {
 	if err := s.checkInRange(ctx, req.FromVersion, req.ToVersion); err != nil {
 		return nil, err
 	}
@@ -183,27 +185,34 @@ func (s *Store) Functions(ctx context.Context, req aptos.GetFunctionsArgs) ([]*a
 	if !req.IncludeFailedTransaction {
 		wheres = append(wheres, "success")
 	}
-	// actually query clickhouse
+	// actually query clickhouse, post-filtering and adjusting each transaction in the scan
+	txFilter := req.TxnFilter()
+	changesFilter := req.ChangeFilter()
 	txs, err := s.queryTransactions(ctx, req.IncludeAllEvents, req.IncludeChanges,
-		req.FromVersion, req.ToVersion, getTransactionsMaxReturn, strings.Join(wheres, " AND "), whereArgs...)
+		func(tx *aptos.Transaction) bool {
+			if !txFilter(tx) {
+				return false
+			}
+			tx.Changes = utils.FilterArr(tx.Changes, changesFilter)
+			return true
+		}, limit, strings.Join(wheres, " AND "), whereArgs...)
 	if err != nil {
 		return nil, err
 	}
-	// post filter and adjust
-	var result []*aptos.Transaction
-	txFilter := req.TxnFilter()
-	changesFilter := req.ChangeFilter()
-	for i := range txs {
-		if !txFilter(&txs[i]) {
-			continue
-		}
-		txs[i].Changes = utils.FilterArr(txs[i].Changes, changesFilter)
-		result = append(result, &txs[i])
-	}
-	return result, nil
+	return utils.MapSliceNoError(txs, wrapTransactionPointer), nil
 }
 
-func (s *Store) FullEvents(ctx context.Context, req aptos.GetEventsArgs) ([]*aptos.Transaction, error) {
+// wrapTransactionPointer adapts the []aptos.Transaction the shared query helper returns to the
+// []*aptos.Transaction the legacy (V1) queries return.
+func wrapTransactionPointer(tx aptos.Transaction) *aptos.Transaction {
+	return &tx
+}
+
+func (s *Store) FullEvents(
+	ctx context.Context,
+	req aptos.GetEventsArgs,
+	limit int,
+) ([]*aptos.Transaction, error) {
 	if err := s.checkInRange(ctx, req.FromVersion, req.ToVersion); err != nil {
 		return nil, err
 	}
@@ -223,31 +232,32 @@ func (s *Store) FullEvents(ctx context.Context, req aptos.GetEventsArgs) ([]*apt
 		wheres = append(wheres, "arrayExists(x -> JSONExtractString(x, 'guid', 'account_address') = ?, events)")
 		whereArgs = append(whereArgs, req.AccountAddress)
 	}
-	// actually query clickhouse
+	// actually query clickhouse, post-filtering and adjusting each transaction in the scan
+	eventsFilter := req.EventFilter()
+	changesFilter := req.ChangeFilter()
 	txs, err := s.queryTransactions(ctx, true, req.IncludeChanges,
-		req.FromVersion, req.ToVersion, getTransactionsMaxReturn, strings.Join(wheres, " AND "), whereArgs...)
+		func(tx *aptos.Transaction) bool {
+			events := utils.FilterArr(tx.Events, eventsFilter)
+			if len(events) == 0 {
+				return false
+			}
+			if !req.IncludeAllEvents {
+				tx.Events = events
+			}
+			tx.Changes = utils.FilterArr(tx.Changes, changesFilter)
+			return true
+		}, limit, strings.Join(wheres, " AND "), whereArgs...)
 	if err != nil {
 		return nil, err
 	}
-	// post filter and adjust
-	var result []*aptos.Transaction
-	eventsFilter := req.EventFilter()
-	changesFilter := req.ChangeFilter()
-	for i := range txs {
-		events := utils.FilterArr(txs[i].Events, eventsFilter)
-		if len(events) == 0 {
-			continue
-		}
-		if !req.IncludeAllEvents {
-			txs[i].Events = events
-		}
-		txs[i].Changes = utils.FilterArr(txs[i].Changes, changesFilter)
-		result = append(result, &txs[i])
-	}
-	return result, nil
+	return utils.MapSliceNoError(txs, wrapTransactionPointer), nil
 }
 
-func (s *Store) ResourceChanges(ctx context.Context, req aptos.ResourceChangeArgs) ([]*aptos.Transaction, error) {
+func (s *Store) ResourceChanges(
+	ctx context.Context,
+	req aptos.ResourceChangeArgs,
+	limit int,
+) ([]*aptos.Transaction, error) {
 	if err := s.checkInRange(ctx, req.FromVersion, req.ToVersion); err != nil {
 		return nil, err
 	}
@@ -277,29 +287,24 @@ func (s *Store) ResourceChanges(ctx context.Context, req aptos.ResourceChangeArg
 	} else {
 		return nil, errors.Errorf("addresses is required")
 	}
-	// actually query clickhouse
+	// actually query clickhouse, post-filtering and adjusting each transaction in the scan
+	changesFilter := req.ChangeFilter()
 	txs, err := s.queryTransactions(ctx, false, true,
-		req.FromVersion, req.ToVersion, getTransactionsMaxReturn, strings.Join(wheres, " AND "), whereArgs...)
+		func(tx *aptos.Transaction) bool {
+			tx.Changes = utils.FilterArr(tx.Changes, changesFilter)
+			return len(tx.Changes) > 0
+		}, limit, strings.Join(wheres, " AND "), whereArgs...)
 	if err != nil {
 		return nil, err
 	}
-	// post filter and adjust
-	var result []*aptos.Transaction
-	changesFilter := req.ChangeFilter()
-	for i := range txs {
-		txs[i].Changes = utils.FilterArr(txs[i].Changes, changesFilter)
-		if len(txs[i].Changes) > 0 {
-			result = append(result, &txs[i])
-		}
-	}
-	return result, nil
+	return utils.MapSliceNoError(txs, wrapTransactionPointer), nil
 }
 
 func (s *Store) GetTransactionByVersion(ctx context.Context, txVersion uint64) (*aptos.Transaction, error) {
 	if err := s.checkInRange(ctx, txVersion); err != nil {
 		return nil, err
 	}
-	txs, err := s.queryTransactions(ctx, true, true, txVersion, txVersion, 0, "transaction_version = ?", txVersion)
+	txs, err := s.queryTransactions(ctx, true, true, nil, 0, "transaction_version = ?", txVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -444,28 +449,21 @@ func (s *Store) QueryTransactions(
 	if len(filters) > 0 {
 		where = where + " AND (" + strings.Join(filters, " OR ") + ")"
 	}
-	// actually query clickhouse; the limit is checked on the raw rows (before the Go-side post
-	// filter), which over-counts conservatively
-	txs, err := s.queryTransactions(
+	// actually query clickhouse, post-filtering and pruning each transaction in the scan
+	return s.queryTransactions(
 		ctx,
 		req.FetchConfig.NeedAllEvents || len(req.Filter.EventFilters) > 0,
 		len(req.FetchConfig.ChangeResourceTypes) > 0,
-		req.FromVersion, req.ToVersion, limit,
+		func(tx *aptos.Transaction) bool {
+			if !req.Filter.Check(*tx) {
+				return false
+			}
+			*tx = req.FetchConfig.PruneTransaction(*tx, req.Filter.EventFilters)
+			return true
+		},
+		limit,
 		where,
 		whereArgs...)
-	if err != nil {
-		return nil, err
-	}
-	// post filter and adjust
-	var result []aptos.Transaction
-	for _, tx := range txs {
-		if !req.Filter.Check(tx) {
-			continue
-		}
-		tx = req.FetchConfig.PruneTransaction(tx, req.Filter.EventFilters)
-		result = append(result, tx)
-	}
-	return result, nil
 }
 
 func (s *Store) QueryResourceChanges(
@@ -513,14 +511,10 @@ func (s *Store) QueryResourceChanges(
 				tx.Changes = append(tx.Changes, change)
 			}
 		}
-		if len(tx.Changes) > 0 {
-			if limit > 0 && count+len(tx.Changes) > limit {
-				// abort the scan instead of materializing an unbounded result
-				return chain.NewTooManyResultsError("resource changes", limit, req.FromVersion, req.ToVersion)
-			}
+		count += len(tx.Changes)
+		if len(tx.Changes) > 0 && (limit <= 0 || len(results) < limit) {
 			results = append(results, tx)
 		}
-		count += len(tx.Changes)
 		return nil
 	}, sql, args...)
 	s.recordQueryChanges(ctx, time.Since(startAt), count)

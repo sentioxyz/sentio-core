@@ -329,7 +329,8 @@ func (s *SuperService) GetTransactionsV2(
 			return resp, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (txs []types.TransactionResponseV1, err error) {
-			return s.storageJSONRPC.QueryTransactionsV2(ctx, queryRange.Start, *queryRange.End, filter, fetchConfig, limit)
+			return s.storageJSONRPC.QueryTransactionsV2(
+				ctx, queryRange.Start, *queryRange.End, filter, fetchConfig, chain.StoreQueryLimit(limit))
 		},
 	)
 	return chain.CheckTooManyResults(result, err, "transactions", limit, fromBlock, toBlock)
@@ -387,7 +388,8 @@ func (s *SuperService) GetGrpcTransactions(
 			return resp, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (txs []*sui.ExtendedGrpcTransaction, err error) {
-			return s.storageGRPC.QueryTransactions(ctx, queryRange.Start, *queryRange.End, filter, fetchConfig, limit)
+			return s.storageGRPC.QueryTransactions(
+				ctx, queryRange.Start, *queryRange.End, filter, fetchConfig, chain.StoreQueryLimit(limit))
 		},
 	)
 	return chain.CheckTooManyResults(result, err, "transactions", limit, fromBlock, toBlock)
@@ -476,7 +478,8 @@ func (s *SuperService) FilterObjectChangesV2(
 			return result, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (objs []types.ObjectChangeExtend, err error) {
-			return s.storageJSONRPC.QueryObjectChangesV2(ctx, queryRange.Start, *queryRange.End, filter, limit)
+			return s.storageJSONRPC.QueryObjectChangesV2(
+				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit))
 		},
 	)
 	return chain.CheckTooManyResults(result, err, "object changes", limit, fromBlock, toBlock)
@@ -529,7 +532,8 @@ func (s *SuperService) FilterGrpcChangedObjects(
 			return result, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (objs []*sui.ExtendedGrpcChangedObject, err error) {
-			return s.storageGRPC.QueryObjectChanges(ctx, queryRange.Start, *queryRange.End, filter, limit)
+			return s.storageGRPC.QueryObjectChanges(
+				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit))
 		},
 	)
 	return chain.CheckTooManyResults(result, err, "object changes", limit, fromBlock, toBlock)

@@ -6,9 +6,10 @@ import (
 )
 
 type Storage interface {
-	// QueryTransactions returns chain.NewTooManyResultsError when the query matches more than
-	// limit transactions (limit <= 0 means unlimited), so an over-dense range aborts early
-	// instead of materializing an unbounded result.
+	// QueryTransactions returns at most limit (0 = unlimited) matching transactions, counted after
+	// post-filtering so a truncated result is always a prefix of the full result. It performs no
+	// limit check itself: the super node passes its record cap + 1 (chain.StoreQueryLimit) and
+	// detects an over-cap query from the record count.
 	QueryTransactions(
 		ctx context.Context,
 		startBlock uint64,

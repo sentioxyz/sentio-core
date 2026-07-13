@@ -230,8 +230,7 @@ func (c *Controller) QueryTransactions(
 		args = append(args, types.TransactionStatusSuccess)
 	}
 	// query data from clickhouse (no record limit: this legacy query keeps its original behavior)
-	return c.queryTransactions(ctx, query.CheckAndTrim, query.FromSequenceNumber, query.ToSequenceNumber, 0,
-		strings.Join(conditions, " AND "), args...)
+	return c.queryTransactions(ctx, query.CheckAndTrim, 0, strings.Join(conditions, " AND "), args...)
 }
 
 func mergeCondition(parts []string, link string) string {
@@ -351,13 +350,16 @@ func (c *Controller) QueryTransactionsV2(
 		}
 		*tx = fetchConfig.PruneTransaction(*tx, filter.EventFilters)
 		return true
-	}, fromBlock, toBlock, limit, strings.Join(conditions, " AND "), args...)
+	}, limit, strings.Join(conditions, " AND "), args...)
 }
 
+// queryTransactions returns at most limit (0 = unlimited) matching transactions; limit counts the
+// records that survive postHandler, so a truncated result is always a prefix of the full result.
+// It never checks the limit itself — the super node passes its record cap + 1 and detects an
+// over-cap query from the record count (chain.StoreQueryLimit / chain.CheckTooManyResults).
 func (c *Controller) queryTransactions(
 	ctx context.Context,
 	postHandler func(*types.TransactionResponseV1) bool,
-	fromBlock, toBlock uint64,
 	limit int,
 	where string,
 	args ...any,
@@ -380,11 +382,7 @@ func (c *Controller) queryTransactions(
 			return scanErr
 		}
 		res := tx.BuildTransactionResponseV1()
-		if postHandler(&res) {
-			if limit > 0 && len(result) >= limit {
-				// abort the scan instead of materializing an unbounded result
-				return chain.NewTooManyResultsError("transactions", limit, fromBlock, toBlock)
-			}
+		if postHandler(&res) && (limit <= 0 || len(result) < limit) {
 			result = append(result, res)
 		}
 		return nil
@@ -493,7 +491,7 @@ func (c *Controller) QueryObjectChanges(
 	}
 
 	// no record limit: this legacy query keeps its original behavior
-	return c.queryObjectChanges(ctx, query.Check, query.FromSequenceNumber, query.ToSequenceNumber, 0, where, args...)
+	return c.queryObjectChanges(ctx, query.Check, 0, where, args...)
 }
 
 func (c *Controller) QueryObjectChangesV2(
@@ -547,14 +545,14 @@ func (c *Controller) QueryObjectChangesV2(
 		conditions = append(conditions, mergeCondition(filters, " OR "))
 	}
 
-	return c.queryObjectChanges(ctx, filter.Checker(), fromBlock, toBlock, limit,
-		strings.Join(conditions, " AND "), args...)
+	return c.queryObjectChanges(ctx, filter.Checker(), limit, strings.Join(conditions, " AND "), args...)
 }
 
+// queryObjectChanges applies limit like queryTransactions (a plain bounded fetch; the limit check
+// itself belongs to the super node).
 func (c *Controller) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(types.ObjectChangeExtend) bool,
-	fromBlock, toBlock uint64,
 	limit int,
 	where string,
 	args ...any,
@@ -574,11 +572,7 @@ func (c *Controller) queryObjectChanges(
 		}
 		// post filter
 		res := oc.BuildObjectChangeExtend()
-		if postFilter(res) {
-			if limit > 0 && len(result) >= limit {
-				// abort the scan instead of materializing an unbounded result
-				return chain.NewTooManyResultsError("object changes", limit, fromBlock, toBlock)
-			}
+		if postFilter(res) && (limit <= 0 || len(result) < limit) {
 			result = append(result, res)
 		}
 		return nil

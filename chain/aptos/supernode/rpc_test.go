@@ -47,7 +47,9 @@ func (m *mockStorage) GetFirstChange(_ context.Context, _ string, _ uint64) (ver
 func (m *mockStorage) QueryMinimalistTransaction(_ context.Context, _ uint64) (*aptos.MinimalistTransaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryTransactions(_ context.Context, _ aptos.GetTransactionsRequest) ([]aptos.Transaction, error) {
+func (m *mockStorage) QueryTransactions(
+	_ context.Context, _ aptos.GetTransactionsRequest, _ int,
+) ([]aptos.Transaction, error) {
 	return nil, nil
 }
 func (m *mockStorage) QueryResourceChanges(

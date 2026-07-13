@@ -127,16 +127,19 @@ func queryWithCache[ELEM any](
 			}
 		}
 	}
+	// The span cap applies to the REQUESTED range — a caller-visible contract — not to the
+	// sub-range left over after the latest-slot cache serves its part: whether the cache covers
+	// some blocks is an internal, dynamically changing detail a caller cannot reason about.
+	if maxQueryRangeSize > 0 {
+		if err := chain.CheckQuerySpan(sn, en, maxQueryRangeSize); err != nil {
+			return nil, err
+		}
+	}
 	return chain.QueryRangeWithCache[*evm.Slot, ELEM](
 		ctx,
 		rg.NewRange(sn, en),
 		slotCache,
 		collectFromSlot,
-		func(ctx context.Context, queryRange rg.Range) ([]ELEM, error) {
-			if maxQueryRangeSize > 0 && *queryRange.Size() > maxQueryRangeSize {
-				return nil, errors.Errorf("query range too large, %s size > %d", queryRange, maxQueryRangeSize)
-			}
-			return collectFromStore(ctx, queryRange)
-		},
+		collectFromStore,
 	)
 }

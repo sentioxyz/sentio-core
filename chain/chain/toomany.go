@@ -29,12 +29,16 @@ func IsTooManyResultsError(err error) bool {
 
 // CheckQuerySpan rejects a range query whose block span (to - from) exceeds maxSpan, so a query
 // over a huge range cannot force a full-range store scan regardless of how few records it matches.
+// The check is on the requested range itself — a caller-visible contract, independent of how the
+// request is split internally between the latest-slot cache and the store. The message contains
+// "exceeds the limit" for the same reason as NewTooManyResultsError: clients that halve their
+// query range on that phrase converge below the span cap.
 func CheckQuerySpan(from, to, maxSpan uint64) error {
 	if to < from {
 		return errors.Errorf("toBlock %d cannot be less than fromBlock %d", to, from)
 	}
 	if to-from > maxSpan {
-		return errors.Errorf("block span %d (> %d) is too large in range [%d, %d]", to-from, maxSpan, from, to)
+		return errors.Errorf("block span %d of range [%d, %d] exceeds the limit %d", to-from, from, to, maxSpan)
 	}
 	return nil
 }
@@ -49,10 +53,18 @@ func RangeQueryLimit(from, to uint64, limit int) int {
 	return limit
 }
 
-// CheckTooManyResults re-checks the record cap on a fully merged result (e.g. latest-slot cache +
-// store): the storage layer enforces the cap on its own part, but records collected from the cache
-// also count.
-func CheckTooManyResults[T any](result []T, kind string, limit int, from, to uint64) ([]T, error) {
+// CheckTooManyResults finalizes a range query outcome against the caller-visible contract: the
+// TOTAL response may hold at most limit records, regardless of how the request was split
+// internally between the latest-slot cache and the store. A too-many-results error raised by an
+// inner layer (which may reference an internal sub-range) is rewritten against the caller's full
+// [from, to] request range, and an over-limit merged result is rejected the same way.
+func CheckTooManyResults[T any](result []T, err error, kind string, limit int, from, to uint64) ([]T, error) {
+	if err != nil {
+		if limit > 0 && IsTooManyResultsError(err) {
+			return nil, NewTooManyResultsError(kind, limit, from, to)
+		}
+		return nil, err
+	}
 	if limit > 0 && len(result) > limit {
 		return nil, NewTooManyResultsError(kind, limit, from, to)
 	}

@@ -160,10 +160,7 @@ func (s *RPCService) GetTransactions(
 			return s.store.QueryTransactions(ctx, queryRange.Start, *queryRange.End, param.Filters, limit)
 		}),
 	)
-	if err != nil {
-		return nil, err
-	}
-	return chain.CheckTooManyResults(result, "transactions", limit, param.StartHeight, param.EndHeight)
+	return chain.CheckTooManyResults(result, err, "transactions", limit, param.StartHeight, param.EndHeight)
 }
 
 // GetContractCreateTransaction will return (nil, nil) if contract not created

@@ -14,10 +14,11 @@ type Storage interface {
 
 	GetFirstChange(ctx context.Context, address string, maxTxVersion uint64) (version, blockHeight uint64, has bool, err error)
 	QueryMinimalistTransaction(ctx context.Context, txVersion uint64) (*aptos.MinimalistTransaction, error)
-	QueryTransactions(ctx context.Context, req aptos.GetTransactionsRequest) ([]aptos.Transaction, error)
-	// QueryResourceChanges returns chain.NewTooManyResultsError once more than limit matching
-	// changes accumulate (limit <= 0 means unlimited), so an over-dense range aborts early instead
-	// of materializing an unbounded result.
+	// QueryTransactions returns chain.NewTooManyResultsError when the query matches more than
+	// limit transactions (limit <= 0 means unlimited), so an over-dense range aborts early
+	// instead of materializing an unbounded result.
+	QueryTransactions(ctx context.Context, req aptos.GetTransactionsRequest, limit int) ([]aptos.Transaction, error)
+	// QueryResourceChanges applies limit like QueryTransactions, counting matching changes.
 	QueryResourceChanges(
 		ctx context.Context,
 		req aptos.GetResourceChangesRequest,

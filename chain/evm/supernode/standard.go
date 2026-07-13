@@ -264,6 +264,9 @@ func (s *standardService) queryPackedBlockAppendPart(
 	return
 }
 
+// maxQueryRangeSize caps the block span of a single range query. It applies to the requested
+// range itself (see queryWithCache) — a caller-visible contract, independent of how much of the
+// range the latest-slot cache happens to cover.
 var maxQueryRangeSize = envconf.LoadUInt64("EVM_SUPER_NODE_MAX_QUERY_SIZE", 10000)
 
 func (s *standardService) GetBlocksPacked(

@@ -382,8 +382,12 @@ func (c *Controller) queryTransactions(
 			return scanErr
 		}
 		res := tx.BuildTransactionResponseV1()
-		if postHandler(&res) && (limit <= 0 || len(result) < limit) {
+		if postHandler(&res) {
 			result = append(result, res)
+			if limit > 0 && len(result) >= limit {
+				// the result is full: stop reading the remaining rows
+				return chx.ErrStopScan
+			}
 		}
 		return nil
 	}, sql, args...)
@@ -572,8 +576,12 @@ func (c *Controller) queryObjectChanges(
 		}
 		// post filter
 		res := oc.BuildObjectChangeExtend()
-		if postFilter(res) && (limit <= 0 || len(result) < limit) {
+		if postFilter(res) {
 			result = append(result, res)
+			if limit > 0 && len(result) >= limit {
+				// the result is full: stop reading the remaining rows
+				return chx.ErrStopScan
+			}
 		}
 		return nil
 	}, sql, args...)

@@ -104,8 +104,12 @@ func (s *Storage) queryTransactions(
 		if convertErr != nil {
 			return convertErr
 		}
-		if need && (limit <= 0 || len(result) < limit) {
+		if need {
 			result = append(result, r)
+			if limit > 0 && len(result) >= limit {
+				// the result is full: stop reading the remaining rows
+				return chx.ErrStopScan
+			}
 		}
 		return nil
 	}, sql, args...)
@@ -262,8 +266,12 @@ func (s *Storage) queryObjectChanges(
 		}
 		res := oc.ToChangedObject()
 		// post filter
-		if postFilter(res) && (limit <= 0 || len(result) < limit) {
+		if postFilter(res) {
 			result = append(result, res)
+			if limit > 0 && len(result) >= limit {
+				// the result is full: stop reading the remaining rows
+				return chx.ErrStopScan
+			}
 		}
 		return nil
 	}, sql, args...)

@@ -137,8 +137,12 @@ func (s *Store) queryTransactions(
 			return err
 		}
 		res := aptos.NewTransaction(&raw)
-		if (postFilter == nil || postFilter(&res)) && (limit <= 0 || len(result) < limit) {
+		if postFilter == nil || postFilter(&res) {
 			result = append(result, res)
+			if limit > 0 && len(result) >= limit {
+				// the result is full: stop reading the remaining rows
+				return chx.ErrStopScan
+			}
 		}
 		return nil
 	}, sql, args...)
@@ -512,8 +516,12 @@ func (s *Store) QueryResourceChanges(
 			}
 		}
 		count += len(tx.Changes)
-		if len(tx.Changes) > 0 && (limit <= 0 || len(results) < limit) {
+		if len(tx.Changes) > 0 {
 			results = append(results, tx)
+			if limit > 0 && len(results) >= limit {
+				// the result is full: stop reading the remaining rows
+				return chx.ErrStopScan
+			}
 		}
 		return nil
 	}, sql, args...)

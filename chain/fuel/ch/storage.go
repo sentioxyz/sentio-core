@@ -206,8 +206,12 @@ func (s *Store) queryTransactions(
 		if parseErr != nil {
 			return errors.Wrapf(parseErr, "parse from %d/%s clickhouse transaction failed", tx.BlockHeight, tx.TransactionID)
 		}
-		if (postFilter == nil || postFilter(res)) && (limit <= 0 || len(result) < limit) {
+		if postFilter == nil || postFilter(res) {
 			result = append(result, res)
+			if limit > 0 && len(result) >= limit {
+				// the result is full: stop reading the remaining rows
+				return chx.ErrStopScan
+			}
 		}
 		return nil
 	}, sql, args...)

@@ -15,11 +15,6 @@ import (
 
 const slowQueryLimit = time.Second * 5
 
-// ErrStopScan signals, when returned by a Query scanner, that the caller already has all the rows
-// it needs: Query stops iterating, closes the rows (aborting the remaining result stream) and
-// returns nil.
-var ErrStopScan = errors.New("stop scan")
-
 func (c Controller) Query(
 	ctx context.Context,
 	scanner func(rows driver.Rows) error,
@@ -47,9 +42,6 @@ func (c Controller) Query(
 		rowsNum++
 		if err = scanner(rows); err != nil {
 			_ = rows.Close()
-			if errors.Is(err, ErrStopScan) {
-				return nil
-			}
 			return errors.Wrapf(err, "scan result failed")
 		}
 	}

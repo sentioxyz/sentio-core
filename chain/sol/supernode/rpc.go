@@ -483,7 +483,7 @@ func (s *RPCService) FindTransactions(
 		}
 		// Too many transactions: signal the caller to shrink the range.
 		if total > maxFindTransactions {
-			return nil, chain.NewTooManyResultsError("transactions", maxFindTransactions, param.From, param.To)
+			return nil, chain.NewTooManyResultsError()
 		}
 	}
 	return result, nil

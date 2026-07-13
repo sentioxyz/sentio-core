@@ -10,15 +10,14 @@ import (
 // after crossing the JSON-RPC boundary, where only the message text survives.
 const tooManyResultsMarker = "too many results"
 
-// NewTooManyResultsError reports that a range query matched more than limit records of some kind
-// (e.g. "object changes") in [from, to], signaling the caller to retry with a smaller range. Super
-// node range queries return it when their result cap is exceeded; IsTooManyResultsError detects it
-// on the client side. The message deliberately contains the phrase "exceeds the limit": some
-// existing clients detect over-limit range queries by that phrase and halve their query range on
-// it, so keeping it makes them shrink and retry instead of failing outright.
-func NewTooManyResultsError(kind string, limit int, from, to uint64) error {
-	return errors.Errorf("%s: %s count in range [%d, %d] exceeds the limit %d",
-		tooManyResultsMarker, kind, from, to, limit)
+// NewTooManyResultsError reports that a range query matched more records than a server-side limit
+// allows, signaling the caller to retry with a smaller range. It is deliberately vague: the limits
+// are the server's own resource guards, not caller-chosen, so the message only tells the caller
+// what to do about it. It also deliberately contains the phrase "exceeds the limit": some existing
+// clients detect over-limit range queries by that phrase and halve their query range on it, so
+// keeping it makes them shrink and retry instead of failing outright.
+func NewTooManyResultsError() error {
+	return errors.New(tooManyResultsMarker + ": the result count exceeds the limit, please narrow the query block range")
 }
 
 // IsTooManyResultsError reports whether err was produced by NewTooManyResultsError. The error may
@@ -53,10 +52,9 @@ func RangeQueryLimit(from, to uint64, limit int) int {
 	return limit
 }
 
-// StoreQueryLimit converts a response record cap into the fetch limit to pass to a storage query:
-// one extra record, so CheckTooManyResults can detect an over-cap query from the record count
-// alone while the storage layer stays a plain bounded fetch with no limit-checking of its own.
-// A disabled cap (limit <= 0) stays unlimited.
+// StoreQueryLimit converts a response record cap into the scan limit to pass to a storage query:
+// one extra record, so a query matching exactly the cap still succeeds while anything beyond it
+// trips the storage's scan limit. A disabled cap (limit <= 0) stays unlimited.
 func StoreQueryLimit(limit int) int {
 	if limit <= 0 {
 		return 0
@@ -64,20 +62,16 @@ func StoreQueryLimit(limit int) int {
 	return limit + 1
 }
 
-// CheckTooManyResults finalizes a range query outcome against the caller-visible contract: the
-// TOTAL response may hold at most limit records, regardless of how the request was split
-// internally between the latest-slot cache and the store. A too-many-results error raised by an
-// inner layer (which may reference an internal sub-range) is rewritten against the caller's full
-// [from, to] request range, and an over-limit merged result is rejected the same way.
-func CheckTooManyResults[T any](result []T, err error, kind string, limit int, from, to uint64) ([]T, error) {
+// CheckTooManyResults finalizes a range query outcome: the TOTAL response may hold at most limit
+// records, regardless of how the request was split internally between the latest-slot cache and
+// the store. It complements the storage-level scan limit — that one bounds the resource use of a
+// single SQL, this one bounds the merged response the caller receives.
+func CheckTooManyResults[T any](result []T, err error, limit int) ([]T, error) {
 	if err != nil {
-		if limit > 0 && IsTooManyResultsError(err) {
-			return nil, NewTooManyResultsError(kind, limit, from, to)
-		}
 		return nil, err
 	}
 	if limit > 0 && len(result) > limit {
-		return nil, NewTooManyResultsError(kind, limit, from, to)
+		return nil, NewTooManyResultsError()
 	}
 	return result, nil
 }

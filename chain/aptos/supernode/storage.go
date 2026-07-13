@@ -6,10 +6,11 @@ import (
 )
 
 // Storage is the ClickHouse-backed store behind the super node. Every range-query method taking a
-// limit returns at most limit (0 = unlimited) matching records, counted after post-filtering so a
-// truncated result is always a prefix of the full result. The storage performs no limit CHECK of
-// its own: the super node passes its record cap + 1 (chain.StoreQueryLimit) and detects an
-// over-cap query from the record count (chain.CheckTooManyResults).
+// limit scans at most limit raw rows (0 = unlimited; a SQL LIMIT bounding the ClickHouse-side
+// resource use of one query) and fails with chain.NewTooManyResultsError when the scan hits it, so
+// a returned result is always complete. The super node passes its record cap + 1
+// (chain.StoreQueryLimit) and additionally caps the merged cache + store response
+// (chain.CheckTooManyResults).
 type Storage interface {
 	Functions(ctx context.Context, req aptos.GetFunctionsArgs, limit int) ([]*aptos.Transaction, error)
 	FullEvents(ctx context.Context, req aptos.GetEventsArgs, limit int) ([]*aptos.Transaction, error)

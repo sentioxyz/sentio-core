@@ -22,10 +22,10 @@ type StorageJSONRPC interface {
 	QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) (sui.SimpleCheckpoint, error)
 
 	QueryTransactions(ctx context.Context, query *sui.TransactionQuery) ([]types.TransactionResponseV1, error)
-	// QueryTransactionsV2 returns at most limit (0 = unlimited) matching records, counted after
-	// post-filtering so a truncated result is always a prefix of the full result. It performs no
-	// limit check itself: the super node passes its record cap + 1 (chain.StoreQueryLimit) and
-	// detects an over-cap query from the record count.
+	// QueryTransactionsV2 scans at most limit raw rows (0 = unlimited; a SQL LIMIT bounding the
+	// ClickHouse-side resource use of one query) and fails with chain.NewTooManyResultsError when
+	// the scan hits it, so a returned result is always complete. The super node passes its record
+	// cap + 1 (chain.StoreQueryLimit), so a query matching exactly the cap still succeeds.
 	QueryTransactionsV2(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
@@ -64,7 +64,8 @@ type StorageGRPC interface {
 	//  - CONSENSUS_COMMIT_PROLOGUE_V3
 	//  - CONSENSUS_COMMIT_PROLOGUE_V4
 	//  - PROGRAMMABLE_SYSTEM_TRANSACTION
-	// It returns at most limit (0 = unlimited) matching records, like StorageJSONRPC.QueryTransactionsV2.
+	// It applies limit like StorageJSONRPC.QueryTransactionsV2 (a SQL LIMIT on the raw rows
+	// scanned; hitting it fails with chain.NewTooManyResultsError).
 	QueryTransactions(
 		ctx context.Context,
 		fromBlock, toBlock uint64,

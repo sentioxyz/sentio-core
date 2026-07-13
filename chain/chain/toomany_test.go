@@ -8,12 +8,12 @@ import (
 )
 
 func Test_TooManyResultsError(t *testing.T) {
-	err := NewTooManyResultsError("object changes", 20000, 100, 5000)
+	err := NewTooManyResultsError()
 	assert.True(t, IsTooManyResultsError(err))
-	assert.Contains(t, err.Error(), "object changes")
-	assert.Contains(t, err.Error(), "[100, 5000]")
 	// legacy clients halve their query range when the error message contains this phrase
 	assert.Contains(t, err.Error(), "exceeds the limit")
+	// the message tells the caller what to do, without exposing server-side internals
+	assert.Contains(t, err.Error(), "narrow the query block range")
 	// the marker survives wrapping (e.g. the JSON-RPC transport or errors.Wrapf)
 	assert.True(t, IsTooManyResultsError(errors.Wrapf(err, "scan result failed")))
 
@@ -37,30 +37,32 @@ func Test_RangeQueryLimit(t *testing.T) {
 	assert.Equal(t, 5000, RangeQueryLimit(42, 43, 5000))
 }
 
+func Test_StoreQueryLimit(t *testing.T) {
+	assert.Equal(t, 0, StoreQueryLimit(0)) // disabled cap stays unlimited
+	assert.Equal(t, 2001, StoreQueryLimit(2000))
+}
+
 func Test_CheckTooManyResults(t *testing.T) {
 	within := []int{1, 2, 3}
-	result, err := CheckTooManyResults(within, nil, "transactions", 3, 0, 10)
+	result, err := CheckTooManyResults(within, nil, 3)
 	assert.NoError(t, err)
 	assert.Equal(t, within, result)
 
-	_, err = CheckTooManyResults([]int{1, 2, 3, 4}, nil, "transactions", 3, 0, 10)
+	_, err = CheckTooManyResults([]int{1, 2, 3, 4}, nil, 3)
 	assert.True(t, IsTooManyResultsError(err))
 
 	// limit 0 = unlimited (single-block queries)
-	result, err = CheckTooManyResults([]int{1, 2, 3, 4}, nil, "transactions", 0, 5, 5)
+	result, err = CheckTooManyResults([]int{1, 2, 3, 4}, nil, 0)
 	assert.NoError(t, err)
 	assert.Len(t, result, 4)
 
-	// an inner too-many error (possibly referencing an internal sub-range) is rewritten against
-	// the caller's full request range
-	inner := errors.Wrapf(NewTooManyResultsError("transactions", 3, 7, 8), "scan result failed")
-	_, err = CheckTooManyResults[int](nil, inner, "transactions", 3, 0, 10)
+	// errors (including the storage's own too-many error) pass through unchanged
+	inner := errors.Wrapf(NewTooManyResultsError(), "scan result failed")
+	_, err = CheckTooManyResults[int](nil, inner, 3)
+	assert.Equal(t, inner, err)
 	assert.True(t, IsTooManyResultsError(err))
-	assert.Contains(t, err.Error(), "[0, 10]")
-	assert.NotContains(t, err.Error(), "[7, 8]")
 
-	// other errors pass through unchanged
 	plain := errors.New("boom")
-	_, err = CheckTooManyResults[int](nil, plain, "transactions", 3, 0, 10)
+	_, err = CheckTooManyResults[int](nil, plain, 3)
 	assert.Equal(t, plain, err)
 }

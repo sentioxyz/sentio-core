@@ -111,7 +111,7 @@ func (s *RPCService) FullEvents(ctx context.Context, req *aptos.GetEventsArgs) (
 			subReq.ToVersion = *queryRange.End
 			return s.store.FullEvents(ctx, subReq, chain.StoreQueryLimit(limit))
 		})
-	return chain.CheckTooManyResults(result, err, "transactions", limit, req.FromVersion, req.ToVersion)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 func (s *RPCService) Functions(ctx context.Context, req *aptos.GetFunctionsArgs) ([]*aptos.Transaction, error) {
@@ -146,7 +146,7 @@ func (s *RPCService) Functions(ctx context.Context, req *aptos.GetFunctionsArgs)
 			subReq.ToVersion = *queryRange.End
 			return s.store.Functions(ctx, subReq, chain.StoreQueryLimit(limit))
 		})
-	return chain.CheckTooManyResults(result, err, "transactions", limit, req.FromVersion, req.ToVersion)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 func (s *RPCService) ResourceChanges(ctx context.Context, req *aptos.ResourceChangeArgs) ([]*aptos.Transaction, error) {
@@ -171,7 +171,7 @@ func (s *RPCService) ResourceChanges(ctx context.Context, req *aptos.ResourceCha
 			subReq.ToVersion = *queryRange.End
 			return s.store.ResourceChanges(ctx, subReq, chain.StoreQueryLimit(limit))
 		})
-	return chain.CheckTooManyResults(result, err, "transactions", limit, req.FromVersion, req.ToVersion)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 func (s *RPCService) GetTransactionByVersion(ctx context.Context, _ string, version uint64) (*aptos.Transaction, error) {

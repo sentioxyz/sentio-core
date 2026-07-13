@@ -6,10 +6,10 @@ import (
 )
 
 type Storage interface {
-	// QueryTransactions returns at most limit (0 = unlimited) matching transactions, counted after
-	// post-filtering so a truncated result is always a prefix of the full result. It performs no
-	// limit check itself: the super node passes its record cap + 1 (chain.StoreQueryLimit) and
-	// detects an over-cap query from the record count.
+	// QueryTransactions scans at most limit raw rows (0 = unlimited; a SQL LIMIT bounding the
+	// ClickHouse-side resource use of one query) and fails with chain.NewTooManyResultsError when
+	// the scan hits it, so a returned result is always complete. The super node passes its record
+	// cap + 1 (chain.StoreQueryLimit), so a query matching exactly the cap still succeeds.
 	QueryTransactions(
 		ctx context.Context,
 		startBlock uint64,

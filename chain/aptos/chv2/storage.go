@@ -96,12 +96,13 @@ func (s *Store) checkInRange(ctx context.Context, txVersions ...uint64) error {
 	return nil
 }
 
-// queryTransactions returns at most limit (0 = unlimited) matching transactions; limit counts the
-// records that survive postFilter (nil = keep all; it may mutate the transaction, e.g. to trim its
-// events/changes), so a truncated result is always a prefix of the full result. It never checks
-// the limit itself — the super node passes its record cap + 1 and detects an over-cap query from
-// the record count (chain.StoreQueryLimit / chain.CheckTooManyResults). Without a postFilter the
-// limit is pushed down as a SQL LIMIT.
+// queryTransactions loads the matching transactions, scanning at most limit raw rows
+// (0 = unlimited, pushed down as a SQL LIMIT to bound the ClickHouse-side resource use of one
+// query). When the scan hits the limit it fails with chain.NewTooManyResultsError — the raw rows
+// are counted before the Go-side post filter (nil = keep all; it may mutate the transaction, e.g.
+// to trim its events/changes), so the check is conservative, but a returned result is always
+// complete. The super node passes its record cap + 1 (chain.StoreQueryLimit), so a query matching
+// exactly the cap still succeeds.
 func (s *Store) queryTransactions(
 	ctx context.Context,
 	includeEvent bool,
@@ -124,14 +125,16 @@ func (s *Store) queryTransactions(
 		strings.Join(selectFields, "`,`"),
 		s.ctrl.FullLogicName(tableNameTransactions),
 		where)
-	if limit > 0 && postFilter == nil {
+	if limit > 0 {
 		sql += fmt.Sprintf(" LIMIT %d", limit)
 	}
+	var rawRows int
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var tx Transaction
 		if scanErr := rows.Scan(objectx.CollectFieldPointers(&tx, filter)...); scanErr != nil {
 			return scanErr
 		}
+		rawRows++
 		var raw api.CommittedTransaction
 		if raw, err = tx.toRawTransaction(); err != nil {
 			return err
@@ -139,10 +142,6 @@ func (s *Store) queryTransactions(
 		res := aptos.NewTransaction(&raw)
 		if postFilter == nil || postFilter(&res) {
 			result = append(result, res)
-			if limit > 0 && len(result) >= limit {
-				// the result is full: stop reading the remaining rows
-				return chx.ErrStopScan
-			}
 		}
 		return nil
 	}, sql, args...)
@@ -150,6 +149,9 @@ func (s *Store) queryTransactions(
 		return nil, err
 	}
 	s.recordQueryTx(ctx, time.Since(startAt), len(result))
+	if limit > 0 && rawRows >= limit {
+		return nil, chain.NewTooManyResultsError()
+	}
 	return result, nil
 }
 
@@ -494,8 +496,13 @@ func (s *Store) QueryResourceChanges(
 	sql := fmt.Sprintf("SELECT transaction_version, transaction_hash, timestamp, changes "+
 		"FROM %s WHERE %s ORDER BY transaction_version",
 		s.ctrl.FullLogicName(tableNameTransactions), where)
+	// like queryTransactions, the SQL LIMIT bounds the ClickHouse-side resource use of one query;
+	// hitting it fails with chain.NewTooManyResultsError below
+	if limit > 0 {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
+	}
 	startAt := time.Now()
-	var count int
+	var rawRows, count int
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var tx aptos.MinimalistTransactionWithChanges
 		var ts time.Time
@@ -503,6 +510,7 @@ func (s *Store) QueryResourceChanges(
 		if scanErr := rows.Scan(&tx.Version, &tx.Hash, &ts, &rawChanges); scanErr != nil {
 			return scanErr
 		}
+		rawRows++
 		tx.TimestampMS = ts.UnixMicro()
 		for i, rawChange := range rawChanges {
 			var change aptos.WriteSetChange
@@ -518,16 +526,15 @@ func (s *Store) QueryResourceChanges(
 		count += len(tx.Changes)
 		if len(tx.Changes) > 0 {
 			results = append(results, tx)
-			if limit > 0 && len(results) >= limit {
-				// the result is full: stop reading the remaining rows
-				return chx.ErrStopScan
-			}
 		}
 		return nil
 	}, sql, args...)
 	s.recordQueryChanges(ctx, time.Since(startAt), count)
 	if err != nil {
 		return nil, err
+	}
+	if limit > 0 && rawRows >= limit {
+		return nil, chain.NewTooManyResultsError()
 	}
 	return results, nil
 }

@@ -333,7 +333,7 @@ func (s *SuperService) GetTransactionsV2(
 				ctx, queryRange.Start, *queryRange.End, filter, fetchConfig, chain.StoreQueryLimit(limit))
 		},
 	)
-	return chain.CheckTooManyResults(result, err, "transactions", limit, fromBlock, toBlock)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 // GetGrpcTransactions is a grpc data format interface,
@@ -392,7 +392,7 @@ func (s *SuperService) GetGrpcTransactions(
 				ctx, queryRange.Start, *queryRange.End, filter, fetchConfig, chain.StoreQueryLimit(limit))
 		},
 	)
-	return chain.CheckTooManyResults(result, err, "transactions", limit, fromBlock, toBlock)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 func (s *SuperService) FilterObjectChanges(
@@ -482,7 +482,7 @@ func (s *SuperService) FilterObjectChangesV2(
 				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit))
 		},
 	)
-	return chain.CheckTooManyResults(result, err, "object changes", limit, fromBlock, toBlock)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 // FilterGrpcChangedObjects is a grpc data format interface,
@@ -536,7 +536,7 @@ func (s *SuperService) FilterGrpcChangedObjects(
 				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit))
 		},
 	)
-	return chain.CheckTooManyResults(result, err, "object changes", limit, fromBlock, toBlock)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 // GetGrpcObjects forwards a single bounded batch to the upstream grpc node. It does

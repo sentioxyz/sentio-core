@@ -76,10 +76,12 @@ func (s *Storage) QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) 
 	return sc, nil
 }
 
-// queryTransactions returns at most limit (0 = unlimited) matching transactions; limit counts the
-// records the converter keeps, so a truncated result is always a prefix of the full result. It
-// never checks the limit itself — the super node passes its record cap + 1 and detects an over-cap
-// query from the record count (chain.StoreQueryLimit / chain.CheckTooManyResults).
+// queryTransactions loads the matching transactions, scanning at most limit raw rows
+// (0 = unlimited, pushed down as a SQL LIMIT to bound the ClickHouse-side resource use of one
+// query). When the scan hits the limit it fails with chain.NewTooManyResultsError — the raw rows
+// are counted before the Go-side converter, so the check is conservative, but a returned result is
+// always complete. The super node passes its record cap + 1 (chain.StoreQueryLimit), so a query
+// matching exactly the cap still succeeds.
 func (s *Storage) queryTransactions(
 	ctx context.Context,
 	converter func(Transaction) (*sui.ExtendedGrpcTransaction, bool, error),
@@ -93,26 +95,30 @@ func (s *Storage) queryTransactions(
 		strings.Join(columns, ","),
 		s.ctrl.FullLogicName(tableNameTransactions),
 		where)
+	if limit > 0 {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
+	}
 	startAt := time.Now()
+	var rawRows int
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var tx Transaction
 		scanErr := rows.Scan(objectx.CollectFieldPointers(&tx, fieldFilter)...)
 		if scanErr != nil {
 			return scanErr
 		}
+		rawRows++
 		r, need, convertErr := converter(tx)
 		if convertErr != nil {
 			return convertErr
 		}
 		if need {
 			result = append(result, r)
-			if limit > 0 && len(result) >= limit {
-				// the result is full: stop reading the remaining rows
-				return chx.ErrStopScan
-			}
 		}
 		return nil
 	}, sql, args...)
+	if err == nil && limit > 0 && rawRows >= limit {
+		err = chain.NewTooManyResultsError()
+	}
 	s.recordQueryTx(ctx, time.Since(startAt), len(result))
 	return result, err
 }
@@ -240,8 +246,8 @@ func (s *Storage) QueryTransactions(
 	}, limit, strings.Join(conditions, " AND "), args...)
 }
 
-// queryObjectChanges applies limit like queryTransactions (a plain bounded fetch; the limit check
-// itself belongs to the super node).
+// queryObjectChanges applies limit like queryTransactions (a SQL LIMIT on the raw rows scanned;
+// hitting it fails with chain.NewTooManyResultsError).
 func (s *Storage) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(*sui.ExtendedGrpcChangedObject) bool,
@@ -257,24 +263,28 @@ func (s *Storage) queryObjectChanges(
 		strings.Join(columns, ","),
 		s.ctrl.FullLogicName(tableNameObjects),
 		where)
+	if limit > 0 {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
+	}
 	startAt := time.Now()
+	var rawRows int
 	var result []*sui.ExtendedGrpcChangedObject
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var oc Object
 		if scanErr := rows.Scan(objectx.CollectFieldPointers(&oc, fieldFilter)...); scanErr != nil {
 			return scanErr
 		}
+		rawRows++
 		res := oc.ToChangedObject()
 		// post filter
 		if postFilter(res) {
 			result = append(result, res)
-			if limit > 0 && len(result) >= limit {
-				// the result is full: stop reading the remaining rows
-				return chx.ErrStopScan
-			}
 		}
 		return nil
 	}, sql, args...)
+	if err == nil && limit > 0 && rawRows >= limit {
+		err = chain.NewTooManyResultsError()
+	}
 	s.recordQueryObj(ctx, time.Since(startAt), len(result))
 	return result, err
 }

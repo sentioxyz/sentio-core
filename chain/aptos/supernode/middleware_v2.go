@@ -179,7 +179,7 @@ func (s *RPCServiceV2) GetResourceChanges(
 			}, chain.StoreQueryLimit(limit))
 		},
 	)
-	return chain.CheckTooManyResults(result, err, "resource changes", limit, req.FromVersion, req.ToVersion)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 func (s *RPCServiceV2) GetTransactions(ctx context.Context, req aptos.GetTransactionsRequest) ([]aptos.Transaction, error) {
@@ -207,7 +207,7 @@ func (s *RPCServiceV2) GetTransactions(ctx context.Context, req aptos.GetTransac
 			}, chain.StoreQueryLimit(limit))
 		},
 	)
-	return chain.CheckTooManyResults(txs, err, "transactions", limit, req.FromVersion, req.ToVersion)
+	return chain.CheckTooManyResults(txs, err, limit)
 }
 
 func (s *RPCServiceV2) GetAddressStartTxVersion(

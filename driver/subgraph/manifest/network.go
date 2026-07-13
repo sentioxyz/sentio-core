@@ -44,8 +44,6 @@ var chainIDMap = map[string]string{
 	//"base-testnet":          "",
 	//"zksync-era":            "",
 	//"sepolia":               "",
-	//"polygon-zkevm-testnet": "",
-	//"polygon-zkevm":         "",
 
 	// sentio network
 	"arb":                   "42161",
@@ -100,7 +98,6 @@ var chainIDMap = map[string]string{
 	"opt-mainnet":           "10",
 	"polygon":               "137",
 	"polygon-mainnet":       "137",
-	"polygon-zk-mainnet":    "1101",
 	"scroll":                "534352",
 	"scroll-mainnet":        "534352",
 	"taiko-katla-testnet":   "167008",

@@ -39,7 +39,6 @@ export enum EthChainId {
   STABLE_TESTNET = '2201',
   STABLE_MAINNET = '988',
   HYPER_EVM = '999',
-  POLYGON_ZKEVM = '1101',
   CONFLUX = '1030',
   METIS = '1088',
   CORE_MAINNET = '1116',

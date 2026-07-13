@@ -220,22 +220,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
       'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan',
     lightIcon: 'https://assets.sentio.xyz/chains/avalanche.svg'
   },
-  [EthChainId.POLYGON_ZKEVM]: {
-    name: 'Polygon zkEVM',
-    chainId: EthChainId.POLYGON_ZKEVM,
-    nativeChainId: 1101,
-    slug: 'polygon-zkevm',
-    variation: EthVariation.POLYGON_ZKEVM,
-    priceTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9',
-    tokenSymbol: 'POL',
-    tokenDecimals: 18,
-    explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerUrl: 'https://polygon.blockscout.com',
-    explorerApi: 'https://polygon.blockscout.com',
-    lightIcon: 'https://assets.sentio.xyz/chains/polygon.svg'
-  },
   [EthChainId.MOONBEAM]: {
     name: 'Moonbeam',
     slug: 'moonbeam',

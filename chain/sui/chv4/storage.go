@@ -79,6 +79,8 @@ func (s *Storage) QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) 
 func (s *Storage) queryTransactions(
 	ctx context.Context,
 	converter func(Transaction) (*sui.ExtendedGrpcTransaction, bool, error),
+	fromBlock, toBlock uint64,
+	limit int,
 	where string,
 	args ...any,
 ) (result []*sui.ExtendedGrpcTransaction, err error) {
@@ -100,6 +102,10 @@ func (s *Storage) queryTransactions(
 			return convertErr
 		}
 		if need {
+			if limit > 0 && len(result) >= limit {
+				// abort the scan instead of materializing an unbounded result
+				return chain.NewTooManyResultsError("transactions", limit, fromBlock, toBlock)
+			}
 			result = append(result, r)
 		}
 		return nil
@@ -120,6 +126,7 @@ func (s *Storage) QueryTransactions(
 	fromBlock, toBlock uint64,
 	filter sui.TransactionFilter,
 	fetchConfig sui.TransactionFetchConfig,
+	limit int,
 ) ([]*sui.ExtendedGrpcTransaction, error) {
 	if err := s.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -227,12 +234,14 @@ func (s *Storage) QueryTransactions(
 			return nil, false, nil
 		}
 		return fetchConfig.PruneGrpcTransaction(etx, filter.EventFilters), true, nil
-	}, strings.Join(conditions, " AND "), args...)
+	}, fromBlock, toBlock, limit, strings.Join(conditions, " AND "), args...)
 }
 
 func (s *Storage) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(*sui.ExtendedGrpcChangedObject) bool,
+	fromBlock, toBlock uint64,
+	limit int,
 	where string,
 	args ...any,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
@@ -254,6 +263,10 @@ func (s *Storage) queryObjectChanges(
 		res := oc.ToChangedObject()
 		// post filter
 		if postFilter(res) {
+			if limit > 0 && len(result) >= limit {
+				// abort the scan instead of materializing an unbounded result
+				return chain.NewTooManyResultsError("object changes", limit, fromBlock, toBlock)
+			}
 			result = append(result, res)
 		}
 		return nil
@@ -266,6 +279,7 @@ func (s *Storage) QueryObjectChanges(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
+	limit int,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
 	if err := s.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -320,7 +334,7 @@ func (s *Storage) QueryObjectChanges(
 	checker := filter.CheckerGrpc()
 	return s.queryObjectChanges(ctx, func(co *sui.ExtendedGrpcChangedObject) bool {
 		return checker(co.ChangedObject)
-	}, strings.Join(conditions, " AND "), args...)
+	}, fromBlock, toBlock, limit, strings.Join(conditions, " AND "), args...)
 }
 
 func (s *Storage) QueryObjectsStat(

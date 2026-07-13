@@ -229,8 +229,9 @@ func (c *Controller) QueryTransactions(
 		conditions = append(conditions, "status = ?")
 		args = append(args, types.TransactionStatusSuccess)
 	}
-	// query data from clickhouse
-	return c.queryTransactions(ctx, query.CheckAndTrim, strings.Join(conditions, " AND "), args...)
+	// query data from clickhouse (no record limit: this legacy query keeps its original behavior)
+	return c.queryTransactions(ctx, query.CheckAndTrim, query.FromSequenceNumber, query.ToSequenceNumber, 0,
+		strings.Join(conditions, " AND "), args...)
 }
 
 func mergeCondition(parts []string, link string) string {
@@ -245,6 +246,7 @@ func (c *Controller) QueryTransactionsV2(
 	fromBlock, toBlock uint64,
 	filter sui.TransactionFilter,
 	fetchConfig sui.TransactionFetchConfig,
+	limit int,
 ) ([]types.TransactionResponseV1, error) {
 	if err := c.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -349,12 +351,14 @@ func (c *Controller) QueryTransactionsV2(
 		}
 		*tx = fetchConfig.PruneTransaction(*tx, filter.EventFilters)
 		return true
-	}, strings.Join(conditions, " AND "), args...)
+	}, fromBlock, toBlock, limit, strings.Join(conditions, " AND "), args...)
 }
 
 func (c *Controller) queryTransactions(
 	ctx context.Context,
 	postHandler func(*types.TransactionResponseV1) bool,
+	fromBlock, toBlock uint64,
+	limit int,
 	where string,
 	args ...any,
 ) (result []types.TransactionResponseV1, err error) {
@@ -377,6 +381,10 @@ func (c *Controller) queryTransactions(
 		}
 		res := tx.BuildTransactionResponseV1()
 		if postHandler(&res) {
+			if limit > 0 && len(result) >= limit {
+				// abort the scan instead of materializing an unbounded result
+				return chain.NewTooManyResultsError("transactions", limit, fromBlock, toBlock)
+			}
 			result = append(result, res)
 		}
 		return nil
@@ -484,13 +492,15 @@ func (c *Controller) QueryObjectChanges(
 		where = strings.Join(conditions, " AND ")
 	}
 
-	return c.queryObjectChanges(ctx, query.Check, where, args...)
+	// no record limit: this legacy query keeps its original behavior
+	return c.queryObjectChanges(ctx, query.Check, query.FromSequenceNumber, query.ToSequenceNumber, 0, where, args...)
 }
 
 func (c *Controller) QueryObjectChangesV2(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
+	limit int,
 ) ([]types.ObjectChangeExtend, error) {
 	if err := c.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -537,12 +547,15 @@ func (c *Controller) QueryObjectChangesV2(
 		conditions = append(conditions, mergeCondition(filters, " OR "))
 	}
 
-	return c.queryObjectChanges(ctx, filter.Checker(), strings.Join(conditions, " AND "), args...)
+	return c.queryObjectChanges(ctx, filter.Checker(), fromBlock, toBlock, limit,
+		strings.Join(conditions, " AND "), args...)
 }
 
 func (c *Controller) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(types.ObjectChangeExtend) bool,
+	fromBlock, toBlock uint64,
+	limit int,
 	where string,
 	args ...any,
 ) ([]types.ObjectChangeExtend, error) {
@@ -562,6 +575,10 @@ func (c *Controller) queryObjectChanges(
 		// post filter
 		res := oc.BuildObjectChangeExtend()
 		if postFilter(res) {
+			if limit > 0 && len(result) >= limit {
+				// abort the scan instead of materializing an unbounded result
+				return chain.NewTooManyResultsError("object changes", limit, fromBlock, toBlock)
+			}
 			result = append(result, res)
 		}
 		return nil

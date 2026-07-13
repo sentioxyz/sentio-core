@@ -11,6 +11,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/chain/fuel/ch",
     visibility = ["//visibility:public"],
     deps = [
+        "//chain/chain",
         "//chain/clickhouse",
         "//chain/fuel",
         "//common/chx",

@@ -24,7 +24,9 @@ import (
 
 type mockStorage struct{}
 
-func (m *mockStorage) QueryTransactions(_ context.Context, _ uint64, _ uint64, _ []fuel.TransactionFilter) ([]fuel.WrappedTransaction, error) {
+func (m *mockStorage) QueryTransactions(
+	_ context.Context, _ uint64, _ uint64, _ []fuel.TransactionFilter, _ int,
+) ([]fuel.WrappedTransaction, error) {
 	return nil, nil
 }
 

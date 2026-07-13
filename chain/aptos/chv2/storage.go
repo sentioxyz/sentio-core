@@ -456,6 +456,7 @@ func (s *Store) QueryTransactions(
 func (s *Store) QueryResourceChanges(
 	ctx context.Context,
 	req aptos.GetResourceChangesRequest,
+	limit int,
 ) (results []aptos.MinimalistTransactionWithChanges, err error) {
 	if err = s.checkInRange(ctx, req.FromVersion, req.ToVersion); err != nil {
 		return nil, err
@@ -497,10 +498,14 @@ func (s *Store) QueryResourceChanges(
 				tx.Changes = append(tx.Changes, change)
 			}
 		}
-		count += len(tx.Changes)
 		if len(tx.Changes) > 0 {
+			if limit > 0 && count+len(tx.Changes) > limit {
+				// abort the scan instead of materializing an unbounded result
+				return chain.NewTooManyResultsError("resource changes", limit, req.FromVersion, req.ToVersion)
+			}
 			results = append(results, tx)
 		}
+		count += len(tx.Changes)
 		return nil
 	}, sql, args...)
 	s.recordQueryChanges(ctx, time.Since(startAt), count)

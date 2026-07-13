@@ -50,7 +50,9 @@ func (m *mockStorage) QueryMinimalistTransaction(_ context.Context, _ uint64) (*
 func (m *mockStorage) QueryTransactions(_ context.Context, _ aptos.GetTransactionsRequest) ([]aptos.Transaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryResourceChanges(_ context.Context, _ aptos.GetResourceChangesRequest) ([]aptos.MinimalistTransactionWithChanges, error) {
+func (m *mockStorage) QueryResourceChanges(
+	_ context.Context, _ aptos.GetResourceChangesRequest, _ int,
+) ([]aptos.MinimalistTransactionWithChanges, error) {
 	return nil, nil
 }
 

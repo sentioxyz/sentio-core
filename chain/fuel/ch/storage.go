@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/pkg/errors"
+	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/fuel"
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/objectx"
@@ -30,6 +31,7 @@ func (s *Store) QueryTransactions(
 	startBlock uint64,
 	endBlock uint64,
 	filters []fuel.TransactionFilter,
+	limit int,
 ) ([]fuel.WrappedTransaction, error) {
 	where := "block_height >= ? AND block_height <= ?"
 	whereArgs := []any{startBlock, endBlock}
@@ -149,12 +151,21 @@ func (s *Store) QueryTransactions(
 			whereArgs = append(whereArgs, logRdSet)
 		}
 	}
+	// limit+1 lets an over-limit query be detected without materializing an unbounded result; the
+	// check runs on the raw rows (before the Go-side post filter), which over-counts conservatively
+	sqlLimit := 0
+	if limit > 0 {
+		sqlLimit = limit + 1
+	}
 	startAt := time.Now()
-	result, err := s.queryTransactions(ctx, where, whereArgs, 0)
+	result, err := s.queryTransactions(ctx, where, whereArgs, sqlLimit)
 	if err != nil {
 		return nil, err
 	}
 	s.recordQueryTx(ctx, time.Since(startAt), len(result))
+	if limit > 0 && len(result) > limit {
+		return nil, chain.NewTooManyResultsError("transactions", limit, startBlock, endBlock)
+	}
 	// post filter
 	result = utils.FilterArr(result, func(tx fuel.WrappedTransaction) bool {
 		return fuel.CheckTransaction(tx, filters)

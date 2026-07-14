@@ -22,18 +22,25 @@ type StorageJSONRPC interface {
 	QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) (sui.SimpleCheckpoint, error)
 
 	QueryTransactions(ctx context.Context, query *sui.TransactionQuery) ([]types.TransactionResponseV1, error)
+	// QueryTransactionsV2 scans at most limit raw rows (0 = unlimited; a SQL LIMIT bounding the
+	// ClickHouse-side resource use of one query) and fails with chain.NewTooManyResultsError when
+	// the scan hits it, so a returned result is always complete. The super node passes its record
+	// cap + 1 (chain.StoreQueryLimit), so a query matching exactly the cap still succeeds.
 	QueryTransactionsV2(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		filter sui.TransactionFilter,
 		fetchConfig sui.TransactionFetchConfig,
+		limit int,
 	) ([]types.TransactionResponseV1, error)
 
 	QueryObjectChanges(ctx context.Context, query *sui.ObjectChangeQuery) ([]types.ObjectChangeExtend, error)
+	// QueryObjectChangesV2 applies limit like QueryTransactionsV2.
 	QueryObjectChangesV2(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		filter sui.ObjectChangeFilter,
+		limit int,
 	) ([]types.ObjectChangeExtend, error)
 
 	QueryObjectsStat(ctx context.Context, fromBlock, toBlock uint64, objectIDList []string) (map[string]sui.ObjectStat, error)
@@ -57,11 +64,14 @@ type StorageGRPC interface {
 	//  - CONSENSUS_COMMIT_PROLOGUE_V3
 	//  - CONSENSUS_COMMIT_PROLOGUE_V4
 	//  - PROGRAMMABLE_SYSTEM_TRANSACTION
+	// It applies limit like StorageJSONRPC.QueryTransactionsV2 (a SQL LIMIT on the raw rows
+	// scanned; hitting it fails with chain.NewTooManyResultsError).
 	QueryTransactions(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		filter sui.TransactionFilter,
 		fetchConfig sui.TransactionFetchConfig,
+		limit int,
 	) ([]*sui.ExtendedGrpcTransaction, error)
 
 	// QueryObjectChanges ownerType in filter should use Owner_OwnerKind values:
@@ -70,10 +80,12 @@ type StorageGRPC interface {
 	//  - SHARED
 	//  - IMMUTABLE
 	//  - CONSENSUS_ADDRESS
+	// It applies limit like QueryTransactions.
 	QueryObjectChanges(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		filter sui.ObjectChangeFilter,
+		limit int,
 	) ([]*sui.ExtendedGrpcChangedObject, error)
 
 	QueryObjectsStat(

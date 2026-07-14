@@ -36,6 +36,23 @@ func NewMiddlewareV2(svr *RPCServiceV2) jsonrpc.Middleware {
 const (
 	MinimalistTxnCacheSize         = 1000000
 	AddressStartTxVersionCacheSize = 1000000
+
+	// maxQuerySpan caps the version span (ToVersion - FromVersion) of a single V2 range query. It
+	// matches the typical transaction-version partition sizing of the backing tables (see the chv2
+	// schema manager's intDiv(transaction_version, N) partition key), so one query scans at most
+	// about one partition; it also sits above the up-to-1M-version queries the driver's change
+	// fetcher legitimately issues.
+	maxQuerySpan = 2000000
+	// maxTransactions / maxResourceChanges cap how many records a multi-version V2 range query may
+	// return in TOTAL — a caller-visible contract on the response, independent of how the request
+	// is split internally between the latest-slot cache and the store. An over-cap query fails
+	// with chain.NewTooManyResultsError so the caller shrinks the range and retries;
+	// single-version queries are exempt (they cannot be shrunk further). The values budget a
+	// response of roughly 1 MiB (a pruned transaction is typically around 1 KB, a resource change
+	// a few hundred bytes) and sit at 2x the per-query record target of the corresponding driver
+	// fetcher, so normal queries never get close to the cap.
+	maxTransactions    = 1000
+	maxResourceChanges = 2000
 )
 
 type RPCServiceV2 struct {
@@ -132,7 +149,11 @@ func (s *RPCServiceV2) GetResourceChanges(
 	ctx context.Context,
 	req aptos.GetResourceChangesRequest,
 ) ([]aptos.MinimalistTransactionWithChanges, error) {
-	return splitRange(
+	if err := chain.CheckQuerySpan(req.FromVersion, req.ToVersion, maxQuerySpan); err != nil {
+		return nil, err
+	}
+	limit := chain.RangeQueryLimit(req.FromVersion, req.ToVersion, maxResourceChanges)
+	result, err := splitRange(
 		ctx,
 		s.slotCache,
 		rg.NewRange(req.FromVersion, req.ToVersion),
@@ -155,12 +176,17 @@ func (s *RPCServiceV2) GetResourceChanges(
 				FromVersion: queryRange.Start,
 				ToVersion:   *queryRange.End,
 				Filter:      req.Filter,
-			})
+			}, chain.StoreQueryLimit(limit))
 		},
 	)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 func (s *RPCServiceV2) GetTransactions(ctx context.Context, req aptos.GetTransactionsRequest) ([]aptos.Transaction, error) {
+	if err := chain.CheckQuerySpan(req.FromVersion, req.ToVersion, maxQuerySpan); err != nil {
+		return nil, err
+	}
+	limit := chain.RangeQueryLimit(req.FromVersion, req.ToVersion, maxTransactions)
 	txs, err := splitRange(
 		ctx,
 		s.slotCache,
@@ -178,13 +204,10 @@ func (s *RPCServiceV2) GetTransactions(ctx context.Context, req aptos.GetTransac
 				ToVersion:   *queryRange.End,
 				Filter:      req.Filter,
 				FetchConfig: req.FetchConfig,
-			})
+			}, chain.StoreQueryLimit(limit))
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
-	return txs, nil
+	return chain.CheckTooManyResults(txs, err, limit)
 }
 
 func (s *RPCServiceV2) GetAddressStartTxVersion(

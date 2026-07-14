@@ -107,11 +107,11 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockByNumber(
 	blockNumber rpc.BlockNumber,
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
-	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0,
+	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0, 0,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
-		func(ctx context.Context, r rg.Range) ([]evm.RPCGetBlockResponse, error) {
+		func(ctx context.Context, r rg.Range, _ int) ([]evm.RPCGetBlockResponse, error) {
 			return nil, jsonrpc.CallNextMiddleware
 		},
 		nil, // will not be used because hash always nil
@@ -130,11 +130,11 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockByHash(
 	hash common.Hash,
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
-	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil, 0,
+	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil, 0, 0,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
-		func(ctx context.Context, r rg.Range) ([]evm.RPCGetBlockResponse, error) {
+		func(ctx context.Context, r rg.Range, _ int) ([]evm.RPCGetBlockResponse, error) {
 			return nil, jsonrpc.CallNextMiddleware
 		},
 		jsonrpc.CallNextMiddleware,
@@ -186,11 +186,11 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockReceipts(
 	ctx context.Context,
 	numOrHash rpc.BlockNumberOrHash,
 ) ([]evm.ExtendedReceipt, error) {
-	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil, 0,
+	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil, 0, 0,
 		func(st *evm.Slot) ([]evm.ExtendedReceipt, error) {
 			return st.Receipts, nil
 		},
-		func(ctx context.Context, r rg.Range) ([]evm.ExtendedReceipt, error) {
+		func(ctx context.Context, r rg.Range, _ int) ([]evm.ExtendedReceipt, error) {
 			return nil, jsonrpc.CallNextMiddleware
 		},
 		jsonrpc.CallNextMiddleware,
@@ -202,11 +202,11 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 	args *evm.EthGetLogsArgs,
 ) ([]types.Log, error) {
 	checker := args.Checker()
-	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, 0,
+	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, 0, 0,
 		func(st *evm.Slot) ([]types.Log, error) {
 			return utils.FilterArr(st.Logs, checker), nil
 		},
-		func(ctx context.Context, r rg.Range) ([]types.Log, error) {
+		func(ctx context.Context, r rg.Range, _ int) ([]types.Log, error) {
 			fromBlock, toBlock := (rpc.BlockNumber)(r.Start), (rpc.BlockNumber)(*r.End)
 			proxyArgs := *args
 			proxyArgs.FromBlock = &fromBlock
@@ -239,14 +239,14 @@ func (s *proxyWithLatestSlotCacheService) TraceFilter(
 	args *evm.TraceFilterArgs,
 ) ([]evm.ParityTrace, error) {
 	checker := args.Checker()
-	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0,
+	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0, 0,
 		func(st *evm.Slot) ([]evm.ParityTrace, error) {
 			if !st.HaveTrace {
 				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
 			}
 			return utils.FilterArr(st.Traces, checker), nil
 		},
-		func(ctx context.Context, r rg.Range) ([]evm.ParityTrace, error) {
+		func(ctx context.Context, r rg.Range, _ int) ([]evm.ParityTrace, error) {
 			fromBlock, toBlock := (rpc.BlockNumber)(r.Start), (rpc.BlockNumber)(*r.End)
 			proxyArgs := *args
 			proxyArgs.FromBlock = &fromBlock

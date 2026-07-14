@@ -36,7 +36,7 @@ func Test_clickhouse(t *testing.T) {
 				From:    "0x2ea542d349748b9e360ac38adcee7b5890cb7a8dc5b895065df2efbeea834cf2",
 				To:      "0xa9271fd213d1cf7b43e7e3435e25eb4c210db7dfc33fe7ff80725a0f6599eda0",
 			},
-		}})
+		}}, 0)
 	assert.NoError(t, err)
 
 	for i, txn := range txns {

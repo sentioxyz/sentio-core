@@ -76,9 +76,16 @@ func (s *Storage) QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) 
 	return sc, nil
 }
 
+// queryTransactions loads the matching transactions, scanning at most limit raw rows
+// (0 = unlimited, pushed down as a SQL LIMIT to bound the ClickHouse-side resource use of one
+// query). When the scan hits the limit it fails with chain.NewTooManyResultsError — the raw rows
+// are counted before the Go-side converter, so the check is conservative, but a returned result is
+// always complete. The super node passes its record cap + 1 (chain.StoreQueryLimit), so a query
+// matching exactly the cap still succeeds.
 func (s *Storage) queryTransactions(
 	ctx context.Context,
 	converter func(Transaction) (*sui.ExtendedGrpcTransaction, bool, error),
+	limit int,
 	where string,
 	args ...any,
 ) (result []*sui.ExtendedGrpcTransaction, err error) {
@@ -88,13 +95,18 @@ func (s *Storage) queryTransactions(
 		strings.Join(columns, ","),
 		s.ctrl.FullLogicName(tableNameTransactions),
 		where)
+	if limit > 0 {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
+	}
 	startAt := time.Now()
+	var rawRows int
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var tx Transaction
 		scanErr := rows.Scan(objectx.CollectFieldPointers(&tx, fieldFilter)...)
 		if scanErr != nil {
 			return scanErr
 		}
+		rawRows++
 		r, need, convertErr := converter(tx)
 		if convertErr != nil {
 			return convertErr
@@ -104,6 +116,9 @@ func (s *Storage) queryTransactions(
 		}
 		return nil
 	}, sql, args...)
+	if err == nil && limit > 0 && rawRows >= limit {
+		err = chain.NewTooManyResultsError()
+	}
 	s.recordQueryTx(ctx, time.Since(startAt), len(result))
 	return result, err
 }
@@ -120,6 +135,7 @@ func (s *Storage) QueryTransactions(
 	fromBlock, toBlock uint64,
 	filter sui.TransactionFilter,
 	fetchConfig sui.TransactionFetchConfig,
+	limit int,
 ) ([]*sui.ExtendedGrpcTransaction, error) {
 	if err := s.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -227,12 +243,15 @@ func (s *Storage) QueryTransactions(
 			return nil, false, nil
 		}
 		return fetchConfig.PruneGrpcTransaction(etx, filter.EventFilters), true, nil
-	}, strings.Join(conditions, " AND "), args...)
+	}, limit, strings.Join(conditions, " AND "), args...)
 }
 
+// queryObjectChanges applies limit like queryTransactions (a SQL LIMIT on the raw rows scanned;
+// hitting it fails with chain.NewTooManyResultsError).
 func (s *Storage) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(*sui.ExtendedGrpcChangedObject) bool,
+	limit int,
 	where string,
 	args ...any,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
@@ -244,13 +263,18 @@ func (s *Storage) queryObjectChanges(
 		strings.Join(columns, ","),
 		s.ctrl.FullLogicName(tableNameObjects),
 		where)
+	if limit > 0 {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
+	}
 	startAt := time.Now()
+	var rawRows int
 	var result []*sui.ExtendedGrpcChangedObject
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var oc Object
 		if scanErr := rows.Scan(objectx.CollectFieldPointers(&oc, fieldFilter)...); scanErr != nil {
 			return scanErr
 		}
+		rawRows++
 		res := oc.ToChangedObject()
 		// post filter
 		if postFilter(res) {
@@ -258,6 +282,9 @@ func (s *Storage) queryObjectChanges(
 		}
 		return nil
 	}, sql, args...)
+	if err == nil && limit > 0 && rawRows >= limit {
+		err = chain.NewTooManyResultsError()
+	}
 	s.recordQueryObj(ctx, time.Since(startAt), len(result))
 	return result, err
 }
@@ -266,6 +293,7 @@ func (s *Storage) QueryObjectChanges(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
+	limit int,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
 	if err := s.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -320,7 +348,7 @@ func (s *Storage) QueryObjectChanges(
 	checker := filter.CheckerGrpc()
 	return s.queryObjectChanges(ctx, func(co *sui.ExtendedGrpcChangedObject) bool {
 		return checker(co.ChangedObject)
-	}, strings.Join(conditions, " AND "), args...)
+	}, limit, strings.Join(conditions, " AND "), args...)
 }
 
 func (s *Storage) QueryObjectsStat(

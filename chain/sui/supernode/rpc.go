@@ -68,6 +68,26 @@ func NewSuperNode(
 	}
 }
 
+const (
+	// maxQuerySpan caps the checkpoint span (toBlock - fromBlock) of a single range query,
+	// independent of how many records it matches, so a query over a huge range cannot force a
+	// full-range ClickHouse scan (same pattern as the sol super node). It matches the typical
+	// checkpoint partition sizing of the backing tables (see the chv3/chv4 schema managers'
+	// intDiv(checkpoint, N) partition key), so one query scans at most about one partition.
+	maxQuerySpan = 500000
+	// maxTransactions / maxObjectChanges cap how many records a multi-checkpoint range query may
+	// return; an over-cap query fails with chain.NewTooManyResultsError so the caller shrinks the
+	// range and retries (the driver fetchers halve on error down to a single block). Single-checkpoint
+	// queries are exempt: they cannot be shrunk further. Only the
+	// DriverVersion[1,2] range queries are capped; the DriverVersion[0] ones keep their original
+	// unlimited behavior. The values budget a response of roughly 1 MiB: a (pruned) transaction is
+	// typically around 1 KB and an object change a few hundred bytes, and both sit at 2x the
+	// per-query record target of the corresponding driver fetcher, so normal queries never get
+	// close to the cap.
+	maxTransactions  = 1000
+	maxObjectChanges = 2000
+)
+
 type SuperService struct {
 	client                 *sui.ClientPool
 	slotCache              chain.LatestSlotCache[*sui.Slot]
@@ -289,7 +309,11 @@ func (s *SuperService) GetTransactionsV2(
 	if err := s.requireJSONRPC(); err != nil {
 		return nil, err
 	}
-	return chain.QueryRangeWithCache(
+	if err := chain.CheckQuerySpan(fromBlock, toBlock, maxQuerySpan); err != nil {
+		return nil, err
+	}
+	limit := chain.RangeQueryLimit(fromBlock, toBlock, maxTransactions)
+	result, err := chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(fromBlock, toBlock),
 		s.slotCache,
@@ -305,9 +329,11 @@ func (s *SuperService) GetTransactionsV2(
 			return resp, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (txs []types.TransactionResponseV1, err error) {
-			return s.storageJSONRPC.QueryTransactionsV2(ctx, queryRange.Start, *queryRange.End, filter, fetchConfig)
+			return s.storageJSONRPC.QueryTransactionsV2(
+				ctx, queryRange.Start, *queryRange.End, filter, fetchConfig, chain.StoreQueryLimit(limit))
 		},
 	)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 // GetGrpcTransactions is a grpc data format interface,
@@ -332,7 +358,11 @@ func (s *SuperService) GetGrpcTransactions(
 	if err := s.requireGRPC(); err != nil {
 		return nil, err
 	}
-	return chain.QueryRangeWithCache(
+	if err := chain.CheckQuerySpan(fromBlock, toBlock, maxQuerySpan); err != nil {
+		return nil, err
+	}
+	limit := chain.RangeQueryLimit(fromBlock, toBlock, maxTransactions)
+	result, err := chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(fromBlock, toBlock),
 		s.slotCache,
@@ -358,9 +388,11 @@ func (s *SuperService) GetGrpcTransactions(
 			return resp, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (txs []*sui.ExtendedGrpcTransaction, err error) {
-			return s.storageGRPC.QueryTransactions(ctx, queryRange.Start, *queryRange.End, filter, fetchConfig)
+			return s.storageGRPC.QueryTransactions(
+				ctx, queryRange.Start, *queryRange.End, filter, fetchConfig, chain.StoreQueryLimit(limit))
 		},
 	)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 func (s *SuperService) FilterObjectChanges(
@@ -417,8 +449,12 @@ func (s *SuperService) FilterObjectChangesV2(
 	if err := s.requireJSONRPC(); err != nil {
 		return nil, err
 	}
+	if err := chain.CheckQuerySpan(fromBlock, toBlock, maxQuerySpan); err != nil {
+		return nil, err
+	}
+	limit := chain.RangeQueryLimit(fromBlock, toBlock, maxObjectChanges)
 	checker := filter.Checker()
-	return chain.QueryRangeWithCache(
+	result, err := chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(fromBlock, toBlock),
 		s.slotCache,
@@ -442,9 +478,11 @@ func (s *SuperService) FilterObjectChangesV2(
 			return result, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (objs []types.ObjectChangeExtend, err error) {
-			return s.storageJSONRPC.QueryObjectChangesV2(ctx, queryRange.Start, *queryRange.End, filter)
+			return s.storageJSONRPC.QueryObjectChangesV2(
+				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit))
 		},
 	)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 // FilterGrpcChangedObjects is a grpc data format interface,
@@ -462,8 +500,12 @@ func (s *SuperService) FilterGrpcChangedObjects(
 	if err := s.requireGRPC(); err != nil {
 		return nil, err
 	}
+	if err := chain.CheckQuerySpan(fromBlock, toBlock, maxQuerySpan); err != nil {
+		return nil, err
+	}
+	limit := chain.RangeQueryLimit(fromBlock, toBlock, maxObjectChanges)
 	checker := filter.CheckerGrpc()
-	return chain.QueryRangeWithCache(
+	result, err := chain.QueryRangeWithCache(
 		ctx,
 		rg.NewRange(fromBlock, toBlock),
 		s.slotCache,
@@ -490,9 +532,11 @@ func (s *SuperService) FilterGrpcChangedObjects(
 			return result, nil
 		},
 		func(ctx context.Context, queryRange rg.Range) (objs []*sui.ExtendedGrpcChangedObject, err error) {
-			return s.storageGRPC.QueryObjectChanges(ctx, queryRange.Start, *queryRange.End, filter)
+			return s.storageGRPC.QueryObjectChanges(
+				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit))
 		},
 	)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 // GetGrpcObjects forwards a single bounded batch to the upstream grpc node. It does

@@ -52,14 +52,16 @@ func (m *mockStorageJSONRPC) QueryTransactions(_ context.Context, _ *sui.Transac
 }
 func (m *mockStorageJSONRPC) QueryTransactionsV2(
 	_ context.Context, _, _ uint64,
-	_ sui.TransactionFilter, _ sui.TransactionFetchConfig,
+	_ sui.TransactionFilter, _ sui.TransactionFetchConfig, _ int,
 ) ([]suitypes.TransactionResponseV1, error) {
 	return nil, nil
 }
 func (m *mockStorageJSONRPC) QueryObjectChanges(_ context.Context, _ *sui.ObjectChangeQuery) ([]suitypes.ObjectChangeExtend, error) {
 	return nil, nil
 }
-func (m *mockStorageJSONRPC) QueryObjectChangesV2(_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter) ([]suitypes.ObjectChangeExtend, error) {
+func (m *mockStorageJSONRPC) QueryObjectChangesV2(
+	_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter, _ int,
+) ([]suitypes.ObjectChangeExtend, error) {
 	return nil, nil
 }
 func (m *mockStorageJSONRPC) QueryObjectsStat(_ context.Context, _, _ uint64, _ []string) (map[string]sui.ObjectStat, error) {
@@ -75,12 +77,12 @@ func (m *mockStorageGRPC) QuerySimpleCheckpoint(_ context.Context, _ uint64) (su
 }
 func (m *mockStorageGRPC) QueryTransactions(
 	_ context.Context, _, _ uint64,
-	_ sui.TransactionFilter, _ sui.TransactionFetchConfig,
+	_ sui.TransactionFilter, _ sui.TransactionFetchConfig, _ int,
 ) ([]*sui.ExtendedGrpcTransaction, error) {
 	return nil, nil
 }
 func (m *mockStorageGRPC) QueryObjectChanges(
-	_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter,
+	_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter, _ int,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
 	return nil, nil
 }

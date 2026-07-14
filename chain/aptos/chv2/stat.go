@@ -10,8 +10,12 @@ import (
 	"time"
 )
 
+// queryTxGotLadderTop is the top bucket of the per-query transaction-count histogram; queries
+// returning at least this many transactions are also counted in queryTxOverSize.
+const queryTxGotLadderTop = 500
+
 var (
-	queryTxGotLadder      = histogram.Ladder[int]{10, 30, 60, 100, 250, getTransactionsMaxReturn}
+	queryTxGotLadder      = histogram.Ladder[int]{10, 30, 60, 100, 250, queryTxGotLadderTop}
 	queryChangesGotLadder = histogram.Ladder[int]{10, 100, 1000, 10000, 100000}
 )
 
@@ -50,7 +54,7 @@ func (m *statistic) recordQueryTx(ctx context.Context, used time.Duration, txLen
 	defer m.mu.Unlock()
 	m.queryTxUsed[src] = m.queryTxUsed[src].Incr(used)
 	m.queryTxGot[src] = queryTxGotLadder.Incr(m.queryTxGot[src], txLen)
-	if txLen >= getTransactionsMaxReturn {
+	if txLen >= queryTxGotLadderTop {
 		m.queryTxOverSize[src] += 1
 	}
 }

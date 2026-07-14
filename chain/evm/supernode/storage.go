@@ -11,9 +11,14 @@ type Storage interface {
 	QueryBlocks(ctx context.Context, where string, args ...any) ([]evm.ExtendedHeader, error)
 	QueryBlockTxHashes(ctx context.Context, blockNumber uint64) ([]string, error)
 	QueryTxs(ctx context.Context, where string, args ...any) ([]evm.ExtendedTransaction, error)
-	QueryLogs(ctx context.Context, where string, args ...any) ([]types.Log, error)
+	// QueryLogs scans at most limit raw rows (0 = unlimited; a SQL LIMIT bounding the
+	// ClickHouse-side resource use of one query) and fails with chain.NewTooManyResultsError when
+	// the scan hits it, so a returned result is always complete. The super node passes its record
+	// cap + 1 (chain.StoreQueryLimit), so a query matching exactly the cap still succeeds.
+	QueryLogs(ctx context.Context, where string, limit int, args ...any) ([]types.Log, error)
 	QueryLogsBlockSQL(where string) string
-	QueryTraces(ctx context.Context, where string, args ...any) ([]evm.ParityTrace, error)
+	// QueryTraces applies limit like QueryLogs.
+	QueryTraces(ctx context.Context, where string, limit int, args ...any) ([]evm.ParityTrace, error)
 	QueryTracesBlockSQL(where string) string
 
 	// QuerySimpleTrace used to query traces by address and some other conditions,

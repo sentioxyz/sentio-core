@@ -57,6 +57,21 @@ func buildPackedBlocks(
 	return utils.GetMapValuesOrderByKey(blocks), nil
 }
 
+// ignoreStoreLimit adapts a store loader that has no record cap to queryWithCache's limit-aware
+// collectFromStore signature.
+func ignoreStoreLimit[ELEM any](
+	f func(ctx context.Context, r rg.Range) ([]ELEM, error),
+) func(ctx context.Context, r rg.Range, limit int) ([]ELEM, error) {
+	return func(ctx context.Context, r rg.Range, _ int) ([]ELEM, error) {
+		return f(ctx, r)
+	}
+}
+
+// queryWithCache resolves the requested range, checks the span cap, and serves it from the
+// latest-slot cache + store. resultLimit (0 = unlimited) caps how many records the merged response
+// may hold in TOTAL; single-block queries (including the blockHash / blockNumber forms) are exempt
+// since they cannot be shrunk further. collectFromStore receives the scan limit to push down
+// (chain.StoreQueryLimit of the effective cap; 0 when uncapped/exempt).
 func queryWithCache[ELEM any](
 	ctx context.Context,
 	slotCache chain.LatestSlotCache[*evm.Slot],
@@ -65,8 +80,9 @@ func queryWithCache[ELEM any](
 	fromBlock *rpc.BlockNumber,
 	toBlock *rpc.BlockNumber,
 	maxQueryRangeSize uint64,
+	resultLimit int,
 	collectFromSlot func(st *evm.Slot) ([]ELEM, error),
-	collectFromStore func(ctx context.Context, r rg.Range) ([]ELEM, error),
+	collectFromStore func(ctx context.Context, r rg.Range, limit int) ([]ELEM, error),
 	cacheMissHashReturn error,
 ) ([]ELEM, error) {
 	if blockHash != nil {
@@ -127,16 +143,23 @@ func queryWithCache[ELEM any](
 			}
 		}
 	}
-	return chain.QueryRangeWithCache[*evm.Slot, ELEM](
+	// The span cap applies to the REQUESTED range — a caller-visible contract — not to the
+	// sub-range left over after the latest-slot cache serves its part: whether the cache covers
+	// some blocks is an internal, dynamically changing detail a caller cannot reason about.
+	if maxQueryRangeSize > 0 {
+		if err := chain.CheckQuerySpan(sn, en, maxQueryRangeSize); err != nil {
+			return nil, err
+		}
+	}
+	limit := chain.RangeQueryLimit(sn, en, resultLimit)
+	result, err := chain.QueryRangeWithCache[*evm.Slot, ELEM](
 		ctx,
 		rg.NewRange(sn, en),
 		slotCache,
 		collectFromSlot,
-		func(ctx context.Context, queryRange rg.Range) ([]ELEM, error) {
-			if maxQueryRangeSize > 0 && *queryRange.Size() > maxQueryRangeSize {
-				return nil, errors.Errorf("query range too large, %s size > %d", queryRange, maxQueryRangeSize)
-			}
-			return collectFromStore(ctx, queryRange)
+		func(ctx context.Context, r rg.Range) ([]ELEM, error) {
+			return collectFromStore(ctx, r, chain.StoreQueryLimit(limit))
 		},
 	)
+	return chain.CheckTooManyResults(result, err, limit)
 }

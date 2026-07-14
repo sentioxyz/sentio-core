@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/pkg/errors"
+	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/fuel"
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/objectx"
-	"sentioxyz/sentio-core/common/utils"
 	"strings"
 	"time"
 )
@@ -30,6 +30,7 @@ func (s *Store) QueryTransactions(
 	startBlock uint64,
 	endBlock uint64,
 	filters []fuel.TransactionFilter,
+	limit int,
 ) ([]fuel.WrappedTransaction, error) {
 	where := "block_height >= ? AND block_height <= ?"
 	whereArgs := []any{startBlock, endBlock}
@@ -150,15 +151,18 @@ func (s *Store) QueryTransactions(
 		}
 	}
 	startAt := time.Now()
-	result, err := s.queryTransactions(ctx, where, whereArgs, 0)
+	result, rawRows, err := s.queryTransactions(ctx, func(tx fuel.WrappedTransaction) bool {
+		return fuel.CheckTransaction(tx, filters)
+	}, limit, where, whereArgs)
 	if err != nil {
 		return nil, err
 	}
 	s.recordQueryTx(ctx, time.Since(startAt), len(result))
-	// post filter
-	result = utils.FilterArr(result, func(tx fuel.WrappedTransaction) bool {
-		return fuel.CheckTransaction(tx, filters)
-	})
+	// the raw rows are counted before the Go-side post filter, so the check is conservative, but a
+	// returned result is always complete
+	if limit > 0 && rawRows >= limit {
+		return nil, chain.NewTooManyResultsError()
+	}
 	return result, nil
 }
 
@@ -167,7 +171,9 @@ func (s *Store) QueryContractCreateTransaction(
 	contractID string,
 ) (*fuel.WrappedTransaction, error) {
 	startAt := time.Now()
-	result, err := s.queryTransactions(ctx, "is_create AND has(created_contracts, ?)", []any{contractID}, 1)
+	// LIMIT 1: a contract has at most one create transaction, so ClickHouse can stop scanning at
+	// the first match instead of exhausting the candidate rows looking for another
+	result, _, err := s.queryTransactions(ctx, nil, 1, "is_create AND has(created_contracts, ?)", []any{contractID})
 	if err != nil {
 		return nil, err
 	}
@@ -178,12 +184,18 @@ func (s *Store) QueryContractCreateTransaction(
 	return &result[0], nil
 }
 
+// queryTransactions loads the matching transactions, scanning at most limit raw rows
+// (0 = unlimited, pushed down as a SQL LIMIT to bound the ClickHouse-side resource use of one
+// query) and reporting via rawRows how many it scanned. It applies no over-limit policy itself:
+// a range-query caller treats a scan that hit the limit as too many results, while a point-lookup
+// caller passes exactly the number of rows it wants, so ClickHouse stops at the first match.
 func (s *Store) queryTransactions(
 	ctx context.Context,
+	postFilter func(fuel.WrappedTransaction) bool,
+	limit int,
 	where string,
 	args []any,
-	limit int,
-) (result []fuel.WrappedTransaction, err error) {
+) (result []fuel.WrappedTransaction, rawRows int, err error) {
 	fieldFilter := objectx.HasTag("clickhouse").And(objectx.AnyHasTagEqualTo("required", "true"))
 	columns := objectx.CollectTagValue(&ClickhouseTransaction{}, "clickhouse", fieldFilter)
 	sql := fmt.Sprintf("SELECT `%s` FROM %s WHERE %s ORDER BY block_height, transaction_index",
@@ -198,12 +210,15 @@ func (s *Store) queryTransactions(
 		if scanErr := rows.Scan(objectx.CollectFieldPointers(&tx, fieldFilter)...); scanErr != nil {
 			return scanErr
 		}
+		rawRows++
 		res, parseErr := tx.toWrappedTransaction()
 		if parseErr != nil {
 			return errors.Wrapf(parseErr, "parse from %d/%s clickhouse transaction failed", tx.BlockHeight, tx.TransactionID)
 		}
-		result = append(result, res)
+		if postFilter == nil || postFilter(res) {
+			result = append(result, res)
+		}
 		return nil
 	}, sql, args...)
-	return result, err
+	return result, rawRows, err
 }

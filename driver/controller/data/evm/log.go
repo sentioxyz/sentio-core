@@ -196,7 +196,9 @@ func BuildLogFetcher(
 			EndBlock:   req.EndBlock,
 		},
 		latest,
-		10,
+		// minQuerySize 1: the super node errors when a multi-block range exceeds its record cap,
+		// so the fetcher must be able to shrink to a single block (where the cap no longer applies).
+		1,
 		1000,
 		10000,
 		2000, // the target is that each query got no more than 2000 logs

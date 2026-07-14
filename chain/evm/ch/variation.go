@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"math"
 	"reflect"
+	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/clickhouse"
 	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/chains"
@@ -27,9 +28,9 @@ type EthVariationCtrl interface {
 	QueryBlocks(ctx context.Context, where string, args ...any) ([]evm.ExtendedHeader, error)
 	QueryBlockTxHashes(ctx context.Context, blockNumber uint64) ([]string, error)
 	QueryTxs(ctx context.Context, where string, args ...any) ([]evm.ExtendedTransaction, error)
-	QueryLogs(ctx context.Context, where string, args ...any) ([]types.Log, error)
+	QueryLogs(ctx context.Context, where string, limit int, args ...any) ([]types.Log, error)
 	QueryLogsBlockSQL(where string) string
-	QueryTraces(ctx context.Context, where string, args ...any) ([]evm.ParityTrace, error)
+	QueryTraces(ctx context.Context, where string, limit int, args ...any) ([]evm.ParityTrace, error)
 	QueryTracesBlockSQL(where string) string
 
 	// QuerySimpleTrace used to query traces by address and some other conditions,
@@ -369,9 +370,15 @@ func (c *EthVariationController[BLOCK, TXN]) QueryTxs(
 	return result, err
 }
 
+// QueryLogs loads the matching logs, scanning at most limit raw rows (0 = unlimited, pushed down
+// as a SQL LIMIT to bound the ClickHouse-side resource use of one query). When the scan hits the
+// limit it fails with chain.NewTooManyResultsError — the caller's Go-side post filter runs after,
+// so the check is conservative, but a returned result is always complete. The super node passes
+// its record cap + 1 (chain.StoreQueryLimit), so a query matching exactly the cap still succeeds.
 func (c *EthVariationController[BLOCK, TXN]) QueryLogs(
 	ctx context.Context,
 	where string,
+	limit int,
 	args ...any,
 ) (result []types.Log, err error) {
 	fieldFilter := objectx.HasTag("clickhouse")
@@ -380,6 +387,9 @@ func (c *EthVariationController[BLOCK, TXN]) QueryLogs(
 		strings.Join(columns, "`,`"),
 		c.ctrl.FullLogicName(tableNameLogs),
 		where)
+	if limit > 0 {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
+	}
 	startAt := time.Now()
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var log Log
@@ -390,6 +400,9 @@ func (c *EthVariationController[BLOCK, TXN]) QueryLogs(
 		result = append(result, log.ToLog())
 		return nil
 	}, sql, args...)
+	if err == nil && limit > 0 && len(result) >= limit {
+		err = chain.NewTooManyResultsError()
+	}
 	c.recordQueryLog(ctx, time.Since(startAt), len(result))
 	return result, err
 }
@@ -398,9 +411,12 @@ func (c *EthVariationController[BLOCK, TXN]) QueryLogsBlockSQL(where string) str
 	return fmt.Sprintf("SELECT block_number FROM %s WHERE %s", c.ctrl.FullLogicName(tableNameLogs), where)
 }
 
+// QueryTraces applies limit like QueryLogs (a SQL LIMIT on the raw rows scanned; hitting it fails
+// with chain.NewTooManyResultsError).
 func (c *EthVariationController[BLOCK, TXN]) QueryTraces(
 	ctx context.Context,
 	where string,
+	limit int,
 	args ...any,
 ) (result []evm.ParityTrace, err error) {
 	fieldFilter := objectx.HasTag("clickhouse")
@@ -409,6 +425,9 @@ func (c *EthVariationController[BLOCK, TXN]) QueryTraces(
 		strings.Join(columns, "`,`"),
 		c.ctrl.FullLogicName(tableNameTraces),
 		where)
+	if limit > 0 {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
+	}
 	startAt := time.Now()
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var trace Trace
@@ -419,6 +438,9 @@ func (c *EthVariationController[BLOCK, TXN]) QueryTraces(
 		result = append(result, trace.ToTrace())
 		return nil
 	}, sql, args...)
+	if err == nil && limit > 0 && len(result) >= limit {
+		err = chain.NewTooManyResultsError()
+	}
 	c.recordQueryTrace(ctx, time.Since(startAt), len(result))
 	return result, err
 }

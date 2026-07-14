@@ -229,8 +229,8 @@ func (c *Controller) QueryTransactions(
 		conditions = append(conditions, "status = ?")
 		args = append(args, types.TransactionStatusSuccess)
 	}
-	// query data from clickhouse
-	return c.queryTransactions(ctx, query.CheckAndTrim, strings.Join(conditions, " AND "), args...)
+	// query data from clickhouse (no record limit: this legacy query keeps its original behavior)
+	return c.queryTransactions(ctx, query.CheckAndTrim, 0, strings.Join(conditions, " AND "), args...)
 }
 
 func mergeCondition(parts []string, link string) string {
@@ -245,6 +245,7 @@ func (c *Controller) QueryTransactionsV2(
 	fromBlock, toBlock uint64,
 	filter sui.TransactionFilter,
 	fetchConfig sui.TransactionFetchConfig,
+	limit int,
 ) ([]types.TransactionResponseV1, error) {
 	if err := c.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -349,12 +350,19 @@ func (c *Controller) QueryTransactionsV2(
 		}
 		*tx = fetchConfig.PruneTransaction(*tx, filter.EventFilters)
 		return true
-	}, strings.Join(conditions, " AND "), args...)
+	}, limit, strings.Join(conditions, " AND "), args...)
 }
 
+// queryTransactions loads the matching transactions, scanning at most limit raw rows
+// (0 = unlimited, pushed down as a SQL LIMIT to bound the ClickHouse-side resource use of one
+// query). When the scan hits the limit it fails with chain.NewTooManyResultsError — the raw rows
+// are counted before the Go-side post handler, so the check is conservative, but a returned result
+// is always complete. The super node passes its record cap + 1 (chain.StoreQueryLimit), so a query
+// matching exactly the cap still succeeds.
 func (c *Controller) queryTransactions(
 	ctx context.Context,
 	postHandler func(*types.TransactionResponseV1) bool,
+	limit int,
 	where string,
 	args ...any,
 ) (result []types.TransactionResponseV1, err error) {
@@ -368,19 +376,27 @@ func (c *Controller) queryTransactions(
 		strings.Join(columns, "`,`"),
 		c.ctrl.FullLogicName(tableNameTransactions),
 		where)
+	if limit > 0 {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
+	}
 	startAt := time.Now()
+	var rawRows int
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var tx CHUTransaction
 		scanErr := rows.Scan(objectx.CollectFieldPointers(&tx, fieldFilter)...)
 		if scanErr != nil {
 			return scanErr
 		}
+		rawRows++
 		res := tx.BuildTransactionResponseV1()
 		if postHandler(&res) {
 			result = append(result, res)
 		}
 		return nil
 	}, sql, args...)
+	if err == nil && limit > 0 && rawRows >= limit {
+		err = chain.NewTooManyResultsError()
+	}
 	c.recordQueryTx(ctx, time.Since(startAt), len(result))
 	return result, err
 }
@@ -484,13 +500,15 @@ func (c *Controller) QueryObjectChanges(
 		where = strings.Join(conditions, " AND ")
 	}
 
-	return c.queryObjectChanges(ctx, query.Check, where, args...)
+	// no record limit: this legacy query keeps its original behavior
+	return c.queryObjectChanges(ctx, query.Check, 0, where, args...)
 }
 
 func (c *Controller) QueryObjectChangesV2(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
+	limit int,
 ) ([]types.ObjectChangeExtend, error) {
 	if err := c.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -537,12 +555,15 @@ func (c *Controller) QueryObjectChangesV2(
 		conditions = append(conditions, mergeCondition(filters, " OR "))
 	}
 
-	return c.queryObjectChanges(ctx, filter.Checker(), strings.Join(conditions, " AND "), args...)
+	return c.queryObjectChanges(ctx, filter.Checker(), limit, strings.Join(conditions, " AND "), args...)
 }
 
+// queryObjectChanges applies limit like queryTransactions (a SQL LIMIT on the raw rows scanned;
+// hitting it fails with chain.NewTooManyResultsError).
 func (c *Controller) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(types.ObjectChangeExtend) bool,
+	limit int,
 	where string,
 	args ...any,
 ) ([]types.ObjectChangeExtend, error) {
@@ -552,13 +573,18 @@ func (c *Controller) queryObjectChanges(
 		strings.Join(columns, "`,`"),
 		c.ctrl.FullLogicName(tableNameObjectChanges),
 		where)
+	if limit > 0 {
+		sql += fmt.Sprintf(" LIMIT %d", limit)
+	}
 	startAt := time.Now()
+	var rawRows int
 	var result []types.ObjectChangeExtend
 	err := c.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var oc CHUObjectChange
 		if scanErr := rows.Scan(objectx.CollectFieldPointers(&oc, fieldFilter)...); scanErr != nil {
 			return scanErr
 		}
+		rawRows++
 		// post filter
 		res := oc.BuildObjectChangeExtend()
 		if postFilter(res) {
@@ -566,6 +592,9 @@ func (c *Controller) queryObjectChanges(
 		}
 		return nil
 	}, sql, args...)
+	if err == nil && limit > 0 && rawRows >= limit {
+		err = chain.NewTooManyResultsError()
+	}
 	c.recordQueryObj(ctx, time.Since(startAt), len(result))
 	return result, err
 }

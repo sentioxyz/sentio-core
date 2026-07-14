@@ -16,7 +16,6 @@ go_library(
         "//common/log",
         "//common/range",
         "//common/utils",
-        "@com_github_pkg_errors//:errors",
         "@com_github_sentioxyz_fuel_go//:fuel-go",
         "@com_github_sentioxyz_fuel_go//types",
     ],

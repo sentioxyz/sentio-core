@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	fuelGo "github.com/sentioxyz/fuel-go"
 	"github.com/sentioxyz/fuel-go/types"
 	"sentioxyz/sentio-core/chain/chain"
@@ -115,13 +114,26 @@ func (s *RPCService) GetBlockHeader(ctx context.Context, height uint64) (types.H
 	return headers[0], err
 }
 
+// maxQuerySpan / maxTransactions bound a single fuel_getTransactions query: the block span is
+// capped independently of how many records it matches, and a multi-block query returning more than
+// maxTransactions fails with chain.NewTooManyResultsError so the caller shrinks the range and
+// retries (single-block queries are exempt: they cannot be shrunk further). The span cap matches
+// the typical block partition sizing of the backing table (intDiv(block_height, N), see the schema
+// manager), so one query scans at most about one partition; the record cap budgets a response of
+// roughly 1 MiB (a transaction is typically a few hundred bytes) and sits at 2x the per-query
+// record target of the driver's transaction fetcher.
+const (
+	maxQuerySpan    = 500000
+	maxTransactions = 2000
+)
+
 func (s *RPCService) GetTransactions(
 	ctx context.Context,
 	param fuel.GetTransactionsParam,
 ) ([]fuel.WrappedTransaction, error) {
 	_, logger := log.FromContext(ctx)
-	if param.EndHeight < param.StartHeight {
-		return nil, errors.Errorf("end_height cannot less than start_height")
+	if err := chain.CheckQuerySpan(param.StartHeight, param.EndHeight, maxQuerySpan); err != nil {
+		return nil, err
 	}
 	for _, filter := range param.Filters {
 		if filter.IsEmpty() {
@@ -130,7 +142,8 @@ func (s *RPCService) GetTransactions(
 			break
 		}
 	}
-	return chain.QueryRangeWithCache[*fuel.Slot, fuel.WrappedTransaction](
+	limit := chain.RangeQueryLimit(param.StartHeight, param.EndHeight, maxTransactions)
+	result, err := chain.QueryRangeWithCache[*fuel.Slot, fuel.WrappedTransaction](
 		ctx,
 		rg.NewRange(param.StartHeight, param.EndHeight),
 		s.slotCache,
@@ -144,9 +157,10 @@ func (s *RPCService) GetTransactions(
 			return txs, nil
 		},
 		chain.CheckRange(s.rangeStore, func(ctx context.Context, queryRange rg.Range) ([]fuel.WrappedTransaction, error) {
-			return s.store.QueryTransactions(ctx, queryRange.Start, *queryRange.End, param.Filters)
+			return s.store.QueryTransactions(ctx, queryRange.Start, *queryRange.End, param.Filters, chain.StoreQueryLimit(limit))
 		}),
 	)
+	return chain.CheckTooManyResults(result, err, limit)
 }
 
 // GetContractCreateTransaction will return (nil, nil) if contract not created

@@ -26,13 +26,15 @@ import (
 
 type mockStorage struct{}
 
-func (m *mockStorage) Functions(_ context.Context, _ aptos.GetFunctionsArgs) ([]*aptos.Transaction, error) {
+func (m *mockStorage) Functions(_ context.Context, _ aptos.GetFunctionsArgs, _ int) ([]*aptos.Transaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) FullEvents(_ context.Context, _ aptos.GetEventsArgs) ([]*aptos.Transaction, error) {
+func (m *mockStorage) FullEvents(_ context.Context, _ aptos.GetEventsArgs, _ int) ([]*aptos.Transaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) ResourceChanges(_ context.Context, _ aptos.ResourceChangeArgs) ([]*aptos.Transaction, error) {
+func (m *mockStorage) ResourceChanges(
+	_ context.Context, _ aptos.ResourceChangeArgs, _ int,
+) ([]*aptos.Transaction, error) {
 	return nil, nil
 }
 func (m *mockStorage) GetTransactionByVersion(_ context.Context, _ uint64) (*aptos.Transaction, error) {
@@ -47,10 +49,14 @@ func (m *mockStorage) GetFirstChange(_ context.Context, _ string, _ uint64) (ver
 func (m *mockStorage) QueryMinimalistTransaction(_ context.Context, _ uint64) (*aptos.MinimalistTransaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryTransactions(_ context.Context, _ aptos.GetTransactionsRequest) ([]aptos.Transaction, error) {
+func (m *mockStorage) QueryTransactions(
+	_ context.Context, _ aptos.GetTransactionsRequest, _ int,
+) ([]aptos.Transaction, error) {
 	return nil, nil
 }
-func (m *mockStorage) QueryResourceChanges(_ context.Context, _ aptos.GetResourceChangesRequest) ([]aptos.MinimalistTransactionWithChanges, error) {
+func (m *mockStorage) QueryResourceChanges(
+	_ context.Context, _ aptos.GetResourceChangesRequest, _ int,
+) ([]aptos.MinimalistTransactionWithChanges, error) {
 	return nil, nil
 }
 

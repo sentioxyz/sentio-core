@@ -47,7 +47,6 @@ export enum EthChainId {
   SEI = '1329',
   SONEIUM_TESTNET = '1946',
   SONEIUM_MAINNET = '1868',
-  SWELL_TESTNET = '1924',
   SWELL_MAINNET = '1923',
   TAC_TESTNET = '2390',
   KARAK = '2410',

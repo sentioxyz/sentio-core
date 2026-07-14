@@ -16,6 +16,8 @@ interface Props {
   variables?: { [p: string]: TemplateVariableLike }
   small?: boolean
   useRegex?: boolean
+  loading?: boolean
+  className?: string
 }
 
 type LabelSelector = { display: string; key: string; value: string }
@@ -26,7 +28,9 @@ export function LabelsInput({
   variables,
   onChange,
   small,
-  useRegex
+  useRegex,
+  loading,
+  className
 }: Props) {
   const [input, setInput] = useState('')
   const onSelectLabel = (labels: LabelSelector[]) => {
@@ -128,11 +132,13 @@ export function LabelsInput({
 
   return (
     <NewMultipleSelect<LabelSelector>
+      loading={loading}
       input={input}
       onInputChange={setInput}
       className={classNames(
         'border-main flex grow overflow-auto rounded-r-md border',
-        small ? 'min-h-6' : 'min-h-8'
+        small ? 'min-h-6' : 'min-h-8',
+        className
       )}
       options={labelSelectors}
       value={selectedLabels}
@@ -192,7 +198,13 @@ export function LabelsInput({
         if (isRegex) {
           return true
         }
-        return display.toLowerCase().includes(input.toLowerCase())
+        // Also match the raw value so system labels whose display differs from
+        // their value stay searchable — e.g. "chain: Ethereum" (value "1")
+        // should match input "1".
+        const q = input.toLowerCase()
+        return (
+          display.toLowerCase().includes(q) || value.toLowerCase().includes(q)
+        )
       }}
       validateFn={(option: LabelSelector) => {
         const isRegex = /^\{.*\}$/.test(option.value)

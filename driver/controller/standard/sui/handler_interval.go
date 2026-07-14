@@ -14,11 +14,13 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"sentioxyz/sentio-core/chain/chain"
 	chainsui "sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/compress"
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/pager"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
 	"sentioxyz/sentio-core/driver/controller/data"
@@ -194,15 +196,48 @@ type HandlerAgentInterval struct {
 	UnwrapDynamicObject bool
 }
 
-const (
-	MaxObjectDictLen              = 100000
-	MaxQueryObjectChangeRangeSize = 10000
-)
+const MaxObjectDictLen = 100000
+
+// objectChangePaging sizes each object-change query page to yield roughly 1k changes — the same
+// per-query record target as the driver's object-change fetcher, and a response of roughly
+// hundreds of KB — so sparse filters advance in large strides while dense filters shrink toward
+// the 100-checkpoint floor instead of pulling an unbounded number of changes per page, as the
+// previous fixed 10k-checkpoint page did. Initial matches that previous fixed page size. Max is
+// the full span the sui super node allows per range query (its maxQuerySpan, about one ClickHouse
+// partition) and must never exceed it: a span-cap error is not a too-many-results error, so the
+// pager would fail instead of shrinking.
+var objectChangePaging = pager.Config{Target: 1000, Min: 100, Max: 500000, Step: 100, Initial: 10000}
 
 func (a HandlerAgentInterval) PushObjectLatestVersion(
 	ctx context.Context,
 	blockNumber uint64,
 	dict *ObjectDict,
+) (ObjectDict, error) {
+	return PushObjectLatestVersionPaged(ctx, a, blockNumber, dict, "object",
+		func(ctx context.Context, fromBlock, toBlock uint64) (map[uint64][]types.ObjectChangeExtend, error) {
+			return a.Client.GetObjectChanges(ctx, fromBlock, toBlock, a.Filter)
+		},
+		func(oc types.ObjectChangeExtend) (objectID string, version uint64, deleted bool) {
+			return oc.ObjectID.String(), oc.Version.Uint64(), oc.Type.IsDeleted()
+		})
+}
+
+// PushObjectLatestVersionPaged pushes dict forward to blockNumber for agent a, fetching the object
+// changes in (dict.BlockNumber, blockNumber] in adaptive pages (see objectChangePaging) and folding
+// them into a copy of dict. It is shared by the json-rpc handler (PushObjectLatestVersion above) and
+// the grpc handler's override, which differ only in how changes are fetched (fetch) and in how one
+// change exposes its object id / version / deletion flag (extract); label names the change source in
+// logs. A page whose fetch fails with a too-many-results error (chain.IsTooManyResultsError) is
+// retried with a smaller span via pager.Walk's tooBig path — except a single-checkpoint page, whose
+// error is returned as is since it cannot be split further.
+func PushObjectLatestVersionPaged[T any](
+	ctx context.Context,
+	a HandlerAgentInterval,
+	blockNumber uint64,
+	dict *ObjectDict,
+	label string,
+	fetch func(ctx context.Context, fromBlock, toBlock uint64) (map[uint64][]T, error),
+	extract func(change T) (objectID string, version uint64, deleted bool),
 ) (ObjectDict, error) {
 	_, logger := log.FromContext(ctx, "handler", a.HandlerID.String(), "filter", utils.MustJSONMarshal(a.Filter))
 	if dict != nil && dict.BlockNumber == blockNumber { // may be retried, so dict.BlockNumber may be equal to blockNumber
@@ -217,40 +252,44 @@ func (a HandlerAgentInterval) PushObjectLatestVersion(
 		from = dict.BlockNumber + 1
 		result.ObjectLatestVersion = utils.CopyMap(dict.ObjectLatestVersion)
 	}
-	logger.Infof("will push object latest version dict in [%d,%d]", from, blockNumber)
-	for from <= blockNumber {
+	logger.Infof("will push %s latest version dict in [%d,%d]", label, from, blockNumber)
+	err := pager.Walk(from, blockNumber, objectChangePaging, func(start, end uint64) (uint64, bool, error) {
 		startAt := time.Now()
-		end := min(blockNumber, from+MaxQueryObjectChangeRangeSize-1)
-		changes, err := a.Client.GetObjectChanges(ctx, from, end, a.Filter)
+		changes, err := fetch(ctx, start, end)
 		if err != nil {
-			return ObjectDict{}, err
+			if chain.IsTooManyResultsError(err) && start < end {
+				logger.Warnf("too many %s changes in [%d,%d], will retry with a smaller page: %v", label, start, end, err)
+				return 0, true, nil
+			}
+			return 0, false, err
 		}
+		var records uint64
 		beforeSize := len(result.ObjectLatestVersion)
-		var deleteCount int
-		var updateCount int
-		var createCount int
+		var deleteCount, updateCount, createCount int
 		for _, bn := range utils.GetOrderedMapKeys(changes) {
 			for _, oc := range changes[bn] {
-				objectID, objectVersion := oc.ObjectID.String(), oc.Version.Uint64()
-				if oc.Type.IsDeleted() {
-					logger.Debugf("pushing and deleted object %s/%d", objectID, objectVersion)
+				records++
+				objectID, objectVersion, deleted := extract(oc)
+				if deleted {
 					delete(result.ObjectLatestVersion, objectID)
 					deleteCount++
-				} else if preVersion, has := result.ObjectLatestVersion[objectID]; has {
-					logger.Debugf("pushing and updated object %s/%d=>%d", objectID, preVersion, objectVersion)
-					result.ObjectLatestVersion[objectID] = objectVersion
-					updateCount++
 				} else {
-					logger.Debugf("pushing and created object %s/%d", objectID, objectVersion)
+					if _, has := result.ObjectLatestVersion[objectID]; has {
+						updateCount++
+					} else {
+						createCount++
+					}
 					result.ObjectLatestVersion[objectID] = objectVersion
-					createCount++
 				}
 			}
 		}
 		logger.With("used", time.Since(startAt).String()).
-			Infof("pushed object latest version dict in [%d,%d], size %d => %d, created %d and updated %d and deleted %d",
-				from, end, beforeSize, len(result.ObjectLatestVersion), createCount, updateCount, deleteCount)
-		from = end + 1
+			Infof("pushed %s latest version dict in [%d,%d], size %d => %d, created %d and updated %d and deleted %d",
+				label, start, end, beforeSize, len(result.ObjectLatestVersion), createCount, updateCount, deleteCount)
+		return records, false, nil
+	})
+	if err != nil {
+		return ObjectDict{}, err
 	}
 	if size := len(result.ObjectLatestVersion); size > MaxObjectDictLen {
 		err := errors.Errorf("object latest version dict size for handler %s with filter %s is too big: %d > %d",
@@ -347,7 +386,7 @@ func (a HandlerAgentInterval) BuildBindingDataList(
 				message := fmt.Sprintf("object %s version %d has unexpected status %s",
 					req.ObjectID, req.Version.Uint64(), obj.Status)
 				if !ignoreNotExistObject {
-					return nil, errors.Errorf(message)
+					return nil, errors.New(message)
 				}
 				logger.Warnf("%s, will be ignored", message)
 			}

@@ -205,13 +205,7 @@ func (s *Store) Functions(
 	if err != nil {
 		return nil, err
 	}
-	return utils.MapSliceNoError(txs, wrapTransactionPointer), nil
-}
-
-// wrapTransactionPointer adapts the []aptos.Transaction the shared query helper returns to the
-// []*aptos.Transaction the legacy (V1) queries return.
-func wrapTransactionPointer(tx aptos.Transaction) *aptos.Transaction {
-	return &tx
+	return utils.WrapPointerForArray(txs), nil
 }
 
 func (s *Store) FullEvents(
@@ -256,7 +250,7 @@ func (s *Store) FullEvents(
 	if err != nil {
 		return nil, err
 	}
-	return utils.MapSliceNoError(txs, wrapTransactionPointer), nil
+	return utils.WrapPointerForArray(txs), nil
 }
 
 func (s *Store) ResourceChanges(
@@ -303,7 +297,7 @@ func (s *Store) ResourceChanges(
 	if err != nil {
 		return nil, err
 	}
-	return utils.MapSliceNoError(txs, wrapTransactionPointer), nil
+	return utils.WrapPointerForArray(txs), nil
 }
 
 func (s *Store) GetTransactionByVersion(ctx context.Context, txVersion uint64) (*aptos.Transaction, error) {

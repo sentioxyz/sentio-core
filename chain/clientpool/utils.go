@@ -23,19 +23,22 @@ func pushLatestQueue(q queue.Queue[Block], latest Block, dur time.Duration) (que
 		q.PopBack()
 	}
 	q.PushBack(latest)
-	// Trim entries from the front whose timestamp is more than dur behind latest. Because
-	// latest was just pushed (and latest.Timestamp.Sub(latest.Timestamp) == 0 <= dur), the
-	// queue is never emptied here — so Front() always returns a real block.
+	// Trim entries from the front whose timestamp is more than dur behind latest, but always
+	// keep at least two entries: on chains whose block interval exceeds dur, trimming down to
+	// just latest would leave the interval unknown forever. Because latest was just pushed,
+	// the queue is never emptied here — so Front() always returns a real block.
 	var fr Block
 	for {
 		fr, _ = q.Front()
-		if latest.Timestamp.Sub(fr.Timestamp) <= dur {
+		if q.Len() <= 2 || latest.Timestamp.Sub(fr.Timestamp) <= dur {
 			break
 		}
 		q.PopFront()
 	}
 	if fr.Number < latest.Number && fr.Timestamp.Before(latest.Timestamp) {
-		return q, latest.Timestamp.Sub(fr.Timestamp) / time.Duration(latest.Number-fr.Number)
+		// Cap at dur: when the retained pair spans more than dur (slow or halted chain), the
+		// average could grow unboundedly and stall consumers that pace polling by the interval.
+		return q, min(latest.Timestamp.Sub(fr.Timestamp)/time.Duration(latest.Number-fr.Number), dur)
 	}
 	return q, 0
 }

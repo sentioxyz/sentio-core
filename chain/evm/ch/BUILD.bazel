@@ -16,6 +16,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/chain/evm/ch",
     visibility = ["//visibility:public"],
     deps = [
+        "//chain/chain",
         "//chain/clickhouse",
         "//chain/evm",
         "//common/chains",

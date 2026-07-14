@@ -990,23 +990,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApi: 'https://explorer.swellnetwork.io',
     lightIcon: 'https://assets.sentio.xyz/chains/swell.svg'
   },
-  [EthChainId.SWELL_TESTNET]: {
-    name: 'Swell Testnet',
-    slug: 'swell-testnet',
-    chainId: EthChainId.SWELL_TESTNET,
-    nativeChainId: 1924,
-    mainnetChainId: EthChainId.SWELL_MAINNET,
-    variation: EthVariation.OPTIMISM,
-    priceTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenSymbol: 'ETH',
-    tokenDecimals: 18,
-    explorerUrl: 'https://swell-testnet-explorer.alt.technology',
-    explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerApi: 'https://swell-testnet-explorer.alt.technology',
-    lightIcon: 'https://assets.sentio.xyz/chains/swell.svg'
-  },
   [EthChainId.TAC_TESTNET]: {
     name: 'TAC Testnet',
     slug: 'tac-testnet',

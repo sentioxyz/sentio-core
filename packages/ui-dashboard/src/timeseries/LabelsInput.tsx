@@ -16,6 +16,7 @@ interface Props {
   variables?: { [p: string]: TemplateVariableLike }
   small?: boolean
   useRegex?: boolean
+  loading?: boolean
 }
 
 type LabelSelector = { display: string; key: string; value: string }
@@ -26,7 +27,8 @@ export function LabelsInput({
   variables,
   onChange,
   small,
-  useRegex
+  useRegex,
+  loading
 }: Props) {
   const [input, setInput] = useState('')
   const onSelectLabel = (labels: LabelSelector[]) => {
@@ -128,6 +130,7 @@ export function LabelsInput({
 
   return (
     <NewMultipleSelect<LabelSelector>
+      loading={loading}
       input={input}
       onInputChange={setInput}
       className={classNames(

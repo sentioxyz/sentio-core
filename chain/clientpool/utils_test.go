@@ -72,6 +72,44 @@ func Test_pushLatestQueue_trimsEntriesOutsideWindow(t *testing.T) {
 	assert.Equal(t, 4*time.Second, d)
 }
 
+// Test_pushLatestQueue_slowChain_keepsPairForInterval covers chains whose block interval
+// exceeds the check window (e.g. cronos-zkevm produces a block every ~60-80s, and pool
+// observations may skip blocks, spanning even longer). The old code trimmed the queue down
+// to just latest on every push, so the interval stayed 0 forever and WaitBlockInterval
+// callers (like the latest-slot cache init) blocked indefinitely. Now the front is retained
+// when only two entries remain, so an average interval can always be estimated.
+func Test_pushLatestQueue_slowChain_keepsPairForInterval(t *testing.T) {
+	base := time.Unix(1_000_000, 0)
+	dur := time.Minute
+
+	q, d := pushLatestQueue(nil, Block{Number: 100, Timestamp: base}, dur)
+	assert.Equal(t, time.Duration(0), d)
+
+	// +2 blocks spanning 142s > dur: the front is kept so the pair yields 71s, capped to dur.
+	q, d = pushLatestQueue(q, Block{Number: 102, Timestamp: base.Add(142 * time.Second)}, dur)
+	assert.Equal(t, 2, q.Len())
+	assert.Equal(t, dur, d)
+
+	// A third block arrives 58s later (within the window): the stale front is trimmed and the
+	// interval comes from the in-window pair again.
+	q, d = pushLatestQueue(q, Block{Number: 103, Timestamp: base.Add(200 * time.Second)}, dur)
+	assert.Equal(t, 2, q.Len())
+	assert.Equal(t, 58*time.Second, d)
+}
+
+func Test_pushLatestQueue_haltedChain_intervalCappedAtWindow(t *testing.T) {
+	// A chain halts for two hours and resumes: the retained pair spans 2h over 1 block. The
+	// raw average (2h) must not leak out — consumers like Subscribe pace polling by the
+	// interval and would stop watching the chain — so it is capped at dur.
+	base := time.Unix(1_000_000, 0)
+	dur := time.Minute
+
+	q, _ := pushLatestQueue(nil, Block{Number: 100, Timestamp: base}, dur)
+	q, d := pushLatestQueue(q, Block{Number: 101, Timestamp: base.Add(2 * time.Hour)}, dur)
+	assert.Equal(t, 2, q.Len())
+	assert.Equal(t, dur, d)
+}
+
 // Test_pushLatestQueue_reorg_keepsLatest reproduces the production livelock on the Moonbeam
 // super-node (lb pool) and verifies the fix.
 //

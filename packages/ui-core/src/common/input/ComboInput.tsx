@@ -21,6 +21,7 @@ interface Props {
   name?: string
   displayFn?: (option: string, active?: boolean) => React.ReactNode
   clearAfterSelect?: boolean // clear input after select, make it easier to select multiple options
+  loading?: boolean // show a loading hint in the options list instead of "no results"
 }
 
 export function ComboInput({
@@ -34,7 +35,8 @@ export function ComboInput({
   placeholder,
   name,
   displayFn,
-  clearAfterSelect
+  clearAfterSelect,
+  loading
 }: Props) {
   const [input, setInput] = useState('')
   const { width, ref } = useResizeDetector({
@@ -127,10 +129,16 @@ export function ComboInput({
             )}
           </Combobox.Option>
         ))}
-        {filteredOptions.length === 0 && (
+        {loading ? (
           <li className="text-icontent text-text-foreground-disabled w-40 select-none px-3 py-2">
-            No matching results.
+            Loading…
           </li>
+        ) : (
+          filteredOptions.length === 0 && (
+            <li className="text-icontent text-text-foreground-disabled w-40 select-none px-3 py-2">
+              No matching results.
+            </li>
+          )
         )}
       </ul>
     </Combobox.Options>

@@ -45,33 +45,6 @@ func (f ObjectChangeOwnerFilter) Checker() func(oc types.ObjectChangeExtend) boo
 	}
 }
 
-// jsonOwnerTypeToGrpcKind translates the json-rpc owner-type strings
-// (types.ObjectOwner.GetTypeAndID) to the grpc Owner_OwnerKind enum names the
-// grpc data interfaces expect in ObjectChangeOwnerFilter.OwnerType (see the
-// FilterGrpcChangedObjects contract). Values not in the map (including values
-// already in grpc form) pass through unchanged.
-var jsonOwnerTypeToGrpcKind = map[string]string{
-	types.OwnerTypeAddress:          rpcv2.Owner_ADDRESS.String(),
-	types.OwnerTypeObject:           rpcv2.Owner_OBJECT.String(),
-	types.OwnerTypeShared:           rpcv2.Owner_SHARED.String(),
-	types.OwnerTypeConsensusAddress: rpcv2.Owner_CONSENSUS_ADDRESS.String(),
-}
-
-// ToGrpc returns a copy of the filter with json-rpc owner-type strings
-// translated to the grpc enum names (idempotent for values already in grpc form).
-func (f ObjectChangeOwnerFilter) ToGrpc() ObjectChangeOwnerFilter {
-	r := ObjectChangeOwnerFilter{OwnerID: f.OwnerID}
-	if f.OwnerType != nil {
-		r.OwnerType = utils.MapSliceNoError(f.OwnerType, func(t string) string {
-			if g, ok := jsonOwnerTypeToGrpcKind[t]; ok {
-				return g
-			}
-			return t
-		})
-	}
-	return r
-}
-
 func (f ObjectChangeOwnerFilter) CheckerGrpc() func(oc *rpcv2.ChangedObject) bool {
 	ownerIDSet := set.New[string](f.OwnerID...)
 	ownerTypeSet := set.New[string](f.OwnerType...)
@@ -101,15 +74,6 @@ type ObjectChangeFilter struct {
 	TypePattern move.TypeSet             // empty means no object type condition
 	OwnerFilter *ObjectChangeOwnerFilter // nil means no owner condition
 	ObjectIDIn  set.Set[string]          // empty means no object id condition
-}
-
-// ToGrpc returns a copy of the filter with the owner filter translated to the
-// grpc enum conventions (see ObjectChangeOwnerFilter.ToGrpc).
-func (f ObjectChangeFilter) ToGrpc() ObjectChangeFilter {
-	if f.OwnerFilter != nil {
-		f.OwnerFilter = utils.WrapPointer(f.OwnerFilter.ToGrpc())
-	}
-	return f
 }
 
 func (f *ObjectChangeFilter) UnmarshalJSON(data []byte) error {
@@ -654,38 +618,10 @@ func (f FunctionFilter) Check(tx types.TransactionResponseV1) bool {
 	return true
 }
 
-// jsonTxKindToGrpcKind translates the json-rpc transaction kind names
-// (types.TransactionKind.Kind()) to the grpc TransactionKind_Kind enum names
-// the grpc data interfaces expect in FunctionFilter.Kind (see the
-// GetGrpcTransactions contract). Values not in the map (including values
-// already in grpc form) pass through unchanged.
-var jsonTxKindToGrpcKind = map[string]string{
-	"ProgrammableTransaction":   rpcv2.TransactionKind_PROGRAMMABLE_TRANSACTION.String(),
-	"ChangeEpoch":               rpcv2.TransactionKind_CHANGE_EPOCH.String(),
-	"Genesis":                   rpcv2.TransactionKind_GENESIS.String(),
-	"ConsensusCommitPrologueV1": rpcv2.TransactionKind_CONSENSUS_COMMIT_PROLOGUE_V1.String(),
-	"ConsensusCommitPrologueV2": rpcv2.TransactionKind_CONSENSUS_COMMIT_PROLOGUE_V2.String(),
-	"ConsensusCommitPrologueV3": rpcv2.TransactionKind_CONSENSUS_COMMIT_PROLOGUE_V3.String(),
-	"ConsensusCommitPrologueV4": rpcv2.TransactionKind_CONSENSUS_COMMIT_PROLOGUE_V4.String(),
-	"AuthenticatorStateUpdate":  rpcv2.TransactionKind_AUTHENTICATOR_STATE_UPDATE.String(),
-	"EndOfEpochTransaction":     rpcv2.TransactionKind_END_OF_EPOCH.String(),
-	"RandomnessStateUpdate":     rpcv2.TransactionKind_RANDOMNESS_STATE_UPDATE.String(),
-}
-
-// ToGrpc returns a copy of the filter with the json-rpc kind name translated
-// to the grpc enum name (idempotent for values already in grpc form).
-func (f FunctionFilter) ToGrpc() FunctionFilter {
-	if f.Kind != nil {
-		if g, ok := jsonTxKindToGrpcKind[*f.Kind]; ok {
-			f.Kind = utils.WrapPointer(g)
-		}
-	}
-	return f
-}
-
 func (f FunctionFilter) CheckGrpcTx(tx *rpcv2.ExecutedTransaction) bool {
 	// FunctionFilter.Kind carries the grpc TransactionKind_Kind enum name here
-	// (the json-rpc name on the json-rpc path — see ToGrpc / Check).
+	// (the json-rpc kind name on the json-rpc path — see FilterConvention in
+	// driver/controller/standard/sui and the GetGrpcTransactions contract).
 	if f.Kind != nil && tx.GetTransaction().GetKind().GetKind().String() != *f.Kind {
 		return false
 	}
@@ -816,15 +752,6 @@ type TransactionFilter struct {
 	EventFilters    []EventFilterV2
 
 	FailedIsOK bool
-}
-
-// ToGrpc returns a copy of the filter with each function filter translated to
-// the grpc enum conventions (see FunctionFilter.ToGrpc).
-func (f TransactionFilter) ToGrpc() TransactionFilter {
-	if f.FunctionFilters != nil {
-		f.FunctionFilters = utils.MapSliceNoError(f.FunctionFilters, FunctionFilter.ToGrpc)
-	}
-	return f
 }
 
 func (f TransactionFilter) Check(tx types.TransactionResponseV1) bool {

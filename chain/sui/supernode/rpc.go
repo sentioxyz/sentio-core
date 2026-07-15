@@ -349,10 +349,6 @@ func (s *SuperService) GetTransactionsV2(
 //   - CONSENSUS_COMMIT_PROLOGUE_V3
 //   - CONSENSUS_COMMIT_PROLOGUE_V4
 //   - PROGRAMMABLE_SYSTEM_TRANSACTION
-//
-// The json-rpc kind names ("ProgrammableTransaction"/...) are also accepted
-// and normalized (TransactionFilter.ToGrpc) for drivers that predate the grpc
-// filter translation.
 func (s *SuperService) GetGrpcTransactions(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
@@ -365,9 +361,6 @@ func (s *SuperService) GetGrpcTransactions(
 	if err := chain.CheckQuerySpan(fromBlock, toBlock, maxQuerySpan); err != nil {
 		return nil, err
 	}
-	// Normalize json-rpc kind names from drivers older than the wrapAgent
-	// translation (see FilterGrpcChangedObjects).
-	filter = filter.ToGrpc()
 	limit := chain.RangeQueryLimit(fromBlock, toBlock, maxTransactions)
 	result, err := chain.QueryRangeWithCache(
 		ctx,
@@ -499,10 +492,6 @@ func (s *SuperService) FilterObjectChangesV2(
 //   - SHARED
 //   - IMMUTABLE
 //   - CONSENSUS_ADDRESS
-//
-// The json-rpc owner-type strings ("address"/"object"/...) are also accepted
-// and normalized (ObjectChangeFilter.ToGrpc) for drivers that predate the
-// grpc filter translation.
 func (s *SuperService) FilterGrpcChangedObjects(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
@@ -514,10 +503,6 @@ func (s *SuperService) FilterGrpcChangedObjects(
 	if err := chain.CheckQuerySpan(fromBlock, toBlock, maxQuerySpan); err != nil {
 		return nil, err
 	}
-	// Drivers older than the wrapAgent translation send the json-rpc owner-type
-	// strings ("object"/"address"); normalize so both dialects match. Drivers
-	// deploy independently of the super node and may lag several releases.
-	filter = filter.ToGrpc()
 	limit := chain.RangeQueryLimit(fromBlock, toBlock, maxObjectChanges)
 	checker := filter.CheckerGrpc()
 	result, err := chain.QueryRangeWithCache(

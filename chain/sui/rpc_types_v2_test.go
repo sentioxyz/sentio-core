@@ -133,19 +133,14 @@ func Test_ObjectChangeOwnerFilter_CheckerGrpc(t *testing.T) {
 	assert.True(t, f.CheckerGrpc()(changed(objID, rpcv2.Owner_ADDRESS, ownerID)))
 
 	// The grpc contract (FilterGrpcChangedObjects) carries Owner_OwnerKind enum
-	// names in OwnerType; a filter built with the json-rpc lowercase strings is
-	// translated via ToGrpc before reaching the grpc interfaces.
+	// names in OwnerType (the driver's grpc filter convention emits them).
 	f2 := ObjectChangeOwnerFilter{
 		OwnerID:   []string{ownerID},
-		OwnerType: []string{types.OwnerTypeObject},
-	}.ToGrpc()
-	assert.Equal(t, []string{"OBJECT"}, f2.OwnerType)
+		OwnerType: []string{rpcv2.Owner_OBJECT.String()},
+	}
 	assert.True(t, f2.CheckerGrpc()(changed(objID, rpcv2.Owner_OBJECT, ownerID)))
 	assert.False(t, f2.CheckerGrpc()(changed(objID, rpcv2.Owner_ADDRESS, ownerID))) // wrong owner type
 	assert.False(t, f2.CheckerGrpc()(changed(objID, rpcv2.Owner_OBJECT, objID)))    // wrong owner id
-
-	// ToGrpc is idempotent: enum-form values pass through unchanged
-	assert.Equal(t, f2.OwnerType, f2.ToGrpc().OwnerType)
 
 	// Input owner matches too
 	inKind := rpcv2.Owner_OBJECT
@@ -158,17 +153,10 @@ func Test_ObjectChangeOwnerFilter_CheckerGrpc(t *testing.T) {
 	// Address owner type
 	f3 := ObjectChangeOwnerFilter{
 		OwnerID:   []string{ownerID},
-		OwnerType: []string{types.OwnerTypeAddress},
-	}.ToGrpc()
+		OwnerType: []string{rpcv2.Owner_ADDRESS.String()},
+	}
 	assert.True(t, f3.CheckerGrpc()(changed(objID, rpcv2.Owner_ADDRESS, ownerID)))
 	assert.False(t, f3.CheckerGrpc()(changed(objID, rpcv2.Owner_OBJECT, ownerID)))
-
-	// ObjectChangeFilter.ToGrpc translates the nested owner filter
-	cf := ObjectChangeFilter{OwnerFilter: &ObjectChangeOwnerFilter{
-		OwnerID:   []string{ownerID},
-		OwnerType: []string{types.OwnerTypeObject},
-	}}.ToGrpc()
-	assert.Equal(t, []string{"OBJECT"}, cf.OwnerFilter.OwnerType)
 }
 
 func Test_FunctionFilter_CheckGrpcTx_Kind(t *testing.T) {
@@ -181,22 +169,12 @@ func Test_FunctionFilter_CheckGrpcTx_Kind(t *testing.T) {
 	}
 
 	// The grpc contract (GetGrpcTransactions) carries TransactionKind_Kind enum
-	// names in FunctionFilter.Kind; a filter built with the json-rpc kind name
-	// (types.TransactionKind.Kind(), what the move-call agents set) is
-	// translated via ToGrpc. CheckGrpcTx compares against the kind enum, not
-	// the stringified TransactionKind message.
-	f := FunctionFilter{Kind: utils.WrapPointer("ProgrammableTransaction")}.ToGrpc()
-	assert.Equal(t, "PROGRAMMABLE_TRANSACTION", *f.Kind)
+	// names in FunctionFilter.Kind (the driver's grpc filter convention emits
+	// them). CheckGrpcTx compares against the kind enum name, not the
+	// stringified TransactionKind message.
+	f := FunctionFilter{Kind: utils.WrapPointer(rpcv2.TransactionKind_PROGRAMMABLE_TRANSACTION.String())}
 	assert.True(t, f.CheckGrpcTx(tx(rpcv2.TransactionKind_PROGRAMMABLE_TRANSACTION)))
 	assert.False(t, f.CheckGrpcTx(tx(rpcv2.TransactionKind_CHANGE_EPOCH)))
-
-	// ToGrpc is idempotent and TransactionFilter.ToGrpc translates each entry
-	tf := TransactionFilter{FunctionFilters: []FunctionFilter{
-		{Kind: utils.WrapPointer("EndOfEpochTransaction")},
-	}}.ToGrpc()
-	assert.Equal(t, "END_OF_EPOCH", *tf.FunctionFilters[0].Kind)
-	assert.Equal(t, "END_OF_EPOCH", *tf.ToGrpc().FunctionFilters[0].Kind)
-	assert.True(t, tf.FunctionFilters[0].CheckGrpcTx(tx(rpcv2.TransactionKind_END_OF_EPOCH)))
 }
 
 func Test_ObjectChangeFilter_IsEmpty(t *testing.T) {

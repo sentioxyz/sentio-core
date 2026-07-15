@@ -19,6 +19,7 @@ import (
 	"sentioxyz/sentio-core/service/processor/models"
 
 	"github.com/pkg/errors"
+	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 )
 
 type GrpcHandlerAgent interface {
@@ -98,6 +99,7 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, _ uint64) *c
 	extErr := suihandler.BuildSuiAgents(
 		ctx, c.Config, c.ChainConfig, c.Client, first, c.getAddressStart,
 		c.Client.GetGrpcPackageHistory,
+		grpcFilterConvention{},
 		func(agent suihandler.SuiHandlerAgent) {
 			c.Agents = append(c.Agents, wrapAgent(agent))
 		},
@@ -109,8 +111,25 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, _ uint64) *c
 	return nil
 }
 
-// wrapAgent wraps a json-rpc sui agent (built by the shared BuildSuiAgents) into its grpc twin, which
-// reuses the embedded agent's filters but reads grpc data when building bindings.
+// grpcFilterConvention builds filters in the grpc enum-name conventions the
+// grpc data interfaces expect (see the super node's FilterGrpcChangedObjects /
+// GetGrpcTransactions contracts).
+type grpcFilterConvention struct{}
+
+func (grpcFilterConvention) OwnerType(t protos.MoveOwnerType) string {
+	if t == protos.MoveOwnerType_ADDRESS {
+		return rpcv2.Owner_ADDRESS.String()
+	}
+	return rpcv2.Owner_OBJECT.String() // OBJECT / WRAPPED_OBJECT
+}
+
+func (grpcFilterConvention) ProgrammableTxKind() string {
+	return rpcv2.TransactionKind_PROGRAMMABLE_TRANSACTION.String()
+}
+
+// wrapAgent wraps a sui agent (built by the shared BuildSuiAgents with the grpc filter convention)
+// into its grpc twin, which reuses the embedded agent's filters but reads grpc data when building
+// bindings.
 func wrapAgent(agent suihandler.SuiHandlerAgent) GrpcHandlerAgent {
 	switch ag := agent.(type) {
 	case suihandler.HandlerAgentEvent:

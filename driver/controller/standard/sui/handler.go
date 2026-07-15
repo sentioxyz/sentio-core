@@ -97,6 +97,7 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, _ uint64) *c
 	extErr := BuildSuiAgents(
 		ctx, c.Config, c.ChainConfig, c.Client, first, c.getAddressStart,
 		c.Client.GetPackageHistory,
+		JSONRPCFilterConvention,
 		func(agent SuiHandlerAgent) {
 			c.Agents = append(c.Agents, agent)
 		},

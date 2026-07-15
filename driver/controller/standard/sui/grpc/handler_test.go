@@ -10,6 +10,7 @@ import (
 	suidata "sentioxyz/sentio-core/driver/controller/data/sui"
 	suigrpcdata "sentioxyz/sentio-core/driver/controller/data/sui/grpc"
 	suihandler "sentioxyz/sentio-core/driver/controller/standard/sui"
+	"sentioxyz/sentio-core/processor/protos"
 
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 	"github.com/stretchr/testify/assert"
@@ -254,4 +255,20 @@ func TestGrpcBindingTxIndexIsOnChainPosition(t *testing.T) {
 		assert.Equal(t, 5, result[0].TxIndex)
 		assert.Equal(t, 1, result[1].TxIndex)
 	})
+}
+
+// The grpc convention must emit the grpc enum names the grpc data interfaces
+// expect (FilterGrpcChangedObjects / GetGrpcTransactions contracts), while the
+// shared json-rpc convention keeps the json-rpc string forms.
+func Test_grpcFilterConvention(t *testing.T) {
+	g := grpcFilterConvention{}
+	assert.Equal(t, "ADDRESS", g.OwnerType(protos.MoveOwnerType_ADDRESS))
+	assert.Equal(t, "OBJECT", g.OwnerType(protos.MoveOwnerType_OBJECT))
+	assert.Equal(t, "OBJECT", g.OwnerType(protos.MoveOwnerType_WRAPPED_OBJECT))
+	assert.Equal(t, "PROGRAMMABLE_TRANSACTION", g.ProgrammableTxKind())
+
+	j := suihandler.JSONRPCFilterConvention
+	assert.Equal(t, "address", j.OwnerType(protos.MoveOwnerType_ADDRESS))
+	assert.Equal(t, "object", j.OwnerType(protos.MoveOwnerType_WRAPPED_OBJECT))
+	assert.Equal(t, "ProgrammableTransaction", j.ProgrammableTxKind())
 }

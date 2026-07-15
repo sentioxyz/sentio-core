@@ -619,7 +619,10 @@ func (f FunctionFilter) Check(tx types.TransactionResponseV1) bool {
 }
 
 func (f FunctionFilter) CheckGrpcTx(tx *rpcv2.ExecutedTransaction) bool {
-	if f.Kind != nil && tx.GetTransaction().GetKind().String() != *f.Kind {
+	// FunctionFilter.Kind carries the grpc TransactionKind_Kind enum name here
+	// (the json-rpc kind name on the json-rpc path — see FilterConvention in
+	// driver/controller/standard/sui and the GetGrpcTransactions contract).
+	if f.Kind != nil && tx.GetTransaction().GetKind().GetKind().String() != *f.Kind {
 		return false
 	}
 	txCommands := tx.GetTransaction().GetKind().GetProgrammableTransaction().GetCommands()

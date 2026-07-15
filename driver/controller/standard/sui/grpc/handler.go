@@ -110,16 +110,23 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, _ uint64) *c
 }
 
 // wrapAgent wraps a json-rpc sui agent (built by the shared BuildSuiAgents) into its grpc twin, which
-// reuses the embedded agent's filters but reads grpc data when building bindings.
+// reuses the embedded agent's filters but reads grpc data when building bindings. The shared agents
+// carry filters in the json-rpc string conventions (lowercase owner types, json-rpc tx kind names);
+// the grpc data interfaces expect the grpc enum names (see the FilterGrpcChangedObjects /
+// GetGrpcTransactions contracts), so the filters are translated here.
 func wrapAgent(agent suihandler.SuiHandlerAgent) GrpcHandlerAgent {
 	switch ag := agent.(type) {
 	case suihandler.HandlerAgentEvent:
+		ag.Filter = ag.Filter.ToGrpc()
 		return HandlerAgentEvent{HandlerAgentEvent: ag}
 	case suihandler.HandlerAgentFunction:
+		ag.Filter = ag.Filter.ToGrpc()
 		return HandlerAgentFunction{HandlerAgentFunction: ag}
 	case suihandler.HandlerAgentChange:
+		ag.Filter = ag.Filter.ToGrpc()
 		return HandlerAgentChange{HandlerAgentChange: ag}
 	case suihandler.HandlerAgentInterval:
+		ag.Filter = ag.Filter.ToGrpc()
 		return HandlerAgentInterval{HandlerAgentInterval: ag}
 	default:
 		panic(errors.Errorf("unknown sui handler agent type %T", agent))

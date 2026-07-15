@@ -3,11 +3,13 @@ package sui
 import (
 	"encoding/json"
 	"github.com/pkg/errors"
+	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 	"github.com/stretchr/testify/assert"
 	"sentioxyz/sentio-core/chain/move"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/set"
+	"sentioxyz/sentio-core/common/utils"
 	"testing"
 )
 
@@ -110,6 +112,71 @@ func Test_ObjectChangeOwnerFilter_Checker(t *testing.T) {
 	merged := a.Merge(b)
 	assert.Len(t, merged.OwnerID, 3)
 	assert.Len(t, merged.OwnerType, 2)
+}
+
+func Test_ObjectChangeOwnerFilter_CheckerGrpc(t *testing.T) {
+	objID := types.StrToObjectIDMust("0x0001").String()
+	ownerID := types.StrToObjectIDMust("0x0002").String()
+
+	changed := func(id string, kind rpcv2.Owner_OwnerKind, ownerAddr string) *rpcv2.ChangedObject {
+		return &rpcv2.ChangedObject{
+			ObjectId:    &id,
+			OutputOwner: &rpcv2.Owner{Kind: &kind, Address: &ownerAddr},
+		}
+	}
+
+	// Empty filter matches nothing
+	assert.False(t, ObjectChangeOwnerFilter{}.CheckerGrpc()(changed(objID, rpcv2.Owner_OBJECT, ownerID)))
+
+	// Match by object ID directly
+	f := ObjectChangeOwnerFilter{OwnerID: []string{objID}}
+	assert.True(t, f.CheckerGrpc()(changed(objID, rpcv2.Owner_ADDRESS, ownerID)))
+
+	// The filter's OwnerType carries the json-rpc lowercase owner-type strings
+	// (what the driver's interval agents set); the grpc Owner kind enum must be
+	// mapped to them, not compared via its proto enum name.
+	f2 := ObjectChangeOwnerFilter{
+		OwnerID:   []string{ownerID},
+		OwnerType: []string{types.OwnerTypeObject},
+	}
+	assert.True(t, f2.CheckerGrpc()(changed(objID, rpcv2.Owner_OBJECT, ownerID)))
+	assert.False(t, f2.CheckerGrpc()(changed(objID, rpcv2.Owner_ADDRESS, ownerID))) // wrong owner type
+	assert.False(t, f2.CheckerGrpc()(changed(objID, rpcv2.Owner_OBJECT, objID)))    // wrong owner id
+
+	// Input owner matches too
+	inKind := rpcv2.Owner_OBJECT
+	ocInput := &rpcv2.ChangedObject{
+		ObjectId:   &objID,
+		InputOwner: &rpcv2.Owner{Kind: &inKind, Address: &ownerID},
+	}
+	assert.True(t, f2.CheckerGrpc()(ocInput))
+
+	// Address owner type
+	f3 := ObjectChangeOwnerFilter{
+		OwnerID:   []string{ownerID},
+		OwnerType: []string{types.OwnerTypeAddress},
+	}
+	assert.True(t, f3.CheckerGrpc()(changed(objID, rpcv2.Owner_ADDRESS, ownerID)))
+	assert.False(t, f3.CheckerGrpc()(changed(objID, rpcv2.Owner_OBJECT, ownerID)))
+}
+
+func Test_FunctionFilter_CheckGrpcTx_Kind(t *testing.T) {
+	tx := func(kind rpcv2.TransactionKind_Kind) *rpcv2.ExecutedTransaction {
+		success := true
+		return &rpcv2.ExecutedTransaction{
+			Transaction: &rpcv2.Transaction{Kind: &rpcv2.TransactionKind{Kind: &kind}},
+			Effects:     &rpcv2.TransactionEffects{Status: &rpcv2.ExecutionStatus{Success: &success}},
+		}
+	}
+
+	// FunctionFilter.Kind carries the json-rpc kind name (types.TransactionKind.Kind(),
+	// what the driver's move-call agents set); the grpc kind enum must map to it.
+	f := FunctionFilter{Kind: utils.WrapPointer("ProgrammableTransaction")}
+	assert.True(t, f.CheckGrpcTx(tx(rpcv2.TransactionKind_PROGRAMMABLE_TRANSACTION)))
+	assert.False(t, f.CheckGrpcTx(tx(rpcv2.TransactionKind_CHANGE_EPOCH)))
+
+	f2 := FunctionFilter{Kind: utils.WrapPointer("EndOfEpochTransaction")}
+	assert.True(t, f2.CheckGrpcTx(tx(rpcv2.TransactionKind_END_OF_EPOCH)))
 }
 
 func Test_ObjectChangeFilter_IsEmpty(t *testing.T) {

@@ -45,6 +45,25 @@ func (f ObjectChangeOwnerFilter) Checker() func(oc types.ObjectChangeExtend) boo
 	}
 }
 
+// grpcOwnerKindString maps a grpc Owner kind to the json-rpc owner-type string
+// used in ObjectChangeOwnerFilter.OwnerType (types.ObjectOwner.GetTypeAndID),
+// so one filter matches on both data paths. Owner_OwnerKind.String() yields the
+// proto enum name ("OBJECT"), which never equals the lowercase filter values.
+func grpcOwnerKindString(kind rpcv2.Owner_OwnerKind) string {
+	switch kind {
+	case rpcv2.Owner_ADDRESS:
+		return types.OwnerTypeAddress
+	case rpcv2.Owner_OBJECT:
+		return types.OwnerTypeObject
+	case rpcv2.Owner_SHARED:
+		return types.OwnerTypeShared
+	case rpcv2.Owner_CONSENSUS_ADDRESS:
+		return types.OwnerTypeConsensusAddress
+	default:
+		return types.OwnerTypeSpecial
+	}
+}
+
 func (f ObjectChangeOwnerFilter) CheckerGrpc() func(oc *rpcv2.ChangedObject) bool {
 	ownerIDSet := set.New[string](f.OwnerID...)
 	ownerTypeSet := set.New[string](f.OwnerType...)
@@ -56,12 +75,12 @@ func (f ObjectChangeOwnerFilter) CheckerGrpc() func(oc *rpcv2.ChangedObject) boo
 			return true
 		}
 		if owner := oc.GetInputOwner(); owner != nil {
-			if ownerIDSet.Contains(owner.GetAddress()) && ownerTypeSet.Contains(owner.GetKind().String()) {
+			if ownerIDSet.Contains(owner.GetAddress()) && ownerTypeSet.Contains(grpcOwnerKindString(owner.GetKind())) {
 				return true
 			}
 		}
 		if owner := oc.GetOutputOwner(); owner != nil {
-			if ownerIDSet.Contains(owner.GetAddress()) && ownerTypeSet.Contains(owner.GetKind().String()) {
+			if ownerIDSet.Contains(owner.GetAddress()) && ownerTypeSet.Contains(grpcOwnerKindString(owner.GetKind())) {
 				return true
 			}
 		}
@@ -618,8 +637,39 @@ func (f FunctionFilter) Check(tx types.TransactionResponseV1) bool {
 	return true
 }
 
+// grpcTxKindString maps a grpc TransactionKind kind to the json-rpc kind name
+// used in FunctionFilter.Kind (types.TransactionKind.Kind()), so one filter
+// matches on both data paths. The previous code stringified the whole
+// TransactionKind message, which never equals a kind name.
+func grpcTxKindString(kind rpcv2.TransactionKind_Kind) string {
+	switch kind {
+	case rpcv2.TransactionKind_PROGRAMMABLE_TRANSACTION:
+		return "ProgrammableTransaction"
+	case rpcv2.TransactionKind_CHANGE_EPOCH:
+		return "ChangeEpoch"
+	case rpcv2.TransactionKind_GENESIS:
+		return "Genesis"
+	case rpcv2.TransactionKind_CONSENSUS_COMMIT_PROLOGUE_V1:
+		return "ConsensusCommitPrologueV1"
+	case rpcv2.TransactionKind_CONSENSUS_COMMIT_PROLOGUE_V2:
+		return "ConsensusCommitPrologueV2"
+	case rpcv2.TransactionKind_CONSENSUS_COMMIT_PROLOGUE_V3:
+		return "ConsensusCommitPrologueV3"
+	case rpcv2.TransactionKind_CONSENSUS_COMMIT_PROLOGUE_V4:
+		return "ConsensusCommitPrologueV4"
+	case rpcv2.TransactionKind_AUTHENTICATOR_STATE_UPDATE:
+		return "AuthenticatorStateUpdate"
+	case rpcv2.TransactionKind_END_OF_EPOCH:
+		return "EndOfEpochTransaction"
+	case rpcv2.TransactionKind_RANDOMNESS_STATE_UPDATE:
+		return "RandomnessStateUpdate"
+	default:
+		return kind.String()
+	}
+}
+
 func (f FunctionFilter) CheckGrpcTx(tx *rpcv2.ExecutedTransaction) bool {
-	if f.Kind != nil && tx.GetTransaction().GetKind().String() != *f.Kind {
+	if f.Kind != nil && grpcTxKindString(tx.GetTransaction().GetKind().GetKind()) != *f.Kind {
 		return false
 	}
 	txCommands := tx.GetTransaction().GetKind().GetProgrammableTransaction().GetCommands()

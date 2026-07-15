@@ -18,12 +18,44 @@ import (
 	"github.com/pkg/errors"
 )
 
+// FilterConvention supplies the data-path-specific string forms carried in the
+// agent filters. The two data paths compare filter values against different
+// representations of the same concepts: the json-rpc path against the json-rpc
+// owner-type / transaction-kind names (types.OwnerType*,
+// types.TransactionKind.Kind()), the grpc path against the grpc enum names
+// (see the super node's FilterGrpcChangedObjects / GetGrpcTransactions
+// contracts). Each handler controller passes its own convention so agents are
+// built with the right dialect from the start.
+type FilterConvention interface {
+	// OwnerType is the owner-type string for an owner-filtered interval config.
+	OwnerType(t protos.MoveOwnerType) string
+	// ProgrammableTxKind is the transaction-kind string of a programmable transaction.
+	ProgrammableTxKind() string
+}
+
+type jsonRPCFilterConvention struct{}
+
+func (jsonRPCFilterConvention) OwnerType(t protos.MoveOwnerType) string {
+	if t == protos.MoveOwnerType_ADDRESS {
+		return types.OwnerTypeAddress
+	}
+	return types.OwnerTypeObject // OBJECT / WRAPPED_OBJECT
+}
+
+func (jsonRPCFilterConvention) ProgrammableTxKind() string {
+	return "ProgrammableTransaction" // types.TransactionKind.Kind()
+}
+
+// JSONRPCFilterConvention builds filters in the json-rpc string conventions.
+var JSONRPCFilterConvention FilterConvention = jsonRPCFilterConvention{}
+
 // BuildSuiAgents turns the parsed processor config into the SUI handler agents,
 // emitting each built agent via emit. It is the format-agnostic core shared by
 // the json-rpc handler controller (this package) and the grpc one
-// (standard/sui/grpc): both build the SAME agents/filters here, and only differ
-// in how the agent's BuildBindingDataList reads data and serializes the binding.
-// The grpc controller wraps each emitted agent into a grpc agent that embeds it.
+// (standard/sui/grpc): both build the SAME agents here — only the filters'
+// string dialect (convention) and how the agent's BuildBindingDataList reads
+// data differ per path. The grpc controller wraps each emitted agent into a
+// grpc agent that embeds it.
 func BuildSuiAgents(
 	ctx context.Context,
 	config standard.HandlerConfig,
@@ -32,6 +64,7 @@ func BuildSuiAgents(
 	first uint64,
 	getAddressStart func(ctx context.Context, address string, start uint64) (uint64, error),
 	getPackageHistory func(ctx context.Context, pkgID string) ([]string, error),
+	convention FilterConvention,
 	emit func(SuiHandlerAgent),
 ) *controller.ExternalError {
 	_, logger := log.FromContext(ctx)
@@ -67,16 +100,13 @@ func BuildSuiAgents(
 						errors.Errorf("unexpected config for handler %s: address should not be empty because owner type is %s",
 							agent.GetHandlerID().String(), intervalConfig.GetOwnerType().String()))
 				}
-				agent.Filter.OwnerFilter = &chainsui.ObjectChangeOwnerFilter{OwnerID: []string{accountAddress}}
+				agent.Filter.OwnerFilter = &chainsui.ObjectChangeOwnerFilter{
+					OwnerID:   []string{accountAddress},
+					OwnerType: []string{convention.OwnerType(intervalConfig.GetOwnerType())},
+				}
 				agent.UnwrapDynamicObject = true
-				switch intervalConfig.GetOwnerType() {
-				case protos.MoveOwnerType_ADDRESS:
-					agent.Filter.OwnerFilter.OwnerType = []string{"address"}
-				case protos.MoveOwnerType_OBJECT:
-					agent.Filter.OwnerFilter.OwnerType = []string{"object"}
+				if intervalConfig.GetOwnerType() == protos.MoveOwnerType_OBJECT {
 					agent.NeedSelf = true
-				case protos.MoveOwnerType_WRAPPED_OBJECT:
-					agent.Filter.OwnerFilter.OwnerType = []string{"object"}
 				}
 				if !intervalConfig.GetResourceFetchConfig().GetOwned() {
 					agent.Filter.OwnerFilter.OwnerType = nil
@@ -106,7 +136,7 @@ func BuildSuiAgents(
 		}
 
 		for _, moveCallConfig := range accountConfig.GetMoveCallConfigs() {
-			agent, extErr := buildFunctionAgent(dataSource, dataSourceID, accountAddress, moveCallConfig, blockRange)
+			agent, extErr := buildFunctionAgent(dataSource, dataSourceID, accountAddress, moveCallConfig, blockRange, convention)
 			if extErr != nil {
 				return extErr
 			}
@@ -188,7 +218,7 @@ func BuildSuiAgents(
 		}
 
 		for _, moveCallConfig := range contractConfig.GetMoveCallConfigs() {
-			agent, extErr := buildFunctionAgent(dataSource, dataSourceID, contractAddress, moveCallConfig, blockRange)
+			agent, extErr := buildFunctionAgent(dataSource, dataSourceID, contractAddress, moveCallConfig, blockRange, convention)
 			if extErr != nil {
 				return extErr
 			}
@@ -220,6 +250,7 @@ func buildFunctionAgent(
 	address string,
 	moveCallConfig *protos.MoveCallHandlerConfig,
 	blockRange controller.BlockRange,
+	convention FilterConvention,
 ) (HandlerAgentFunction, *controller.ExternalError) {
 	agent := HandlerAgentFunction{
 		BaseHandlerAgent: controller.NewBaseHandlerAgent(dataSource, dataSourceID, "call", moveCallConfig, blockRange),
@@ -231,7 +262,7 @@ func buildFunctionAgent(
 	}
 	for _, f := range moveCallConfig.GetFilters() {
 		var ff chainsui.FunctionFilter
-		ff.Kind = utils.WrapPointer("ProgrammableTransaction")
+		ff.Kind = utils.WrapPointer(convention.ProgrammableTxKind())
 		ff.CommandFilter = &chainsui.CommandFilter{}
 		if address != "" {
 			packageID, parseErr := types.StrToObjectID(address)

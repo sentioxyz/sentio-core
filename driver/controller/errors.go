@@ -144,6 +144,10 @@ const (
 	ErrCodeTooManyWebhookMsgEntity
 
 	ErrCodeSubgraphEthCallWithInvalidParam
+
+	// the processor exceeded the V8 heap limit (--max-old-space-size) and aborted;
+	// detected from the pod termination message, see driverjob_reconciler.fillExitStatus
+	ErrCodeProcessorHeapOverflow
 )
 
 // billing error

@@ -88,17 +88,29 @@ func (f *BaseFunction) TimeRangeCondString(specifiedTimeRange *timerange.TimeRan
 	return strings.Join(conditions, " AND ")
 }
 
-func (f *BaseFunction) clickhouseAlignedTime(t time.Time, step time.Duration) string {
+func timezoneName(tr *timerange.TimeRange) string {
+	if tr != nil && tr.Timezone != nil {
+		return tr.Timezone.String()
+	}
+	return "UTC"
+}
+
+// clickhouseAlignedTime truncates t to the step boundary in tz.
+// Must use the same timezone as sliding-window day filters (date_trunc(..., tz)),
+// otherwise WITH FILL generates UTC midnights that never match non-UTC buckets.
+func (f *BaseFunction) clickhouseAlignedTime(t time.Time, step time.Duration, tz string) string {
 	var (
 		ckTimeLayout   = "2006-01-02 15:04:05"
-		outputFormat   = "toDateTime64(date_trunc('%s', toDateTime64('%s', 6, 'UTC'), 'UTC'), 6, 'UTC')"
+		outputFormat   = "toDateTime64(date_trunc('%s', toDateTime64('%s', 6, 'UTC'), '%s'), 6, 'UTC')"
 		fallbackLayout = "toDateTime64('%s', 6, 'UTC')"
 	)
-	if unit, ok := util.HistogramTimeUnitMap[step]; ok {
-		return fmt.Sprintf(outputFormat, unit, t.Format(ckTimeLayout))
-	} else {
-		return fmt.Sprintf(fallbackLayout, t.Format(ckTimeLayout))
+	if tz == "" {
+		tz = "UTC"
 	}
+	if unit, ok := util.HistogramTimeUnitMap[step]; ok {
+		return fmt.Sprintf(outputFormat, unit, t.UTC().Format(ckTimeLayout), tz)
+	}
+	return fmt.Sprintf(fallbackLayout, t.UTC().Format(ckTimeLayout))
 }
 
 func (f *BaseFunction) StartAlignedTime(specifiedTimeRange *timerange.TimeRange) string {
@@ -106,7 +118,7 @@ func (f *BaseFunction) StartAlignedTime(specifiedTimeRange *timerange.TimeRange)
 	if timeRange == nil {
 		return "now()"
 	}
-	return f.clickhouseAlignedTime(timeRange.Start, timeRange.Step)
+	return f.clickhouseAlignedTime(timeRange.Start, timeRange.Step, timezoneName(timeRange))
 }
 
 func (f *BaseFunction) EndAlignedTime(specifiedTimeRange *timerange.TimeRange) string {
@@ -114,7 +126,7 @@ func (f *BaseFunction) EndAlignedTime(specifiedTimeRange *timerange.TimeRange) s
 	if timeRange == nil {
 		return "now()"
 	}
-	return f.clickhouseAlignedTime(timeRange.End, timeRange.Step)
+	return f.clickhouseAlignedTime(timeRange.End, timeRange.Step, timezoneName(timeRange))
 }
 
 func (f *BaseFunction) RateSampleAlignedInterval(specifiedTimeRange *timerange.TimeRange) string {

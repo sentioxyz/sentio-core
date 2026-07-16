@@ -72,6 +72,29 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 			}
 		}
 	}
+	for _, view := range tablesMeta.Views {
+		pre, has, err := s.ctrl.LoadOne(ctx, view.Name, false)
+		if err != nil {
+			logger.Errorfe(err, "load view %s failed", view.Name)
+			return nil, errors.Wrapf(err, "load view %s failed", view.Name)
+		}
+		if !has {
+			if err = s.ctrl.Create(ctx, view); err != nil {
+				logger.Errorfe(err, "create view %s failed", view.Name)
+				return nil, errors.Wrapf(err, "create view %s failed", view.Name)
+			}
+			continue
+		}
+		if pre.GetKind() != view.GetKind() {
+			logger.Warnf("skip syncing view %s: a %s with the same name exists, drop it manually to migrate",
+				view.Name, pre.GetKind())
+			continue
+		}
+		if err = s.ctrl.Sync(ctx, pre, view); err != nil {
+			logger.Errorfe(err, "sync view %s failed", view.Name)
+			return nil, errors.Wrapf(err, "sync view %s failed", view.Name)
+		}
+	}
 	return s, nil
 }
 

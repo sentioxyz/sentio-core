@@ -48,6 +48,7 @@ go_test(
         "//driver/controller/data/sui",
         "//driver/controller/data/sui/grpc",
         "//driver/controller/standard/sui",
+        "//processor/protos",
         "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -664,39 +664,3 @@ func (r *Resource) fromRawChange(
 	return true
 }
 
-type TableItem struct {
-	BlockIndex
-	TransactionIndex
-	ChangeIndex
-	Handle string `clickhouse:"table_item_handle"`
-	Key    string `clickhouse:"table_item_key"`
-	Value  string `clickhouse:"table_item_value"`
-	Data   string `clickhouse:"table_item_data"`
-}
-
-func (t *TableItem) fromRawChange(
-	blockIndex BlockIndex,
-	txIndex TransactionIndex,
-	changeIndex ChangeIndex,
-	wc api.WriteSetChange,
-) bool {
-	switch wc.Type {
-	case api.WriteSetChangeVariantWriteTableItem:
-		wti := wc.Inner.(*api.WriteSetChangeWriteTableItem)
-		t.Handle = wti.Handle
-		t.Key = wti.Key
-		t.Value = wti.Value
-		t.Data, _ = jsonMarshalToString(wti.Data)
-	case api.WriteSetChangeVariantDeleteTableItem:
-		wti := wc.Inner.(*api.WriteSetChangeDeleteTableItem)
-		t.Handle = wti.Handle
-		t.Key = wti.Key
-		t.Data, _ = jsonMarshalToString(wti.Data)
-	default:
-		return false
-	}
-	t.BlockIndex = blockIndex
-	t.TransactionIndex = txIndex
-	t.ChangeIndex = changeIndex
-	return true
-}

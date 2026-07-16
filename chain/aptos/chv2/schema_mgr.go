@@ -3,6 +3,7 @@ package chv2
 import (
 	"context"
 	"fmt"
+	"github.com/aptos-labs/aptos-go-sdk/api"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"sentioxyz/sentio-core/chain/aptos"
 	"sentioxyz/sentio-core/chain/clickhouse"
@@ -48,7 +49,6 @@ func NewClickhouseSchemaMgr(
 		}
 		return clickhouse.BuildTable(name, tblObj, config, "")
 	}
-	// the order should match to const *TableIdx
 	tables := []clickhouse.TableSchema{
 		createTableSchema(tableNameBlocks, &Block{}, blockPartitionBy, "block_height"),
 		createTableSchema(tableNameTransactions, &Transaction{}, txnPartitionBy, "transaction_version"),
@@ -56,17 +56,54 @@ func NewClickhouseSchemaMgr(
 		createTableSchema(tableNameChanges, &Change{}, txnPartitionBy, "transaction_version", "change_index"),
 		createTableSchema(tableNameResources, &Resource{}, txnPartitionBy, "transaction_version", "change_index"),
 		createTableSchema(tableNameModules, &Module{}, txnPartitionBy, "transaction_version", "change_index"),
-		createTableSchema(tableNameTableItems, &TableItem{}, txnPartitionBy, "transaction_version", "change_index"),
+	}
+	views := []chx.View{
+		buildTableItemsView(ctrl),
 	}
 	return &ClickhouseSchemaMgr{
 		tablesMeta: clickhouse.TablesMeta{
 			Tables:                      tables,
+			Views:                       views,
 			LinkTableIndex:              -1,
 			BlockTableIndex:             0,
 			BlockTableMinSubNumberField: "first_version",
 			BlockTableMaxSubNumberField: "last_version",
 		},
 		convertConcurrency: convertConcurrency,
+	}
+}
+
+// buildTableItemsView builds the table_items view over the transactions table. Table item
+// changes are fully contained in the embedded `changes` JSON array of transactions, so they
+// are exposed as a view instead of being persisted a second time.
+//
+// The ARRAY JOIN intentionally only unnests arrayEnumerate(changes) and every column takes
+// changes[ci] lazily, so queries that do not touch the JSON-derived columns never read the
+// big `changes` column. Column order matches the legacy physical table, with the previously
+// missing state_key_hash (the identifier of the storage slot in the state tree, uniform
+// across all change types) appended at the end.
+func buildTableItemsView(ctrl chx.Controller) chx.View {
+	return chx.View{
+		Name: tableNameTableItems,
+		Select: fmt.Sprintf(`SELECT
+    block_height,
+    block_timestamp,
+    block_hash,
+    transaction_hash,
+    transaction_index,
+    transaction_version,
+    JSONExtractString(changes[ci], 'type') AS type,
+    toUInt64(ci - 1) AS change_index,
+    JSONExtractString(changes[ci], 'handle') AS table_item_handle,
+    JSONExtractString(changes[ci], 'key') AS table_item_key,
+    if(startsWith(JSONExtractString(changes[ci], 'type'), 'delete'), '', JSONExtractString(changes[ci], 'value')) AS table_item_value,
+    JSONExtractRaw(changes[ci], 'data') AS table_item_data,
+    JSONExtractString(changes[ci], 'state_key_hash') AS state_key_hash
+FROM %s
+ARRAY JOIN arrayEnumerate(changes) AS ci
+WHERE JSONExtractString(changes[ci], 'type') IN ('write_table_item', 'delete_table_item')`,
+			ctrl.FullLogicName(tableNameTransactions)),
+		Comment: "table item changes extracted from the embedded changes of the transactions table",
 	}
 }
 
@@ -81,7 +118,6 @@ func (m *ClickhouseSchemaMgr) convert(slot *aptos.Slot) (
 	changes []Change,
 	modules []Module,
 	resources []Resource,
-	tableItems []TableItem,
 	err error,
 ) {
 	blockIndex := BlockIndex{
@@ -139,9 +175,10 @@ func (m *ClickhouseSchemaMgr) convert(slot *aptos.Slot) (
 				transaction.ResourceChangesCount++
 				continue
 			}
-			var tableItem TableItem
-			if tableItem.fromRawChange(blockIndex, txIndex, changeIndex, *wc) {
-				tableItems = append(tableItems, tableItem)
+			// table item changes are served by the table_items view over transactions,
+			// only the per-transaction counter is still maintained here
+			switch wc.Type {
+			case api.WriteSetChangeVariantWriteTableItem, api.WriteSetChangeVariantDeleteTableItem:
 				transaction.TableItemChangesCount++
 			}
 		}
@@ -151,7 +188,7 @@ func (m *ClickhouseSchemaMgr) convert(slot *aptos.Slot) (
 }
 
 func (m *ClickhouseSchemaMgr) Convert(_ context.Context, slot *aptos.Slot) (clickhouse.Chunk, error) {
-	block, transactions, events, changes, modules, resources, tableItems, err := m.convert(slot)
+	block, transactions, events, changes, modules, resources, err := m.convert(slot)
 	if err != nil {
 		return clickhouse.Chunk{}, err
 	}
@@ -173,10 +210,7 @@ func (m *ClickhouseSchemaMgr) Convert(_ context.Context, slot *aptos.Slot) (clic
 	for _, md := range modules {
 		values = append(values, objectx.CollectFieldValues(md, fieldFilter))
 	}
-	for _, ti := range tableItems {
-		values = append(values, objectx.CollectFieldValues(ti, fieldFilter))
-	}
-	counts := []int{1, len(transactions), len(events), len(changes), len(resources), len(modules), len(tableItems)}
+	counts := []int{1, len(transactions), len(events), len(changes), len(resources), len(modules)}
 	return clickhouse.Chunk{RowNum: counts, RowData: values}, nil
 }
 

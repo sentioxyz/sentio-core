@@ -16,6 +16,12 @@ type TableSchema struct {
 type TablesMeta struct {
 	Tables []TableSchema
 
+	// Views are auxiliary views created alongside the tables. They are not write targets:
+	// save, delete and verification only apply to Tables. A view is skipped (with a warning)
+	// if a physical table with the same name still exists, so replacing a table with a view
+	// requires dropping the legacy table manually first.
+	Views []chx.View
+
 	// LinkTableIndex >=0 means the chain need to check the link between blocks
 	LinkTableIndex           int
 	LinkTableNumberField     string

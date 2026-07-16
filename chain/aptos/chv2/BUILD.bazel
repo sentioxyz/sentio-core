@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "chv2",
@@ -28,5 +28,16 @@ go_library(
         "@com_github_ethereum_go_ethereum//common",
         "@com_github_ethereum_go_ethereum//common/hexutil",
         "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "chv2_test",
+    srcs = ["schema_mgr_test.go"],
+    embed = [":chv2"],
+    deps = [
+        "//chain/aptos",
+        "//common/chx",
+        "@com_github_stretchr_testify//assert",
     ],
 )

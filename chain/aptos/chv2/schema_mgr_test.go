@@ -31,6 +31,8 @@ func TestTablesMetaAndConvertAlignment(t *testing.T) {
 	view := meta.Views[0]
 	assert.Equal(t, tableNameTableItems, view.Name)
 	assert.Contains(t, view.Select, "`db`.`aptos-test.transactions`")
+	// the view exposes the storage-slot identifier that the legacy physical table was missing
+	assert.Contains(t, view.Select, "JSONExtractString(changes[ci], 'state_key_hash') AS state_key_hash")
 
 	// Chunk.RowNum must stay aligned with Tables
 	chunk, err := m.Convert(context.Background(), &aptos.Slot{})

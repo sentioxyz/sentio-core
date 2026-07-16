@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "prebuilt_function",
@@ -16,5 +16,15 @@ go_library(
         "//service/common/timeseries/adaptor_metrics/selector",
         "//service/common/timeseries/util",
         "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "prebuilt_function_test",
+    srcs = ["base_test.go"],
+    embed = [":prebuilt_function"],
+    deps = [
+        "//service/common/timerange",
+        "@com_github_stretchr_testify//require",
     ],
 )

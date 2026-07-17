@@ -4,6 +4,7 @@ import (
 	"context"
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/envconf"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/timeseries"
 	"sync"
@@ -12,6 +13,17 @@ import (
 type Option struct {
 	// Determines the batch size of the batch insert
 	BatchInsertSizeLimit int
+	// Maximum number of distinct metrics (counters and gauges combined) across all chains,
+	// as metric tables are shared between chains. 0 means the default
+	MetricNameLimit int
+	// Maximum number of distinct event types across all chains, 0 means the default
+	EventNameLimit int
+	// Maximum number of time series of a single metric on one chain — each chain has its own
+	// label combinations. 0 means the default
+	SeriesLimitPerMetric int
+	// Maximum total number of time series summed over all tracked metrics and chains,
+	// 0 means the default
+	SeriesLimitTotal int
 }
 
 type Probe interface {
@@ -30,6 +42,11 @@ type Store struct {
 	meta     storeMeta
 
 	cachedCounterSeriesLatest *utils.SafeMap[string, *counterSeriesLatestCache]
+	cachedGaugeSeriesIDs      *utils.SafeMap[string, *gaugeSeriesIDCache]
+	// number of known time series of each metric, key is built by seriesCountKey
+	seriesCount *utils.SafeMap[string, int]
+	// chains whose series counts have been backfilled from the storage, guarded by metaLock
+	seriesCountLoadedChains set.Set[string]
 
 	probe Probe
 }
@@ -38,6 +55,14 @@ type counterSeriesLatestCache struct {
 	labelFields []timeseries.Field
 	valueFields []timeseries.Field
 	seriesLast  map[string]timeseries.Row // key is series ID
+}
+
+type gaugeSeriesIDCache struct {
+	labelFields []timeseries.Field
+	ids         set.Set[string] // series IDs
+	// the metric already had more series than the limit when this cache was loaded,
+	// so the full ID set is unknown and the series limit is not enforced for it
+	overLimitOnLoad bool
 }
 
 var (
@@ -49,6 +74,18 @@ func NewStore(ctrl chx.Controller, option Option, probe Probe) *Store {
 	if option.BatchInsertSizeLimit == 0 {
 		option.BatchInsertSizeLimit = int(defaultBatchInsertSizeLimit)
 	}
+	if option.MetricNameLimit == 0 {
+		option.MetricNameLimit = int(defaultMetricNameLimit)
+	}
+	if option.EventNameLimit == 0 {
+		option.EventNameLimit = int(defaultEventNameLimit)
+	}
+	if option.SeriesLimitPerMetric == 0 {
+		option.SeriesLimitPerMetric = int(defaultSeriesLimitPerMetric)
+	}
+	if option.SeriesLimitTotal == 0 {
+		option.SeriesLimitTotal = int(defaultSeriesLimitTotal)
+	}
 	if probe == nil {
 		probe = emptyProbe{}
 	}
@@ -56,6 +93,9 @@ func NewStore(ctrl chx.Controller, option Option, probe Probe) *Store {
 		ctrl:                      ctrl,
 		option:                    option,
 		cachedCounterSeriesLatest: utils.NewSafeMap[string, *counterSeriesLatestCache](),
+		cachedGaugeSeriesIDs:      utils.NewSafeMap[string, *gaugeSeriesIDCache](),
+		seriesCount:               utils.NewSafeMap[string, int](),
+		seriesCountLoadedChains:   set.New[string](),
 		probe:                     probe,
 	}
 }

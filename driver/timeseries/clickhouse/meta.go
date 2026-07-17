@@ -286,6 +286,10 @@ func (s *Store) syncMeta(ctx context.Context, data timeseries.Dataset) error {
 
 	preMeta, preTable, has := s.meta.find(meta.Type, meta.Name)
 	if !has {
+		if err := checkMetaNameLimit(s.meta, meta, s.option.MetricNameLimit, s.option.EventNameLimit); err != nil {
+			logger.Errore(err, "refuse to create new meta")
+			return err
+		}
 		logger.Debug("will create table")
 		table := s.metaToTable(ctx, meta)
 		if err := s.probe.PreCreateTable(ctx, table); err != nil {
@@ -345,6 +349,9 @@ func (s *Store) CleanAll(ctx context.Context) error {
 	}
 	s.meta = nil
 	s.cachedCounterSeriesLatest = utils.NewSafeMap[string, *counterSeriesLatestCache]()
+	s.cachedGaugeSeriesIDs = utils.NewSafeMap[string, *gaugeSeriesIDCache]()
+	s.seriesCount = utils.NewSafeMap[string, int]()
+	s.seriesCountLoadedChains = set.New[string]()
 	return nil
 }
 

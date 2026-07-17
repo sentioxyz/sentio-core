@@ -35,6 +35,9 @@ type Store interface {
 }
 
 var (
-	ErrInvalidMetaDiff = errors.New("invalid meta diff")
-	ErrInvalidMeta     = errors.New("invalid meta")
+	ErrInvalidMetaDiff   = errors.New("invalid meta diff")
+	ErrInvalidMeta       = errors.New("invalid meta")
+	ErrTooManyMetrics    = errors.New("too many metrics")
+	ErrTooManyEventTypes = errors.New("too many event types")
+	ErrTooManySeries     = errors.New("too many time series")
 )

@@ -19,6 +19,7 @@ import (
 	"sentioxyz/sentio-core/common/chx"
 	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/concurrency"
+	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/gonanoid"
 	"sentioxyz/sentio-core/common/log"
@@ -289,6 +290,9 @@ func (c *baseStartupController) newEntityProbe() (entitychs.Probe, error) {
 	}, nil
 }
 
+// limits the entity types defined in the GraphQL schema; chain-independent by nature
+var maxEntityTypes = envconf.LoadUInt64("SENTIO_ENTITY_TYPE_LIMIT", 500, envconf.WithMin(1))
+
 func (c *baseStartupController) buildEntityStore(ctx context.Context, schemaText string) *controller.ExternalError {
 	_, logger := log.FromContext(ctx)
 
@@ -302,6 +306,13 @@ func (c *baseStartupController) buildEntityStore(ctx context.Context, schemaText
 	entitySchema, buildErr := schema.ParseAndVerifySchema(schemaText, entityFea.BuildVerifyOptions()...)
 	if buildErr != nil {
 		return controller.NewExternalError(controller.ErrCodeInvalidEntitySchema, buildErr)
+	}
+
+	entityTypes := entitySchema.ListEntitiesAndInterfacesAndAggregations(true)
+	if uint64(len(entityTypes)) > maxEntityTypes {
+		return controller.NewExternalError(controller.ErrCodeTooManyEntityTypes, errors.Errorf(
+			"the entity schema defines %d entity types (entities, interfaces and aggregations), over the limit %d",
+			len(entityTypes), maxEntityTypes))
 	}
 
 	probe, err := c.newEntityProbe()

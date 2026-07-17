@@ -13,6 +13,7 @@ import (
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/format"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/timer"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/timeseries"
@@ -44,6 +45,15 @@ func (s *Store) AppendData(ctx context.Context, data []timeseries.Dataset, chain
 	syncTm := tm.Start("S")
 	err = s.syncMetas(ctx, data)
 	if err != nil {
+		return err
+	}
+	skipNames := set.New[string]()
+	for _, ds := range data {
+		if len(ds.Rows) > 0 && ds.Meta.Aggregation == nil {
+			skipNames.Add(ds.Meta.GetFullName())
+		}
+	}
+	if err = s.ensureSeriesCountsLoaded(ctx, chainID, skipNames); err != nil {
 		return err
 	}
 	syncTm.End()
@@ -145,6 +155,20 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 				seriesLast:  seriesLast,
 			})
 		}
+		if len(seriesLast) > s.option.SeriesLimitPerMetric {
+			// the metric already had more series than the limit when the cache was loaded,
+			// keep it working instead of enforcing the limit retroactively
+			logger.Warnf("counter already has more than %d series, the series limit will not be enforced for it",
+				s.option.SeriesLimitPerMetric)
+		} else {
+			newIDs := collectNewSeriesIDs(ds.Rows, labelFields, func(seriesID string) bool {
+				_, has := seriesLast[seriesID]
+				return has
+			})
+			if err := s.checkSeriesLimit(ds.Meta, chainID, len(seriesLast), newIDs.Size()); err != nil {
+				return err
+			}
+		}
 		modifier = func(row timeseries.Row) timeseries.Row {
 			seriesID := buildSeriesID(row, labelFields)
 			lastRow, has := seriesLast[seriesID]
@@ -157,6 +181,23 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 			seriesLast[seriesID] = after
 			logger.Debugw("cumulative", "before", row, "after", after)
 			return after
+		}
+	} else if ds.Type == timeseries.MetaTypeGauge {
+		if labelFields := ds.Meta.GetFieldsByRole(timeseries.FieldRoleSeriesLabel); len(labelFields) > 0 {
+			cache, err := s.loadGaugeSeriesIDs(ctx, ds.Meta, chainID, labelFields)
+			if err != nil {
+				return err
+			}
+			if !cache.overLimitOnLoad {
+				newIDs := collectNewSeriesIDs(ds.Rows, labelFields, cache.ids.Contains)
+				if err := s.checkSeriesLimit(ds.Meta, chainID, cache.ids.Size(), newIDs.Size()); err != nil {
+					return err
+				}
+				// registered before the insert runs: if the insert fails the whole commit
+				// fails and the controller resets via DeleteData, which drops these caches,
+				// so the cache can never keep series that were not actually written
+				cache.ids.Add(newIDs.DumpValues()...)
+			}
 		}
 	}
 	sql := fmt.Sprintf("INSERT INTO %s (%s)",
@@ -297,10 +338,13 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int64) error {
 	s.metaLock.Lock()
 	defer s.metaLock.Unlock()
-	// the rows being deleted may carry the latest value of counter series; drop the cached
-	// latest values so the next insert reloads them, otherwise later counter writes would
-	// accumulate on top of values that include the deleted rows
+	// the rows being deleted may carry the latest value of counter series and may remove
+	// series entirely; drop all series caches so the next insert reloads them, otherwise
+	// later counter writes would accumulate on top of values that include the deleted rows
 	s.cachedCounterSeriesLatest = utils.NewSafeMap[string, *counterSeriesLatestCache]()
+	s.cachedGaugeSeriesIDs = utils.NewSafeMap[string, *gaugeSeriesIDCache]()
+	s.seriesCount = utils.NewSafeMap[string, int]()
+	s.seriesCountLoadedChains = set.New[string]()
 	_, logger := log.FromContext(ctx, "chainID", chainID, "slotNumberGt", slotNumberGt)
 	logger.Debug("will delete")
 	for _, item := range s.meta {

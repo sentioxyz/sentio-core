@@ -4,6 +4,7 @@ go_library(
     name = "clickhouse",
     srcs = [
         "data.go",
+        "limits.go",
         "meta.go",
         "meta_store.go",
         "store.go",
@@ -31,6 +32,7 @@ go_library(
 go_test(
     name = "clickhouse_test",
     srcs = [
+        "limits_test.go",
         "meta_test.go",
         "store_test.go",
     ],
@@ -39,6 +41,8 @@ go_test(
         "//common/chx",
         "//common/clickhousemanager",
         "//common/period",
+        "//common/set",
+        "//common/utils",
         "//driver/timeseries",
         "@com_github_shopspring_decimal//:decimal",
         "@com_github_stretchr_testify//assert",

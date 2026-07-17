@@ -97,6 +97,15 @@ func (c *timeSeriesController) Commit(
 		if errors.Is(err, timeseries.ErrInvalidMeta) {
 			return nil, controller.NewExternalError(controller.ErrCodeInvalidTimeSeriesData, err)
 		}
+		if errors.Is(err, timeseries.ErrTooManyMetrics) {
+			return nil, controller.NewExternalError(controller.ErrCodeTooManyMetrics, err)
+		}
+		if errors.Is(err, timeseries.ErrTooManyEventTypes) {
+			return nil, controller.NewExternalError(controller.ErrCodeTooManyEventTypes, err)
+		}
+		if errors.Is(err, timeseries.ErrTooManySeries) {
+			return nil, controller.NewExternalError(controller.ErrCodeTooManyTimeSeries, err)
+		}
 		return nil, controller.NewExternalError(controller.ErrCodeSaveTimeSeriesDataFailed,
 			errors.Wrapf(err, "failed to commit timeseries data: %s", timeseries.GetDatasetsSummary(data)))
 	}

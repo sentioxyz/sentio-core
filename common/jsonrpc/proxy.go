@@ -135,8 +135,11 @@ func ProxyJSONRPCRequest[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCCl
 			return cli.CallContext(ctx, &data, src, method, args...)
 		},
 		clientpool.WithoutTags[CONFIG](clientpool.MethodNotSupportedTag(method)),
+		// A method-authority endpoint rejecting the method means no other endpoint should be
+		// probed for it: give the caller a method-not-found response right away.
+		clientpool.InterruptWithTags[CONFIG](clientpool.MethodNotSupportedByAuthorityTag(method)),
 	)
-	if errors.Is(r.Err, clientpool.ErrNoValidClient) {
+	if errors.Is(r.Err, clientpool.ErrNoValidClient) || errors.Is(r.Err, clientpool.ErrInterrupted) {
 		return nil, NewJSONError(
 			MethodNotFoundErrorCode,
 			fmt.Sprintf("the method %s does not exist/is not available", method),

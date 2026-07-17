@@ -6,6 +6,7 @@ go_library(
         "client_pool.go",
         "config.go",
         "external.go",
+        "jsonrpc_config.go",
         "snapshot.go",
         "statistic.go",
         "utils.go",

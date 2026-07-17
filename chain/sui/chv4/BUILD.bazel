@@ -45,6 +45,7 @@ go_test(
     ],
     embed = [":chv4"],
     deps = [
+        "//chain/clientpool",
         "//chain/sui",
         "//chain/sui/types",
         "//common/chx",

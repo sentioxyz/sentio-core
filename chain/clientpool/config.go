@@ -11,13 +11,7 @@ type ClientConfig[CONFIG EntryConfig[CONFIG]] struct {
 	// Excluded from serialization; passed to Notifier so callers can identify which entry triggered the notification.
 	Index    uint32 `json:"-" yaml:"-"`
 	Priority uint32 `json:"priority" yaml:"priority"`
-	// MethodAuthority marks this entry as defining the pool's supported method set (typically the
-	// chain's own full nodes). When any method-authority entry reports a method as not supported,
-	// the pool rejects that method outright instead of probing other endpoints for it — except
-	// for methods disabled by the entry's own method black/white list (see MethodACL), for which
-	// the entry abstains.
-	MethodAuthority bool   `json:"method_authority,omitempty" yaml:"method_authority,omitempty"`
-	Config          CONFIG `json:",inline" yaml:",inline"`
+	Config   CONFIG `json:",inline" yaml:",inline"`
 }
 
 // MarshalJSON flattens Config fields into the same JSON object as Priority.
@@ -36,30 +30,23 @@ func (c ClientConfig[CONFIG]) MarshalJSON() ([]byte, error) {
 	if m["priority"], err = json.Marshal(c.Priority); err != nil {
 		return nil, err
 	}
-	if c.MethodAuthority {
-		if m["method_authority"], err = json.Marshal(c.MethodAuthority); err != nil {
-			return nil, err
-		}
-	}
 	return json.Marshal(m)
 }
 
 // UnmarshalJSON reads Priority plus all Config fields from the same JSON object.
 func (c *ClientConfig[CONFIG]) UnmarshalJSON(data []byte) error {
 	var aux struct {
-		Priority        uint32 `json:"priority"`
-		MethodAuthority bool   `json:"method_authority"`
+		Priority uint32 `json:"priority"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 	c.Priority = aux.Priority
-	c.MethodAuthority = aux.MethodAuthority
 	return json.Unmarshal(data, &c.Config)
 }
 
 func (c ClientConfig[CONFIG]) Equal(a ClientConfig[CONFIG]) bool {
-	return c.Priority == a.Priority && c.MethodAuthority == a.MethodAuthority && c.Config.Equal(a.Config)
+	return c.Priority == a.Priority && c.Config.Equal(a.Config)
 }
 
 type BanConfig struct {
@@ -107,10 +94,9 @@ func (c PoolConfig[CONFIG]) Trim(configModifiers []ConfigModifier[CONFIG]) PoolC
 				ccc = m(ccc)
 			}
 			return ClientConfig[CONFIG]{
-				Index:           uint32(index),
-				Priority:        cc.Priority,
-				MethodAuthority: cc.MethodAuthority,
-				Config:          ccc,
+				Index:    uint32(index),
+				Priority: cc.Priority,
+				Config:   ccc,
 			}, true
 		}),
 	}

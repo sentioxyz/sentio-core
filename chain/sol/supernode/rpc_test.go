@@ -32,7 +32,7 @@ func Test_solRpc(t *testing.T) {
 			ClientConfigs: []clientpool.ClientConfig[sol.ClientConfig]{
 				{
 					Config: sol.ClientConfig{
-						Endpoint: "https://solana-rpc.publicnode.com",
+						JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: "https://solana-rpc.publicnode.com"},
 					},
 				},
 			},

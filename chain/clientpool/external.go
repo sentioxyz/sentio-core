@@ -26,6 +26,12 @@ func (b Block) String() string {
 var (
 	ErrInvalidConfig = errors.New("invalid config")
 	ErrNoValidClient = errors.New("no valid client")
+
+	// ErrInterrupted is returned by UseClient when any entry in the pool carries one of the
+	// tags the caller passed via InterruptWithTags: the tag marks the whole call as pointless
+	// (e.g. a method-authority endpoint rejected the method), so the pool gives up immediately
+	// instead of probing entries or waiting for a priority downgrade.
+	ErrInterrupted = errors.New("interrupted by a tagged client")
 )
 
 type Client interface {
@@ -45,15 +51,6 @@ type Client interface {
 type EntryConfig[CONFIG any] interface {
 	GetName() string // as the unique identity of the entry
 	Equal(a CONFIG) bool
-}
-
-// MethodACL is optionally implemented by entry configs that carry per-endpoint method
-// black/white lists. The pool uses it to scope method-authority vetoes: an authority
-// endpoint whose own ACL disables a method abstains from vetoing that method, since the
-// ACL deliberately routes it to other endpoints and says nothing about chain support.
-type MethodACL interface {
-	GetMethodBlackList() []string
-	GetMethodWhiteList() []string
 }
 
 type UsedNotifier func(what string, dur time.Duration, hasErr bool)

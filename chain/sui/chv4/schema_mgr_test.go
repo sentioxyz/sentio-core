@@ -6,6 +6,7 @@ import (
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
 	"github.com/stretchr/testify/assert"
 	"os"
+	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/objectx"
@@ -165,8 +166,8 @@ func Test_convertReal(t *testing.T) {
 	assert.NoError(t, err)
 
 	conf := sui.ClientConfig{
-		Endpoint:     "http://127.0.0.1:9000",
-		GrpcEndpoint: "http://127.0.0.1:9000",
+		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: "http://127.0.0.1:9000"},
+		GrpcEndpoint:  "http://127.0.0.1:9000",
 	}
 
 	cli := sui.NewClient(conf, func(string, time.Duration, bool) {})

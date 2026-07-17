@@ -28,23 +28,10 @@ type testClientConfig struct {
 	InitFailed    bool
 	InitSuccessAt time.Time
 	Version       int
-
-	MethodBlackList []string `json:",omitempty" yaml:",omitempty"`
-	MethodWhiteList []string `json:",omitempty" yaml:",omitempty"`
 }
 
 func (c testClientConfig) GetName() string {
 	return c.Name
-}
-
-// GetMethodBlackList implements MethodACL.
-func (c testClientConfig) GetMethodBlackList() []string {
-	return c.MethodBlackList
-}
-
-// GetMethodWhiteList implements MethodACL.
-func (c testClientConfig) GetMethodWhiteList() []string {
-	return c.MethodWhiteList
 }
 
 func (c testClientConfig) Equal(a testClientConfig) bool {
@@ -1205,19 +1192,13 @@ func Test_ResultString(t *testing.T) {
 	assert.Equal(t, "Broken,BrokenForTask,AddTags[tag1,tag2]", r.String())
 }
 
-// ── UseClient: method-authority veto ──────────────────────────────────────────
+// ── UseClient: InterruptWithTags ──────────────────────────────────────────────
 
-func authorityClientCfg(name string, priority uint32) ClientConfig[testClientConfig] {
-	cc := quickClientCfg(name, priority)
-	cc.MethodAuthority = true
-	return cc
-}
-
-func Test_UseClient_methodVetoedByAuthority_failsFastWithoutProbingOthers(t *testing.T) {
-	// c1 is the method authority; c2 (e.g. an external endpoint) would happily serve the
-	// method, but once the authority rejected it the pool must not probe anyone else.
-	p := startPoolWith(t, authorityClientCfg("c1", 1), quickClientCfg("c2", 1))
-	tag := MethodNotSupportedTag("foo_bar")
+func Test_UseClient_interruptTag_failsFastWithoutProbing(t *testing.T) {
+	// c1 carries an interrupt tag (e.g. raised by a method-authority rejection); the whole
+	// call is pointless, so c2 must not be probed even though it could serve.
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 1))
+	tag := MethodNotSupportedByAuthorityTag("foo_bar")
 	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1227,15 +1208,16 @@ func Test_UseClient_methodVetoedByAuthority_failsFastWithoutProbingOthers(t *tes
 	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
 		callCount++
 		return Result{}
-	}, WithoutTags[testClientConfig](tag))
-	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	}, InterruptWithTags[testClientConfig](tag))
+	assert.ErrorIs(t, r.Err, ErrInterrupted)
 	assert.Equal(t, 0, callCount)
 }
 
-func Test_UseClient_methodTaggedWithoutAuthority_stillServedByOthers(t *testing.T) {
-	// Same situation but c1 is NOT a method authority: the request falls through to c2.
+func Test_UseClient_interruptTag_ignoredWithoutOption(t *testing.T) {
+	// The same tag without the InterruptWithTags option does not interrupt; combined with
+	// WithoutTags it merely skips the tagged entry, like any other tag.
 	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 1))
-	tag := MethodNotSupportedTag("foo_bar")
+	tag := MethodNotSupportedByAuthorityTag("foo_bar")
 	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1250,32 +1232,14 @@ func Test_UseClient_methodTaggedWithoutAuthority_stillServedByOthers(t *testing.
 	assert.Equal(t, "c2", usedName)
 }
 
-func Test_UseClient_singleAuthorityTagged_vetoesWholePool(t *testing.T) {
-	// One authority rejection is enough: the untagged authority entry c2 is not probed either.
-	p := startPoolWith(t, authorityClientCfg("c1", 1), authorityClientCfg("c2", 1))
-	tag := MethodNotSupportedTag("foo_bar")
-	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	callCount := 0
-	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
-		callCount++
-		return Result{}
-	}, WithoutTags[testClientConfig](tag))
-	assert.ErrorIs(t, r.Err, ErrNoValidClient)
-	assert.Equal(t, 0, callCount)
-}
-
-func Test_UseClient_vetoTriggersWithinOneCall_afterAuthorityRejects(t *testing.T) {
-	// The consumer itself tags an authority entry mid-call: the loop must exit with
-	// ErrNoValidClient instead of probing further or waiting for a priority downgrade.
-	// c2 sits at priority 2 (disabled at the initial cursor), so c1 is deterministically
-	// probed first — without the veto the loop would wait for a downgrade to reach c2,
-	// which is exactly the behavior this feature removes.
-	p := startPoolWith(t, authorityClientCfg("c1", 1), quickClientCfg("c2", 2))
-	tag := MethodNotSupportedTag("foo_bar")
+func Test_UseClient_interruptTriggersWithinOneCall(t *testing.T) {
+	// The consumer itself raises the interrupt tag mid-call (via Result.AddTags): the loop
+	// must exit with ErrInterrupted instead of probing further or waiting for a priority
+	// downgrade. c2 sits at priority 2 (disabled at the initial cursor), so c1 is
+	// deterministically probed first — without the interrupt the loop would wait for a
+	// downgrade to reach c2, which is exactly the behavior this feature removes.
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 2))
+	tag := MethodNotSupportedByAuthorityTag("foo_bar")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1283,77 +1247,32 @@ func Test_UseClient_vetoTriggersWithinOneCall_afterAuthorityRejects(t *testing.T
 	var usedNames []string
 	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
 		usedNames = append(usedNames, cli.config.Name)
-		if cli.config.Name == "c1" {
-			return Result{
-				Err:           fmt.Errorf("the method foo_bar does not exist"),
-				BrokenForTask: true,
-				AddTags:       []string{tag},
-			}
+		return Result{
+			Err:           fmt.Errorf("the method foo_bar does not exist"),
+			BrokenForTask: true,
+			AddTags:       []string{MethodNotSupportedTag("foo_bar"), tag},
 		}
-		return Result{}
-	}, WithoutTags[testClientConfig](tag))
-	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	}, WithoutTags[testClientConfig](MethodNotSupportedTag("foo_bar")), InterruptWithTags[testClientConfig](tag))
+	assert.ErrorIs(t, r.Err, ErrInterrupted)
 	assert.Equal(t, []string{"c1"}, usedNames)
 }
 
-func Test_UseClient_authorityAbstainsForBlacklistedMethod(t *testing.T) {
-	// c1's own ACL disables foo_bar (CheckMethod would raise the same tag as a live
-	// rejection), so its tag must not veto the pool: c2 serves the method.
-	cfg := authorityClientCfg("c1", 1)
-	cfg.Config.MethodBlackList = []string{"foo_bar"}
-	p := startPoolWith(t, cfg, quickClientCfg("c2", 1))
-	tag := MethodNotSupportedTag("foo_bar")
-	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("method in blacklist"))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var usedName string
-	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
-		usedName = cli.config.Name
-		return Result{}
-	}, WithoutTags[testClientConfig](tag))
-	require.NoError(t, r.Err)
-	assert.Equal(t, "c2", usedName)
-}
-
-func Test_UseClient_authorityAbstainsForNonWhitelistedMethod(t *testing.T) {
-	// Same as above via a white list: foo_bar is outside c1's ACL, so no veto.
-	cfg := authorityClientCfg("c1", 1)
-	cfg.Config.MethodWhiteList = []string{"other_method"}
-	p := startPoolWith(t, cfg, quickClientCfg("c2", 1))
-	tag := MethodNotSupportedTag("foo_bar")
-	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("method not in whitelist"))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var usedName string
-	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
-		usedName = cli.config.Name
-		return Result{}
-	}, WithoutTags[testClientConfig](tag))
-	require.NoError(t, r.Err)
-	assert.Equal(t, "c2", usedName)
-}
-
-func Test_UseClient_authorityVetoesMethodAllowedByItsACL(t *testing.T) {
-	// The ACL abstention is per-method: a black list for another method does not stop the
-	// authority from vetoing a method its ACL allows.
-	cfg := authorityClientCfg("c1", 1)
-	cfg.Config.MethodBlackList = []string{"other_method"}
-	p := startPoolWith(t, cfg, quickClientCfg("c2", 1))
-	tag := MethodNotSupportedTag("foo_bar")
+func Test_UseClient_interruptTag_expires(t *testing.T) {
+	// An interrupt tag older than TagDuration no longer interrupts.
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	tag := MethodNotSupportedByAuthorityTag("foo_bar")
 	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
+	p.config.TagDuration = time.Millisecond
+	time.Sleep(time.Millisecond * 10)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	callCount := 0
+	called := false
 	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
-		callCount++
+		called = true
 		return Result{}
-	}, WithoutTags[testClientConfig](tag))
-	assert.ErrorIs(t, r.Err, ErrNoValidClient)
-	assert.Equal(t, 0, callCount)
+	}, InterruptWithTags[testClientConfig](tag))
+	require.NoError(t, r.Err)
+	assert.True(t, called)
 }

@@ -26,20 +26,12 @@ import (
 )
 
 type ClientConfig struct {
-	Endpoint            string            `json:"endpoint" yaml:"endpoint"`
+	clientpool.JSONRPCConfig `yaml:",inline"`
+
 	WSSEndpoint         string            `json:"wss_endpoint" yaml:"wss_endpoint"`
 	AdditionalEndpoints map[string]string `json:"additional_endpoints" yaml:"additional_endpoints"`
 
 	ChainID uint64 `json:"chain_id" yaml:"chain_id"`
-
-	KeepWatch     time.Duration            `json:"keep_watch" yaml:"keep_watch"`
-	MethodTimeout map[string]time.Duration `json:"method_timeout" yaml:"method_timeout"`
-
-	// method black list
-	MethodBlackList []string `json:"method_black_list" yaml:"method_black_list"`
-
-	// method white list, empty means no white list
-	MethodWhiteList []string `json:"method_white_list" yaml:"method_white_list"`
 
 	// if latest block reach MaxBlockNumber will stop to watch latest
 	MaxBlockNumber uint64 `json:"max_block_number" yaml:"max_block_number"`
@@ -68,14 +60,17 @@ func (c ClientConfig) Trim() ClientConfig {
 	utils.PutIfNotExist(methodTimeout, "trace_block", time.Minute)
 	utils.PutIfNotExist(methodTimeout, "debug_traceBlockByHash", time.Minute)
 	return ClientConfig{
-		Endpoint:                 strings.TrimSpace(c.Endpoint),
+		JSONRPCConfig: clientpool.JSONRPCConfig{
+			Endpoint:        strings.TrimSpace(c.Endpoint),
+			KeepWatch:       utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
+			MethodTimeout:   methodTimeout,
+			MethodBlackList: c.MethodBlackList,
+			MethodWhiteList: c.MethodWhiteList,
+			MethodAuthority: c.MethodAuthority,
+		},
 		WSSEndpoint:              strings.TrimSpace(c.WSSEndpoint),
 		AdditionalEndpoints:      utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
 		ChainID:                  c.ChainID,
-		KeepWatch:                utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
-		MethodTimeout:            methodTimeout,
-		MethodBlackList:          c.MethodBlackList,
-		MethodWhiteList:          c.MethodWhiteList,
 		MaxBlockNumber:           c.MaxBlockNumber,
 		StrictDataIntegrityCheck: c.StrictDataIntegrityCheck,
 		IgnoreStateFromCheck:     c.IgnoreStateFromCheck,
@@ -86,16 +81,6 @@ func (c ClientConfig) Trim() ClientConfig {
 func (c ClientConfig) SetChainID(chainID uint64) ClientConfig {
 	c.ChainID = chainID
 	return c
-}
-
-// GetMethodBlackList implements clientpool.MethodACL.
-func (c ClientConfig) GetMethodBlackList() []string {
-	return c.MethodBlackList
-}
-
-// GetMethodWhiteList implements clientpool.MethodACL.
-func (c ClientConfig) GetMethodWhiteList() []string {
-	return c.MethodWhiteList
 }
 
 func (c ClientConfig) GetName() string {
@@ -509,7 +494,8 @@ func (c *Client) callContext(
 		defer cancel()
 	}
 	return c.use(ctx, src+"."+method, func(ctx context.Context) clientpool.Result {
-		return clientpool.CallContext(c.rpcClient, ctx, result, method, args...)
+		return clientpool.CallContext(c.rpcClient, ctx, result, method, args...).
+			WithAuthorityVeto(method, c.config.MethodAuthority)
 	})
 }
 

@@ -54,3 +54,13 @@ const MethodNotSupportedTagPrefix = "MethodNotSupported/"
 func MethodNotSupportedTag(method string) string {
 	return MethodNotSupportedTagPrefix + method
 }
+
+// MethodNotSupportedByAuthorityTagPrefix marks a runtime method rejection from a
+// method-authority endpoint (see JSONRPCConfig.MethodAuthority). Method-scoped callers pass
+// the tag via InterruptWithTags so the pool rejects the method outright instead of probing
+// other endpoints. Config-ACL rejections (CheckMethod) never raise this tag.
+const MethodNotSupportedByAuthorityTagPrefix = "MethodNotSupportedByAuthority/"
+
+func MethodNotSupportedByAuthorityTag(method string) string {
+	return MethodNotSupportedByAuthorityTagPrefix + method
+}

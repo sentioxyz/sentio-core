@@ -1237,8 +1237,8 @@ func Test_UseClient_methodTaggedWithoutAuthority_stillServedByOthers(t *testing.
 	assert.Equal(t, "c2", usedName)
 }
 
-func Test_UseClient_partialAuthorityTagged_notVetoed(t *testing.T) {
-	// Only one of the two authority entries rejected the method — no veto yet.
+func Test_UseClient_singleAuthorityTagged_vetoesWholePool(t *testing.T) {
+	// One authority rejection is enough: the untagged authority entry c2 is not probed either.
 	p := startPoolWith(t, authorityClientCfg("c1", 1), authorityClientCfg("c2", 1))
 	tag := MethodNotSupportedTag("foo_bar")
 	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
@@ -1246,17 +1246,17 @@ func Test_UseClient_partialAuthorityTagged_notVetoed(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	var usedName string
+	callCount := 0
 	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
-		usedName = cli.config.Name
+		callCount++
 		return Result{}
 	}, WithoutTags[testClientConfig](tag))
-	require.NoError(t, r.Err)
-	assert.Equal(t, "c2", usedName)
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.Equal(t, 0, callCount)
 }
 
 func Test_UseClient_vetoTriggersWithinOneCall_afterAuthorityRejects(t *testing.T) {
-	// The consumer itself tags the last authority entry mid-call: the loop must exit with
+	// The consumer itself tags an authority entry mid-call: the loop must exit with
 	// ErrNoValidClient instead of probing c2 or waiting for a priority downgrade.
 	p := startPoolWith(t, authorityClientCfg("c1", 1), quickClientCfg("c2", 1))
 	tag := MethodNotSupportedTag("foo_bar")

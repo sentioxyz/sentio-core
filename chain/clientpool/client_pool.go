@@ -621,9 +621,9 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 	return entries, backup, psi
 }
 
-// methodVetoedByAuthority reports whether every method-authority entry in the pool currently
+// methodVetoedByAuthority reports whether any method-authority entry in the pool currently
 // carries one of the given MethodNotSupported tags. Method-authority entries (typically the
-// chain's own full nodes) define the pool's supported method set: once they all rejected a
+// chain's own full nodes) define the pool's supported method set: once one of them rejected a
 // method, probing the remaining endpoints for it is pointless — even ones that would answer —
 // so the request fails fast instead of cascading through the pool and triggering a priority
 // downgrade. Returns false when the pool has no method-authority entries or noTags carries no
@@ -641,28 +641,21 @@ func (p *ClientPool[CONFIG, CLIENT]) methodVetoedByAuthority(noTags []string) bo
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	tagValidFrom := time.Now().Add(-p.config.TagDuration)
-	hasAuthority := false
 	for name, cc := range p.configEntries {
 		if !cc.MethodAuthority {
 			continue
 		}
-		hasAuthority = true
 		extra, has := p.entryExtra[name]
 		if !has {
-			return false
+			continue
 		}
-		vetoed := false
 		for _, tag := range methodTags {
 			if extra.hasTag(tag, tagValidFrom) {
-				vetoed = true
-				break
+				return true
 			}
 		}
-		if !vetoed {
-			return false
-		}
 	}
-	return hasAuthority
+	return false
 }
 
 // UseClient will return ErrNoValidClient or error returned by fn

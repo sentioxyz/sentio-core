@@ -125,6 +125,17 @@ func Test_isMissDataError_executionReverted_notMissData(t *testing.T) {
 	assert.False(t, isMissDataError(fakeRPCErr{code: 3, msg: "execution reverted: ERC20: transfer exceeds balance"}))
 }
 
+func Test_isMissDataError_revertReasonWithKeyword_notMissData(t *testing.T) {
+	// Regression: the revert reason is contract-controlled and may itself contain a miss-data
+	// keyword. A polygon contract reverting with "Unexpected error" made every endpoint
+	// BrokenForTask for that call, so the pool kept downgrading its priority and pulled
+	// low-priority endpoints into rotation for nothing.
+	assert.False(t, isMissDataError(fakeRPCErr{code: 3, msg: "execution reverted: Unexpected error"}))
+	assert.False(t, isMissDataError(fakeRPCErr{code: 3, msg: "execution reverted: internal error"}))
+	// Some vendors report reverts in the server-error range instead of code 3.
+	assert.False(t, isMissDataError(fakeRPCErr{code: -32000, msg: "execution reverted: Unexpected error"}))
+}
+
 func Test_isMissDataError_standardApplicationErrors_notMissData(t *testing.T) {
 	// Standard application-level codes in (-32000, 0] are never miss-data, even if the
 	// message contains a matcher keyword.

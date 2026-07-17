@@ -86,7 +86,7 @@ func (c PoolConfig[CONFIG]) Trim(configModifiers []ConfigModifier[CONFIG]) PoolC
 		},
 		AdjustPriorityInterval: utils.Select(c.AdjustPriorityInterval > 0, c.AdjustPriorityInterval, time.Second*30),
 		UpgradeSensitivity:     utils.Select(c.UpgradeSensitivity > 0, c.UpgradeSensitivity, time.Minute*3),
-		TagDuration:            utils.Select(c.TagDuration > 0, c.TagDuration, time.Minute*30),
+		TagDuration:            utils.Select(c.TagDuration > 0, c.TagDuration, time.Hour*3),
 		ConsumerMaxWait:        utils.Select(c.ConsumerMaxWait > 0, c.ConsumerMaxWait, time.Minute*2),
 		ClientConfigs: utils.MapSliceNoErrWithIndex(c.ClientConfigs, func(index int, cc ClientConfig[CONFIG]) (ClientConfig[CONFIG], bool) {
 			ccc := cc.Config

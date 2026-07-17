@@ -44,6 +44,9 @@ var brokenMsgErrorMatcher = []*regexp.Regexp{
 	regexp.MustCompile("rate limit exceeded"),
 }
 
+// executionRevertedPrefix is the standard message prefix of an EVM revert (JSON-RPC error code 3).
+const executionRevertedPrefix = "execution reverted"
+
 func isOneOf(err string, matchers []*regexp.Regexp) bool {
 	for _, r := range matchers {
 		if r.FindString(strings.ToLower(err)) != "" {
@@ -123,9 +126,16 @@ func isMissDataError(err error) bool {
 		// Codes <= -32000 (server error range) go through message matching, and so do positive
 		// codes: those are non-standard vendor codes, e.g. dRPC reports "no available upstreams"
 		// with code 1 and X Layer legacy-range proxying reports "Temporary internal error" with
-		// code 19. The only standard positive code is 3 (execution reverted), whose message never
-		// matches missDataErrorMatcher.
+		// code 19. The only standard positive code is 3 (execution reverted), excluded below.
 		if code := rpcErr.ErrorCode(); code > -32000 && code <= 0 {
+			return false
+		}
+		// "execution reverted: <reason>" carries a contract-controlled revert reason (standard
+		// code 3, but some vendors report it under other codes). It is a deterministic result of
+		// the call, not missing data, and the reason must never reach the keyword matching below:
+		// a contract reverting with e.g. "Unexpected error" would otherwise be retried on every
+		// endpoint in the pool.
+		if strings.HasPrefix(strings.ToLower(err.Error()), executionRevertedPrefix) {
 			return false
 		}
 		return isOneOf(err.Error(), missDataErrorMatcher)

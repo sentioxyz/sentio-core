@@ -3,6 +3,7 @@ package clientpool
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,4 +115,13 @@ func Test_ClientConfig_YAMLRoundTrip(t *testing.T) {
 	assert.Equal(t, original.Config.Name, decoded.Config.Name)
 	assert.Equal(t, original.Config.Value, decoded.Config.Value)
 	assert.Equal(t, original.Config.Version, decoded.Config.Version)
+}
+
+// ── PoolConfig.Trim defaults ──────────────────────────────────────────────────
+
+func Test_PoolConfig_Trim_defaultTagDuration(t *testing.T) {
+	trimmed := PoolConfig[testClientConfig]{}.Trim(nil)
+	// Tags (currently only MethodNotSupported) stay effective for 3 hours by default, so an
+	// endpoint that rejected a method is not re-probed with it every few minutes.
+	assert.Equal(t, time.Hour*3, trimmed.TagDuration)
 }

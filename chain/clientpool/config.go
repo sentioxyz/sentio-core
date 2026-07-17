@@ -12,8 +12,8 @@ type ClientConfig[CONFIG EntryConfig[CONFIG]] struct {
 	Index    uint32 `json:"-" yaml:"-"`
 	Priority uint32 `json:"priority" yaml:"priority"`
 	// MethodAuthority marks this entry as defining the pool's supported method set (typically the
-	// chain's own full nodes). When every method-authority entry reports a method as not supported,
-	// the pool rejects that method outright instead of probing lower-priority endpoints for it.
+	// chain's own full nodes). When any method-authority entry reports a method as not supported,
+	// the pool rejects that method outright instead of probing other endpoints for it.
 	MethodAuthority bool   `json:"method_authority,omitempty" yaml:"method_authority,omitempty"`
 	Config          CONFIG `json:",inline" yaml:",inline"`
 }

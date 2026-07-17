@@ -677,7 +677,7 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	blackList := set.New[string]()
 	for {
 		if p.methodVetoedByAuthority(c.noTags) {
-			return Report{Err: errors.Wrap(ErrNoValidClient, "the method is not supported by the method-authority endpoints")}
+			return Report{Err: errors.Wrap(ErrNoValidClient, "the method is rejected by a method-authority endpoint")}
 		}
 		entries, backup, psi := p.findEntries(blackList, c)
 		if len(entries) == 0 {

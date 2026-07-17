@@ -297,6 +297,10 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int64) error {
 	s.metaLock.Lock()
 	defer s.metaLock.Unlock()
+	// the rows being deleted may carry the latest value of counter series; drop the cached
+	// latest values so the next insert reloads them, otherwise later counter writes would
+	// accumulate on top of values that include the deleted rows
+	s.cachedCounterSeriesLatest = utils.NewSafeMap[string, *counterSeriesLatestCache]()
 	_, logger := log.FromContext(ctx, "chainID", chainID, "slotNumberGt", slotNumberGt)
 	logger.Debug("will delete")
 	for _, item := range s.meta {

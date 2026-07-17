@@ -344,6 +344,7 @@ func (s *Store) CleanAll(ctx context.Context) error {
 		}
 	}
 	s.meta = nil
+	s.cachedCounterSeriesLatest = utils.NewSafeMap[string, *counterSeriesLatestCache]()
 	return nil
 }
 

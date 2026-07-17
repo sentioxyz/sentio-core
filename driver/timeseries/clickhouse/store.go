@@ -41,6 +41,7 @@ type Store struct {
 	metaLock sync.Mutex
 	meta     storeMeta
 
+	// keys of both series caches are built by seriesCountKey (per metric per chain)
 	cachedCounterSeriesLatest *utils.SafeMap[string, *counterSeriesLatestCache]
 	cachedGaugeSeriesIDs      *utils.SafeMap[string, *gaugeSeriesIDCache]
 	// number of known time series of each metric, key is built by seriesCountKey

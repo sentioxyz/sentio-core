@@ -109,7 +109,11 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 		labelFields := ds.Meta.GetFieldsByRole(timeseries.FieldRoleSeriesLabel)
 		valueFields := ds.Meta.GetFieldsByRole(timeseries.FieldRoleSeriesValue)
 		var seriesLast map[string]timeseries.Row
-		cache, has := s.cachedCounterSeriesLatest.Get(ds.Name)
+		// keyed by metric and chain: the store serves every chain of the processor, and the
+		// latest values are loaded per chain, so a name-only key would let one chain
+		// accumulate on top of another chain's values
+		cacheKey := seriesCountKey(ds.Meta, chainID)
+		cache, has := s.cachedCounterSeriesLatest.Get(cacheKey)
 		if has && timeseries.SameFields(cache.labelFields, labelFields) && timeseries.SameFields(cache.valueFields, valueFields) {
 			logger.Debug("use cached last value of each series")
 			seriesLast = cache.seriesLast
@@ -149,7 +153,7 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 			logger.Infow("got last value of all series",
 				"used", time.Since(startAt).String(),
 				"series", buildSeriesSummary(seriesLast, 10))
-			s.cachedCounterSeriesLatest.Put(ds.Name, &counterSeriesLatestCache{
+			s.cachedCounterSeriesLatest.Put(cacheKey, &counterSeriesLatestCache{
 				labelFields: labelFields,
 				valueFields: valueFields,
 				seriesLast:  seriesLast,

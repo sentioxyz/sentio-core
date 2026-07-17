@@ -47,4 +47,13 @@ type EntryConfig[CONFIG any] interface {
 	Equal(a CONFIG) bool
 }
 
+// MethodACL is optionally implemented by entry configs that carry per-endpoint method
+// black/white lists. The pool uses it to scope method-authority vetoes: an authority
+// endpoint whose own ACL disables a method abstains from vetoing that method, since the
+// ACL deliberately routes it to other endpoints and says nothing about chain support.
+type MethodACL interface {
+	GetMethodBlackList() []string
+	GetMethodWhiteList() []string
+}
+
 type UsedNotifier func(what string, dur time.Duration, hasErr bool)

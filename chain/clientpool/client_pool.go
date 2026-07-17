@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -198,12 +199,17 @@ type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 	configVersion    int
 	configEntries    map[string]ClientConfig[CONFIG] // dict of config.ClientConfigs, key is CONFIG.GetName()
 	configPriorities []uint32
+	authorityNames   []string // names of entries with MethodAuthority, derived from configEntries
 
 	priorityCursor int
 	entryExtra     map[string]*entryExtra
 
 	consumer        map[uint64]consumer
 	consumerCounter uint64
+
+	// hasMethodAuthority mirrors len(authorityNames) > 0 so the hot path can skip
+	// the veto check (and its locking) entirely for pools without authority entries.
+	hasMethodAuthority atomic.Bool
 }
 
 func NewClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client](
@@ -621,38 +627,41 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 	return entries, backup, psi
 }
 
+// errMethodVetoedByAuthority is pre-built: the veto path is hit repeatedly at high frequency
+// by design, so it must not pay a stack-trace capture per rejection.
+var errMethodVetoedByAuthority = errors.Wrap(ErrNoValidClient, "the method is rejected by a method-authority endpoint")
+
 // methodVetoedByAuthority reports whether any method-authority entry in the pool currently
 // carries one of the given MethodNotSupported tags. Method-authority entries (typically the
 // chain's own full nodes) define the pool's supported method set: once one of them rejected a
 // method, probing the remaining endpoints for it is pointless — even ones that would answer —
 // so the request fails fast instead of cascading through the pool and triggering a priority
-// downgrade. Returns false when the pool has no method-authority entries or noTags carries no
-// MethodNotSupported tag.
-func (p *ClientPool[CONFIG, CLIENT]) methodVetoedByAuthority(noTags []string) bool {
-	var methodTags []string
-	for _, tag := range noTags {
-		if strings.HasPrefix(tag, MethodNotSupportedTagPrefix) {
-			methodTags = append(methodTags, tag)
-		}
-	}
-	if len(methodTags) == 0 {
+// downgrade. An authority entry whose own method black/white list (MethodACL) disables the
+// method abstains: its ACL deliberately routes the method to other endpoints (and CheckMethod
+// raises the same tag as a live rejection), so it says nothing about chain support.
+// methodTags must be pre-filtered to the MethodNotSupportedTagPrefix namespace.
+func (p *ClientPool[CONFIG, CLIENT]) methodVetoedByAuthority(methodTags []string) bool {
+	if len(methodTags) == 0 || !p.hasMethodAuthority.Load() {
 		return false
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	tagValidFrom := time.Now().Add(-p.config.TagDuration)
-	for name, cc := range p.configEntries {
-		if !cc.MethodAuthority {
-			continue
-		}
+	for _, name := range p.authorityNames {
 		extra, has := p.entryExtra[name]
 		if !has {
 			continue
 		}
+		acl, hasACL := any(p.configEntries[name].Config).(MethodACL)
 		for _, tag := range methodTags {
-			if extra.hasTag(tag, tagValidFrom) {
-				return true
+			if !extra.hasTag(tag, tagValidFrom) {
+				continue
 			}
+			method := strings.TrimPrefix(tag, MethodNotSupportedTagPrefix)
+			if hasACL && methodDisabledByACL(method, acl.GetMethodBlackList(), acl.GetMethodWhiteList()) {
+				continue // the entry is not an authority for methods its own ACL disables
+			}
+			return true
 		}
 	}
 	return false
@@ -674,10 +683,16 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	for _, opt := range opts {
 		opt(&c)
 	}
+	var methodTags []string
+	for _, tag := range c.noTags {
+		if strings.HasPrefix(tag, MethodNotSupportedTagPrefix) {
+			methodTags = append(methodTags, tag)
+		}
+	}
 	blackList := set.New[string]()
 	for {
-		if p.methodVetoedByAuthority(c.noTags) {
-			return Report{Err: errors.Wrap(ErrNoValidClient, "the method is rejected by a method-authority endpoint")}
+		if p.methodVetoedByAuthority(methodTags) {
+			return Report{Err: errMethodVetoedByAuthority}
 		}
 		entries, backup, psi := p.findEntries(blackList, c)
 		if len(entries) == 0 {
@@ -866,6 +881,13 @@ func (p *ClientPool[CONFIG, CLIENT]) updateConfig(c PoolConfig[CONFIG]) {
 			return p.configPriorities[i] < p.configPriorities[j]
 		})
 	}
+	p.authorityNames = nil
+	for name, cc := range p.configEntries {
+		if cc.MethodAuthority {
+			p.authorityNames = append(p.authorityNames, name)
+		}
+	}
+	p.hasMethodAuthority.Store(len(p.authorityNames) > 0)
 	p.mu.Unlock()
 
 	for _, cc := range c.ClientConfigs {

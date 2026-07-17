@@ -44,6 +44,16 @@ func (c ClientConfig) Trim() ClientConfig {
 	}
 }
 
+// GetMethodBlackList implements clientpool.MethodACL.
+func (c ClientConfig) GetMethodBlackList() []string {
+	return c.MethodBlackList
+}
+
+// GetMethodWhiteList implements clientpool.MethodACL.
+func (c ClientConfig) GetMethodWhiteList() []string {
+	return c.MethodWhiteList
+}
+
 func (c ClientConfig) GetName() string {
 	return c.Endpoint
 }

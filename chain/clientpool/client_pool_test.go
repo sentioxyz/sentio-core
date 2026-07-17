@@ -28,10 +28,23 @@ type testClientConfig struct {
 	InitFailed    bool
 	InitSuccessAt time.Time
 	Version       int
+
+	MethodBlackList []string `json:",omitempty" yaml:",omitempty"`
+	MethodWhiteList []string `json:",omitempty" yaml:",omitempty"`
 }
 
 func (c testClientConfig) GetName() string {
 	return c.Name
+}
+
+// GetMethodBlackList implements MethodACL.
+func (c testClientConfig) GetMethodBlackList() []string {
+	return c.MethodBlackList
+}
+
+// GetMethodWhiteList implements MethodACL.
+func (c testClientConfig) GetMethodWhiteList() []string {
+	return c.MethodWhiteList
 }
 
 func (c testClientConfig) Equal(a testClientConfig) bool {
@@ -1257,8 +1270,11 @@ func Test_UseClient_singleAuthorityTagged_vetoesWholePool(t *testing.T) {
 
 func Test_UseClient_vetoTriggersWithinOneCall_afterAuthorityRejects(t *testing.T) {
 	// The consumer itself tags an authority entry mid-call: the loop must exit with
-	// ErrNoValidClient instead of probing c2 or waiting for a priority downgrade.
-	p := startPoolWith(t, authorityClientCfg("c1", 1), quickClientCfg("c2", 1))
+	// ErrNoValidClient instead of probing further or waiting for a priority downgrade.
+	// c2 sits at priority 2 (disabled at the initial cursor), so c1 is deterministically
+	// probed first — without the veto the loop would wait for a downgrade to reach c2,
+	// which is exactly the behavior this feature removes.
+	p := startPoolWith(t, authorityClientCfg("c1", 1), quickClientCfg("c2", 2))
 	tag := MethodNotSupportedTag("foo_bar")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1276,12 +1292,68 @@ func Test_UseClient_vetoTriggersWithinOneCall_afterAuthorityRejects(t *testing.T
 		}
 		return Result{}
 	}, WithoutTags[testClientConfig](tag))
-	if len(usedNames) > 0 && usedNames[0] == "c1" {
-		// c1 went first: its rejection must veto the whole call.
-		assert.ErrorIs(t, r.Err, ErrNoValidClient)
-		assert.Equal(t, []string{"c1"}, usedNames)
-	} else {
-		// c2 was randomly picked first and served the call before any authority rejection.
-		require.NoError(t, r.Err)
-	}
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.Equal(t, []string{"c1"}, usedNames)
+}
+
+func Test_UseClient_authorityAbstainsForBlacklistedMethod(t *testing.T) {
+	// c1's own ACL disables foo_bar (CheckMethod would raise the same tag as a live
+	// rejection), so its tag must not veto the pool: c2 serves the method.
+	cfg := authorityClientCfg("c1", 1)
+	cfg.Config.MethodBlackList = []string{"foo_bar"}
+	p := startPoolWith(t, cfg, quickClientCfg("c2", 1))
+	tag := MethodNotSupportedTag("foo_bar")
+	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("method in blacklist"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var usedName string
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		usedName = cli.config.Name
+		return Result{}
+	}, WithoutTags[testClientConfig](tag))
+	require.NoError(t, r.Err)
+	assert.Equal(t, "c2", usedName)
+}
+
+func Test_UseClient_authorityAbstainsForNonWhitelistedMethod(t *testing.T) {
+	// Same as above via a white list: foo_bar is outside c1's ACL, so no veto.
+	cfg := authorityClientCfg("c1", 1)
+	cfg.Config.MethodWhiteList = []string{"other_method"}
+	p := startPoolWith(t, cfg, quickClientCfg("c2", 1))
+	tag := MethodNotSupportedTag("foo_bar")
+	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("method not in whitelist"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var usedName string
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		usedName = cli.config.Name
+		return Result{}
+	}, WithoutTags[testClientConfig](tag))
+	require.NoError(t, r.Err)
+	assert.Equal(t, "c2", usedName)
+}
+
+func Test_UseClient_authorityVetoesMethodAllowedByItsACL(t *testing.T) {
+	// The ACL abstention is per-method: a black list for another method does not stop the
+	// authority from vetoing a method its ACL allows.
+	cfg := authorityClientCfg("c1", 1)
+	cfg.Config.MethodBlackList = []string{"other_method"}
+	p := startPoolWith(t, cfg, quickClientCfg("c2", 1))
+	tag := MethodNotSupportedTag("foo_bar")
+	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	callCount := 0
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		callCount++
+		return Result{}
+	}, WithoutTags[testClientConfig](tag))
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.Equal(t, 0, callCount)
 }

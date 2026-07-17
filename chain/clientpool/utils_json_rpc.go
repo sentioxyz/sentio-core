@@ -206,6 +206,15 @@ func CallContext(
 	return r
 }
 
+// methodDisabledByACL reports whether the method is disabled by a per-endpoint
+// black/white list configuration.
+func methodDisabledByACL(method string, blackList, whiteList []string) bool {
+	if len(blackList) > 0 && utils.IndexOf(blackList, method) >= 0 {
+		return true
+	}
+	return len(whiteList) > 0 && utils.IndexOf(whiteList, method) < 0
+}
+
 func CheckMethod(method string, blackList, whiteList []string) Result {
 	if len(blackList) > 0 && utils.IndexOf(blackList, method) >= 0 {
 		return Result{

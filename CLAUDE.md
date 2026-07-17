@@ -188,6 +188,23 @@ The codebase is organized into several major components:
 
 ## Important Patterns
 
+### Chain Client Configs (clientpool.JSONRPCConfig)
+
+The evm/sui/sol `ClientConfig` structs embed `clientpool.JSONRPCConfig` (anonymous, with
+`yaml:",inline"`), which holds the common fields: `endpoint`, `keep_watch`, `method_timeout`,
+`method_black_list`, `method_white_list`, `method_authority`. Consequences:
+
+- Field access is unchanged (`c.Endpoint` etc. via promotion), but **composite literals cannot
+  set promoted fields** — construct as
+  `evm.ClientConfig{JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: ...}, ChainID: ...}`.
+- The wire format stays flat (JSON flattens embedded structs; yaml uses the inline tag), so
+  endpoints-config YAML/JSON is unaffected. Keep it that way when adding fields.
+- `method_authority: true` endpoints raise `MethodNotSupportedByAuthorityTag` on a runtime
+  method rejection (`Result.WithAuthorityVeto`, live call path only — never the `CheckMethod`
+  config-ACL path); method-scoped callers pass that tag via the generic
+  `clientpool.InterruptWithTags` UseClient option to fail the method fast (`ErrInterrupted`)
+  instead of probing other endpoints or triggering a priority downgrade.
+
 ### State Mirroring
 
 When working with on-chain state that needs Redis caching, use the `statemirror` package (see `common/statemirror/README.md`):

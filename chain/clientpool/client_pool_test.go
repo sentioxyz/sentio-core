@@ -1191,3 +1191,97 @@ func Test_ResultString(t *testing.T) {
 	r.Err = nil
 	assert.Equal(t, "Broken,BrokenForTask,AddTags[tag1,tag2]", r.String())
 }
+
+// ── UseClient: method-authority veto ──────────────────────────────────────────
+
+func authorityClientCfg(name string, priority uint32) ClientConfig[testClientConfig] {
+	cc := quickClientCfg(name, priority)
+	cc.MethodAuthority = true
+	return cc
+}
+
+func Test_UseClient_methodVetoedByAuthority_failsFastWithoutProbingOthers(t *testing.T) {
+	// c1 is the method authority; c2 (e.g. an external endpoint) would happily serve the
+	// method, but once the authority rejected it the pool must not probe anyone else.
+	p := startPoolWith(t, authorityClientCfg("c1", 1), quickClientCfg("c2", 1))
+	tag := MethodNotSupportedTag("foo_bar")
+	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	callCount := 0
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		callCount++
+		return Result{}
+	}, WithoutTags[testClientConfig](tag))
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.Equal(t, 0, callCount)
+}
+
+func Test_UseClient_methodTaggedWithoutAuthority_stillServedByOthers(t *testing.T) {
+	// Same situation but c1 is NOT a method authority: the request falls through to c2.
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 1))
+	tag := MethodNotSupportedTag("foo_bar")
+	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var usedName string
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		usedName = cli.config.Name
+		return Result{}
+	}, WithoutTags[testClientConfig](tag))
+	require.NoError(t, r.Err)
+	assert.Equal(t, "c2", usedName)
+}
+
+func Test_UseClient_partialAuthorityTagged_notVetoed(t *testing.T) {
+	// Only one of the two authority entries rejected the method — no veto yet.
+	p := startPoolWith(t, authorityClientCfg("c1", 1), authorityClientCfg("c2", 1))
+	tag := MethodNotSupportedTag("foo_bar")
+	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var usedName string
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		usedName = cli.config.Name
+		return Result{}
+	}, WithoutTags[testClientConfig](tag))
+	require.NoError(t, r.Err)
+	assert.Equal(t, "c2", usedName)
+}
+
+func Test_UseClient_vetoTriggersWithinOneCall_afterAuthorityRejects(t *testing.T) {
+	// The consumer itself tags the last authority entry mid-call: the loop must exit with
+	// ErrNoValidClient instead of probing c2 or waiting for a priority downgrade.
+	p := startPoolWith(t, authorityClientCfg("c1", 1), quickClientCfg("c2", 1))
+	tag := MethodNotSupportedTag("foo_bar")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var usedNames []string
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		usedNames = append(usedNames, cli.config.Name)
+		if cli.config.Name == "c1" {
+			return Result{
+				Err:           fmt.Errorf("the method foo_bar does not exist"),
+				BrokenForTask: true,
+				AddTags:       []string{tag},
+			}
+		}
+		return Result{}
+	}, WithoutTags[testClientConfig](tag))
+	if len(usedNames) > 0 && usedNames[0] == "c1" {
+		// c1 went first: its rejection must veto the whole call.
+		assert.ErrorIs(t, r.Err, ErrNoValidClient)
+		assert.Equal(t, []string{"c1"}, usedNames)
+	} else {
+		// c2 was randomly picked first and served the call before any authority rejection.
+		require.NoError(t, r.Err)
+	}
+}

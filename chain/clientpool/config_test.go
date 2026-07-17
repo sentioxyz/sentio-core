@@ -115,3 +115,69 @@ func Test_ClientConfig_YAMLRoundTrip(t *testing.T) {
 	assert.Equal(t, original.Config.Value, decoded.Config.Value)
 	assert.Equal(t, original.Config.Version, decoded.Config.Version)
 }
+
+// ── ClientConfig method_authority ─────────────────────────────────────────────
+
+func Test_ClientConfig_MethodAuthority_jsonRoundTrip(t *testing.T) {
+	original := ClientConfig[testClientConfig]{
+		Priority:        1,
+		MethodAuthority: true,
+		Config:          testClientConfig{Name: "c1", Value: "v1", Version: 3},
+	}
+	data, err := json.Marshal(original)
+	require.NoError(t, err)
+
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(data, &m))
+	assert.Equal(t, true, m["method_authority"])
+
+	var decoded ClientConfig[testClientConfig]
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	assert.True(t, decoded.MethodAuthority)
+	assert.True(t, original.Equal(decoded))
+}
+
+func Test_ClientConfig_MethodAuthority_omittedWhenFalse(t *testing.T) {
+	cc := ClientConfig[testClientConfig]{Priority: 1, Config: testClientConfig{Name: "c1"}}
+	data, err := json.Marshal(cc)
+	require.NoError(t, err)
+
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(data, &m))
+	_, has := m["method_authority"]
+	assert.False(t, has)
+}
+
+func Test_ClientConfig_MethodAuthority_yamlRoundTrip(t *testing.T) {
+	original := ClientConfig[testClientConfig]{
+		Priority:        1,
+		MethodAuthority: true,
+		Config:          testClientConfig{Name: "c1", Value: "v1", Version: 3},
+	}
+	data, err := yaml.Marshal(original)
+	require.NoError(t, err)
+
+	var decoded ClientConfig[testClientConfig]
+	require.NoError(t, yaml.Unmarshal(data, &decoded))
+	assert.True(t, decoded.MethodAuthority)
+	assert.True(t, original.Equal(decoded))
+}
+
+func Test_ClientConfig_MethodAuthority_affectsEqual(t *testing.T) {
+	a := ClientConfig[testClientConfig]{Priority: 1, Config: testClientConfig{Name: "c1"}}
+	b := a
+	b.MethodAuthority = true
+	assert.False(t, a.Equal(b))
+}
+
+func Test_PoolConfig_Trim_preservesMethodAuthority(t *testing.T) {
+	trimmed := PoolConfig[testClientConfig]{
+		ClientConfigs: []ClientConfig[testClientConfig]{
+			{Priority: 0, MethodAuthority: true, Config: testClientConfig{Name: "c1"}},
+			{Priority: 1, Config: testClientConfig{Name: "c2"}},
+		},
+	}.Trim(nil)
+	require.Len(t, trimmed.ClientConfigs, 2)
+	assert.True(t, trimmed.ClientConfigs[0].MethodAuthority)
+	assert.False(t, trimmed.ClientConfigs[1].MethodAuthority)
+}

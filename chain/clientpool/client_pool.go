@@ -14,6 +14,7 @@ import (
 	"sentioxyz/sentio-core/common/timewin"
 	"sentioxyz/sentio-core/common/utils"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -620,6 +621,50 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 	return entries, backup, psi
 }
 
+// methodVetoedByAuthority reports whether every method-authority entry in the pool currently
+// carries one of the given MethodNotSupported tags. Method-authority entries (typically the
+// chain's own full nodes) define the pool's supported method set: once they all rejected a
+// method, probing the remaining endpoints for it is pointless — even ones that would answer —
+// so the request fails fast instead of cascading through the pool and triggering a priority
+// downgrade. Returns false when the pool has no method-authority entries or noTags carries no
+// MethodNotSupported tag.
+func (p *ClientPool[CONFIG, CLIENT]) methodVetoedByAuthority(noTags []string) bool {
+	var methodTags []string
+	for _, tag := range noTags {
+		if strings.HasPrefix(tag, MethodNotSupportedTagPrefix) {
+			methodTags = append(methodTags, tag)
+		}
+	}
+	if len(methodTags) == 0 {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	tagValidFrom := time.Now().Add(-p.config.TagDuration)
+	hasAuthority := false
+	for name, cc := range p.configEntries {
+		if !cc.MethodAuthority {
+			continue
+		}
+		hasAuthority = true
+		extra, has := p.entryExtra[name]
+		if !has {
+			return false
+		}
+		vetoed := false
+		for _, tag := range methodTags {
+			if extra.hasTag(tag, tagValidFrom) {
+				vetoed = true
+				break
+			}
+		}
+		if !vetoed {
+			return false
+		}
+	}
+	return hasAuthority
+}
+
 // UseClient will return ErrNoValidClient or error returned by fn
 func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	ctx context.Context,
@@ -638,6 +683,9 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	}
 	blackList := set.New[string]()
 	for {
+		if p.methodVetoedByAuthority(c.noTags) {
+			return Report{Err: errors.Wrap(ErrNoValidClient, "the method is not supported by the method-authority endpoints")}
+		}
 		entries, backup, psi := p.findEntries(blackList, c)
 		if len(entries) == 0 {
 			if backup == 0 || p.consumerWaitTooLong(cid) {

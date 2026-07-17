@@ -121,7 +121,5 @@ func Test_ClientConfig_YAMLRoundTrip(t *testing.T) {
 
 func Test_PoolConfig_Trim_defaultTagDuration(t *testing.T) {
 	trimmed := PoolConfig[testClientConfig]{}.Trim(nil)
-	// Tags (currently only MethodNotSupported) stay effective for 3 hours by default, so an
-	// endpoint that rejected a method is not re-probed with it every few minutes.
-	assert.Equal(t, time.Hour*3, trimmed.TagDuration)
+	assert.Equal(t, time.Minute*30, trimmed.TagDuration)
 }

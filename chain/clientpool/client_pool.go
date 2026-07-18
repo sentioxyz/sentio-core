@@ -424,10 +424,9 @@ func WithoutTags[CONFIG any](tags ...string) Option[CONFIG] {
 // one of the given tags — no entry is probed and no priority downgrade is triggered. Unlike
 // WithoutTags (which merely skips tagged entries), an interrupt tag marks the whole call as
 // pointless. The check is deliberately pool-global: entries excluded by WithConfigFilter or
-// WithMaxPriority can still interrupt the call. Tags are checked when the call starts, before
-// the consumer starts waiting for a priority downgrade, and on the calling consumer's own
-// results — a tag raised concurrently by another consumer during active probing is only picked
-// up at the next of those points. Typical use: a method-authority endpoint raises
+// WithMaxPriority can still interrupt the call. Tags are checked before every selection round,
+// so a tag raised mid-call (by this consumer or a concurrent one) interrupts the call before
+// any further entry is probed or waited for. Typical use: a method-authority endpoint raises
 // MethodNotSupportedByAuthorityTag when it rejects a method at runtime, and method-scoped
 // callers pass that tag here so the pool rejects the method outright.
 func InterruptWithTags[CONFIG any](tags ...string) Option[CONFIG] {
@@ -670,19 +669,14 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		opt(&c)
 	}
 	blackList := set.New[string]()
-	if p.anyEntryHasTag(c.interruptTags) {
-		return Report{Err: ErrInterrupted}
-	}
 	for {
+		if p.anyEntryHasTag(c.interruptTags) {
+			return Report{Err: ErrInterrupted}
+		}
 		entries, backup, psi := p.findEntries(blackList, c)
 		if len(entries) == 0 {
 			if backup == 0 || p.consumerWaitTooLong(cid) {
 				return Report{Err: ErrNoValidClient}
-			}
-			// an interrupt tag raised since the last check makes waiting for a recovery or a
-			// priority downgrade pointless
-			if p.anyEntryHasTag(c.interruptTags) {
-				return Report{Err: ErrInterrupted}
 			}
 			// doing stays "waiting" until the next consumerDoing(executing) call below,
 			// so consumerCollectDoing may briefly over-count after Wait returns and before
@@ -714,13 +708,6 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		if !result.Broken && !result.BrokenForTask {
 			p.clientActive(curCtx, entName, theme)
 			return Report{Err: result.Err, ConfigName: entName, ClientName: ent.Status.ClientName}
-		}
-		// this consumer's own result raised an interrupt tag: give up right away instead of
-		// probing the remaining entries (no lock or scan needed — the tags are at hand)
-		for _, tag := range result.AddTags {
-			if utils.IndexOf(c.interruptTags, tag) >= 0 {
-				return Report{Err: ErrInterrupted}
-			}
 		}
 	}
 }

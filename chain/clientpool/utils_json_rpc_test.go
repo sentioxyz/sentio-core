@@ -107,8 +107,8 @@ const drpcNoUpstreamMsg = "no available upstreams to process a request. " +
 const xlayerLegacyInternalMsg = "Temporary internal error. Please retry, trace-id: db921db51529dc6c2d152d0c9839a437"
 
 func Test_isMissDataError_positiveVendorCodes_missData(t *testing.T) {
-	assert.True(t, isMissDataError(fakeRPCErr{code: 1, msg: drpcNoUpstreamMsg}))
-	assert.True(t, isMissDataError(fakeRPCErr{code: 19, msg: xlayerLegacyInternalMsg}))
+	assert.True(t, isMissDataError("eth_getBlockReceipts", fakeRPCErr{code: 1, msg: drpcNoUpstreamMsg}))
+	assert.True(t, isMissDataError("eth_getBlockReceipts", fakeRPCErr{code: 19, msg: xlayerLegacyInternalMsg}))
 }
 
 func Test_isMissDataError_positiveVendorCodes_notBroken(t *testing.T) {
@@ -121,29 +121,48 @@ func Test_isMissDataError_positiveVendorCodes_notBroken(t *testing.T) {
 func Test_isMissDataError_executionReverted_notMissData(t *testing.T) {
 	// Code 3 is the only standard positive code (execution reverted); it now reaches
 	// message matching but must never be classified as miss-data.
-	assert.False(t, isMissDataError(fakeRPCErr{code: 3, msg: "execution reverted"}))
-	assert.False(t, isMissDataError(fakeRPCErr{code: 3, msg: "execution reverted: ERC20: transfer exceeds balance"}))
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: 3, msg: "execution reverted"}))
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: 3, msg: "execution reverted: ERC20: transfer exceeds balance"}))
+}
+
+func Test_isMissDataError_revertReasonWithKeyword_notMissData(t *testing.T) {
+	// Regression: the revert reason is contract-controlled and may itself contain a miss-data
+	// keyword. A polygon contract reverting with "Unexpected error" made every endpoint
+	// BrokenForTask for that call, so the pool kept downgrading its priority and pulled
+	// low-priority endpoints into rotation for nothing.
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: 3, msg: "execution reverted: Unexpected error"}))
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: 3, msg: "execution reverted: internal error"}))
+	assert.False(t, isMissDataError("eth_estimateGas", fakeRPCErr{code: 3, msg: "execution reverted: Unexpected error"}))
+	// Some vendors report reverts in the server-error range instead of code 3.
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: -32000, msg: "execution reverted: Unexpected error"}))
+}
+
+func Test_isMissDataError_revertOnNonRevertableMethod_stillMatches(t *testing.T) {
+	// A revert is only a legitimate deterministic result for methods that execute contract
+	// code; on any other method the message keeps going through keyword matching.
+	assert.True(t, isMissDataError("eth_getLogs", fakeRPCErr{code: 3, msg: "execution reverted: Unexpected error"}))
+	assert.False(t, isMissDataError("eth_getLogs", fakeRPCErr{code: 3, msg: "execution reverted: some reason"}))
 }
 
 func Test_isMissDataError_standardApplicationErrors_notMissData(t *testing.T) {
 	// Standard application-level codes in (-32000, 0] are never miss-data, even if the
 	// message contains a matcher keyword.
-	assert.False(t, isMissDataError(fakeRPCErr{code: -32602, msg: "invalid argument"}))
-	assert.False(t, isMissDataError(fakeRPCErr{code: -32601, msg: "method not found"}))
-	assert.False(t, isMissDataError(fakeRPCErr{code: -1, msg: "internal error"}))
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: -32602, msg: "invalid argument"}))
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: -32601, msg: "method not found"}))
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: -1, msg: "internal error"}))
 }
 
 func Test_isMissDataError_serverErrorRange_stillMatches(t *testing.T) {
 	// The pre-existing behavior for codes <= -32000 is unchanged.
-	assert.True(t, isMissDataError(fakeRPCErr{code: -32000, msg: "missing trie node deadbeef"}))
-	assert.False(t, isMissDataError(fakeRPCErr{code: -32000, msg: "execution timeout"}))
+	assert.True(t, isMissDataError("eth_getBlockByNumber", fakeRPCErr{code: -32000, msg: "missing trie node deadbeef"}))
+	assert.False(t, isMissDataError("eth_getBlockByNumber", fakeRPCErr{code: -32000, msg: "execution timeout"}))
 }
 
 // ── rate-limit body must not be misclassified by the other detectors ──────────
 
 func Test_rateLimit_notMissData_notInvalidMethod(t *testing.T) {
 	err := httpErr(429, rateLimitBody)
-	assert.False(t, isMissDataError(err))
+	assert.False(t, isMissDataError("eth_call", err))
 	assert.False(t, isInvalidMethodError(err))
 }
 

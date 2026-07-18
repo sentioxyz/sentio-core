@@ -44,6 +44,16 @@ var brokenMsgErrorMatcher = []*regexp.Regexp{
 	regexp.MustCompile("rate limit exceeded"),
 }
 
+// executionRevertedPrefix is the standard message prefix of an EVM revert (JSON-RPC error code 3).
+const executionRevertedPrefix = "execution reverted"
+
+// isRevertableMethod reports whether an "execution reverted" error is a legitimate deterministic
+// result for the method, i.e. the method executes contract code. For any other method such a
+// message is not a real revert and keeps going through the regular classification.
+func isRevertableMethod(method string) bool {
+	return method == "eth_call" || method == "eth_estimateGas"
+}
+
 func isOneOf(err string, matchers []*regexp.Regexp) bool {
 	for _, r := range matchers {
 		if r.FindString(strings.ToLower(err)) != "" {
@@ -102,7 +112,7 @@ func isInvalidMethodError(err error) bool {
 	return false
 }
 
-func isMissDataError(err error) bool {
+func isMissDataError(method string, err error) bool {
 	if err == nil {
 		return false
 	}
@@ -123,9 +133,16 @@ func isMissDataError(err error) bool {
 		// Codes <= -32000 (server error range) go through message matching, and so do positive
 		// codes: those are non-standard vendor codes, e.g. dRPC reports "no available upstreams"
 		// with code 1 and X Layer legacy-range proxying reports "Temporary internal error" with
-		// code 19. The only standard positive code is 3 (execution reverted), whose message never
-		// matches missDataErrorMatcher.
+		// code 19. The only standard positive code is 3 (execution reverted), excluded below.
 		if code := rpcErr.ErrorCode(); code > -32000 && code <= 0 {
+			return false
+		}
+		// "execution reverted: <reason>" carries a contract-controlled revert reason (standard
+		// code 3, but some vendors report it under other codes). For methods that execute
+		// contract code it is a deterministic result of the call, not missing data, and the
+		// reason must never reach the keyword matching below: a contract reverting with e.g.
+		// "Unexpected error" would otherwise be retried on every endpoint in the pool.
+		if isRevertableMethod(method) && strings.HasPrefix(strings.ToLower(err.Error()), executionRevertedPrefix) {
 			return false
 		}
 		return isOneOf(err.Error(), missDataErrorMatcher)
@@ -199,7 +216,7 @@ func CallContext(
 ) (r Result) {
 	r.Err = client.CallContext(ctx, result, method, args...)
 	r.Broken = isBrokenError(r.Err)
-	r.BrokenForTask = errors.Is(r.Err, context.DeadlineExceeded) || isMissDataError(r.Err) || isServerError(r.Err)
+	r.BrokenForTask = errors.Is(r.Err, context.DeadlineExceeded) || isMissDataError(method, r.Err) || isServerError(r.Err)
 	if isInvalidMethodError(r.Err) {
 		r.AddTags = []string{MethodNotSupportedTag(method)}
 	}

@@ -8,7 +8,6 @@ import (
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/utils"
-	"strings"
 	"time"
 
 	"github.com/gagliardetto/solana-go"
@@ -18,15 +17,7 @@ import (
 )
 
 type ClientConfig struct {
-	Endpoint      string                   `json:"endpoint" yaml:"endpoint"`
-	KeepWatch     time.Duration            `json:"keep_watch" yaml:"keep_watch"`
-	MethodTimeout map[string]time.Duration `json:"method_timeout" yaml:"method_timeout"`
-
-	// method black list
-	MethodBlackList []string `json:"method_black_list" yaml:"method_black_list"`
-
-	// method white list, empty means no white list
-	MethodWhiteList []string `json:"method_white_list" yaml:"method_white_list"`
+	clientpool.JSONRPCConfig `yaml:",inline"`
 }
 
 func (c ClientConfig) Trim() ClientConfig {
@@ -36,11 +27,7 @@ func (c ClientConfig) Trim() ClientConfig {
 	utils.PutIfNotExist(methodTimeout, "getLatestBlockhash", time.Second*3)
 	utils.PutIfNotExist(methodTimeout, "getBlockTime", time.Second*3)
 	return ClientConfig{
-		Endpoint:        strings.TrimSpace(c.Endpoint),
-		KeepWatch:       utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
-		MethodTimeout:   methodTimeout,
-		MethodBlackList: c.MethodBlackList,
-		MethodWhiteList: c.MethodWhiteList,
+		JSONRPCConfig: c.JSONRPCConfig.Trim(methodTimeout),
 	}
 }
 
@@ -248,7 +235,8 @@ func (c *Client) callContext(
 		defer cancel()
 	}
 	return c.use(ctx, src+"."+method, func(ctx context.Context) (r clientpool.Result) {
-		return buildResult(method, c.client.RPCCallForInto(ctx, result, method, args))
+		return buildResult(method, c.client.RPCCallForInto(ctx, result, method, args)).
+			WithAuthorityVeto(method, c.config.MethodAuthority)
 	})
 }
 

@@ -146,7 +146,7 @@ func Test_suiRpc(t *testing.T) {
 			ClientConfigs: []clientpool.ClientConfig[sui.ClientConfig]{
 				{
 					Config: sui.ClientConfig{
-						Endpoint: "https://fullnode.mainnet.sui.io",
+						JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: "https://fullnode.mainnet.sui.io"},
 					},
 				},
 			},

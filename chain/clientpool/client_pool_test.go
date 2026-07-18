@@ -1191,3 +1191,90 @@ func Test_ResultString(t *testing.T) {
 	r.Err = nil
 	assert.Equal(t, "Broken,BrokenForTask,AddTags[tag1,tag2]", r.String())
 }
+
+// ── UseClient: InterruptWithTags ──────────────────────────────────────────────
+
+func Test_UseClient_interruptTag_failsFastWithoutProbing(t *testing.T) {
+	// c1 carries an interrupt tag (e.g. raised by a method-authority rejection); the whole
+	// call is pointless, so c2 must not be probed even though it could serve.
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 1))
+	tag := MethodNotSupportedByAuthorityTag("foo_bar")
+	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	callCount := 0
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		callCount++
+		return Result{}
+	}, InterruptWithTags[testClientConfig](tag))
+	assert.ErrorIs(t, r.Err, ErrInterrupted)
+	assert.Equal(t, 0, callCount)
+}
+
+func Test_UseClient_interruptTag_ignoredWithoutOption(t *testing.T) {
+	// The same tag without the InterruptWithTags option does not interrupt; combined with
+	// WithoutTags it merely skips the tagged entry, like any other tag.
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 1))
+	tag := MethodNotSupportedByAuthorityTag("foo_bar")
+	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var usedName string
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		usedName = cli.config.Name
+		return Result{}
+	}, WithoutTags[testClientConfig](tag))
+	require.NoError(t, r.Err)
+	assert.Equal(t, "c2", usedName)
+}
+
+func Test_UseClient_interruptTriggersWithinOneCall(t *testing.T) {
+	// The consumer itself raises the interrupt tag mid-call (via Result.AddTags): the loop
+	// must exit with ErrInterrupted instead of probing further or waiting for a priority
+	// downgrade. c2 sits at priority 2 (disabled at the initial cursor), so c1 is
+	// deterministically probed first — without the interrupt the loop would wait for a
+	// downgrade to reach c2, which is exactly the behavior this feature removes.
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 2))
+	tag := MethodNotSupportedByAuthorityTag("foo_bar")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var usedNames []string
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		usedNames = append(usedNames, cli.config.Name)
+		return Result{
+			Err:           fmt.Errorf("the method foo_bar does not exist"),
+			BrokenForTask: true,
+			AddTags:       []string{MethodNotSupportedTag("foo_bar"), tag},
+		}
+	}, WithoutTags[testClientConfig](MethodNotSupportedTag("foo_bar")), InterruptWithTags[testClientConfig](tag))
+	assert.ErrorIs(t, r.Err, ErrInterrupted)
+	assert.Equal(t, []string{"c1"}, usedNames)
+}
+
+func Test_UseClient_interruptTag_expires(t *testing.T) {
+	// An interrupt tag older than TagDuration no longer interrupts.
+	p := startPoolWith(t, quickClientCfg("c1", 1))
+	tag := MethodNotSupportedByAuthorityTag("foo_bar")
+	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
+	p.mu.Lock()
+	p.config.TagDuration = time.Millisecond
+	p.mu.Unlock()
+	time.Sleep(time.Millisecond * 10)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	called := false
+	r := p.UseClient(ctx, "proxy.foo_bar", func(_ context.Context, cli *testClient) Result {
+		called = true
+		return Result{}
+	}, InterruptWithTags[testClientConfig](tag))
+	require.NoError(t, r.Err)
+	assert.True(t, called)
+}

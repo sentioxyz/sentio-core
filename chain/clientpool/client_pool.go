@@ -390,35 +390,48 @@ func (p *ClientPool[CONFIG, CLIENT]) chooseOne(
 }
 
 type option[CONFIG any] struct {
-	noTags       []string
-	withTags     []string
-	maxPriority  *uint32
-	configFilter func(c CONFIG) bool
+	noTags        []string
+	withTags      []string
+	interruptTags []string
+	maxPriority   *uint32
+	configFilter  func(c CONFIG) bool
 }
 
 type Option[CONFIG any] func(c *option[CONFIG])
 
+func mergeTags(existing, tags []string) []string {
+	if len(existing) == 0 {
+		return tags
+	}
+	s := set.New[string](tags...)
+	s.Add(existing...)
+	return s.DumpValues()
+}
+
 func WithTags[CONFIG any](tags ...string) Option[CONFIG] {
 	return func(c *option[CONFIG]) {
-		if len(c.withTags) == 0 {
-			c.withTags = tags
-		} else {
-			s := set.New[string](tags...)
-			s.Add(c.withTags...)
-			c.withTags = s.DumpValues()
-		}
+		c.withTags = mergeTags(c.withTags, tags)
 	}
 }
 
 func WithoutTags[CONFIG any](tags ...string) Option[CONFIG] {
 	return func(c *option[CONFIG]) {
-		if len(c.noTags) == 0 {
-			c.noTags = tags
-		} else {
-			s := set.New[string](tags...)
-			s.Add(c.noTags...)
-			c.noTags = s.DumpValues()
-		}
+		c.noTags = mergeTags(c.noTags, tags)
+	}
+}
+
+// InterruptWithTags makes UseClient return ErrInterrupted when ANY entry in the pool carries
+// one of the given tags — no entry is probed and no priority downgrade is triggered. Unlike
+// WithoutTags (which merely skips tagged entries), an interrupt tag marks the whole call as
+// pointless. The check is deliberately pool-global: entries excluded by WithConfigFilter or
+// WithMaxPriority can still interrupt the call. Tags are checked before every selection round,
+// so a tag raised mid-call (by this consumer or a concurrent one) interrupts the call before
+// any further entry is probed or waited for. Typical use: a method-authority endpoint raises
+// MethodNotSupportedByAuthorityTag when it rejects a method at runtime, and method-scoped
+// callers pass that tag here so the pool rejects the method outright.
+func InterruptWithTags[CONFIG any](tags ...string) Option[CONFIG] {
+	return func(c *option[CONFIG]) {
+		c.interruptTags = mergeTags(c.interruptTags, tags)
 	}
 }
 
@@ -620,6 +633,25 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 	return entries, backup, psi
 }
 
+// anyEntryHasTag reports whether any entry in the pool currently carries one of the given
+// tags (within TagDuration). Used by the InterruptWithTags option.
+func (p *ClientPool[CONFIG, CLIENT]) anyEntryHasTag(tags []string) bool {
+	if len(tags) == 0 {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	tagValidFrom := time.Now().Add(-p.config.TagDuration)
+	for _, extra := range p.entryExtra {
+		for _, tag := range tags {
+			if extra.hasTag(tag, tagValidFrom) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // UseClient will return ErrNoValidClient or error returned by fn
 func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	ctx context.Context,
@@ -638,6 +670,9 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	}
 	blackList := set.New[string]()
 	for {
+		if p.anyEntryHasTag(c.interruptTags) {
+			return Report{Err: ErrInterrupted}
+		}
 		entries, backup, psi := p.findEntries(blackList, c)
 		if len(entries) == 0 {
 			if backup == 0 || p.consumerWaitTooLong(cid) {

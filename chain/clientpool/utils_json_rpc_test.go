@@ -173,3 +173,34 @@ func Test_isOneOf_caseInsensitive(t *testing.T) {
 	assert.True(t, isOneOf("Rate Limit Exceeded. Please get an api key", brokenMsgErrorMatcher))
 	assert.False(t, isOneOf("some other error", brokenMsgErrorMatcher))
 }
+
+// ── Result.WithAuthorityVeto ──────────────────────────────────────────────────
+
+func Test_WithAuthorityVeto_raisesAuthorityTag(t *testing.T) {
+	r := Result{
+		Err:     fakeRPCErr{code: -32601, msg: "the method foo_bar does not exist"},
+		AddTags: []string{MethodNotSupportedTag("foo_bar")},
+	}
+	r = r.WithAuthorityVeto("foo_bar", true)
+	assert.Contains(t, r.AddTags, MethodNotSupportedByAuthorityTag("foo_bar"))
+	assert.Contains(t, r.AddTags, MethodNotSupportedTag("foo_bar"))
+}
+
+func Test_WithAuthorityVeto_noopWithoutAuthority(t *testing.T) {
+	r := Result{
+		Err:     fakeRPCErr{code: -32601, msg: "the method foo_bar does not exist"},
+		AddTags: []string{MethodNotSupportedTag("foo_bar")},
+	}
+	r = r.WithAuthorityVeto("foo_bar", false)
+	assert.NotContains(t, r.AddTags, MethodNotSupportedByAuthorityTag("foo_bar"))
+}
+
+func Test_WithAuthorityVeto_noopWithoutMethodTag(t *testing.T) {
+	// Success, unrelated errors, and other tags never raise the authority tag.
+	assert.Empty(t, Result{}.WithAuthorityVeto("foo_bar", true).AddTags)
+	r := Result{Err: fakeRPCErr{code: -32000, msg: "some other error"}}
+	assert.Empty(t, r.WithAuthorityVeto("foo_bar", true).AddTags)
+	r = Result{AddTags: []string{MethodNotSupportedTag("other_method")}}
+	assert.NotContains(t, r.WithAuthorityVeto("foo_bar", true).AddTags,
+		MethodNotSupportedByAuthorityTag("foo_bar"))
+}

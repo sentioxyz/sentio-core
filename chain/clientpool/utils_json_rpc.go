@@ -223,6 +223,21 @@ func CallContext(
 	return r
 }
 
+// WithAuthorityVeto upgrades a runtime method-not-supported rejection into an authority veto:
+// when the endpoint is a method authority (JSONRPCConfig.MethodAuthority) and the result
+// already carries MethodNotSupportedTag(method), it additionally raises
+// MethodNotSupportedByAuthorityTag(method) so method-scoped consumers interrupt the whole pool
+// for this method (see InterruptWithTags). Chain clients apply it on their live call path
+// only — never on the CheckMethod path, so a config black/white list cannot raise the veto.
+func (r Result) WithAuthorityVeto(method string, authority bool) Result {
+	// len check first: the success path must not pay the tag-string concatenation
+	if !authority || len(r.AddTags) == 0 || utils.IndexOf(r.AddTags, MethodNotSupportedTag(method)) < 0 {
+		return r
+	}
+	r.AddTags = append(r.AddTags, MethodNotSupportedByAuthorityTag(method))
+	return r
+}
+
 func CheckMethod(method string, blackList, whiteList []string) Result {
 	if len(blackList) > 0 && utils.IndexOf(blackList, method) >= 0 {
 		return Result{

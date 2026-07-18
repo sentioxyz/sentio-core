@@ -40,6 +40,7 @@ go_library(
 go_test(
     name = "evm_test",
     srcs = [
+        "client_config_test.go",
         "header_types_test.go",
         "receipt_types_test.go",
         "rpc_types_test.go",
@@ -49,6 +50,7 @@ go_test(
     embed = [":evm"],
     embedsrcs = ["testdata/trace-types.json"],
     deps = [
+        "//chain/clientpool",
         "//common/utils",
         "@com_github_ethereum_go_ethereum//common",
         "@com_github_ethereum_go_ethereum//common/hexutil",
@@ -56,6 +58,8 @@ go_test(
         "@com_github_ethereum_go_ethereum//rpc",
         "@com_github_goccy_go_json//:go-json",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
+        "@in_gopkg_yaml_v3//:yaml_v3",
     ],
 )

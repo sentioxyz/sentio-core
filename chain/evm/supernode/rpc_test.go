@@ -78,7 +78,7 @@ func Test_evmRpc(t *testing.T) {
 			ClientConfigs: []clientpool.ClientConfig[evm.ClientConfig]{
 				{
 					Config: evm.ClientConfig{
-						Endpoint:             "https://eth.drpc.org",
+						JSONRPCConfig:        clientpool.JSONRPCConfig{Endpoint: "https://eth.drpc.org"},
 						ChainID:              1,
 						IgnoreStateFromCheck: true,
 					},

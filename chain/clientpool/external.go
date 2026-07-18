@@ -26,6 +26,12 @@ func (b Block) String() string {
 var (
 	ErrInvalidConfig = errors.New("invalid config")
 	ErrNoValidClient = errors.New("no valid client")
+
+	// ErrInterrupted is returned by UseClient when any entry in the pool carries one of the
+	// tags the caller passed via InterruptWithTags: the tag marks the whole call as pointless
+	// (e.g. a method-authority endpoint rejected the method), so the pool gives up immediately
+	// instead of probing entries or waiting for a priority downgrade.
+	ErrInterrupted = errors.New("interrupted by a tagged client")
 )
 
 type Client interface {

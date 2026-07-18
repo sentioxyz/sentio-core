@@ -55,14 +55,7 @@ func (c ClientConfig) Trim() ClientConfig {
 	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_multiGetTransactionBlocks"), time.Second*30)
 	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_tryMultiGetPastObjects"), time.Second*30)
 	return ClientConfig{
-		JSONRPCConfig: clientpool.JSONRPCConfig{
-			Endpoint:        strings.TrimSpace(c.Endpoint),
-			KeepWatch:       utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
-			MethodTimeout:   methodTimeout,
-			MethodBlackList: c.MethodBlackList,
-			MethodWhiteList: c.MethodWhiteList,
-			MethodAuthority: c.MethodAuthority,
-		},
+		JSONRPCConfig:       c.JSONRPCConfig.Trim(methodTimeout),
 		AdditionalEndpoints: utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
 		GrpcEndpoint:        strings.TrimSpace(c.GrpcEndpoint),
 		MaxCallRecvMsgSize:  utils.Select(c.MaxCallRecvMsgSize == 0, 1024*1024*100, c.MaxCallRecvMsgSize), // default 100M
@@ -274,6 +267,22 @@ func (c *Client) use(
 	return r
 }
 
+// remapMethodTag rewrites a MethodNotSupported tag raised under the variation's real method
+// name (rpcMethod) back to the caller-facing name. The pool's WithoutTags/InterruptWithTags
+// filters are built by callers from the name THEY use (e.g. a proxied "sui_*" alias on an iota
+// chain), so tags must be keyed by that name or the filters never match.
+func remapMethodTag(r clientpool.Result, rpcMethod, method string) clientpool.Result {
+	if rpcMethod == method || len(r.AddTags) == 0 {
+		return r
+	}
+	for i, tag := range r.AddTags {
+		if tag == clientpool.MethodNotSupportedTag(rpcMethod) {
+			r.AddTags[i] = clientpool.MethodNotSupportedTag(method)
+		}
+	}
+	return r
+}
+
 func (c *Client) CallContext(
 	ctx context.Context,
 	result any,
@@ -281,11 +290,12 @@ func (c *Client) CallContext(
 	method string,
 	args ...any,
 ) clientpool.Result {
-	// rewrite the method to the variation's actual name per ChainID (for iota the
-	// leading "sui" becomes "iota", e.g. sui_* -> iota_*, suix_* -> iotax_*)
-	method = c.config.Variation().RPCMethod(method)
-	if r := clientpool.CheckMethod(method, c.config.MethodBlackList, c.config.MethodWhiteList); r.Err != nil {
-		return r
+	// the config ACL is matched against the variation's actual method name (for iota the
+	// leading "sui" becomes "iota", e.g. sui_* -> iota_*, suix_* -> iotax_*); tags stay keyed
+	// by the caller-facing name (see remapMethodTag)
+	rpcMethod := c.config.Variation().RPCMethod(method)
+	if r := clientpool.CheckMethod(rpcMethod, c.config.MethodBlackList, c.config.MethodWhiteList); r.Err != nil {
+		return remapMethodTag(r, rpcMethod, method)
 	}
 	return c.callContext(ctx, result, src, method, args...)
 }
@@ -297,17 +307,18 @@ func (c *Client) callContext(
 	method string,
 	args ...any,
 ) clientpool.Result {
-	// rewrite the method to the variation's actual name per ChainID (for iota the
-	// leading "sui" becomes "iota", e.g. sui_* -> iota_*, suix_* -> iotax_*)
-	method = c.config.Variation().RPCMethod(method)
-	if timeout, has := c.config.MethodTimeout[method]; has && timeout > 0 {
+	// the wire call and the timeout lookup use the variation's actual method name (for iota the
+	// leading "sui" becomes "iota", e.g. sui_* -> iota_*, suix_* -> iotax_*); tags stay keyed
+	// by the caller-facing name (see remapMethodTag)
+	rpcMethod := c.config.Variation().RPCMethod(method)
+	if timeout, has := c.config.MethodTimeout[rpcMethod]; has && timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	return c.use(ctx, src+"."+method, func(ctx context.Context) clientpool.Result {
-		return clientpool.CallContext(c.rpcClient, ctx, result, method, args...).
-			WithAuthorityVeto(method, c.config.MethodAuthority)
+	return c.use(ctx, src+"."+rpcMethod, func(ctx context.Context) clientpool.Result {
+		r := clientpool.CallContext(c.rpcClient, ctx, result, rpcMethod, args...)
+		return remapMethodTag(r, rpcMethod, method).WithAuthorityVeto(method, c.config.MethodAuthority)
 	})
 }
 

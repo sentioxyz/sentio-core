@@ -1,6 +1,11 @@
 package clientpool
 
-import "time"
+import (
+	"strings"
+	"time"
+
+	"sentioxyz/sentio-core/common/utils"
+)
 
 // JSONRPCConfig is the common part of the JSON-RPC chain client configs (evm/sui/sol).
 // Chain configs embed it inline (json flattens embedded structs natively; yaml needs the
@@ -21,8 +26,22 @@ type JSONRPCConfig struct {
 	// supported at runtime, the client raises MethodNotSupportedByAuthorityTag on top of the
 	// regular MethodNotSupportedTag (see Result.WithAuthorityVeto), and method-scoped consumers
 	// pass that tag via InterruptWithTags to fail the method fast instead of probing endpoints
-	// the authority already ruled out. Methods disabled by this endpoint's own black/white list
-	// never reach it (CheckMethod rejects them before the call), so a deliberate ACL cannot
-	// raise the authority tag — the endpoint simply abstains for those methods.
+	// the authority already ruled out. A deliberate ACL cannot raise the authority tag: methods
+	// disabled by this endpoint's own black/white list are rejected by CheckMethod before any
+	// call is made (and the clients' internal probes, which bypass CheckMethod, discard tags),
+	// so the endpoint simply abstains for those methods.
 	MethodAuthority bool `json:"method_authority" yaml:"method_authority"`
+}
+
+// Trim normalizes the common fields; each chain's ClientConfig.Trim calls it with its own
+// defaulted methodTimeout so a new common field only needs handling here.
+func (c JSONRPCConfig) Trim(methodTimeout map[string]time.Duration) JSONRPCConfig {
+	return JSONRPCConfig{
+		Endpoint:        strings.TrimSpace(c.Endpoint),
+		KeepWatch:       utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
+		MethodTimeout:   methodTimeout,
+		MethodBlackList: c.MethodBlackList,
+		MethodWhiteList: c.MethodWhiteList,
+		MethodAuthority: c.MethodAuthority,
+	}
 }

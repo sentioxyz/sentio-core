@@ -213,7 +213,8 @@ func CallContext(
 // for this method (see InterruptWithTags). Chain clients apply it on their live call path
 // only — never on the CheckMethod path, so a config black/white list cannot raise the veto.
 func (r Result) WithAuthorityVeto(method string, authority bool) Result {
-	if !authority || utils.IndexOf(r.AddTags, MethodNotSupportedTag(method)) < 0 {
+	// len check first: the success path must not pay the tag-string concatenation
+	if !authority || len(r.AddTags) == 0 || utils.IndexOf(r.AddTags, MethodNotSupportedTag(method)) < 0 {
 		return r
 	}
 	r.AddTags = append(r.AddTags, MethodNotSupportedByAuthorityTag(method))

@@ -12,8 +12,8 @@ import (
 	"sentioxyz/sentio-core/chain/clientpool"
 )
 
-// The embedded clientpool.JSONRPCConfig must keep the wire format flat — exactly what the
-// endpoints-config configmaps contain.
+// The embedded clientpool.JSONRPCConfig must keep the wire format flat — exactly the shape of
+// the existing on-disk endpoint config files.
 const endpointYAML = `endpoint: https://ethereum-a.example:8545
 priority: 0
 method_authority: true

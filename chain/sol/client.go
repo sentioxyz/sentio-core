@@ -8,7 +8,6 @@ import (
 	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/utils"
-	"strings"
 	"time"
 
 	"github.com/gagliardetto/solana-go"
@@ -28,14 +27,7 @@ func (c ClientConfig) Trim() ClientConfig {
 	utils.PutIfNotExist(methodTimeout, "getLatestBlockhash", time.Second*3)
 	utils.PutIfNotExist(methodTimeout, "getBlockTime", time.Second*3)
 	return ClientConfig{
-		JSONRPCConfig: clientpool.JSONRPCConfig{
-			Endpoint:        strings.TrimSpace(c.Endpoint),
-			KeepWatch:       utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
-			MethodTimeout:   methodTimeout,
-			MethodBlackList: c.MethodBlackList,
-			MethodWhiteList: c.MethodWhiteList,
-			MethodAuthority: c.MethodAuthority,
-		},
+		JSONRPCConfig: c.JSONRPCConfig.Trim(methodTimeout),
 	}
 }
 

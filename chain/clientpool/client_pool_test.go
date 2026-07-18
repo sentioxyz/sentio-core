@@ -1262,7 +1262,9 @@ func Test_UseClient_interruptTag_expires(t *testing.T) {
 	p := startPoolWith(t, quickClientCfg("c1", 1))
 	tag := MethodNotSupportedByAuthorityTag("foo_bar")
 	p.clientAddTag(context.Background(), "c1", tag, fmt.Errorf("the method foo_bar does not exist"))
+	p.mu.Lock()
 	p.config.TagDuration = time.Millisecond
+	p.mu.Unlock()
 	time.Sleep(time.Millisecond * 10)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

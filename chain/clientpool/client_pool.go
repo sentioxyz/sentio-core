@@ -399,45 +399,40 @@ type option[CONFIG any] struct {
 
 type Option[CONFIG any] func(c *option[CONFIG])
 
+func mergeTags(existing, tags []string) []string {
+	if len(existing) == 0 {
+		return tags
+	}
+	s := set.New[string](tags...)
+	s.Add(existing...)
+	return s.DumpValues()
+}
+
 func WithTags[CONFIG any](tags ...string) Option[CONFIG] {
 	return func(c *option[CONFIG]) {
-		if len(c.withTags) == 0 {
-			c.withTags = tags
-		} else {
-			s := set.New[string](tags...)
-			s.Add(c.withTags...)
-			c.withTags = s.DumpValues()
-		}
+		c.withTags = mergeTags(c.withTags, tags)
 	}
 }
 
 func WithoutTags[CONFIG any](tags ...string) Option[CONFIG] {
 	return func(c *option[CONFIG]) {
-		if len(c.noTags) == 0 {
-			c.noTags = tags
-		} else {
-			s := set.New[string](tags...)
-			s.Add(c.noTags...)
-			c.noTags = s.DumpValues()
-		}
+		c.noTags = mergeTags(c.noTags, tags)
 	}
 }
 
-// InterruptWithTags makes UseClient return ErrInterrupted immediately when ANY entry in the
-// pool currently carries one of the given tags — no entry is probed and no priority downgrade
-// is triggered. Unlike WithoutTags (which merely skips tagged entries), an interrupt tag marks
-// the whole call as pointless. Typical use: a method-authority endpoint raises
+// InterruptWithTags makes UseClient return ErrInterrupted when ANY entry in the pool carries
+// one of the given tags — no entry is probed and no priority downgrade is triggered. Unlike
+// WithoutTags (which merely skips tagged entries), an interrupt tag marks the whole call as
+// pointless. The check is deliberately pool-global: entries excluded by WithConfigFilter or
+// WithMaxPriority can still interrupt the call. Tags are checked when the call starts, before
+// the consumer starts waiting for a priority downgrade, and on the calling consumer's own
+// results — a tag raised concurrently by another consumer during active probing is only picked
+// up at the next of those points. Typical use: a method-authority endpoint raises
 // MethodNotSupportedByAuthorityTag when it rejects a method at runtime, and method-scoped
 // callers pass that tag here so the pool rejects the method outright.
 func InterruptWithTags[CONFIG any](tags ...string) Option[CONFIG] {
 	return func(c *option[CONFIG]) {
-		if len(c.interruptTags) == 0 {
-			c.interruptTags = tags
-		} else {
-			s := set.New[string](tags...)
-			s.Add(c.interruptTags...)
-			c.interruptTags = s.DumpValues()
-		}
+		c.interruptTags = mergeTags(c.interruptTags, tags)
 	}
 }
 
@@ -675,14 +670,19 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		opt(&c)
 	}
 	blackList := set.New[string]()
+	if p.anyEntryHasTag(c.interruptTags) {
+		return Report{Err: ErrInterrupted}
+	}
 	for {
-		if p.anyEntryHasTag(c.interruptTags) {
-			return Report{Err: ErrInterrupted}
-		}
 		entries, backup, psi := p.findEntries(blackList, c)
 		if len(entries) == 0 {
 			if backup == 0 || p.consumerWaitTooLong(cid) {
 				return Report{Err: ErrNoValidClient}
+			}
+			// an interrupt tag raised since the last check makes waiting for a recovery or a
+			// priority downgrade pointless
+			if p.anyEntryHasTag(c.interruptTags) {
+				return Report{Err: ErrInterrupted}
 			}
 			// doing stays "waiting" until the next consumerDoing(executing) call below,
 			// so consumerCollectDoing may briefly over-count after Wait returns and before
@@ -714,6 +714,13 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 		if !result.Broken && !result.BrokenForTask {
 			p.clientActive(curCtx, entName, theme)
 			return Report{Err: result.Err, ConfigName: entName, ClientName: ent.Status.ClientName}
+		}
+		// this consumer's own result raised an interrupt tag: give up right away instead of
+		// probing the remaining entries (no lock or scan needed — the tags are at hand)
+		for _, tag := range result.AddTags {
+			if utils.IndexOf(c.interruptTags, tag) >= 0 {
+				return Report{Err: ErrInterrupted}
+			}
 		}
 	}
 }

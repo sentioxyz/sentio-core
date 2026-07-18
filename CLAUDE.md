@@ -198,7 +198,7 @@ The evm/sui/sol `ClientConfig` structs embed `clientpool.JSONRPCConfig` (anonymo
   set promoted fields** — construct as
   `evm.ClientConfig{JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: ...}, ChainID: ...}`.
 - The wire format stays flat (JSON flattens embedded structs; yaml uses the inline tag), so
-  endpoints-config YAML/JSON is unaffected. Keep it that way when adding fields.
+  existing endpoint config YAML/JSON is unaffected. Keep it that way when adding fields.
 - `method_authority: true` endpoints raise `MethodNotSupportedByAuthorityTag` on a runtime
   method rejection (`Result.WithAuthorityVeto`, live call path only — never the `CheckMethod`
   config-ACL path); method-scoped callers pass that tag via the generic

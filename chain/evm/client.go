@@ -60,14 +60,7 @@ func (c ClientConfig) Trim() ClientConfig {
 	utils.PutIfNotExist(methodTimeout, "trace_block", time.Minute)
 	utils.PutIfNotExist(methodTimeout, "debug_traceBlockByHash", time.Minute)
 	return ClientConfig{
-		JSONRPCConfig: clientpool.JSONRPCConfig{
-			Endpoint:        strings.TrimSpace(c.Endpoint),
-			KeepWatch:       utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
-			MethodTimeout:   methodTimeout,
-			MethodBlackList: c.MethodBlackList,
-			MethodWhiteList: c.MethodWhiteList,
-			MethodAuthority: c.MethodAuthority,
-		},
+		JSONRPCConfig:            c.JSONRPCConfig.Trim(methodTimeout),
 		WSSEndpoint:              strings.TrimSpace(c.WSSEndpoint),
 		AdditionalEndpoints:      utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
 		ChainID:                  c.ChainID,

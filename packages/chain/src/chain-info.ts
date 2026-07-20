@@ -928,22 +928,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApi: 'https://unichain.blockscout.com',
     lightIcon: 'https://assets.sentio.xyz/chains/unichain.svg'
   },
-  [EthChainId.CORN_MAIZENET]: {
-    name: 'Corn Maizenet',
-    slug: 'corn-maizenet',
-    chainId: EthChainId.CORN_MAIZENET,
-    nativeChainId: 21000000,
-    variation: EthVariation.OPTIMISM,
-    priceTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenSymbol: 'BTCN',
-    tokenDecimals: 18,
-    explorerUrl: 'https://maizenet-explorer.usecorn.com',
-    explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerApi: 'https://maizenet-explorer.usecorn.com',
-    lightIcon: 'https://assets.sentio.xyz/chains/corn.svg'
-  },
   [EthChainId.KARAK]: {
     name: 'Karak Mainnet',
     slug: 'karak-mainnet',

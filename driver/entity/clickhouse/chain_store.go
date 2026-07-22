@@ -9,19 +9,15 @@ import (
 	lru "github.com/sentioxyz/golang-lru"
 	"github.com/sentioxyz/golang-lru/simplelru"
 
-	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
 )
 
-// fullIDCacheMaxCount caps how many entity IDs may be loaded into the full-ID cache.
-// Entities beyond this count fall back to per-query existence checks against the
-// persistent store; loading hundreds of millions of IDs into one in-process set
-// would otherwise exhaust the driver's memory limit.
-var fullIDCacheMaxCount = envconf.LoadUInt64("SENTIO_ENTITY_FULL_ID_CACHE_MAX_COUNT", 30_000_000,
-	envconf.WithMin(1_000_000))
+// DefaultFullIDCacheMaxCount is the fullIDCacheMaxCount used when NewChainStore
+// receives a non-positive value.
+const DefaultFullIDCacheMaxCount = 30_000_000
 
 // cachedEntityBox is the in-memory cache entry used by fullCache.
 // It wraps a persistent entity with its ClickHouse VersionedCollapsing version counter,
@@ -70,28 +66,41 @@ type ChainStore struct {
 	// fullCacheDataLimit is the maximum total data bytes that can be kept in
 	// fullCache before falling back to the LRU + fullIDCache path.
 	fullCacheDataLimit int
+
+	// fullIDCacheMaxCount caps how many entity IDs may be loaded into the full-ID
+	// cache.  Entities beyond this count fall back to per-query existence checks
+	// against the persistent store; loading hundreds of millions of IDs into one
+	// in-process set would otherwise exhaust the driver's memory limit.
+	fullIDCacheMaxCount uint64
 }
 
 // NewChainStore creates a ChainStore bound to the given chain.
 //   - lruCapacity: number of entity entries in the LRU cache.
 //   - fullCacheDataSizeLimit: max total byte size of the full-data cache.
+//   - fullIDCacheMaxCount: max number of entity IDs the full-ID cache may hold;
+//     non-positive values fall back to DefaultFullIDCacheMaxCount.
 func NewChainStore(
 	store *Store,
 	chain string,
 	lruCapacity int,
 	fullCacheDataSizeLimit int,
+	fullIDCacheMaxCount int,
 ) *ChainStore {
+	if fullIDCacheMaxCount <= 0 {
+		fullIDCacheMaxCount = DefaultFullIDCacheMaxCount
+	}
 	cs := &ChainStore{
-		store:              store,
-		chain:              chain,
-		fullCacheDataLimit: fullCacheDataSizeLimit,
-		fullIDCache:        make(map[string]set.Set[string]),
-		fullIDCacheLoaded:  make(map[string]bool),
-		fullIDCacheRefused: make(map[string]bool),
-		fullCache:          make(map[string]map[string]*cachedEntityBox),
-		fullCacheLoaded:    make(map[string]bool),
-		fullCacheRefused:   make(map[string]bool),
-		cacheEntity:        make(map[string]*lru.Cache[string, *persistent.EntityBox]),
+		store:               store,
+		chain:               chain,
+		fullCacheDataLimit:  fullCacheDataSizeLimit,
+		fullIDCacheMaxCount: uint64(fullIDCacheMaxCount),
+		fullIDCache:         make(map[string]set.Set[string]),
+		fullIDCacheLoaded:   make(map[string]bool),
+		fullIDCacheRefused:  make(map[string]bool),
+		fullCache:           make(map[string]map[string]*cachedEntityBox),
+		fullCacheLoaded:     make(map[string]bool),
+		fullCacheRefused:    make(map[string]bool),
+		cacheEntity:         make(map[string]*lru.Cache[string, *persistent.EntityBox]),
 	}
 	var err error
 	cs.lruCache, err = simplelru.NewLRU[string, *persistent.EntityBox](lruCapacity, func(_ string, _ *persistent.EntityBox) {
@@ -453,7 +462,7 @@ func (c *ChainStore) Snapshot() any {
 	return map[string]any{
 		"config": map[string]any{
 			"fullCacheDataSizeLimit": c.fullCacheDataLimit,
-			"fullIDCacheMaxCount":    fullIDCacheMaxCount,
+			"fullIDCacheMaxCount":    c.fullIDCacheMaxCount,
 		},
 		"cacheEntity": cacheEntity,
 		"lruCache": map[string]any{
@@ -543,7 +552,7 @@ func (c *ChainStore) tryLoadFullCache(
 // knownCount is the entity count when the caller already determined it, or -1 to
 // count here. Entities with more than fullIDCacheMaxCount IDs are refused: holding
 // that many IDs in memory could OOM the process, and callers handle a missing ID
-// cache by querying the persistent store directly. For versioned-collapsing
+// cache by querying the persistent store directly.  For versioned-collapsing
 // entities knownCount may include deleted rows, which only makes the check stricter.
 func (c *ChainStore) tryLoadFullIDCache(
 	ctx context.Context,
@@ -567,7 +576,7 @@ func (c *ChainStore) tryLoadFullIDCache(
 		}
 		knownCount = int64(count)
 	}
-	if uint64(knownCount) > fullIDCacheMaxCount {
+	if uint64(knownCount) > c.fullIDCacheMaxCount {
 		logger.Warnw("too many entities in persistent, refuse to use full id cache", "count", knownCount)
 		c.fullIDCacheRefused[entityType.Name] = true
 		return false, nil

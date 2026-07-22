@@ -599,6 +599,58 @@ func (c *Controller) queryObjectChanges(
 	return result, err
 }
 
+// QueryLastObjectChange returns the object's newest recorded change with
+// object_version <= maxVersion (no bound when maxVersion is 0) and
+// checkpoint <= maxCheckpoint, or nil when nothing is recorded. The position
+// lookup runs on the object-id-partitioned object_positions table, so the cost is
+// independent of how many checkpoints the object's history spans; the change row
+// is then read at that single checkpoint.
+func (c *Controller) QueryLastObjectChange(
+	ctx context.Context,
+	objectID string,
+	maxVersion uint64,
+	maxCheckpoint uint64,
+) (*sui.ObjectChangeRecord, error) {
+	condition, args := "object_id = ? AND checkpoint <= ?", []any{objectID, maxCheckpoint}
+	if maxVersion > 0 {
+		condition += " AND object_version <= ?"
+		args = append(args, maxVersion)
+	}
+	sql := fmt.Sprintf("SELECT object_version, checkpoint FROM %s WHERE %s ORDER BY object_version DESC LIMIT 1",
+		c.ctrl.FullLogicName(tableNameObjectPositions), condition)
+	var version, checkpoint uint64
+	var found bool
+	if err := c.ctrl.Query(ctx, func(rows driver.Rows) error {
+		found = true
+		return rows.Scan(&version, &checkpoint)
+	}, sql, args...); err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, nil
+	}
+	changes, err := c.queryObjectChanges(ctx, func(types.ObjectChangeExtend) bool { return true }, 0,
+		"checkpoint = ? AND object_id = ? AND object_version = ?", checkpoint, objectID, version)
+	if err != nil {
+		return nil, err
+	}
+	if len(changes) == 0 {
+		return nil, errors.Errorf("object change of %s@%d at checkpoint %d not found", objectID, version, checkpoint)
+	}
+	oc := &changes[0]
+	record := &sui.ObjectChangeRecord{
+		Checkpoint:    checkpoint,
+		TxDigest:      oc.TxDigest.String(),
+		Type:          string(oc.Type),
+		ObjectVersion: version,
+	}
+	if oc.PreviousVersion != nil {
+		v := oc.PreviousVersion.Uint64()
+		record.PreviousVersion = &v
+	}
+	return record, nil
+}
+
 func (c *Controller) QueryObjectsStat(
 	ctx context.Context,
 	startCheckpoint uint64,

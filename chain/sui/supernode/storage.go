@@ -45,6 +45,16 @@ type StorageJSONRPC interface {
 
 	QueryObjectsStat(ctx context.Context, fromBlock, toBlock uint64, objectIDList []string) (map[string]sui.ObjectStat, error)
 
+	// QueryLastObjectChange returns the object's newest recorded change with
+	// object_version <= maxVersion (no bound when maxVersion is 0) and
+	// checkpoint <= maxCheckpoint, or nil when nothing is recorded. A per-object
+	// point lookup whose cost is independent of the checkpoint span of the
+	// object's history; the checkpoint bound lets the super node serve the tail
+	// from its latest-slot cache and this only for the range below it.
+	QueryLastObjectChange(
+		ctx context.Context, objectID string, maxVersion uint64, maxCheckpoint uint64,
+	) (*sui.ObjectChangeRecord, error)
+
 	Snapshot() any
 }
 
@@ -93,6 +103,13 @@ type StorageGRPC interface {
 		fromBlock, toBlock uint64,
 		objectIDList []string,
 	) (map[string]sui.ObjectStat, error)
+
+	// QueryLastObjectChange applies the same contract as
+	// StorageJSONRPC.QueryLastObjectChange; the grpc-derived objects history also
+	// records wrapped / unwrapped / deleted rows.
+	QueryLastObjectChange(
+		ctx context.Context, objectID string, maxVersion uint64, maxCheckpoint uint64,
+	) (*sui.ObjectChangeRecord, error)
 
 	Snapshot() any
 }

@@ -351,6 +351,61 @@ func (s *Storage) QueryObjectChanges(
 	}, limit, strings.Join(conditions, " AND "), args...)
 }
 
+// QueryLastObjectChange returns the object's newest recorded change with
+// object_version <= maxVersion (no bound when maxVersion is 0) and
+// checkpoint <= maxCheckpoint, or nil when nothing is recorded. The objects table
+// carries the full grpc-derived lifecycle (including wrapped / unwrapped /
+// deleted rows). Like the chv3 variant this runs in two steps so both are cheap:
+// the version + checkpoint come from the object-id-keyed idv projection (which
+// only covers object_id / object_version / checkpoint / change_type), then the
+// full row is read with a checkpoint condition so the base-table lookup prunes to
+// a single partition.
+func (s *Storage) QueryLastObjectChange(
+	ctx context.Context,
+	objectID string,
+	maxVersion uint64,
+	maxCheckpoint uint64,
+) (*sui.ObjectChangeRecord, error) {
+	condition, args := "object_id = ? AND checkpoint <= ?", []any{objectID, maxCheckpoint}
+	if maxVersion > 0 {
+		condition += " AND object_version <= ?"
+		args = append(args, maxVersion)
+	}
+	sql := fmt.Sprintf("SELECT object_version, checkpoint FROM %s WHERE %s ORDER BY object_version DESC LIMIT 1",
+		s.ctrl.FullLogicName(tableNameObjects), condition)
+	var version, checkpoint uint64
+	var found bool
+	if err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		found = true
+		return rows.Scan(&version, &checkpoint)
+	}, sql, args...); err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, nil
+	}
+	sql = fmt.Sprintf("SELECT tx_digest, change_type, pre_object_version FROM %s "+
+		"WHERE checkpoint = ? AND object_id = ? AND object_version = ? LIMIT 1",
+		s.ctrl.FullLogicName(tableNameObjects))
+	record := &sui.ObjectChangeRecord{Checkpoint: checkpoint, ObjectVersion: version}
+	var preVersion uint64
+	found = false
+	if err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		found = true
+		return rows.Scan(&record.TxDigest, &record.Type, &preVersion)
+	}, sql, checkpoint, objectID, version); err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errors.Errorf("object change of %s@%d at checkpoint %d not found", objectID, version, checkpoint)
+	}
+	// pre_object_version is 0 for created / unwrapped rows (no previous version).
+	if preVersion > 0 {
+		record.PreviousVersion = &preVersion
+	}
+	return record, nil
+}
+
 func (s *Storage) QueryObjectsStat(
 	ctx context.Context,
 	fromBlock, toBlock uint64,

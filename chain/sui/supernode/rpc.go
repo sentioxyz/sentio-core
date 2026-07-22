@@ -49,6 +49,10 @@ func NewSuperNode(
 					return jsonrpc.CallMethod(superSvr.GetObjectCreation, ctx, params)
 				case "sui_getObjectStat": // DriverVersion[0,1,2]
 					return jsonrpc.CallMethod(superSvr.GetObjectStat, ctx, params)
+				case "sui_getLastObjectChangeV2": // DriverVersion[1]
+					return jsonrpc.CallMethod(superSvr.GetLastObjectChangeV2, ctx, params)
+				case "sui_getGrpcLastObjectChange": // DriverVersion[2]
+					return jsonrpc.CallMethod(superSvr.GetGrpcLastObjectChange, ctx, params)
 				case "sui_getObjectsStat": // DriverVersion[0,1,2]
 					return jsonrpc.CallMethod(superSvr.GetObjectsStat, ctx, params)
 				case "sui_getGrpcTransactions": // DriverVersion[2]
@@ -612,6 +616,150 @@ func (s *SuperService) GetObjectCreation(ctx context.Context, objectID string) (
 		logger.Warne(err, "update cached object creation failed")
 	}
 	return &creation, nil
+}
+
+// GetLastObjectChangeV2 returns the object's newest recorded change with
+// object_version <= maxVersion (0 = no bound) and checkpoint <= maxCheckpoint
+// from the json-rpc object-change history, or null when nothing is recorded.
+// Unlike sui_getObject / sui_tryGetPastObject it stays answerable after the
+// object was deleted, backing the driver's package-history walk for burned
+// UpgradeCaps and wrapped versions. Like the range queries it merges the
+// latest-slot cache with the storage below the cached range.
+func (s *SuperService) GetLastObjectChangeV2(
+	ctx context.Context,
+	objectID string,
+	maxVersion uint64,
+	maxCheckpoint uint64,
+) (*sui.ObjectChangeRecord, error) {
+	if err := s.requireJSONRPC(); err != nil {
+		return nil, err
+	}
+	// the cache pass always runs before the storage loader, and per-object
+	// versions grow with checkpoints, so once the cache found a match nothing in
+	// storage can beat it — skip the ClickHouse lookup entirely.
+	var foundInCache bool
+	records, err := chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(0, maxCheckpoint),
+		s.slotCache,
+		// mirrors the chv3 converter: every json-rpc object change row, as-is.
+		func(slot *sui.Slot) (out []sui.ObjectChangeRecord, _ error) {
+			for _, tx := range slot.Transactions {
+				for i := range tx.ObjectChanges {
+					oc := &tx.ObjectChanges[i]
+					if oc.GetObjectID() != objectID || (maxVersion > 0 && oc.Version.Uint64() > maxVersion) {
+						continue
+					}
+					out = append(out, sui.ObjectChangeRecord{
+						Checkpoint:      slot.SequenceNumber,
+						TxDigest:        tx.Digest.String(),
+						Type:            string(oc.Type),
+						ObjectVersion:   oc.Version.Uint64(),
+						PreviousVersion: oc.PreviousVersion.Uint64Pointer(),
+					})
+					foundInCache = true
+				}
+			}
+			return out, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) ([]sui.ObjectChangeRecord, error) {
+			if foundInCache {
+				return nil, nil
+			}
+			record, err := s.storageJSONRPC.QueryLastObjectChange(ctx, objectID, maxVersion, *queryRange.End)
+			if err != nil || record == nil {
+				return nil, err
+			}
+			return []sui.ObjectChangeRecord{*record}, nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return newestObjectChangeRecord(records), nil
+}
+
+// GetGrpcLastObjectChange is the grpc-storage counterpart of GetLastObjectChangeV2;
+// the grpc-derived history additionally records wrapped / unwrapped / deleted rows.
+func (s *SuperService) GetGrpcLastObjectChange(
+	ctx context.Context,
+	objectID string,
+	maxVersion uint64,
+	maxCheckpoint uint64,
+) (*sui.ObjectChangeRecord, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
+	// see GetLastObjectChangeV2: a cache match makes the storage lookup pointless.
+	var foundInCache bool
+	records, err := chain.QueryRangeWithCache(
+		ctx,
+		rg.NewRange(0, maxCheckpoint),
+		s.slotCache,
+		// mirrors the chv4 objects rows: wrapped / deleted rows (no output version
+		// in the effects) take the tx's lamport version; an unwrapped-then-deleted
+		// row keeps only the version (no digest).
+		func(slot *sui.Slot) (out []sui.ObjectChangeRecord, _ error) {
+			if slot.GrpcCheckpoint == nil {
+				return nil, errors.Errorf("checkpoint %d miss grpc data", slot.GetNumber())
+			}
+			for _, tx := range slot.GrpcCheckpoint.GetTransactions() {
+				for _, co := range tx.GetEffects().GetChangedObjects() {
+					if co.GetObjectId() != objectID {
+						continue
+					}
+					changeType := sui.GetChangeType(co)
+					rec := sui.ObjectChangeRecord{
+						Checkpoint:    slot.SequenceNumber,
+						TxDigest:      tx.GetDigest(),
+						Type:          string(changeType),
+						ObjectVersion: co.GetOutputVersion(),
+					}
+					if co.GetOutputState() == rpcv2.ChangedObject_OUTPUT_OBJECT_STATE_DOES_NOT_EXIST {
+						rec.ObjectVersion = tx.GetEffects().GetLamportVersion()
+					}
+					if changeType == types.ObjectChangeTypeUnwrappedThenDeleted {
+						rec.TxDigest = ""
+					}
+					if co.GetInputState() == rpcv2.ChangedObject_INPUT_OBJECT_STATE_EXISTS {
+						v := co.GetInputVersion()
+						rec.PreviousVersion = &v
+					}
+					if maxVersion > 0 && rec.ObjectVersion > maxVersion {
+						continue
+					}
+					out = append(out, rec)
+					foundInCache = true
+				}
+			}
+			return out, nil
+		},
+		func(ctx context.Context, queryRange rg.Range) ([]sui.ObjectChangeRecord, error) {
+			if foundInCache {
+				return nil, nil
+			}
+			record, err := s.storageGRPC.QueryLastObjectChange(ctx, objectID, maxVersion, *queryRange.End)
+			if err != nil || record == nil {
+				return nil, err
+			}
+			return []sui.ObjectChangeRecord{*record}, nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return newestObjectChangeRecord(records), nil
+}
+
+// newestObjectChangeRecord picks the record with the highest object version.
+func newestObjectChangeRecord(records []sui.ObjectChangeRecord) *sui.ObjectChangeRecord {
+	var best *sui.ObjectChangeRecord
+	for i := range records {
+		if best == nil || records[i].ObjectVersion > best.ObjectVersion {
+			best = &records[i]
+		}
+	}
+	return best
 }
 
 func (s *SuperService) GetObjectStat(

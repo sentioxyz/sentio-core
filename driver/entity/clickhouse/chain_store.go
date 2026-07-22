@@ -15,10 +15,6 @@ import (
 	"sentioxyz/sentio-core/driver/entity/schema"
 )
 
-// DefaultFullIDCacheMaxCount is the fullIDCacheMaxCount used when NewChainStore
-// receives a non-positive value.
-const DefaultFullIDCacheMaxCount = 30_000_000
-
 // cachedEntityBox is the in-memory cache entry used by fullCache.
 // It wraps a persistent entity with its ClickHouse VersionedCollapsing version counter,
 // which is needed to generate correct undo rows on the next write.
@@ -77,23 +73,19 @@ type ChainStore struct {
 // NewChainStore creates a ChainStore bound to the given chain.
 //   - lruCapacity: number of entity entries in the LRU cache.
 //   - fullCacheDataSizeLimit: max total byte size of the full-data cache.
-//   - fullIDCacheMaxCount: max number of entity IDs the full-ID cache may hold;
-//     non-positive values fall back to DefaultFullIDCacheMaxCount.
+//   - fullIDCacheMaxCount: max number of entity IDs the full-ID cache may hold.
 func NewChainStore(
 	store *Store,
 	chain string,
 	lruCapacity int,
 	fullCacheDataSizeLimit int,
-	fullIDCacheMaxCount int,
+	fullIDCacheMaxCount uint64,
 ) *ChainStore {
-	if fullIDCacheMaxCount <= 0 {
-		fullIDCacheMaxCount = DefaultFullIDCacheMaxCount
-	}
 	cs := &ChainStore{
 		store:               store,
 		chain:               chain,
 		fullCacheDataLimit:  fullCacheDataSizeLimit,
-		fullIDCacheMaxCount: uint64(fullIDCacheMaxCount),
+		fullIDCacheMaxCount: fullIDCacheMaxCount,
 		fullIDCache:         make(map[string]set.Set[string]),
 		fullIDCacheLoaded:   make(map[string]bool),
 		fullIDCacheRefused:  make(map[string]bool),

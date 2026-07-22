@@ -21,7 +21,7 @@ func newEntityController(
 	chainID string,
 	storeCacheSize int,
 	storeFullCacheSize int,
-	storeFullIDCacheMaxCount int,
+	storeFullIDCacheMaxCount uint64,
 	monitor persistent.MetricsMonitor,
 ) *entityController {
 	return &entityController{

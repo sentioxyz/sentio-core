@@ -580,9 +580,8 @@ type Config struct {
 	EntityStoreCacheSize     int
 	EntityStoreFullCacheSize int
 	// EntityStoreFullIDCacheMaxCount caps how many entity IDs the full-ID cache
-	// may hold per entity; non-positive values fall back to
-	// clickhouse.DefaultFullIDCacheMaxCount.
-	EntityStoreFullIDCacheMaxCount int
+	// may hold per entity.
+	EntityStoreFullIDCacheMaxCount uint64
 	SubgraphTotalMemSize           uint
 	SubgraphDebugTrace             bool
 	// PubSubProject is the GCP project used to create the webhook pubsub topic;

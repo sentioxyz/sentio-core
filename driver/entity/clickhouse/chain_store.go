@@ -497,6 +497,10 @@ func chainStoreCacheKey(entityName, id string) string {
 //   - loaded=true when the data was already in cache (i.e. this was a cache hit).
 //   - knownCount is the entity count when this call had to count them, or -1;
 //     callers can pass it on to tryLoadFullIDCache to avoid a redundant COUNT query.
+//     Note that it is counted with the full-data-cache semantics: for entities using
+//     a versioned collapsing table, deleted rows are included, so it can be larger
+//     than the number of live IDs. It is only suitable as a conservative upper bound
+//     (e.g. the full-ID-cache limit check), not as an exact live-ID count.
 func (c *ChainStore) tryLoadFullCache(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -521,6 +525,7 @@ func (c *ChainStore) tryLoadFullCache(
 		logger.Errore(err, "load entities from persistent for full cache failed: count exists failed")
 		return
 	}
+	// May include deleted rows for versioned-collapsing entities (see doc comment).
 	knownCount = int64(count)
 	if count > uint64(c.fullCacheDataLimit/dataSize) {
 		logger.Warnw("too many entities in persistent, refuse to use full cache", "count", count)

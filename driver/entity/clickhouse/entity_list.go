@@ -806,9 +806,10 @@ func (s *Store) _getAllID(
 		}
 	}
 	ids = set.New[string]()
+	useInt64ID := idUseInt64(entityType)
 	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
-		var id string
-		if scanErr := rows.Scan(&id); scanErr != nil {
+		id, scanErr := scanIDColumn(rows, useInt64ID)
+		if scanErr != nil {
 			return scanErr
 		}
 		ids.Add(id)

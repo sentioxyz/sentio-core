@@ -114,9 +114,10 @@ func (s *Store) queryExistEntity(
 		args = []any{ids, chain}
 	}
 	logger.With("sql", sql)
+	useInt64ID := idUseInt64(entityType)
 	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
-		var ex string
-		if scanErr := rows.Scan(&ex); scanErr != nil {
+		ex, scanErr := scanIDColumn(rows, useInt64ID)
+		if scanErr != nil {
 			return scanErr
 		}
 		exists = append(exists, ex)

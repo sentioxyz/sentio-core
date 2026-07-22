@@ -1211,11 +1211,20 @@ type Entity struct {
 	Fields []Field
 
 	UseVersionedCollapsingTable bool
+	// IDUseInt64 marks entities whose primary field is `id: Int8!` (required for
+	// timeseries entities), stored in an Int64 column while EntityBox.ID stays a
+	// string in memory, so reads and writes must convert between the two.
+	IDUseInt64 bool
 }
 
 func (s *Store) NewEntity(item schema.EntityOrInterface) (entity Entity) {
 	entity.Def = item
 	entity.UseVersionedCollapsingTable = s.useVersionedCollapsingTable(item)
+	if pk := item.GetPrimaryKeyField(); pk != nil {
+		if inner, is := schema.BreakType(pk.Type).InnerType().(*types.ScalarTypeDefinition); is && inner.Name == "Int8" {
+			entity.IDUseInt64 = true
+		}
+	}
 	for _, fieldDef := range item.ListFixedFields() {
 		simple := SimpleField{BaseField: NewBaseField(item, fieldDef)}
 		if simple.FieldTypeChain.CountListLayer() > 0 && !s.feaOpt.ArrayUseArray {
@@ -1307,13 +1316,29 @@ func (e Entity) fieldNamesForSet() (names []string) {
 	return append(e.fieldNames(true), sysFields...)
 }
 
+// idValueForSet converts the in-memory string ID to the value type of the id
+// column: int64 for `id: Int8!` entities (the write-side counterpart of the
+// int64 case in scanOne), the string itself otherwise.
+func (e Entity) idValueForSet(id string) any {
+	if !e.IDUseInt64 {
+		return id
+	}
+	n, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		// should not happen: Int8 ids are assigned or validated as numeric
+		// before commit; fall through and let ClickHouse report the mismatch
+		return id
+	}
+	return n
+}
+
 func (e Entity) fieldValuesForSet(box entityRow, zeroData map[string]any) (values []any) {
 	for _, field := range e.Fields {
 		if field.IsReverseForeignKeyField() {
 			continue
 		}
 		if field.Name() == schema.EntityPrimaryFieldName {
-			values = append(values, box.ID)
+			values = append(values, e.idValueForSet(box.ID))
 		} else {
 			var fv any
 			if box.Data != nil {

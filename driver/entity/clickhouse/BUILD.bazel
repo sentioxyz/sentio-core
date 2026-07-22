@@ -45,6 +45,7 @@ go_test(
         "decimal_flow_test.go",
         "entity_test.go",
         "schema_test.go",
+        "timeseries_id_flow_test.go",
     ],
     embed = [":clickhouse"],
     deps = [

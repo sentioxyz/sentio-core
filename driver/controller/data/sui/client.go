@@ -3,6 +3,7 @@ package sui
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/pkg/errors"
 	lru "github.com/sentioxyz/golang-lru"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
@@ -72,6 +74,13 @@ type Client interface {
 
 	GetObjectStat(ctx context.Context, fromBlock, toBlock uint64, objectID string) (sui.ObjectStat, error)
 	GetObjectsStat(ctx context.Context, fromBlock, toBlock uint64, objectIDList []string) ([]sui.ObjectStat, error)
+	// GetLastObjectChange reads the object's newest recorded change with
+	// object_version <= maxVersion (0 = no bound) from the super node's json-rpc
+	// object-change history; nil when nothing is recorded. Unlike sui_getObject /
+	// sui_tryGetPastObject it stays answerable after the object was deleted.
+	GetLastObjectChange(ctx context.Context, objectID string, maxVersion uint64) (*sui.ObjectChangeRecord, error)
+	// GetGrpcLastObjectChange is the grpc-storage counterpart of GetLastObjectChange.
+	GetGrpcLastObjectChange(ctx context.Context, objectID string, maxVersion uint64) (*sui.ObjectChangeRecord, error)
 
 	// GetPackageHistory resolves the full package upgrade history via json-rpc; the
 	// suigrpc handler path uses GetGrpcPackageHistory, which walks the same history
@@ -344,6 +353,28 @@ func (c *client) GetObjectsStat(
 	)
 }
 
+func (c *client) GetLastObjectChange(
+	ctx context.Context, objectID string, maxVersion uint64,
+) (*sui.ObjectChangeRecord, error) {
+	var record *sui.ObjectChangeRecord
+	err := c.callContext(ctx, &record, 0, "sui_getLastObjectChangeV2", objectID, maxVersion, uint64(math.MaxUint64))
+	if err != nil {
+		return nil, errors.Wrapf(err, "get last object change of %s failed", objectID)
+	}
+	return record, nil
+}
+
+func (c *client) GetGrpcLastObjectChange(
+	ctx context.Context, objectID string, maxVersion uint64,
+) (*sui.ObjectChangeRecord, error) {
+	var record *sui.ObjectChangeRecord
+	err := c.callContext(ctx, &record, 0, "sui_getGrpcLastObjectChange", objectID, maxVersion, uint64(math.MaxUint64))
+	if err != nil {
+		return nil, errors.Wrapf(err, "get last grpc object change of %s failed", objectID)
+	}
+	return record, nil
+}
+
 // GetPackageHistory resolves the full package upgrade history over json-rpc using
 // the shared UpgradeCap version-chain walk (point lookups via
 // sui_getObject / sui_tryGetPastObject / sui_getTransactionBlock), instead of the
@@ -406,18 +437,34 @@ type packageHistoryChange struct {
 	objectID     string
 	isUpgradeCap bool    // the change is the package's 0x2::package::UpgradeCap
 	isPublished  bool    // the change publishes a Move package (i.e. a package version)
-	prevVersion  *uint64 // the object's version before this tx; nil when created here
+	isCreated    bool    // the change creates the object (the version chain's start)
+	prevVersion  *uint64 // the object's version before this tx; nil when not carried
 }
 
 // packageHistoryLedger provides the point lookups the package-history walk needs,
 // backed by either grpc or json-rpc data.
 type packageHistoryLedger interface {
 	// objectPrevTx returns the digest of the tx that produced the object at the
-	// given version (nil version = latest live version).
+	// given version (nil = latest live version). When the live node cannot serve
+	// the version — a deleted latest, a deletion tombstone, a wrap-produced
+	// version, or an incomplete versioned index — the super node's recorded
+	// object-change history answers instead.
 	objectPrevTx(ctx context.Context, objectID string, version *uint64) (string, error)
 	// txChanges returns a transaction's object changes.
 	txChanges(ctx context.Context, digest string) ([]packageHistoryChange, error)
+	// lastRecordedChange returns the object's newest change recorded in the super
+	// node's persistent object-change history with version <= maxVersion (0 = no
+	// bound), or nil when nothing is recorded. It backs the walk when a tx's
+	// changes do not carry the object's previous version (a wrapped/unwrapped
+	// version).
+	lastRecordedChange(ctx context.Context, objectID string, maxVersion uint64) (*sui.ObjectChangeRecord, error)
 }
+
+// errObjectUnavailable marks an object lookup that failed because the node can no
+// longer serve the object (deleted tombstone, pruned version, or unknown id), as
+// opposed to a transport error. The ledgers rescue the digest lookup via the
+// recorded object-change history on it.
+var errObjectUnavailable = errors.New("object unavailable")
 
 // resolvePackageHistory resolves the full package upgrade history by walking the
 // package's UpgradeCap version chain backwards: each upgrade tx publishes a new
@@ -466,6 +513,9 @@ func resolvePackageHistory(
 	if err != nil {
 		return nil, errors.Wrapf(err, "get upgrade cap object %s for package %s failed", upgradeCapID, pkgID)
 	}
+	// currentVersion is the cap version produced by txDigest; nil when unknown
+	// (the latest seed).
+	var currentVersion *uint64
 	seenTx := set.New[string]()
 	for txDigest != "" && !seenTx.Contains(txDigest) {
 		seenTx.Add(txDigest)
@@ -476,41 +526,103 @@ func resolvePackageHistory(
 		var capChange *packageHistoryChange
 		for i := range changes {
 			ch := &changes[i]
-			if ch.isPublished {
+			if ch.isPublished && utils.IndexOf(history, ch.objectID) < 0 {
 				history = append(history, ch.objectID)
 			}
 			if ch.objectID == upgradeCapID {
 				capChange = ch
 			}
 		}
-		if capChange == nil {
-			return nil, errors.Errorf("upgrade cap %s not found in its change tx %s", upgradeCapID, txDigest)
-		}
-		// the tx that created the cap has no prior version: the walk is done.
-		if capChange.prevVersion == nil {
+		// the walk reached the tx that created the cap: done.
+		if capChange != nil && capChange.isCreated {
 			break
 		}
-		// hop to the tx that produced the cap's previous version.
-		if txDigest, err = ledger.objectPrevTx(ctx, upgradeCapID, capChange.prevVersion); err != nil {
-			return nil, errors.Wrapf(err, "get upgrade cap %s at version %d failed", upgradeCapID, *capChange.prevVersion)
+		next := (*uint64)(nil)
+		if capChange != nil && capChange.prevVersion != nil {
+			next = capChange.prevVersion
+		} else {
+			// The cap was wrapped/unwrapped by this tx, so its change carries no
+			// previous version (the json-rpc object changes even omit the cap
+			// entirely). The recorded object-change history has the newest change
+			// preceding this one.
+			if next, err = prevRecordedVersion(ctx, ledger, upgradeCapID, currentVersion, txDigest); err != nil {
+				return nil, errors.Wrapf(err, "get recorded change of upgrade cap %s before tx %s for package %s failed",
+					upgradeCapID, txDigest, pkgID)
+			}
+		}
+		// no earlier version is known: the chain ends here.
+		if next == nil {
+			break
+		}
+		currentVersion = next
+		if txDigest, err = ledger.objectPrevTx(ctx, upgradeCapID, next); err != nil {
+			return nil, errors.Wrapf(err, "get upgrade cap %s at version %d failed", upgradeCapID, *next)
 		}
 	}
-
 	if utils.IndexOf(history, pkgID) < 0 {
 		history = append(history, pkgID)
 	}
 	return history, nil
 }
 
+// prevRecordedVersion finds the newest version in the recorded object-change
+// history that precedes the given version (nil = the object's newest state),
+// skipping records of the given tx itself and digest-less marker rows; nil when
+// nothing precedes it.
+func prevRecordedVersion(
+	ctx context.Context,
+	ledger packageHistoryLedger,
+	objectID string,
+	version *uint64,
+	txDigest string,
+) (*uint64, error) {
+	var bound uint64
+	if version != nil {
+		if *version == 0 {
+			return nil, nil
+		}
+		bound = *version - 1
+	}
+	for {
+		record, err := ledger.lastRecordedChange(ctx, objectID, bound)
+		if err != nil {
+			return nil, err
+		}
+		if record == nil {
+			return nil, nil
+		}
+		if record.TxDigest != "" && record.TxDigest != txDigest {
+			v := record.ObjectVersion
+			return &v, nil
+		}
+		if record.ObjectVersion == 0 {
+			return nil, nil
+		}
+		bound = record.ObjectVersion - 1
+	}
+}
+
 // grpcPackageHistoryLedger backs the walk with grpc point lookups.
 type grpcPackageHistoryLedger struct{ c *client }
 
 func (l *grpcPackageHistoryLedger) objectPrevTx(ctx context.Context, objectID string, version *uint64) (string, error) {
-	obj, err := l.c.getGrpcObject(ctx, objectID, version)
-	if err != nil {
-		return "", err
-	}
-	return obj.GetPreviousTransaction(), nil
+	return resolveObjectPrevTx(ctx, objectID, version,
+		func(v *uint64) (string, error) {
+			obj, err := l.c.getGrpcObject(ctx, objectID, v)
+			if err != nil {
+				return "", err
+			}
+			return obj.GetPreviousTransaction(), nil
+		},
+		func(maxVersion uint64) (*sui.ObjectChangeRecord, error) {
+			return l.c.GetGrpcLastObjectChange(ctx, objectID, maxVersion)
+		})
+}
+
+func (l *grpcPackageHistoryLedger) lastRecordedChange(
+	ctx context.Context, objectID string, maxVersion uint64,
+) (*sui.ObjectChangeRecord, error) {
+	return l.c.GetGrpcLastObjectChange(ctx, objectID, maxVersion)
 }
 
 func (l *grpcPackageHistoryLedger) txChanges(ctx context.Context, digest string) ([]packageHistoryChange, error) {
@@ -527,8 +639,9 @@ func (l *grpcPackageHistoryLedger) txChanges(ctx context.Context, digest string)
 			// some node versions encode a package publish as a "package"-typed
 			// OBJECT_WRITE rather than a PACKAGE_WRITE change; accept either.
 			isPublished: co.GetObjectType() == suiPackageObjectType || sui.GetChangeType(co) == types.ObjectChangeTypePublished,
+			isCreated:   sui.GetChangeType(co) == types.ObjectChangeTypeCreated,
 		}
-		if co.GetInputState() != rpcv2.ChangedObject_INPUT_OBJECT_STATE_DOES_NOT_EXIST {
+		if co.GetInputState() == rpcv2.ChangedObject_INPUT_OBJECT_STATE_EXISTS {
 			v := co.GetInputVersion()
 			ch.prevVersion = &v
 		}
@@ -543,7 +656,17 @@ func (l *grpcPackageHistoryLedger) txChanges(ctx context.Context, digest string)
 type jsonrpcPackageHistoryLedger struct{ c *client }
 
 func (l *jsonrpcPackageHistoryLedger) objectPrevTx(ctx context.Context, objectID string, version *uint64) (string, error) {
-	return l.c.getObjectPrevTx(ctx, objectID, version)
+	return resolveObjectPrevTx(ctx, objectID, version,
+		func(v *uint64) (string, error) { return l.c.getObjectPrevTx(ctx, objectID, v) },
+		func(maxVersion uint64) (*sui.ObjectChangeRecord, error) {
+			return l.c.GetLastObjectChange(ctx, objectID, maxVersion)
+		})
+}
+
+func (l *jsonrpcPackageHistoryLedger) lastRecordedChange(
+	ctx context.Context, objectID string, maxVersion uint64,
+) (*sui.ObjectChangeRecord, error) {
+	return l.c.GetLastObjectChange(ctx, objectID, maxVersion)
 }
 
 func (l *jsonrpcPackageHistoryLedger) txChanges(ctx context.Context, digest string) ([]packageHistoryChange, error) {
@@ -559,6 +682,7 @@ func (l *jsonrpcPackageHistoryLedger) txChanges(ctx context.Context, digest stri
 			objectID:     co.GetObjectID(),
 			isUpgradeCap: suiUpgradeCapType.IncludeTypeString(&objType),
 			isPublished:  co.Type == types.ObjectChangeTypePublished,
+			isCreated:    co.Type == types.ObjectChangeTypeCreated,
 		}
 		if co.PreviousVersion != nil {
 			v := co.PreviousVersion.Uint64()
@@ -567,6 +691,49 @@ func (l *jsonrpcPackageHistoryLedger) txChanges(ctx context.Context, digest stri
 		changes = append(changes, ch)
 	}
 	return changes, nil
+}
+
+// resolveObjectPrevTx implements packageHistoryLedger.objectPrevTx on top of a
+// ledger's live lookup and its recorded object-change history: the live lookup
+// resolves the version's producing tx; when the node cannot serve the version
+// (a burned cap's latest, a deletion tombstone, a wrap-produced version, an
+// incomplete versioned index — marked errObjectUnavailable) the newest recorded
+// change at or below it answers instead, stepping over digest-less marker rows
+// (an unwrapped-then-deleted row keeps only id+version).
+func resolveObjectPrevTx(
+	ctx context.Context,
+	objectID string,
+	version *uint64,
+	liveLookup func(*uint64) (string, error),
+	lastChange func(maxVersion uint64) (*sui.ObjectChangeRecord, error),
+) (string, error) {
+	digest, err := liveLookup(version)
+	if err == nil {
+		return digest, nil
+	}
+	if !errors.Is(err, errObjectUnavailable) {
+		return "", err
+	}
+	var bound uint64
+	if version != nil {
+		bound = *version
+	}
+	for {
+		record, rerr := lastChange(bound)
+		if rerr != nil {
+			return "", errors.Wrapf(rerr, "get last recorded change of %s failed", objectID)
+		}
+		if record == nil {
+			return "", err
+		}
+		if record.TxDigest != "" {
+			return record.TxDigest, nil
+		}
+		if record.ObjectVersion == 0 {
+			return "", err
+		}
+		bound = record.ObjectVersion - 1
+	}
 }
 
 // getObjectPrevTx returns the digest of the tx that produced the object at the
@@ -587,7 +754,8 @@ func (c *client) getObjectPrevTx(ctx context.Context, objectID string, version *
 			return "", errors.Wrapf(err, "get object %s failed", objectID)
 		}
 		if resp.Error.Code != "" {
-			return "", errors.Errorf("get object %s failed: %s", objectID, resp.Error.Code)
+			// e.g. "deleted" (burned UpgradeCap) or "notExists" (pruned tombstone)
+			return "", errors.Wrapf(errObjectUnavailable, "get object %s failed: %s", objectID, resp.Error.Code)
 		}
 		return resp.Data.PreviousTransaction, nil
 	}
@@ -596,7 +764,8 @@ func (c *client) getObjectPrevTx(ctx context.Context, objectID string, version *
 		return "", errors.Wrapf(err, "get past object %s@%d failed", objectID, *version)
 	}
 	if resp.Status != types.SuiPastObjectStatusVersionFound {
-		return "", errors.Errorf("get past object %s@%d failed: %s", objectID, *version, resp.Status)
+		// e.g. VersionNotFound / ObjectDeleted on nodes that pruned the version
+		return "", errors.Wrapf(errObjectUnavailable, "get past object %s@%d failed: %s", objectID, *version, resp.Status)
 	}
 	var detail struct {
 		PreviousTransaction string `json:"previousTransaction"`
@@ -636,14 +805,18 @@ func (c *client) getGrpcObject(ctx context.Context, objectID string, version *ui
 		return nil, err
 	}
 	if len(results) == 0 || results[0] == nil {
-		return nil, errors.Errorf("object %s not found", objectID)
+		return nil, errors.Wrapf(errObjectUnavailable, "object %s not found", objectID)
 	}
 	if st := results[0].GetError(); st != nil {
+		if st.GetCode() == int32(codes.NotFound) {
+			// e.g. a burned cap's latest version, or a version outside the node's store
+			return nil, errors.Wrapf(errObjectUnavailable, "get object %s failed: %s", objectID, st.GetMessage())
+		}
 		return nil, errors.Errorf("get object %s failed: %s", objectID, st.GetMessage())
 	}
 	obj := results[0].GetObject()
 	if obj == nil {
-		return nil, errors.Errorf("object %s not found", objectID)
+		return nil, errors.Wrapf(errObjectUnavailable, "object %s not found", objectID)
 	}
 	return obj, nil
 }

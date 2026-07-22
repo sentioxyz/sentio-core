@@ -135,6 +135,21 @@ type ObjectStat struct {
 	MaxCheckpoint    uint64
 }
 
+// ObjectChangeRecord is one recorded change of an object, resolved from the
+// persistent object-change history (the json-rpc chv3 or grpc chv4 storage). It
+// backs point lookups for versions the live node can no longer serve — a burned
+// UpgradeCap's latest version, a deletion tombstone, or a version the object
+// gained while wrapped in another object.
+type ObjectChangeRecord struct {
+	Checkpoint    uint64 `json:"checkpoint"`
+	TxDigest      string `json:"transaction_digest"`
+	Type          string `json:"type"` // a types.ObjectChangeType value
+	ObjectVersion uint64 `json:"object_version"`
+	// PreviousVersion is nil when the tx created the object or when the recorded
+	// change does not carry it (created / unwrapped rows).
+	PreviousVersion *uint64 `json:"previous_version,omitempty"`
+}
+
 func (os ObjectStat) Merge(a ObjectStat) ObjectStat {
 	if a.Count == 0 {
 		return os

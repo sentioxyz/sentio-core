@@ -67,6 +67,9 @@ func (m *mockStorageJSONRPC) QueryObjectChangesV2(
 func (m *mockStorageJSONRPC) QueryObjectsStat(_ context.Context, _, _ uint64, _ []string) (map[string]sui.ObjectStat, error) {
 	return nil, nil
 }
+func (m *mockStorageJSONRPC) QueryLastObjectChange(_ context.Context, _ string, _, _ uint64) (*sui.ObjectChangeRecord, error) {
+	return nil, nil
+}
 func (m *mockStorageJSONRPC) Snapshot() any { return nil }
 
 // mockStorageGRPC implements supernode.StorageGRPC with empty responses.
@@ -87,6 +90,9 @@ func (m *mockStorageGRPC) QueryObjectChanges(
 	return nil, nil
 }
 func (m *mockStorageGRPC) QueryObjectsStat(_ context.Context, _, _ uint64, _ []string) (map[string]sui.ObjectStat, error) {
+	return nil, nil
+}
+func (m *mockStorageGRPC) QueryLastObjectChange(_ context.Context, _ string, _, _ uint64) (*sui.ObjectChangeRecord, error) {
 	return nil, nil
 }
 func (m *mockStorageGRPC) Snapshot() any { return nil }

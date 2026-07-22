@@ -42,8 +42,9 @@ type ChainStore struct {
 	// fullIDCache holds the complete set of known IDs for entities that are
 	// too large to fully cache.  Key is entity name.
 	// The deleted items will not in the set.
-	fullIDCache       map[string]set.Set[string]
-	fullIDCacheLoaded map[string]bool
+	fullIDCache        map[string]set.Set[string]
+	fullIDCacheLoaded  map[string]bool
+	fullIDCacheRefused map[string]bool
 
 	// fullCache holds all entity data for sparse (small) entities.
 	// Key is entity name.
@@ -61,27 +62,37 @@ type ChainStore struct {
 	// fullCacheDataLimit is the maximum total data bytes that can be kept in
 	// fullCache before falling back to the LRU + fullIDCache path.
 	fullCacheDataLimit int
+
+	// fullIDCacheMaxCount caps how many entity IDs may be loaded into the full-ID
+	// cache.  Entities beyond this count fall back to per-query existence checks
+	// against the persistent store; loading hundreds of millions of IDs into one
+	// in-process set would otherwise exhaust the driver's memory limit.
+	fullIDCacheMaxCount uint64
 }
 
 // NewChainStore creates a ChainStore bound to the given chain.
 //   - lruCapacity: number of entity entries in the LRU cache.
 //   - fullCacheDataSizeLimit: max total byte size of the full-data cache.
+//   - fullIDCacheMaxCount: max number of entity IDs the full-ID cache may hold.
 func NewChainStore(
 	store *Store,
 	chain string,
 	lruCapacity int,
 	fullCacheDataSizeLimit int,
+	fullIDCacheMaxCount uint64,
 ) *ChainStore {
 	cs := &ChainStore{
-		store:              store,
-		chain:              chain,
-		fullCacheDataLimit: fullCacheDataSizeLimit,
-		fullIDCache:        make(map[string]set.Set[string]),
-		fullIDCacheLoaded:  make(map[string]bool),
-		fullCache:          make(map[string]map[string]*cachedEntityBox),
-		fullCacheLoaded:    make(map[string]bool),
-		fullCacheRefused:   make(map[string]bool),
-		cacheEntity:        make(map[string]*lru.Cache[string, *persistent.EntityBox]),
+		store:               store,
+		chain:               chain,
+		fullCacheDataLimit:  fullCacheDataSizeLimit,
+		fullIDCacheMaxCount: fullIDCacheMaxCount,
+		fullIDCache:         make(map[string]set.Set[string]),
+		fullIDCacheLoaded:   make(map[string]bool),
+		fullIDCacheRefused:  make(map[string]bool),
+		fullCache:           make(map[string]map[string]*cachedEntityBox),
+		fullCacheLoaded:     make(map[string]bool),
+		fullCacheRefused:    make(map[string]bool),
+		cacheEntity:         make(map[string]*lru.Cache[string, *persistent.EntityBox]),
 	}
 	var err error
 	cs.lruCache, err = simplelru.NewLRU[string, *persistent.EntityBox](lruCapacity, func(_ string, _ *persistent.EntityBox) {
@@ -109,11 +120,11 @@ func (c *ChainStore) GetEntityOrInterfaceType(name string) schema.EntityOrInterf
 }
 
 func (c *ChainStore) tryLoadCache(ctx context.Context, entityType *schema.Entity) (bool, error) {
-	has, loaded, err := c.tryLoadFullCache(ctx, entityType)
+	has, loaded, knownCount, err := c.tryLoadFullCache(ctx, entityType)
 	if has || err != nil {
 		return loaded, err
 	}
-	return c.tryLoadFullIDCache(ctx, entityType)
+	return c.tryLoadFullIDCache(ctx, entityType, knownCount)
 }
 
 // GetEntity returns the entity with the given id, possibly from cache.
@@ -147,7 +158,9 @@ func (c *ChainStore) GetEntity(
 		return box, fromCache, nil
 	} else {
 		// use LRU + fullIDCache.
-		if !c.fullIDCache[entityType.Name].Contains(id) {
+		// When the full-ID cache was refused (too many IDs to hold in memory),
+		// skip the existence shortcut and fall through to the LRU + DB lookup.
+		if c.fullIDCacheLoaded[entityType.Name] && !c.fullIDCache[entityType.Name].Contains(id) {
 			return nil, fromCache, nil // ID not in persistent storage
 		}
 		key := chainStoreCacheKey(entityType.Name, id)
@@ -202,7 +215,7 @@ func (c *ChainStore) ListEntities(
 
 	// Attempt to serve from the full-data cache.
 	var has bool
-	if has, fromCache, err = c.tryLoadFullCache(ctx, entityType); err != nil {
+	if has, fromCache, _, err = c.tryLoadFullCache(ctx, entityType); err != nil {
 		return
 	} else if !has {
 		// No full cache — query the DB.
@@ -316,15 +329,20 @@ func (c *ChainStore) SetEntities(
 			}
 		}
 	} else if c.fullCacheRefused[entityType.Name] || !entityType.IsSparse() {
-		// LRU-cache + fullIDCache path.
-		if c.fullIDCacheLoaded[entityType.Name] {
-			for id, box := range latest {
-				key := chainStoreCacheKey(entityType.Name, id)
-				if box.Data == nil {
+		// LRU-cache + fullIDCache path.  The LRU is maintained even when the
+		// full-ID cache was refused, so freshly written entities can still be
+		// read back without hitting the persistent store.
+		idCacheLoaded := c.fullIDCacheLoaded[entityType.Name]
+		for id, box := range latest {
+			key := chainStoreCacheKey(entityType.Name, id)
+			if box.Data == nil {
+				if idCacheLoaded {
 					c.fullIDCache[entityType.Name].Remove(id)
-					c.lruCache.Remove(key)
-				} else {
-					c.lruCache.Add(key, box)
+				}
+				c.lruCache.Remove(key)
+			} else {
+				c.lruCache.Add(key, box)
+				if idCacheLoaded {
 					c.fullIDCache[entityType.Name].Add(id)
 				}
 			}
@@ -397,10 +415,15 @@ func (c *ChainStore) CheckValue(entityType *schema.Entity, data map[string]any) 
 
 // Snapshot returns a map describing the current cache state (for debugging/monitoring).
 func (c *ChainStore) Snapshot() any {
-	fullIDCache := make(map[string]int)
+	fullIDCache := make(map[string]any)
 	for entity, loaded := range c.fullIDCacheLoaded {
 		if loaded {
 			fullIDCache[entity] = c.fullIDCache[entity].Size()
+		}
+	}
+	for entity, refused := range c.fullIDCacheRefused {
+		if refused {
+			fullIDCache[entity] = map[string]any{"refused": true}
 		}
 	}
 	fullCache := make(map[string]map[string]any)
@@ -431,6 +454,7 @@ func (c *ChainStore) Snapshot() any {
 	return map[string]any{
 		"config": map[string]any{
 			"fullCacheDataSizeLimit": c.fullCacheDataLimit,
+			"fullIDCacheMaxCount":    c.fullIDCacheMaxCount,
 		},
 		"cacheEntity": cacheEntity,
 		"lruCache": map[string]any{
@@ -449,6 +473,7 @@ func (c *ChainStore) purgeCache() {
 	c.lruCache.Purge()
 	c.fullIDCache = make(map[string]set.Set[string])
 	c.fullIDCacheLoaded = make(map[string]bool)
+	c.fullIDCacheRefused = make(map[string]bool)
 	c.fullCache = make(map[string]map[string]*cachedEntityBox)
 	c.fullCacheLoaded = make(map[string]bool)
 	c.fullCacheRefused = make(map[string]bool)
@@ -462,15 +487,22 @@ func chainStoreCacheKey(entityName, id string) string {
 // tryLoadFullCache attempts to load all entity data into the full-data cache.
 //   - has=true if the full cache is usable (either loaded now or was already loaded).
 //   - loaded=true when the data was already in cache (i.e. this was a cache hit).
+//   - knownCount is the entity count when this call had to count them, or -1;
+//     callers can pass it on to tryLoadFullIDCache to avoid a redundant COUNT query.
+//     Note that it is counted with the full-data-cache semantics: for entities using
+//     a versioned collapsing table, deleted rows are included, so it can be larger
+//     than the number of live IDs. It is only suitable as a conservative upper bound
+//     (e.g. the full-ID-cache limit check), not as an exact live-ID count.
 func (c *ChainStore) tryLoadFullCache(
 	ctx context.Context,
 	entityType *schema.Entity,
-) (has bool, loaded bool, err error) {
+) (has bool, loaded bool, knownCount int64, err error) {
+	knownCount = -1
 	if c.fullCacheRefused[entityType.Name] || !entityType.IsSparse() {
-		return false, false, nil
+		return false, false, knownCount, nil
 	}
 	if c.fullCacheLoaded[entityType.Name] {
-		return true, true, nil
+		return true, true, knownCount, nil
 	}
 	start := time.Now()
 	dataSize := entityType.DataSize()
@@ -485,10 +517,12 @@ func (c *ChainStore) tryLoadFullCache(
 		logger.Errore(err, "load entities from persistent for full cache failed: count exists failed")
 		return
 	}
+	// May include deleted rows for versioned-collapsing entities (see doc comment).
+	knownCount = int64(count)
 	if count > uint64(c.fullCacheDataLimit/dataSize) {
 		logger.Warnw("too many entities in persistent, refuse to use full cache", "count", count)
 		c.fullCacheRefused[entityType.Name] = true
-		return false, false, nil
+		return false, false, knownCount, nil
 	}
 	logger.Debugf("will really load all %d entities from persistent for full cache", count)
 	rows, listErr := c.store.listEntities(ctx, entityType, c.chain, nil, excludeDeleted, math.MaxInt)
@@ -496,7 +530,7 @@ func (c *ChainStore) tryLoadFullCache(
 	if listErr != nil {
 		err = listErr
 		logger.Errore(err, "load entities from persistent for full cache failed")
-		return false, false, err
+		return false, false, knownCount, err
 	}
 	c.fullCache[entityType.Name] = make(map[string]*cachedEntityBox)
 	for _, row := range rows {
@@ -507,21 +541,43 @@ func (c *ChainStore) tryLoadFullCache(
 	}
 	c.fullCacheLoaded[entityType.Name] = true
 	logger.Infow("loaded all entities from persistent into full cache", "count", len(rows))
-	return true, false, nil
+	return true, false, knownCount, nil
 }
 
 // tryLoadFullIDCache attempts to load all entity IDs into the full-ID cache.
 // loaded=true when the IDs were already cached (cache hit).
+// knownCount is the entity count when the caller already determined it, or -1 to
+// count here. Entities with more than fullIDCacheMaxCount IDs are refused: holding
+// that many IDs in memory could OOM the process, and callers handle a missing ID
+// cache by querying the persistent store directly.  For versioned-collapsing
+// entities knownCount may include deleted rows, which only makes the check stricter.
 func (c *ChainStore) tryLoadFullIDCache(
 	ctx context.Context,
 	entityType *schema.Entity,
+	knownCount int64,
 ) (loaded bool, err error) {
-	loaded = c.fullIDCacheLoaded[entityType.Name]
-	if loaded {
-		return
+	if c.fullIDCacheRefused[entityType.Name] {
+		return false, nil
+	}
+	if c.fullIDCacheLoaded[entityType.Name] {
+		return true, nil
 	}
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chainID", c.chain)
+	if knownCount < 0 {
+		var count uint64
+		count, err = c.store.countEntity(ctx, entityType, c.chain, true)
+		if err != nil {
+			logger.Errore(err, "load all entity ids from persistent for full cache failed: count exists failed")
+			return
+		}
+		knownCount = int64(count)
+	}
+	if uint64(knownCount) > c.fullIDCacheMaxCount {
+		logger.Warnw("too many entities in persistent, refuse to use full id cache", "count", knownCount)
+		c.fullIDCacheRefused[entityType.Name] = true
+		return false, nil
+	}
 	logger.Debugf("will load all entity ids from persistent for full id cache")
 	var ids set.Set[string]
 	ids, err = c.store.getAllID(ctx, entityType, c.chain)

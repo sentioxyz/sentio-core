@@ -21,11 +21,12 @@ func newEntityController(
 	chainID string,
 	storeCacheSize int,
 	storeFullCacheSize int,
+	storeFullIDCacheMaxCount uint64,
 	monitor persistent.MetricsMonitor,
 ) *entityController {
 	return &entityController{
 		Controller: persistent.NewController(
-			clickhouse.NewChainStore(store, chainID, storeCacheSize, storeFullCacheSize),
+			clickhouse.NewChainStore(store, chainID, storeCacheSize, storeFullCacheSize, storeFullIDCacheMaxCount),
 			monitor,
 		),
 	}

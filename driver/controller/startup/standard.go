@@ -339,6 +339,7 @@ func (c *standardStartupController) buildMainController(
 			chainID,
 			c.config.EntityStoreCacheSize,
 			c.config.EntityStoreFullCacheSize,
+			c.config.EntityStoreFullIDCacheMaxCount,
 			c.config.EntityMetricsMonitor)
 	}
 	// checkpoint store

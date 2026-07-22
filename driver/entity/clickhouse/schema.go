@@ -1217,14 +1217,38 @@ type Entity struct {
 	IDUseInt64 bool
 }
 
+// idUseInt64 reports whether the primary field of the entity is `id: Int8!`
+// (required for timeseries entities), which maps to an Int64 column.
+func idUseInt64(item schema.EntityOrInterface) bool {
+	pk := item.GetPrimaryKeyField()
+	if pk == nil {
+		return false
+	}
+	inner, is := schema.BreakType(pk.Type).InnerType().(*types.ScalarTypeDefinition)
+	return is && inner.Name == "Int8"
+}
+
+// scanIDColumn reads a single id column from rows, converting Int64 ids
+// (`id: Int8!` entities) to their in-memory string form (see scanOne).
+func scanIDColumn(rows clickhouselib.Rows, useInt64 bool) (string, error) {
+	if useInt64 {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return "", err
+		}
+		return strconv.FormatInt(id, 10), nil
+	}
+	var id string
+	if err := rows.Scan(&id); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
 func (s *Store) NewEntity(item schema.EntityOrInterface) (entity Entity) {
 	entity.Def = item
 	entity.UseVersionedCollapsingTable = s.useVersionedCollapsingTable(item)
-	if pk := item.GetPrimaryKeyField(); pk != nil {
-		if inner, is := schema.BreakType(pk.Type).InnerType().(*types.ScalarTypeDefinition); is && inner.Name == "Int8" {
-			entity.IDUseInt64 = true
-		}
-	}
+	entity.IDUseInt64 = idUseInt64(item)
 	for _, fieldDef := range item.ListFixedFields() {
 		simple := SimpleField{BaseField: NewBaseField(item, fieldDef)}
 		if simple.FieldTypeChain.CountListLayer() > 0 && !s.feaOpt.ArrayUseArray {

@@ -77,6 +77,17 @@ func (t Type) MainHasAny() bool {
 	return true
 }
 
+// MainIsAny reports whether the main part matches any type (every segment is a wildcard).
+func (t Type) MainIsAny() bool {
+	if t.Simple != nil {
+		return false
+	}
+	if t.FQN != nil {
+		return t.FQN.Address == "" && t.FQN.Module == "" && t.FQN.Name == ""
+	}
+	return true
+}
+
 func (t Type) String() string {
 	return t.Main() + t.Args.String()
 }

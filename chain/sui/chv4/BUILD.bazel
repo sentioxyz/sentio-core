@@ -24,7 +24,6 @@ go_library(
         "//common/objectx",
         "//common/pager",
         "//common/range",
-        "//common/set",
         "//common/timehist",
         "//common/utils",
         "@com_github_clickhouse_clickhouse_go_v2//lib/driver",

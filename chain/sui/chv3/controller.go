@@ -265,40 +265,47 @@ func (c *Controller) QueryTransactionsV2(
 		conditions = append(conditions, "status = ?")
 		args = append(args, types.TransactionStatusSuccess)
 	}
-	// filter.EventFilters
+	// filter.EventFilters: a transaction matches when any single filter matches, so build
+	// (type AND sender) per filter and OR them. The SQL only needs a superset per filter:
+	// event pruning and driver-side dispatch re-check with the wildcard-aware TypePattern.Include.
 	if len(filter.EventFilters) > 0 {
-		var parts []string
-		// typePattern
+		perFilter := make([]string, 0, len(filter.EventFilters))
 		for _, ff := range filter.EventFilters {
-			for _, typ := range ff.TypePattern {
-				if typ.MainHasAny() {
-					return nil, errors.Errorf("invalid event type %s", typ.String())
+			var parts []string
+			// typePattern; an empty TypePattern, or one containing a pattern whose main part
+			// is a full wildcard, matches events of any type
+			if len(ff.TypePattern) > 0 && !utils.HasAny(ff.TypePattern, move.Type.MainIsAny) {
+				var exactTypes, likePatterns []string
+				for _, typ := range ff.TypePattern {
+					if typ.MainHasAny() {
+						likePatterns = append(likePatterns, strings.ReplaceAll(typ.Main(), "*", "%"))
+					} else {
+						exactTypes = append(exactTypes, typ.Main())
+					}
 				}
+				var typeConds []string
+				if len(exactTypes) > 0 {
+					typeConds = append(typeConds, "hasAny(events.raw_type, ?)")
+					args = append(args, exactTypes)
+				}
+				for _, pattern := range likePatterns {
+					typeConds = append(typeConds, "arrayExists(x -> x LIKE ?, events.raw_type)")
+					args = append(args, pattern)
+				}
+				parts = append(parts, mergeCondition(typeConds, " OR "))
 			}
-		}
-		rawTypes := utils.MapSliceNoError(filter.EventFilters, func(ff sui.EventFilterV2) []string {
-			return utils.MapSliceNoError(ff.TypePattern, move.Type.Main)
-		})
-		hasEmpty := utils.HasAny(rawTypes, func(tps []string) bool {
-			return len(tps) == 0
-		})
-		if !hasEmpty && len(rawTypes) > 0 {
-			parts = append(parts, "hasAny(events.raw_type, ?)")
-			args = append(args, utils.MergeArr(rawTypes...))
-		}
-		// sender
-		senderSet := make(map[string]struct{})
-		for _, ff := range filter.EventFilters {
+			// sender
 			if ff.Sender != nil {
-				senderSet[*ff.Sender] = struct{}{}
+				parts = append(parts, "has(events.sender, ?)")
+				args = append(args, *ff.Sender)
 			}
+			if len(parts) == 0 {
+				// an unconstrained filter matches any transaction with at least one event
+				parts = append(parts, "notEmpty(events.raw_type)")
+			}
+			perFilter = append(perFilter, mergeCondition(parts, " AND "))
 		}
-		if len(senderSet) > 0 {
-			parts = append(parts, "hasAny(events.sender, ?)")
-			args = append(args, utils.GetMapKeys(senderSet))
-		}
-		// build event filter condition
-		filters = append(filters, mergeCondition(parts, " AND "))
+		filters = append(filters, mergeCondition(perFilter, " OR "))
 	}
 	// filter.FunctionFilters
 	for _, ff := range filter.FunctionFilters {

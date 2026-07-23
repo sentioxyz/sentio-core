@@ -10,7 +10,6 @@ import (
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/objectx"
 	rg "sentioxyz/sentio-core/common/range"
-	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"strings"
 	"time"
@@ -153,17 +152,17 @@ func (s *Storage) QueryTransactions(
 	if !filter.FailedIsOK {
 		conditions = append(conditions, "success")
 	}
-	// filter.EventFilters
+	// filter.EventFilters: a transaction matches when any single filter matches, so build
+	// (type AND sender) per filter and OR them. The SQL only needs a superset per filter:
+	// event pruning and driver-side dispatch re-check with the wildcard-aware TypePattern.Include.
 	if len(filter.EventFilters) > 0 {
-		var parts []string
-		// typePattern; a filter with an empty TypePattern, or with a pattern whose main
-		// part is a full wildcard, matches events of any type
-		hasEmpty := utils.HasAny(filter.EventFilters, func(ff sui.EventFilterV2) bool {
-			return len(ff.TypePattern) == 0 || utils.HasAny(ff.TypePattern, move.Type.MainIsAny)
-		})
-		if !hasEmpty {
-			var exactTypes, likePatterns []string
-			for _, ff := range filter.EventFilters {
+		perFilter := make([]string, 0, len(filter.EventFilters))
+		for _, ff := range filter.EventFilters {
+			var parts []string
+			// typePattern; an empty TypePattern, or one containing a pattern whose main part
+			// is a full wildcard, matches events of any type
+			if len(ff.TypePattern) > 0 && !utils.HasAny(ff.TypePattern, move.Type.MainIsAny) {
+				var exactTypes, likePatterns []string
 				for _, typ := range ff.TypePattern {
 					if typ.MainHasAny() {
 						likePatterns = append(likePatterns, strings.ReplaceAll(typ.Main(), "*", "%"))
@@ -171,37 +170,29 @@ func (s *Storage) QueryTransactions(
 						exactTypes = append(exactTypes, typ.Main())
 					}
 				}
-			}
-			var typeConds []string
-			if len(exactTypes) > 0 {
-				typeConds = append(typeConds, "hasAny(events_main_type, ?)")
-				args = append(args, exactTypes)
-			}
-			for _, pattern := range likePatterns {
-				typeConds = append(typeConds, "arrayExists(x -> x LIKE ?, events_main_type)")
-				args = append(args, pattern)
-			}
-			if len(typeConds) > 0 {
+				var typeConds []string
+				if len(exactTypes) > 0 {
+					typeConds = append(typeConds, "hasAny(events_main_type, ?)")
+					args = append(args, exactTypes)
+				}
+				for _, pattern := range likePatterns {
+					typeConds = append(typeConds, "arrayExists(x -> x LIKE ?, events_main_type)")
+					args = append(args, pattern)
+				}
 				parts = append(parts, mergeCondition(typeConds, " OR "))
 			}
-		}
-
-		// sender
-		senderSet := set.New[string]()
-		for _, ff := range filter.EventFilters {
+			// sender
 			if ff.Sender != nil {
-				senderSet.Add(*ff.Sender)
+				parts = append(parts, "has(events_sender, ?)")
+				args = append(args, *ff.Sender)
 			}
+			if len(parts) == 0 {
+				// an unconstrained filter matches any transaction with at least one event
+				parts = append(parts, "notEmpty(events_main_type)")
+			}
+			perFilter = append(perFilter, mergeCondition(parts, " AND "))
 		}
-		if !senderSet.Empty() {
-			parts = append(parts, "hasAny(events_sender, ?)")
-			args = append(args, senderSet.DumpValues())
-		}
-
-		// build event filter condition
-		if len(parts) > 0 {
-			filters = append(filters, mergeCondition(parts, " AND "))
-		}
+		filters = append(filters, mergeCondition(perFilter, " OR "))
 	}
 	// filter.FunctionFilters
 	for _, ff := range filter.FunctionFilters {

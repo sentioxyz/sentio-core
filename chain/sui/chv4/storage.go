@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sentioxyz/sentio-core/chain/chain"
-	"sentioxyz/sentio-core/chain/move"
 	"sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/log"
@@ -156,23 +155,33 @@ func (s *Storage) QueryTransactions(
 	// filter.EventFilters
 	if len(filter.EventFilters) > 0 {
 		var parts []string
-		// typePattern
-		for _, ff := range filter.EventFilters {
-			for _, typ := range ff.TypePattern {
-				if typ.MainHasAny() {
-					return nil, errors.Errorf("invalid event type %s", typ.String())
+		// typePattern; a filter with an empty TypePattern matches events of any type
+		hasEmpty := utils.HasAny(filter.EventFilters, func(ff sui.EventFilterV2) bool {
+			return len(ff.TypePattern) == 0
+		})
+		if !hasEmpty {
+			var exactTypes, likePatterns []string
+			for _, ff := range filter.EventFilters {
+				for _, typ := range ff.TypePattern {
+					if typ.MainHasAny() {
+						likePatterns = append(likePatterns, strings.ReplaceAll(typ.Main(), "*", "%"))
+					} else {
+						exactTypes = append(exactTypes, typ.Main())
+					}
 				}
 			}
-		}
-		rawTypes := utils.MapSliceNoError(filter.EventFilters, func(ff sui.EventFilterV2) []string {
-			return utils.MapSliceNoError(ff.TypePattern, move.Type.Main)
-		})
-		hasEmpty := utils.HasAny(rawTypes, func(tps []string) bool {
-			return len(tps) == 0
-		})
-		if !hasEmpty && len(rawTypes) > 0 {
-			parts = append(parts, "hasAny(events_main_type, ?)")
-			args = append(args, utils.MergeArr(rawTypes...))
+			var typeConds []string
+			if len(exactTypes) > 0 {
+				typeConds = append(typeConds, "hasAny(events_main_type, ?)")
+				args = append(args, exactTypes)
+			}
+			for _, pattern := range likePatterns {
+				typeConds = append(typeConds, "arrayExists(x -> x LIKE ?, events_main_type)")
+				args = append(args, pattern)
+			}
+			if len(typeConds) > 0 {
+				parts = append(parts, mergeCondition(typeConds, " OR "))
+			}
 		}
 
 		// sender

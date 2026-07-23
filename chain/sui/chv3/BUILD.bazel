@@ -15,6 +15,7 @@ go_library(
         "//chain/chain",
         "//chain/clickhouse",
         "//chain/clientpool",
+        "//chain/move",
         "//chain/sui",
         "//chain/sui/types",
         "//common/chx",

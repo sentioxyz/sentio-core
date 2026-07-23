@@ -6,6 +6,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/pkg/errors"
 	"sentioxyz/sentio-core/chain/chain"
+	"sentioxyz/sentio-core/chain/move"
 	"sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/chx"
@@ -267,9 +268,10 @@ func (c *Controller) QueryTransactionsV2(
 	// filter.EventFilters
 	if len(filter.EventFilters) > 0 {
 		var parts []string
-		// typePattern; a filter with an empty TypePattern matches events of any type
+		// typePattern; a filter with an empty TypePattern, or with a pattern whose main
+		// part is a full wildcard, matches events of any type
 		hasEmpty := utils.HasAny(filter.EventFilters, func(ff sui.EventFilterV2) bool {
-			return len(ff.TypePattern) == 0
+			return len(ff.TypePattern) == 0 || utils.HasAny(ff.TypePattern, move.Type.MainIsAny)
 		})
 		if !hasEmpty {
 			var exactTypes, likePatterns []string

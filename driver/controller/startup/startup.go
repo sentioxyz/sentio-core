@@ -492,6 +492,20 @@ func main(ctx context.Context, config Config) (exitCode exitcode.Code, err error
 		return 0, err
 	}
 
+	// 3a. check over quota before building anything, so an already-over-quota
+	// processor exits immediately and the job controller can pause it. The only
+	// other quota check runs when saving a checkpoint, so a driver that cannot
+	// make progress (e.g. all its RPC calls are already rejected for the same
+	// quota) would otherwise run forever without ever reporting it.
+	if over, checkErr := base.getQuotaService("").CheckOverQuota(ctx); checkErr != nil {
+		// do not block startup on a usage service hiccup
+		logger.Warnfe(checkErr, "check over quota at startup failed")
+	} else if over != nil {
+		logger.UserVisible().Errorf("Over quota: %s", over.Detail)
+		return exitcode.OverQuota,
+			controller.NewExternalError(controller.ErrCodeOverQuota, errors.Errorf("over quota: %s", over.Msg))
+	}
+
 	// 3b. connect to db registry service (optional, only required for
 	// network_v1 processors). The check that the client stub exists when
 	// it is actually needed happens in newEntityProbe and newTimeSeriesProbe.

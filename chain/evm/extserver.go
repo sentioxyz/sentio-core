@@ -23,6 +23,11 @@ type NetworkOptions struct {
 	SupportTraceBlock bool
 	IgnoreExtraTraces bool
 	IgnoreMissTraces  bool
+	// RebuildLogIndex tolerates nodes that number receipt logIndex per-transaction (resetting to
+	// 0 for each tx) instead of per-block. When set, the block-level logIndex is rebuilt from the
+	// canonical (block-ordered) log position instead of failing the strict block-level check.
+	// Opt-in per chain, since it assumes the flattened receipt logs are complete and in block order.
+	RebuildLogIndex bool
 	// TraceStartBlock is the first block number that has trace data. Blocks before it skip trace
 	// loading and get the MissTrace feature, for chains with a regenesis/migration boundary before
 	// which traces are unavailable (e.g. Optimism mainnet pre-bedrock, before block 105235063).
@@ -210,6 +215,11 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 	for i, tx := range st.Block.Transactions {
 		st.Receipts[i] = receiptDict[tx.Hash]
 		for _, lg := range st.Receipts[i].Logs {
+			// lg is a pointer into the receipt, so rebuilding Index here also fixes the value
+			// persisted downstream (Logs() reads it back from st.Receipts).
+			if d.opts.RebuildLogIndex {
+				lg.Index = uint(len(st.Logs))
+			}
 			st.Logs = append(st.Logs, *lg)
 		}
 	}

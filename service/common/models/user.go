@@ -163,6 +163,24 @@ func (u *User) ToUserInfo() *protos.UserInfo {
 	}
 }
 
+// ToRedactedPB returns the user as a *protos.User with all sensitive PII
+// (email, email_verified, locale, wallet_address, account_status, identities)
+// removed. Use this when exposing a user as a resource owner to other users
+// (e.g. Project.owner), where the full profile must not leak. It carries the
+// same safe field set as ToUserInfo, plus Tier (not PII), because the field is
+// typed as *protos.User by the shared Owner message.
+func (u *User) ToRedactedPB() *protos.User {
+	return &protos.User{
+		Id:        u.ID,
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		Nickname:  u.Nickname,
+		Picture:   u.Picture,
+		Username:  u.Username,
+		Tier:      protos.Tier(u.Tier),
+	}
+}
+
 func (u *User) Name() string {
 	if u.FirstName != "" && u.LastName != "" {
 		return fmt.Sprintf("%s %s", u.FirstName, u.LastName)

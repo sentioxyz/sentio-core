@@ -175,7 +175,10 @@ func (p *Project) ToPB() *protos.Project {
 	if p.OwnerAsUser != nil {
 		ret.Owner = &protos.Owner{
 			OwnerOneof: &protos.Owner_User{
-				User: p.OwnerAsUser.ToPB(),
+				// Redact PII: a project's owner is visible to anyone who can see
+				// the project (including anonymous viewers of public projects), so
+				// never leak the owner's email/wallet/identities here.
+				User: p.OwnerAsUser.ToRedactedPB(),
 			},
 			Tier: protos.Tier(p.OwnerAsUser.Tier),
 		}

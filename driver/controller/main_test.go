@@ -289,7 +289,11 @@ func (t *testTask) Exec(ctx context.Context, checkpointCtrl CheckpointController
 	if t.errIndex == t.index.Global {
 		time.Sleep(t.sleep / 2)
 		logger.Warnf("task failed")
-		return NewExternalError(ErrCodeCallProcessorFailed, errors.Errorf("task %#v fail", t.index))
+		// Print only the stable, per-chain fields: ProcessID comes from a
+		// process-global counter and is not deterministic across test runs.
+		return NewExternalError(ErrCodeCallProcessorFailed,
+			errors.Errorf("task {Global:%#x InBlock:%d TotalInBlock:%d} fail",
+				t.index.Global, t.index.InBlock, t.index.TotalInBlock))
 	}
 	if newTpl, has := t.newTplIndex[t.GetBlockNumber()]; has && t.index.InBlock == 0 {
 		time.Sleep(t.sleep / 2)
@@ -414,7 +418,7 @@ func Test_main_failed(t *testing.T) {
 	var extErr *ExternalError
 	assert.True(t, errors.As(err, &extErr))
 	assert.Equal(t, ErrCodeCallProcessorFailed, extErr.code)
-	assert.Equal(t, "task controller.TaskIndex{Global:0x32, InBlock:3, TotalInBlock:4} fail", extErr.error.Error())
+	assert.Equal(t, "task {Global:0x32 InBlock:3 TotalInBlock:4} fail", extErr.error.Error())
 }
 
 func Test_main_reorg(t *testing.T) {

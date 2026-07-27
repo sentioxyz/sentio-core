@@ -60,9 +60,19 @@ type BlockData interface {
 }
 
 type TaskIndex struct {
+	// Global is a per-chain, contiguous binding counter used for intra-chain
+	// ordering (the ready/finish waiters) and for human-facing logging.
 	Global       uint64
 	InBlock      int
 	TotalInBlock int
+	// ProcessID is the process_id carried on the processor binding stream. It
+	// MUST be unique across ALL chains running in this driver process: the SDK
+	// runtime keys a single per-process context map by process_id alone (one map
+	// shared by every chain's stream), so reusing the per-chain Global here makes
+	// different chains collide on the same id and corrupt each other's stream
+	// bookkeeping, surfacing as ERR200 "unexpected ProcessID". It is issued from
+	// the process-global processIDGen; Global stays per-chain for ordering.
+	ProcessID uint64
 }
 
 type Task interface {

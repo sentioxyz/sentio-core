@@ -14,6 +14,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+// processIDGen issues TaskIndex.ProcessID values that are unique across every
+// chain (every MainController) in this driver process. Uniqueness is required
+// because the processor SDK keys a single per-process context map by process_id
+// alone; a per-chain counter would collide between chains. It lives at package
+// scope rather than on MainController because it must be shared by all chains.
+var processIDGen atomic.Uint64
+
 type MainController struct {
 	seqMode bool
 
@@ -267,6 +274,7 @@ func (c *MainController) run(ctx context.Context) error {
 						Global:       c.bindingIndex.Add(1),
 						InBlock:      i,
 						TotalInBlock: len(taskList),
+						ProcessID:    processIDGen.Add(1),
 					}
 					task.Init(ctx, index, progressBar)
 					select {

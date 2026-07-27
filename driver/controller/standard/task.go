@@ -73,8 +73,8 @@ func (b *task) GetHandlerID() controller.HandlerID {
 }
 
 func (b *task) title() string {
-	return fmt.Sprintf("#%d binding data %d/%d for handler %s in block %s",
-		b.index.Global, b.index.InBlock, b.index.TotalInBlock, b.handlerID, controller.GetBlockSummary(b))
+	return fmt.Sprintf("#%d(pid#%d) binding data %d/%d for handler %s in block %s",
+		b.index.Global, b.index.ProcessID, b.index.InBlock, b.index.TotalInBlock, b.handlerID, controller.GetBlockSummary(b))
 }
 
 func (b *task) Summary() string {
@@ -216,16 +216,21 @@ func (b *task) streamReceive(
 		return nil, controller.NewExternalError(controller.ErrCodeCallProcessorFailed,
 			errors.Wrapf(err, "receive for %s failed", b.title()))
 	}
-	if uint64(resp.GetProcessId()) != b.index.Global {
+	// Compare on the int32 wire type on both sides: process_id is an int32 field,
+	// so a uint64 comparison would sign-extend a wrapped (>2^31) id and report a
+	// spurious mismatch. int32 bit patterns stay unique within a 2^32 window,
+	// which is far more live processes than can ever coexist.
+	if resp.GetProcessId() != int32(b.index.ProcessID) {
 		return nil, controller.NewExternalError(controller.ErrCodeCallProcessorFailed,
-			errors.Errorf("unexpected ProcessID #%d for %s", resp.GetProcessId(), b.title()))
+			errors.Errorf("unexpected ProcessID #%d (expected #%d) for %s",
+				resp.GetProcessId(), int32(b.index.ProcessID), b.title()))
 	}
 	return resp, nil
 }
 
 func (b *task) sendBindingData(ctx context.Context) *controller.ExternalError {
 	return b.streamSend(ctx, &protos.ProcessStreamRequest{
-		ProcessId: int32(b.index.Global),
+		ProcessId: int32(b.index.ProcessID),
 		Value:     &protos.ProcessStreamRequest_Binding{Binding: b.data},
 	}, "binding data", "SB", time.Minute*30)
 }
@@ -243,7 +248,7 @@ func (b *task) recvPartition(ctx context.Context) *controller.ExternalError {
 
 func (b *task) sendStartCommand(ctx context.Context) *controller.ExternalError {
 	return b.streamSend(ctx, &protos.ProcessStreamRequest{
-		ProcessId: int32(b.index.Global),
+		ProcessId: int32(b.index.ProcessID),
 		Value:     &protos.ProcessStreamRequest_Start{Start: true},
 	}, "start command", "SS", time.Minute*30)
 }

@@ -3,6 +3,7 @@ package chx
 import (
 	"bytes"
 	"context"
+	stderrors "errors"
 	"fmt"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
@@ -10,8 +11,11 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	chproto "github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"github.com/pkg/errors"
 )
+
+const clickhouseTableAlreadyExistsCode int32 = 57
 
 type EqualOrLike struct {
 	Name     *string
@@ -411,19 +415,51 @@ func (c Controller) BuildCreateSQL(tableOrView TableOrView) string {
 func (c Controller) Create(ctx context.Context, tableOrView TableOrView) (err error) {
 	_, logger := log.FromContext(ctx, "name", tableOrView.GetName())
 	if err = c.Exec(ctx, c.BuildCreateSQL(tableOrView)); err != nil {
+		if shouldRepairCommentAfterCreateError(tableOrView, err) {
+			logger.Warnf("create %s returned table already exists; will repair comment", tableOrView.GetKind())
+			if commentErr := c.ensureTableOrViewComment(ctx, tableOrView); commentErr != nil {
+				return errors.Wrapf(commentErr, "create %s %s failed with table already exists and set comment failed",
+					tableOrView.GetKind(), tableOrView.GetName())
+			}
+			logger.Infof("create %s skipped because it already exists; comment repaired", tableOrView.GetKind())
+			return nil
+		}
 		logger.Errorfe(err, "create %s failed", tableOrView.GetKind())
 		return errors.Wrapf(err, "create %s %s failed", tableOrView.GetKind(), tableOrView.GetName())
 	}
 	switch tableOrView.(type) {
 	case View, MaterializedView:
-		err = c.AlterTable(ctx, tableOrView.GetName(), fmt.Sprintf("MODIFY COMMENT '%s'", tableOrView.GetComment()))
-		if err != nil {
+		if err = c.ensureTableOrViewComment(ctx, tableOrView); err != nil {
 			return errors.Wrapf(err, "create %s %s failed: set comment failed",
 				tableOrView.GetKind(), tableOrView.GetName())
 		}
 	}
 	logger.Infof("create %s succeed", tableOrView.GetKind())
 	return nil
+}
+
+func shouldRepairCommentAfterCreateError(tableOrView TableOrView, err error) bool {
+	switch tableOrView.(type) {
+	case View, MaterializedView:
+		return isClickHouseTableAlreadyExists(err)
+	default:
+		return false
+	}
+}
+
+func isClickHouseTableAlreadyExists(err error) bool {
+	var exception *chproto.Exception
+	if stderrors.As(err, &exception) && exception.Code == clickhouseTableAlreadyExistsCode {
+		return true
+	}
+	errMessage := err.Error()
+	return strings.Contains(errMessage, "TABLE_ALREADY_EXISTS") ||
+		strings.Contains(errMessage, "Code: 57") ||
+		strings.Contains(errMessage, "code: 57")
+}
+
+func (c Controller) ensureTableOrViewComment(ctx context.Context, tableOrView TableOrView) error {
+	return c.AlterTable(ctx, tableOrView.GetName(), fmt.Sprintf("MODIFY COMMENT '%s'", tableOrView.GetComment()))
 }
 
 func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {

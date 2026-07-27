@@ -19,13 +19,23 @@ go_library(
         "//common/log",
         "//common/utils",
         "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/proto",
         "@com_github_pkg_errors//:errors",
     ],
 )
 
 go_test(
     name = "chx_test",
-    srcs = ["field_test.go"],
+    srcs = [
+        "field_test.go",
+        "operator_test.go",
+    ],
     embed = [":chx"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/proto",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

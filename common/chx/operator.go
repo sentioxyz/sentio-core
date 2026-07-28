@@ -409,7 +409,9 @@ func (c Controller) BuildCreateSQL(tableOrView TableOrView) string {
 	case Table:
 		return c.buildCreateTableSQL(tv)
 	case View:
-		return c.buildCreateViewSQL(tv, false)
+		// A view holds no data, so replacing is always safe; use CREATE OR REPLACE
+		// in the create path too (it is only reached when no object exists yet).
+		return c.buildCreateViewSQL(tv, true)
 	case MaterializedView:
 		return c.buildCreateMaterializedViewSQL(tv)
 	default:

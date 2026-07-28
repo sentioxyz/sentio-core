@@ -357,9 +357,12 @@ func (c Controller) buildCreateTableSQL(table Table) string {
 	return sql.String()
 }
 
-func (c Controller) buildCreateViewSQL(view View, replace bool) string {
+func (c Controller) buildCreateViewSQL(view View) string {
 	var sql bytes.Buffer
-	sql.WriteString(utils.Select(replace, "CREATE OR REPLACE VIEW ", "CREATE VIEW "))
+	// A view holds no data, so replacing is always safe. Both the create path
+	// (no existing object) and the sync path (existing object) use CREATE OR
+	// REPLACE, so a plain non-replacing CREATE VIEW variant is never needed.
+	sql.WriteString("CREATE OR REPLACE VIEW ")
 	sql.WriteString(c.FullLogicNameWithOnCluster(view.Name))
 	if len(view.Fields) > 0 {
 		sql.WriteString(" (")
@@ -409,7 +412,7 @@ func (c Controller) BuildCreateSQL(tableOrView TableOrView) string {
 	case Table:
 		return c.buildCreateTableSQL(tv)
 	case View:
-		return c.buildCreateViewSQL(tv, false)
+		return c.buildCreateViewSQL(tv)
 	case MaterializedView:
 		return c.buildCreateMaterializedViewSQL(tv)
 	default:
@@ -642,7 +645,7 @@ func (c Controller) SyncView(ctx context.Context, pre, cur View) (err error) {
 	}
 	_, logger := log.FromContext(ctx, "name", cur.Name)
 	logger.Info("will sync view")
-	if err = c.Exec(ctx, c.buildCreateViewSQL(cur, true)); err != nil {
+	if err = c.Exec(ctx, c.buildCreateViewSQL(cur)); err != nil {
 		logger.Errorfe(err, "replace view failed")
 		return errors.Wrapf(err, "sync view %s failed, replace view failed", cur.Name)
 	}

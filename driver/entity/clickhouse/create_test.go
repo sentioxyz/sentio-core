@@ -357,7 +357,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityA` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propertyB` Nullable(Bool) COMMENT 'SCALAR(Boolean) SCHEMA(Boolean)', " +
@@ -413,7 +413,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityA`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityA` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propertyB` Nullable(Bool) COMMENT 'SCALAR(Boolean) SCHEMA(Boolean)', " +
@@ -472,7 +472,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityB` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`foreignB` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
@@ -515,7 +515,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityB`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityB` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`foreignB` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
@@ -575,7 +575,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityC` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
@@ -617,7 +617,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityC`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityC` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
@@ -655,7 +655,7 @@ func Test_createTableSQL(t *testing.T) {
 				"WHERE NOT __last__.2) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityD": {
-			"CREATE VIEW `db`.`processor0_interface_EntityD` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_interface_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
 				"`__on__isnull__` Bool, " +
@@ -690,7 +690,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__`, " +
 				"'EntityD2' AS `__implEntity__` " +
 				"FROM `db`.`processor0_entity_EntityD2`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityD` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
 				"`__on__isnull__` Bool, " +
@@ -728,7 +728,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__implEntity__` AS `meta.impl_entity`, " +
 				"`__implEntity__` " +
 				"FROM `db`.`processor0_interface_EntityD`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityD` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
 				"`__on__isnull__` Bool, " +
@@ -775,7 +775,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityD1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityD1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -811,7 +811,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityD1`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityD1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityD1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -857,7 +857,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityD2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityD2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -893,7 +893,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityD2`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityD2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityD2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -922,7 +922,7 @@ func Test_createTableSQL(t *testing.T) {
 				"WHERE NOT __last__.2) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 		},
 		"EntityE": {
-			"CREATE VIEW `db`.`processor0_interface_EntityE` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_interface_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -959,7 +959,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__`, " +
 				"'EntityE2' AS `__implEntity__` " +
 				"FROM `db`.`processor0_entity_EntityE2`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityE` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -997,7 +997,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__implEntity__` AS `meta.impl_entity`, " +
 				"`__implEntity__` " +
 				"FROM `db`.`processor0_interface_EntityE`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityE` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -1043,7 +1043,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityE1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityE1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -1077,7 +1077,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityE1`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityE1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityE1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -1121,7 +1121,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityE2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityE2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` Array(Nullable(Int32)) COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
@@ -1159,7 +1159,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityE2`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityE2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityE2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` Array(Nullable(Int32)) COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
@@ -1237,7 +1237,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityF1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityF1` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -1309,7 +1309,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityF1`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityF1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityF1` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -1409,7 +1409,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityF2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityF2` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -1481,7 +1481,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityF2`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityF2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityF2` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -1587,7 +1587,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityG` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
@@ -1635,7 +1635,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityG`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityG` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
@@ -1700,7 +1700,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityH` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityH` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -1738,7 +1738,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityH`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityH` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityH` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -1777,7 +1777,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`__interval__`,`timestamp`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SRC(EntityH) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_AggA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_AggA` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -1819,7 +1819,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__interval__` AS `meta.aggregation_interval`, " +
 				"`__interval__` " +
 				"FROM `db`.`processor0_aggregation_AggA`) COMMENT 'SRC(EntityH) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_AggA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_AggA` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -1858,7 +1858,7 @@ func Test_createTableSQL(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityI` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityI` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA` json COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`meta.block_number` UInt64, " +
@@ -1890,7 +1890,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityI`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityI` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityI` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA` json COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`meta.chain` String, " +
@@ -1973,7 +1973,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityA` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propertyB` Nullable(Bool) COMMENT 'SCALAR(Boolean) SCHEMA(Boolean)', " +
@@ -2029,7 +2029,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityA`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityA` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propertyB` Nullable(Bool) COMMENT 'SCALAR(Boolean) SCHEMA(Boolean)', " +
@@ -2131,7 +2131,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
 				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityB`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_entity_EntityB` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_entity_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`foreignB` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
@@ -2164,7 +2164,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityB` " +
 				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityB` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`foreignB` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
@@ -2208,7 +2208,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityB`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityB` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`foreignB` String COMMENT 'OBJECT(EntityA) SCHEMA(EntityA!)', " +
@@ -2310,7 +2310,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
 				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityC`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_entity_EntityC` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_entity_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
@@ -2341,7 +2341,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityC` " +
 				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityC` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
@@ -2383,7 +2383,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityC`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityC` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`propertyB` Float64 COMMENT 'SCALAR(BigInt) SCHEMA(BigInt!)', " +
@@ -2421,7 +2421,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				")) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityD": {
-			"CREATE VIEW `db`.`processor0_interface_EntityD` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_interface_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
 				"`__on__isnull__` Bool, " +
@@ -2456,7 +2456,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__`, " +
 				"'EntityD2' AS `__implEntity__` " +
 				"FROM `db`.`processor0_entity_EntityD2`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityD` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
 				"`__on__isnull__` Bool, " +
@@ -2494,7 +2494,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__implEntity__` AS `meta.impl_entity`, " +
 				"`__implEntity__` " +
 				"FROM `db`.`processor0_interface_EntityD`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityD` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
 				"`__on__isnull__` Bool, " +
@@ -2576,7 +2576,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
 				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityD1`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_entity_EntityD1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_entity_EntityD1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -2601,7 +2601,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityD1` " +
 				"WHERE __sign__ > 0) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityD1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityD1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -2637,7 +2637,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityD1`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityD1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityD1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -2718,7 +2718,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
 				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityD2`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_entity_EntityD2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_entity_EntityD2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -2743,7 +2743,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityD2` " +
 				"WHERE __sign__ > 0) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityD2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityD2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -2779,7 +2779,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityD2`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityD2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityD2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -2808,7 +2808,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				")) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 		},
 		"EntityE": {
-			"CREATE VIEW `db`.`processor0_interface_EntityE` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_interface_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -2845,7 +2845,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__`, " +
 				"'EntityE2' AS `__implEntity__` " +
 				"FROM `db`.`processor0_entity_EntityE2`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityE` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -2883,7 +2883,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__implEntity__` AS `meta.impl_entity`, " +
 				"`__implEntity__` " +
 				"FROM `db`.`processor0_interface_EntityE`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityE` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -2962,7 +2962,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
 				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityE1`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_entity_EntityE1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_entity_EntityE1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -2985,7 +2985,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityE1` " +
 				"WHERE __sign__ > 0) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityE1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityE1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -3019,7 +3019,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityE1`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityE1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityE1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
@@ -3100,7 +3100,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
 				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityE2`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_entity_EntityE2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_entity_EntityE2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` String COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
@@ -3127,7 +3127,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityE2` " +
 				"WHERE __sign__ > 0) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityE2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityE2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` Array(Nullable(Int32)) COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
@@ -3165,7 +3165,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityE2`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityE2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityE2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`by__` Array(Nullable(Int32)) COMMENT 'SCALAR(Int) SCHEMA([Int])', " +
@@ -3243,7 +3243,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityF1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityF1` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -3315,7 +3315,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityF1`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityF1` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityF1` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -3497,7 +3497,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
 				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityF2`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_entity_EntityF2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_entity_EntityF2` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -3558,7 +3558,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityF2` " +
 				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityF2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityF2` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -3630,7 +3630,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityF2`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityF2` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityF2` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyB` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -3783,7 +3783,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
 				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityG`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_entity_EntityG` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_entity_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Tuple(has Bool, sign Int8, val UInt256) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
@@ -3820,7 +3820,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityG` " +
 				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityG` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
@@ -3868,7 +3868,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityG`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityG` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`propB1` Nullable(Float64) COMMENT 'SCALAR(BigInt) SCHEMA(BigInt)', " +
@@ -3933,7 +3933,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityH` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityH` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -3971,7 +3971,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityH`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityH` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityH` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -4010,7 +4010,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"ORDER BY (`__genBlockChain__`,`__interval__`,`timestamp`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SRC(EntityH) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_AggA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_AggA` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -4052,7 +4052,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__interval__` AS `meta.aggregation_interval`, " +
 				"`__interval__` " +
 				"FROM `db`.`processor0_aggregation_AggA`) COMMENT 'SRC(EntityH) SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_AggA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_AggA` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
 				"`dimA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -4122,7 +4122,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
 				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityI`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_entity_EntityI` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_entity_EntityI` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA` json COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`__genBlockNumber__` UInt64, " +
@@ -4143,7 +4143,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityI` " +
 				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityI` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityI` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA` json COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`meta.block_number` UInt64, " +
@@ -4175,7 +4175,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityI`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityI` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityI` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA` json COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`meta.chain` String, " +
@@ -4248,7 +4248,7 @@ type EntityB @entity(immutable: false) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityA` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`meta.block_number` UInt64, " +
 				"`__genBlockNumber__` UInt64, " +
@@ -4278,7 +4278,7 @@ type EntityB @entity(immutable: false) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityA`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityA` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityA` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
@@ -4304,7 +4304,7 @@ type EntityB @entity(immutable: false) {
 				"ORDER BY (`__genBlockChain__`,`id`,`__genBlockNumber__`) " +
 				"SETTINGS enable_block_number_column=1,enable_block_offset_column=1,index_granularity=8192 " +
 				"COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_view_EntityB` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_view_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`meta.block_number` UInt64, " +
 				"`__genBlockNumber__` UInt64, " +
@@ -4334,7 +4334,7 @@ type EntityB @entity(immutable: false) {
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_entity_EntityB`) COMMENT 'SCHEMA_HASH(xxx)'",
-			"CREATE VIEW `db`.`processor0_latestView_EntityB` (" +
+			"CREATE OR REPLACE VIEW `db`.`processor0_latestView_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +

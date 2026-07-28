@@ -9,6 +9,7 @@ go_library(
         "handler.go",
         "helper.go",
         "interval.go",
+        "stream_summary.go",
         "task.go",
     ],
     importpath = "sentioxyz/sentio-core/driver/controller/standard",
@@ -31,6 +32,7 @@ go_library(
         "@com_github_pkg_errors//:errors",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//encoding/gzip",
+        "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/structpb",
         "@org_golang_google_protobuf//types/known/timestamppb",
     ],
@@ -38,7 +40,10 @@ go_library(
 
 go_test(
     name = "standard_test",
-    srcs = ["convert_test.go"],
+    srcs = [
+        "convert_test.go",
+        "stream_summary_test.go",
+    ],
     embed = [":standard"],
     deps = [
         "//driver/controller",

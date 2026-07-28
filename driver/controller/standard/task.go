@@ -221,6 +221,14 @@ func (b *task) streamReceive(
 	// spurious mismatch. int32 bit patterns stay unique within a 2^32 window,
 	// which is far more live processes than can ever coexist.
 	if resp.GetProcessId() != int32(b.index.ProcessID) {
+		// The payload never reaches the user-facing error (it would bloat the
+		// ErrorRecord), but it is what tells us which process leaked the message and
+		// what it was carrying, so log it separately before failing the task.
+		b.logger.Errorw("received a stream message belonging to another process",
+			"gotProcessID", resp.GetProcessId(),
+			"expectedProcessID", int32(b.index.ProcessID),
+			"task", b.title(),
+			"payload", summarizeStreamResponse(resp))
 		return nil, controller.NewExternalError(controller.ErrCodeCallProcessorFailed,
 			errors.Errorf("unexpected ProcessID #%d (expected #%d) for %s",
 				resp.GetProcessId(), int32(b.index.ProcessID), b.title()))

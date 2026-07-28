@@ -371,8 +371,13 @@ func (c Controller) buildCreateViewSQL(view View, replace bool) string {
 		}
 		sql.WriteString(")")
 	}
-	sql.WriteString(" AS ")
+	// Wrap the select in parentheses so a trailing COMMENT is not swallowed as the
+	// alias of the last table/subquery in the select's FROM clause (ClickHouse parses
+	// `... FROM t COMMENT 'x'` as `FROM t AS COMMENT` and then chokes on the string).
+	sql.WriteString(" AS (")
 	sql.WriteString(view.Select)
+	sql.WriteString(")")
+	sql.WriteString(fmt.Sprintf(" COMMENT '%s'", view.Comment))
 	return sql.String()
 }
 
@@ -390,8 +395,12 @@ func (c Controller) buildCreateMaterializedViewSQL(view MaterializedView) string
 		}
 		sql.WriteString(")")
 	}
-	sql.WriteString(" AS ")
+	// See buildCreateViewSQL: parenthesize the select so a trailing COMMENT keeps its
+	// own identity instead of being parsed as the FROM alias.
+	sql.WriteString(" AS (")
 	sql.WriteString(view.Select)
+	sql.WriteString(")")
+	sql.WriteString(fmt.Sprintf(" COMMENT '%s'", view.Comment))
 	return sql.String()
 }
 
@@ -414,14 +423,8 @@ func (c Controller) Create(ctx context.Context, tableOrView TableOrView) (err er
 		logger.Errorfe(err, "create %s failed", tableOrView.GetKind())
 		return errors.Wrapf(err, "create %s %s failed", tableOrView.GetKind(), tableOrView.GetName())
 	}
-	switch tableOrView.(type) {
-	case View, MaterializedView:
-		err = c.AlterTable(ctx, tableOrView.GetName(), fmt.Sprintf("MODIFY COMMENT '%s'", tableOrView.GetComment()))
-		if err != nil {
-			return errors.Wrapf(err, "create %s %s failed: set comment failed",
-				tableOrView.GetKind(), tableOrView.GetName())
-		}
-	}
+	// Views/materialized views carry their COMMENT inline in the CREATE statement
+	// (see buildCreateViewSQL); no follow-up ALTER ... MODIFY COMMENT is needed.
 	logger.Infof("create %s succeed", tableOrView.GetKind())
 	return nil
 }
@@ -643,11 +646,7 @@ func (c Controller) SyncView(ctx context.Context, pre, cur View) (err error) {
 		logger.Errorfe(err, "replace view failed")
 		return errors.Wrapf(err, "sync view %s failed, replace view failed", cur.Name)
 	}
-	err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("MODIFY COMMENT '%s'", cur.Comment))
-	if err != nil {
-		logger.Errorfe(err, "set comment failed")
-		return errors.Wrapf(err, "sync view %s failed, set comment failed", cur.Name)
-	}
+	// COMMENT is part of the CREATE OR REPLACE VIEW statement above.
 	logger.Info("sync view succeed")
 	return nil
 }
@@ -666,11 +665,7 @@ func (c Controller) SyncMaterializedView(ctx context.Context, pre, cur Materiali
 		logger.Errorfe(err, "create new one failed")
 		return errors.Wrapf(err, "sync materialized view %s failed: create new one failed", cur.Name)
 	}
-	err = c.AlterTable(ctx, cur.Name, fmt.Sprintf("MODIFY COMMENT '%s'", cur.Comment))
-	if err != nil {
-		logger.Errorfe(err, "set comment failed")
-		return errors.Wrapf(err, "sync materialized view %s failed: set comment failed", cur.Name)
-	}
+	// COMMENT is part of the CREATE MATERIALIZED VIEW statement above.
 	logger.Info("sync materialized view succeed")
 	return nil
 }

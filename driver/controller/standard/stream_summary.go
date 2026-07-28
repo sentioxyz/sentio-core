@@ -10,10 +10,19 @@ import (
 	"sentioxyz/sentio-core/processor/protos"
 )
 
-// maxSummarySamples caps how many ids / names a summary spells out. A single
-// batched upsert can carry thousands of rows, and these summaries are written to
-// the log on every ERR200, so the sample stays short and the rest is counted.
-const maxSummarySamples = 8
+// A summary is written at Error level on every ERR200, so its length must not
+// scale with the payload it describes. Three independent caps enforce that: how
+// many entries are spelled out, how long any single value may be, and a final
+// ceiling on the whole string as a backstop for shapes not anticipated here.
+const (
+	maxSummarySamples = 8
+	maxSummaryValue   = 96 // fits a 66-char transaction hash whole, with room for the marker
+	maxSummaryTotal   = 2048
+
+	// Budget truncate reserves for its "...+N" marker so that a clipped value
+	// respects the cap it was given instead of overshooting it by the marker.
+	truncateMarkerBudget = 16
+)
 
 // summarizeStreamResponse renders a compact description of a message the processor
 // sent back on the binding stream. It is a diagnostic aid for the "unexpected
@@ -43,23 +52,27 @@ func summarizeStreamResponse(resp *protos.ProcessStreamResponseV3) string {
 			len(r.GetGauges()), len(r.GetCounters()), len(r.GetEvents()), len(r.GetExports()),
 			summarizeTimeseries(r.GetTimeseriesResult()))
 		if errMsg := r.GetStates().GetError(); errMsg != "" {
-			fmt.Fprintf(&b, " error=%q", errMsg)
+			// Processor errors routinely run to hundreds of characters (a wrapped
+			// eth_call revert carries the whole request), so this one gets clipped too.
+			fmt.Fprintf(&b, " error=%q", truncate(errMsg, maxSummaryValue))
 		}
 	case nil:
 		b.WriteString(" <no value>")
 	default:
 		fmt.Fprintf(&b, " <unknown value %T>", v)
 	}
-	return b.String()
+	return truncate(b.String(), maxSummaryTotal)
 }
 
 func summarizeDBOp(req *protos.DBRequest) string {
 	switch op := req.GetOp().(type) {
 	case *protos.DBRequest_Get:
-		return fmt.Sprintf("get entity=%s id=%s", op.Get.GetEntity(), op.Get.GetId())
+		return fmt.Sprintf("get entity=%s id=%s",
+			truncate(op.Get.GetEntity(), maxSummaryValue), truncate(op.Get.GetId(), maxSummaryValue))
 	case *protos.DBRequest_List:
 		return fmt.Sprintf("list entity=%s filters=%d pageSize=%d cursor=%t",
-			op.List.GetEntity(), len(op.List.GetFilters()), op.List.GetPageSize(), op.List.GetCursor() != "")
+			truncate(op.List.GetEntity(), maxSummaryValue), len(op.List.GetFilters()),
+			op.List.GetPageSize(), op.List.GetCursor() != "")
 	case *protos.DBRequest_Upsert:
 		return "upsert " + summarizeEntityRows(op.Upsert.GetEntity(), op.Upsert.GetId())
 	case *protos.DBRequest_Update:
@@ -94,7 +107,9 @@ func summarizeTimeseries(data []*protos.TimeseriesResult) string {
 }
 
 // countByName collapses a list into "name:count" pairs, sorted by descending count
-// then name so the output is stable across runs.
+// then name so the output is stable across runs. Only the top maxSummarySamples
+// names are named — the number of distinct entity or metric names is as unbounded
+// as the row count, so it needs the same treatment.
 func countByName(values []string) string {
 	counts := make(map[string]int, len(values))
 	for _, v := range values {
@@ -110,18 +125,53 @@ func countByName(values []string) string {
 		}
 		return names[i] < names[j]
 	})
-	parts := make([]string, 0, len(names))
+	elided := 0
+	if len(names) > maxSummarySamples {
+		elided = len(names) - maxSummarySamples
+		names = names[:maxSummarySamples]
+	}
+	parts := make([]string, 0, len(names)+1)
 	for _, name := range names {
-		parts = append(parts, fmt.Sprintf("%s:%d", name, counts[name]))
+		parts = append(parts, fmt.Sprintf("%s:%d", truncate(name, maxSummaryValue), counts[name]))
+	}
+	if elided > 0 {
+		parts = append(parts, fmt.Sprintf("...+%d more", elided))
 	}
 	return "{" + strings.Join(parts, ",") + "}"
 }
 
-// sample renders at most maxSummarySamples values, noting how many were elided.
+// sample renders at most maxSummarySamples values, each clipped, noting how many
+// were elided.
 func sample(values []string) string {
-	if len(values) <= maxSummarySamples {
-		return "[" + strings.Join(values, ",") + "]"
+	elided := 0
+	if len(values) > maxSummarySamples {
+		elided = len(values) - maxSummarySamples
+		values = values[:maxSummarySamples]
 	}
-	return fmt.Sprintf("[%s,...+%d]",
-		strings.Join(values[:maxSummarySamples], ","), len(values)-maxSummarySamples)
+	clipped := make([]string, 0, len(values))
+	for _, v := range values {
+		clipped = append(clipped, truncate(v, maxSummaryValue))
+	}
+	if elided > 0 {
+		return fmt.Sprintf("[%s,...+%d]", strings.Join(clipped, ","), elided)
+	}
+	return "[" + strings.Join(clipped, ",") + "]"
+}
+
+// truncate clips s to max runes — runes, not bytes, so a clipped value never ends
+// in a broken UTF-8 sequence — and reports how many were dropped. The marker is
+// paid for out of the budget, so the result never exceeds max.
+func truncate(s string, max int) string {
+	if len(s) <= max { // byte length is an upper bound on rune count
+		return s
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	cut := max - truncateMarkerBudget
+	if cut < 0 {
+		cut = 0
+	}
+	return fmt.Sprintf("%s...+%d", string(runes[:cut]), len(runes)-cut)
 }

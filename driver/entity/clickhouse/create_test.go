@@ -384,7 +384,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -412,7 +412,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityA`",
+				"FROM `db`.`processor0_entity_EntityA`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityA` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -430,7 +430,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`foreignF` String COMMENT 'OBJECT(EntityB) DERIVED_FROM(foreignF) SCHEMA(EntityB!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -448,7 +448,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`foreignF`, " +
 				"`meta.chain`, " +
 				"`__genBlockChain__` " +
-				"FROM `db`.`processor0_view_EntityA`",
+				"FROM `db`.`processor0_view_EntityA`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityB": {
 			"CREATE TABLE `db`.`processor0_entity_EntityB` (" +
@@ -492,7 +492,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -514,7 +514,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityB`",
+				"FROM `db`.`processor0_entity_EntityB`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -525,7 +525,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__foreignE__isnull__` Bool, `foreignF` Array(String) COMMENT 'OBJECT(EntityA) SCHEMA([EntityA!]!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -552,7 +552,7 @@ func Test_createTableSQL(t *testing.T) {
 				"FROM `db`.`processor0_view_EntityB` " +
 				"GROUP BY `id`, `meta.chain`" +
 				") " +
-				"WHERE NOT __last__.2",
+				"WHERE NOT __last__.2) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityC": {
 			"CREATE TABLE `db`.`processor0_entity_EntityC` (" +
@@ -595,7 +595,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -616,7 +616,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityC`",
+				"FROM `db`.`processor0_entity_EntityC`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
@@ -627,7 +627,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -652,7 +652,7 @@ func Test_createTableSQL(t *testing.T) {
 				"FROM `db`.`processor0_view_EntityC` " +
 				"GROUP BY `id`, `meta.chain`" +
 				") " +
-				"WHERE NOT __last__.2",
+				"WHERE NOT __last__.2) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityD": {
 			"CREATE VIEW `db`.`processor0_interface_EntityD` (" +
@@ -666,7 +666,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`on__`, " +
@@ -689,7 +689,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__`, " +
 				"'EntityD2' AS `__implEntity__` " +
-				"FROM `db`.`processor0_entity_EntityD2`",
+				"FROM `db`.`processor0_entity_EntityD2`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -708,7 +708,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`meta.impl_entity` String, " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`on__`, " +
@@ -727,7 +727,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__`, " +
 				"`__implEntity__` AS `meta.impl_entity`, " +
 				"`__implEntity__` " +
-				"FROM `db`.`processor0_interface_EntityD`",
+				"FROM `db`.`processor0_interface_EntityD`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -736,7 +736,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`meta.impl_entity` String, " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`on__`, " +
@@ -755,7 +755,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__genBlockChain__`, " +
 				"'EntityD2' AS `meta.impl_entity`, " +
 				"'EntityD2' AS `__implEntity__` " +
-				"FROM `db`.`processor0_latestView_EntityD2`",
+				"FROM `db`.`processor0_latestView_EntityD2`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityD1": {
 			"CREATE TABLE `db`.`processor0_entity_EntityD1` (" +
@@ -792,7 +792,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -810,7 +810,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityD1`",
+				"FROM `db`.`processor0_entity_EntityD1`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityD1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -818,7 +818,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__on__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -837,7 +837,7 @@ func Test_createTableSQL(t *testing.T) {
 				"FROM `db`.`processor0_view_EntityD1` " +
 				"GROUP BY `id`, `meta.chain`" +
 				") " +
-				"WHERE NOT __last__.2",
+				"WHERE NOT __last__.2) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 		},
 		"EntityD2": {
 			"CREATE TABLE `db`.`processor0_entity_EntityD2` (" +
@@ -874,7 +874,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -892,7 +892,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityD2`",
+				"FROM `db`.`processor0_entity_EntityD2`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityD2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
@@ -900,7 +900,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__on__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -919,7 +919,7 @@ func Test_createTableSQL(t *testing.T) {
 				"FROM `db`.`processor0_view_EntityD2` " +
 				"GROUP BY `id`, `meta.chain`" +
 				") " +
-				"WHERE NOT __last__.2",
+				"WHERE NOT __last__.2) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 		},
 		"EntityE": {
 			"CREATE VIEW `db`.`processor0_interface_EntityE` (" +
@@ -933,7 +933,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -958,7 +958,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__`, " +
 				"'EntityE2' AS `__implEntity__` " +
-				"FROM `db`.`processor0_entity_EntityE2`",
+				"FROM `db`.`processor0_entity_EntityE2`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -977,7 +977,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`meta.impl_entity` String, " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -996,7 +996,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__`, " +
 				"`__implEntity__` AS `meta.impl_entity`, " +
 				"`__implEntity__` " +
-				"FROM `db`.`processor0_interface_EntityE`",
+				"FROM `db`.`processor0_interface_EntityE`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -1005,7 +1005,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`meta.impl_entity` String, " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -1024,7 +1024,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__genBlockChain__`, " +
 				"'EntityE2' AS `meta.impl_entity`, " +
 				"'EntityE2' AS `__implEntity__` " +
-				"FROM `db`.`processor0_latestView_EntityE2`",
+				"FROM `db`.`processor0_latestView_EntityE2`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityE1": {
 			"CREATE TABLE `db`.`processor0_entity_EntityE1` (" +
@@ -1059,7 +1059,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -1076,14 +1076,14 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityE1`",
+				"FROM `db`.`processor0_entity_EntityE1`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityE1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -1100,7 +1100,7 @@ func Test_createTableSQL(t *testing.T) {
 				"FROM `db`.`processor0_view_EntityE1` " +
 				"GROUP BY `id`, `meta.chain`" +
 				") " +
-				"WHERE NOT __last__.2",
+				"WHERE NOT __last__.2) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 		},
 		"EntityE2": {
 			"CREATE TABLE `db`.`processor0_entity_EntityE2` (" +
@@ -1139,7 +1139,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -1158,7 +1158,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityE2`",
+				"FROM `db`.`processor0_entity_EntityE2`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityE2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -1167,7 +1167,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -1188,7 +1188,7 @@ func Test_createTableSQL(t *testing.T) {
 				"FROM `db`.`processor0_view_EntityE2` " +
 				"GROUP BY `id`, `meta.chain`" +
 				") " +
-				"WHERE NOT __last__.2",
+				"WHERE NOT __last__.2) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 		},
 		"EntityF1": {
 			"CREATE TABLE `db`.`processor0_entity_EntityF1` (" +
@@ -1272,7 +1272,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -1308,7 +1308,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityF1`",
+				"FROM `db`.`processor0_entity_EntityF1`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityF1` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
@@ -1334,7 +1334,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__foreignB__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -1360,7 +1360,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__foreignB__isnull__`, " +
 				"`meta.chain`, " +
 				"`__genBlockChain__` " +
-				"FROM `db`.`processor0_view_EntityF1`",
+				"FROM `db`.`processor0_view_EntityF1`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityF2": {
 			"CREATE TABLE `db`.`processor0_entity_EntityF2` (" +
@@ -1444,7 +1444,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -1480,7 +1480,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityF2`",
+				"FROM `db`.`processor0_entity_EntityF2`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityF2` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
@@ -1506,7 +1506,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__foreignB__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -1561,7 +1561,7 @@ func Test_createTableSQL(t *testing.T) {
 				"FROM `db`.`processor0_view_EntityF2` " +
 				"GROUP BY `id`, `meta.chain`" +
 				") " +
-				"WHERE NOT __last__.2",
+				"WHERE NOT __last__.2) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityG": {
 			"CREATE TABLE `db`.`processor0_entity_EntityG` (" +
@@ -1610,7 +1610,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propA1`, " +
@@ -1634,7 +1634,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityG`",
+				"FROM `db`.`processor0_entity_EntityG`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -1648,7 +1648,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__forkA2__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -1679,7 +1679,7 @@ func Test_createTableSQL(t *testing.T) {
 				"FROM `db`.`processor0_view_EntityG` " +
 				"GROUP BY `id`, `meta.chain`" +
 				") " +
-				"WHERE NOT __last__.2",
+				"WHERE NOT __last__.2) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityH": {
 			"CREATE TABLE `db`.`processor0_entity_EntityH` (" +
@@ -1718,7 +1718,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`timestamp`, " +
@@ -1737,7 +1737,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityH`",
+				"FROM `db`.`processor0_entity_EntityH`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityH` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
@@ -1746,7 +1746,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`timestamp`, " +
@@ -1755,7 +1755,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`propB`, " +
 				"`meta.chain`, " +
 				"`__genBlockChain__` " +
-				"FROM `db`.`processor0_view_EntityH`",
+				"FROM `db`.`processor0_view_EntityH`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"AggA": {
 			"CREATE TABLE `db`.`processor0_aggregation_AggA` (" +
@@ -1797,7 +1797,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`meta.aggregation_interval` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)', " +
 				"`__interval__` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)'" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`timestamp`, " +
@@ -1818,7 +1818,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__timestamp__`, " +
 				"`__interval__` AS `meta.aggregation_interval`, " +
 				"`__interval__` " +
-				"FROM `db`.`processor0_aggregation_AggA`",
+				"FROM `db`.`processor0_aggregation_AggA`) COMMENT 'SRC(EntityH) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_AggA` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` Int64 COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
@@ -1829,7 +1829,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`meta.aggregation_interval` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)', " +
 				"`__interval__` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)'" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`timestamp`, " +
@@ -1840,7 +1840,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__genBlockChain__`, " +
 				"`meta.aggregation_interval`, " +
 				"`__interval__` " +
-				"FROM `db`.`processor0_view_AggA`",
+				"FROM `db`.`processor0_view_AggA`) COMMENT 'SRC(EntityH) SCHEMA_HASH(xxx)'",
 		},
 		"EntityI": {
 			"CREATE TABLE `db`.`processor0_entity_EntityI` (" +
@@ -1873,7 +1873,7 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propA`, " +
@@ -1889,13 +1889,13 @@ func Test_createTableSQL(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityI`",
+				"FROM `db`.`processor0_entity_EntityI`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityI` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA` json COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -1909,7 +1909,7 @@ func Test_createTableSQL(t *testing.T) {
 				")) AS __last__ " +
 				"FROM `db`.`processor0_view_EntityI` " +
 				"GROUP BY `id`, `meta.chain`" +
-				") WHERE NOT __last__.2",
+				") WHERE NOT __last__.2) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 	}
 	assert.Equal(t, expected, sqlMap)
@@ -2000,7 +2000,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2028,7 +2028,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityA`",
+				"FROM `db`.`processor0_entity_EntityA`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityA` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -2046,7 +2046,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`foreignF` String COMMENT 'OBJECT(EntityB) DERIVED_FROM(foreignF) SCHEMA(EntityB!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2064,7 +2064,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`foreignF`, " +
 				"`meta.chain`, " +
 				"`__genBlockChain__` " +
-				"FROM `db`.`processor0_view_EntityA`",
+				"FROM `db`.`processor0_view_EntityA`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityB": {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityB` (" +
@@ -2130,7 +2130,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
-				") AS SELECT * FROM `db`.`processor0_versionedEntity_EntityB`",
+				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityB`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_entity_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -2146,7 +2146,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2163,7 +2163,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityB` " +
-				"WHERE __sign__ > 0",
+				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -2185,7 +2185,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2207,7 +2207,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityB`",
+				"FROM `db`.`processor0_entity_EntityB`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -2219,7 +2219,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`foreignF` Array(String) COMMENT 'OBJECT(EntityA) SCHEMA([EntityA!]!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2246,7 +2246,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"WHERE NOT `__deleted__` " +
 				"GROUP BY `id`, `__genBlockChain__`, `__version__` " +
 				"HAVING SUM(`__sign__`) > 0" +
-				")",
+				")) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityC": {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityC` (" +
@@ -2309,7 +2309,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
-				") AS SELECT * FROM `db`.`processor0_versionedEntity_EntityC`",
+				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityC`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_entity_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
@@ -2324,7 +2324,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2340,7 +2340,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityC` " +
-				"WHERE __sign__ > 0",
+				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
@@ -2361,7 +2361,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2382,7 +2382,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityC`",
+				"FROM `db`.`processor0_entity_EntityC`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityC` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
@@ -2393,7 +2393,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`foreignCB` String COMMENT 'OBJECT(EntityB) SCHEMA(EntityB!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2418,7 +2418,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"WHERE NOT `__deleted__` " +
 				"GROUP BY `id`, `__genBlockChain__`, `__version__` " +
 				"HAVING SUM(`__sign__`) > 0" +
-				")",
+				")) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityD": {
 			"CREATE VIEW `db`.`processor0_interface_EntityD` (" +
@@ -2432,7 +2432,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`on__`, " +
@@ -2455,7 +2455,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__`, " +
 				"'EntityD2' AS `__implEntity__` " +
-				"FROM `db`.`processor0_entity_EntityD2`",
+				"FROM `db`.`processor0_entity_EntityD2`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -2474,7 +2474,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`meta.impl_entity` String, " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`on__`, " +
@@ -2493,7 +2493,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__`, " +
 				"`__implEntity__` AS `meta.impl_entity`, " +
 				"`__implEntity__` " +
-				"FROM `db`.`processor0_interface_EntityD`",
+				"FROM `db`.`processor0_interface_EntityD`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityD` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityE) SCHEMA([EntityE!])', " +
@@ -2502,7 +2502,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`meta.impl_entity` String, " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`on__`, " +
@@ -2521,7 +2521,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__`, " +
 				"'EntityD2' AS `meta.impl_entity`, " +
 				"'EntityD2' AS `__implEntity__` " +
-				"FROM `db`.`processor0_latestView_EntityD2`",
+				"FROM `db`.`processor0_latestView_EntityD2`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityD1": {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityD1` (" +
@@ -2575,7 +2575,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
-				") AS SELECT * FROM `db`.`processor0_versionedEntity_EntityD1`",
+				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityD1`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_entity_EntityD1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -2587,7 +2587,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2600,7 +2600,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityD1` " +
-				"WHERE __sign__ > 0",
+				"WHERE __sign__ > 0) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityD1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -2618,7 +2618,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2636,7 +2636,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityD1`",
+				"FROM `db`.`processor0_entity_EntityD1`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityD1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -2644,7 +2644,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__on__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2663,7 +2663,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"WHERE NOT `__deleted__` " +
 				"GROUP BY `id`, `__genBlockChain__`, `__version__` " +
 				"HAVING SUM(`__sign__`) > 0" +
-				")",
+				")) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 		},
 		"EntityD2": {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityD2` (" +
@@ -2717,7 +2717,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
-				") AS SELECT * FROM `db`.`processor0_versionedEntity_EntityD2`",
+				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityD2`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_entity_EntityD2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
@@ -2729,7 +2729,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2742,7 +2742,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityD2` " +
-				"WHERE __sign__ > 0",
+				"WHERE __sign__ > 0) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityD2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
@@ -2760,7 +2760,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2778,7 +2778,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityD2`",
+				"FROM `db`.`processor0_entity_EntityD2`) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityD2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propertyA` Int32 COMMENT 'SCALAR(Int) SCHEMA(Int!)', " +
@@ -2786,7 +2786,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__on__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -2805,7 +2805,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"WHERE NOT `__deleted__` " +
 				"GROUP BY `id`, `__genBlockChain__`, `__version__` " +
 				"HAVING SUM(`__sign__`) > 0" +
-				")",
+				")) COMMENT 'IMPL(EntityD) SCHEMA_HASH(xxx)'",
 		},
 		"EntityE": {
 			"CREATE VIEW `db`.`processor0_interface_EntityE` (" +
@@ -2819,7 +2819,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -2844,7 +2844,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__`, " +
 				"'EntityE2' AS `__implEntity__` " +
-				"FROM `db`.`processor0_entity_EntityE2`",
+				"FROM `db`.`processor0_entity_EntityE2`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -2863,7 +2863,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`meta.impl_entity` String, " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -2882,7 +2882,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__`, " +
 				"`__implEntity__` AS `meta.impl_entity`, " +
 				"`__implEntity__` " +
-				"FROM `db`.`processor0_interface_EntityE`",
+				"FROM `db`.`processor0_interface_EntityE`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityE` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -2891,7 +2891,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`meta.impl_entity` String, " +
 				"`__implEntity__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -2910,7 +2910,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__`, " +
 				"'EntityE2' AS `meta.impl_entity`, " +
 				"'EntityE2' AS `__implEntity__` " +
-				"FROM `db`.`processor0_latestView_EntityE2`",
+				"FROM `db`.`processor0_latestView_EntityE2`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityE1": {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityE1` (" +
@@ -2961,7 +2961,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
-				") AS SELECT * FROM `db`.`processor0_versionedEntity_EntityE1`",
+				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityE1`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_entity_EntityE1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -2972,7 +2972,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -2984,7 +2984,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityE1` " +
-				"WHERE __sign__ > 0",
+				"WHERE __sign__ > 0) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityE1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -3001,7 +3001,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -3018,14 +3018,14 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityE1`",
+				"FROM `db`.`processor0_entity_EntityE1`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityE1` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -3042,7 +3042,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"WHERE NOT `__deleted__` " +
 				"GROUP BY `id`, `__genBlockChain__`, `__version__` " +
 				"HAVING SUM(`__sign__`) > 0" +
-				")",
+				")) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 		},
 		"EntityE2": {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityE2` (" +
@@ -3099,7 +3099,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
-				") AS SELECT * FROM `db`.`processor0_versionedEntity_EntityE2`",
+				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityE2`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_entity_EntityE2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -3112,7 +3112,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -3126,7 +3126,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityE2` " +
-				"WHERE __sign__ > 0",
+				"WHERE __sign__ > 0) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityE2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -3145,7 +3145,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -3164,7 +3164,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityE2`",
+				"FROM `db`.`processor0_entity_EntityE2`) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityE2` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`from__` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
@@ -3173,7 +3173,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`on__` Array(String) COMMENT 'INTERFACE(EntityD) DERIVED_FROM(on) SCHEMA([EntityD!])', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`from__`, " +
@@ -3194,7 +3194,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"WHERE NOT `__deleted__` " +
 				"GROUP BY `id`, `__genBlockChain__`, `__version__` " +
 				"HAVING SUM(`__sign__`) > 0" +
-				")",
+				")) COMMENT 'IMPL(EntityE) SCHEMA_HASH(xxx)'",
 		},
 		"EntityF1": {
 			"CREATE TABLE `db`.`processor0_entity_EntityF1` (" +
@@ -3278,7 +3278,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -3314,7 +3314,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityF1`",
+				"FROM `db`.`processor0_entity_EntityF1`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityF1` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
@@ -3340,7 +3340,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__foreignB__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -3366,7 +3366,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__foreignB__isnull__`, " +
 				"`meta.chain`, " +
 				"`__genBlockChain__` " +
-				"FROM `db`.`processor0_view_EntityF1`",
+				"FROM `db`.`processor0_view_EntityF1`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityF2": {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityF2` (" +
@@ -3496,7 +3496,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
-				") AS SELECT * FROM `db`.`processor0_versionedEntity_EntityF2`",
+				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityF2`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_entity_EntityF2` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
@@ -3526,7 +3526,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -3557,7 +3557,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityF2` " +
-				"WHERE __sign__ > 0",
+				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityF2` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
@@ -3593,7 +3593,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -3629,7 +3629,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityF2`",
+				"FROM `db`.`processor0_entity_EntityF2`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityF2` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`propertyA` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
@@ -3655,7 +3655,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__foreignB__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propertyA`, " +
@@ -3710,7 +3710,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"WHERE NOT `__deleted__` " +
 				"GROUP BY `id`, `__genBlockChain__`, `__version__` " +
 				"HAVING SUM(`__sign__`) > 0" +
-				")",
+				")) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityG": {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityG` (" +
@@ -3782,7 +3782,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
-				") AS SELECT * FROM `db`.`processor0_versionedEntity_EntityG`",
+				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityG`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_entity_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -3800,7 +3800,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propA1`, " +
@@ -3819,7 +3819,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityG` " +
-				"WHERE __sign__ > 0",
+				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -3843,7 +3843,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propA1`, " +
@@ -3867,7 +3867,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityG`",
+				"FROM `db`.`processor0_entity_EntityG`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityG` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA1` Nullable(String) COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -3881,7 +3881,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__forkA2__isnull__` Bool, " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propA1`, " +
@@ -3912,7 +3912,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"WHERE NOT `__deleted__` " +
 				"GROUP BY `id`, `__genBlockChain__`, `__version__` " +
 				"HAVING SUM(`__sign__`) > 0" +
-				")",
+				")) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityH": {
 			"CREATE TABLE `db`.`processor0_entity_EntityH` (" +
@@ -3951,7 +3951,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`timestamp`, " +
@@ -3970,7 +3970,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityH`",
+				"FROM `db`.`processor0_entity_EntityH`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityH` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
@@ -3979,7 +3979,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propB` Decimal(76, 30) COMMENT 'SCALAR(BigDecimal) SCHEMA(BigDecimal!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`timestamp`, " +
@@ -3988,7 +3988,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`propB`, " +
 				"`meta.chain`, " +
 				"`__genBlockChain__` " +
-				"FROM `db`.`processor0_view_EntityH`",
+				"FROM `db`.`processor0_view_EntityH`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"AggA": {
 			"CREATE TABLE `db`.`processor0_aggregation_AggA` (" +
@@ -4030,7 +4030,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`meta.aggregation_interval` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)', " +
 				"`__interval__` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)'" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`timestamp`, " +
@@ -4051,7 +4051,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__`, " +
 				"`__interval__` AS `meta.aggregation_interval`, " +
 				"`__interval__` " +
-				"FROM `db`.`processor0_aggregation_AggA`",
+				"FROM `db`.`processor0_aggregation_AggA`) COMMENT 'SRC(EntityH) SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_AggA` (" +
 				"`id` Int64 COMMENT 'SCALAR(Int8) SCHEMA(Int8!)', " +
 				"`timestamp` DateTime64(6, 'UTC') COMMENT 'SCALAR(Timestamp) SCHEMA(Timestamp!)', " +
@@ -4062,7 +4062,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`meta.aggregation_interval` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)', " +
 				"`__interval__` Enum('hour', 'day') COMMENT 'ENUM(AggAInterval(hour,day)) SCHEMA(AggAInterval!)'" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`timestamp`, " +
@@ -4073,7 +4073,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__`, " +
 				"`meta.aggregation_interval`, " +
 				"`__interval__` " +
-				"FROM `db`.`processor0_view_AggA`",
+				"FROM `db`.`processor0_view_AggA`) COMMENT 'SRC(EntityH) SCHEMA_HASH(xxx)'",
 		},
 		"EntityI": {
 			"CREATE TABLE `db`.`processor0_versionedEntity_EntityI` (" +
@@ -4121,7 +4121,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__timestamp__` DateTime64(3, 'UTC'), " +
 				"`__sign__` Int8, " +
 				"`__version__` UInt64" +
-				") AS SELECT * FROM `db`.`processor0_versionedEntity_EntityI`",
+				") AS (SELECT * FROM `db`.`processor0_versionedEntity_EntityI`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_entity_EntityI` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA` json COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -4131,7 +4131,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__genBlockChain__` String, " +
 				"`__deleted__` Bool, " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propA`, " +
@@ -4142,7 +4142,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` " +
 				"FROM `db`.`processor0_versionedEntity_EntityI` " +
-				"WHERE __sign__ > 0",
+				"WHERE __sign__ > 0) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_view_EntityI` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA` json COMMENT 'SCALAR(String) SCHEMA(String)', " +
@@ -4158,7 +4158,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propA`, " +
@@ -4174,13 +4174,13 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityI`",
+				"FROM `db`.`processor0_entity_EntityI`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityI` (" +
 				"`id` String COMMENT 'SCALAR(ID) SCHEMA(ID!)', " +
 				"`propA` json COMMENT 'SCALAR(String) SCHEMA(String)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`propA`, " +
@@ -4195,7 +4195,7 @@ func Test_createTableSQLEnableVersionedCollapsing(t *testing.T) {
 				"WHERE NOT `__deleted__` " +
 				"GROUP BY `id`, `__genBlockChain__`, `__version__` " +
 				"HAVING SUM(`__sign__`) > 0" +
-				")",
+				")) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 	}
 	assert.Equal(t, expected, sqlMap)
@@ -4262,7 +4262,7 @@ type EntityB @entity(immutable: false) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`__genBlockNumber__` AS `meta.block_number`, " +
@@ -4277,17 +4277,17 @@ type EntityB @entity(immutable: false) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityA`",
+				"FROM `db`.`processor0_entity_EntityA`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityA` (" +
 				"`id` String COMMENT 'SCALAR(Bytes) SCHEMA(Bytes!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
 				"`__genBlockChain__` " +
-				"FROM `db`.`processor0_view_EntityA`",
+				"FROM `db`.`processor0_view_EntityA`) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 		"EntityB": {
 			"CREATE TABLE `db`.`processor0_entity_EntityB` (" +
@@ -4318,7 +4318,7 @@ type EntityB @entity(immutable: false) {
 				"`__deleted__` Bool, " +
 				"`meta.timestamp` DateTime64(3, 'UTC'), " +
 				"`__timestamp__` DateTime64(3, 'UTC')" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`__genBlockNumber__` AS `meta.block_number`, " +
@@ -4333,12 +4333,12 @@ type EntityB @entity(immutable: false) {
 				"`__deleted__`, " +
 				"`__timestamp__` AS `meta.timestamp`, " +
 				"`__timestamp__` " +
-				"FROM `db`.`processor0_entity_EntityB`",
+				"FROM `db`.`processor0_entity_EntityB`) COMMENT 'SCHEMA_HASH(xxx)'",
 			"CREATE VIEW `db`.`processor0_latestView_EntityB` (" +
 				"`id` String COMMENT 'SCALAR(String) SCHEMA(String!)', " +
 				"`meta.chain` String, " +
 				"`__genBlockChain__` String" +
-				") AS " +
+				") AS (" +
 				"SELECT " +
 				"`id`, " +
 				"`meta.chain`, " +
@@ -4351,7 +4351,7 @@ type EntityB @entity(immutable: false) {
 				"FROM `db`.`processor0_view_EntityB` " +
 				"GROUP BY `id`, `meta.chain`" +
 				") " +
-				"WHERE NOT __last__.2",
+				"WHERE NOT __last__.2) COMMENT 'SCHEMA_HASH(xxx)'",
 		},
 	}
 	assert.Equal(t, expected, sqlMap)

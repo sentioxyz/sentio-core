@@ -15,6 +15,7 @@ type StateMirrored struct {
 	processorAllocationCodec statemirror.JSONCodec[string, []ProcessorAllocation]
 	processorInfoCodec       statemirror.JSONCodec[string, ProcessorInfo]
 	databaseCodec            statemirror.JSONCodec[string, DatabaseInfo]
+	tableSchemaCodec         statemirror.JSONCodec[string, TableSchemaInfo]
 	databasePermissionsCodec statemirror.JSONCodec[string, map[string]string]
 	operatorsCodec           statemirror.JSONCodec[string, []string]
 }
@@ -27,6 +28,7 @@ func NewStateMirrored(ctx context.Context, state *PlainState, mirror statemirror
 		processorAllocationCodec: newCodec[[]ProcessorAllocation](),
 		processorInfoCodec:       newCodec[ProcessorInfo](),
 		databaseCodec:            newCodec[DatabaseInfo](),
+		tableSchemaCodec:         newCodec[TableSchemaInfo](),
 		databasePermissionsCodec: newCodec[map[string]string](),
 		operatorsCodec:           newCodec[[]string](),
 	}
@@ -65,6 +67,10 @@ func (s *StateMirrored) ReplaceInner(ctx context.Context, ps *PlainState) error 
 	}
 	if err := diffApply(ctx, s.mirror, statemirror.MappingDatabases, s.databaseCodec,
 		s.inner.Databases, ps.Databases); err != nil {
+		return err
+	}
+	if err := diffApply(ctx, s.mirror, statemirror.MappingTableSchemas, s.tableSchemaCodec,
+		s.inner.TableSchemas, ps.TableSchemas); err != nil {
 		return err
 	}
 	if err := diffApply(ctx, s.mirror, statemirror.MappingDatabasePermissions, s.databasePermissionsCodec,
@@ -269,6 +275,14 @@ func (s *StateMirrored) GetDatabase(databaseId string) (DatabaseInfo, bool) {
 	return s.inner.GetDatabase(databaseId)
 }
 
+func (s *StateMirrored) GetTableSchema(key string) (TableSchemaInfo, bool) {
+	return s.inner.GetTableSchema(key)
+}
+
+func (s *StateMirrored) GetTableSchemas() map[string]TableSchemaInfo {
+	return s.inner.GetTableSchemas()
+}
+
 func (s *StateMirrored) UpsertDatabase(ctx context.Context, info DatabaseInfo) error {
 	if err := s.inner.UpsertDatabase(ctx, info); err != nil {
 		return err
@@ -319,6 +333,13 @@ func (s *StateMirrored) DeleteDatabaseTable(ctx context.Context, databaseId stri
 		return err
 	}
 	return s.syncDatabase(ctx, databaseId)
+}
+
+func (s *StateMirrored) UpsertTableSchema(ctx context.Context, info TableSchemaInfo) error {
+	if err := s.inner.UpsertTableSchema(ctx, info); err != nil {
+		return err
+	}
+	return s.syncTableSchema(ctx, TableSchemaKey(info.DatabaseId, info.TableId, info.Version))
 }
 
 func (s *StateMirrored) GetDatabasePermissions() map[string]map[string]string {
@@ -415,6 +436,21 @@ func (s *StateMirrored) syncDatabase(ctx context.Context, databaseId string) err
 	return applyDiff(ctx, s.mirror, statemirror.MappingDatabases, s.databaseCodec, &diff)
 }
 
+func (s *StateMirrored) syncTableSchema(ctx context.Context, key string) error {
+	info, ok := s.inner.TableSchemas[key]
+	var diff statemirror.TypedDiff[string, TableSchemaInfo]
+	if ok {
+		diff = statemirror.TypedDiff[string, TableSchemaInfo]{
+			Added: map[string]TableSchemaInfo{key: info},
+		}
+	} else {
+		diff = statemirror.TypedDiff[string, TableSchemaInfo]{
+			Deleted: []string{key},
+		}
+	}
+	return applyDiff(ctx, s.mirror, statemirror.MappingTableSchemas, s.tableSchemaCodec, &diff)
+}
+
 func (s *StateMirrored) SyncMirror(ctx context.Context) error {
 	indexerDiff := &statemirror.TypedDiff[string, IndexerInfo]{
 		Added: make(map[string]IndexerInfo),
@@ -457,6 +493,16 @@ func (s *StateMirrored) SyncMirror(ctx context.Context) error {
 		databaseDiff.Added[databaseId] = info
 	}
 	if err := applyDiff(ctx, s.mirror, statemirror.MappingDatabases, s.databaseCodec, databaseDiff); err != nil {
+		return err
+	}
+
+	tableSchemaDiff := &statemirror.TypedDiff[string, TableSchemaInfo]{
+		Added: make(map[string]TableSchemaInfo),
+	}
+	for key, info := range s.inner.GetTableSchemas() {
+		tableSchemaDiff.Added[key] = info
+	}
+	if err := applyDiff(ctx, s.mirror, statemirror.MappingTableSchemas, s.tableSchemaCodec, tableSchemaDiff); err != nil {
 		return err
 	}
 

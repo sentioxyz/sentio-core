@@ -22,6 +22,7 @@ func (s *FileStore) Load(ctx context.Context) (*PlainState, error) {
 		IndexerInfos:         map[uint64]IndexerInfo{},
 		HostedProcessors:     map[string]bool{},
 		Databases:            map[string]DatabaseInfo{},
+		TableSchemas:         map[string]TableSchemaInfo{},
 		DatabasePermissions:  map[string]map[string]string{},
 		Operators:            map[string]map[string]bool{},
 	}
@@ -48,6 +49,9 @@ func (s *FileStore) Load(ctx context.Context) (*PlainState, error) {
 	if state.Databases == nil {
 		state.Databases = map[string]DatabaseInfo{}
 	}
+	if state.TableSchemas == nil {
+		state.TableSchemas = map[string]TableSchemaInfo{}
+	}
 	if state.DatabasePermissions == nil {
 		state.DatabasePermissions = map[string]map[string]string{}
 	}
@@ -65,6 +69,7 @@ func (s *FileStore) Save(ctx context.Context, state State) error {
 		IndexerInfos:         state.GetIndexerInfos(),
 		HostedProcessors:     state.GetHostedProcessors(),
 		Databases:            state.GetDatabases(),
+		TableSchemas:         state.GetTableSchemas(),
 		DatabasePermissions:  state.GetDatabasePermissions(),
 		Operators:            state.GetOperators(),
 	}

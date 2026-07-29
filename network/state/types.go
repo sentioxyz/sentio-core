@@ -1,5 +1,11 @@
 package state
 
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
+
 type IndexerInfo struct {
 	IndexerId           uint64 `json:"indexerId" yaml:"indexer_id"`
 	IndexerUrl          string `json:"indexerUrl" yaml:"indexer_url"`
@@ -30,8 +36,41 @@ const (
 )
 
 type TableInfo struct {
-	TableId   string `json:"tableId" yaml:"table_id"`
-	TableType string `json:"tableType" yaml:"table_type"`
+	TableId       string `json:"tableId" yaml:"table_id"`
+	TableType     string `json:"tableType" yaml:"table_type"`
+	SchemaVersion uint32 `json:"schemaVersion,omitempty" yaml:"schema_version,omitempty"`
+	SchemaHash    string `json:"schemaHash,omitempty" yaml:"schema_hash,omitempty"`
+}
+
+type TableSchemaInfo struct {
+	DatabaseId string `json:"databaseId" yaml:"database_id"`
+	TableId    string `json:"tableId" yaml:"table_id"`
+	Version    uint32 `json:"version" yaml:"version"`
+	SchemaHash string `json:"schemaHash" yaml:"schema_hash"`
+	SchemaJson string `json:"schemaJson" yaml:"schema_json"`
+}
+
+func TableSchemaKey(databaseId, tableId string, version uint32) string {
+	return fmt.Sprintf("%s/%s@%d", databaseId, tableId, version)
+}
+
+func ParseTableSchemaKey(key string) (databaseId, tableId string, version uint32, err error) {
+	versionSeparator := strings.LastIndexByte(key, '@')
+	if versionSeparator < 0 || versionSeparator == len(key)-1 {
+		return "", "", 0, fmt.Errorf("invalid table schema key %q: missing version", key)
+	}
+
+	identity := key[:versionSeparator]
+	tableSeparator := strings.IndexByte(identity, '/')
+	if tableSeparator <= 0 || tableSeparator == len(identity)-1 {
+		return "", "", 0, fmt.Errorf("invalid table schema key %q: missing database or table", key)
+	}
+
+	parsedVersion, parseErr := strconv.ParseUint(key[versionSeparator+1:], 10, 32)
+	if parseErr != nil {
+		return "", "", 0, fmt.Errorf("invalid table schema key %q version: %w", key, parseErr)
+	}
+	return identity[:tableSeparator], identity[tableSeparator+1:], uint32(parsedVersion), nil
 }
 
 // DatabaseInfo mirrors on-chain Database struct. A database is bound to

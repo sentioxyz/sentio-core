@@ -253,4 +253,6 @@ When creating or modifying components under `packages/ui-dashboard/`, read `pack
 - Some Go dependencies have custom patches (see `third_party/` and MODULE.bazel)
 - The `nogo` static analyzer runs on all Go code (config in `nogo-config.json`)
 - Bazel disk cache is in `~/.cache/bazel-disk` (max 50GB)
-- Current Bazel version: 8.5.1 (see `.bazelversion`)
+- Bazel version: 9.1.0 — `.bazelversion` is authoritative, read it rather than trusting this line.
+  Invoke Bazel through **bazelisk**: only bazelisk honours `.bazelversion`, and a mismatched version
+  rewrites `MODULE.bazel.lock`.

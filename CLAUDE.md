@@ -243,7 +243,7 @@ When creating or modifying components under `packages/ui-dashboard/`, read `pack
 
 ### Known Compatibility Issues
 
-- **Bazel 9**: Not yet supported due to `rules_foreign_cc` incompatibility (pulled in via grpc → opencensus-cpp → google_benchmark → libpfm)
+- **`google_benchmark` floor**: `MODULE.bazel` forces google_benchmark ≥ 1.9.2 so that `rules_foreign_cc`, whose old versions do not work under Bazel 9, stays out of the dependency graph (it arrives via grpc → opencensus-cpp → google_benchmark). Do not relax that floor — see the comment on the override for details
 - **OCI Images**: Container image builds use `rules_img`. Launcher image targets (in `service/launcher/BUILD.bazel`) are pinned to `//:linux_amd64`, marked as `manual`, and must be built explicitly with `bazel build //service/launcher:launcher_image`
 - **gRPC Python**: Latest grpc versions may require Python versions not yet in rules_python
 
@@ -253,6 +253,7 @@ When creating or modifying components under `packages/ui-dashboard/`, read `pack
 - Some Go dependencies have custom patches (see `third_party/` and MODULE.bazel)
 - The `nogo` static analyzer runs on all Go code (config in `nogo-config.json`)
 - Bazel disk cache is in `~/.cache/bazel-disk` (max 50GB)
-- Bazel version: 9.1.0 — `.bazelversion` is authoritative, read it rather than trusting this line.
-  Invoke Bazel through **bazelisk**: only bazelisk honours `.bazelversion`, and a mismatched version
-  rewrites `MODULE.bazel.lock`.
+- Bazel version: read `.bazelversion`. It is the single source of truth and is deliberately not
+  restated here, because a copy in prose is what drifted last time. Invoke Bazel through
+  **bazelisk**: only bazelisk honours `.bazelversion`, and a mismatched version rewrites
+  `MODULE.bazel.lock`.

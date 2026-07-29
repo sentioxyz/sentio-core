@@ -496,13 +496,17 @@ func (s *StateMirrored) SyncMirror(ctx context.Context) error {
 		return err
 	}
 
-	tableSchemaDiff := &statemirror.TypedDiff[string, TableSchemaInfo]{
-		Added: make(map[string]TableSchemaInfo),
-	}
-	for key, info := range s.inner.GetTableSchemas() {
-		tableSchemaDiff.Added[key] = info
-	}
-	if err := applyDiff(ctx, s.mirror, statemirror.MappingTableSchemas, s.tableSchemaCodec, tableSchemaDiff); err != nil {
+	tableSchemas := s.inner.GetTableSchemas()
+	if err := s.mirror.Upsert(
+		ctx,
+		statemirror.MappingTableSchemas,
+		statemirror.BuildSyncFunc(
+			s.tableSchemaCodec,
+			func(context.Context, statemirror.OnChainKey) (map[string]TableSchemaInfo, error) {
+				return tableSchemas, nil
+			},
+		),
+	); err != nil {
 		return err
 	}
 

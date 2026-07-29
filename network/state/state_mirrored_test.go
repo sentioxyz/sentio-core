@@ -55,8 +55,14 @@ func TestStateMirroredTableSchemasAllWritePaths(t *testing.T) {
 	}
 	assertMirroredTableSchema(t, ctx, mirror, keyV1, infoV1)
 
+	staleKey := TableSchemaKey("stale_db", "stale_table", 9)
 	if err := mirror.Apply(ctx, statemirror.MappingTableSchemas, func(context.Context, statemirror.OnChainKey) (*statemirror.StateDiff, error) {
-		return &statemirror.StateDiff{Deleted: []string{keyV1}}, nil
+		return &statemirror.StateDiff{
+			Added: map[string]string{
+				staleKey: `{"database_id":"stale_db","table_id":"stale_table","version":9}`,
+			},
+			Deleted: []string{keyV1},
+		}, nil
 	}); err != nil {
 		t.Fatalf("remove mirrored fixture: %v", err)
 	}
@@ -64,6 +70,11 @@ func TestStateMirroredTableSchemasAllWritePaths(t *testing.T) {
 		t.Fatalf("SyncMirror: %v", err)
 	}
 	assertMirroredTableSchema(t, ctx, mirror, keyV1, infoV1)
+	if _, ok, err := mirror.Get(ctx, statemirror.MappingTableSchemas, staleKey); err != nil {
+		t.Fatalf("mirror.Get stale key: %v", err)
+	} else if ok {
+		t.Fatalf("SyncMirror retained stale schema %q", staleKey)
+	}
 
 	infoV2 := infoV1
 	infoV2.Version = 2

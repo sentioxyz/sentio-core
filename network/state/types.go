@@ -65,12 +65,17 @@ func ParseTableSchemaKey(key string) (databaseId, tableId string, version uint32
 	if tableSeparator <= 0 || tableSeparator == len(identity)-1 {
 		return "", "", 0, fmt.Errorf("invalid table schema key %q: missing database or table", key)
 	}
+	databaseID := identity[:tableSeparator]
+	tableID := identity[tableSeparator+1:]
+	if strings.ContainsAny(databaseID, "/@") || strings.ContainsAny(tableID, "/@") {
+		return "", "", 0, fmt.Errorf("invalid table schema key %q: database or table contains a reserved delimiter", key)
+	}
 
 	parsedVersion, parseErr := strconv.ParseUint(key[versionSeparator+1:], 10, 32)
 	if parseErr != nil {
 		return "", "", 0, fmt.Errorf("invalid table schema key %q version: %w", key, parseErr)
 	}
-	return identity[:tableSeparator], identity[tableSeparator+1:], uint32(parsedVersion), nil
+	return databaseID, tableID, uint32(parsedVersion), nil
 }
 
 // DatabaseInfo mirrors on-chain Database struct. A database is bound to

@@ -49,6 +49,9 @@ func TestParseTableSchemaKeyRejectsMalformedKeys(t *testing.T) {
 		"db_1/table_1",
 		"db_1-table_1@1",
 		"db_1/table_1@not-a-number",
+		"db_1/extra/table_1@1",
+		"db_1/table_1@extra@1",
+		"db_1@extra/table_1@1",
 	} {
 		t.Run(key, func(t *testing.T) {
 			if _, _, _, err := ParseTableSchemaKey(key); err == nil {

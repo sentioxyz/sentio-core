@@ -245,11 +245,6 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogsEx(
 	ctx context.Context,
 	args *evm.EthGetLogsArgs,
 ) (resp evm.EthGetLogsExResponse, err error) {
-	if args.BlockHash == nil {
-		if err = exCheckHead(ctx, s.slotCache, args.ToBlock); err != nil {
-			return resp, err
-		}
-	}
 	checker := args.Checker()
 	elems, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, 0, 0,
 		func(st *evm.Slot) ([]exBlock[types.Log], error) {
@@ -292,9 +287,6 @@ func (s *proxyWithLatestSlotCacheService) TraceFilterEx(
 	ctx context.Context,
 	args *evm.TraceFilterArgs,
 ) (resp evm.TraceFilterExResponse, err error) {
-	if err = exCheckHead(ctx, s.slotCache, args.ToBlock); err != nil {
-		return resp, err
-	}
 	checker := args.Checker()
 	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0, 0,
 		func(st *evm.Slot) ([]exBlock[evm.ParityTrace], error) {

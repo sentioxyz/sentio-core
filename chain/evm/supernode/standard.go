@@ -395,11 +395,6 @@ func (s *standardService) GetLogsEx(
 	ctx context.Context,
 	args *evm.EthGetLogsArgs,
 ) (resp evm.EthGetLogsExResponse, err error) {
-	if args.BlockHash == nil {
-		if err = exCheckHead(ctx, s.slotCache, args.ToBlock); err != nil {
-			return resp, err
-		}
-	}
 	checker := args.Checker()
 	elems, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
 		maxQueryRangeSize, maxLogs,
@@ -539,9 +534,6 @@ func (s *standardService) TraceFilterEx(
 	ctx context.Context,
 	args *evm.TraceFilterArgs,
 ) (resp evm.TraceFilterExResponse, err error) {
-	if err = exCheckHead(ctx, s.slotCache, args.ToBlock); err != nil {
-		return resp, err
-	}
 	checker := args.Checker()
 	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
 		maxQueryRangeSize, maxTraces,

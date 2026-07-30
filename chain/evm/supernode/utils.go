@@ -163,6 +163,20 @@ func queryWithCache[ELEM any](
 				en = (uint64)(*toBlock)
 			}
 		}
+		// A range reaching beyond this node's head is an error rather than a silent trim: a
+		// well-behaved caller resolves its head against this same node, so an over-the-head
+		// range means the caller talked to someone ahead of us (e.g. another replica) — and for
+		// the Ex methods a trimmed answer would be indistinguishable from genuinely empty
+		// blocks. The single-block eth_getBlockByNumber form keeps the trim (and thus the
+		// JSON-RPC null-for-future-block semantics) via the blockNumber branch above.
+		r, err := slotCache.GetRange(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if en > *r.End {
+			return nil, errors.Errorf("block %d is beyond the latest block %d of this node, retry later",
+				en, *r.End)
+		}
 	}
 	// The span cap applies to the REQUESTED range — a caller-visible contract — not to the
 	// sub-range left over after the latest-slot cache serves its part: whether the cache covers
@@ -183,30 +197,6 @@ func queryWithCache[ELEM any](
 		},
 	)
 	return chain.CheckTooManyResultsBy(result, err, limit, opts.sizeOf)
-}
-
-// exCheckHead rejects an Ex range query whose explicit upper bound is beyond this node's head.
-// The plain methods silently trim blocks that do not exist here yet — correct for them, but an
-// Ex caller relies on the identity coverage reaching its requested end: with another replica (or
-// the caller's head resolution) ahead of this node, a trimmed answer would be indistinguishable
-// from genuinely empty blocks, which is exactly the silent loss the Ex methods exist to prevent.
-func exCheckHead(
-	ctx context.Context,
-	slotCache chain.LatestSlotCache[*evm.Slot],
-	toBlock *rpc.BlockNumber,
-) error {
-	if toBlock == nil || *toBlock < 0 {
-		return nil // resolved against this node's own head, coverage is complete by construction
-	}
-	r, err := slotCache.GetRange(ctx)
-	if err != nil {
-		return err
-	}
-	if uint64(*toBlock) > *r.End {
-		return errors.Errorf("block %d is beyond the latest block %d of this node, retry later",
-			uint64(*toBlock), *r.End)
-	}
-	return nil
 }
 
 // exBlock pairs one block's chain identity with the items (logs or traces) a query matched in

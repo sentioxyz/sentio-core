@@ -320,17 +320,28 @@ func TestGetLogsExUnsupportedTag(t *testing.T) {
 	assert.ErrorIs(t, err, jsonrpc.CallNextMiddleware)
 }
 
-func TestGetLogsExBeyondHead(t *testing.T) {
-	// the plain methods silently trim blocks above this node's head; for Ex that trimming would
-	// make a lagging replica indistinguishable from genuinely empty blocks, so it must error
+func TestRangeQueryBeyondHead(t *testing.T) {
+	// a range reaching beyond this node's head errors instead of being silently trimmed — a
+	// well-behaved caller resolves its head against this same node, and for Ex a trimmed answer
+	// would make a lagging replica indistinguishable from genuinely empty blocks. This is
+	// uniform across the plain and Ex range methods.
 	cache := newFakeSlotCache(100, 105)
 	s := newTestStandardService(cache, fakeStorage{}, rg.NewRange(0, 99))
 
 	from, to := rpc.BlockNumber(100), rpc.BlockNumber(110)
 	_, err := s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{FromBlock: &from, ToBlock: &to})
 	assert.ErrorContains(t, err, "beyond the latest block")
+	_, err = s.GetLogs(context.Background(), &evm.EthGetLogsArgs{FromBlock: &from, ToBlock: &to})
+	assert.ErrorContains(t, err, "beyond the latest block")
 
 	from2, to2 := rpc.BlockNumber(106), rpc.BlockNumber(110)
 	_, err = s.TraceFilterEx(context.Background(), &evm.TraceFilterArgs{FromBlock: &from2, ToBlock: &to2})
 	assert.ErrorContains(t, err, "beyond the latest block")
+	_, err = s.TraceFilter(context.Background(), &evm.TraceFilterArgs{FromBlock: &from2, ToBlock: &to2})
+	assert.ErrorContains(t, err, "beyond the latest block")
+
+	// the single-block eth_getBlockByNumber form keeps the null-for-future-block semantics
+	block, err := s.GetBlockByNumber(context.Background(), rpc.BlockNumber(110), false)
+	assert.NoError(t, err)
+	assert.Nil(t, block)
 }

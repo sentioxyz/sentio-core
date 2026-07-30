@@ -397,6 +397,14 @@ func (c *client) GetBlock(
 				if tx == nil {
 					return errors.Errorf("transaction %d/%s not found", blockNumber, txHash)
 				}
+				// the per-hash answer must claim the expected block: a transaction can be
+				// included by both sibling forks with different block-specific metadata
+				if blockHash != "" && tx.BlockHash.String() != blockHash {
+					return errors.Errorf(
+						"transaction %s is answered from block %s but the expected block is %s, "+
+							"the endpoint answered from a different fork, will retry",
+						txHash, tx.BlockHash, blockHash)
+				}
 				lock.Lock()
 				defer lock.Unlock()
 				r.Transactions[txHash] = *tx
@@ -471,6 +479,13 @@ func (c *client) GetBlock(
 				if receipt == nil {
 					return errors.Errorf("transaction receipt %d/%s not found", blockNumber, txHash)
 				}
+				// see the transaction branch above: sibling-fork receipts can differ in state
+				if blockHash != "" && receipt.BlockHash.String() != blockHash {
+					return errors.Errorf(
+						"the receipt of tx %s is answered from block %s but the expected block is %s, "+
+							"the endpoint answered from a different fork, will retry",
+						txHash, receipt.BlockHash, blockHash)
+				}
 				lock.Lock()
 				defer lock.Unlock()
 				r.Receipts[txHash] = *receipt
@@ -482,9 +497,23 @@ func (c *client) GetBlock(
 	if req.AllTraces {
 		g.Go(func() (err error) {
 			var traces []Trace
-			traces, err = c.GetTraces(gctx, blockNumber, blockNumber, nil)
-			if err != nil {
-				return
+			exResp, exErr := c.GetTracesEx(gctx, blockNumber, blockNumber, nil)
+			switch {
+			case exErr == nil:
+				// the Ex link makes even an EMPTY trace set verifiable against the block
+				if traces, err = tracesFromExForBlock(exResp, blockNumber, blockHash); err != nil {
+					return
+				}
+			case !errors.Is(exErr, errMethodNotSupported):
+				return exErr
+			default:
+				if traces, err = c.GetTraces(gctx, blockNumber, blockNumber, nil); err != nil {
+					return
+				}
+				// without Ex a non-empty answer still proves its origin via the per-trace hash
+				if err = checkTracesBlockHash(traces, blockNumber, blockHash); err != nil {
+					return
+				}
 			}
 			r.Traces = utils.Group(traces, func(trace Trace) string {
 				return trace.TransactionHash
@@ -576,6 +605,11 @@ func (c *client) GetLogsEx(
 	return
 }
 
+// logsByBlockHashUnsupported marks an endpoint that rejects the EIP-234 blockHash filter of
+// eth_getLogs. It is a parameter-level capability, not a method-level one, so it gets its own
+// pseudo-method key in unsupportedMethods.
+const logsByBlockHashUnsupported = "eth_getLogs#blockHash"
+
 func (c *client) GetLogsByBlockHash(
 	ctx context.Context,
 	priority uint64,
@@ -583,12 +617,25 @@ func (c *client) GetLogsByBlockHash(
 	address []string,
 	topics [][]string,
 ) (result []types.Log, err error) {
+	if c.unsupportedMethods.Contains(logsByBlockHashUnsupported) {
+		return nil, errors.Wrapf(errMethodNotSupported,
+			"the endpoint does not support the blockHash filter of eth_getLogs")
+	}
 	arg := map[string]any{
 		"blockHash": blockHash,
 		"address":   address,
 		"topics":    topics,
 	}
 	err = c.callContext(ctx, &result, priority, "eth_getLogs", arg)
+	// A JSON-RPC invalid-params answer to this well-formed request means the endpoint does not
+	// understand the blockHash filter (pre EIP-234): remember the capability and report
+	// method-not-supported so the caller falls back to a by-number query. Anything else (e.g. a
+	// super node missing the hash in its latest slot cache) stays a plain retryable error.
+	var rpcErr rpc.Error
+	if err != nil && errors.As(err, &rpcErr) && rpcErr.ErrorCode() == -32602 {
+		c.unsupportedMethods.Add(logsByBlockHashUnsupported)
+		err = errors.Wrapf(errMethodNotSupported, "%s", err.Error())
+	}
 	return
 }
 

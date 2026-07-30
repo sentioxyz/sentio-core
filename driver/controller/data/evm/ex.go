@@ -102,3 +102,62 @@ func setTraceBlockHash(trace *Trace, blockHash string) error {
 	}
 	return nil
 }
+
+// checkTipCovered requires an Ex response to vouch for the tip block itself: at the tip the
+// serving super node always holds the block in its latest slot cache, so a missing identity
+// there means the endpoint (an older server without the over-the-head guard, or a lagging
+// replica) trimmed the request, and accepting it would be silent loss.
+func checkTipCovered(entries map[uint64]BlockMainData, end uint64) error {
+	if entry, has := entries[end]; !has || entry.Header == nil {
+		return errors.Errorf(
+			"the Ex response did not cover the requested tip block %d, the endpoint's head is behind, will retry", end)
+	}
+	return nil
+}
+
+// checkTracesBlockHash verifies that every trace claims the expected block; an empty result
+// stays unverifiable this way (trace_filter has no by-hash form), which is why the Ex variant is
+// preferred wherever available.
+func checkTracesBlockHash(traces []Trace, blockNumber uint64, blockHash string) error {
+	if blockHash == "" {
+		return nil
+	}
+	for i := range traces {
+		if traces[i].BlockHash != blockHash {
+			return errors.Errorf(
+				"trace of tx %s in block %d has block hash %s but the expected block is %s, "+
+					"the endpoint answered from a different fork, will retry",
+				traces[i].TransactionHash, blockNumber, traces[i].BlockHash, blockHash)
+		}
+	}
+	return nil
+}
+
+// tracesFromExForBlock extracts the traces of exactly one block from a trace_filterEx response,
+// verifying the response's identity against the expected block hash (when given) — which makes
+// even an EMPTY trace set verifiable — and backfilling the stripped blockHash into the traces.
+func tracesFromExForBlock(resp GetTracesExResponse, blockNumber uint64, blockHash string) ([]Trace, error) {
+	links, err := verifiedLinks(resp.BlockHashLinkPart)
+	if err != nil {
+		return nil, err
+	}
+	link, covered := linkIndex(links)[blockNumber]
+	if !covered {
+		// deep history on a slot-cache-only super node: no identity available, verify whatever
+		// the traces themselves carry
+		return resp.Traces, checkTracesBlockHash(resp.Traces, blockNumber, blockHash)
+	}
+	if blockHash != "" && link.Hash.Hex() != blockHash {
+		return nil, errors.Errorf(
+			"trace_filterEx answered block %d from %s but the expected block is %s, "+
+				"the endpoint answered from a different fork, will retry",
+			blockNumber, link.Hash, blockHash)
+	}
+	traces := resp.Traces
+	for i := range traces {
+		if err = setTraceBlockHash(&traces[i], link.Hash.Hex()); err != nil {
+			return nil, err
+		}
+	}
+	return traces, nil
+}

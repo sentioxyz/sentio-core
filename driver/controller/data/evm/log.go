@@ -226,7 +226,16 @@ func BuildLogFetcher(
 			// block's identity, which covers the watching range too.
 			exResp, err := client.GetLogsEx(ctx, start, end, address, topics)
 			if err == nil {
-				return buildLogEntriesFromEx(ctx, client, req, exResp, end)
+				entries, buildErr := buildLogEntriesFromEx(ctx, client, req, exResp, end)
+				if buildErr == nil && end == latest.GetBlockNumber() {
+					// an older server without the over-the-head guard could still trim a tip
+					// query down to nothing (empty link) — require the tip block's identity
+					buildErr = checkTipCovered(entries, end)
+				}
+				if buildErr != nil {
+					return nil, buildErr
+				}
+				return entries, nil
 			}
 			if !errors.Is(err, errMethodNotSupported) {
 				return nil, err
@@ -282,7 +291,17 @@ func fetchLogsAtTip(
 			}
 			logs, err := client.GetLogsByBlockHash(gctx, bn, h.BlockHash, address, topics)
 			if err != nil {
-				return err
+				if !errors.Is(err, errMethodNotSupported) {
+					return err
+				}
+				// the endpoint rejects the EIP-234 blockHash filter (detected via JSON-RPC
+				// invalid-params and cached in the client): fall back to by-number for this
+				// block — a NON-EMPTY result is still verified against the header by the
+				// per-log block hash check downstream, an empty one stays unverifiable
+				// (accepted for such endpoints)
+				if logs, err = client.GetLogs(gctx, bn, bn, address, topics); err != nil {
+					return err
+				}
 			}
 			if logs, err = FilterLogs(gctx, client, logs, req.LogFilter); err != nil {
 				return err

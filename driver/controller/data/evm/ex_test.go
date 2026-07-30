@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -9,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
 	"sentioxyz/sentio-core/chain/evm"
@@ -171,4 +173,113 @@ func TestBuildLogEntriesFromExBehindHead(t *testing.T) {
 	entries, err := buildLogEntriesFromEx(nil, nil, LogRequirement{}, GetLogsExResponse{}, 105)
 	assert.NoError(t, err)
 	assert.Empty(t, entries)
+}
+
+// fakeTipClient stubs just the calls fetchLogsAtTip needs; everything else panics via the
+// embedded nil interface.
+type fakeTipClient struct {
+	Client
+	headers       map[uint64]BlockHeader
+	byHashErr     error
+	byHashLogs    map[string][]types.Log
+	byNumberLogs  map[uint64][]types.Log
+	byNumberCalls int
+}
+
+func (c *fakeTipClient) GetHeader(ctx context.Context, blockNumber uint64) (BlockHeader, error) {
+	return c.headers[blockNumber], nil
+}
+
+func (c *fakeTipClient) GetLogsByBlockHash(
+	ctx context.Context, priority uint64, blockHash string, address []string, topics [][]string,
+) ([]types.Log, error) {
+	if c.byHashErr != nil {
+		return nil, c.byHashErr
+	}
+	return c.byHashLogs[blockHash], nil
+}
+
+func (c *fakeTipClient) GetLogs(
+	ctx context.Context, fromBlock, toBlock uint64, address []string, topics [][]string,
+) ([]types.Log, error) {
+	c.byNumberCalls++
+	return c.byNumberLogs[fromBlock], nil
+}
+
+func tipHeader(n uint64) BlockHeader {
+	return BlockHeader{
+		BlockNumber:     n,
+		BlockHash:       exHash(n).Hex(),
+		ParentBlockHash: exHash(n - 1).Hex(),
+	}
+}
+
+func TestFetchLogsAtTipByHashFallback(t *testing.T) {
+	cli := &fakeTipClient{
+		headers:      map[uint64]BlockHeader{100: tipHeader(100), 101: tipHeader(101)},
+		byHashLogs:   map[string][]types.Log{exHash(100).Hex(): {exLog(100)}},
+		byNumberLogs: map[uint64][]types.Log{100: {exLog(100)}},
+	}
+
+	// by-hash works: no by-number call, entries carry the header
+	entries, err := fetchLogsAtTip(context.Background(), cli, LogRequirement{}, 100, 101, nil, nil)
+	assert.NoError(t, err)
+	assert.Zero(t, cli.byNumberCalls)
+	assert.Len(t, entries[100].Logs, 1)
+	assert.Empty(t, entries[101].Logs)
+	assert.Equal(t, exHash(101).Hex(), entries[101].Header.BlockHash)
+
+	// the endpoint rejects the blockHash filter (capability signal): by-number fallback kicks in
+	cli.byHashErr = errors.Wrapf(errMethodNotSupported, "invalid params")
+	cli.byNumberCalls = 0
+	entries, err = fetchLogsAtTip(context.Background(), cli, LogRequirement{}, 100, 100, nil, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, cli.byNumberCalls)
+	assert.Len(t, entries[100].Logs, 1)
+	assert.NotNil(t, entries[100].Header)
+
+	// any other error (e.g. a super node missing the hash in its cache) propagates for retry
+	cli.byHashErr = errors.New("block 0x64 is not in the latest slot cache")
+	cli.byNumberCalls = 0
+	_, err = fetchLogsAtTip(context.Background(), cli, LogRequirement{}, 100, 100, nil, nil)
+	assert.Error(t, err)
+	assert.Zero(t, cli.byNumberCalls)
+}
+
+func TestCheckTipCovered(t *testing.T) {
+	header := tipHeader(100)
+	assert.NoError(t, checkTipCovered(map[uint64]BlockMainData{100: {Header: &header}}, 100))
+	assert.ErrorContains(t, checkTipCovered(map[uint64]BlockMainData{}, 100), "did not cover")
+	assert.ErrorContains(t, checkTipCovered(map[uint64]BlockMainData{100: {Exact: true}}, 100), "did not cover")
+}
+
+func TestTracesFromExForBlock(t *testing.T) {
+	part, err := evm.NewBlockHashLinkPart(exLinks(200, 1))
+	assert.NoError(t, err)
+	var trace Trace
+	assert.NoError(t, json.Unmarshal([]byte(traceRawJSON(200, "")), &trace))
+
+	// covered and matching: stripped blockHash backfilled into struct and Raw
+	traces, err := tracesFromExForBlock(GetTracesExResponse{BlockHashLinkPart: part, Traces: []Trace{trace}},
+		200, exHash(200).Hex())
+	assert.NoError(t, err)
+	assert.Equal(t, exHash(200).Hex(), traces[0].BlockHash)
+
+	// covered with a different identity: the extend data came from a sibling fork
+	_, err = tracesFromExForBlock(GetTracesExResponse{BlockHashLinkPart: part},
+		200, exHash(999).Hex())
+	assert.ErrorContains(t, err, "different fork")
+
+	// empty result is verifiable through the link alone — the reason Ex is preferred here
+	traces, err = tracesFromExForBlock(GetTracesExResponse{BlockHashLinkPart: part}, 200, exHash(200).Hex())
+	assert.NoError(t, err)
+	assert.Empty(t, traces)
+}
+
+func TestCheckTracesBlockHash(t *testing.T) {
+	var trace Trace
+	assert.NoError(t, json.Unmarshal([]byte(traceRawJSON(300, exHash(300).Hex())), &trace))
+	assert.NoError(t, checkTracesBlockHash([]Trace{trace}, 300, exHash(300).Hex()))
+	assert.ErrorContains(t, checkTracesBlockHash([]Trace{trace}, 300, exHash(999).Hex()), "different fork")
+	assert.NoError(t, checkTracesBlockHash([]Trace{trace}, 300, ""))
 }

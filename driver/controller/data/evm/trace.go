@@ -190,7 +190,15 @@ func BuildTraceFetcher(
 			// block's identity.
 			exResp, err := client.GetTracesEx(ctx, start, end, req.TraceFilter.Address)
 			if err == nil {
-				return buildTraceEntriesFromEx(req, exResp, end)
+				entries, buildErr := buildTraceEntriesFromEx(req, exResp, end)
+				if buildErr == nil && end == latest.GetBlockNumber() {
+					// see the log fetcher: require the tip block's identity
+					buildErr = checkTipCovered(entries, end)
+				}
+				if buildErr != nil {
+					return nil, buildErr
+				}
+				return entries, nil
 			}
 			if !errors.Is(err, errMethodNotSupported) {
 				return nil, err

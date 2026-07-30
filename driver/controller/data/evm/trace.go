@@ -190,7 +190,7 @@ func BuildTraceFetcher(
 			// block's identity.
 			exResp, err := client.GetTracesEx(ctx, start, end, req.TraceFilter.Address)
 			if err == nil {
-				return buildTraceEntriesFromEx(req, exResp)
+				return buildTraceEntriesFromEx(req, exResp, end)
 			}
 			if !errors.Is(err, errMethodNotSupported) {
 				return nil, err
@@ -274,9 +274,16 @@ func fetchTracesAtTip(
 // buildLogEntriesFromEx: covered blocks (with or without traces) carry their identity, covered
 // traces get the stripped blockHash backfilled into both the struct and the Raw JSON handed to
 // the processor.
-func buildTraceEntriesFromEx(req TraceRequirement, resp GetTracesExResponse) (map[uint64]BlockMainData, error) {
+func buildTraceEntriesFromEx(
+	req TraceRequirement,
+	resp GetTracesExResponse,
+	end uint64,
+) (map[uint64]BlockMainData, error) {
 	links, err := verifiedLinks(resp.BlockHashLinkPart)
 	if err != nil {
+		return nil, err
+	}
+	if err = checkLinksReachEnd(links, end); err != nil {
 		return nil, err
 	}
 	result := emptyEntriesFromLinks(links)

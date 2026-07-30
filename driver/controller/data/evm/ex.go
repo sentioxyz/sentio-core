@@ -55,6 +55,21 @@ func linkIndex(links []evm.BlockLink) map[uint64]evm.BlockLink {
 	return dict
 }
 
+// checkLinksReachEnd verifies that the identity coverage of an Ex response extends to the last
+// requested block. The super node guards this on its side too, but an older or lagging server
+// could still trim the upper part of the range (blocks it does not have yet), and treating the
+// missing tail as empty blocks would be silent loss. No link at all stays accepted: that is the
+// slot-cache-only super node serving a deep-history range entirely from upstream.
+func checkLinksReachEnd(links []evm.BlockLink, end uint64) error {
+	if len(links) > 0 && links[len(links)-1].Number < end {
+		return errors.Errorf(
+			"the identity coverage of the Ex response ends at block %d but block %d was requested, "+
+				"the endpoint's head is behind, will retry",
+			links[len(links)-1].Number, end)
+	}
+	return nil
+}
+
 // emptyEntriesFromLinks pre-fills the per-block result map with header-only entries for every
 // covered block: a covered block with zero matching data still carries its identity, which is
 // the entire point of the Ex queries — an empty result becomes verifiable instead of

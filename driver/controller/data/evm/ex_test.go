@@ -50,7 +50,7 @@ func TestBuildLogEntriesFromEx(t *testing.T) {
 		BlockHashLinkPart: part,
 		Logs:              []types.Log{exLog(99), exLog(102)}, // 99 uncovered, 102 covered
 	}
-	entries, err := buildLogEntriesFromEx(nil, nil, LogRequirement{}, resp)
+	entries, err := buildLogEntriesFromEx(nil, nil, LogRequirement{}, resp, 103)
 	assert.NoError(t, err)
 	assert.Len(t, entries, 5)
 
@@ -83,7 +83,7 @@ func TestBuildLogEntriesFromExMalformedLink(t *testing.T) {
 		BlockHashLink:  []common.Hash{exHash(99), exHash(100)},
 		BlockTimestamp: []hexutil.Uint64{1200, 1212},
 	}
-	_, err := buildLogEntriesFromEx(nil, nil, LogRequirement{}, GetLogsExResponse{BlockHashLinkPart: malformed})
+	_, err := buildLogEntriesFromEx(nil, nil, LogRequirement{}, GetLogsExResponse{BlockHashLinkPart: malformed}, 102)
 	assert.Error(t, err)
 }
 
@@ -97,7 +97,7 @@ func TestBuildTraceEntriesFromEx(t *testing.T) {
 		BlockHashLinkPart: part,
 		Traces:            []Trace{covered, uncovered},
 	}
-	entries, err := buildTraceEntriesFromEx(TraceRequirement{}, resp)
+	entries, err := buildTraceEntriesFromEx(TraceRequirement{}, resp, 202)
 	assert.NoError(t, err)
 	assert.Len(t, entries, 4)
 
@@ -128,7 +128,7 @@ func TestBuildTraceEntriesFromExAppliesFilter(t *testing.T) {
 	resp := GetTracesExResponse{BlockHashLinkPart: part, Traces: []Trace{trace}}
 	entries, err := buildTraceEntriesFromEx(TraceRequirement{
 		TraceFilter: TraceFilter{Signature: []string{"0x99999999"}}, // does not match 0xdeadbeef
-	}, resp)
+	}, resp, 200)
 	assert.NoError(t, err)
 	// the trace is filtered out but the block keeps its identity entry
 	assert.Empty(t, entries[200].Traces)
@@ -157,4 +157,18 @@ func TestCheckBlockTxsMatch(t *testing.T) {
 	assert.ErrorContains(t, checkBlockTxsMatch(1, expected, []string{"0xa", "0xb"}), "different fork")
 	// same count but a foreign transaction: answered from a sibling block
 	assert.ErrorContains(t, checkBlockTxsMatch(1, expected, []string{"0xa", "0xb", "0xd"}), "not listed")
+}
+
+func TestBuildLogEntriesFromExBehindHead(t *testing.T) {
+	// links stop before the requested end: the endpoint's head is behind (e.g. a lagging
+	// replica), treating the missing tail as empty blocks would be silent loss
+	part, err := evm.NewBlockHashLinkPart(exLinks(100, 3)) // covers [100,102]
+	assert.NoError(t, err)
+	_, err = buildLogEntriesFromEx(nil, nil, LogRequirement{}, GetLogsExResponse{BlockHashLinkPart: part}, 105)
+	assert.ErrorContains(t, err, "head is behind")
+
+	// no link at all is the deep-history range of a slot-cache-only super node: accepted
+	entries, err := buildLogEntriesFromEx(nil, nil, LogRequirement{}, GetLogsExResponse{}, 105)
+	assert.NoError(t, err)
+	assert.Empty(t, entries)
 }

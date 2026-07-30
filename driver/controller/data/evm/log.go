@@ -226,7 +226,7 @@ func BuildLogFetcher(
 			// block's identity, which covers the watching range too.
 			exResp, err := client.GetLogsEx(ctx, start, end, address, topics)
 			if err == nil {
-				return buildLogEntriesFromEx(ctx, client, req, exResp)
+				return buildLogEntriesFromEx(ctx, client, req, exResp, end)
 			}
 			if !errors.Is(err, errMethodNotSupported) {
 				return nil, err
@@ -310,9 +310,13 @@ func buildLogEntriesFromEx(
 	client Client,
 	req LogRequirement,
 	resp GetLogsExResponse,
+	end uint64,
 ) (map[uint64]BlockMainData, error) {
 	links, err := verifiedLinks(resp.BlockHashLinkPart)
 	if err != nil {
+		return nil, err
+	}
+	if err = checkLinksReachEnd(links, end); err != nil {
 		return nil, err
 	}
 	result := emptyEntriesFromLinks(links)

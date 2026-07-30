@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/pkg/errors"
 
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/driver/controller"
@@ -139,7 +140,7 @@ func BuildBlockMainDataFetcher(
 					data.Header = box.Header
 				} else if data.Header.BlockHash != box.Header.BlockHash ||
 					data.Header.ParentBlockHash != box.Header.ParentBlockHash {
-					return data, false, fetcher.Permanent(fmt.Errorf(
+					return data, false, fetcher.Permanent(errors.Errorf(
 						"fetchers disagree on the identity of block %d: %s/%s vs %s/%s",
 						bn, data.Header.BlockHash, data.Header.ParentBlockHash,
 						box.Header.BlockHash, box.Header.ParentBlockHash))

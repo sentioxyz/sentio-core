@@ -245,8 +245,12 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogsEx(
 	ctx context.Context,
 	args *evm.EthGetLogsArgs,
 ) (resp evm.EthGetLogsExResponse, err error) {
+	if args.BlockHash != nil {
+		// see standardService.GetLogsEx: the by-hash form is deliberately unsupported
+		return resp, errors.Errorf("eth_getLogsEx does not support the blockHash filter, query by block range instead")
+	}
 	checker := args.Checker()
-	elems, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, 0, 0,
+	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0, 0,
 		func(st *evm.Slot) ([]exBlock[types.Log], error) {
 			return exBlockFromSlot(st, utils.FilterArr(st.Logs, checker)), nil
 		},
@@ -270,10 +274,7 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogsEx(
 			}
 			return []exBlock[types.Log]{{items: result}}, nil
 		},
-		// a by-hash miss is a hard, retryable error: falling through to the proxy would
-		// forward eth_getLogsEx to an upstream node that does not implement it
-		errors.Errorf("block %s is not in the latest slot cache, retry later or use eth_getLogs instead",
-			args.BlockHash),
+		nil, // will not be used because hash always nil
 	)
 	if err != nil {
 		return resp, err

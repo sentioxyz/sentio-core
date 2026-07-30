@@ -226,23 +226,16 @@ func TestGetLogsExIncompleteStoreLinks(t *testing.T) {
 	assert.ErrorContains(t, err, "block links")
 }
 
-func TestGetLogsExByHash(t *testing.T) {
+func TestGetLogsExRejectsByHash(t *testing.T) {
+	// the by-hash form is deliberately unsupported: the response always carries the block
+	// identities anyway, and a cache miss would otherwise fall through to upstream nodes that
+	// cannot answer Ex at all
 	cache := newFakeSlotCache(100, 105)
-	cache.slots[102].Logs = []types.Log{testLog(102, true)}
 	s := newTestStandardService(cache, fakeStorage{}, rg.NewRange(0, 99))
 
-	hit := hashOf(102)
-	resp, err := s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{BlockHash: &hit})
-	assert.NoError(t, err)
-	assert.Len(t, resp.Logs, 1)
-	assert.Equal(t, uint64(102), uint64(*resp.LinkFromBlock))
-	assert.Equal(t, []common.Hash{hashOf(101), hashOf(102)}, resp.BlockHashLink)
-
-	// a miss (e.g. the cache holds an orphan sibling) is a retryable error, never a silent
-	// fallthrough to the upstream proxy
-	miss := common.BigToHash(big.NewInt(999999))
-	_, err = s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{BlockHash: &miss})
-	assert.ErrorContains(t, err, "use eth_getLogs instead")
+	hash := hashOf(102)
+	_, err := s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{BlockHash: &hash})
+	assert.ErrorContains(t, err, "does not support the blockHash filter")
 }
 
 func TestGetLogsExTooManyResults(t *testing.T) {

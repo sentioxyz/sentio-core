@@ -395,8 +395,14 @@ func (s *standardService) GetLogsEx(
 	ctx context.Context,
 	args *evm.EthGetLogsArgs,
 ) (resp evm.EthGetLogsExResponse, err error) {
+	if args.BlockHash != nil {
+		// eth_getLogsEx always returns the block identities, so the by-hash form adds nothing —
+		// and serving it would force a cache miss to fall through to upstream nodes that cannot
+		// answer Ex at all
+		return resp, errors.Errorf("eth_getLogsEx does not support the blockHash filter, query by block range instead")
+	}
 	checker := args.Checker()
-	elems, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
+	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
 		maxQueryRangeSize, maxLogs,
 		func(st *evm.Slot) ([]exBlock[types.Log], error) {
 			return exBlockFromSlot(st, utils.FilterArr(st.Logs, checker)), nil
@@ -422,11 +428,7 @@ func (s *standardService) GetLogsEx(
 				return exBlocksFromStore(links, logs, func(lg types.Log) uint64 { return lg.BlockNumber }), nil
 			})(ctx, r)
 		},
-		// a by-hash miss (e.g. the cache briefly holds an orphan sibling) is a hard,
-		// retryable error: falling through to the proxy would forward eth_getLogsEx to an
-		// upstream node that does not implement it
-		errors.Errorf("block %s is not in the latest slot cache, retry later or use eth_getLogs instead",
-			args.BlockHash),
+		nil, // will not be used because hash always nil
 		withSizeOf(exBlockSize[types.Log]),
 	)
 	if err != nil {

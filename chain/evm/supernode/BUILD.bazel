@@ -4,6 +4,7 @@ go_library(
     name = "supernode",
     srcs = [
         "custom_function_proxy.go",
+        "ex.go",
         "extra.go",
         "proxy.go",
         "proxy_with_slot_cache.go",
@@ -36,7 +37,10 @@ go_library(
 
 go_test(
     name = "supernode_test",
-    srcs = ["rpc_test.go"],
+    srcs = [
+        "ex_test.go",
+        "rpc_test.go",
+    ],
     embed = [":supernode"],
     # Hits external public mainnet RPC endpoints; excluded from `bazel test //...`
     # and CI. Run explicitly: `bazel test //chain/evm/supernode:supernode_test`.
@@ -49,7 +53,11 @@ go_test(
         "//common/jsonrpc",
         "//common/log",
         "//common/range",
+        "@com_github_ethereum_go_ethereum//common",
         "@com_github_ethereum_go_ethereum//common/hexutil",
+        "@com_github_ethereum_go_ethereum//core/types",
+        "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
         "@com_github_stretchr_testify//assert",
         "@org_uber_go_zap//zapcore",
     ],

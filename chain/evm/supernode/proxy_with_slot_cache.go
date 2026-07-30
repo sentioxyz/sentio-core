@@ -48,8 +48,12 @@ func NewProxyWithLatestSlotCacheMiddleware(
 				result, err = jsonrpc.CallMethod(svr.EthGetBlockReceipts, ctx, params)
 			case "eth_getLogs":
 				result, err = jsonrpc.CallMethod(svr.EthGetLogs, ctx, params)
+			case "eth_getLogsEx":
+				result, err = jsonrpc.CallMethod(svr.EthGetLogsEx, ctx, params)
 			case "trace_filter":
 				result, err = jsonrpc.CallMethod(svr.TraceFilter, ctx, params)
+			case "trace_filterEx":
+				result, err = jsonrpc.CallMethod(svr.TraceFilterEx, ctx, params)
 			default:
 				return next(ctx, method, params)
 			}

@@ -324,6 +324,32 @@ func (c *EthVariationController[BLOCK, TXN]) QueryBlocks(
 	return result, err
 }
 
+func (c *EthVariationController[BLOCK, TXN]) QueryBlockLinks(
+	ctx context.Context,
+	from, to uint64,
+) (result []evm.BlockLink, err error) {
+	sql := fmt.Sprintf(
+		"SELECT block_number, block_hash, parent_hash, block_timestamp FROM %s "+
+			"WHERE block_number >= %d AND block_number <= %d ORDER BY block_number",
+		c.ctrl.FullLogicName(tableNameBlocks), from, to)
+	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
+		var blockNumber uint64
+		var blockHash, parentHash string
+		var blockTimestamp time.Time
+		if scanErr := rows.Scan(&blockNumber, &blockHash, &parentHash, &blockTimestamp); scanErr != nil {
+			return scanErr
+		}
+		result = append(result, evm.BlockLink{
+			Number:     blockNumber,
+			Hash:       common.HexToHash(blockHash),
+			ParentHash: common.HexToHash(parentHash),
+			Timestamp:  uint64(blockTimestamp.Unix()),
+		})
+		return nil
+	}, sql)
+	return result, err
+}
+
 func (c *EthVariationController[BLOCK, TXN]) QueryBlockTxHashes(
 	ctx context.Context,
 	blockNumber uint64,

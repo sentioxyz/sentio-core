@@ -57,10 +57,14 @@ func NewStandardMiddleware(
 				result, err = jsonrpc.CallMethod(s.GetBlocksPacked, ctx, params)
 			case "eth_getLogs":
 				result, err = jsonrpc.CallMethod(s.GetLogs, ctx, params)
+			case "eth_getLogsEx":
+				result, err = jsonrpc.CallMethod(s.GetLogsEx, ctx, params)
 			case "eth_getLogsPacked":
 				result, err = jsonrpc.CallMethod(s.GetLogsPacked, ctx, params)
 			case "trace_filter":
 				result, err = jsonrpc.CallMethod(s.TraceFilter, ctx, params)
+			case "trace_filterEx":
+				result, err = jsonrpc.CallMethod(s.TraceFilterEx, ctx, params)
 			case "trace_filterPacked":
 				result, err = jsonrpc.CallMethod(s.TraceFilterPacked, ctx, params)
 			default:

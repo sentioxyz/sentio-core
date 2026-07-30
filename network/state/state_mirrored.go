@@ -497,6 +497,10 @@ func (s *StateMirrored) SyncMirror(ctx context.Context) error {
 	}
 
 	tableSchemas := s.inner.GetTableSchemas()
+	// TableSchemas receives minute-scale full snapshots, so SyncMirror must
+	// converge the Redis hash and prune fields absent from the latest state.
+	// Upsert matches ReplaceInner's Deleted semantics; applyDiff would only add
+	// current fields and leave stale schema-version keys behind indefinitely.
 	if err := s.mirror.Upsert(
 		ctx,
 		statemirror.MappingTableSchemas,

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/timewin"
 	"sentioxyz/sentio-core/common/utils"
@@ -142,6 +143,18 @@ func (f *fetcher[T]) GetFullRange() controller.BlockRange {
 	return f.full
 }
 
+// fetcherMaxKeepBlockCount bounds how many BLOCKS the fetch-ahead buffer may hold. totalSize
+// only counts data items, and Ex-backed fetchers buffer a header-only entry for every covered
+// block — through a long empty stretch the data budget would never fill and the buffer would
+// grow without bound, so the block count needs its own cap (a header-only entry is ~200 bytes,
+// the default caps the overhead around 10MB).
+var fetcherMaxKeepBlockCount = envconf.LoadUInt64("SENTIO_FETCHER_MAX_KEEP_BLOCK_COUNT", 50000)
+
+// bufferFull must be called with f.mu held.
+func (f *fetcher[T]) bufferFull() bool {
+	return f.totalSize >= f.targetKeepDataSize || uint64(len(f.data)) >= fetcherMaxKeepBlockCount
+}
+
 func (f *fetcher[T]) nextFetchSize(current uint64, got int, used time.Duration) uint64 {
 	if f.targetQueryDataSize > 0 && int(float64(got)*f.querySizeMultiplier) >= f.targetQueryDataSize {
 		return current // data got is big enough
@@ -167,8 +180,8 @@ func (f *fetcher[T]) growth(ctx context.Context) (pause bool, reject bool, chang
 		// no more data need to fetch
 		return true, true, nil
 	}
-	if f.totalSize >= f.targetKeepDataSize {
-		// total size of f.data is more than the limit, continue pause to wait consume
+	if f.bufferFull() {
+		// the buffer is more than the limit, continue pause to wait consume
 		f.winChanged = make(chan struct{})
 		return true, false, f.winChanged
 	}
@@ -251,7 +264,7 @@ func (f *fetcher[T]) growth(ctx context.Context) (pause bool, reject bool, chang
 			close(done)
 			f.winChanged = make(chan struct{})
 			logger.Debugw("growth succeed", "used", time.Since(growthStartAt).String(), "current", f.current())
-			return f.totalSize >= f.targetKeepDataSize, false, f.winChanged
+			return f.bufferFull(), false, f.winChanged
 		}
 	}
 	// fetch the data in [start,end], keep reducing the range size, and keep retrying,

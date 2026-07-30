@@ -52,11 +52,40 @@ type Client interface {
 		topics [][]string,
 	) ([]types.Log, error)
 
+	// GetLogsEx is the eth_getLogsEx variant of GetLogs: the response additionally carries the
+	// chain identity (hash link + timestamps) of the blocks it covers, so an empty result is
+	// verifiable. Returns errMethodNotSupported when the endpoint does not implement it, and the
+	// caller falls back to GetLogs.
+	GetLogsEx(
+		ctx context.Context,
+		fromBlock, toBlock uint64,
+		address []string,
+		topics [][]string,
+	) (GetLogsExResponse, error)
+
+	// GetLogsByBlockHash queries the logs of exactly one block identified by hash. Used in the
+	// watching range so that a super node whose latest slot cache briefly holds an orphan
+	// sibling misses (and errors) instead of silently answering from the wrong fork.
+	GetLogsByBlockHash(
+		ctx context.Context,
+		priority uint64,
+		blockHash string,
+		address []string,
+		topics [][]string,
+	) ([]types.Log, error)
+
 	GetTraces(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		address []string,
 	) ([]Trace, error)
+
+	// GetTracesEx is the trace_filterEx variant of GetTraces, see GetLogsEx.
+	GetTracesEx(
+		ctx context.Context,
+		fromBlock, toBlock uint64,
+		address []string,
+	) (GetTracesExResponse, error)
 
 	GetContractStartBlock(ctx context.Context, address string, start, latest uint64) (uint64, bool, error)
 	IsERC20Address(ctx context.Context, address string) (bool, error)
@@ -451,6 +480,52 @@ func (c *client) GetLogs(
 	return
 }
 
+// callExMethod calls an Ex method with the unsupported-method cache applied: once an endpoint
+// answers method-not-found the method is not probed again for the lifetime of this client, and
+// callers fall back to the plain method immediately.
+func (c *client) callExMethod(ctx context.Context, result any, priority uint64, method string, arg any) error {
+	if c.unsupportedMethods.Contains(method) {
+		return errors.Wrapf(errMethodNotSupported, "method %s already marked unsupported", method)
+	}
+	err := c.callContext(ctx, result, priority, method, arg)
+	if errors.Is(err, errMethodNotSupported) {
+		c.unsupportedMethods.Add(method)
+	}
+	return err
+}
+
+func (c *client) GetLogsEx(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	address []string,
+	topics [][]string,
+) (result GetLogsExResponse, err error) {
+	arg := map[string]any{
+		"fromBlock": hexutil.Uint64(fromBlock).String(),
+		"toBlock":   hexutil.Uint64(toBlock).String(),
+		"address":   address,
+		"topics":    topics,
+	}
+	err = c.callExMethod(ctx, &result, fromBlock, "eth_getLogsEx", arg)
+	return
+}
+
+func (c *client) GetLogsByBlockHash(
+	ctx context.Context,
+	priority uint64,
+	blockHash string,
+	address []string,
+	topics [][]string,
+) (result []types.Log, err error) {
+	arg := map[string]any{
+		"blockHash": blockHash,
+		"address":   address,
+		"topics":    topics,
+	}
+	err = c.callContext(ctx, &result, priority, "eth_getLogs", arg)
+	return
+}
+
 func (c *client) GetTraces(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
@@ -465,6 +540,20 @@ func (c *client) GetTraces(
 	if err != nil {
 		return
 	}
+	return
+}
+
+func (c *client) GetTracesEx(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	address []string,
+) (result GetTracesExResponse, err error) {
+	arg := map[string]any{
+		"fromBlock": hexutil.Uint64(fromBlock).String(),
+		"toBlock":   hexutil.Uint64(toBlock).String(),
+		"toAddress": address,
+	}
+	err = c.callExMethod(ctx, &result, fromBlock, "trace_filterEx", arg)
 	return
 }
 

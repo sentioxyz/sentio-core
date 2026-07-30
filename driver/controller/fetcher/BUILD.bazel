@@ -13,6 +13,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/driver/controller/fetcher",
     visibility = ["//visibility:public"],
     deps = [
+        "//common/envconf",
         "//common/log",
         "//common/timehist",
         "//common/timewin",

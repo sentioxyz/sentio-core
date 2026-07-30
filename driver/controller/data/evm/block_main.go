@@ -25,10 +25,17 @@ type BlockMainData struct {
 	Traces    []Trace
 	Intervals []data.IntervalConfig
 	Exact     bool
+	// Header is the chain identity of the block AS SEEN BY THE SOURCE OF THIS DATA (an Ex query's
+	// hash link, or the header fetched alongside a by-hash query in the watching range). A block
+	// with a Header is never empty: even with zero matching logs/traces it carries a verifiable
+	// identity, flows into the header list, and gets a checkpoint — so a result served from the
+	// wrong fork (e.g. an orphan sibling briefly held by the super node's latest slot cache) is
+	// detected by the parent-hash chain instead of being silently skipped.
+	Header *BlockHeader
 }
 
 func (d BlockMainData) IsEmpty() bool {
-	return d.Size() == 0 && !d.Exact
+	return d.Size() == 0 && !d.Exact && d.Header == nil
 }
 
 func (d BlockMainData) Size() int {
@@ -121,6 +128,21 @@ func BuildBlockMainDataFetcher(
 				data.Logs = append(data.Logs, box.Logs...)
 				data.Traces = append(data.Traces, box.Traces...)
 				data.Intervals = append(data.Intervals, box.Intervals...)
+				if box.Header == nil {
+					continue
+				}
+				// every fetcher that vouches for a chain identity must vouch for the SAME one;
+				// two fetchers answering from different forks is unrecoverable by retrying the
+				// merge, the whole fetch run must be rebuilt
+				if data.Header == nil {
+					data.Header = box.Header
+				} else if data.Header.BlockHash != box.Header.BlockHash ||
+					data.Header.ParentBlockHash != box.Header.ParentBlockHash {
+					return data, false, fetcher.Permanent(fmt.Errorf(
+						"fetchers disagree on the identity of block %d: %s/%s vs %s/%s",
+						bn, data.Header.BlockHash, data.Header.ParentBlockHash,
+						box.Header.BlockHash, box.Header.ParentBlockHash))
+				}
 			}
 			return
 		})

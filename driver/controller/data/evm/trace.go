@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
@@ -182,6 +184,20 @@ func BuildTraceFetcher(
 		time.Second,
 		1.5,
 		func(ctx context.Context, start, end uint64, latest controller.BlockHeader) (map[uint64]BlockMainData, error) {
+			// In the watching range, query block by block and verify each result's identity
+			// against the canonical header (trace_filter has no by-hash form, so the Ex link is
+			// the verification handle here).
+			if end == latest.GetBlockNumber() {
+				return fetchTracesAtTip(ctx, client, req, start, end)
+			}
+			exResp, err := client.GetTracesEx(ctx, start, end, req.TraceFilter.Address)
+			if err == nil {
+				return buildTraceEntriesFromEx(req, exResp)
+			}
+			if !errors.Is(err, errMethodNotSupported) {
+				return nil, err
+			}
+			// plain fallback, see the log fetcher for the trade-off
 			allTraces, err := client.GetTraces(ctx, start, end, req.TraceFilter.Address)
 			if err != nil {
 				return nil, err
@@ -197,4 +213,84 @@ func BuildTraceFetcher(
 			return result, nil
 		},
 	)
+}
+
+// fetchTracesAtTip serves the watching range block by block. With trace_filterEx the result's
+// hash link is compared against the canonical header (fetched via forced-proxy, bypassing the
+// super node's latest slot cache): a mismatch means the slot cache currently holds an orphan
+// sibling, and the plain retryable error keeps the fetcher retrying until the cache heals.
+// Without Ex support the block is fetched by number and carries no identity; a non-empty result
+// is still verified downstream by the per-trace block hash check, an empty one is unverifiable
+// (accepted for endpoints without Ex).
+func fetchTracesAtTip(
+	ctx context.Context,
+	client Client,
+	req TraceRequirement,
+	start, end uint64,
+) (map[uint64]BlockMainData, error) {
+	result := make(map[uint64]BlockMainData, end-start+1)
+	for bn := start; bn <= end; bn++ {
+		exResp, err := client.GetTracesEx(ctx, bn, bn, req.TraceFilter.Address)
+		if err != nil {
+			if !errors.Is(err, errMethodNotSupported) {
+				return nil, err
+			}
+			traces, plainErr := client.GetTraces(ctx, bn, bn, req.TraceFilter.Address)
+			if plainErr != nil {
+				return nil, plainErr
+			}
+			traces = utils.FilterArr(traces, req.TraceFilter.Check)
+			if len(traces) > 0 {
+				result[bn] = BlockMainData{Traces: traces}
+			}
+			continue
+		}
+		h, err := client.GetHeaderIgnoreCache(ctx, bn)
+		if err != nil {
+			return nil, err
+		}
+		entries, err := buildTraceEntriesFromEx(req, exResp)
+		if err != nil {
+			return nil, err
+		}
+		entry, has := entries[bn]
+		if !has || entry.Header == nil {
+			return nil, errors.Errorf("trace_filterEx did not cover the requested tip block %d", bn)
+		}
+		if entry.Header.BlockHash != h.GetBlockHash() {
+			return nil, errors.Errorf(
+				"trace_filterEx answered block %d from %s but the canonical block is %s, "+
+					"the endpoint is probably holding an orphan sibling, will retry",
+				bn, entry.Header.BlockHash, h.GetBlockHash())
+		}
+		result[bn] = entry
+	}
+	return result, nil
+}
+
+// buildTraceEntriesFromEx converts a trace_filterEx response into per-block entries, mirroring
+// buildLogEntriesFromEx: covered blocks (with or without traces) carry their identity, covered
+// traces get the stripped blockHash backfilled into both the struct and the Raw JSON handed to
+// the processor.
+func buildTraceEntriesFromEx(req TraceRequirement, resp GetTracesExResponse) (map[uint64]BlockMainData, error) {
+	links, err := verifiedLinks(resp.BlockHashLinkPart)
+	if err != nil {
+		return nil, err
+	}
+	result := emptyEntriesFromLinks(links)
+	dict := linkIndex(links)
+	for _, trace := range resp.Traces {
+		if link, covered := dict[trace.BlockNumber]; covered {
+			if err = setTraceBlockHash(&trace, link.Hash.Hex()); err != nil {
+				return nil, err
+			}
+		}
+		if !req.TraceFilter.Check(trace) {
+			continue
+		}
+		entry := result[trace.BlockNumber]
+		entry.Traces = append(entry.Traces, trace)
+		result[trace.BlockNumber] = entry
+	}
+	return result, nil
 }

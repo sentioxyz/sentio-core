@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
@@ -186,15 +187,20 @@ func BuildTraceFetcher(
 		1.5,
 		func(ctx context.Context, start, end uint64, latest controller.BlockHeader) (map[uint64]BlockMainData, error) {
 			// trace_filterEx is always the first choice: its hash link carries every covered
-			// block's identity (trace_filter has no by-hash form, so unlike logs there is no
-			// per-block by-hash alternative in the watching range — endpoints without Ex keep
-			// the plain semantics everywhere).
+			// block's identity.
 			exResp, err := client.GetTracesEx(ctx, start, end, req.TraceFilter.Address)
 			if err == nil {
 				return buildTraceEntriesFromEx(req, exResp)
 			}
 			if !errors.Is(err, errMethodNotSupported) {
 				return nil, err
+			}
+			// The endpoint has no Ex support. In the watching range, query block by block and
+			// verify each trace's block hash against the header fetched first (trace_filter has
+			// no by-hash form, so unlike logs the verification is by comparison, and an empty
+			// result stays unverifiable).
+			if end == latest.GetBlockNumber() {
+				return fetchTracesAtTip(ctx, client, req, start, end)
 			}
 			// plain fallback, see the log fetcher for the trade-off
 			allTraces, err := client.GetTraces(ctx, start, end, req.TraceFilter.Address)
@@ -212,6 +218,56 @@ func BuildTraceFetcher(
 			return result, nil
 		},
 	)
+}
+
+// fetchTracesAtTip serves the watching range for endpoints without Ex support, mirroring
+// fetchLogsAtTip: every block is fetched individually and concurrently — first its header, then
+// its traces by number, and every returned trace must carry that header's block hash, otherwise
+// the endpoint answered from a different fork and the plain retryable error keeps the fetcher
+// retrying until the views converge. Every returned entry carries the header, so even trace-less
+// tip blocks flow into the header list and the checkpoint chain (an empty result itself stays
+// unverifiable: trace_filter has no by-hash form).
+func fetchTracesAtTip(
+	ctx context.Context,
+	client Client,
+	req TraceRequirement,
+	start, end uint64,
+) (map[uint64]BlockMainData, error) {
+	entries := make([]BlockMainData, end-start+1)
+	g, gctx := errgroup.WithContext(ctx)
+	for bn := start; bn <= end; bn++ {
+		g.Go(func() error {
+			h, err := client.GetHeader(gctx, bn)
+			if err != nil {
+				return err
+			}
+			traces, err := client.GetTraces(gctx, bn, bn, req.TraceFilter.Address)
+			if err != nil {
+				return err
+			}
+			for _, trace := range traces {
+				if trace.BlockHash != h.BlockHash {
+					return errors.Errorf(
+						"trace of tx %s in block %d has block hash %s but the header is %s, "+
+							"the endpoint answered from a different fork, will retry",
+						trace.TransactionHash, bn, trace.BlockHash, h.BlockHash)
+				}
+			}
+			entries[bn-start] = BlockMainData{
+				Traces: utils.FilterArr(traces, req.TraceFilter.Check),
+				Header: &h,
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	result := make(map[uint64]BlockMainData, len(entries))
+	for i := range entries {
+		result[start+uint64(i)] = entries[i]
+	}
+	return result, nil
 }
 
 // buildTraceEntriesFromEx converts a trace_filterEx response into per-block entries, mirroring

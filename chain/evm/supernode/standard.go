@@ -105,7 +105,6 @@ func (s *standardService) GetBlockHeaderByNumber(
 	blockNumber rpc.BlockNumber,
 ) (*evm.ExtendedHeader, error) {
 	headers, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0, 0,
-		nil,
 		func(st *evm.Slot) ([]evm.ExtendedHeader, error) {
 			return []evm.ExtendedHeader{*st.Header}, nil
 		},
@@ -129,7 +128,6 @@ func (s *standardService) GetBlockByNumber(
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
 	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0, 0,
-		nil,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -182,7 +180,6 @@ func (s *standardService) GetBlockByHash(
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
 	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil, 0, 0,
-		nil,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -203,7 +200,6 @@ func (s *standardService) GetBlockReceipts(
 	numOrHash rpc.BlockNumberOrHash,
 ) ([]evm.ExtendedReceipt, error) {
 	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil, 0, 0,
-		nil,
 		func(st *evm.Slot) ([]evm.ExtendedReceipt, error) {
 			return st.Receipts, nil
 		},
@@ -301,7 +297,6 @@ func (s *standardService) GetBlocksPacked(
 	needTraces bool,
 ) ([]*evm.PackedBlock, error) {
 	return queryWithCache(ctx, s.slotCache, nil, nil, &fromBlock, &toBlock, maxQueryRangeSize, 0,
-		nil,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
 			block := evm.PackedBlock{BlockHeader: st.Header}
 			if needTransaction {
@@ -368,7 +363,6 @@ func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs)
 	checker := args.Checker()
 	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
 		maxQueryRangeSize, maxLogs,
-		nil,
 		func(st *evm.Slot) ([]types.Log, error) {
 			return utils.FilterArr(st.Logs, checker), nil
 		},
@@ -404,7 +398,6 @@ func (s *standardService) GetLogsEx(
 	checker := args.Checker()
 	elems, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
 		maxQueryRangeSize, maxLogs,
-		exBlockSize,
 		func(st *evm.Slot) ([]exBlock[types.Log], error) {
 			return exBlockFromSlot(st, utils.FilterArr(st.Logs, checker)), nil
 		},
@@ -429,10 +422,15 @@ func (s *standardService) GetLogsEx(
 				return exBlocksFromStore(links, logs, func(lg types.Log) uint64 { return lg.BlockNumber }), nil
 			})(ctx, r)
 		},
-		jsonrpc.CallNextMiddleware,
+		// a by-hash miss (e.g. the cache briefly holds an orphan sibling) is a hard,
+		// retryable error: falling through to the proxy would forward eth_getLogsEx to an
+		// upstream node that does not implement it
+		errors.Errorf("block %s is not in the latest slot cache, retry later or use eth_getLogs instead",
+			args.BlockHash),
+		withSizeOf(exBlockSize[types.Log]),
 	)
 	if err != nil {
-		return resp, exFinalizeErr(err, "eth_getLogsEx")
+		return resp, err
 	}
 	resp.BlockHashLinkPart, resp.Logs, err = assembleEx(elems)
 	return resp, err
@@ -447,7 +445,6 @@ func (s *standardService) GetLogsPacked(
 ) ([]*evm.PackedBlock, error) {
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize, 0,
-		nil,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
 			logs := utils.FilterArr(st.Logs, checker)
 			if len(logs) == 0 {
@@ -511,7 +508,6 @@ func (s *standardService) TraceFilter(ctx context.Context, args *evm.TraceFilter
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
 		maxQueryRangeSize, maxTraces,
-		nil,
 		func(st *evm.Slot) ([]evm.ParityTrace, error) {
 			if !st.HaveTrace {
 				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
@@ -541,7 +537,6 @@ func (s *standardService) TraceFilterEx(
 	checker := args.Checker()
 	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
 		maxQueryRangeSize, maxTraces,
-		exBlockSize,
 		func(st *evm.Slot) ([]exBlock[evm.ParityTrace], error) {
 			if !st.HaveTrace {
 				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
@@ -569,9 +564,10 @@ func (s *standardService) TraceFilterEx(
 			})(ctx, r)
 		},
 		nil, // will not be used because hash always nil
+		withSizeOf(exBlockSize[evm.ParityTrace]),
 	)
 	if err != nil {
-		return resp, exFinalizeErr(err, "trace_filterEx")
+		return resp, err
 	}
 	resp.BlockHashLinkPart, resp.Traces, err = assembleEx(elems)
 	return resp, err
@@ -586,7 +582,6 @@ func (s *standardService) TraceFilterPacked(
 ) ([]*evm.PackedBlock, error) {
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize, 0,
-		nil,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
 			if !st.HaveTrace {
 				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())

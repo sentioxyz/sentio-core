@@ -67,13 +67,27 @@ func ignoreStoreLimit[ELEM any](
 	}
 }
 
+// queryOptions holds the optional knobs of queryWithCache; see the with* constructors.
+type queryOptions[ELEM any] struct {
+	sizeOf func(ELEM) int
+}
+
+type queryOption[ELEM any] func(*queryOptions[ELEM])
+
+// withSizeOf overrides how many records one ELEM counts as for the record cap (default: 1 each).
+// The Ex methods use it because their ELEM is a whole block whose record count is the number of
+// items in it.
+func withSizeOf[ELEM any](sizeOf func(ELEM) int) queryOption[ELEM] {
+	return func(o *queryOptions[ELEM]) {
+		o.sizeOf = sizeOf
+	}
+}
+
 // queryWithCache resolves the requested range, checks the span cap, and serves it from the
 // latest-slot cache + store. resultLimit (0 = unlimited) caps how many records the merged response
 // may hold in TOTAL; single-block queries (including the blockHash / blockNumber forms) are exempt
 // since they cannot be shrunk further. collectFromStore receives the scan limit to push down
-// (chain.StoreQueryLimit of the effective cap; 0 when uncapped/exempt). sizeOf defines how many
-// records one ELEM counts as — nil means 1 each; the Ex methods use it because their ELEM is a
-// whole block whose record count is the number of items in it.
+// (chain.StoreQueryLimit of the effective cap; 0 when uncapped/exempt).
 func queryWithCache[ELEM any](
 	ctx context.Context,
 	slotCache chain.LatestSlotCache[*evm.Slot],
@@ -83,11 +97,15 @@ func queryWithCache[ELEM any](
 	toBlock *rpc.BlockNumber,
 	maxQueryRangeSize uint64,
 	resultLimit int,
-	sizeOf func(ELEM) int,
 	collectFromSlot func(st *evm.Slot) ([]ELEM, error),
 	collectFromStore func(ctx context.Context, r rg.Range, limit int) ([]ELEM, error),
 	cacheMissHashReturn error,
+	options ...queryOption[ELEM],
 ) ([]ELEM, error) {
+	var opts queryOptions[ELEM]
+	for _, option := range options {
+		option(&opts)
+	}
 	if blockHash != nil {
 		st, err := slotCache.GetByHash(ctx, blockHash.String())
 		if err != nil {
@@ -164,7 +182,7 @@ func queryWithCache[ELEM any](
 			return collectFromStore(ctx, r, chain.StoreQueryLimit(limit))
 		},
 	)
-	return chain.CheckTooManyResultsBy(result, err, limit, sizeOf)
+	return chain.CheckTooManyResultsBy(result, err, limit, opts.sizeOf)
 }
 
 // exBlock pairs one block's chain identity with the items (logs or traces) a query matched in
@@ -216,14 +234,4 @@ func assembleEx[ITEM any](elems []exBlock[ITEM]) (evm.BlockHashLinkPart, []ITEM,
 	}
 	part, err := evm.NewBlockHashLinkPart(links)
 	return part, items, err
-}
-
-// exFinalizeErr maps queryWithCache's internal fallthrough signals to hard errors: the Ex
-// methods must not be proxied upstream (real nodes do not implement them), so an exotic block
-// tag or a by-hash cache miss is the caller's cue to retry or use the plain method instead.
-func exFinalizeErr(err error, method string) error {
-	if errors.Is(err, jsonrpc.CallNextMiddleware) {
-		return errors.Errorf("the request cannot be served by %s, retry later or use the plain method instead", method)
-	}
-	return err
 }

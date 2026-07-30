@@ -112,7 +112,6 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockByNumber(
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
 	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0, 0,
-		nil,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -136,7 +135,6 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockByHash(
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
 	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil, 0, 0,
-		nil,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -193,7 +191,6 @@ func (s *proxyWithLatestSlotCacheService) EthGetBlockReceipts(
 	numOrHash rpc.BlockNumberOrHash,
 ) ([]evm.ExtendedReceipt, error) {
 	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil, 0, 0,
-		nil,
 		func(st *evm.Slot) ([]evm.ExtendedReceipt, error) {
 			return st.Receipts, nil
 		},
@@ -210,7 +207,6 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 ) ([]types.Log, error) {
 	checker := args.Checker()
 	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, 0, 0,
-		nil,
 		func(st *evm.Slot) ([]types.Log, error) {
 			return utils.FilterArr(st.Logs, checker), nil
 		},
@@ -251,7 +247,6 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogsEx(
 ) (resp evm.EthGetLogsExResponse, err error) {
 	checker := args.Checker()
 	elems, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, 0, 0,
-		exBlockSize,
 		func(st *evm.Slot) ([]exBlock[types.Log], error) {
 			return exBlockFromSlot(st, utils.FilterArr(st.Logs, checker)), nil
 		},
@@ -275,10 +270,13 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogsEx(
 			}
 			return []exBlock[types.Log]{{items: result}}, nil
 		},
-		jsonrpc.CallNextMiddleware,
+		// a by-hash miss is a hard, retryable error: falling through to the proxy would
+		// forward eth_getLogsEx to an upstream node that does not implement it
+		errors.Errorf("block %s is not in the latest slot cache, retry later or use eth_getLogs instead",
+			args.BlockHash),
 	)
 	if err != nil {
-		return resp, exFinalizeErr(err, "eth_getLogsEx")
+		return resp, err
 	}
 	resp.BlockHashLinkPart, resp.Logs, err = assembleEx(elems)
 	return resp, err
@@ -291,7 +289,6 @@ func (s *proxyWithLatestSlotCacheService) TraceFilterEx(
 ) (resp evm.TraceFilterExResponse, err error) {
 	checker := args.Checker()
 	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0, 0,
-		exBlockSize,
 		func(st *evm.Slot) ([]exBlock[evm.ParityTrace], error) {
 			if !st.HaveTrace {
 				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
@@ -321,7 +318,7 @@ func (s *proxyWithLatestSlotCacheService) TraceFilterEx(
 		nil, // will not be used because hash always nil
 	)
 	if err != nil {
-		return resp, exFinalizeErr(err, "trace_filterEx")
+		return resp, err
 	}
 	resp.BlockHashLinkPart, resp.Traces, err = assembleEx(elems)
 	return resp, err
@@ -333,7 +330,6 @@ func (s *proxyWithLatestSlotCacheService) TraceFilter(
 ) ([]evm.ParityTrace, error) {
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0, 0,
-		nil,
 		func(st *evm.Slot) ([]evm.ParityTrace, error) {
 			if !st.HaveTrace {
 				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())

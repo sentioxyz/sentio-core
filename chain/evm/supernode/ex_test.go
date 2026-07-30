@@ -12,6 +12,7 @@ import (
 
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/evm"
+	"sentioxyz/sentio-core/common/jsonrpc"
 	rg "sentioxyz/sentio-core/common/range"
 )
 
@@ -241,7 +242,7 @@ func TestGetLogsExByHash(t *testing.T) {
 	// fallthrough to the upstream proxy
 	miss := common.BigToHash(big.NewInt(999999))
 	_, err = s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{BlockHash: &miss})
-	assert.ErrorContains(t, err, "use the plain method")
+	assert.ErrorContains(t, err, "use eth_getLogs instead")
 }
 
 func TestGetLogsExTooManyResults(t *testing.T) {
@@ -308,12 +309,13 @@ func TestAssembleExUnlinkedStorePart(t *testing.T) {
 }
 
 func TestGetLogsExUnsupportedTag(t *testing.T) {
-	// exotic block tags must be a hard error instead of falling through to the proxy — real
-	// nodes do not implement the Ex methods
+	// exotic block tags fall through the middleware chain like any unservable request; the
+	// upstream node answers eth_getLogsEx with method-not-found, which is also the fallback
+	// signal for Ex-aware callers
 	cache := newFakeSlotCache(100, 105)
 	s := newTestStandardService(cache, fakeStorage{}, rg.NewRange(0, 99))
 	pending := rpc.PendingBlockNumber
 	to := rpc.BlockNumber(105)
 	_, err := s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{FromBlock: &pending, ToBlock: &to})
-	assert.ErrorContains(t, err, "use the plain method")
+	assert.ErrorIs(t, err, jsonrpc.CallNextMiddleware)
 }

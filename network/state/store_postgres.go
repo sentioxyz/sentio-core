@@ -74,6 +74,19 @@ type DatabaseInfoRow struct {
 
 func (DatabaseInfoRow) TableName() string { return "sentio_node_databases" }
 
+type TableSchemaRow struct {
+	gorm.Model
+	StateKey   string `gorm:"uniqueIndex:table_schema_state_key_schema_key_unique;column:state_key"`
+	Key        string `gorm:"uniqueIndex:table_schema_state_key_schema_key_unique;column:schema_key"`
+	DatabaseId string `gorm:"not null;column:database_id"`
+	TableId    string `gorm:"not null;column:table_id"`
+	Version    uint32 `gorm:"not null;column:version"`
+	SchemaHash string `gorm:"not null;column:schema_hash"`
+	SchemaJson string `gorm:"not null;column:schema_json"`
+}
+
+func (TableSchemaRow) TableName() string { return "sentio_node_table_schemas" }
+
 type DatabasePermissionRow struct {
 	gorm.Model
 	StateKey   string `gorm:"uniqueIndex:database_permission_state_key_account_database_id_unique;column:state_key"`
@@ -106,7 +119,7 @@ func NewPostgresStore(dsn string, stateKey string) (*PostgresStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&StateRow{}, &IndexerInfoRow{}, &ProcessorAllocationRow{}, &ProcessorInfoRow{}, &HostedProcessorRow{}, &DatabaseInfoRow{}, &DatabasePermissionRow{}, &OperatorRow{}); err != nil {
+	if err := db.AutoMigrate(&StateRow{}, &IndexerInfoRow{}, &ProcessorAllocationRow{}, &ProcessorInfoRow{}, &HostedProcessorRow{}, &DatabaseInfoRow{}, &TableSchemaRow{}, &DatabasePermissionRow{}, &OperatorRow{}); err != nil {
 		return nil, err
 	}
 	return &PostgresStore{db: db, stateKey: stateKey}, nil
@@ -127,6 +140,7 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 		IndexerInfos:         map[uint64]IndexerInfo{},
 		HostedProcessors:     map[string]bool{},
 		Databases:            map[string]DatabaseInfo{},
+		TableSchemas:         map[string]TableSchemaInfo{},
 		DatabasePermissions:  map[string]map[string]string{},
 		Operators:            map[string]map[string]bool{},
 	}
@@ -220,6 +234,22 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 		st.Databases[r.DatabaseId] = info
 	}
 
+	var tableSchemas []TableSchemaRow
+	if err := s.db.WithContext(ctx).
+		Where("state_key = ?", s.stateKey).
+		Find(&tableSchemas).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range tableSchemas {
+		st.TableSchemas[r.Key] = TableSchemaInfo{
+			DatabaseId: r.DatabaseId,
+			TableId:    r.TableId,
+			Version:    r.Version,
+			SchemaHash: r.SchemaHash,
+			SchemaJson: r.SchemaJson,
+		}
+	}
+
 	var permissions []DatabasePermissionRow
 	if err := s.db.WithContext(ctx).
 		Where("state_key = ?", s.stateKey).
@@ -270,6 +300,9 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 			return err
 		}
 		if err := tx.Where("state_key = ?", s.stateKey).Delete(&DatabaseInfoRow{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("state_key = ?", s.stateKey).Delete(&TableSchemaRow{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("state_key = ?", s.stateKey).Delete(&DatabasePermissionRow{}).Error; err != nil {
@@ -371,6 +404,26 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 					ProcessorId:   info.ProcessorId,
 					PendingDelete: info.PendingDelete,
 					Tables:        string(tables),
+				})
+			}
+			if len(rows) > 0 {
+				if err := tx.Create(&rows).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		{
+			var rows []TableSchemaRow
+			for key, info := range state.GetTableSchemas() {
+				rows = append(rows, TableSchemaRow{
+					StateKey:   s.stateKey,
+					Key:        key,
+					DatabaseId: info.DatabaseId,
+					TableId:    info.TableId,
+					Version:    info.Version,
+					SchemaHash: info.SchemaHash,
+					SchemaJson: info.SchemaJson,
 				})
 			}
 			if len(rows) > 0 {

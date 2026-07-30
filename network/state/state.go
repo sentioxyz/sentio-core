@@ -16,6 +16,8 @@ type State interface {
 	GetHostedProcessors() map[string]bool
 	GetDatabases() map[string]DatabaseInfo
 	GetDatabase(databaseId string) (DatabaseInfo, bool)
+	GetTableSchema(key string) (TableSchemaInfo, bool)
+	GetTableSchemas() map[string]TableSchemaInfo
 
 	UpdateLastBlock(ctx context.Context, block uint64) error
 	UpsertIndexerInfo(ctx context.Context, info IndexerInfo) error
@@ -33,6 +35,7 @@ type State interface {
 	MarkDatabasePendingDelete(ctx context.Context, databaseId string) error
 	UpsertDatabaseTable(ctx context.Context, databaseId string, table TableInfo) error
 	DeleteDatabaseTable(ctx context.Context, databaseId string, tableId string) error
+	UpsertTableSchema(ctx context.Context, info TableSchemaInfo) error
 
 	GetDatabasePermissions() map[string]map[string]string
 	GetAccountDatabasePermissions(account string) map[string]string
@@ -52,6 +55,7 @@ type PlainState struct {
 	IndexerInfos         map[uint64]IndexerInfo                    `yaml:"indexer_infos"`
 	HostedProcessors     map[string]bool                           `yaml:"hosted_processors"`
 	Databases            map[string]DatabaseInfo                   `yaml:"databases"`
+	TableSchemas         map[string]TableSchemaInfo                `yaml:"table_schemas"`
 	DatabasePermissions  map[string]map[string]string              `yaml:"database_permissions"`
 	Operators            map[string]map[string]bool                `yaml:"operators"`
 }
@@ -67,6 +71,7 @@ func (s *PlainState) Clone() *PlainState {
 		IndexerInfos:         maps.Clone(s.IndexerInfos),
 		HostedProcessors:     maps.Clone(s.HostedProcessors),
 		Databases:            make(map[string]DatabaseInfo, len(s.Databases)),
+		TableSchemas:         maps.Clone(s.TableSchemas),
 		DatabasePermissions:  make(map[string]map[string]string, len(s.DatabasePermissions)),
 		Operators:            make(map[string]map[string]bool, len(s.Operators)),
 	}
@@ -93,6 +98,9 @@ func (s *PlainState) Clone() *PlainState {
 	}
 	if clone.HostedProcessors == nil {
 		clone.HostedProcessors = map[string]bool{}
+	}
+	if clone.TableSchemas == nil {
+		clone.TableSchemas = map[string]TableSchemaInfo{}
 	}
 	return clone
 }
@@ -195,6 +203,15 @@ func (s *PlainState) GetDatabase(databaseId string) (DatabaseInfo, bool) {
 	return info, ok
 }
 
+func (s *PlainState) GetTableSchema(key string) (TableSchemaInfo, bool) {
+	info, ok := s.TableSchemas[key]
+	return info, ok
+}
+
+func (s *PlainState) GetTableSchemas() map[string]TableSchemaInfo {
+	return s.TableSchemas
+}
+
 func (s *PlainState) UpsertDatabase(_ context.Context, info DatabaseInfo) error {
 	s.Databases[info.DatabaseId] = info
 	return nil
@@ -263,6 +280,14 @@ func (s *PlainState) DeleteDatabaseTable(_ context.Context, databaseId string, t
 	}
 	info.Tables = filtered
 	s.Databases[databaseId] = info
+	return nil
+}
+
+func (s *PlainState) UpsertTableSchema(_ context.Context, info TableSchemaInfo) error {
+	if s.TableSchemas == nil {
+		s.TableSchemas = map[string]TableSchemaInfo{}
+	}
+	s.TableSchemas[TableSchemaKey(info.DatabaseId, info.TableId, info.Version)] = info
 	return nil
 }
 

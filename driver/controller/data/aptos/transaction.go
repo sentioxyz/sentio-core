@@ -122,6 +122,7 @@ func BuildTxnFetcher(
 		1,
 		100000,
 		10000, // size of transaction is 10, so will cache 1000 transactions
+		0, // maxReadyBlockCount: unlimited, entries exist only for blocks with data
 		5000,  // the target is that each query got no more than 500 transactions
 		time.Second*10,
 		20,

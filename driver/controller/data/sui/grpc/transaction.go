@@ -29,6 +29,7 @@ func BuildTxnFetcher(
 		1,
 		10000,
 		10000,
+		0, // maxReadyBlockCount: unlimited, entries exist only for blocks with data
 		5000,
 		time.Second*10,
 		20,

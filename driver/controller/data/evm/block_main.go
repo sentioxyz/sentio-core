@@ -70,6 +70,7 @@ func BuildIntervalFetcher(
 		10000,
 		10000,
 		100,
+		0, // maxReadyBlockCount: unlimited, entries exist only for blocks with data
 		1000,
 		time.Minute,
 		20,

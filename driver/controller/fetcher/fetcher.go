@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/timewin"
 	"sentioxyz/sentio-core/common/utils"
@@ -28,6 +27,11 @@ type fetcher[T controller.FetchTarget] struct {
 	minQuerySize        uint64
 	maxQuerySize        uint64
 	targetKeepDataSize  int
+	// maxReadyBlockCount caps the LENGTH of the ready range [full.StartBlock, fetchingStart), 0
+	// means unlimited. totalSize only counts data items, and a fetcher that buffers an entry for
+	// every block (e.g. the Ex-backed evm fetchers, whose header-only entries have zero data
+	// size) would otherwise run ahead without bound through long empty stretches.
+	maxReadyBlockCount  uint64
 	targetQueryDataSize int
 	maxQueryTime        time.Duration
 	maxRetry            int
@@ -65,6 +69,7 @@ func NewFetcher[T controller.FetchTarget](
 	minQuerySize uint64,
 	maxQuerySize uint64,
 	targetKeepDataSize int,
+	maxReadyBlockCount uint64,
 	targetQueryDataSize int,
 	maxQueryTime time.Duration,
 	maxRetry int,
@@ -82,6 +87,7 @@ func NewFetcher[T controller.FetchTarget](
 		minQuerySize:        minQuerySize,
 		maxQuerySize:        maxQuerySize,
 		targetKeepDataSize:  targetKeepDataSize,
+		maxReadyBlockCount:  maxReadyBlockCount,
 		targetQueryDataSize: targetQueryDataSize,
 		maxQueryTime:        maxQueryTime,
 		maxRetry:            maxRetry,
@@ -113,6 +119,7 @@ func (f *fetcher[T]) Snapshot() any {
 			"minQuerySize":        f.minQuerySize,
 			"maxQuerySize":        f.maxQuerySize,
 			"targetKeepDataSize":  f.targetKeepDataSize,
+			"maxReadyBlockCount":  f.maxReadyBlockCount,
 			"targetQueryDataSize": f.targetQueryDataSize,
 			"maxQueryTime":        f.maxQueryTime.String(),
 			"maxRetry":            f.maxRetry,
@@ -143,16 +150,10 @@ func (f *fetcher[T]) GetFullRange() controller.BlockRange {
 	return f.full
 }
 
-// fetcherMaxKeepBlockCount bounds how many BLOCKS the fetch-ahead buffer may hold. totalSize
-// only counts data items, and Ex-backed fetchers buffer a header-only entry for every covered
-// block — through a long empty stretch the data budget would never fill and the buffer would
-// grow without bound, so the block count needs its own cap (a header-only entry is ~200 bytes,
-// the default caps the overhead around 10MB).
-var fetcherMaxKeepBlockCount = envconf.LoadUInt64("SENTIO_FETCHER_MAX_KEEP_BLOCK_COUNT", 50000)
-
 // bufferFull must be called with f.mu held.
 func (f *fetcher[T]) bufferFull() bool {
-	return f.totalSize >= f.targetKeepDataSize || uint64(len(f.data)) >= fetcherMaxKeepBlockCount
+	return f.totalSize >= f.targetKeepDataSize ||
+		(f.maxReadyBlockCount > 0 && f.fetchingStart-f.full.StartBlock >= f.maxReadyBlockCount)
 }
 
 func (f *fetcher[T]) nextFetchSize(current uint64, got int, used time.Duration) uint64 {

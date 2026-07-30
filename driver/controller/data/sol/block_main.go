@@ -133,6 +133,7 @@ func BuildIntervalFetcher(
 		intervalMinQuerySize,
 		10000,
 		targetKeepBytes,
+		0, // maxReadyBlockCount: unlimited, entries exist only for blocks with data
 		targetQueryBytes,
 		time.Second*15,
 		20,

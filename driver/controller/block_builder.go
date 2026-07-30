@@ -305,19 +305,20 @@ func (b *blockBuilder) Next(ctx context.Context) (
 		return
 	}
 
+	inWatching := has && progressBar.LatestBlock.GetBlockTime().Sub(blockData.GetBlockTime()) < WatchingDelay
+
 	// Detect reorg on EVERY block, not only in the watching range: with per-block identities
 	// (Ex hash link) the headerList is contiguous and the check is a free in-memory parent-hash
 	// comparison, which is exactly what catches a block served from an orphan sibling during
 	// backfill. The RPC re-scan for non-adjacent headers stays gated to the watching range.
 	if has && b.checkLink {
-		inWatching := progressBar.LatestBlock.GetBlockTime().Sub(blockData.GetBlockTime()) < WatchingDelay
 		if reorg, err = b.checkReorg(ctx, blockData, inWatching); reorg != nil || err != nil {
 			return
 		}
 	}
 
 	// progress will go to b.currentBlockNumber + 1, so all cached data in [0,b.currentBlockNumber] are useless now.
-	if has && progressBar.LatestBlock.GetBlockTime().Sub(blockData.GetBlockTime()) < WatchingDelay {
+	if inWatching {
 		b.client.ResetCache(BlockRange{EndBlock: &b.currentBlockNumber})
 	}
 

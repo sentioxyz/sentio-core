@@ -173,6 +173,7 @@ func (c *client) callContext(ctx context.Context, result any, priority uint64, m
 	err = c.cli.CallContext(ctx, &result, method, args...)
 	if err != nil {
 		if utils.MatchAny(strings.ToLower(err.Error()), invalidMethodErrorMatcher) {
+			c.unsupportedMethods.Add(method)
 			err = errors.Wrapf(errMethodNotSupported, err.Error())
 		} else {
 			err = errors.Wrapf(err, "call method %s with args %s failed", method, utils.MustJSONMarshal(args))
@@ -442,11 +443,11 @@ func (c *client) GetBlock(
 
 func (c *client) GetBlockReceipts(ctx context.Context, blockNumber uint64) (r []evm.ExtendedReceipt, err error) {
 	if !c.unsupportedMethods.Contains("eth_getBlockReceipts") {
+		// callContext records the method as unsupported on a method-not-found answer
 		err = c.callContext(ctx, &r, blockNumber, "eth_getBlockReceipts", hexutil.Uint64(blockNumber))
 		if err == nil || !errors.Is(err, errMethodNotSupported) {
 			return
 		}
-		c.unsupportedMethods.Add("eth_getBlockReceipts")
 	}
 	var h BlockHeader
 	if h, err = c.GetHeader(ctx, blockNumber); err != nil {
@@ -481,17 +482,13 @@ func (c *client) GetLogs(
 }
 
 // callExMethod calls an Ex method with the unsupported-method cache applied: once an endpoint
-// answers method-not-found the method is not probed again for the lifetime of this client, and
-// callers fall back to the plain method immediately.
+// answers method-not-found (recorded by callContext) the method is not probed again for the
+// lifetime of this client, and callers fall back to the plain method immediately.
 func (c *client) callExMethod(ctx context.Context, result any, priority uint64, method string, arg any) error {
 	if c.unsupportedMethods.Contains(method) {
 		return errors.Wrapf(errMethodNotSupported, "method %s already marked unsupported", method)
 	}
-	err := c.callContext(ctx, result, priority, method, arg)
-	if errors.Is(err, errMethodNotSupported) {
-		c.unsupportedMethods.Add(method)
-	}
-	return err
+	return c.callContext(ctx, result, priority, method, arg)
 }
 
 func (c *client) GetLogsEx(

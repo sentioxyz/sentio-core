@@ -64,8 +64,9 @@ func TestBuildLogEntriesFromEx(t *testing.T) {
 		assert.Equal(t, exHash(bn-1).Hex(), entry.Header.ParentBlockHash)
 		assert.Equal(t, int64(bn*12), entry.Header.BlockTime.Unix())
 	}
-	// the covered log got its stripped blockHash backfilled from the link
+	// the covered log got its stripped blockHash and blockTimestamp backfilled from the link
 	assert.Equal(t, exHash(102), entries[102].Logs[0].BlockHash)
+	assert.Equal(t, uint64(102*12), entries[102].Logs[0].BlockTimestamp)
 	assert.NotNil(t, entries[102].Header)
 	// the uncovered log keeps whatever the upstream sent and carries no identity
 	assert.Nil(t, entries[99].Header)

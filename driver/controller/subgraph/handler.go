@@ -290,28 +290,16 @@ func (c *HandlerController) BuildBlockDataFetcher(
 			}
 			var err error
 			result := BlockData{mainData: from, checkpointData: make(map[string]string)}
-			if from.Size() == 0 && from.Header != nil {
-				// header-only block: the identity came with the data (Ex hash link / tip by-hash
-				// query); fetching the canonical header again would cost one forced-proxy RPC per
-				// empty block, so trust the link here — the parent-hash chain check in the block
-				// builder catches a wrong fork one block later
+			if from.Header != nil && from.Size() == 0 && !from.Exact {
+				// header-only block: no task will be built, so the identity that came with the
+				// data (Ex hash link / tip by-hash query) is all that is needed; a wrong-fork
+				// header is caught by the block builder's parent-hash chain check one block
+				// later. Blocks that build tasks still need the full header below — Raw is
+				// consumed by the task payloads and a link-derived header has none.
 				result.BlockHeader = *from.Header
-				c.DumpAddressStart(result.checkpointData)
-				return &result, true, nil
-			}
-			// always need header
-			if result.BlockHeader, err = c.client.GetHeader(ctx, blockNumber); err != nil {
+			} else if result.BlockHeader, err = c.client.GetHeader(ctx, blockNumber); err != nil {
+				// always need the full header when tasks will be built
 				return nil, false, err
-			}
-			// the identity claimed by the data source must match the canonical header: they come
-			// from different views (Ex hash link / slot cache vs forced-proxy), so a mismatch
-			// means the source answered from an orphan fork
-			if from.Header != nil && (from.Header.BlockHash != result.GetBlockHash() ||
-				from.Header.ParentBlockHash != result.GetBlockParentHash()) {
-				return nil, false, fetcher.Permanent(errors.Errorf(
-					"main data of block %d claims identity %s/%s but the canonical header is %s/%s",
-					blockNumber, from.Header.BlockHash, from.Header.ParentBlockHash,
-					result.GetBlockHash(), result.GetBlockParentHash()))
 			}
 			// check block hash of main data with the header got above
 			for _, l := range from.Logs {

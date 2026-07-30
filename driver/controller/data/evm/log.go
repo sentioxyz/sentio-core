@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 
 	"sentioxyz/sentio-core/common/envconf"
+	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
@@ -202,6 +203,7 @@ func BuildLogFetcher(
 		1,
 		1000,
 		10000,
+		50000, // maxReadyBlockCount: with Ex every covered block buffers a header-only entry
 		2000, // the target is that each query got no more than 2000 logs
 		time.Second*5,
 		20,
@@ -220,18 +222,21 @@ func BuildLogFetcher(
 					topics[i] = s
 				}
 			}
-			// In the watching range, query block by block BY HASH: a super node whose latest
-			// slot cache briefly holds an orphan sibling then misses (and errors, retried until
-			// the cache heals) instead of silently answering from the wrong fork.
-			if end == latest.GetBlockNumber() {
-				return fetchLogsAtTip(ctx, client, req, start, end, address, topics)
-			}
+			// eth_getLogsEx is always the first choice: its hash link carries every covered
+			// block's identity, which covers the watching range too.
 			exResp, err := client.GetLogsEx(ctx, start, end, address, topics)
 			if err == nil {
 				return buildLogEntriesFromEx(ctx, client, req, exResp)
 			}
 			if !errors.Is(err, errMethodNotSupported) {
 				return nil, err
+			}
+			// The endpoint has no Ex support. In the watching range, query block by block BY
+			// HASH instead: a super node whose latest slot cache briefly holds an orphan sibling
+			// then misses (and errors, retried until the cache heals) instead of silently
+			// answering from the wrong fork.
+			if end == latest.GetBlockNumber() {
+				return fetchLogsAtTip(ctx, client, req, start, end, address, topics)
 			}
 			// plain fallback: results carry no identity for empty blocks, the historical reorg
 			// miss risk stays with the endpoint
@@ -255,10 +260,10 @@ func BuildLogFetcher(
 	)
 }
 
-// fetchLogsAtTip serves the watching range: every block is fetched individually — first its
-// canonical header (GetHeaderIgnoreCache bypasses the super node's latest slot cache via
-// forced-proxy), then its logs BY HASH. Every returned entry carries the canonical header, so
-// even zero-log tip blocks flow into the header list and the checkpoint chain.
+// fetchLogsAtTip serves the watching range for endpoints without Ex support: every block is
+// fetched individually and concurrently — first its header, then its logs BY HASH. Every
+// returned entry carries that header, so even zero-log tip blocks flow into the header list and
+// the checkpoint chain.
 func fetchLogsAtTip(
 	ctx context.Context,
 	client Client,
@@ -267,34 +272,31 @@ func fetchLogsAtTip(
 	address []string,
 	topics [][]string,
 ) (map[uint64]BlockMainData, error) {
-	result := make(map[uint64]BlockMainData, end-start+1)
+	entries := make([]BlockMainData, end-start+1)
+	g, gctx := errgroup.WithContext(ctx)
 	for bn := start; bn <= end; bn++ {
-		h, err := client.GetHeaderIgnoreCache(ctx, bn)
-		if err != nil {
-			return nil, err
-		}
-		header := BlockHeader{
-			BlockNumber:     h.GetBlockNumber(),
-			BlockHash:       h.GetBlockHash(),
-			BlockTime:       h.GetBlockTime(),
-			ParentBlockHash: h.GetBlockParentHash(),
-		}
-		logs, err := client.GetLogsByBlockHash(ctx, bn, header.BlockHash, address, topics)
-		if err != nil {
-			if !errors.Is(err, errMethodNotSupported) {
-				return nil, err
+		g.Go(func() error {
+			h, err := client.GetHeader(gctx, bn)
+			if err != nil {
+				return err
 			}
-			// the endpoint cannot filter logs by block hash (pre EIP-234): fall back to
-			// by-number for this block; the identity of a NON-EMPTY result is still verified
-			// against the header by the per-log block hash check downstream
-			if logs, err = client.GetLogs(ctx, bn, bn, address, topics); err != nil {
-				return nil, err
+			logs, err := client.GetLogsByBlockHash(gctx, bn, h.BlockHash, address, topics)
+			if err != nil {
+				return err
 			}
-		}
-		if logs, err = FilterLogs(ctx, client, logs, req.LogFilter); err != nil {
-			return nil, err
-		}
-		result[bn] = BlockMainData{Logs: logs, Header: &header}
+			if logs, err = FilterLogs(gctx, client, logs, req.LogFilter); err != nil {
+				return err
+			}
+			entries[bn-start] = BlockMainData{Logs: logs, Header: &h}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	result := make(map[uint64]BlockMainData, len(entries))
+	for i := range entries {
+		result[start+uint64(i)] = entries[i]
 	}
 	return result, nil
 }
@@ -322,6 +324,7 @@ func buildLogEntriesFromEx(
 	for _, lg := range logs {
 		if link, covered := dict[lg.BlockNumber]; covered {
 			lg.BlockHash = link.Hash
+			lg.BlockTimestamp = link.Timestamp
 		}
 		entry := result[lg.BlockNumber]
 		entry.Logs = append(entry.Logs, lg)

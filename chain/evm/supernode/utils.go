@@ -163,3 +163,81 @@ func queryWithCache[ELEM any](
 	)
 	return chain.CheckTooManyResults(result, err, limit)
 }
+
+// exBlock pairs one block's chain identity with the items (logs or traces) a query matched in
+// it. The Ex methods run queryWithCache with this ELEM so the cache/store splicing is shared
+// with the plain methods; the caller reassembles the per-block elems into the Ex response. A nil
+// link marks items from a source that cannot vouch for block identities (upstream proxy).
+type exBlock[ITEM any] struct {
+	link  *evm.BlockLink
+	items []ITEM
+}
+
+func exBlockFromSlot[ITEM any](st *evm.Slot, items []ITEM) []exBlock[ITEM] {
+	link := evm.SlotBlockLink(st)
+	return []exBlock[ITEM]{{link: &link, items: items}}
+}
+
+// exBlocksFromStore distributes store items into one exBlock per covered block; links must cover
+// the queried sub-range completely (one per block, ascending), which the caller verifies.
+func exBlocksFromStore[ITEM any](
+	links []evm.BlockLink,
+	items []ITEM,
+	blockNumberOf func(ITEM) uint64,
+) []exBlock[ITEM] {
+	group := utils.Group(items, blockNumberOf)
+	elems := make([]exBlock[ITEM], len(links))
+	for i := range links {
+		elems[i] = exBlock[ITEM]{link: &links[i], items: group[links[i].Number]}
+	}
+	return elems
+}
+
+// exResultLimit is RangeQueryLimit for the Ex methods: since their ELEM is a block rather than a
+// record, the record cap cannot ride on queryWithCache's ELEM count and is applied on the
+// reassembled items instead — this computes it from the unresolved request (a single-block
+// request, by hash or by an equal from/to pair, is exempt because it cannot be shrunk further).
+func exResultLimit(blockHash *common.Hash, fromBlock, toBlock *rpc.BlockNumber, limit int) int {
+	if blockHash != nil {
+		return 0
+	}
+	norm := func(p *rpc.BlockNumber) rpc.BlockNumber {
+		if p == nil {
+			return rpc.LatestBlockNumber
+		}
+		return *p
+	}
+	if norm(fromBlock) == norm(toBlock) {
+		return 0
+	}
+	return limit
+}
+
+// assembleEx flattens queryWithCache's per-block elems into the Ex response sections, applying
+// the record cap and validating the link chain (elems arrive ascending: store part first, then
+// the cache tail, so blocks with identity form one contiguous run).
+func assembleEx[ITEM any](elems []exBlock[ITEM], limit int) (evm.BlockHashLinkPart, []ITEM, error) {
+	var links []evm.BlockLink
+	items := make([]ITEM, 0)
+	for _, e := range elems {
+		if e.link != nil {
+			links = append(links, *e.link)
+		}
+		items = append(items, e.items...)
+	}
+	if _, err := chain.CheckTooManyResults(items, nil, limit); err != nil {
+		return evm.BlockHashLinkPart{}, nil, err
+	}
+	part, err := evm.NewBlockHashLinkPart(links)
+	return part, items, err
+}
+
+// exFinalizeErr maps queryWithCache's internal fallthrough signals to hard errors: the Ex
+// methods must not be proxied upstream (real nodes do not implement them), so an exotic block
+// tag or a by-hash cache miss is the caller's cue to retry or use the plain method instead.
+func exFinalizeErr(err error, method string) error {
+	if errors.Is(err, jsonrpc.CallNextMiddleware) {
+		return errors.Errorf("the request cannot be served by %s, retry later or use the plain method instead", method)
+	}
+	return err
+}

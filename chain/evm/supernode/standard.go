@@ -386,6 +386,53 @@ func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs)
 	return logs, err
 }
 
+// GetLogsEx implements eth_getLogsEx: the same logs eth_getLogs would return plus the chain
+// identity (hash link + timestamps) of every block in the range, so the caller can verify which
+// fork the result — INCLUDING an empty result — came from. It reuses queryWithCache with a
+// per-block ELEM; the record cap therefore cannot ride on the ELEM count and is applied on the
+// reassembled logs by assembleEx.
+func (s *standardService) GetLogsEx(
+	ctx context.Context,
+	args *evm.EthGetLogsArgs,
+) (resp evm.EthGetLogsExResponse, err error) {
+	checker := args.Checker()
+	limit := exResultLimit(args.BlockHash, args.FromBlock, args.ToBlock, maxLogs)
+	scanLimit := chain.StoreQueryLimit(limit)
+	elems, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
+		maxQueryRangeSize, 0,
+		func(st *evm.Slot) ([]exBlock[types.Log], error) {
+			return exBlockFromSlot(st, utils.FilterArr(st.Logs, checker)), nil
+		},
+		func(ctx context.Context, r rg.Range, _ int) ([]exBlock[types.Log], error) {
+			return chain.CheckRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]exBlock[types.Log], error) {
+				blockWheres := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
+				where := strings.Join(append(s.filterLogSQL(args), blockWheres), " AND ")
+				logs, queryErr := s.store.QueryLogs(ctx, where, scanLimit)
+				if queryErr != nil {
+					return nil, queryErr
+				}
+				links, queryErr := s.store.QueryBlockLinks(ctx, r.Start, *r.End)
+				if queryErr != nil {
+					return nil, queryErr
+				}
+				if uint64(len(links)) != *r.Size() {
+					return nil, errors.Errorf("the store returned %d block links for range %s (want %d)",
+						len(links), r, *r.Size())
+				}
+				// topics filtering condition is not strict enough, need post-filtering
+				logs = utils.FilterArr(logs, checker)
+				return exBlocksFromStore(links, logs, func(lg types.Log) uint64 { return lg.BlockNumber }), nil
+			})(ctx, r)
+		},
+		jsonrpc.CallNextMiddleware,
+	)
+	if err != nil {
+		return resp, exFinalizeErr(err, "eth_getLogsEx")
+	}
+	resp.BlockHashLinkPart, resp.Logs, err = assembleEx(elems, limit)
+	return resp, err
+}
+
 func (s *standardService) GetLogsPacked(
 	ctx context.Context,
 	args *evm.EthGetLogsArgs,
@@ -477,6 +524,51 @@ func (s *standardService) TraceFilter(ctx context.Context, args *evm.TraceFilter
 		},
 		nil, // will not be used because hash always nil
 	)
+}
+
+// TraceFilterEx implements trace_filterEx, the trace_filter counterpart of GetLogsEx.
+func (s *standardService) TraceFilterEx(
+	ctx context.Context,
+	args *evm.TraceFilterArgs,
+) (resp evm.TraceFilterExResponse, err error) {
+	checker := args.Checker()
+	limit := exResultLimit(nil, args.FromBlock, args.ToBlock, maxTraces)
+	scanLimit := chain.StoreQueryLimit(limit)
+	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
+		maxQueryRangeSize, 0,
+		func(st *evm.Slot) ([]exBlock[evm.ParityTrace], error) {
+			if !st.HaveTrace {
+				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
+			}
+			return exBlockFromSlot(st, utils.FilterArr(st.Traces, checker)), nil
+		},
+		func(ctx context.Context, r rg.Range, _ int) ([]exBlock[evm.ParityTrace], error) {
+			return chain.CheckRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]exBlock[evm.ParityTrace], error) {
+				blockWheres := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
+				where := strings.Join(append(s.filterTraceSQL(args), blockWheres), " AND ")
+				traces, queryErr := s.store.QueryTraces(ctx, where, scanLimit)
+				if queryErr != nil {
+					return nil, queryErr
+				}
+				links, queryErr := s.store.QueryBlockLinks(ctx, r.Start, *r.End)
+				if queryErr != nil {
+					return nil, queryErr
+				}
+				if uint64(len(links)) != *r.Size() {
+					return nil, errors.Errorf("the store returned %d block links for range %s (want %d)",
+						len(links), r, *r.Size())
+				}
+				traces = utils.FilterArr(traces, checker)
+				return exBlocksFromStore(links, traces, func(trace evm.ParityTrace) uint64 { return trace.BlockNumber }), nil
+			})(ctx, r)
+		},
+		nil, // will not be used because hash always nil
+	)
+	if err != nil {
+		return resp, exFinalizeErr(err, "trace_filterEx")
+	}
+	resp.BlockHashLinkPart, resp.Traces, err = assembleEx(elems, limit)
+	return resp, err
 }
 
 func (s *standardService) TraceFilterPacked(

@@ -4,7 +4,6 @@ go_library(
     name = "supernode",
     srcs = [
         "custom_function_proxy.go",
-        "ex.go",
         "extra.go",
         "proxy.go",
         "proxy_with_slot_cache.go",

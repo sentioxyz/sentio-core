@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
 	"sentioxyz/sentio-core/chain/chain"
@@ -242,7 +241,7 @@ func TestGetLogsExByHash(t *testing.T) {
 	// fallthrough to the upstream proxy
 	miss := common.BigToHash(big.NewInt(999999))
 	_, err = s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{BlockHash: &miss})
-	assert.ErrorContains(t, err, "not in the latest slot cache")
+	assert.ErrorContains(t, err, "use the plain method")
 }
 
 func TestGetLogsExTooManyResults(t *testing.T) {
@@ -289,42 +288,32 @@ func TestTraceFilterExMissTrace(t *testing.T) {
 	assert.ErrorContains(t, err, "trace invalid")
 }
 
-func TestQueryWithCacheExUnlinkedStorePart(t *testing.T) {
-	// a slot-cache-only super node proxies the lower sub-range upstream: elems merged, links
-	// cover only the cache tail
-	cache := newFakeSlotCache(100, 105)
-	elems, links, err := queryWithCacheEx(
-		context.Background(), cache,
-		blockNumberPtr(90), blockNumberPtr(105),
-		0, 0,
-		func(st *evm.Slot) ([]uint64, error) { return []uint64{st.GetNumber()}, nil },
-		func(ctx context.Context, r rg.Range, _ int) ([]uint64, []evm.BlockLink, error) {
-			assert.Equal(t, rg.NewRange(90, 99), r)
-			return []uint64{90}, nil, nil
-		},
-	)
+func TestAssembleExUnlinkedStorePart(t *testing.T) {
+	// a slot-cache-only super node proxies the lower sub-range upstream without identity: items
+	// merged, links cover only the cache tail
+	link100 := storeLink(100)
+	link101 := storeLink(101)
+	elems := []exBlock[uint64]{
+		{items: []uint64{90, 91}}, // proxied upstream, no link
+		{link: &link100, items: []uint64{100}},
+		{link: &link101},
+	}
+	part, items, err := assembleEx(elems, 0)
 	assert.NoError(t, err)
-	assert.Len(t, elems, 7) // 90 + [100..105]
-	assert.Len(t, links, 6)
-	assert.Equal(t, uint64(100), links[0].Number)
+	assert.Equal(t, []uint64{90, 91, 100}, items)
+	assert.Equal(t, uint64(100), uint64(*part.LinkFromBlock))
+	assert.Len(t, part.BlockTimestamp, 2)
+	assert.False(t, part.Covers(90))
+	assert.True(t, part.Covers(101))
 }
 
-func TestQueryWithCacheExUnsupportedTag(t *testing.T) {
+func TestGetLogsExUnsupportedTag(t *testing.T) {
+	// exotic block tags must be a hard error instead of falling through to the proxy — real
+	// nodes do not implement the Ex methods
 	cache := newFakeSlotCache(100, 105)
+	s := newTestStandardService(cache, fakeStorage{}, rg.NewRange(0, 99))
 	pending := rpc.PendingBlockNumber
-	_, _, err := queryWithCacheEx(
-		context.Background(), cache,
-		&pending, blockNumberPtr(105),
-		0, 0,
-		func(st *evm.Slot) ([]uint64, error) { return nil, nil },
-		func(ctx context.Context, r rg.Range, _ int) ([]uint64, []evm.BlockLink, error) {
-			return nil, nil, errors.New("must not be called")
-		},
-	)
-	assert.ErrorContains(t, err, "not supported")
-}
-
-func blockNumberPtr(n int64) *rpc.BlockNumber {
-	bn := rpc.BlockNumber(n)
-	return &bn
+	to := rpc.BlockNumber(105)
+	_, err := s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{FromBlock: &pending, ToBlock: &to})
+	assert.ErrorContains(t, err, "use the plain method")
 }

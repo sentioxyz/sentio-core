@@ -319,3 +319,18 @@ func TestGetLogsExUnsupportedTag(t *testing.T) {
 	_, err := s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{FromBlock: &pending, ToBlock: &to})
 	assert.ErrorIs(t, err, jsonrpc.CallNextMiddleware)
 }
+
+func TestGetLogsExBeyondHead(t *testing.T) {
+	// the plain methods silently trim blocks above this node's head; for Ex that trimming would
+	// make a lagging replica indistinguishable from genuinely empty blocks, so it must error
+	cache := newFakeSlotCache(100, 105)
+	s := newTestStandardService(cache, fakeStorage{}, rg.NewRange(0, 99))
+
+	from, to := rpc.BlockNumber(100), rpc.BlockNumber(110)
+	_, err := s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{FromBlock: &from, ToBlock: &to})
+	assert.ErrorContains(t, err, "beyond the latest block")
+
+	from2, to2 := rpc.BlockNumber(106), rpc.BlockNumber(110)
+	_, err = s.TraceFilterEx(context.Background(), &evm.TraceFilterArgs{FromBlock: &from2, ToBlock: &to2})
+	assert.ErrorContains(t, err, "beyond the latest block")
+}

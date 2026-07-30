@@ -185,6 +185,30 @@ func queryWithCache[ELEM any](
 	return chain.CheckTooManyResultsBy(result, err, limit, opts.sizeOf)
 }
 
+// exCheckHead rejects an Ex range query whose explicit upper bound is beyond this node's head.
+// The plain methods silently trim blocks that do not exist here yet — correct for them, but an
+// Ex caller relies on the identity coverage reaching its requested end: with another replica (or
+// the caller's head resolution) ahead of this node, a trimmed answer would be indistinguishable
+// from genuinely empty blocks, which is exactly the silent loss the Ex methods exist to prevent.
+func exCheckHead(
+	ctx context.Context,
+	slotCache chain.LatestSlotCache[*evm.Slot],
+	toBlock *rpc.BlockNumber,
+) error {
+	if toBlock == nil || *toBlock < 0 {
+		return nil // resolved against this node's own head, coverage is complete by construction
+	}
+	r, err := slotCache.GetRange(ctx)
+	if err != nil {
+		return err
+	}
+	if uint64(*toBlock) > *r.End {
+		return errors.Errorf("block %d is beyond the latest block %d of this node, retry later",
+			uint64(*toBlock), *r.End)
+	}
+	return nil
+}
+
 // exBlock pairs one block's chain identity with the items (logs or traces) a query matched in
 // it. The Ex methods run queryWithCache with this ELEM so the cache/store splicing is shared
 // with the plain methods; the caller reassembles the per-block elems into the Ex response. A nil

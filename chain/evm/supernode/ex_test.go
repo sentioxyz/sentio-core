@@ -302,14 +302,19 @@ func TestAssembleExUnlinkedStorePart(t *testing.T) {
 }
 
 func TestGetLogsExUnsupportedTag(t *testing.T) {
-	// exotic block tags fall through the middleware chain like any unservable request; the
-	// upstream node answers eth_getLogsEx with method-not-found, which is also the fallback
-	// signal for Ex-aware callers
+	// exotic block tags are rejected outright: the Ex methods must not fall through to the
+	// proxy (upstream nodes cannot answer them, and the bounced method-not-found would misread
+	// as "Ex unsupported" to capability-probing callers)
 	cache := newFakeSlotCache(100, 105)
 	s := newTestStandardService(cache, fakeStorage{}, rg.NewRange(0, 99))
 	pending := rpc.PendingBlockNumber
 	to := rpc.BlockNumber(105)
 	_, err := s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{FromBlock: &pending, ToBlock: &to})
+	assert.ErrorContains(t, err, `block tag "pending" is not supported`)
+	assert.NotErrorIs(t, err, jsonrpc.CallNextMiddleware)
+
+	// the plain method keeps the fallthrough semantics
+	_, err = s.GetLogs(context.Background(), &evm.EthGetLogsArgs{FromBlock: &pending, ToBlock: &to})
 	assert.ErrorIs(t, err, jsonrpc.CallNextMiddleware)
 }
 

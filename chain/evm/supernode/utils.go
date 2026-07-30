@@ -69,10 +69,21 @@ func ignoreStoreLimit[ELEM any](
 
 // queryOptions holds the optional knobs of queryWithCache; see the with* constructors.
 type queryOptions[ELEM any] struct {
-	sizeOf func(ELEM) int
+	sizeOf                func(ELEM) int
+	rejectUnsupportedTags bool
 }
 
 type queryOption[ELEM any] func(*queryOptions[ELEM])
+
+// withoutTagFallthrough turns a block tag other than latest (pending, finalized, ...) into an
+// invalid-params error instead of falling through to the next middleware. The Ex methods use it:
+// they must not be proxied upstream, and without it an exotic tag would bounce off an upstream
+// node as method-not-found, which capability-probing callers would misread as "Ex unsupported".
+func withoutTagFallthrough[ELEM any]() queryOption[ELEM] {
+	return func(o *queryOptions[ELEM]) {
+		o.rejectUnsupportedTags = true
+	}
+}
 
 // withSizeOf overrides how many records one ELEM counts as for the record cap (default: 1 each).
 // The Ex methods use it because their ELEM is a whole block whose record count is the number of
@@ -81,6 +92,13 @@ func withSizeOf[ELEM any](sizeOf func(ELEM) int) queryOption[ELEM] {
 	return func(o *queryOptions[ELEM]) {
 		o.sizeOf = sizeOf
 	}
+}
+
+func unsupportedTag[ELEM any](opts queryOptions[ELEM], tag rpc.BlockNumber) error {
+	if opts.rejectUnsupportedTags {
+		return errors.Errorf("block tag %q is not supported, use latest or an explicit block number", tag.String())
+	}
+	return jsonrpc.CallNextMiddleware
 }
 
 // queryWithCache resolves the requested range, checks the span cap, and serves it from the
@@ -128,7 +146,7 @@ func queryWithCache[ELEM any](
 				}
 				sn, en = *r.End, *r.End
 			} else {
-				return nil, jsonrpc.CallNextMiddleware
+				return nil, unsupportedTag(opts, *blockNumber)
 			}
 		}
 	} else {
@@ -139,11 +157,12 @@ func queryWithCache[ELEM any](
 			toBlock = utils.WrapPointer(rpc.LatestBlockNumber)
 		}
 		// slotCache only holds the latest block, other tags fall through to the next handler
+		// (or are rejected outright, see withoutTagFallthrough)
 		if *fromBlock < 0 && *fromBlock != rpc.LatestBlockNumber {
-			return nil, jsonrpc.CallNextMiddleware
+			return nil, unsupportedTag(opts, *fromBlock)
 		}
 		if *toBlock < 0 && *toBlock != rpc.LatestBlockNumber {
-			return nil, jsonrpc.CallNextMiddleware
+			return nil, unsupportedTag(opts, *toBlock)
 		}
 		if *fromBlock >= 0 && *toBlock >= 0 {
 			sn, en = (uint64)(*fromBlock), (uint64)(*toBlock)

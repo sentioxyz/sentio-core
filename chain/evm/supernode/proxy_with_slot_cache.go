@@ -275,6 +275,7 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogsEx(
 			return []exBlock[types.Log]{{items: result}}, nil
 		},
 		nil, // will not be used because hash always nil
+		withoutTagFallthrough[exBlock[types.Log]](),
 	)
 	if err != nil {
 		return resp, err
@@ -317,6 +318,7 @@ func (s *proxyWithLatestSlotCacheService) TraceFilterEx(
 			return []exBlock[evm.ParityTrace]{{items: result}}, nil
 		},
 		nil, // will not be used because hash always nil
+		withoutTagFallthrough[exBlock[evm.ParityTrace]](),
 	)
 	if err != nil {
 		return resp, err

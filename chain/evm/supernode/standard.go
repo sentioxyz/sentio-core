@@ -430,6 +430,7 @@ func (s *standardService) GetLogsEx(
 		},
 		nil, // will not be used because hash always nil
 		withSizeOf(exBlockSize[types.Log]),
+		withoutTagFallthrough[exBlock[types.Log]](),
 	)
 	if err != nil {
 		return resp, err
@@ -567,6 +568,7 @@ func (s *standardService) TraceFilterEx(
 		},
 		nil, // will not be used because hash always nil
 		withSizeOf(exBlockSize[evm.ParityTrace]),
+		withoutTagFallthrough[exBlock[evm.ParityTrace]](),
 	)
 	if err != nil {
 		return resp, err

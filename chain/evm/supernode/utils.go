@@ -75,8 +75,10 @@ type queryOptions[ELEM any] struct {
 
 type queryOption[ELEM any] func(*queryOptions[ELEM])
 
-// withoutTagFallthrough turns a block tag other than latest (pending, finalized, ...) into an
-// invalid-params error instead of falling through to the next middleware. The Ex methods use it:
+// withoutTagFallthrough turns a block tag other than latest (pending, finalized, ...) into a
+// plain error instead of falling through to the next middleware — the same style (an ordinary
+// JSON-RPC error, deliberately not a typed -32602) as the blockHash rejection: both are misuse
+// of a private API whose only real consumers never send these forms. The Ex methods use it:
 // they must not be proxied upstream, and without it an exotic tag would bounce off an upstream
 // node as method-not-found, which capability-probing callers would misread as "Ex unsupported".
 func withoutTagFallthrough[ELEM any]() queryOption[ELEM] {

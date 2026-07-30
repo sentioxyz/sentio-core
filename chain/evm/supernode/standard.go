@@ -105,6 +105,7 @@ func (s *standardService) GetBlockHeaderByNumber(
 	blockNumber rpc.BlockNumber,
 ) (*evm.ExtendedHeader, error) {
 	headers, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0, 0,
+		nil,
 		func(st *evm.Slot) ([]evm.ExtendedHeader, error) {
 			return []evm.ExtendedHeader{*st.Header}, nil
 		},
@@ -128,6 +129,7 @@ func (s *standardService) GetBlockByNumber(
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
 	responses, err := queryWithCache(ctx, s.slotCache, nil, &blockNumber, nil, nil, 0, 0,
+		nil,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -180,6 +182,7 @@ func (s *standardService) GetBlockByHash(
 	withFullTransactions bool,
 ) (*evm.RPCGetBlockResponse, error) {
 	responses, err := queryWithCache(ctx, s.slotCache, &hash, nil, nil, nil, 0, 0,
+		nil,
 		func(st *evm.Slot) ([]evm.RPCGetBlockResponse, error) {
 			return []evm.RPCGetBlockResponse{evm.NewRPCGetBlockResponse(st, withFullTransactions)}, nil
 		},
@@ -200,6 +203,7 @@ func (s *standardService) GetBlockReceipts(
 	numOrHash rpc.BlockNumberOrHash,
 ) ([]evm.ExtendedReceipt, error) {
 	return queryWithCache(ctx, s.slotCache, numOrHash.BlockHash, numOrHash.BlockNumber, nil, nil, 0, 0,
+		nil,
 		func(st *evm.Slot) ([]evm.ExtendedReceipt, error) {
 			return st.Receipts, nil
 		},
@@ -297,6 +301,7 @@ func (s *standardService) GetBlocksPacked(
 	needTraces bool,
 ) ([]*evm.PackedBlock, error) {
 	return queryWithCache(ctx, s.slotCache, nil, nil, &fromBlock, &toBlock, maxQueryRangeSize, 0,
+		nil,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
 			block := evm.PackedBlock{BlockHeader: st.Header}
 			if needTransaction {
@@ -363,6 +368,7 @@ func (s *standardService) GetLogs(ctx context.Context, args *evm.EthGetLogsArgs)
 	checker := args.Checker()
 	logs, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
 		maxQueryRangeSize, maxLogs,
+		nil,
 		func(st *evm.Slot) ([]types.Log, error) {
 			return utils.FilterArr(st.Logs, checker), nil
 		},
@@ -396,18 +402,17 @@ func (s *standardService) GetLogsEx(
 	args *evm.EthGetLogsArgs,
 ) (resp evm.EthGetLogsExResponse, err error) {
 	checker := args.Checker()
-	limit := exResultLimit(args.BlockHash, args.FromBlock, args.ToBlock, maxLogs)
-	scanLimit := chain.StoreQueryLimit(limit)
 	elems, err := queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock,
-		maxQueryRangeSize, 0,
+		maxQueryRangeSize, maxLogs,
+		exBlockSize,
 		func(st *evm.Slot) ([]exBlock[types.Log], error) {
 			return exBlockFromSlot(st, utils.FilterArr(st.Logs, checker)), nil
 		},
-		func(ctx context.Context, r rg.Range, _ int) ([]exBlock[types.Log], error) {
+		func(ctx context.Context, r rg.Range, limit int) ([]exBlock[types.Log], error) {
 			return chain.CheckRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]exBlock[types.Log], error) {
 				blockWheres := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
 				where := strings.Join(append(s.filterLogSQL(args), blockWheres), " AND ")
-				logs, queryErr := s.store.QueryLogs(ctx, where, scanLimit)
+				logs, queryErr := s.store.QueryLogs(ctx, where, limit)
 				if queryErr != nil {
 					return nil, queryErr
 				}
@@ -429,7 +434,7 @@ func (s *standardService) GetLogsEx(
 	if err != nil {
 		return resp, exFinalizeErr(err, "eth_getLogsEx")
 	}
-	resp.BlockHashLinkPart, resp.Logs, err = assembleEx(elems, limit)
+	resp.BlockHashLinkPart, resp.Logs, err = assembleEx(elems)
 	return resp, err
 }
 
@@ -442,6 +447,7 @@ func (s *standardService) GetLogsPacked(
 ) ([]*evm.PackedBlock, error) {
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, args.BlockHash, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize, 0,
+		nil,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
 			logs := utils.FilterArr(st.Logs, checker)
 			if len(logs) == 0 {
@@ -505,6 +511,7 @@ func (s *standardService) TraceFilter(ctx context.Context, args *evm.TraceFilter
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
 		maxQueryRangeSize, maxTraces,
+		nil,
 		func(st *evm.Slot) ([]evm.ParityTrace, error) {
 			if !st.HaveTrace {
 				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
@@ -532,21 +539,20 @@ func (s *standardService) TraceFilterEx(
 	args *evm.TraceFilterArgs,
 ) (resp evm.TraceFilterExResponse, err error) {
 	checker := args.Checker()
-	limit := exResultLimit(nil, args.FromBlock, args.ToBlock, maxTraces)
-	scanLimit := chain.StoreQueryLimit(limit)
 	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock,
-		maxQueryRangeSize, 0,
+		maxQueryRangeSize, maxTraces,
+		exBlockSize,
 		func(st *evm.Slot) ([]exBlock[evm.ParityTrace], error) {
 			if !st.HaveTrace {
 				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
 			}
 			return exBlockFromSlot(st, utils.FilterArr(st.Traces, checker)), nil
 		},
-		func(ctx context.Context, r rg.Range, _ int) ([]exBlock[evm.ParityTrace], error) {
+		func(ctx context.Context, r rg.Range, limit int) ([]exBlock[evm.ParityTrace], error) {
 			return chain.CheckRange(s.rangeStore, func(ctx context.Context, r rg.Range) ([]exBlock[evm.ParityTrace], error) {
 				blockWheres := fmt.Sprintf("block_number >= %d AND block_number <= %d", r.Start, *r.End)
 				where := strings.Join(append(s.filterTraceSQL(args), blockWheres), " AND ")
-				traces, queryErr := s.store.QueryTraces(ctx, where, scanLimit)
+				traces, queryErr := s.store.QueryTraces(ctx, where, limit)
 				if queryErr != nil {
 					return nil, queryErr
 				}
@@ -567,7 +573,7 @@ func (s *standardService) TraceFilterEx(
 	if err != nil {
 		return resp, exFinalizeErr(err, "trace_filterEx")
 	}
-	resp.BlockHashLinkPart, resp.Traces, err = assembleEx(elems, limit)
+	resp.BlockHashLinkPart, resp.Traces, err = assembleEx(elems)
 	return resp, err
 }
 
@@ -580,6 +586,7 @@ func (s *standardService) TraceFilterPacked(
 ) ([]*evm.PackedBlock, error) {
 	checker := args.Checker()
 	return queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, maxQueryRangeSize, 0,
+		nil,
 		func(st *evm.Slot) ([]*evm.PackedBlock, error) {
 			if !st.HaveTrace {
 				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())

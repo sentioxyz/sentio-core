@@ -298,7 +298,7 @@ func TestAssembleExUnlinkedStorePart(t *testing.T) {
 		{link: &link100, items: []uint64{100}},
 		{link: &link101},
 	}
-	part, items, err := assembleEx(elems, 0)
+	part, items, err := assembleEx(elems)
 	assert.NoError(t, err)
 	assert.Equal(t, []uint64{90, 91, 100}, items)
 	assert.Equal(t, uint64(100), uint64(*part.LinkFromBlock))

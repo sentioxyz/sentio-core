@@ -71,7 +71,9 @@ func ignoreStoreLimit[ELEM any](
 // latest-slot cache + store. resultLimit (0 = unlimited) caps how many records the merged response
 // may hold in TOTAL; single-block queries (including the blockHash / blockNumber forms) are exempt
 // since they cannot be shrunk further. collectFromStore receives the scan limit to push down
-// (chain.StoreQueryLimit of the effective cap; 0 when uncapped/exempt).
+// (chain.StoreQueryLimit of the effective cap; 0 when uncapped/exempt). sizeOf defines how many
+// records one ELEM counts as — nil means 1 each; the Ex methods use it because their ELEM is a
+// whole block whose record count is the number of items in it.
 func queryWithCache[ELEM any](
 	ctx context.Context,
 	slotCache chain.LatestSlotCache[*evm.Slot],
@@ -81,6 +83,7 @@ func queryWithCache[ELEM any](
 	toBlock *rpc.BlockNumber,
 	maxQueryRangeSize uint64,
 	resultLimit int,
+	sizeOf func(ELEM) int,
 	collectFromSlot func(st *evm.Slot) ([]ELEM, error),
 	collectFromStore func(ctx context.Context, r rg.Range, limit int) ([]ELEM, error),
 	cacheMissHashReturn error,
@@ -161,7 +164,7 @@ func queryWithCache[ELEM any](
 			return collectFromStore(ctx, r, chain.StoreQueryLimit(limit))
 		},
 	)
-	return chain.CheckTooManyResults(result, err, limit)
+	return chain.CheckTooManyResultsBy(result, err, limit, sizeOf)
 }
 
 // exBlock pairs one block's chain identity with the items (logs or traces) a query matched in
@@ -193,30 +196,16 @@ func exBlocksFromStore[ITEM any](
 	return elems
 }
 
-// exResultLimit is RangeQueryLimit for the Ex methods: since their ELEM is a block rather than a
-// record, the record cap cannot ride on queryWithCache's ELEM count and is applied on the
-// reassembled items instead — this computes it from the unresolved request (a single-block
-// request, by hash or by an equal from/to pair, is exempt because it cannot be shrunk further).
-func exResultLimit(blockHash *common.Hash, fromBlock, toBlock *rpc.BlockNumber, limit int) int {
-	if blockHash != nil {
-		return 0
-	}
-	norm := func(p *rpc.BlockNumber) rpc.BlockNumber {
-		if p == nil {
-			return rpc.LatestBlockNumber
-		}
-		return *p
-	}
-	if norm(fromBlock) == norm(toBlock) {
-		return 0
-	}
-	return limit
+// exBlockSize is the sizeOf of the Ex methods: an exBlock counts as many records as it holds
+// items, so queryWithCache's record cap applies to logs/traces, not blocks.
+func exBlockSize[ITEM any](e exBlock[ITEM]) int {
+	return len(e.items)
 }
 
-// assembleEx flattens queryWithCache's per-block elems into the Ex response sections, applying
-// the record cap and validating the link chain (elems arrive ascending: store part first, then
-// the cache tail, so blocks with identity form one contiguous run).
-func assembleEx[ITEM any](elems []exBlock[ITEM], limit int) (evm.BlockHashLinkPart, []ITEM, error) {
+// assembleEx flattens queryWithCache's per-block elems into the Ex response sections, validating
+// the link chain (elems arrive ascending: store part first, then the cache tail, so blocks with
+// identity form one contiguous run). The record cap was already applied by queryWithCache.
+func assembleEx[ITEM any](elems []exBlock[ITEM]) (evm.BlockHashLinkPart, []ITEM, error) {
 	var links []evm.BlockLink
 	items := make([]ITEM, 0)
 	for _, e := range elems {
@@ -224,9 +213,6 @@ func assembleEx[ITEM any](elems []exBlock[ITEM], limit int) (evm.BlockHashLinkPa
 			links = append(links, *e.link)
 		}
 		items = append(items, e.items...)
-	}
-	if _, err := chain.CheckTooManyResults(items, nil, limit); err != nil {
-		return evm.BlockHashLinkPart{}, nil, err
 	}
 	part, err := evm.NewBlockHashLinkPart(links)
 	return part, items, err

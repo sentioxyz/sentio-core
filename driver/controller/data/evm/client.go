@@ -22,6 +22,7 @@ import (
 	"sentioxyz/sentio-core/driver/controller/data"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -39,9 +40,16 @@ type Client interface {
 	GetHeader(ctx context.Context, blockNumber uint64) (BlockHeader, error)
 	GetHeaderIgnoreCache(ctx context.Context, blockNumber uint64) (controller.BlockHeader, error)
 
+	// GetBlock fetches the extend data of the block. blockHash / allTxHashes are the block's
+	// expected identity, from the header the caller already holds: full-block answers are
+	// verified against them, so extend data served from a different fork is rejected (and
+	// retried) instead of silently mixed into the block. An empty blockHash / nil allTxHashes
+	// skips the corresponding check.
 	GetBlock(
 		ctx context.Context,
 		blockNumber uint64,
+		blockHash string,
+		allTxHashes []string,
 		req BlockExtendRequirement,
 	) (BlockExtendData, error)
 
@@ -280,9 +288,32 @@ func (c *client) GetHeaderIgnoreCache(ctx context.Context, blockNumber uint64) (
 	return c.getHeaderIgnoreCache(ctx, blockNumber)
 }
 
+// checkBlockTxsMatch verifies that the transactions answered for a block are exactly the ones
+// its header lists — i.e. that the full-block answer came from the same fork as the header.
+func checkBlockTxsMatch(blockNumber uint64, expected, got []string) error {
+	if len(got) != len(expected) {
+		return errors.Errorf(
+			"the answer of block %d holds %d transactions but its header lists %d, "+
+				"the endpoint answered from a different fork, will retry",
+			blockNumber, len(got), len(expected))
+	}
+	expectedSet := set.New(expected...)
+	for _, hash := range got {
+		if !expectedSet.Contains(hash) {
+			return errors.Errorf(
+				"transaction %s in the answer of block %d is not listed by its header, "+
+					"the endpoint answered from a different fork, will retry",
+				hash, blockNumber)
+		}
+	}
+	return nil
+}
+
 func (c *client) GetBlock(
 	ctx context.Context,
 	blockNumber uint64,
+	blockHash string,
+	allTxHashes []string,
 	req BlockExtendRequirement,
 ) (r BlockExtendData, err error) {
 	if req.IsEmpty() {
@@ -302,11 +333,31 @@ func (c *client) GetBlock(
 	fetchFullBlockTxs := func(keep set.Set[string]) func() error {
 		return func() (err error) {
 			var block *struct {
+				Hash         common.Hash          `json:"hash"`
 				Transactions []evm.RPCTransaction `json:"transactions"`
 			}
 			err = c.callContext(ctx, &block, blockNumber, "eth_getBlockByNumber", hexutil.Uint64(blockNumber), true)
 			if err != nil {
 				return
+			}
+			if block == nil && (blockHash != "" || allTxHashes != nil) {
+				// the caller holds this block's header, so the block must exist
+				return errors.Errorf("block %d not found, will retry", blockNumber)
+			}
+			// the full-block answer must come from the same fork as the header the caller holds
+			if block != nil && blockHash != "" && block.Hash.String() != blockHash {
+				return errors.Errorf(
+					"eth_getBlockByNumber answered block %d with hash %s but the expected block is %s, "+
+						"the endpoint answered from a different fork, will retry",
+					blockNumber, block.Hash, blockHash)
+			}
+			if block != nil && allTxHashes != nil {
+				got := utils.MapSliceNoError(block.Transactions, func(tx evm.RPCTransaction) string {
+					return tx.Hash.String()
+				})
+				if err = checkBlockTxsMatch(blockNumber, allTxHashes, got); err != nil {
+					return
+				}
 			}
 			found := set.New[string]()
 			if block != nil {
@@ -362,6 +413,24 @@ func (c *client) GetBlock(
 			var receipts []evm.ExtendedReceipt
 			if receipts, err = c.GetBlockReceipts(gctx, blockNumber); err != nil {
 				return
+			}
+			// the full-block answer must come from the same fork as the header the caller holds
+			if blockHash != "" || allTxHashes != nil {
+				got := make([]string, 0, len(receipts))
+				for _, receipt := range receipts {
+					if blockHash != "" && receipt.BlockHash.String() != blockHash {
+						return errors.Errorf(
+							"the receipt of tx %s answered for block %d has block hash %s but the expected block is %s, "+
+								"the endpoint answered from a different fork, will retry",
+							receipt.TxHash, blockNumber, receipt.BlockHash, blockHash)
+					}
+					got = append(got, receipt.TxHash.String())
+				}
+				if allTxHashes != nil {
+					if err = checkBlockTxsMatch(blockNumber, allTxHashes, got); err != nil {
+						return
+					}
+				}
 			}
 			found := set.New[string]()
 			for _, receipt := range receipts {

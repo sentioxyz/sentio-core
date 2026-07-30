@@ -148,3 +148,13 @@ func traceRawJSON(bn uint64, blockHash string) string {
 		"transactionHash": "0x00000000000000000000000000000000000000000000000000000000000000bb"
 	}`, hashField, bn)
 }
+
+func TestCheckBlockTxsMatch(t *testing.T) {
+	expected := []string{"0xa", "0xb", "0xc"}
+	assert.NoError(t, checkBlockTxsMatch(1, expected, []string{"0xc", "0xa", "0xb"}))
+	assert.NoError(t, checkBlockTxsMatch(1, nil, nil))
+	// count mismatch: the answer misses or adds transactions vs the header's list
+	assert.ErrorContains(t, checkBlockTxsMatch(1, expected, []string{"0xa", "0xb"}), "different fork")
+	// same count but a foreign transaction: answered from a sibling block
+	assert.ErrorContains(t, checkBlockTxsMatch(1, expected, []string{"0xa", "0xb", "0xd"}), "not listed")
+}

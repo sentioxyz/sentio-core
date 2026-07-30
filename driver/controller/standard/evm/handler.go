@@ -107,9 +107,21 @@ func (c *HandlerController) BuildBlockDataFetcher(
 				// TxHashes are consumed by the task payloads and a link-derived header has
 				// neither.
 				result.BlockHeader = *from.Header
-			} else if result.BlockHeader, err = c.Client.GetHeader(ctx, blockNumber); err != nil {
+			} else {
 				// always need the full header when tasks will be built
-				return nil, false, err
+				if result.BlockHeader, err = c.Client.GetHeader(ctx, blockNumber); err != nil {
+					return nil, false, err
+				}
+				// the identity claimed by the data source must match this header: they may come
+				// from different views (Ex hash link / slot cache vs the header path), so a
+				// mismatch means one of them answered from an orphan fork
+				if from.Header != nil && (from.Header.BlockHash != result.GetBlockHash() ||
+					from.Header.ParentBlockHash != result.GetBlockParentHash()) {
+					return nil, false, fetcher.Permanent(errors.Errorf(
+						"main data of block %d claims identity %s/%s but the fetched header is %s/%s",
+						blockNumber, from.Header.BlockHash, from.Header.ParentBlockHash,
+						result.GetBlockHash(), result.GetBlockParentHash()))
+				}
 			}
 			// check block hash of main data with the header got above
 			for _, l := range from.Logs {
@@ -130,7 +142,9 @@ func (c *HandlerController) BuildBlockDataFetcher(
 				return nil, false, err
 			}
 			// actually get the extended data
-			if result.extendData, err = c.Client.GetBlock(ctx, blockNumber, r); err != nil {
+			if result.extendData, err = c.Client.GetBlock(
+				ctx, blockNumber, result.GetBlockHash(), result.BlockHeader.TxHashes, r,
+			); err != nil {
 				return nil, false, err
 			}
 			// build binding data

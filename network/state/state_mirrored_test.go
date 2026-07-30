@@ -59,7 +59,7 @@ func TestStateMirroredTableSchemasAllWritePaths(t *testing.T) {
 	if err := mirror.Apply(ctx, statemirror.MappingTableSchemas, func(context.Context, statemirror.OnChainKey) (*statemirror.StateDiff, error) {
 		return &statemirror.StateDiff{
 			Added: map[string]string{
-				staleKey: `{"database_id":"stale_db","table_id":"stale_table","version":9}`,
+				staleKey: `{"databaseId":"stale_db","tableId":"stale_table","version":9}`,
 			},
 			Deleted: []string{keyV1},
 		}, nil

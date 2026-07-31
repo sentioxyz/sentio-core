@@ -68,6 +68,7 @@ func BuildObjectChangeFetcher(
 		1,
 		10000,
 		100000,
+		0, // maxReadyBlockCount: unlimited, entries exist only for blocks with data
 		10000, // the target is that each query got no more than 1000 object change records
 		time.Minute,
 		20,

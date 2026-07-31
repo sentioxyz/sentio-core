@@ -7,6 +7,7 @@ go_library(
         "block_extend.go",
         "block_main.go",
         "client.go",
+        "ex.go",
         "log.go",
         "trace.go",
     ],
@@ -26,6 +27,7 @@ go_library(
         "//driver/controller/data",
         "//driver/controller/fetcher",
         "@com_github_ethereum_go_ethereum//:go-ethereum",
+        "@com_github_ethereum_go_ethereum//common",
         "@com_github_ethereum_go_ethereum//common/hexutil",
         "@com_github_ethereum_go_ethereum//core/types",
         "@com_github_ethereum_go_ethereum//rpc",
@@ -36,11 +38,17 @@ go_library(
 
 go_test(
     name = "evm_test",
-    srcs = ["log_test.go"],
+    srcs = [
+        "ex_test.go",
+        "log_test.go",
+    ],
     embed = [":evm"],
     deps = [
+        "//chain/evm",
         "//common/set",
         "//driver/controller",
+        "@com_github_ethereum_go_ethereum//common",
+        "@com_github_ethereum_go_ethereum//common/hexutil",
         "@com_github_ethereum_go_ethereum//core/types",
         "@com_github_stretchr_testify//assert",
     ],

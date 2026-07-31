@@ -22,6 +22,7 @@ import (
 	"sentioxyz/sentio-core/driver/controller/data"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -39,9 +40,16 @@ type Client interface {
 	GetHeader(ctx context.Context, blockNumber uint64) (BlockHeader, error)
 	GetHeaderIgnoreCache(ctx context.Context, blockNumber uint64) (controller.BlockHeader, error)
 
+	// GetBlock fetches the extend data of the block. blockHash / allTxHashes are the block's
+	// expected identity, from the header the caller already holds: full-block answers are
+	// verified against them, so extend data served from a different fork is rejected (and
+	// retried) instead of silently mixed into the block. An empty blockHash / nil allTxHashes
+	// skips the corresponding check.
 	GetBlock(
 		ctx context.Context,
 		blockNumber uint64,
+		blockHash string,
+		allTxHashes []string,
 		req BlockExtendRequirement,
 	) (BlockExtendData, error)
 
@@ -52,11 +60,40 @@ type Client interface {
 		topics [][]string,
 	) ([]types.Log, error)
 
+	// GetLogsEx is the eth_getLogsEx variant of GetLogs: the response additionally carries the
+	// chain identity (hash link + timestamps) of the blocks it covers, so an empty result is
+	// verifiable. Returns errMethodNotSupported when the endpoint does not implement it, and the
+	// caller falls back to GetLogs.
+	GetLogsEx(
+		ctx context.Context,
+		fromBlock, toBlock uint64,
+		address []string,
+		topics [][]string,
+	) (GetLogsExResponse, error)
+
+	// GetLogsByBlockHash queries the logs of exactly one block identified by hash. Used in the
+	// watching range so that a super node whose latest slot cache briefly holds an orphan
+	// sibling misses (and errors) instead of silently answering from the wrong fork.
+	GetLogsByBlockHash(
+		ctx context.Context,
+		priority uint64,
+		blockHash string,
+		address []string,
+		topics [][]string,
+	) ([]types.Log, error)
+
 	GetTraces(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		address []string,
 	) ([]Trace, error)
+
+	// GetTracesEx is the trace_filterEx variant of GetTraces, see GetLogsEx.
+	GetTracesEx(
+		ctx context.Context,
+		fromBlock, toBlock uint64,
+		address []string,
+	) (GetTracesExResponse, error)
 
 	GetContractStartBlock(ctx context.Context, address string, start, latest uint64) (uint64, bool, error)
 	IsERC20Address(ctx context.Context, address string) (bool, error)
@@ -144,6 +181,7 @@ func (c *client) callContext(ctx context.Context, result any, priority uint64, m
 	err = c.cli.CallContext(ctx, &result, method, args...)
 	if err != nil {
 		if utils.MatchAny(strings.ToLower(err.Error()), invalidMethodErrorMatcher) {
+			c.unsupportedMethods.Add(method)
 			err = errors.Wrapf(errMethodNotSupported, err.Error())
 		} else {
 			err = errors.Wrapf(err, "call method %s with args %s failed", method, utils.MustJSONMarshal(args))
@@ -250,9 +288,32 @@ func (c *client) GetHeaderIgnoreCache(ctx context.Context, blockNumber uint64) (
 	return c.getHeaderIgnoreCache(ctx, blockNumber)
 }
 
+// checkBlockTxsMatch verifies that the transactions answered for a block are exactly the ones
+// its header lists — i.e. that the full-block answer came from the same fork as the header.
+func checkBlockTxsMatch(blockNumber uint64, expected, got []string) error {
+	if len(got) != len(expected) {
+		return errors.Errorf(
+			"the answer of block %d holds %d transactions but its header lists %d, "+
+				"the endpoint answered from a different fork, will retry",
+			blockNumber, len(got), len(expected))
+	}
+	expectedSet := set.New(expected...)
+	for _, hash := range got {
+		if !expectedSet.Contains(hash) {
+			return errors.Errorf(
+				"transaction %s in the answer of block %d is not listed by its header, "+
+					"the endpoint answered from a different fork, will retry",
+				hash, blockNumber)
+		}
+	}
+	return nil
+}
+
 func (c *client) GetBlock(
 	ctx context.Context,
 	blockNumber uint64,
+	blockHash string,
+	allTxHashes []string,
 	req BlockExtendRequirement,
 ) (r BlockExtendData, err error) {
 	if req.IsEmpty() {
@@ -272,11 +333,31 @@ func (c *client) GetBlock(
 	fetchFullBlockTxs := func(keep set.Set[string]) func() error {
 		return func() (err error) {
 			var block *struct {
+				Hash         common.Hash          `json:"hash"`
 				Transactions []evm.RPCTransaction `json:"transactions"`
 			}
 			err = c.callContext(ctx, &block, blockNumber, "eth_getBlockByNumber", hexutil.Uint64(blockNumber), true)
 			if err != nil {
 				return
+			}
+			if block == nil && (blockHash != "" || allTxHashes != nil) {
+				// the caller holds this block's header, so the block must exist
+				return errors.Errorf("block %d not found, will retry", blockNumber)
+			}
+			// the full-block answer must come from the same fork as the header the caller holds
+			if block != nil && blockHash != "" && block.Hash.String() != blockHash {
+				return errors.Errorf(
+					"eth_getBlockByNumber answered block %d with hash %s but the expected block is %s, "+
+						"the endpoint answered from a different fork, will retry",
+					blockNumber, block.Hash, blockHash)
+			}
+			if block != nil && allTxHashes != nil {
+				got := utils.MapSliceNoError(block.Transactions, func(tx evm.RPCTransaction) string {
+					return tx.Hash.String()
+				})
+				if err = checkBlockTxsMatch(blockNumber, allTxHashes, got); err != nil {
+					return
+				}
 			}
 			found := set.New[string]()
 			if block != nil {
@@ -316,6 +397,14 @@ func (c *client) GetBlock(
 				if tx == nil {
 					return errors.Errorf("transaction %d/%s not found", blockNumber, txHash)
 				}
+				// the per-hash answer must claim the expected block: a transaction can be
+				// included by both sibling forks with different block-specific metadata
+				if blockHash != "" && tx.BlockHash.String() != blockHash {
+					return errors.Errorf(
+						"transaction %s is answered from block %s but the expected block is %s, "+
+							"the endpoint answered from a different fork, will retry",
+						txHash, tx.BlockHash, blockHash)
+				}
 				lock.Lock()
 				defer lock.Unlock()
 				r.Transactions[txHash] = *tx
@@ -332,6 +421,24 @@ func (c *client) GetBlock(
 			var receipts []evm.ExtendedReceipt
 			if receipts, err = c.GetBlockReceipts(gctx, blockNumber); err != nil {
 				return
+			}
+			// the full-block answer must come from the same fork as the header the caller holds
+			if blockHash != "" || allTxHashes != nil {
+				got := make([]string, 0, len(receipts))
+				for _, receipt := range receipts {
+					if blockHash != "" && receipt.BlockHash.String() != blockHash {
+						return errors.Errorf(
+							"the receipt of tx %s answered for block %d has block hash %s but the expected block is %s, "+
+								"the endpoint answered from a different fork, will retry",
+							receipt.TxHash, blockNumber, receipt.BlockHash, blockHash)
+					}
+					got = append(got, receipt.TxHash.String())
+				}
+				if allTxHashes != nil {
+					if err = checkBlockTxsMatch(blockNumber, allTxHashes, got); err != nil {
+						return
+					}
+				}
 			}
 			found := set.New[string]()
 			for _, receipt := range receipts {
@@ -372,6 +479,13 @@ func (c *client) GetBlock(
 				if receipt == nil {
 					return errors.Errorf("transaction receipt %d/%s not found", blockNumber, txHash)
 				}
+				// see the transaction branch above: sibling-fork receipts can differ in state
+				if blockHash != "" && receipt.BlockHash.String() != blockHash {
+					return errors.Errorf(
+						"the receipt of tx %s is answered from block %s but the expected block is %s, "+
+							"the endpoint answered from a different fork, will retry",
+						txHash, receipt.BlockHash, blockHash)
+				}
 				lock.Lock()
 				defer lock.Unlock()
 				r.Receipts[txHash] = *receipt
@@ -383,9 +497,23 @@ func (c *client) GetBlock(
 	if req.AllTraces {
 		g.Go(func() (err error) {
 			var traces []Trace
-			traces, err = c.GetTraces(gctx, blockNumber, blockNumber, nil)
-			if err != nil {
-				return
+			exResp, exErr := c.GetTracesEx(gctx, blockNumber, blockNumber, nil)
+			switch {
+			case exErr == nil:
+				// the Ex link makes even an EMPTY trace set verifiable against the block
+				if traces, err = tracesFromExForBlock(exResp, blockNumber, blockHash); err != nil {
+					return
+				}
+			case !errors.Is(exErr, errMethodNotSupported):
+				return exErr
+			default:
+				if traces, err = c.GetTraces(gctx, blockNumber, blockNumber, nil); err != nil {
+					return
+				}
+				// without Ex a non-empty answer still proves its origin via the per-trace hash
+				if err = checkTracesBlockHash(traces, blockNumber, blockHash); err != nil {
+					return
+				}
 			}
 			r.Traces = utils.Group(traces, func(trace Trace) string {
 				return trace.TransactionHash
@@ -413,11 +541,11 @@ func (c *client) GetBlock(
 
 func (c *client) GetBlockReceipts(ctx context.Context, blockNumber uint64) (r []evm.ExtendedReceipt, err error) {
 	if !c.unsupportedMethods.Contains("eth_getBlockReceipts") {
+		// callContext records the method as unsupported on a method-not-found answer
 		err = c.callContext(ctx, &r, blockNumber, "eth_getBlockReceipts", hexutil.Uint64(blockNumber))
 		if err == nil || !errors.Is(err, errMethodNotSupported) {
 			return
 		}
-		c.unsupportedMethods.Add("eth_getBlockReceipts")
 	}
 	var h BlockHeader
 	if h, err = c.GetHeader(ctx, blockNumber); err != nil {
@@ -451,6 +579,66 @@ func (c *client) GetLogs(
 	return
 }
 
+// callExMethod calls an Ex method with the unsupported-method cache applied: once an endpoint
+// answers method-not-found (recorded by callContext) the method is not probed again for the
+// lifetime of this client, and callers fall back to the plain method immediately.
+func (c *client) callExMethod(ctx context.Context, result any, priority uint64, method string, arg any) error {
+	if c.unsupportedMethods.Contains(method) {
+		return errors.Wrapf(errMethodNotSupported, "method %s already marked unsupported", method)
+	}
+	return c.callContext(ctx, result, priority, method, arg)
+}
+
+func (c *client) GetLogsEx(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	address []string,
+	topics [][]string,
+) (result GetLogsExResponse, err error) {
+	arg := map[string]any{
+		"fromBlock": hexutil.Uint64(fromBlock).String(),
+		"toBlock":   hexutil.Uint64(toBlock).String(),
+		"address":   address,
+		"topics":    topics,
+	}
+	err = c.callExMethod(ctx, &result, fromBlock, "eth_getLogsEx", arg)
+	return
+}
+
+// logsByBlockHashUnsupported marks an endpoint that rejects the EIP-234 blockHash filter of
+// eth_getLogs. It is a parameter-level capability, not a method-level one, so it gets its own
+// pseudo-method key in unsupportedMethods.
+const logsByBlockHashUnsupported = "eth_getLogs#blockHash"
+
+func (c *client) GetLogsByBlockHash(
+	ctx context.Context,
+	priority uint64,
+	blockHash string,
+	address []string,
+	topics [][]string,
+) (result []types.Log, err error) {
+	if c.unsupportedMethods.Contains(logsByBlockHashUnsupported) {
+		return nil, errors.Wrapf(errMethodNotSupported,
+			"the endpoint does not support the blockHash filter of eth_getLogs")
+	}
+	arg := map[string]any{
+		"blockHash": blockHash,
+		"address":   address,
+		"topics":    topics,
+	}
+	err = c.callContext(ctx, &result, priority, "eth_getLogs", arg)
+	// A JSON-RPC invalid-params answer to this well-formed request means the endpoint does not
+	// understand the blockHash filter (pre EIP-234): remember the capability and report
+	// method-not-supported so the caller falls back to a by-number query. Anything else (e.g. a
+	// super node missing the hash in its latest slot cache) stays a plain retryable error.
+	var rpcErr rpc.Error
+	if err != nil && errors.As(err, &rpcErr) && rpcErr.ErrorCode() == -32602 {
+		c.unsupportedMethods.Add(logsByBlockHashUnsupported)
+		err = errors.Wrapf(errMethodNotSupported, "%s", err.Error())
+	}
+	return
+}
+
 func (c *client) GetTraces(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
@@ -465,6 +653,20 @@ func (c *client) GetTraces(
 	if err != nil {
 		return
 	}
+	return
+}
+
+func (c *client) GetTracesEx(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	address []string,
+) (result GetTracesExResponse, err error) {
+	arg := map[string]any{
+		"fromBlock": hexutil.Uint64(fromBlock).String(),
+		"toBlock":   hexutil.Uint64(toBlock).String(),
+		"toAddress": address,
+	}
+	err = c.callExMethod(ctx, &result, fromBlock, "trace_filterEx", arg)
 	return
 }
 

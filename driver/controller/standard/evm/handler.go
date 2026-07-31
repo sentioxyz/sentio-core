@@ -99,9 +99,29 @@ func (c *HandlerController) BuildBlockDataFetcher(
 				blockNumber, len(from.Logs), len(from.Traces), len(from.Intervals))
 			var err error
 			result := BlockData{mainData: from, checkpointData: make(map[string]string)}
-			// always need header
-			if result.BlockHeader, err = c.Client.GetHeader(ctx, blockNumber); err != nil {
-				return nil, false, err
+			if from.Header != nil && from.Size() == 0 && !from.Exact {
+				// header-only block: no task will be built, so the identity that came with the
+				// data (Ex hash link / tip by-hash query) is all that is needed; a wrong-fork
+				// header is caught by the block builder's parent-hash chain check one block
+				// later. Blocks that build tasks still need the full header below — Raw and
+				// TxHashes are consumed by the task payloads and a link-derived header has
+				// neither.
+				result.BlockHeader = *from.Header
+			} else {
+				// always need the full header when tasks will be built
+				if result.BlockHeader, err = c.Client.GetHeader(ctx, blockNumber); err != nil {
+					return nil, false, err
+				}
+				// the identity claimed by the data source must match this header: they may come
+				// from different views (Ex hash link / slot cache vs the header path), so a
+				// mismatch means one of them answered from an orphan fork
+				if from.Header != nil && (from.Header.BlockHash != result.GetBlockHash() ||
+					from.Header.ParentBlockHash != result.GetBlockParentHash()) {
+					return nil, false, fetcher.Permanent(errors.Errorf(
+						"main data of block %d claims identity %s/%s but the fetched header is %s/%s",
+						blockNumber, from.Header.BlockHash, from.Header.ParentBlockHash,
+						result.GetBlockHash(), result.GetBlockParentHash()))
+				}
 			}
 			// check block hash of main data with the header got above
 			for _, l := range from.Logs {
@@ -122,7 +142,9 @@ func (c *HandlerController) BuildBlockDataFetcher(
 				return nil, false, err
 			}
 			// actually get the extended data
-			if result.extendData, err = c.Client.GetBlock(ctx, blockNumber, r); err != nil {
+			if result.extendData, err = c.Client.GetBlock(
+				ctx, blockNumber, result.GetBlockHash(), result.BlockHeader.TxHashes, r,
+			); err != nil {
 				return nil, false, err
 			}
 			// build binding data

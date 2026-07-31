@@ -27,6 +27,11 @@ type fetcher[T controller.FetchTarget] struct {
 	minQuerySize        uint64
 	maxQuerySize        uint64
 	targetKeepDataSize  int
+	// maxReadyBlockCount caps the LENGTH of the ready range [full.StartBlock, fetchingStart), 0
+	// means unlimited. totalSize only counts data items, and a fetcher that buffers an entry for
+	// every block (e.g. the Ex-backed evm fetchers, whose header-only entries have zero data
+	// size) would otherwise run ahead without bound through long empty stretches.
+	maxReadyBlockCount  uint64
 	targetQueryDataSize int
 	maxQueryTime        time.Duration
 	maxRetry            int
@@ -64,6 +69,7 @@ func NewFetcher[T controller.FetchTarget](
 	minQuerySize uint64,
 	maxQuerySize uint64,
 	targetKeepDataSize int,
+	maxReadyBlockCount uint64,
 	targetQueryDataSize int,
 	maxQueryTime time.Duration,
 	maxRetry int,
@@ -81,6 +87,7 @@ func NewFetcher[T controller.FetchTarget](
 		minQuerySize:        minQuerySize,
 		maxQuerySize:        maxQuerySize,
 		targetKeepDataSize:  targetKeepDataSize,
+		maxReadyBlockCount:  maxReadyBlockCount,
 		targetQueryDataSize: targetQueryDataSize,
 		maxQueryTime:        maxQueryTime,
 		maxRetry:            maxRetry,
@@ -112,6 +119,7 @@ func (f *fetcher[T]) Snapshot() any {
 			"minQuerySize":        f.minQuerySize,
 			"maxQuerySize":        f.maxQuerySize,
 			"targetKeepDataSize":  f.targetKeepDataSize,
+			"maxReadyBlockCount":  f.maxReadyBlockCount,
 			"targetQueryDataSize": f.targetQueryDataSize,
 			"maxQueryTime":        f.maxQueryTime.String(),
 			"maxRetry":            f.maxRetry,
@@ -142,6 +150,12 @@ func (f *fetcher[T]) GetFullRange() controller.BlockRange {
 	return f.full
 }
 
+// bufferFull must be called with f.mu held.
+func (f *fetcher[T]) bufferFull() bool {
+	return f.totalSize >= f.targetKeepDataSize ||
+		(f.maxReadyBlockCount > 0 && f.fetchingStart-f.full.StartBlock >= f.maxReadyBlockCount)
+}
+
 func (f *fetcher[T]) nextFetchSize(current uint64, got int, used time.Duration) uint64 {
 	if f.targetQueryDataSize > 0 && int(float64(got)*f.querySizeMultiplier) >= f.targetQueryDataSize {
 		return current // data got is big enough
@@ -167,8 +181,8 @@ func (f *fetcher[T]) growth(ctx context.Context) (pause bool, reject bool, chang
 		// no more data need to fetch
 		return true, true, nil
 	}
-	if f.totalSize >= f.targetKeepDataSize {
-		// total size of f.data is more than the limit, continue pause to wait consume
+	if f.bufferFull() {
+		// the buffer is more than the limit, continue pause to wait consume
 		f.winChanged = make(chan struct{})
 		return true, false, f.winChanged
 	}
@@ -251,7 +265,7 @@ func (f *fetcher[T]) growth(ctx context.Context) (pause bool, reject bool, chang
 			close(done)
 			f.winChanged = make(chan struct{})
 			logger.Debugw("growth succeed", "used", time.Since(growthStartAt).String(), "current", f.current())
-			return f.totalSize >= f.targetKeepDataSize, false, f.winChanged
+			return f.bufferFull(), false, f.winChanged
 		}
 	}
 	// fetch the data in [start,end], keep reducing the range size, and keep retrying,

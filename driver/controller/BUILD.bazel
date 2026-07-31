@@ -39,6 +39,7 @@ go_library(
 go_test(
     name = "controller_test",
     srcs = [
+        "block_builder_reorg_test.go",
         "checkpoint_test.go",
         "errors_test.go",
         "main_test.go",

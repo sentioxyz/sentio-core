@@ -68,6 +68,7 @@ func BuildTxFetcher(
 		1,
 		100,
 		100000,
+		0, // maxReadyBlockCount: unlimited, entries exist only for blocks with data
 		1000, // the target is that each query got no more than 1000 transactions
 		time.Second*10,
 		20,

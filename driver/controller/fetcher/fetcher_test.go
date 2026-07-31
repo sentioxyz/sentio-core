@@ -66,6 +66,7 @@ func Test_Fetcher(t *testing.T) {
 		3,
 		10,
 		20,
+		0, // maxReadyBlockCount: unlimited
 		20,
 		time.Second,
 		3,

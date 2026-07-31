@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/pkg/errors"
 
 	"sentioxyz/sentio-core/common/envconf"
+	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
@@ -201,6 +203,7 @@ func BuildLogFetcher(
 		1,
 		1000,
 		10000,
+		50000, // maxReadyBlockCount: with Ex every covered block buffers a header-only entry
 		2000, // the target is that each query got no more than 2000 logs
 		time.Second*5,
 		20,
@@ -219,6 +222,33 @@ func BuildLogFetcher(
 					topics[i] = s
 				}
 			}
+			// eth_getLogsEx is always the first choice: its hash link carries every covered
+			// block's identity, which covers the watching range too.
+			exResp, err := client.GetLogsEx(ctx, start, end, address, topics)
+			if err == nil {
+				entries, buildErr := buildLogEntriesFromEx(ctx, client, req, exResp, end)
+				if buildErr == nil && end == latest.GetBlockNumber() {
+					// an older server without the over-the-head guard could still trim a tip
+					// query down to nothing (empty link) — require the tip block's identity
+					buildErr = checkTipCovered(entries, end)
+				}
+				if buildErr != nil {
+					return nil, buildErr
+				}
+				return entries, nil
+			}
+			if !errors.Is(err, errMethodNotSupported) {
+				return nil, err
+			}
+			// The endpoint has no Ex support. In the watching range, query block by block BY
+			// HASH instead: a super node whose latest slot cache briefly holds an orphan sibling
+			// then misses (and errors, retried until the cache heals) instead of silently
+			// answering from the wrong fork.
+			if end == latest.GetBlockNumber() {
+				return fetchLogsAtTip(ctx, client, req, start, end, address, topics)
+			}
+			// plain fallback: results carry no identity for empty blocks, the historical reorg
+			// miss risk stays with the endpoint
 			allLogs, err := client.GetLogs(ctx, start, end, address, topics)
 			if err != nil {
 				return nil, err
@@ -237,4 +267,91 @@ func BuildLogFetcher(
 			return result, nil
 		},
 	)
+}
+
+// fetchLogsAtTip serves the watching range for endpoints without Ex support: every block is
+// fetched individually and concurrently — first its header, then its logs BY HASH. Every
+// returned entry carries that header, so even zero-log tip blocks flow into the header list and
+// the checkpoint chain.
+func fetchLogsAtTip(
+	ctx context.Context,
+	client Client,
+	req LogRequirement,
+	start, end uint64,
+	address []string,
+	topics [][]string,
+) (map[uint64]BlockMainData, error) {
+	entries := make([]BlockMainData, end-start+1)
+	g, gctx := errgroup.WithContext(ctx)
+	for bn := start; bn <= end; bn++ {
+		g.Go(func() error {
+			h, err := client.GetHeader(gctx, bn)
+			if err != nil {
+				return err
+			}
+			logs, err := client.GetLogsByBlockHash(gctx, bn, h.BlockHash, address, topics)
+			if err != nil {
+				if !errors.Is(err, errMethodNotSupported) {
+					return err
+				}
+				// the endpoint rejects the EIP-234 blockHash filter (detected via JSON-RPC
+				// invalid-params and cached in the client): fall back to by-number for this
+				// block — a NON-EMPTY result is still verified against the header by the
+				// per-log block hash check downstream, an empty one stays unverifiable
+				// (accepted for such endpoints)
+				if logs, err = client.GetLogs(gctx, bn, bn, address, topics); err != nil {
+					return err
+				}
+			}
+			if logs, err = FilterLogs(gctx, client, logs, req.LogFilter); err != nil {
+				return err
+			}
+			entries[bn-start] = BlockMainData{Logs: logs, Header: &h}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	result := make(map[uint64]BlockMainData, len(entries))
+	for i := range entries {
+		result[start+uint64(i)] = entries[i]
+	}
+	return result, nil
+}
+
+// buildLogEntriesFromEx converts an eth_getLogsEx response into per-block entries: every block
+// covered by the (re-validated) hash link gets an entry carrying its identity — including blocks
+// with zero matching logs — and covered logs get their stripped blockHash backfilled. Logs of
+// blocks below the covered range keep the upstream blockHash and carry no identity.
+func buildLogEntriesFromEx(
+	ctx context.Context,
+	client Client,
+	req LogRequirement,
+	resp GetLogsExResponse,
+	end uint64,
+) (map[uint64]BlockMainData, error) {
+	links, err := verifiedLinks(resp.BlockHashLinkPart)
+	if err != nil {
+		return nil, err
+	}
+	if err = checkLinksReachEnd(links, end); err != nil {
+		return nil, err
+	}
+	result := emptyEntriesFromLinks(links)
+	dict := linkIndex(links)
+	logs, err := FilterLogs(ctx, client, resp.Logs, req.LogFilter)
+	if err != nil {
+		return nil, err
+	}
+	for _, lg := range logs {
+		if link, covered := dict[lg.BlockNumber]; covered {
+			lg.BlockHash = link.Hash
+			lg.BlockTimestamp = link.Timestamp
+		}
+		entry := result[lg.BlockNumber]
+		entry.Logs = append(entry.Logs, lg)
+		result[lg.BlockNumber] = entry
+	}
+	return result, nil
 }

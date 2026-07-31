@@ -27,6 +27,7 @@ func Test_transfer(t *testing.T) {
 		3,
 		10,
 		20,
+		0, // maxReadyBlockCount: unlimited
 		20,
 		time.Second,
 		3,

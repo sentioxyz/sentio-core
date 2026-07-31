@@ -9,6 +9,10 @@ import (
 
 type Storage interface {
 	QueryBlocks(ctx context.Context, where string, args ...any) ([]evm.ExtendedHeader, error)
+	// QueryBlockLinks returns the per-block chain identity (number/hash/parentHash/timestamp) of
+	// every block in [from, to], ascending. It reads only the identity columns, so the Ex range
+	// queries can report which fork their results came from without loading full block rows.
+	QueryBlockLinks(ctx context.Context, from, to uint64) ([]evm.BlockLink, error)
 	QueryBlockTxHashes(ctx context.Context, blockNumber uint64) ([]string, error)
 	QueryTxs(ctx context.Context, where string, args ...any) ([]evm.ExtendedTransaction, error)
 	// QueryLogs scans at most limit raw rows (0 = unlimited; a SQL LIMIT bounding the

@@ -67,11 +67,27 @@ func StoreQueryLimit(limit int) int {
 // the store. It complements the storage-level scan limit — that one bounds the resource use of a
 // single SQL, this one bounds the merged response the caller receives.
 func CheckTooManyResults[T any](result []T, err error, limit int) ([]T, error) {
+	return CheckTooManyResultsBy(result, err, limit, nil)
+}
+
+// CheckTooManyResultsBy is CheckTooManyResults with a custom record count per element (nil sizeOf
+// means 1 each), for responses whose elements are containers rather than records.
+func CheckTooManyResultsBy[T any](result []T, err error, limit int, sizeOf func(T) int) ([]T, error) {
 	if err != nil {
 		return nil, err
 	}
-	if limit > 0 && len(result) > limit {
-		return nil, NewTooManyResultsError()
+	if limit > 0 {
+		total := 0
+		for i := range result {
+			if sizeOf == nil {
+				total++
+			} else {
+				total += sizeOf(result[i])
+			}
+			if total > limit {
+				return nil, NewTooManyResultsError()
+			}
+		}
 	}
 	return result, nil
 }

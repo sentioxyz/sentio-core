@@ -48,8 +48,12 @@ func NewProxyWithLatestSlotCacheMiddleware(
 				result, err = jsonrpc.CallMethod(svr.EthGetBlockReceipts, ctx, params)
 			case "eth_getLogs":
 				result, err = jsonrpc.CallMethod(svr.EthGetLogs, ctx, params)
+			case "eth_getLogsEx":
+				result, err = jsonrpc.CallMethod(svr.EthGetLogsEx, ctx, params)
 			case "trace_filter":
 				result, err = jsonrpc.CallMethod(svr.TraceFilter, ctx, params)
+			case "trace_filterEx":
+				result, err = jsonrpc.CallMethod(svr.TraceFilterEx, ctx, params)
 			default:
 				return next(ctx, method, params)
 			}
@@ -232,6 +236,95 @@ func (s *proxyWithLatestSlotCacheService) EthGetLogs(
 		logs = make([]types.Log, 0)
 	}
 	return logs, err
+}
+
+// EthGetLogsEx implements eth_getLogsEx for the slot-cache-only super node: blocks inside the
+// cache range carry their chain identity, the sub-range below it is proxied upstream via the
+// plain method and stays unverifiable (no local store can vouch for it).
+func (s *proxyWithLatestSlotCacheService) EthGetLogsEx(
+	ctx context.Context,
+	args *evm.EthGetLogsArgs,
+) (resp evm.EthGetLogsExResponse, err error) {
+	if args.BlockHash != nil {
+		// see standardService.GetLogsEx: the by-hash form is deliberately unsupported
+		return resp, errors.Errorf("eth_getLogsEx does not support the blockHash filter, query by block range instead")
+	}
+	checker := args.Checker()
+	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0, 0,
+		func(st *evm.Slot) ([]exBlock[types.Log], error) {
+			return exBlockFromSlot(st, utils.FilterArr(st.Logs, checker)), nil
+		},
+		func(ctx context.Context, r rg.Range, _ int) ([]exBlock[types.Log], error) {
+			fromBlock, toBlock := (rpc.BlockNumber)(r.Start), (rpc.BlockNumber)(*r.End)
+			proxyArgs := *args
+			proxyArgs.FromBlock = &fromBlock
+			proxyArgs.ToBlock = &toBlock
+			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
+				ctx,
+				"eth_getLogs",
+				[]any{&proxyArgs},
+				s.client.ClientPool,
+			)
+			if proxyErr != nil {
+				return nil, proxyErr
+			}
+			var result []types.Log
+			if proxyErr = json.Unmarshal(proxyResult, &result); proxyErr != nil {
+				return nil, proxyErr
+			}
+			return []exBlock[types.Log]{{items: result}}, nil
+		},
+		nil, // will not be used because hash always nil
+		withoutTagFallthrough[exBlock[types.Log]](),
+	)
+	if err != nil {
+		return resp, err
+	}
+	resp.BlockHashLinkPart, resp.Logs, err = assembleEx(elems)
+	return resp, err
+}
+
+// TraceFilterEx is the trace_filter counterpart of EthGetLogsEx, see there.
+func (s *proxyWithLatestSlotCacheService) TraceFilterEx(
+	ctx context.Context,
+	args *evm.TraceFilterArgs,
+) (resp evm.TraceFilterExResponse, err error) {
+	checker := args.Checker()
+	elems, err := queryWithCache(ctx, s.slotCache, nil, nil, args.FromBlock, args.ToBlock, 0, 0,
+		func(st *evm.Slot) ([]exBlock[evm.ParityTrace], error) {
+			if !st.HaveTrace {
+				return nil, errors.Errorf("trace invalid in block %d", st.GetNumber())
+			}
+			return exBlockFromSlot(st, utils.FilterArr(st.Traces, checker)), nil
+		},
+		func(ctx context.Context, r rg.Range, _ int) ([]exBlock[evm.ParityTrace], error) {
+			fromBlock, toBlock := (rpc.BlockNumber)(r.Start), (rpc.BlockNumber)(*r.End)
+			proxyArgs := *args
+			proxyArgs.FromBlock = &fromBlock
+			proxyArgs.ToBlock = &toBlock
+			proxyResult, proxyErr := jsonrpc.ProxyJSONRPCRequest(
+				ctx,
+				"trace_filter",
+				[]any{&proxyArgs},
+				s.client.ClientPool,
+			)
+			if proxyErr != nil {
+				return nil, proxyErr
+			}
+			var result []evm.ParityTrace
+			if proxyErr = json.Unmarshal(proxyResult, &result); proxyErr != nil {
+				return nil, proxyErr
+			}
+			return []exBlock[evm.ParityTrace]{{items: result}}, nil
+		},
+		nil, // will not be used because hash always nil
+		withoutTagFallthrough[exBlock[evm.ParityTrace]](),
+	)
+	if err != nil {
+		return resp, err
+	}
+	resp.BlockHashLinkPart, resp.Traces, err = assembleEx(elems)
+	return resp, err
 }
 
 func (s *proxyWithLatestSlotCacheService) TraceFilter(

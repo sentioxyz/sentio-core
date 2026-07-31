@@ -66,3 +66,26 @@ func Test_CheckTooManyResults(t *testing.T) {
 	_, err = CheckTooManyResults[int](nil, plain, 3)
 	assert.Equal(t, plain, err)
 }
+
+func TestCheckTooManyResultsBy(t *testing.T) {
+	sizeOf := func(v []int) int { return len(v) }
+	containers := [][]int{{1, 2, 3}, {}, {4, 5}}
+
+	got, err := CheckTooManyResultsBy(containers, nil, 5, sizeOf)
+	assert.NoError(t, err)
+	assert.Equal(t, containers, got)
+
+	// 5 records in 3 containers: a record cap of 4 must trip even though len(elems) < 4
+	_, err = CheckTooManyResultsBy(containers, nil, 4, sizeOf)
+	assert.True(t, IsTooManyResultsError(err))
+
+	// nil sizeOf falls back to counting elements
+	got, err = CheckTooManyResultsBy(containers, nil, 3, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, containers, got)
+
+	// limit 0 stays unlimited
+	got, err = CheckTooManyResultsBy(containers, nil, 0, sizeOf)
+	assert.NoError(t, err)
+	assert.Equal(t, containers, got)
+}

@@ -26,6 +26,7 @@ type EthVariationCtrl interface {
 	BuildTablesMeta(blockPartitionSize uint64) clickhouse.TablesMeta
 
 	QueryBlocks(ctx context.Context, where string, args ...any) ([]evm.ExtendedHeader, error)
+	QueryBlockLinks(ctx context.Context, from, to uint64) ([]evm.BlockLink, error)
 	QueryBlockTxHashes(ctx context.Context, blockNumber uint64) ([]string, error)
 	QueryTxs(ctx context.Context, where string, args ...any) ([]evm.ExtendedTransaction, error)
 	QueryLogs(ctx context.Context, where string, limit int, args ...any) ([]types.Log, error)

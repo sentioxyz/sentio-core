@@ -38,7 +38,13 @@ go_library(
 
 go_test(
     name = "ch_test",
-    srcs = ["utils_test.go"],
+    srcs = [
+        "utils_test.go",
+        "variation_test.go",
+    ],
     embed = [":ch"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//common/chx",
+        "@com_github_stretchr_testify//assert",
+    ],
 )

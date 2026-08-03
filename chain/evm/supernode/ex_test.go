@@ -215,6 +215,21 @@ func TestGetLogsExStoreLinkSpliceMismatch(t *testing.T) {
 	assert.ErrorContains(t, err, "link mismatch")
 }
 
+func TestCheckStoreLinks(t *testing.T) {
+	r := rg.NewRange(98, 100)
+	// exact duplicate rows are collapsed by the store query (the blocks table has no
+	// deduplication), so what arrives here is one identity per block
+	assert.NoError(t, checkStoreLinks([]evm.BlockLink{storeLink(98), storeLink(99), storeLink(100)}, r))
+	// a gap must not be served
+	assert.ErrorContains(t, checkStoreLinks([]evm.BlockLink{storeLink(98), storeLink(100)}, r), "missing block 99")
+	// rows that disagree about a block are ambiguous: never pick one, retry instead
+	fork := storeLink(99)
+	fork.Hash = common.BigToHash(big.NewInt(999))
+	assert.ErrorContains(t,
+		checkStoreLinks([]evm.BlockLink{storeLink(98), storeLink(99), fork, storeLink(100)}, r),
+		"conflicting identities for block 99")
+}
+
 func TestGetLogsExIncompleteStoreLinks(t *testing.T) {
 	// store misses one block's link row: must error instead of shipping a hole
 	cache := newFakeSlotCache(100, 105)
@@ -223,7 +238,7 @@ func TestGetLogsExIncompleteStoreLinks(t *testing.T) {
 
 	from, to := rpc.BlockNumber(98), rpc.BlockNumber(105)
 	_, err := s.GetLogsEx(context.Background(), &evm.EthGetLogsArgs{FromBlock: &from, ToBlock: &to})
-	assert.ErrorContains(t, err, "block links")
+	assert.ErrorContains(t, err, "missing block 99")
 }
 
 func TestGetLogsExRejectsByHash(t *testing.T) {

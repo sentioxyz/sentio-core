@@ -234,6 +234,29 @@ func exBlockFromSlot[ITEM any](st *evm.Slot, items []ITEM) []exBlock[ITEM] {
 	return []exBlock[ITEM]{{link: &link, items: items}}
 }
 
+// checkStoreLinks validates the store's block identities for a queried sub-range: exactly one
+// identity per block, no gaps. Plain duplicate rows are collapsed by the store query itself (the
+// blocks table has no deduplication), so anything left over here means the range is either
+// incompletely synced or holds rows that disagree about a block — both retryable, never
+// something to serve.
+func checkStoreLinks(links []evm.BlockLink, r rg.Range) error {
+	seen := make(map[uint64]evm.BlockLink, len(links))
+	for _, link := range links {
+		if prev, dup := seen[link.Number]; dup {
+			return errors.Errorf(
+				"the store holds conflicting identities for block %d (%s and %s), retry later",
+				link.Number, prev.Hash, link.Hash)
+		}
+		seen[link.Number] = link
+	}
+	for bn := r.Start; bn <= *r.End; bn++ {
+		if _, has := seen[bn]; !has {
+			return errors.Errorf("the store is missing block %d of range %s, retry later", bn, r)
+		}
+	}
+	return nil
+}
+
 // exBlocksFromStore distributes store items into one exBlock per covered block; links must cover
 // the queried sub-range completely (one per block, ascending), which the caller verifies.
 func exBlocksFromStore[ITEM any](

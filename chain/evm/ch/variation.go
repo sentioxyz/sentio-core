@@ -329,8 +329,12 @@ func (c *EthVariationController[BLOCK, TXN]) QueryBlockLinks(
 	ctx context.Context,
 	from, to uint64,
 ) (result []evm.BlockLink, err error) {
+	// DISTINCT: the blocks table is a plain MergeTree with no deduplication, so a re-ingested
+	// block legitimately leaves several IDENTICAL rows behind. Collapsing them here keeps the
+	// one-row-per-block contract of this method while still surfacing rows that genuinely
+	// DISAGREE about a block's identity (those stay separate and the caller rejects them).
 	sql := fmt.Sprintf(
-		"SELECT block_number, block_hash, parent_hash, block_timestamp FROM %s "+
+		"SELECT DISTINCT block_number, block_hash, parent_hash, block_timestamp FROM %s "+
 			"WHERE block_number >= %d AND block_number <= %d ORDER BY block_number",
 		c.ctrl.FullLogicName(tableNameBlocks), from, to)
 	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {

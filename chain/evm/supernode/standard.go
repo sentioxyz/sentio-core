@@ -419,9 +419,8 @@ func (s *standardService) GetLogsEx(
 				if queryErr != nil {
 					return nil, queryErr
 				}
-				if uint64(len(links)) != *r.Size() {
-					return nil, errors.Errorf("the store returned %d block links for range %s (want %d)",
-						len(links), r, *r.Size())
+				if err := checkStoreLinks(links, r); err != nil {
+					return nil, err
 				}
 				// topics filtering condition is not strict enough, need post-filtering
 				logs = utils.FilterArr(logs, checker)
@@ -558,9 +557,8 @@ func (s *standardService) TraceFilterEx(
 				if queryErr != nil {
 					return nil, queryErr
 				}
-				if uint64(len(links)) != *r.Size() {
-					return nil, errors.Errorf("the store returned %d block links for range %s (want %d)",
-						len(links), r, *r.Size())
+				if err := checkStoreLinks(links, r); err != nil {
+					return nil, err
 				}
 				traces = utils.FilterArr(traces, checker)
 				return exBlocksFromStore(links, traces, func(trace evm.ParityTrace) uint64 { return trace.BlockNumber }), nil

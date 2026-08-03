@@ -1,6 +1,7 @@
 package ch
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,10 +18,9 @@ import (
 func TestQuerySQLIsDeduplicated(t *testing.T) {
 	c := NewEthVarCtrl("1", chx.Controller{}).(*EthVariationController[*Block, *Transaction])
 
-	// value = the ORDER BY that makes the read follow the table's sort key, which is what lets
-	// ClickHouse deduplicate streaming (DistinctSortedStreamTransform) instead of hashing the
-	// whole result; blockTxHashes reads a single block, so its key order starts at
-	// transaction_index
+	// value = the output order callers rely on. It is NOT what makes the dedup streaming -- that
+	// comes from the read order and is covered by TestQuerySQLDistinctCoversSortKey; logs and
+	// blockTxHashes deliberately order by something other than a sort-key prefix.
 	for name, tc := range map[string]struct{ sql, orderBy string }{
 		"blocks":        {c.blocksSQL("block_number = 1"), "ORDER BY block_number"},
 		"blockLinks":    {c.blockLinksSQL(1, 2), "ORDER BY block_number"},
@@ -33,8 +33,59 @@ func TestQuerySQLIsDeduplicated(t *testing.T) {
 		},
 	} {
 		assert.Truef(t, strings.HasPrefix(tc.sql, "SELECT DISTINCT "), "%s must deduplicate: %s", name, tc.sql)
-		assert.Containsf(t, tc.sql, tc.orderBy, "%s must read in sort-key order: %s", name, tc.sql)
+		assert.Containsf(t, tc.sql, tc.orderBy, "%s must return rows in the order callers expect: %s", name, tc.sql)
 	}
+}
+
+// The streaming dedup only holds while every sort-key column is either selected into the DISTINCT
+// list or pinned to a single value by the WHERE: that is what lets ClickHouse reuse the MergeTree
+// read order and clear its seen-set as the key advances, instead of hashing the whole result. The
+// sort keys come from BuildTablesMeta so adding or reordering one fails here rather than silently
+// turning every read into a full hash.
+func TestQuerySQLDistinctCoversSortKey(t *testing.T) {
+	c := NewEthVarCtrl("1", chx.Controller{}).(*EthVariationController[*Block, *Transaction])
+	sortKeys := make(map[string][]string)
+	for _, tbl := range c.BuildTablesMeta(500000).Tables {
+		sortKeys[tbl.Table.Name] = tbl.Table.Config.OrderBy
+	}
+	for name, tc := range map[string]struct{ sql, table string }{
+		// a WHERE that pins nothing, so the DISTINCT list itself has to carry the sort key;
+		// blockTxHashes is the one intended exception and pins block_number on its own
+		"blocks":        {c.blocksSQL("block_number > 1"), tableNameBlocks},
+		"blockLinks":    {c.blockLinksSQL(1, 2), tableNameBlocks},
+		"blockTxHashes": {c.blockTxHashesSQL(), tableNameTransactions},
+		"txs":           {c.txsSQL("block_number > 1"), tableNameTransactions},
+		"logs":          {c.logsSQL("block_number > 1", 0), tableNameLogs},
+		"traces":        {c.tracesSQL("block_number > 1", 0), tableNameTraces},
+	} {
+		sortKey := sortKeys[tc.table]
+		assert.NotEmptyf(t, sortKey, "%s: no sort key declared for table %s", name, tc.table)
+		selected := distinctColumns(t, tc.sql)
+		for _, col := range sortKey {
+			pinned := strings.Contains(tc.sql, col+" = ")
+			assert.Truef(t, slices.Contains(selected, col) || pinned,
+				"%s: sort-key column %s is neither selected nor pinned to one value: %s", name, col, tc.sql)
+		}
+	}
+}
+
+// distinctColumns returns the column list of a SELECT DISTINCT, stripped of quoting.
+func distinctColumns(t *testing.T, sql string) []string {
+	t.Helper()
+	const prefix = "SELECT DISTINCT "
+	rest, ok := strings.CutPrefix(sql, prefix)
+	if !ok {
+		t.Fatalf("not a SELECT DISTINCT: %s", sql)
+	}
+	list, _, ok := strings.Cut(rest, " FROM ")
+	if !ok {
+		t.Fatalf("no FROM clause: %s", sql)
+	}
+	cols := strings.Split(strings.ReplaceAll(list, "`", ""), ",")
+	for i := range cols {
+		cols[i] = strings.TrimSpace(cols[i])
+	}
+	return cols
 }
 
 func TestBlockTxHashesSQLKeepsOrderColumnInDistinct(t *testing.T) {

@@ -310,8 +310,14 @@ func (c *EthVariationController[BLOCK, TXN]) BuildTablesMeta(blockPartitionSize 
 // collapsed — they stay separate so the readers reject them (QueryBlockLinks via
 // checkStoreLinks, logs and traces via the driver's per-record block-hash check).
 //
-// Cost: each ORDER BY is a prefix of the table's sort key, so ClickHouse reads in order and
-// deduplicates streaming (DistinctSortedStreamTransform) instead of hashing the whole result.
+// Cost: the DISTINCT stays streaming (DistinctSortedStreamTransform) instead of hashing the whole
+// result, because the MergeTree read is already ordered by the table's sort key and every DISTINCT
+// list below either selects those columns or pins them to one value in the WHERE, so ClickHouse
+// only tracks rows within one run of equal key values. That follows from the read order, not from
+// the ORDER BY: blocks, blockLinks, txs and traces additionally order by an exact sort-key prefix
+// and so need no extra sorting, while logs order by (block_number, log_index) -- skipping
+// transaction_index -- and blockTxHashes by transaction_index alone (its WHERE pins one
+// block_number); both leave only a sort over rows that are already deduplicated and cap-bounded.
 func (c *EthVariationController[BLOCK, TXN]) blocksSQL(where string) string {
 	return fmt.Sprintf("SELECT DISTINCT `%s` FROM %s WHERE %s ORDER BY block_number",
 		strings.Join(objectx.CollectTagValue(c.newBlock(), "clickhouse", objectx.HasTag("clickhouse")), "`,`"),

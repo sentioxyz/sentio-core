@@ -305,10 +305,18 @@ func (c *EthVariationController[BLOCK, TXN]) BuildTablesMeta(blockPartitionSize 
 // The chain tables are plain MergeTree with NO deduplication, so re-ingesting a block (a
 // backfill re-run, a resumed sync) legitimately leaves several IDENTICAL rows behind. Every
 // query below therefore selects DISTINCT: byte-identical rows collapse at the source, so a
-// caller never sees the same block/transaction/log/trace twice and a duplicated region cannot
-// trip a record cap. Rows that genuinely DISAGREE about the same key (a fork's rows) are NOT
-// collapsed — they stay separate so the readers reject them (QueryBlockLinks via
-// checkStoreLinks, logs and traces via the driver's per-record block-hash check).
+// caller never sees the same block/transaction/log/trace twice and a region duplicated
+// byte-for-byte cannot trip a record cap.
+//
+// Rows that DISAGREE about the same key are NOT collapsed, and what happens next depends on
+// whether they also disagree about the block identity. If they do -- the fork case -- the readers
+// reject them (QueryBlockLinks via checkStoreLinks, logs and traces via the driver's per-record
+// block-hash check). If they carry the SAME block hash but different content, nothing here or in
+// the driver rejects them: they reach the caller as extra records and can still trip a record cap.
+// Two ingests of one block can differ that way -- observed on Polygon, where one ingest dropped a
+// subtree of a transaction's trace tree and so shifted every later trace_index, leaving one
+// trace_index holding two genuinely different traces. DISTINCT cannot repair that, and neither can
+// deduplicating by key (that would drop a real trace); only re-ingesting the range can.
 //
 // Cost: the DISTINCT stays streaming (DistinctSortedStreamTransform) instead of hashing the whole
 // result, because the MergeTree read is already ordered by the table's sort key and every DISTINCT

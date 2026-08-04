@@ -42,6 +42,10 @@ type StdLatestSlotCache[SLOT Slot] struct {
 	loadExtUsed        timehist.Histogram
 	loadExtFailed      uint64
 	loadExtReorg       uint64
+	repairUsed         timehist.Histogram
+	repairOK           uint64
+	repairFailed       uint64
+	lastRepairErr      error
 	l2CacheDumpUsed    timehist.Histogram
 	l2CacheDumpFailed  uint64
 	l2CacheLastDumpAt  time.Time
@@ -425,6 +429,86 @@ func (c *StdLatestSlotCache[SLOT]) KeepGrowth(ctx context.Context) error {
 	}
 }
 
+// repairRound scans the cached slots for degraded ones (non-empty Features()) and asks the
+// repairer to rebuild them, patching repaired slots back into the cache. It stops at the
+// first failed attempt and leaves the rest for the next round, so a still-broken upstream
+// is probed by at most one request per round.
+func (c *StdLatestSlotCache[SLOT]) repairRound(ctx context.Context, repairer SlotRepairer[SLOT]) {
+	c.lock.RLock()
+	if !c.ready || c.curRange.IsEmpty() {
+		c.lock.RUnlock()
+		return
+	}
+	var degraded []SLOT
+	for sn := c.curRange.Start; sn <= *c.curRange.End; sn++ {
+		if st, has := c.memCache[sn]; has && len(st.Features()) > 0 {
+			degraded = append(degraded, st)
+		}
+	}
+	c.lock.RUnlock()
+	if len(degraded) == 0 {
+		return
+	}
+
+	_, logger := log.FromContext(ctx, "degraded", len(degraded))
+	var repairedCount int
+	for _, st := range degraded {
+		startAt := time.Now()
+		fixed, ok, err := repairer.RepairSlot(ctx, st)
+		used := time.Since(startAt)
+		c.statLock.Lock()
+		c.lastRepairErr = err
+		if err != nil {
+			c.repairFailed += 1
+		} else if ok {
+			c.repairUsed = c.repairUsed.Incr(used)
+			c.repairOK += 1
+		}
+		c.statLock.Unlock()
+		if err != nil {
+			logger.Warnfe(err, "repair slot %d failed, leave the rest %d degraded slots to the next round",
+				st.GetNumber(), len(degraded)-repairedCount)
+			break
+		}
+		if !ok {
+			continue
+		}
+		// patch back under the write lock, guarding against eviction or reorg replacement
+		// that may have happened while the repair was running
+		c.lock.Lock()
+		if cur, has := c.memCache[fixed.GetNumber()]; has && cur.GetHash() == fixed.GetHash() {
+			c.memCache[fixed.GetNumber()] = fixed
+			repairedCount++
+		}
+		c.lock.Unlock()
+	}
+	if repairedCount > 0 {
+		logger.Infow("repaired degraded slots in cache", "repaired", repairedCount)
+	}
+}
+
+// KeepRepair periodically retries rebuilding degraded slots in the cache (e.g. evm slots that
+// entered without trace data), so consumers needing the degraded part do not have to wait for
+// the cache window to slide past them. No-op if the persistent dimension does not implement
+// SlotRepairer.
+func (c *StdLatestSlotCache[SLOT]) KeepRepair(ctx context.Context, interval time.Duration) error {
+	repairer, ok := c.persistent.(SlotRepairer[SLOT])
+	if !ok {
+		return nil
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for round := 0; ; round++ {
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		roundCtx, _ := log.FromContext(ctx, "round", round)
+		c.repairRound(roundCtx, repairer)
+	}
+}
+
 func (c *StdLatestSlotCache[SLOT]) KeepDump(ctx context.Context) error {
 	if c.l2Cache == nil {
 		return nil
@@ -480,6 +564,14 @@ func (c *StdLatestSlotCache[SLOT]) Snapshot() any {
 			"failed":     c.loadExtFailed,
 			"reorgCount": c.loadExtReorg,
 		},
+	}
+	if _, isRepairer := c.persistent.(SlotRepairer[SLOT]); isRepairer {
+		m["repair"] = map[string]any{
+			"used":    c.repairUsed.String(),
+			"ok":      c.repairOK,
+			"failed":  c.repairFailed,
+			"lastErr": fmt.Sprintf("%+v", c.lastRepairErr),
+		}
 	}
 	if c.l2Cache != nil {
 		m["l2cache"] = map[string]any{

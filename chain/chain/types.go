@@ -33,6 +33,17 @@ type SlotGetter[SLOT Slot] interface {
 	GetSlotHeader(ctx context.Context, number uint64) (Slot, error)
 }
 
+// SlotRepairer is an optional interface a Dimension can implement to rebuild the degraded
+// parts of a slot that entered the cache incomplete (i.e. with a non-empty Features()),
+// e.g. an evm slot that got the MissTrace feature because trace loading failed.
+type SlotRepairer[SLOT Slot] interface {
+	// RepairSlot tries to rebuild the missing parts of st and returns the repaired slot.
+	// It must not modify st in place — st is shared with readers of the cache.
+	// ok=false with a nil error means the slot cannot (or need not) be repaired and should
+	// be skipped; a non-nil error means the attempt failed and may be retried later.
+	RepairSlot(ctx context.Context, st SLOT) (repaired SLOT, ok bool, err error)
+}
+
 type Dimension[SLOT Slot] interface {
 	Init(ctx context.Context) error
 	Load(ctx context.Context, interval rg.Range, slotChan chan<- SLOT) error

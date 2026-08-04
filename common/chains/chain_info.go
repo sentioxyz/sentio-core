@@ -1363,7 +1363,7 @@ var SentioDevnetInfo = EthChainInfo{
     AdditionalSlugs: []string{},
     MainnetChainID: ChainID(SentioDevnetID),
     ChainID: ChainID(SentioDevnetID),
-    ExplorerURL: "https://devnet2-explorer.sentio.xyz",
+    ExplorerURL: "https://devnet-explorer.sentio.xyz",
   },
   Variation: EthVariationDefault,
   TokenSymbol: "ETH",

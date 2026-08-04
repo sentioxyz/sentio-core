@@ -1,0 +1,65 @@
+name: Publish @sentio/chain
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - release
+    paths:
+      - packages/chain/**
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC), no NPM_TOKEN needed
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Set NPM variables
+        id: npm
+        run: |
+          DIST_TAG=rc
+          if [[ "${GITHUB_REF#refs/heads/}" == "release" ]]; then
+            DIST_TAG=latest
+          fi
+          echo "dist_tag=${DIST_TAG}" >> $GITHUB_OUTPUT
+      - name: Install
+        run: pnpm install
+      - name: Test & build
+        run: |
+          pnpm --filter @sentio/chain test
+          pnpm --filter @sentio/chain package
+      - name: Semantic Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v6
+        with:
+          working_directory: packages/chain
+          semantic_version: 24
+          extra_plugins: semantic-release-monorepo
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+      - name: NPM Publish
+        if: steps.semantic.outputs.new_release_published == 'true'
+        # clean-publish strips `scripts` so the package's `preinstall: only-allow pnpm`
+        # doesn't run in consumers' installs.
+        run: |
+          npm version --no-git-tag-version --allow-same-version ${{ steps.semantic.outputs.new_release_version }}
+          pnpm exec clean-publish --fields scripts --package-manager pnpm -- --no-git-checks --tag ${{ steps.npm.outputs.dist_tag }}
+          echo "### Published @sentio/chain@${{ steps.semantic.outputs.new_release_version }} (${{ steps.npm.outputs.dist_tag }})" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.semantic.outputs.new_release_notes }}" >> $GITHUB_STEP_SUMMARY
+        working-directory: packages/chain
+      - name: Report no release
+        if: steps.semantic.outputs.new_release_published != 'true'
+        run: echo "### No @sentio/chain version cut" >> $GITHUB_STEP_SUMMARY

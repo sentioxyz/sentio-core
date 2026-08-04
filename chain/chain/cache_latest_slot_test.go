@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -120,6 +121,194 @@ func TestStdLatestSlotCache_sameLatestNoOp(t *testing.T) {
 	// growth again without persistent advancing — no change expected
 	assert.NoError(t, c.growth(context.Background(), time.Second))
 	assert.Equal(t, firstRange, c.curRange)
+}
+
+type testRepairDimension struct {
+	*SimpleDimension[*testSlot]
+	repairErr    error           // returned for every attempt when set
+	failSlots    map[uint64]bool // slots whose repair always errors
+	unrepairable map[uint64]bool // slots reported as un-repairable (ok=false, no error)
+	attempted    []uint64
+	onRepair     func(st *testSlot)
+}
+
+func (d *testRepairDimension) RepairSlot(
+	ctx context.Context,
+	st *testSlot,
+) (*testSlot, bool, error) {
+	d.attempted = append(d.attempted, st.GetNumber())
+	if d.onRepair != nil {
+		d.onRepair(st)
+	}
+	if d.unrepairable[st.GetNumber()] {
+		return st, false, nil
+	}
+	if d.repairErr != nil {
+		return st, false, d.repairErr
+	}
+	if d.failSlots[st.GetNumber()] {
+		return st, false, fmt.Errorf("slot %d is poisoned", st.GetNumber())
+	}
+	fixed := *st
+	fixed.Feas = nil
+	return &fixed, true, nil
+}
+
+func newRepairableCache(start, end uint64, degraded ...uint64) (
+	*StdLatestSlotCache[*testSlot],
+	*testRepairDimension,
+) {
+	dim, _, store := newCachePersistent(start, end)
+	for _, sn := range degraded {
+		st, _ := store.slots.Get(sn)
+		st.Feas = []string{"MissTrace"}
+	}
+	repairDim := &testRepairDimension{SimpleDimension: dim}
+	return newStdLatestSlotCache(10*time.Second, 5*time.Second, repairDim), repairDim
+}
+
+func TestStdLatestSlotCache_repairRound(t *testing.T) {
+	// window is [95..100] (see TestStdLatestSlotCache_initialGrowth); 90 is degraded but
+	// outside the window, so only 96 and 99 should be repaired
+	c, repairDim := newRepairableCache(1, 100, 90, 96, 99)
+	assert.NoError(t, c.growth(context.Background(), time.Second))
+
+	for _, sn := range []uint64{96, 99} {
+		st, err := c.GetByNumber(context.Background(), sn)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, st.Features())
+	}
+
+	c.repairRound(context.Background(), repairDim)
+
+	assert.Equal(t, []uint64{96, 99}, repairDim.attempted)
+	for sn := uint64(95); sn <= 100; sn++ {
+		st, err := c.GetByNumber(context.Background(), sn)
+		assert.NoError(t, err)
+		assert.Empty(t, st.Features(), "slot %d should have no features after repair", sn)
+	}
+
+	// nothing degraded left — the next round should not attempt anything
+	c.repairRound(context.Background(), repairDim)
+	assert.Equal(t, []uint64{96, 99}, repairDim.attempted)
+}
+
+func TestStdLatestSlotCache_repairRoundFailureBudget(t *testing.T) {
+	// window is [95..100], all degraded
+	c, repairDim := newRepairableCache(1, 100, 95, 96, 97, 98, 99, 100)
+	assert.NoError(t, c.growth(context.Background(), time.Second))
+
+	repairDim.repairErr = fmt.Errorf("still broken")
+	c.repairRound(context.Background(), repairDim)
+	// the round gives up after maxRepairFailuresPerRound failed probes
+	assert.Equal(t, []uint64{95, 96, 97}, repairDim.attempted)
+	for sn := uint64(95); sn <= 100; sn++ {
+		st, err := c.GetByNumber(context.Background(), sn)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, st.Features())
+	}
+
+	// upstream recovered — everything gets repaired in the next round
+	repairDim.repairErr = nil
+	repairDim.attempted = nil
+	c.repairRound(context.Background(), repairDim)
+	assert.Equal(t, []uint64{95, 96, 97, 98, 99, 100}, repairDim.attempted)
+	for sn := uint64(95); sn <= 100; sn++ {
+		st, err := c.GetByNumber(context.Background(), sn)
+		assert.NoError(t, err)
+		assert.Empty(t, st.Features())
+	}
+}
+
+func TestStdLatestSlotCache_repairRoundPoisonedSlotDoesNotStarve(t *testing.T) {
+	c, repairDim := newRepairableCache(1, 100, 96, 99)
+	assert.NoError(t, c.growth(context.Background(), time.Second))
+
+	// 96's repair keeps erroring, but within the failure budget the round moves on,
+	// so 99 behind it must still be repaired within the same round
+	repairDim.failSlots = map[uint64]bool{96: true}
+	c.repairRound(context.Background(), repairDim)
+	assert.Equal(t, []uint64{96, 99}, repairDim.attempted)
+
+	st, err := c.GetByNumber(context.Background(), 96)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, st.Features(), "poisoned slot stays degraded")
+	st, err = c.GetByNumber(context.Background(), 99)
+	assert.NoError(t, err)
+	assert.Empty(t, st.Features(), "slot behind the poisoned one gets repaired")
+}
+
+func TestStdLatestSlotCache_repairRoundSkipsUnrepairable(t *testing.T) {
+	c, repairDim := newRepairableCache(1, 100, 96, 99)
+	assert.NoError(t, c.growth(context.Background(), time.Second))
+
+	// 96 is un-repairable (ok=false, e.g. trace disabled by configuration): skipped
+	// without consuming the failure budget, and 99 still gets repaired
+	repairDim.unrepairable = map[uint64]bool{96: true}
+	c.repairRound(context.Background(), repairDim)
+	assert.Equal(t, []uint64{96, 99}, repairDim.attempted)
+
+	st, err := c.GetByNumber(context.Background(), 96)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, st.Features(), "unrepairable slot stays degraded")
+	st, err = c.GetByNumber(context.Background(), 99)
+	assert.NoError(t, err)
+	assert.Empty(t, st.Features(), "slot behind the unrepairable one gets repaired")
+}
+
+func TestStdLatestSlotCache_repairRoundDiscardsOnReorg(t *testing.T) {
+	c, repairDim := newRepairableCache(1, 100, 96)
+	assert.NoError(t, c.growth(context.Background(), time.Second))
+
+	// simulate a reorg replacing slot 96 while its repair is in flight: the repaired result
+	// carries the pre-reorg hash and must not overwrite the reorged slot
+	replaced := &testSlot{Number: 96, Hash: "hash-96-reorg", ParentHash: "hash-95"}
+	repairDim.onRepair = func(st *testSlot) {
+		c.lock.Lock()
+		c.memCache[96] = replaced
+		c.lock.Unlock()
+	}
+
+	c.repairRound(context.Background(), repairDim)
+	assert.Equal(t, []uint64{96}, repairDim.attempted)
+	st, err := c.GetByNumber(context.Background(), 96)
+	assert.NoError(t, err)
+	assert.Equal(t, "hash-96-reorg", st.GetHash())
+}
+
+// exercises the growth/repair writer pair under -race: growth's link-boundary lookup of
+// memCache must be synchronized now that repairRound replaces entries concurrently
+func TestStdLatestSlotCache_concurrentGrowthAndRepair(t *testing.T) {
+	dim, rs, store := newCachePersistent(1, 100)
+	for i := uint64(1); i <= 100; i++ {
+		st, _ := store.slots.Get(i)
+		st.Feas = []string{"MissTrace"}
+	}
+	repairDim := &testRepairDimension{SimpleDimension: dim}
+	c := newStdLatestSlotCache(10*time.Second, 5*time.Second, repairDim)
+	assert.NoError(t, c.growth(context.Background(), time.Second))
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for end := uint64(101); end <= 200; end++ {
+			st := newCacheTestSlot(end)
+			st.Feas = []string{"MissTrace"}
+			store.slots.Put(end, st)
+			_, _ = rs.Update(context.Background(), func(rg.Range) rg.Range {
+				return rg.NewRange(1, end)
+			})
+			assert.NoError(t, c.growth(context.Background(), time.Second))
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			c.repairRound(context.Background(), repairDim)
+		}
+	}()
+	wg.Wait()
 }
 
 func TestStdLatestSlotCache_GetByHash(t *testing.T) {

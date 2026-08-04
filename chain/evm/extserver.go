@@ -47,6 +47,7 @@ type ExtServerDimension struct {
 }
 
 var _ chain.Dimension[*Slot] = (*ExtServerDimension)(nil)
+var _ chain.SlotRepairer[*Slot] = (*ExtServerDimension)(nil)
 
 func NewExtServerDimension(
 	client *ClientPool,
@@ -288,6 +289,33 @@ func (d *ExtServerDimension) loadTraces(ctx context.Context, st *Slot) (err erro
 			err = nil // so GetSlot will return succeed but this slot will have feature `featureMissTrace`
 		}
 	}()
+
+	return d.fetchTraces(ctx, st)
+}
+
+// RepairSlot retries trace loading for a slot that entered the cache with the MissTrace
+// feature (see loadTraces), so trace consumers do not have to wait for the cache window to
+// slide past it. Slots without traces by configuration (DisableTrace or below TraceStartBlock)
+// are reported as un-repairable. A successful repair also lifts the temporary trace-disable
+// window, so newly loaded slots resume trace loading immediately.
+func (d *ExtServerDimension) RepairSlot(ctx context.Context, st *Slot) (*Slot, bool, error) {
+	if st.HaveTrace || d.opts.DisableTrace || st.GetNumber() < d.opts.TraceStartBlock {
+		return st, false, nil
+	}
+	fixed := *st
+	fixed.Traces = nil
+	if err := d.fetchTraces(ctx, &fixed); err != nil {
+		return st, false, errors.Wrapf(err, "repair traces for block %d failed", st.GetNumber())
+	}
+	fixed.HaveTrace = true
+	d.disableTraceUntil.Store(0)
+	return &fixed, true, nil
+}
+
+// fetchTraces loads traces from the node into st.Traces. It carries none of the miss-trace
+// downgrade bookkeeping — that lives in loadTraces (initial load) and RepairSlot (async retry).
+func (d *ExtServerDimension) fetchTraces(ctx context.Context, st *Slot) error {
+	_, logger := log.FromContext(ctx)
 
 	blockNumber := st.Header.Number.Uint64()
 	blockHash := st.Header.Hash

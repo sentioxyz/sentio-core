@@ -19,6 +19,7 @@ type testSlot struct {
 	Hash       string
 	ParentHash string
 	Filler     []byte
+	Feas       []string
 }
 
 func (b *testSlot) GetNumber() uint64 {
@@ -34,7 +35,7 @@ func (b *testSlot) GetParentHash() string {
 }
 
 func (b *testSlot) Features() []string {
-	return nil
+	return b.Feas
 }
 
 func (b *testSlot) Linked() bool {

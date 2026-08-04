@@ -268,7 +268,12 @@ func (c *StdLatestSlotCache[SLOT]) loadFromPersistent(
 		if loadRange.Start > 0 && curRange.Contains(loadRange.Start-1) && newRange.Contains(loadRange.Start-1) {
 			// data not in newRange will be abandon, data not in curRange is not exists,
 			// so must both in newRange and curRange.
-			checking = utils.Prepend(loaded, c.memCache[loadRange.Start-1])
+			// The read must hold the lock: the repair loop replaces memCache entries
+			// concurrently (with an equal-hash slot, so either version links the same).
+			c.lock.RLock()
+			boundary := c.memCache[loadRange.Start-1]
+			c.lock.RUnlock()
+			checking = utils.Prepend(loaded, boundary)
 		}
 		err = CheckLinksMismatch(checking)
 		if err == nil {
@@ -412,7 +417,8 @@ func (c *StdLatestSlotCache[SLOT]) dump(ctx context.Context) {
 	logger.Infow("dump to l2cache succeed", "used", used.String())
 }
 
-// KeepGrowth is the only entrypoint that will update memCache and curRange
+// KeepGrowth is the only entrypoint that will update curRange; memCache entries may also be
+// replaced (never inserted or deleted) by KeepRepair, always under the write lock
 func (c *StdLatestSlotCache[SLOT]) KeepGrowth(ctx context.Context) error {
 	if _, err := c.nodeClient.WaitBlockInterval(ctx); err != nil {
 		return err // only because ctx canceled

@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -227,6 +228,41 @@ func TestStdLatestSlotCache_repairRoundDiscardsOnReorg(t *testing.T) {
 	st, err := c.GetByNumber(context.Background(), 96)
 	assert.NoError(t, err)
 	assert.Equal(t, "hash-96-reorg", st.GetHash())
+}
+
+// exercises the growth/repair writer pair under -race: growth's link-boundary lookup of
+// memCache must be synchronized now that repairRound replaces entries concurrently
+func TestStdLatestSlotCache_concurrentGrowthAndRepair(t *testing.T) {
+	dim, rs, store := newCachePersistent(1, 100)
+	for i := uint64(1); i <= 100; i++ {
+		st, _ := store.slots.Get(i)
+		st.Feas = []string{"MissTrace"}
+	}
+	repairDim := &testRepairDimension{SimpleDimension: dim}
+	c := newStdLatestSlotCache(10*time.Second, 5*time.Second, repairDim)
+	assert.NoError(t, c.growth(context.Background(), time.Second))
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for end := uint64(101); end <= 200; end++ {
+			st := newCacheTestSlot(end)
+			st.Feas = []string{"MissTrace"}
+			store.slots.Put(end, st)
+			_, _ = rs.Update(context.Background(), func(rg.Range) rg.Range {
+				return rg.NewRange(1, end)
+			})
+			assert.NoError(t, c.growth(context.Background(), time.Second))
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			c.repairRound(context.Background(), repairDim)
+		}
+	}()
+	wg.Wait()
 }
 
 func TestStdLatestSlotCache_GetByHash(t *testing.T) {

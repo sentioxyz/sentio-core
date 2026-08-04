@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - release
     paths:
       - packages/chain/**
 
@@ -22,19 +21,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/action-setup@v6
+      # Deliberately no `registry-url`: it writes `_authToken=${NODE_AUTH_TOKEN}` into
+      # .npmrc, and an unresolved placeholder makes the publisher skip OIDC. npmjs.org
+      # is the default registry anyway.
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
-      - name: Set NPM variables
-        id: npm
-        run: |
-          DIST_TAG=rc
-          if [[ "${GITHUB_REF#refs/heads/}" == "release" ]]; then
-            DIST_TAG=latest
-          fi
-          echo "dist_tag=${DIST_TAG}" >> $GITHUB_OUTPUT
       - name: Install
         run: pnpm install
       - name: Test & build
@@ -50,16 +43,19 @@ jobs:
           extra_plugins: semantic-release-monorepo
         env:
           GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+      # clean-publish strips `scripts` so the package's `preinstall: only-allow pnpm`
+      # doesn't run in consumers' installs. It publishes with npm rather than the pinned
+      # pnpm 10.29.3, which predates pnpm's OIDC/auth-placeholder fixes (pnpm#11495,
+      # pnpm#11526); the npm shipped with node 24 supports trusted publishing.
       - name: NPM Publish
         if: steps.semantic.outputs.new_release_published == 'true'
-        # clean-publish strips `scripts` so the package's `preinstall: only-allow pnpm`
-        # doesn't run in consumers' installs.
         run: |
-          npm version --no-git-tag-version --allow-same-version ${{ steps.semantic.outputs.new_release_version }}
-          pnpm exec clean-publish --fields scripts --package-manager pnpm -- --no-git-checks --tag ${{ steps.npm.outputs.dist_tag }}
-          echo "### Published @sentio/chain@${{ steps.semantic.outputs.new_release_version }} (${{ steps.npm.outputs.dist_tag }})" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.semantic.outputs.new_release_notes }}" >> $GITHUB_STEP_SUMMARY
+          npm version --no-git-tag-version --allow-same-version "$VERSION"
+          pnpm exec clean-publish --fields scripts --package-manager npm
+          echo "### Published @sentio/chain@${VERSION}" >> "$GITHUB_STEP_SUMMARY"
         working-directory: packages/chain
+        env:
+          VERSION: ${{ steps.semantic.outputs.new_release_version }}
       - name: Report no release
         if: steps.semantic.outputs.new_release_published != 'true'
-        run: echo "### No @sentio/chain version cut" >> $GITHUB_STEP_SUMMARY
+        run: echo "### No @sentio/chain version cut" >> "$GITHUB_STEP_SUMMARY"

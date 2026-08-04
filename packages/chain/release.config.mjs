@@ -5,7 +5,11 @@ export default {
   extends: 'semantic-release-monorepo',
   // Not `v${version}`: that tag pattern triggers .github/workflows/ci.yml (bazel + image push).
   tagFormat: 'chain-v${version}',
-  branches: ['release', { name: 'main', prerelease: 'rc' }],
+  // main publishes straight to the `latest` dist-tag, matching what the manual
+  // `pnpm pub` flow did. A prerelease-only branch list would fail with
+  // ERELEASEBRANCHES, and an rc channel would need a `release` branch that
+  // downstream consumers (which resolve `latest`) would then have to wait for.
+  branches: ['main'],
   plugins: [
     [
       '@semantic-release/commit-analyzer',

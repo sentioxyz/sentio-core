@@ -3,6 +3,11 @@
   "version": "3.4.35",
   "description": "Chain utils",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sentioxyz/sentio-core.git",
+    "directory": "packages/chain"
+  },
   "main": "./dist/index.js",
   "files": [
     "{dist,src}",

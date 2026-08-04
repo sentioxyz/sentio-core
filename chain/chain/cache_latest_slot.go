@@ -435,10 +435,15 @@ func (c *StdLatestSlotCache[SLOT]) KeepGrowth(ctx context.Context) error {
 	}
 }
 
+// maxRepairFailuresPerRound bounds the failed repair attempts within one repairRound: low
+// enough that a still-broken upstream is probed by only a few requests per round, but more
+// than one so a single unrepairable slot cannot starve the degraded slots behind it.
+const maxRepairFailuresPerRound = 3
+
 // repairRound scans the cached slots for degraded ones (non-empty Features()) and asks the
-// repairer to rebuild them, patching repaired slots back into the cache. It stops at the
-// first failed attempt and leaves the rest for the next round, so a still-broken upstream
-// is probed by at most one request per round.
+// repairer to rebuild them, patching repaired slots back into the cache. After
+// maxRepairFailuresPerRound failed attempts it gives up and leaves the rest for the next
+// round.
 func (c *StdLatestSlotCache[SLOT]) repairRound(ctx context.Context, repairer SlotRepairer[SLOT]) {
 	c.lock.RLock()
 	if !c.ready || c.curRange.IsEmpty() {
@@ -457,8 +462,8 @@ func (c *StdLatestSlotCache[SLOT]) repairRound(ctx context.Context, repairer Slo
 	}
 
 	_, logger := log.FromContext(ctx, "degraded", len(degraded))
-	var repairedCount int
-	for _, st := range degraded {
+	var repairedCount, failedCount int
+	for i, st := range degraded {
 		startAt := time.Now()
 		fixed, ok, err := repairer.RepairSlot(ctx, st)
 		used := time.Since(startAt)
@@ -472,9 +477,13 @@ func (c *StdLatestSlotCache[SLOT]) repairRound(ctx context.Context, repairer Slo
 		}
 		c.statLock.Unlock()
 		if err != nil {
-			logger.Warnfe(err, "repair slot %d failed, leave the rest %d degraded slots to the next round",
-				st.GetNumber(), len(degraded)-repairedCount)
-			break
+			failedCount++
+			logger.Warnfe(err, "repair slot %d failed (%d/%d failures this round), %d degraded slots behind it",
+				st.GetNumber(), failedCount, maxRepairFailuresPerRound, len(degraded)-i-1)
+			if failedCount >= maxRepairFailuresPerRound {
+				break
+			}
+			continue
 		}
 		if !ok {
 			continue

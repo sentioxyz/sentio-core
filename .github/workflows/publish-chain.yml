@@ -1,0 +1,64 @@
+name: Publish @sentio/chain
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - packages/chain/**
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC), no NPM_TOKEN needed
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      # Deliberately no `registry-url`: it writes `_authToken=${NODE_AUTH_TOKEN}` into
+      # .npmrc, and an unresolved placeholder makes the publisher skip OIDC. npmjs.org
+      # is the default registry anyway.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install
+      - name: Test & build
+        run: |
+          pnpm --filter @sentio/chain test
+          pnpm --filter @sentio/chain package
+      - name: Semantic Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v6
+        with:
+          working_directory: packages/chain
+          semantic_version: 24
+          extra_plugins: semantic-release-monorepo
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+      # clean-publish only prepares the artifact here (`--without-publish`): it strips
+      # `scripts` so the package's `preinstall: only-allow pnpm` doesn't run in consumers'
+      # installs, but its own CLI discards the publish exit code, which would turn a 403
+      # into a green job. `npm publish <dir>` runs separately so its status reaches
+      # Actions — and npm, not the pinned pnpm 10.29.3, which predates pnpm's
+      # OIDC/auth-placeholder fixes (pnpm#11495, pnpm#11526).
+      - name: NPM Publish
+        if: steps.semantic.outputs.new_release_published == 'true'
+        run: |
+          npm version --no-git-tag-version --allow-same-version "$VERSION"
+          pnpm exec clean-publish --fields scripts --without-publish --temp-dir "$RUNNER_TEMP/chain-publish"
+          npm publish "$RUNNER_TEMP/chain-publish"
+          echo "### Published @sentio/chain@${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+        working-directory: packages/chain
+        env:
+          VERSION: ${{ steps.semantic.outputs.new_release_version }}
+      - name: Report no release
+        if: steps.semantic.outputs.new_release_published != 'true'
+        run: echo "### No @sentio/chain version cut" >> "$GITHUB_STEP_SUMMARY"

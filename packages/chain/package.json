@@ -3,12 +3,21 @@
   "version": "3.4.35",
   "description": "Chain utils",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sentioxyz/sentio-core.git",
+    "directory": "packages/chain"
+  },
   "main": "./dist/index.js",
   "files": [
-    "{dist,src}",
-    "!**/*.test.{js,ts}",
-    "!{dist,src}/codegen",
-    "!{dist,src}/tests"
+    "dist",
+    "src",
+    "!**/*.test.js",
+    "!**/*.test.ts",
+    "!dist/codegen",
+    "!dist/tests",
+    "!src/codegen",
+    "!src/tests"
   ],
   "scripts": {
     "build": "tsc -p . && pnpm generate",

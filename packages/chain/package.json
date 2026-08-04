@@ -10,10 +10,14 @@
   },
   "main": "./dist/index.js",
   "files": [
-    "{dist,src}",
-    "!**/*.test.{js,ts}",
-    "!{dist,src}/codegen",
-    "!{dist,src}/tests"
+    "dist",
+    "src",
+    "!**/*.test.js",
+    "!**/*.test.ts",
+    "!dist/codegen",
+    "!dist/tests",
+    "!src/codegen",
+    "!src/tests"
   ],
   "scripts": {
     "build": "tsc -p . && pnpm generate",

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      contents: read
+      contents: write # semantic-release pushes the tag and creates the GitHub release
       id-token: write # npm trusted publishing (OIDC), no NPM_TOKEN needed
     steps:
       - uses: actions/checkout@v5
@@ -42,7 +42,10 @@ jobs:
           semantic_version: 24
           extra_plugins: semantic-release-monorepo
         env:
-          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          # Not secrets.ACCESS_TOKEN: unlike the other repos this one has no such secret,
+          # so semantic-release got an empty token and failed verifyAuth. The built-in
+          # token can push the tag and cut the release with contents: write.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # clean-publish only prepares the artifact here (`--without-publish`): it strips
       # `scripts` so the package's `preinstall: only-allow pnpm` doesn't run in consumers'
       # installs, but its own CLI discards the publish exit code, which would turn a 403

@@ -116,7 +116,7 @@ const (
   ArcTestnetID EthChainID = "5042002"
   SentioTestnetID EthChainID = "7892101"
   SentioTestnetV2ID EthChainID = "7892102"
-  SentioDevnetID EthChainID = "7892201"
+  SentioDevnetID EthChainID = "7892301"
   TronID EthChainID = "728126428"
   CustomID EthChainID = "customized"
 )

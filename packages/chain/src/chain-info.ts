@@ -1283,8 +1283,8 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     tokenSymbol: 'ETH',
     tokenDecimals: 18,
     explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerUrl: 'https://devnet2-explorer.sentio.xyz',
-    blockscoutUrl: 'https://devnet2-explorer.sentio.xyz',
+    explorerUrl: 'https://devnet-explorer.sentio.xyz',
+    blockscoutUrl: 'https://devnet-explorer.sentio.xyz',
     lightIcon: 'https://assets.sentio.xyz/chains/sentio.svg',
     darkIcon: 'https://assets.sentio.xyz/chains/sentio-dark.svg'
   },

@@ -24,8 +24,8 @@ type entryStatus[CLIENT pool.Status] struct {
 	Client     CLIENT
 	ClientName string
 
-	// A build failure means the static config is malformed: it is permanent (never retried) and
-	// recorded separately from the Init failures below, which are transient and retried.
+	// A build failure is permanent (never retried) and recorded separately from the Init
+	// failures below, which are transient and retried.
 	BuildFailedReason string
 	BuildFailedAt     time.Time
 
@@ -195,8 +195,8 @@ type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 	pool *pool.Pool[ClientConfig[CONFIG], entryStatus[CLIENT], poolStatus]
 
 	// clientBuilder validates the static configuration and constructs the client without any
-	// network I/O. A builder error means the config itself is malformed: the entry's refresher
-	// exits for good instead of retrying (see entryStatusRefresher).
+	// network I/O. A builder error is permanent: the entry's refresher exits for good instead
+	// of retrying (see entryStatusRefresher).
 	clientBuilder func(CONFIG, UsedNotifier) (CLIENT, error)
 	notifier      Notifier[CONFIG]
 	confModifiers []ConfigModifier[CONFIG]
@@ -324,11 +324,11 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 			}
 		})
 		if err != nil {
-			// the config itself is malformed, retrying cannot help
+			// building the client failed; this is permanent and will not be retried
 			es.BuildFailedReason = err.Error()
 			es.BuildFailedAt = time.Now()
 			pushChan(ctx, ch, es)
-			logger.With("config", config).Warne(err, "client config is invalid")
+			logger.With("config", config).Warne(err, "build client failed")
 			return
 		}
 		es.BuildFailedReason = ""

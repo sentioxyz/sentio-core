@@ -1251,7 +1251,7 @@ func Test_reInit_periodic(t *testing.T) {
 
 func Test_reInit_disabled_neverReInits(t *testing.T) {
 	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{quickClientCfg("c1", 1)})
-	cfg.ReInitInterval = -1 // disabled (note: updateConfig is called directly, without Trim)
+	cfg.ReInitInterval = 0 // disabled (the default)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

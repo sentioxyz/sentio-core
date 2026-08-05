@@ -369,7 +369,16 @@ func (p *ClientPool[CONFIG, CLIENT]) initEntry(
 			pushChan(ctx, ch, *es)
 			if errors.Is(err, ErrInvalidConfig) {
 				logger.With("config", config).Warne(err, "client config is invalid")
-				return backoff.Permanent(err)
+				if es.InitializedAt.IsZero() {
+					// never initialized: the config itself is malformed, retrying cannot help
+					return backoff.Permanent(err)
+				}
+				// The config already passed Init at least once, so it is not malformed; this is
+				// the endpoint misbehaving (e.g. a load balancer briefly routing eth_chainId to
+				// the wrong chain). Keep the entry out of rotation and keep retrying — a
+				// permanent stop would silently kill the refresher for good, because Enable is
+				// a no-op on an already-enabled entry.
+				return err
 			}
 			return err
 		},

@@ -27,6 +27,7 @@ type testClientConfig struct {
 	InitUsed       time.Duration
 	InitFailed     bool
 	InitSuccessAt  time.Time
+	ReInitInvalid  bool // Init succeeds once, then always fails with ErrInvalidConfig
 	SubscribeStops bool // SubscribeLatest returns immediately (a voluntary stop, like MaxBlockNumber)
 	Version        int
 }
@@ -64,6 +65,9 @@ func (c *testClient) Init(ctx context.Context) (Block, error) {
 	}
 	if c.config.InitFailed {
 		return Block{}, errors.Wrapf(ErrInvalidConfig, "init failed")
+	}
+	if c.config.ReInitInvalid && c.initCount() > 1 {
+		return Block{}, errors.Wrapf(ErrInvalidConfig, "re-init failed")
 	}
 	if time.Now().Before(c.config.InitSuccessAt) {
 		return Block{}, errors.Errorf("not the time")
@@ -1290,6 +1294,33 @@ func Test_reInit_timerNotResetByDisableEnable(t *testing.T) {
 	}
 	assert.GreaterOrEqual(t, cli.initCount(), 2,
 		"re-init must still fire even though the entry never stays enabled for a full interval")
+}
+
+func Test_reInit_invalidConfigError_keepsRetrying(t *testing.T) {
+	// An ErrInvalidConfig raised during a re-init (e.g. a load balancer briefly routing
+	// eth_chainId to the wrong chain) must NOT permanently kill the refresher: the config
+	// already passed Init once, so the entry stays out of rotation and keeps retrying.
+	cc := quickClientCfg("c1", 1)
+	cc.Config.ReInitInvalid = true
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{cc})
+	cfg.ReInitInterval = 50 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+	cli := grabClient(t, p, "c1")
+
+	// initCount 2 is the first (failing) re-init attempt; anything beyond proves the refresher
+	// survived the ErrInvalidConfig and keeps retrying with backoff instead of exiting.
+	assert.Eventually(t, func() bool {
+		return cli.initCount() >= 4
+	}, 10*time.Second, 20*time.Millisecond, "refresher must keep retrying after a re-init ErrInvalidConfig")
 }
 
 func Test_reInit_voluntarySubscriptionStop_doesNotReInitLoop(t *testing.T) {

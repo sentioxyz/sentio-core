@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/pkg/errors"
 )
 
 type entryStatus[CLIENT pool.Status] struct {
@@ -186,7 +185,10 @@ type ConfigModifier[CONFIG any] func(CONFIG) CONFIG
 type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 	pool *pool.Pool[ClientConfig[CONFIG], entryStatus[CLIENT], poolStatus]
 
-	clientBuilder func(CONFIG, UsedNotifier) CLIENT
+	// clientBuilder validates the static configuration and constructs the client without any
+	// network I/O. A builder error means the config itself is malformed: the entry's refresher
+	// exits for good instead of retrying (see entryStatusRefresher).
+	clientBuilder func(CONFIG, UsedNotifier) (CLIENT, error)
 	notifier      Notifier[CONFIG]
 	confModifiers []ConfigModifier[CONFIG]
 
@@ -215,7 +217,7 @@ type ClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client] struct {
 
 func NewClientPool[CONFIG EntryConfig[CONFIG], CLIENT Client](
 	name string,
-	clientBuilder func(CONFIG, UsedNotifier) CLIENT,
+	clientBuilder func(CONFIG, UsedNotifier) (CLIENT, error),
 	notifier Notifier[CONFIG],
 	confModifiers ...ConfigModifier[CONFIG],
 ) *ClientPool[CONFIG, CLIENT] {
@@ -305,13 +307,23 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 	}()
 
 	if !es.Initialized {
-		es.Client = p.clientBuilder(config.Config, func(what string, dur time.Duration, hasErr bool) {
+		client, err := p.clientBuilder(config.Config, func(what string, dur time.Duration, hasErr bool) {
 			key := fmt.Sprintf("P%d(%s)%s", config.Priority, config.Config.GetName(), what)
 			p.statEntryUsed.Append(newUsedStatWin(key, dur, hasErr))
 			if p.notifier != nil {
 				p.notifier.EntryUsed(config, what, dur, hasErr)
 			}
 		})
+		if err != nil {
+			// the config itself is malformed, retrying cannot help
+			es.InitializeFailedTimes++
+			es.InitializeFailedReason = err.Error()
+			es.InitializeFailedAt = time.Now()
+			pushChan(ctx, ch, es)
+			logger.With("config", config).Warne(err, "client config is invalid")
+			return
+		}
+		es.Client = client
 		es.ClientName = es.Client.GetName()
 		if !p.initEntry(ctx, config, &es, ch) {
 			return
@@ -345,9 +357,10 @@ func (p *ClientPool[CONFIG, CLIENT]) nextReInitAt() time.Time {
 }
 
 // initEntry runs es.Client.Init with retry-forever backoff, keeping es and the pool status in
-// sync. On a re-init the entry drops out of rotation (Initialized=false) on the first failure
-// and rejoins once Init succeeds again. It returns false when the refresher should exit,
-// i.e. ctx was canceled or the config is invalid.
+// sync. Static config validation happens in the client builder, so every Init error is treated
+// as the endpoint misbehaving: the entry stays out of rotation (Initialized=false) and keeps
+// retrying until Init succeeds. It returns false when ctx was canceled (the refresher should
+// exit).
 func (p *ClientPool[CONFIG, CLIENT]) initEntry(
 	ctx context.Context,
 	config ClientConfig[CONFIG],
@@ -367,19 +380,6 @@ func (p *ClientPool[CONFIG, CLIENT]) initEntry(
 			es.InitializeFailedReason = err.Error()
 			es.InitializeFailedAt = time.Now()
 			pushChan(ctx, ch, *es)
-			if errors.Is(err, ErrInvalidConfig) {
-				logger.With("config", config).Warne(err, "client config is invalid")
-				if es.InitializedAt.IsZero() {
-					// never initialized: the config itself is malformed, retrying cannot help
-					return backoff.Permanent(err)
-				}
-				// The config already passed Init at least once, so it is not malformed; this is
-				// the endpoint misbehaving (e.g. a load balancer briefly routing eth_chainId to
-				// the wrong chain). Keep the entry out of rotation and keep retrying — a
-				// permanent stop would silently kill the refresher for good, because Enable is
-				// a no-op on an already-enabled entry.
-				return err
-			}
 			return err
 		},
 		backoff.WithContext(backoff.NewExponentialBackOff(backoff.WithMaxElapsedTime(0)), ctx), // retry forever
@@ -387,7 +387,7 @@ func (p *ClientPool[CONFIG, CLIENT]) initEntry(
 			logger.Warnfe(err, "client init failed, will retry after %s", duration)
 		})
 	if err != nil {
-		return false // because ctx canceled or has invalid config
+		return false // because ctx canceled
 	}
 	es.Initialized = true
 	es.InitializedAt = time.Now()

@@ -24,6 +24,8 @@ func (b Block) String() string {
 }
 
 var (
+	// ErrInvalidConfig marks a malformed static configuration. Client builders wrap it in their
+	// returned error; the pool gives up on such an entry instead of retrying.
 	ErrInvalidConfig = errors.New("invalid config")
 	ErrNoValidClient = errors.New("no valid client")
 
@@ -38,7 +40,10 @@ type Client interface {
 	// GetName return the name of this client
 	GetName() string
 
-	// Init may return ErrInvalidConfig
+	// Init performs the runtime checks and detections against the endpoint. Static config
+	// validation belongs in the client builder, not here: every Init error is considered
+	// transient and retried by the pool. Init is re-run periodically while the client keeps
+	// serving concurrent calls (PoolConfig.ReInitInterval), so it must be re-entrant.
 	Init(ctx context.Context) (Block, error)
 
 	// SubscribeLatest should not stop until ctx canceled

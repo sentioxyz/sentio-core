@@ -25,9 +25,10 @@ type testClientConfig struct {
 	Offset         uint64
 	Interval       time.Duration
 	InitUsed       time.Duration
+	BuildFailed    bool // the client builder rejects the config (malformed config, never retried)
 	InitFailed     bool
 	InitSuccessAt  time.Time
-	ReInitInvalid  bool // Init succeeds once, then always fails with ErrInvalidConfig
+	ReInitFails    bool // Init succeeds once, then always fails
 	SubscribeStops bool // SubscribeLatest returns immediately (a voluntary stop, like MaxBlockNumber)
 	Version        int
 }
@@ -47,8 +48,11 @@ type testClient struct {
 	stat map[string]int
 }
 
-func newTestClient(config testClientConfig, _ UsedNotifier) *testClient {
-	return &testClient{config: config, stat: make(map[string]int)}
+func newTestClient(config testClientConfig, _ UsedNotifier) (*testClient, error) {
+	if config.BuildFailed {
+		return nil, errors.Wrapf(ErrInvalidConfig, "build failed")
+	}
+	return &testClient{config: config, stat: make(map[string]int)}, nil
 }
 
 func (c *testClient) current() Block {
@@ -64,10 +68,10 @@ func (c *testClient) Init(ctx context.Context) (Block, error) {
 		return Block{}, ctx.Err()
 	}
 	if c.config.InitFailed {
-		return Block{}, errors.Wrapf(ErrInvalidConfig, "init failed")
+		return Block{}, errors.Errorf("init failed")
 	}
-	if c.config.ReInitInvalid && c.initCount() > 1 {
-		return Block{}, errors.Wrapf(ErrInvalidConfig, "re-init failed")
+	if c.config.ReInitFails && c.initCount() > 1 {
+		return Block{}, errors.Errorf("re-init failed")
 	}
 	if time.Now().Before(c.config.InitSuccessAt) {
 		return Block{}, errors.Errorf("not the time")
@@ -172,11 +176,11 @@ func Test_clientPool(t *testing.T) {
 			{
 				Priority: 3,
 				Config: testClientConfig{
-					Name:       "c4",
-					Value:      "cv4",
-					Interval:   time.Second,
-					InitFailed: true, // init will failed because invalid config, will not retry
-					Version:    4,
+					Name:        "c4",
+					Value:       "cv4",
+					Interval:    time.Second,
+					BuildFailed: true, // the config is invalid, the builder rejects it, will not retry
+					Version:     4,
 				},
 			},
 		},
@@ -1296,12 +1300,44 @@ func Test_reInit_timerNotResetByDisableEnable(t *testing.T) {
 		"re-init must still fire even though the entry never stays enabled for a full interval")
 }
 
-func Test_reInit_invalidConfigError_keepsRetrying(t *testing.T) {
-	// An ErrInvalidConfig raised during a re-init (e.g. a load balancer briefly routing
-	// eth_chainId to the wrong chain) must NOT permanently kill the refresher: the config
-	// already passed Init once, so the entry stays out of rotation and keeps retrying.
+func Test_buildFailure_entryNeverServes(t *testing.T) {
+	// A builder error means the config itself is malformed: the entry never initializes and is
+	// never retried.
 	cc := quickClientCfg("c1", 1)
-	cc.Config.ReInitInvalid = true
+	cc.Config.BuildFailed = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(defaultPoolConfig([]ClientConfig[testClientConfig]{cc}))
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	fetchC1 := func() (pool.Entry[ClientConfig[testClientConfig], entryStatus[*testClient]], bool) {
+		entries, _, _ := p.pool.Fetch(func(string, pool.Entry[ClientConfig[testClientConfig], entryStatus[*testClient]],
+			poolStatus) bool {
+			return true
+		})
+		ent, has := entries["c1"]
+		return ent, has
+	}
+	assert.Eventually(t, func() bool {
+		ent, has := fetchC1()
+		return has && ent.Status.InitializeFailedTimes == 1
+	}, 5*time.Second, 10*time.Millisecond, "the build failure should be recorded")
+
+	// the failure is permanent: no retry happens
+	assert.Never(t, func() bool {
+		ent, has := fetchC1()
+		return !has || ent.Status.Initialized || ent.Status.InitializeFailedTimes > 1
+	}, 500*time.Millisecond, 50*time.Millisecond)
+}
+
+func Test_reInit_initError_keepsRetrying(t *testing.T) {
+	// Any error raised during a re-init (e.g. a load balancer briefly routing eth_chainId to
+	// the wrong chain) must NOT permanently kill the refresher: static config validation
+	// happens in the builder, so the entry stays out of rotation and keeps retrying.
+	cc := quickClientCfg("c1", 1)
+	cc.Config.ReInitFails = true
 	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{cc})
 	cfg.ReInitInterval = 50 * time.Millisecond
 
@@ -1317,10 +1353,10 @@ func Test_reInit_invalidConfigError_keepsRetrying(t *testing.T) {
 	cli := grabClient(t, p, "c1")
 
 	// initCount 2 is the first (failing) re-init attempt; anything beyond proves the refresher
-	// survived the ErrInvalidConfig and keeps retrying with backoff instead of exiting.
+	// survived the failure and keeps retrying with backoff instead of exiting.
 	assert.Eventually(t, func() bool {
 		return cli.initCount() >= 4
-	}, 10*time.Second, 20*time.Millisecond, "refresher must keep retrying after a re-init ErrInvalidConfig")
+	}, 10*time.Second, 20*time.Millisecond, "refresher must keep retrying after a re-init failure")
 }
 
 func Test_reInit_voluntarySubscriptionStop_doesNotReInitLoop(t *testing.T) {

@@ -78,12 +78,21 @@ func newStateProbeClient(t *testing.T, latest uint64, stateFrom uint64) (*Client
 	node := &fakeStateNode{latest: latest, stateFrom: stateFrom}
 	server := httptest.NewServer(http.HandlerFunc(node.handle))
 	t.Cleanup(server.Close)
-	cli := NewClient(ClientConfig{
+	cli, err := NewClient(ClientConfig{
 		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: server.URL},
 	}, func(string, time.Duration, bool) {})
-	_, err := cli.Init(context.Background())
+	require.NoError(t, err)
+	_, err = cli.Init(context.Background())
 	require.NoError(t, err)
 	return cli, node
+}
+
+func Test_NewClient_invalidEndpoint_failsAtBuild(t *testing.T) {
+	// Static config validation happens at build time, not in Init.
+	_, err := NewClient(ClientConfig{
+		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: "://not-a-url"},
+	}, func(string, time.Duration, bool) {})
+	require.ErrorIs(t, err, clientpool.ErrInvalidConfig)
 }
 
 func Test_Init_detectsArchiveAndBoundary(t *testing.T) {
@@ -123,10 +132,11 @@ func Test_Init_customChainID_reentrant(t *testing.T) {
 	node := &fakeStateNode{latest: 100000, stateFrom: 0, chainID: 999999}
 	server := httptest.NewServer(http.HandlerFunc(node.handle))
 	t.Cleanup(server.Close)
-	cli := NewClient(ClientConfig{
+	cli, err := NewClient(ClientConfig{
 		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: server.URL},
 		ChainID:       999999,
 	}, func(string, time.Duration, bool) {})
+	require.NoError(t, err)
 	assert.Nil(t, cli.info)
 	assert.False(t, cli.isTronChain())
 

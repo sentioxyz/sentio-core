@@ -103,16 +103,30 @@ type Client struct {
 	notifier clientpool.UsedNotifier
 }
 
-func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) *Client {
+// NewClient validates the static configuration and constructs the client. Everything derived
+// from the config alone happens here — Init only performs runtime checks against the endpoint,
+// so all its errors are retryable.
+func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) (*Client, error) {
+	// For http(s) endpoints dialing performs no I/O, it only validates the URL. The timeout
+	// only bounds the handshake of connection-oriented schemes (ws, ipc), which are not used
+	// as primary endpoints.
+	dialCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	rpcClient, err := rpc.DialOptions(dialCtx, config.Endpoint, rpc.WithHTTPClient(httpClient))
+	if err != nil {
+		return nil, errors.Wrapf(clientpool.ErrInvalidConfig,
+			"failed to dial endpoint %q: %v", config.Endpoint, err)
+	}
 	return &Client{
 		name:       clientpool.BuildPublicName(config.Endpoint),
 		config:     config,
 		httpClient: httpClient,
+		rpcClient:  rpcClient,
 		// resolved from static configuration once, so re-entrant Init never has to write it
 		// while concurrent calls read it (nil for chain IDs unknown to the registry)
 		info:     chains.EthChainIDToInfo[chains.ChainID(strconv.FormatUint(config.ChainID, 10))],
 		notifier: notifier,
-	}
+	}, nil
 }
 
 func (c *Client) isTronChain() bool {
@@ -120,21 +134,12 @@ func (c *Client) isTronChain() bool {
 }
 
 // Init is re-entrant: the client pool re-runs it periodically (PoolConfig.ReInitInterval) while
-// the client may be serving concurrent calls, so it must only ever create what is still missing
-// and publish detection results with a single atomic write.
+// the client may be serving concurrent calls, so it must not mutate anything built by NewClient
+// and must publish detection results with a single atomic write. All its errors are retryable:
+// even an eth_chainId mismatch can be an endpoint transiently misbehaving (e.g. a load balancer
+// briefly routing to the wrong chain), so the pool keeps the entry out of rotation and retries.
 func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 	_, logger := log.FromContext(ctx)
-
-	// c.rpcClient
-	if c.rpcClient == nil {
-		rpcClient, err := rpc.DialOptions(ctx, c.config.Endpoint, rpc.WithHTTPClient(c.httpClient))
-		if err != nil {
-			// always because the endpoint is invalid
-			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
-				"failed to dial endpoint %q: %v", c.config.Endpoint, err)
-		}
-		c.rpcClient = rpcClient
-	}
 
 	// check chain id
 	if c.config.ChainID > 0 {
@@ -144,7 +149,7 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 			return clientpool.Block{}, r.Err
 		}
 		if uint64(result) != c.config.ChainID {
-			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
+			return clientpool.Block{}, errors.Errorf(
 				"result of eth_chainId is %d, expected is %d", uint64(result), c.config.ChainID)
 		}
 	}

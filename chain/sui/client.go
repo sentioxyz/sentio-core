@@ -103,50 +103,52 @@ type Client struct {
 	notifier clientpool.UsedNotifier
 }
 
-func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) *Client {
+// NewClient validates the static configuration and constructs the client. Everything derived
+// from the config alone happens here — Init only performs runtime checks against the endpoint,
+// so all its errors are retryable. Neither dial performs I/O: the http(s) dial only validates
+// the URL, and grpc.NewClient connects lazily.
+func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) (*Client, error) {
+	dialCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	rpcClient, err := rpc.DialOptions(dialCtx, config.Endpoint, rpc.WithHTTPClient(httpClient))
+	if err != nil {
+		return nil, errors.Wrapf(clientpool.ErrInvalidConfig,
+			"failed to dial endpoint %q: %v", config.Endpoint, err)
+	}
+
+	var grpcConn *grpc.ClientConn
+	if config.GrpcEndpoint != "" {
+		var ep string
+		opts := []grpc.DialOption{grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(config.MaxCallRecvMsgSize))}
+		if strings.HasPrefix(config.GrpcEndpoint, "http://") {
+			ep = strings.TrimPrefix(config.GrpcEndpoint, "http://")
+			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		} else if strings.HasPrefix(config.GrpcEndpoint, "https://") {
+			ep = strings.TrimPrefix(config.GrpcEndpoint, "https://")
+			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
+		} else {
+			return nil, errors.Wrapf(clientpool.ErrInvalidConfig,
+				"invalid grpc endpoint %q", config.GrpcEndpoint)
+		}
+		if grpcConn, err = grpc.NewClient(ep, opts...); err != nil {
+			return nil, errors.Wrapf(clientpool.ErrInvalidConfig,
+				"failed to dial grpc endpoint %q: %v", config.GrpcEndpoint, err)
+		}
+	}
+
 	return &Client{
 		name:       clientpool.BuildPublicName(config.Endpoint),
 		config:     config,
 		httpClient: httpClient,
+		rpcClient:  rpcClient,
+		grpcConn:   grpcConn,
 		notifier:   notifier,
-	}
+	}, nil
 }
 
 // Init is re-entrant: the client pool re-runs it periodically (PoolConfig.ReInitInterval) while
-// the client may be serving concurrent calls, so it must only ever create what is still missing.
+// the client may be serving concurrent calls, so it must not mutate anything built by NewClient.
 func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
-	// c.rpcClient
-	if c.rpcClient == nil {
-		rpcClient, err := rpc.DialOptions(ctx, c.config.Endpoint, rpc.WithHTTPClient(c.httpClient))
-		if err != nil {
-			// always because the endpoint is invalid
-			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
-				"failed to dial endpoint %q: %v", c.config.Endpoint, err)
-		}
-		c.rpcClient = rpcClient
-	}
-
-	// c.grpcConn
-	if c.config.GrpcEndpoint != "" && c.grpcConn == nil {
-		var ep string
-		opts := []grpc.DialOption{grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(c.config.MaxCallRecvMsgSize))}
-		if strings.HasPrefix(c.config.GrpcEndpoint, "http://") {
-			ep = strings.TrimPrefix(c.config.GrpcEndpoint, "http://")
-			opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		} else if strings.HasPrefix(c.config.GrpcEndpoint, "https://") {
-			ep = strings.TrimPrefix(c.config.GrpcEndpoint, "https://")
-			opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})))
-		} else {
-			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
-				"invalid grpc endpoint %q", c.config.GrpcEndpoint)
-		}
-		grpcConn, err := grpc.NewClient(ep, opts...)
-		if err != nil {
-			return clientpool.Block{}, errors.Wrapf(err, "failed to dial grpc endpoint %q", c.config.GrpcEndpoint)
-		}
-		c.grpcConn = grpcConn
-	}
-
 	return c.getLatest(ctx, "init")
 }
 

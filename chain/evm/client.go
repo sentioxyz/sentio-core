@@ -108,7 +108,10 @@ func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) *Client {
 		name:       clientpool.BuildPublicName(config.Endpoint),
 		config:     config,
 		httpClient: httpClient,
-		notifier:   notifier,
+		// resolved from static configuration once, so re-entrant Init never has to write it
+		// while concurrent calls read it (nil for chain IDs unknown to the registry)
+		info:     chains.EthChainIDToInfo[chains.ChainID(strconv.FormatUint(config.ChainID, 10))],
+		notifier: notifier,
 	}
 }
 
@@ -143,9 +146,6 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 		if uint64(result) != c.config.ChainID {
 			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
 				"result of eth_chainId is %d, expected is %d", uint64(result), c.config.ChainID)
-		}
-		if c.info == nil {
-			c.info = chains.EthChainIDToInfo[chains.ChainID(strconv.FormatUint(c.config.ChainID, 10))]
 		}
 	}
 

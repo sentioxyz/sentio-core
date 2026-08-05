@@ -24,6 +24,7 @@ type fakeStateNode struct {
 	mu        sync.Mutex
 	latest    uint64
 	stateFrom uint64 // 0 means archive
+	chainID   uint64 // 0 means eth_chainId is not expected to be called
 }
 
 func (n *fakeStateNode) setStateFrom(from uint64) {
@@ -49,6 +50,8 @@ func (n *fakeStateNode) handle(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":%s}`, req.ID, result)
 	}
 	switch req.Method {
+	case "eth_chainId":
+		reply(fmt.Sprintf(`"0x%x"`, n.chainID))
 	case "eth_getBlockByNumber":
 		reply(fmt.Sprintf(`{"number":"0x%x","hash":"0x%064x","stateRoot":"0x%064x","timestamp":"0x%x"}`,
 			latest, latest, 1, time.Now().Unix()))
@@ -110,6 +113,28 @@ func Test_reInit_redetectsStateBoundary(t *testing.T) {
 	node.setStateFrom(0)
 	_, err = cli.Init(context.Background())
 	require.NoError(t, err)
+	assert.Equal(t, uint64(0), cli.hasStateDataFrom.Load())
+}
+
+func Test_Init_customChainID_reentrant(t *testing.T) {
+	// A numeric chain ID that is not in the chains registry must resolve to a nil info exactly
+	// once (in NewClient); a re-entrant Init must not keep writing the field while concurrent
+	// calls read it.
+	node := &fakeStateNode{latest: 100000, stateFrom: 0, chainID: 999999}
+	server := httptest.NewServer(http.HandlerFunc(node.handle))
+	t.Cleanup(server.Close)
+	cli := NewClient(ClientConfig{
+		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: server.URL},
+		ChainID:       999999,
+	}, func(string, time.Duration, bool) {})
+	assert.Nil(t, cli.info)
+	assert.False(t, cli.isTronChain())
+
+	for i := 0; i < 2; i++ {
+		_, err := cli.Init(context.Background())
+		require.NoError(t, err)
+	}
+	assert.Nil(t, cli.info)
 	assert.Equal(t, uint64(0), cli.hasStateDataFrom.Load())
 }
 

@@ -320,7 +320,7 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 
 	for {
 		if !p.serveEntry(ctx, config, &es, ch) {
-			return // ctx canceled
+			return // ctx canceled, or the subscription stopped voluntarily
 		}
 		// the re-init deadline has passed: re-run Init on the same client so whatever it detected
 		// at startup does not stay stale forever when the node behind the endpoint changes
@@ -401,9 +401,12 @@ func (p *ClientPool[CONFIG, CLIENT]) initEntry(
 	return true
 }
 
-// serveEntry runs the client's latest-block subscription until the re-init deadline passes
-// (returns true) or ctx is canceled (returns false). The deadline is an absolute point in time
-// taken from es.ReInitAt, so periods during which the entry was disabled count against it.
+// serveEntry runs the client's latest-block subscription and reports whether a re-init is due:
+// true only when the re-init deadline itself has expired. It returns false when ctx was canceled
+// AND when the subscription stopped voluntarily while its context was still alive (e.g. the EVM
+// client stops watching once MaxBlockNumber is reached) — such a stop must end the refresher
+// like it always did, not trigger an endless init loop. The deadline is an absolute point in
+// time taken from es.ReInitAt, so periods during which the entry was disabled count against it.
 func (p *ClientPool[CONFIG, CLIENT]) serveEntry(
 	ctx context.Context,
 	config ClientConfig[CONFIG],
@@ -412,10 +415,12 @@ func (p *ClientPool[CONFIG, CLIENT]) serveEntry(
 ) bool {
 	_, logger := log.FromContext(ctx)
 	subCtx := ctx
+	deadlineSet := false
 	if !es.ReInitAt.IsZero() {
 		var cancel context.CancelFunc
 		subCtx, cancel = context.WithDeadline(ctx, es.ReInitAt)
 		defer cancel()
+		deadlineSet = true
 	}
 	latestChan := make(chan Block)
 	consumerDone := make(chan struct{})
@@ -444,7 +449,14 @@ func (p *ClientPool[CONFIG, CLIENT]) serveEntry(
 	es.Client.SubscribeLatest(subCtx, latestChan)
 	close(latestChan)
 	<-consumerDone
-	return ctx.Err() == nil
+	if ctx.Err() != nil {
+		return false // ctx canceled (entry disabled or removed)
+	}
+	if deadlineSet && subCtx.Err() != nil {
+		return true // the re-init deadline expired
+	}
+	logger.Infof("client subscription stopped voluntarily, refresher exits without re-init")
+	return false
 }
 
 var rd = rand.New(rand.NewSource(time.Now().UnixNano()))

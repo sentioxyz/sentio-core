@@ -20,14 +20,15 @@ import (
 )
 
 type testClientConfig struct {
-	Name          string
-	Value         string
-	Offset        uint64
-	Interval      time.Duration
-	InitUsed      time.Duration
-	InitFailed    bool
-	InitSuccessAt time.Time
-	Version       int
+	Name           string
+	Value          string
+	Offset         uint64
+	Interval       time.Duration
+	InitUsed       time.Duration
+	InitFailed     bool
+	InitSuccessAt  time.Time
+	SubscribeStops bool // SubscribeLatest returns immediately (a voluntary stop, like MaxBlockNumber)
+	Version        int
 }
 
 func (c testClientConfig) GetName() string {
@@ -78,6 +79,9 @@ func (c *testClient) initCount() int {
 
 // SubscribeLatest should not stop until ctx canceled
 func (c *testClient) SubscribeLatest(ctx context.Context, ch chan<- Block) {
+	if c.config.SubscribeStops {
+		return // voluntary stop while ctx is still alive
+	}
 	for {
 		select {
 		case <-time.After(c.config.Interval):
@@ -1286,6 +1290,31 @@ func Test_reInit_timerNotResetByDisableEnable(t *testing.T) {
 	}
 	assert.GreaterOrEqual(t, cli.initCount(), 2,
 		"re-init must still fire even though the entry never stays enabled for a full interval")
+}
+
+func Test_reInit_voluntarySubscriptionStop_doesNotReInitLoop(t *testing.T) {
+	// A subscription that stops voluntarily while its context is still alive (e.g. the EVM
+	// client stops watching once MaxBlockNumber is reached) must end the refresher like it
+	// always did — it must NOT be mistaken for a re-init deadline and enter an init loop.
+	cc := quickClientCfg("c1", 1)
+	cc.Config.SubscribeStops = true
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{cc})
+	cfg.ReInitInterval = 50 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+
+	cli := grabClient(t, p, "c1")
+	assert.Never(t, func() bool {
+		return cli.initCount() > 1
+	}, 500*time.Millisecond, 50*time.Millisecond)
 }
 
 // ── UseClient: InterruptWithTags ──────────────────────────────────────────────

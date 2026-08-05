@@ -123,3 +123,15 @@ func Test_PoolConfig_Trim_defaultTagDuration(t *testing.T) {
 	trimmed := PoolConfig[testClientConfig]{}.Trim(nil)
 	assert.Equal(t, time.Minute*30, trimmed.TagDuration)
 }
+
+func Test_PoolConfig_Trim_reInitInterval(t *testing.T) {
+	// 0 (the default) disables periodic re-init; a default interval, if any, is up to the
+	// service loading the configuration
+	assert.Equal(t, time.Duration(0), PoolConfig[testClientConfig]{}.Trim(nil).ReInitInterval)
+	// explicit value is kept
+	assert.Equal(t, time.Minute*10,
+		PoolConfig[testClientConfig]{ReInitInterval: time.Minute * 10}.Trim(nil).ReInitInterval)
+	// negative is clamped to 0
+	assert.Equal(t, time.Duration(0),
+		PoolConfig[testClientConfig]{ReInitInterval: -time.Second}.Trim(nil).ReInitInterval)
+}

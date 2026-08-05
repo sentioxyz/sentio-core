@@ -20,14 +20,17 @@ import (
 )
 
 type testClientConfig struct {
-	Name          string
-	Value         string
-	Offset        uint64
-	Interval      time.Duration
-	InitUsed      time.Duration
-	InitFailed    bool
-	InitSuccessAt time.Time
-	Version       int
+	Name           string
+	Value          string
+	Offset         uint64
+	Interval       time.Duration
+	InitUsed       time.Duration
+	BuildFailed    bool // the client builder rejects the config (malformed config, never retried)
+	InitFailed     bool
+	InitSuccessAt  time.Time
+	ReInitFails    bool // Init succeeds once, then always fails
+	SubscribeStops bool // SubscribeLatest returns immediately (a voluntary stop, like MaxBlockNumber)
+	Version        int
 }
 
 func (c testClientConfig) GetName() string {
@@ -45,8 +48,11 @@ type testClient struct {
 	stat map[string]int
 }
 
-func newTestClient(config testClientConfig, _ UsedNotifier) *testClient {
-	return &testClient{config: config, stat: make(map[string]int)}
+func newTestClient(config testClientConfig, _ UsedNotifier) (*testClient, error) {
+	if config.BuildFailed {
+		return nil, errors.Wrapf(ErrInvalidConfig, "build failed")
+	}
+	return &testClient{config: config, stat: make(map[string]int)}, nil
 }
 
 func (c *testClient) current() Block {
@@ -55,13 +61,17 @@ func (c *testClient) current() Block {
 }
 
 func (c *testClient) Init(ctx context.Context) (Block, error) {
+	c.Do("init")
 	select {
 	case <-time.After(c.config.InitUsed):
 	case <-ctx.Done():
 		return Block{}, ctx.Err()
 	}
 	if c.config.InitFailed {
-		return Block{}, errors.Wrapf(ErrInvalidConfig, "init failed")
+		return Block{}, errors.Errorf("init failed")
+	}
+	if c.config.ReInitFails && c.initCount() > 1 {
+		return Block{}, errors.Errorf("re-init failed")
 	}
 	if time.Now().Before(c.config.InitSuccessAt) {
 		return Block{}, errors.Errorf("not the time")
@@ -69,8 +79,17 @@ func (c *testClient) Init(ctx context.Context) (Block, error) {
 	return c.current(), nil
 }
 
+func (c *testClient) initCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.stat["init"]
+}
+
 // SubscribeLatest should not stop until ctx canceled
 func (c *testClient) SubscribeLatest(ctx context.Context, ch chan<- Block) {
+	if c.config.SubscribeStops {
+		return // voluntary stop while ctx is still alive
+	}
 	for {
 		select {
 		case <-time.After(c.config.Interval):
@@ -157,11 +176,11 @@ func Test_clientPool(t *testing.T) {
 			{
 				Priority: 3,
 				Config: testClientConfig{
-					Name:       "c4",
-					Value:      "cv4",
-					Interval:   time.Second,
-					InitFailed: true, // init will failed because invalid config, will not retry
-					Version:    4,
+					Name:        "c4",
+					Value:       "cv4",
+					Interval:    time.Second,
+					BuildFailed: true, // the config is invalid, the builder rejects it, will not retry
+					Version:     4,
 				},
 			},
 		},
@@ -1190,6 +1209,182 @@ func Test_ResultString(t *testing.T) {
 	assert.Equal(t, "Err[has error],Broken,BrokenForTask,AddTags[tag1,tag2]", r.String())
 	r.Err = nil
 	assert.Equal(t, "Broken,BrokenForTask,AddTags[tag1,tag2]", r.String())
+}
+
+// ── periodic re-init ──────────────────────────────────────────────────────────
+
+// grabClient fetches the live client instance of the given entry through UseClient.
+func grabClient(t *testing.T, p *ClientPool[testClientConfig, *testClient], name string) *testClient {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var cli *testClient
+	r := p.UseClient(ctx, "grab", func(_ context.Context, c *testClient) Result {
+		cli = c
+		return Result{}
+	}, WithConfigFilter[testClientConfig](func(c testClientConfig) bool {
+		return c.Name == name
+	}))
+	require.NoError(t, r.Err)
+	return cli
+}
+
+func Test_reInit_periodic(t *testing.T) {
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{quickClientCfg("c1", 1)})
+	cfg.ReInitInterval = 100 * time.Millisecond // each cycle waits within [100ms, 200ms)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+
+	cli := grabClient(t, p, "c1")
+	assert.Eventually(t, func() bool {
+		return cli.initCount() >= 3
+	}, 5*time.Second, 10*time.Millisecond, "Init should be re-run periodically")
+}
+
+func Test_reInit_disabled_neverReInits(t *testing.T) {
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{quickClientCfg("c1", 1)})
+	cfg.ReInitInterval = 0 // disabled (the default)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+
+	cli := grabClient(t, p, "c1")
+	assert.Never(t, func() bool {
+		return cli.initCount() > 1
+	}, 500*time.Millisecond, 50*time.Millisecond)
+}
+
+func Test_reInit_timerNotResetByDisableEnable(t *testing.T) {
+	// The pool pauses and resumes entries all the time (priority downgrades and upgrades call
+	// Disable/Enable). The re-init deadline is part of the persisted entry status, so those
+	// cycles must not reset the timer — otherwise an entry toggled more often than the interval
+	// would never re-init at all.
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{quickClientCfg("c1", 1)})
+	cfg.ReInitInterval = 200 * time.Millisecond // each cycle waits within [200ms, 400ms)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+	cli := grabClient(t, p, "c1")
+	require.Equal(t, 1, cli.initCount())
+
+	// toggle the entry more often than the re-init interval
+	deadline := time.Now().Add(1500 * time.Millisecond)
+	for time.Now().Before(deadline) && cli.initCount() < 2 {
+		p.pool.Disable("c1")
+		p.pool.Enable("c1")
+		time.Sleep(50 * time.Millisecond)
+	}
+	assert.GreaterOrEqual(t, cli.initCount(), 2,
+		"re-init must still fire even though the entry never stays enabled for a full interval")
+}
+
+func Test_buildFailure_entryNeverServes(t *testing.T) {
+	// A builder error means the config itself is malformed: the entry never initializes and is
+	// never retried.
+	cc := quickClientCfg("c1", 1)
+	cc.Config.BuildFailed = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(defaultPoolConfig([]ClientConfig[testClientConfig]{cc}))
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	fetchC1 := func() (pool.Entry[ClientConfig[testClientConfig], entryStatus[*testClient]], bool) {
+		entries, _, _ := p.pool.Fetch(func(string, pool.Entry[ClientConfig[testClientConfig], entryStatus[*testClient]],
+			poolStatus) bool {
+			return true
+		})
+		ent, has := entries["c1"]
+		return ent, has
+	}
+	assert.Eventually(t, func() bool {
+		ent, has := fetchC1()
+		return has && ent.Status.BuildFailedReason != ""
+	}, 5*time.Second, 10*time.Millisecond, "the build failure should be recorded")
+
+	// the failure is recorded apart from Init failures, is permanent, and is never retried
+	assert.Never(t, func() bool {
+		ent, has := fetchC1()
+		return !has || ent.Status.Initialized || ent.Status.InitializeFailedTimes > 0
+	}, 500*time.Millisecond, 50*time.Millisecond)
+	ent, _ := fetchC1()
+	assert.Contains(t, ent.Status.BuildFailedReason, "build failed")
+	assert.False(t, ent.Status.BuildFailedAt.IsZero())
+}
+
+func Test_reInit_initError_keepsRetrying(t *testing.T) {
+	// Any error raised during a re-init (e.g. a load balancer briefly routing eth_chainId to
+	// the wrong chain) must NOT permanently kill the refresher: static config validation
+	// happens in the builder, so the entry stays out of rotation and keeps retrying.
+	cc := quickClientCfg("c1", 1)
+	cc.Config.ReInitFails = true
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{cc})
+	cfg.ReInitInterval = 50 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+	cli := grabClient(t, p, "c1")
+
+	// initCount 2 is the first (failing) re-init attempt; anything beyond proves the refresher
+	// survived the failure and keeps retrying with backoff instead of exiting.
+	assert.Eventually(t, func() bool {
+		return cli.initCount() >= 4
+	}, 10*time.Second, 20*time.Millisecond, "refresher must keep retrying after a re-init failure")
+}
+
+func Test_reInit_voluntarySubscriptionStop_doesNotReInitLoop(t *testing.T) {
+	// A subscription that stops voluntarily while its context is still alive (e.g. the EVM
+	// client stops watching once MaxBlockNumber is reached) must end the refresher like it
+	// always did — it must NOT be mistaken for a re-init deadline and enter an init loop.
+	cc := quickClientCfg("c1", 1)
+	cc.Config.SubscribeStops = true
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{cc})
+	cfg.ReInitInterval = 50 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+
+	cli := grabClient(t, p, "c1")
+	assert.Never(t, func() bool {
+		return cli.initCount() > 1
+	}, 500*time.Millisecond, 50*time.Millisecond)
 }
 
 // ── UseClient: InterruptWithTags ──────────────────────────────────────────────

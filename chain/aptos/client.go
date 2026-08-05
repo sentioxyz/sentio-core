@@ -210,7 +210,9 @@ func NewClientPool(
 	return &ClientPool{
 		ClientPool: clientpool.NewClientPool(
 			name,
-			NewClient,
+			func(config ClientConfig, notifier clientpool.UsedNotifier) (*Client, error) {
+				return NewClient(config, notifier), nil
+			},
 			notifier,
 			append(confModifiers, ClientConfig.Trim)...,
 		),

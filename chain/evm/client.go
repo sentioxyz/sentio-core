@@ -17,6 +17,7 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -93,35 +94,52 @@ type Client struct {
 	rpcClient  *rpc.Client
 	info       *chains.EthChainInfo
 
-	hasStateDataFrom uint64
+	// hasStateDataFrom is the first block the node is believed to hold state data for:
+	// 0 means an archive node, math.MaxUint64 means no usable history state at all.
+	// Init is re-run periodically by the client pool while the client keeps serving,
+	// so this must be accessed atomically.
+	hasStateDataFrom atomic.Uint64
 
 	notifier clientpool.UsedNotifier
 }
 
-func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) *Client {
+// NewClient validates the static configuration and constructs the client. Everything derived
+// from the config alone happens here — Init only performs runtime checks against the endpoint,
+// so all its errors are retryable.
+func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) (*Client, error) {
+	// For http(s) endpoints dialing performs no I/O, it only validates the URL. The timeout
+	// only bounds the handshake of connection-oriented schemes (ws, ipc), which are not used
+	// as primary endpoints.
+	dialCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	rpcClient, err := rpc.DialOptions(dialCtx, config.Endpoint, rpc.WithHTTPClient(httpClient))
+	if err != nil {
+		return nil, errors.Wrapf(clientpool.ErrInvalidConfig,
+			"failed to dial endpoint %q: %v", config.Endpoint, err)
+	}
 	return &Client{
 		name:       clientpool.BuildPublicName(config.Endpoint),
 		config:     config,
 		httpClient: httpClient,
-		notifier:   notifier,
-	}
+		rpcClient:  rpcClient,
+		// resolved from static configuration once, so re-entrant Init never has to write it
+		// while concurrent calls read it (nil for chain IDs unknown to the registry)
+		info:     chains.EthChainIDToInfo[chains.ChainID(strconv.FormatUint(config.ChainID, 10))],
+		notifier: notifier,
+	}, nil
 }
 
 func (c *Client) isTronChain() bool {
 	return c.info != nil && c.info.Variation == chains.EthVariationTron
 }
 
+// Init is re-entrant: the client pool re-runs it periodically (PoolConfig.ReInitInterval) while
+// the client may be serving concurrent calls, so it must not mutate anything built by NewClient
+// and must publish detection results with a single atomic write. All its errors are retryable:
+// even an eth_chainId mismatch can be an endpoint transiently misbehaving (e.g. a load balancer
+// briefly routing to the wrong chain), so the pool keeps the entry out of rotation and retries.
 func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 	_, logger := log.FromContext(ctx)
-
-	// c.rpcClient
-	var err error
-	c.rpcClient, err = rpc.DialOptions(ctx, c.config.Endpoint, rpc.WithHTTPClient(c.httpClient))
-	if err != nil {
-		// always because the endpoint is invalid
-		return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
-			"failed to dial endpoint %q: %v", c.config.Endpoint, err)
-	}
 
 	// check chain id
 	if c.config.ChainID > 0 {
@@ -131,21 +149,19 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 			return clientpool.Block{}, r.Err
 		}
 		if uint64(result) != c.config.ChainID {
-			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
+			return clientpool.Block{}, errors.Errorf(
 				"result of eth_chainId is %d, expected is %d", uint64(result), c.config.ChainID)
 		}
-		c.info = chains.EthChainIDToInfo[chains.ChainID(strconv.FormatUint(c.config.ChainID, 10))]
 	}
 
 	// get latest block
-	var latest clientpool.Block
-	latest, err = c.getLatest(ctx, "init")
+	latest, err := c.getLatest(ctx, "init")
 	if err != nil {
 		return clientpool.Block{}, err
 	}
 
 	if c.isTronChain() {
-		c.hasStateDataFrom = math.MaxUint64
+		c.hasStateDataFrom.Store(math.MaxUint64)
 		logger.Warnf("no history state for tron chains")
 		return latest, nil
 	}
@@ -155,8 +171,23 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 		return latest, nil
 	}
 
-	// get start block for state data
-	c.hasStateDataFrom = 0 // reset to 0 to make sure tryGetBalance will not be blocked by c.hasStateDataFrom
+	// get start block for state data. The detection calls c.callContext directly, which does not
+	// go through the CallContext state guard, so the previous hasStateDataFrom (if any) cannot
+	// block it; the result is published with a single Store so concurrent calls always see either
+	// the previous or the new value, never an intermediate one.
+	from, err := c.detectStateDataFrom(ctx, latest.Number)
+	if err != nil {
+		return latest, err
+	}
+	c.hasStateDataFrom.Store(from)
+
+	return latest, nil
+}
+
+// detectStateDataFrom determines the first block the node holds state data for by probing
+// eth_getBalance: 0 means an archive node, math.MaxUint64 means no usable history state.
+func (c *Client) detectStateDataFrom(ctx context.Context, latest uint64) (uint64, error) {
+	_, logger := log.FromContext(ctx)
 	const (
 		retryTimes   = 20
 		noStateLimit = 10000
@@ -164,52 +195,47 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 	tryGetBalance := func(ctx context.Context, addr string, bn hexutil.Uint64) error {
 		return c.callContext(ctx, nil, "init", "eth_getBalance", addr, bn).Err
 	}
-	missBlock, missErr, getErr := getMissStateBlock(ctx, retryTimes, hexutil.Uint64(latest.Number), tryGetBalance)
+	missBlock, missErr, getErr := getMissStateBlock(ctx, retryTimes, hexutil.Uint64(latest), tryGetBalance)
 	if getErr != nil {
-		return latest, getErr
+		return 0, getErr
 	}
-	// detect c.hasStateDataFrom
-	if missErr != nil {
-		logger.Infof("miss state data at block %d", missBlock)
-		// will find the max block number miss data in [missBlock, latest]
-		// always exist at least one block in [missBlock, latest] miss state data
-		i, j := missBlock, hexutil.Uint64(latest.Number)
-		for i < j {
-			// because        i < j
-			// equivalent to  i+1 <= j
-			// so             m = (i+1+j)/2 <= (j+j)/2 = j
-			// and            m = (i+1+j)/2 >= (i+1+i+1)/2 = i+1
-			// that is        i+1 <= m <= j
-			m := (i + j + 1) >> 1
-			missErr, getErr = checkMissState(ctx, retryTimes, m, tryGetBalance)
-			if getErr != nil {
-				return latest, getErr
-			}
-			if missErr != nil {
-				i = m
-			} else {
-				j = m - 1
-			}
-		}
-		// now i == j, and [missBlock, i] are all miss state date,
-		// and [i+1, latest] has state date, although maybe i+1 > latest
-		if latest.Number-uint64(i) < noStateLimit {
-			// There are too few blocks containing state data. The starting block of the node's state data is likely
-			// to change dynamically with the latest block. Assume there is no state data.
-			c.hasStateDataFrom = math.MaxUint64
-			logger.Infof("is a full node that miss state data until block %d, "+
-				"too few blocks containing state data (%d < %d), assume there is no state data",
-				i+1, latest.Number-uint64(i), noStateLimit)
-		} else {
-			c.hasStateDataFrom = uint64(i + 1)
-			logger.Infof("is a full node that miss state data until block %d", i+1)
-		}
-	} else {
-		c.hasStateDataFrom = 0
+	if missErr == nil {
 		logger.Infof("is a archive node")
+		return 0, nil
 	}
-
-	return latest, nil
+	logger.Infof("miss state data at block %d", missBlock)
+	// will find the max block number miss data in [missBlock, latest]
+	// always exist at least one block in [missBlock, latest] miss state data
+	i, j := missBlock, hexutil.Uint64(latest)
+	for i < j {
+		// because        i < j
+		// equivalent to  i+1 <= j
+		// so             m = (i+1+j)/2 <= (j+j)/2 = j
+		// and            m = (i+1+j)/2 >= (i+1+i+1)/2 = i+1
+		// that is        i+1 <= m <= j
+		m := (i + j + 1) >> 1
+		missErr, getErr = checkMissState(ctx, retryTimes, m, tryGetBalance)
+		if getErr != nil {
+			return 0, getErr
+		}
+		if missErr != nil {
+			i = m
+		} else {
+			j = m - 1
+		}
+	}
+	// now i == j, and [missBlock, i] are all miss state date,
+	// and [i+1, latest] has state date, although maybe i+1 > latest
+	if latest-uint64(i) < noStateLimit {
+		// There are too few blocks containing state data. The starting block of the node's state data is likely
+		// to change dynamically with the latest block. Assume there is no state data.
+		logger.Infof("is a full node that miss state data until block %d, "+
+			"too few blocks containing state data (%d < %d), assume there is no state data",
+			i+1, latest-uint64(i), noStateLimit)
+		return math.MaxUint64, nil
+	}
+	logger.Infof("is a full node that miss state data until block %d", i+1)
+	return uint64(i + 1), nil
 }
 
 func (c *Client) subscribeUsingWebsocket(ctx context.Context, ch chan<- clientpool.Block) error {
@@ -436,7 +462,7 @@ func (c *Client) CallContext(
 		return r
 	}
 	// for all state-related method, checking block number in args to detect missing state data
-	if c.hasStateDataFrom > 0 {
+	if from := c.hasStateDataFrom.Load(); from > 0 {
 		// not a archive node
 		if argIndex, has := stateMethodBlockNumberArgIndex[method]; has {
 			var bp rpc.BlockNumberOrHash
@@ -456,12 +482,12 @@ func (c *Client) CallContext(
 						method, bp.String()),
 				}
 			}
-			if bp.BlockHash != nil || (*bp.BlockNumber >= 0 && uint64(*bp.BlockNumber) < c.hasStateDataFrom) {
+			if bp.BlockHash != nil || (*bp.BlockNumber >= 0 && uint64(*bp.BlockNumber) < from) {
 				var reason string
-				if c.hasStateDataFrom == math.MaxUint64 {
+				if from == math.MaxUint64 {
 					reason = "this is a full node"
 				} else {
-					reason = fmt.Sprintf("the start block of state data is %d", c.hasStateDataFrom)
+					reason = fmt.Sprintf("the start block of state data is %d", from)
 				}
 				return clientpool.Result{
 					Err: errors.Errorf("miss state data at block %s for the method %s, %s",
@@ -521,7 +547,7 @@ func (c *Client) GetName() string {
 
 func (c *Client) Snapshot() any {
 	return map[string]any{
-		"hasStateDataFrom": c.hasStateDataFrom,
+		"hasStateDataFrom": c.hasStateDataFrom.Load(),
 		"chainInfo":        c.info,
 	}
 }

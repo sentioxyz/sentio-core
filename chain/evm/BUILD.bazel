@@ -42,6 +42,7 @@ go_test(
     name = "evm_test",
     srcs = [
         "client_config_test.go",
+        "client_reinit_test.go",
         "header_types_test.go",
         "receipt_types_test.go",
         "rpc_types_ex_test.go",

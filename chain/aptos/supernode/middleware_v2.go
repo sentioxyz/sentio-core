@@ -3,14 +3,17 @@ package supernode
 import (
 	"context"
 	"encoding/json"
+	aptossdk "github.com/aptos-labs/aptos-go-sdk"
 	"github.com/aptos-labs/aptos-go-sdk/api"
 	"github.com/pkg/errors"
 	"github.com/sentioxyz/golang-lru"
 	"sentioxyz/sentio-core/chain/aptos"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/common/jsonrpc"
+	"sentioxyz/sentio-core/common/log"
 	rg "sentioxyz/sentio-core/common/range"
 	"strings"
+	"time"
 )
 
 func NewMiddlewareV2(svr *RPCServiceV2) jsonrpc.Middleware {
@@ -53,17 +56,28 @@ const (
 	// fetcher, so normal queries never get close to the cap.
 	maxTransactions    = 1000
 	maxResourceChanges = 2000
+
+	// addressStartSearchTimeout bounds one whole account-state binary search (~32 bisection steps of
+	// 1-2 requests each, normally well under a minute). Without it a search against banned/rate-limited
+	// endpoints can hang for minutes per probe waiting for an available client, which would delay
+	// the change-record fallback almost indefinitely.
+	addressStartSearchTimeout = 2 * time.Minute
 )
 
 type RPCServiceV2 struct {
-	slotCache chain.LatestSlotCache[*aptos.Slot]
-	store     Storage
+	slotCache  chain.LatestSlotCache[*aptos.Slot]
+	store      Storage
+	clientPool *aptos.ClientPool
 
 	cachedMinimalistTxn         *lru.Cache[uint64, aptos.MinimalistTransaction]
 	cachedAddressStartTxVersion *lru.Cache[string, uint64]
 }
 
-func NewRPCServiceV2(slotCache chain.LatestSlotCache[*aptos.Slot], store Storage) *RPCServiceV2 {
+func NewRPCServiceV2(
+	slotCache chain.LatestSlotCache[*aptos.Slot],
+	store Storage,
+	clientPool *aptos.ClientPool,
+) *RPCServiceV2 {
 	cachedMinimalistTxn, err := lru.New[uint64, aptos.MinimalistTransaction](MinimalistTxnCacheSize)
 	if err != nil {
 		panic(err)
@@ -75,6 +89,7 @@ func NewRPCServiceV2(slotCache chain.LatestSlotCache[*aptos.Slot], store Storage
 	return &RPCServiceV2{
 		slotCache:                   slotCache,
 		store:                       store,
+		clientPool:                  clientPool,
 		cachedMinimalistTxn:         cachedMinimalistTxn,
 		cachedAddressStartTxVersion: cachedAddressStartTxVersion,
 	}
@@ -218,6 +233,96 @@ func (s *RPCServiceV2) GetAddressStartTxVersion(
 	if ver, has := s.cachedAddressStartTxVersion.Get(address); has {
 		return &ver, nil
 	}
+	ver, found, err := s.searchAddressStartTxVersion(ctx, address, maxTxVersion)
+	if err != nil {
+		// e.g. no endpoint keeps enough history to answer at the probed versions; fall back to
+		// scanning the change records (latest slot cache + store)
+		_, logger := log.FromContext(ctx)
+		logger.Warnf("search start tx version of address %s over account state failed, "+
+			"fall back to change records: %v", address, err)
+		return s.getAddressStartTxVersionByChanges(ctx, address, maxTxVersion)
+	}
+	if !found {
+		return nil, nil
+	}
+	s.cachedAddressStartTxVersion.Add(address, ver)
+	return &ver, nil
+}
+
+// searchAddressStartTxVersion binary-searches the smallest tx version at which the account owns
+// at least one resource or module. Change records track exactly those two kinds of per-address
+// state (see aptos.GetChangeAddress), and the first change of an address is necessarily a write
+// of one of them, so that version is the address's start tx version. Compared with scanning the
+// change records this only costs O(log(maxTxVersion)) light fullnode requests instead of heavy
+// storage queries.
+//
+// Versions no endpoint can answer (pruned history) do not fail the search: bisection carries on
+// above them, returns an exact result whenever the boundary lies in answerable history, and only
+// reports an error -- sending the caller to the change-record fallback -- when the start may
+// hide inside the pruned part.
+func (s *RPCServiceV2) searchAddressStartTxVersion(
+	ctx context.Context,
+	address string,
+	maxTxVersion uint64,
+) (uint64, bool, error) {
+	if s.clientPool == nil {
+		return 0, false, errors.New("no client pool configured")
+	}
+	var addr aptossdk.AccountAddress
+	if err := addr.ParseStringRelaxed(address); err != nil {
+		return 0, false, errors.Wrapf(err, "invalid account address %q", address)
+	}
+	normalized := addr.String()
+	ctx, cancel := context.WithTimeout(ctx, addressStartSearchTimeout)
+	defer cancel()
+	probe := func(txVersion uint64) (bool, error) {
+		has, r := s.clientPool.HasAccountState(ctx, "supernode", normalized, txVersion)
+		return has, r.Err
+	}
+	if has, err := probe(maxTxVersion); err != nil {
+		return 0, false, err
+	} else if !has {
+		return 0, false, nil
+	}
+	low, high := uint64(0), maxTxVersion
+	var lastFalse uint64
+	hasFalse := false
+	for low < high {
+		mid := low + (high-low)/2
+		if has, err := probe(mid); err != nil {
+			if ctx.Err() != nil {
+				return 0, false, err
+			}
+			// no endpoint could answer at mid (typically the whole pool pruned this part of
+			// history away, so every endpoint got marked BrokenForTask); keep bisecting the
+			// upper half -- if the boundary turns out to lie in answerable history the search
+			// still finishes exactly, and otherwise the exactness check below rejects it
+			low = mid + 1
+		} else if has {
+			high = mid
+		} else {
+			lastFalse, hasFalse = mid, true
+			low = mid + 1
+		}
+	}
+	// the result is only trustworthy when its immediate predecessor was positively answered to
+	// own no state (or there is no predecessor); if low was reached over unanswerable versions
+	// the real start may hide inside the pruned history, so leave it to the fallback
+	if low == 0 || (hasFalse && lastFalse == low-1) {
+		return low, true, nil
+	}
+	return 0, false, errors.Errorf(
+		"start tx version of %s is at most %d but may hide in history no endpoint can answer", address, low)
+}
+
+// getAddressStartTxVersionByChanges finds the first change record of the address by scanning the
+// latest slot cache and then the store. It is the fallback when the account-state binary
+// search cannot answer.
+func (s *RPCServiceV2) getAddressStartTxVersionByChanges(
+	ctx context.Context,
+	address string,
+	maxTxVersion uint64,
+) (*uint64, error) {
 	txs, err := splitRange(
 		ctx,
 		s.slotCache,

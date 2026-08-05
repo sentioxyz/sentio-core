@@ -12,7 +12,7 @@ func NewRPCService(
 	store Storage,
 ) []jsonrpc.Middleware {
 	return []jsonrpc.Middleware{
-		NewMiddlewareV2(NewRPCServiceV2(slotCache, store)),
+		NewMiddlewareV2(NewRPCServiceV2(slotCache, store, clientPool)),
 		NewMiddleware(NewRPCServiceV1(slotCache, store)),
 		jsonrpc.NewHTTPProxyMiddleware("", clientPool.ClientPool),
 	}

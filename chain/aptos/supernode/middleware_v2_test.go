@@ -201,6 +201,39 @@ func Test_searchAddressStartTxVersion(t *testing.T) {
 		assert.Equal(t, uint64(0), ver)
 	})
 
+	// prunedNode answers like a fullnode that pruned history before floor: version_pruned below
+	// it, a normal account created at firstVersion above it
+	prunedNode := func(floor, firstVersion uint64) func(string, uint64) (any, string, int) {
+		return func(address string, txVersion uint64) (any, string, int) {
+			if txVersion < floor {
+				return nil, "version_pruned", http.StatusGone
+			}
+			return accountSince(firstVersion)(address, txVersion)
+		}
+	}
+
+	t.Run("pruned history, boundary in answerable range", func(t *testing.T) {
+		// every endpoint pruned versions below 2.0B, account created at 2.5B: probes below the
+		// floor cannot be answered but the search still finishes exactly
+		node := &fakeFullnode{resourcesAt: prunedNode(2_000_000_000, 2_500_000_000)}
+		svc := newTestServiceV2(t, node)
+		ver, err := svc.GetAddressStartTxVersion(ctx, address, 3_000_000_000)
+		assert.NoError(t, err)
+		if assert.NotNil(t, ver) {
+			assert.Equal(t, uint64(2_500_000_000), *ver)
+		}
+	})
+
+	t.Run("pruned history, account state already at the floor", func(t *testing.T) {
+		// the account owns state at the earliest answerable version, so its start may hide in
+		// the pruned part: the search must refuse to answer (the caller then falls back to the
+		// change-record scan) instead of returning the floor
+		node := &fakeFullnode{resourcesAt: prunedNode(2_000_000_000, 1_000_000_000)}
+		svc := newTestServiceV2(t, node)
+		_, _, err := svc.searchAddressStartTxVersion(ctx, address, 3_000_000_000)
+		assert.ErrorContains(t, err, "may hide in history no endpoint can answer")
+	})
+
 	t.Run("probe error surfaces from search", func(t *testing.T) {
 		node := &fakeFullnode{resourcesAt: func(_ string, _ uint64) (any, string, int) {
 			return nil, "invalid_input", http.StatusBadRequest

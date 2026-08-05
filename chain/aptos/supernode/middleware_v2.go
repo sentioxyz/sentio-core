@@ -255,6 +255,11 @@ func (s *RPCServiceV2) GetAddressStartTxVersion(
 // of one of them, so that version is the address's start tx version. Compared with scanning the
 // change records this only costs O(log(maxTxVersion)) light fullnode requests instead of heavy
 // storage queries.
+//
+// Versions no endpoint can answer (pruned history) do not fail the search: bisection carries on
+// above them, returns an exact result whenever the boundary lies in answerable history, and only
+// reports an error -- sending the caller to the change-record fallback -- when the start may
+// hide inside the pruned part.
 func (s *RPCServiceV2) searchAddressStartTxVersion(
 	ctx context.Context,
 	address string,
@@ -280,17 +285,34 @@ func (s *RPCServiceV2) searchAddressStartTxVersion(
 		return 0, false, nil
 	}
 	low, high := uint64(0), maxTxVersion
+	var lastFalse uint64
+	hasFalse := false
 	for low < high {
 		mid := low + (high-low)/2
 		if has, err := probe(mid); err != nil {
-			return 0, false, err
+			if ctx.Err() != nil {
+				return 0, false, err
+			}
+			// no endpoint could answer at mid (typically the whole pool pruned this part of
+			// history away, so every endpoint got marked BrokenForTask); keep bisecting the
+			// upper half -- if the boundary turns out to lie in answerable history the search
+			// still finishes exactly, and otherwise the exactness check below rejects it
+			low = mid + 1
 		} else if has {
 			high = mid
 		} else {
+			lastFalse, hasFalse = mid, true
 			low = mid + 1
 		}
 	}
-	return low, true, nil
+	// the result is only trustworthy when its immediate predecessor was positively answered to
+	// own no state (or there is no predecessor); if low was reached over unanswerable versions
+	// the real start may hide inside the pruned history, so leave it to the fallback
+	if low == 0 || (hasFalse && lastFalse == low-1) {
+		return low, true, nil
+	}
+	return 0, false, errors.Errorf(
+		"start tx version of %s is at most %d but may hide in history no endpoint can answer", address, low)
 }
 
 // getAddressStartTxVersionByChanges finds the first change record of the address by scanning the

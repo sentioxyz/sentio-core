@@ -18,11 +18,14 @@ import (
 )
 
 // fakeFullnode serves just enough of the aptos fullnode REST API for the client pool to boot
-// (GET /v1) and for the account-resource probes (GET /v1/accounts/{address}/resources).
+// (GET /v1) and for the account-state probes (GET /v1/accounts/{address}/resources and
+// GET /v1/accounts/{address}/modules).
 type fakeFullnode struct {
-	// resourcesAt answers a probe: given the requested address and ledger version, return the
-	// resources body, or an error code (e.g. "account_not_found") with its HTTP status
+	// resourcesAt / modulesAt answer a probe: given the requested address and ledger version,
+	// return the response body, or an error code (e.g. "account_not_found") with its HTTP
+	// status. A nil modulesAt answers account_not_found for every module probe.
 	resourcesAt func(address string, txVersion uint64) (body any, errCode string, status int)
+	modulesAt   func(address string, txVersion uint64) (body any, errCode string, status int)
 	probeCount  atomic.Int64
 }
 
@@ -42,15 +45,15 @@ func (f *fakeFullnode) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if strings.HasPrefix(r.URL.Path, "/v1/accounts/") && strings.HasSuffix(r.URL.Path, "/resources") {
+	if kind, answer := f.route(r.URL.Path); answer != nil {
 		f.probeCount.Add(1)
-		address := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/accounts/"), "/resources")
+		address := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/accounts/"), "/"+kind)
 		txVersion, err := strconv.ParseUint(r.URL.Query().Get("ledger_version"), 10, 64)
 		if err != nil {
 			http.Error(w, `{"message":"bad ledger_version","error_code":"invalid_input"}`, http.StatusBadRequest)
 			return
 		}
-		body, errCode, status := f.resourcesAt(address, txVersion)
+		body, errCode, status := answer(address, txVersion)
 		if errCode != "" {
 			w.WriteHeader(status)
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": errCode, "error_code": errCode})
@@ -60,6 +63,24 @@ func (f *fakeFullnode) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Error(w, `{"message":"not found","error_code":"web_framework_error"}`, http.StatusNotFound)
+}
+
+func (f *fakeFullnode) route(path string) (string, func(string, uint64) (any, string, int)) {
+	if !strings.HasPrefix(path, "/v1/accounts/") {
+		return "", nil
+	}
+	switch {
+	case strings.HasSuffix(path, "/resources"):
+		return "resources", f.resourcesAt
+	case strings.HasSuffix(path, "/modules"):
+		if f.modulesAt == nil {
+			return "modules", func(string, uint64) (any, string, int) {
+				return nil, "account_not_found", http.StatusNotFound
+			}
+		}
+		return "modules", f.modulesAt
+	}
+	return "", nil
 }
 
 func newTestServiceV2(t *testing.T, node *fakeFullnode) *RPCServiceV2 {
@@ -106,8 +127,8 @@ func Test_searchAddressStartTxVersion(t *testing.T) {
 				if assert.NotNil(t, ver) {
 					assert.Equal(t, firstVersion, *ver)
 				}
-				assert.LessOrEqual(t, node.probeCount.Load(), int64(40),
-					"binary search should cost O(log n) probes")
+				assert.LessOrEqual(t, node.probeCount.Load(), int64(80),
+					"binary search should cost O(log n) probes (at most 2 requests per step)")
 
 				// second call hits the LRU cache without probing
 				node.probeCount.Store(0)
@@ -121,7 +142,7 @@ func Test_searchAddressStartTxVersion(t *testing.T) {
 		}
 	})
 
-	t.Run("no resources up to maxTxVersion", func(t *testing.T) {
+	t.Run("no state up to maxTxVersion", func(t *testing.T) {
 		node := &fakeFullnode{resourcesAt: func(_ string, _ uint64) (any, string, int) {
 			return nil, "account_not_found", http.StatusNotFound
 		}}
@@ -129,7 +150,30 @@ func Test_searchAddressStartTxVersion(t *testing.T) {
 		ver, err := svc.GetAddressStartTxVersion(ctx, address, 3_000_000_000)
 		assert.NoError(t, err)
 		assert.Nil(t, ver)
-		assert.Equal(t, int64(1), node.probeCount.Load(), "one probe at maxTxVersion is enough")
+		assert.Equal(t, int64(2), node.probeCount.Load(),
+			"one resources + one modules probe at maxTxVersion is enough")
+	})
+
+	t.Run("stateless account owning only modules", func(t *testing.T) {
+		// a module published through an orderless, fee-sponsored transaction never materializes
+		// 0x1::account::Account, so the address owns modules but no resource at all
+		node := &fakeFullnode{
+			resourcesAt: func(_ string, _ uint64) (any, string, int) {
+				return nil, "account_not_found", http.StatusNotFound
+			},
+			modulesAt: func(_ string, txVersion uint64) (any, string, int) {
+				if txVersion >= 777 {
+					return []map[string]any{{"bytecode": "0x", "abi": map[string]any{}}}, "", 0
+				}
+				return nil, "account_not_found", http.StatusNotFound
+			},
+		}
+		svc := newTestServiceV2(t, node)
+		ver, err := svc.GetAddressStartTxVersion(ctx, address, 3_000_000_000)
+		assert.NoError(t, err)
+		if assert.NotNil(t, ver) {
+			assert.Equal(t, uint64(777), *ver)
+		}
 	})
 
 	t.Run("short address form is normalized before probing", func(t *testing.T) {

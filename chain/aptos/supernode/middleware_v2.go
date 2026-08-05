@@ -57,8 +57,8 @@ const (
 	maxTransactions    = 1000
 	maxResourceChanges = 2000
 
-	// addressStartSearchTimeout bounds one whole account-resource binary search (~32 sequential
-	// probes, normally well under a minute). Without it a search against banned/rate-limited
+	// addressStartSearchTimeout bounds one whole account-state binary search (~32 bisection steps of
+	// 1-2 requests each, normally well under a minute). Without it a search against banned/rate-limited
 	// endpoints can hang for minutes per probe waiting for an available client, which would delay
 	// the change-record fallback almost indefinitely.
 	addressStartSearchTimeout = 2 * time.Minute
@@ -238,7 +238,7 @@ func (s *RPCServiceV2) GetAddressStartTxVersion(
 		// e.g. no endpoint keeps enough history to answer at the probed versions; fall back to
 		// scanning the change records (latest slot cache + store)
 		_, logger := log.FromContext(ctx)
-		logger.Warnf("search start tx version of address %s over account resources failed, "+
+		logger.Warnf("search start tx version of address %s over account state failed, "+
 			"fall back to change records: %v", address, err)
 		return s.getAddressStartTxVersionByChanges(ctx, address, maxTxVersion)
 	}
@@ -250,10 +250,11 @@ func (s *RPCServiceV2) GetAddressStartTxVersion(
 }
 
 // searchAddressStartTxVersion binary-searches the smallest tx version at which the account owns
-// at least one resource. Since resources are the carrier of any on-chain activity of an address
-// (an account or object cannot be touched before its first resource is written), that version is
-// the address's start tx version. Compared with scanning the change records this only costs
-// O(log(maxTxVersion)) light fullnode requests instead of heavy storage queries.
+// at least one resource or module. Change records track exactly those two kinds of per-address
+// state (see aptos.GetChangeAddress), and the first change of an address is necessarily a write
+// of one of them, so that version is the address's start tx version. Compared with scanning the
+// change records this only costs O(log(maxTxVersion)) light fullnode requests instead of heavy
+// storage queries.
 func (s *RPCServiceV2) searchAddressStartTxVersion(
 	ctx context.Context,
 	address string,
@@ -270,7 +271,7 @@ func (s *RPCServiceV2) searchAddressStartTxVersion(
 	ctx, cancel := context.WithTimeout(ctx, addressStartSearchTimeout)
 	defer cancel()
 	probe := func(txVersion uint64) (bool, error) {
-		has, r := s.clientPool.HasAccountResources(ctx, "supernode", normalized, txVersion)
+		has, r := s.clientPool.HasAccountState(ctx, "supernode", normalized, txVersion)
 		return has, r.Err
 	}
 	if has, err := probe(maxTxVersion); err != nil {
@@ -293,7 +294,7 @@ func (s *RPCServiceV2) searchAddressStartTxVersion(
 }
 
 // getAddressStartTxVersionByChanges finds the first change record of the address by scanning the
-// latest slot cache and then the store. It is the fallback when the account-resource binary
+// latest slot cache and then the store. It is the fallback when the account-state binary
 // search cannot answer.
 func (s *RPCServiceV2) getAddressStartTxVersionByChanges(
 	ctx context.Context,

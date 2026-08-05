@@ -166,19 +166,26 @@ type nodeAPIError struct {
 	ErrorCode string `json:"error_code"`
 }
 
-func (c *Client) _hasAccountResources(ctx context.Context, address string, txVersion uint64) (bool, clientpool.Result) {
+// _listAccountState checks whether GET /v1/accounts/{address}/{kind}?limit=1 (kind is
+// "resources" or "modules") returns anything at the given transaction (ledger) version.
+func (c *Client) _listAccountState(
+	ctx context.Context,
+	address string,
+	kind string,
+	txVersion uint64,
+) (bool, clientpool.Result) {
 	callCtx, cancel := context.WithTimeout(ctx, c.config.GetResourcesTimeout)
 	defer cancel()
 	params := make(url.Values)
 	params.Set("ledger_version", strconv.FormatUint(txVersion, 10))
 	params.Set("limit", "1")
-	path := fmt.Sprintf("/v1/accounts/%s/resources", address)
+	path := fmt.Sprintf("/v1/accounts/%s/%s", address, kind)
 	req, err := clientpool.BuildHTTPRequest(callCtx, "GET", c.config.Endpoint, path, params, nil, nil)
 	if err != nil {
 		return false, clientpool.Result{Err: err, Broken: true}
 	}
-	var resources []json.RawMessage
-	resp, body, r := clientpool.SendHTTP(c.httpClient, req, &resources)
+	var items []json.RawMessage
+	resp, body, r := clientpool.SendHTTP(c.httpClient, req, &items)
 	if r.Err != nil {
 		if resp != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone) {
 			var apiErr nodeAPIError
@@ -196,20 +203,31 @@ func (c *Client) _hasAccountResources(ctx context.Context, address string, txVer
 		}
 		return false, r
 	}
-	return len(resources) > 0, r
+	return len(items) > 0, r
 }
 
-// HasAccountResources reports whether the account owns at least one resource at the given
-// transaction (ledger) version.
-func (c *Client) HasAccountResources(
+func (c *Client) _hasAccountState(ctx context.Context, address string, txVersion uint64) (bool, clientpool.Result) {
+	has, r := c._listAccountState(ctx, address, "resources", txVersion)
+	if r.Err != nil || has {
+		return has, r
+	}
+	// a stateless account may carry modules without owning any resource (e.g. a module published
+	// through an orderless, fee-sponsored transaction never materializes 0x1::account::Account)
+	return c._listAccountState(ctx, address, "modules", txVersion)
+}
+
+// HasAccountState reports whether the account owns at least one resource or module at the given
+// transaction (ledger) version -- exactly the two kinds of per-address state that address change
+// records track.
+func (c *Client) HasAccountState(
 	ctx context.Context,
 	src string,
 	address string,
 	txVersion uint64,
 ) (bool, clientpool.Result) {
 	var has bool
-	r := c.use(ctx, src+".hasAccountResources", func(ctx context.Context) (r clientpool.Result) {
-		has, r = c._hasAccountResources(ctx, address, txVersion)
+	r := c.use(ctx, src+".hasAccountState", func(ctx context.Context) (r clientpool.Result) {
+		has, r = c._hasAccountState(ctx, address, txVersion)
 		return r
 	})
 	return has, r
@@ -277,17 +295,17 @@ func NewClientPool(
 	}
 }
 
-// HasAccountResources reports whether the account owns at least one resource at the given
+// HasAccountState reports whether the account owns at least one resource or module at the given
 // transaction (ledger) version.
-func (p *ClientPool) HasAccountResources(
+func (p *ClientPool) HasAccountState(
 	ctx context.Context,
 	src string,
 	address string,
 	txVersion uint64,
 ) (bool, clientpool.Report) {
 	var result bool
-	r := p.UseClient(ctx, src+".HasAccountResources", func(ctx context.Context, cli *Client) (r clientpool.Result) {
-		result, r = cli.HasAccountResources(ctx, src, address, txVersion)
+	r := p.UseClient(ctx, src+".HasAccountState", func(ctx context.Context, cli *Client) (r clientpool.Result) {
+		result, r = cli.HasAccountState(ctx, src, address, txVersion)
 		return r
 	})
 	return result, r

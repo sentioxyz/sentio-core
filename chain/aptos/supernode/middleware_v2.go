@@ -3,12 +3,14 @@ package supernode
 import (
 	"context"
 	"encoding/json"
+	aptossdk "github.com/aptos-labs/aptos-go-sdk"
 	"github.com/aptos-labs/aptos-go-sdk/api"
 	"github.com/pkg/errors"
 	"github.com/sentioxyz/golang-lru"
 	"sentioxyz/sentio-core/chain/aptos"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/common/jsonrpc"
+	"sentioxyz/sentio-core/common/log"
 	rg "sentioxyz/sentio-core/common/range"
 	"strings"
 )
@@ -55,15 +57,24 @@ const (
 	maxResourceChanges = 2000
 )
 
+// AccountResourceProber reports whether the account owns at least one resource at the given
+// transaction (ledger) version, by asking an upstream fullnode.
+type AccountResourceProber func(ctx context.Context, address string, txVersion uint64) (bool, error)
+
 type RPCServiceV2 struct {
 	slotCache chain.LatestSlotCache[*aptos.Slot]
 	store     Storage
+	prober    AccountResourceProber
 
 	cachedMinimalistTxn         *lru.Cache[uint64, aptos.MinimalistTransaction]
 	cachedAddressStartTxVersion *lru.Cache[string, uint64]
 }
 
-func NewRPCServiceV2(slotCache chain.LatestSlotCache[*aptos.Slot], store Storage) *RPCServiceV2 {
+func NewRPCServiceV2(
+	slotCache chain.LatestSlotCache[*aptos.Slot],
+	store Storage,
+	prober AccountResourceProber,
+) *RPCServiceV2 {
 	cachedMinimalistTxn, err := lru.New[uint64, aptos.MinimalistTransaction](MinimalistTxnCacheSize)
 	if err != nil {
 		panic(err)
@@ -75,6 +86,7 @@ func NewRPCServiceV2(slotCache chain.LatestSlotCache[*aptos.Slot], store Storage
 	return &RPCServiceV2{
 		slotCache:                   slotCache,
 		store:                       store,
+		prober:                      prober,
 		cachedMinimalistTxn:         cachedMinimalistTxn,
 		cachedAddressStartTxVersion: cachedAddressStartTxVersion,
 	}
@@ -218,6 +230,67 @@ func (s *RPCServiceV2) GetAddressStartTxVersion(
 	if ver, has := s.cachedAddressStartTxVersion.Get(address); has {
 		return &ver, nil
 	}
+	ver, found, err := s.searchAddressStartTxVersion(ctx, address, maxTxVersion)
+	if err != nil {
+		// e.g. no endpoint keeps enough history to answer at the probed versions; fall back to
+		// scanning the change records (latest slot cache + store)
+		_, logger := log.FromContext(ctx)
+		logger.Warnf("search start tx version of address %s over account resources failed, "+
+			"fall back to change records: %v", address, err)
+		return s.getAddressStartTxVersionByChanges(ctx, address, maxTxVersion)
+	}
+	if !found {
+		return nil, nil
+	}
+	s.cachedAddressStartTxVersion.Add(address, ver)
+	return &ver, nil
+}
+
+// searchAddressStartTxVersion binary-searches the smallest tx version at which the account owns
+// at least one resource. Since resources are the carrier of any on-chain activity of an address
+// (an account or object cannot be touched before its first resource is written), that version is
+// the address's start tx version. Compared with scanning the change records this only costs
+// O(log(maxTxVersion)) light fullnode requests instead of heavy storage queries.
+func (s *RPCServiceV2) searchAddressStartTxVersion(
+	ctx context.Context,
+	address string,
+	maxTxVersion uint64,
+) (uint64, bool, error) {
+	if s.prober == nil {
+		return 0, false, errors.New("no account resource prober configured")
+	}
+	var addr aptossdk.AccountAddress
+	if err := addr.ParseStringRelaxed(address); err != nil {
+		return 0, false, errors.Wrapf(err, "invalid account address %q", address)
+	}
+	normalized := addr.String()
+	if has, err := s.prober(ctx, normalized, maxTxVersion); err != nil {
+		return 0, false, err
+	} else if !has {
+		return 0, false, nil
+	}
+	low, high := uint64(0), maxTxVersion
+	for low < high {
+		mid := low + (high-low)/2
+		if has, err := s.prober(ctx, normalized, mid); err != nil {
+			return 0, false, err
+		} else if has {
+			high = mid
+		} else {
+			low = mid + 1
+		}
+	}
+	return low, true, nil
+}
+
+// getAddressStartTxVersionByChanges finds the first change record of the address by scanning the
+// latest slot cache and then the store. It is the fallback when the account-resource binary
+// search cannot answer.
+func (s *RPCServiceV2) getAddressStartTxVersionByChanges(
+	ctx context.Context,
+	address string,
+	maxTxVersion uint64,
+) (*uint64, error) {
 	txs, err := splitRange(
 		ctx,
 		s.slotCache,

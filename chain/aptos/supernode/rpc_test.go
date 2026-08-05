@@ -172,6 +172,22 @@ func Test_aptosRpc(t *testing.T) {
 		assert.Greater(t, resp.Transaction.Version, uint64(0))
 	})
 
+	t.Run("aptosV2_getAddressStartTxVersion", func(t *testing.T) {
+		latest, err := callRPC[aptos.GetLatestMinimalistTransactionResponse](
+			addr, "aptosV2_getLatestMinimalistTransaction", []any{uint64(0)})
+		assert.NoError(t, err)
+		// 0x1 exists since genesis; both the resource binary search (archive endpoint) and the
+		// change-record fallback (0x1 is touched by every block metadata transaction, so the
+		// latest slot cache always contains a change of it) must find a version
+		ver, err := callRPC[*uint64](
+			addr, "aptosV2_getAddressStartTxVersion", []any{"0x1", latest.Transaction.Version})
+		assert.NoError(t, err)
+		if assert.NotNil(t, ver) {
+			assert.LessOrEqual(t, *ver, latest.Transaction.Version)
+			log.Infof("start tx version of 0x1: %d", *ver)
+		}
+	})
+
 	t.Run("proxy.getTransactionByVersion", func(t *testing.T) {
 		resp, err := http.Get("http://" + addr + "/v1/transactions/by_version/1")
 		assert.NoError(t, err)

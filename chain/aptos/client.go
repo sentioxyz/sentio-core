@@ -2,6 +2,7 @@ package aptos
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/aptos-labs/aptos-go-sdk"
 	"github.com/aptos-labs/aptos-go-sdk/api"
@@ -24,6 +25,7 @@ type ClientConfig struct {
 	KeepWatch           time.Duration     `json:"keep_watch" yaml:"keep_watch"`
 	GetLatestTimeout    time.Duration     `json:"get_latest_timeout" yaml:"get_latest_timeout"`
 	GetBlockTimeout     time.Duration     `json:"get_block_timeout" yaml:"get_block_timeout"`
+	GetResourcesTimeout time.Duration     `json:"get_resources_timeout" yaml:"get_resources_timeout"`
 }
 
 func (c ClientConfig) Trim() ClientConfig {
@@ -33,6 +35,7 @@ func (c ClientConfig) Trim() ClientConfig {
 		KeepWatch:           utils.Select(c.KeepWatch == 0, time.Second, c.KeepWatch),
 		GetLatestTimeout:    utils.Select(c.GetLatestTimeout == 0, time.Second*3, c.GetLatestTimeout),
 		GetBlockTimeout:     utils.Select(c.GetBlockTimeout == 0, time.Second*3, c.GetBlockTimeout),
+		GetResourcesTimeout: utils.Select(c.GetResourcesTimeout == 0, time.Second*10, c.GetResourcesTimeout),
 	}
 }
 
@@ -157,6 +160,61 @@ func (c *Client) GetCurrentNodeInfo(ctx context.Context, src string) (aptos.Node
 	return result, r
 }
 
+// nodeAPIError is the error body returned by the aptos fullnode REST API.
+type nodeAPIError struct {
+	Message   string `json:"message"`
+	ErrorCode string `json:"error_code"`
+}
+
+func (c *Client) _hasAccountResources(ctx context.Context, address string, txVersion uint64) (bool, clientpool.Result) {
+	callCtx, cancel := context.WithTimeout(ctx, c.config.GetResourcesTimeout)
+	defer cancel()
+	params := make(url.Values)
+	params.Set("ledger_version", strconv.FormatUint(txVersion, 10))
+	params.Set("limit", "1")
+	path := fmt.Sprintf("/v1/accounts/%s/resources", address)
+	req, err := clientpool.BuildHTTPRequest(callCtx, "GET", c.config.Endpoint, path, params, nil, nil)
+	if err != nil {
+		return false, clientpool.Result{Err: err, Broken: true}
+	}
+	var resources []json.RawMessage
+	resp, body, r := clientpool.SendHTTP(c.httpClient, req, &resources)
+	if r.Err != nil {
+		if resp != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone) {
+			var apiErr nodeAPIError
+			if unmarshalErr := json.Unmarshal(body, &apiErr); unmarshalErr == nil {
+				switch apiErr.ErrorCode {
+				case "account_not_found":
+					// the account does not exist at this version: a valid negative answer
+					return false, clientpool.Result{}
+				case "version_pruned", "block_pruned", "version_not_found", "block_not_found":
+					// this endpoint cannot answer at this version (pruned history or lagging
+					// behind); let the pool retry with another endpoint
+					r.BrokenForTask = true
+				}
+			}
+		}
+		return false, r
+	}
+	return len(resources) > 0, r
+}
+
+// HasAccountResources reports whether the account owns at least one resource at the given
+// transaction (ledger) version.
+func (c *Client) HasAccountResources(
+	ctx context.Context,
+	src string,
+	address string,
+	txVersion uint64,
+) (bool, clientpool.Result) {
+	var has bool
+	r := c.use(ctx, src+".hasAccountResources", func(ctx context.Context) (r clientpool.Result) {
+		has, r = c._hasAccountResources(ctx, address, txVersion)
+		return r
+	})
+	return has, r
+}
+
 func (c *Client) GetBlock(ctx context.Context, src string, bn uint64, withTxs bool) (api.Block, clientpool.Result) {
 	var block api.Block
 	method := src + utils.Select(withTxs, ".getBlockWithTxs", ".getBlock")
@@ -217,6 +275,22 @@ func NewClientPool(
 			append(confModifiers, ClientConfig.Trim)...,
 		),
 	}
+}
+
+// HasAccountResources reports whether the account owns at least one resource at the given
+// transaction (ledger) version.
+func (p *ClientPool) HasAccountResources(
+	ctx context.Context,
+	src string,
+	address string,
+	txVersion uint64,
+) (bool, clientpool.Report) {
+	var result bool
+	r := p.UseClient(ctx, src+".HasAccountResources", func(ctx context.Context, cli *Client) (r clientpool.Result) {
+		result, r = cli.HasAccountResources(ctx, src, address, txVersion)
+		return r
+	})
+	return result, r
 }
 
 func (p *ClientPool) GetObserverRange(

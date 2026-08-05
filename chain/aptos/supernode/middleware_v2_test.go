@@ -75,6 +75,19 @@ func Test_searchAddressStartTxVersion(t *testing.T) {
 		assert.Equal(t, uint64(0), ver)
 	})
 
+	t.Run("search is bounded by a deadline", func(t *testing.T) {
+		svc := newTestServiceV2(func(probeCtx context.Context, _ string, txVersion uint64) (bool, error) {
+			_, hasDeadline := probeCtx.Deadline()
+			assert.True(t, hasDeadline)
+			return txVersion >= 42, nil
+		})
+		ver, err := svc.GetAddressStartTxVersion(ctx, address, 1000)
+		assert.NoError(t, err)
+		if assert.NotNil(t, ver) {
+			assert.Equal(t, uint64(42), *ver)
+		}
+	})
+
 	t.Run("prober error surfaces from search", func(t *testing.T) {
 		svc := newTestServiceV2(func(_ context.Context, _ string, _ uint64) (bool, error) {
 			return false, errors.New("all endpoints pruned")

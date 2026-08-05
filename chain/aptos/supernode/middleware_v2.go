@@ -13,6 +13,7 @@ import (
 	"sentioxyz/sentio-core/common/log"
 	rg "sentioxyz/sentio-core/common/range"
 	"strings"
+	"time"
 )
 
 func NewMiddlewareV2(svr *RPCServiceV2) jsonrpc.Middleware {
@@ -55,6 +56,12 @@ const (
 	// fetcher, so normal queries never get close to the cap.
 	maxTransactions    = 1000
 	maxResourceChanges = 2000
+
+	// addressStartSearchTimeout bounds one whole account-resource binary search (~32 sequential
+	// probes, normally well under a minute). Without it a search against banned/rate-limited
+	// endpoints can hang for minutes per probe waiting for an available client, which would delay
+	// the change-record fallback almost indefinitely.
+	addressStartSearchTimeout = 2 * time.Minute
 )
 
 // AccountResourceProber reports whether the account owns at least one resource at the given
@@ -264,6 +271,8 @@ func (s *RPCServiceV2) searchAddressStartTxVersion(
 		return 0, false, errors.Wrapf(err, "invalid account address %q", address)
 	}
 	normalized := addr.String()
+	ctx, cancel := context.WithTimeout(ctx, addressStartSearchTimeout)
+	defer cancel()
 	if has, err := s.prober(ctx, normalized, maxTxVersion); err != nil {
 		return 0, false, err
 	} else if !has {

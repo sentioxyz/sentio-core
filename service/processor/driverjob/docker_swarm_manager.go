@@ -359,12 +359,16 @@ const processorScriptTemplate = `#!/bin/sh
 set -e
 cd /app/driver/cmd/cmd_/cmd.runfiles/_main
 # prepare
+# -rpcnode-service must be explicitly empty (like the driver service args above):
+# the binary's default points at the hosted platform's rpcnode proxy, which
+# standalone deployments don't run, and prepare fatals trying to reach it.
 /app/driver/cmd/cmd_/cmd -processor-service={{.ProcessorService}} \
         -cache-dir={{.CacheDirMountPath}} \
         -prepare-processor-env-only=true \
         -chains-config={{.ChainConfigMountPath}}  \
         -processor-id={{.ProcessorID}} \
         -use-pnpm=true \
+        -rpcnode-service= \
         -clickhouse-config-path={{.ClickhouseConfigPath}}
 
 # prepare2

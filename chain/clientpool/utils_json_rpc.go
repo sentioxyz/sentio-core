@@ -26,6 +26,9 @@ var invalidEVMMethodErrorMatcher = []*regexp.Regexp{
 var missDataErrorMatcher = []*regexp.Regexp{
 	regexp.MustCompile("old data not available due to pruning"),
 	regexp.MustCompile("missing trie node"),
+	// e.g. Zircuit mainnet (https://mainnet.zircuit.com) on a pruned state range:
+	// {"code":-32603,"message":"no state found for block 0x0000000000000000000000000000000000000000000000000000000000000000"}
+	regexp.MustCompile("no state found"),
 	regexp.MustCompile("invalid block range"),
 	regexp.MustCompile("incorrect response body"),
 	regexp.MustCompile("historical state is not"),

@@ -144,6 +144,29 @@ func Test_isMissDataError_revertOnNonRevertableMethod_stillMatches(t *testing.T)
 	assert.False(t, isMissDataError("eth_getLogs", fakeRPCErr{code: 3, msg: "execution reverted: some reason"}))
 }
 
+// Real error observed on Zircuit mainnet (chain 48900, https://mainnet.zircuit.com): the node
+// keeps state only for a recent block window (plus genesis), and historical state access fails
+// with a generic -32603 whose message was not classified as miss-data, so the error was returned
+// to the caller instead of retrying the request on an archive endpoint in the pool.
+const zircuitNoStateMsg = "no state found for block " +
+	"0x0000000000000000000000000000000000000000000000000000000000000000"
+
+func Test_isMissDataError_noStateFound_missData(t *testing.T) {
+	assert.True(t, isMissDataError("eth_getCode", fakeRPCErr{code: -32603, msg: zircuitNoStateMsg}))
+	assert.True(t, isMissDataError("eth_getBalance", fakeRPCErr{code: -32603, msg: zircuitNoStateMsg}))
+}
+
+func Test_isMissDataError_noStateFound_notBroken(t *testing.T) {
+	// Miss-data must trigger a per-request retry on another endpoint (BrokenForTask),
+	// not a ban of the endpoint itself.
+	assert.False(t, isBrokenError(fakeRPCErr{code: -32603, msg: zircuitNoStateMsg}))
+}
+
+func Test_isMissDataError_noStateFoundInRevertReason_notMissData(t *testing.T) {
+	// A contract-controlled revert reason containing the keyword must not be miss-data.
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: 3, msg: "execution reverted: no state found"}))
+}
+
 func Test_isMissDataError_standardApplicationErrors_notMissData(t *testing.T) {
 	// Standard application-level codes in (-32000, 0] are never miss-data, even if the
 	// message contains a matcher keyword.

@@ -1322,14 +1322,17 @@ func Test_buildFailure_entryNeverServes(t *testing.T) {
 	}
 	assert.Eventually(t, func() bool {
 		ent, has := fetchC1()
-		return has && ent.Status.InitializeFailedTimes == 1
+		return has && ent.Status.BuildFailedReason != ""
 	}, 5*time.Second, 10*time.Millisecond, "the build failure should be recorded")
 
-	// the failure is permanent: no retry happens
+	// the failure is recorded apart from Init failures, is permanent, and is never retried
 	assert.Never(t, func() bool {
 		ent, has := fetchC1()
-		return !has || ent.Status.Initialized || ent.Status.InitializeFailedTimes > 1
+		return !has || ent.Status.Initialized || ent.Status.InitializeFailedTimes > 0
 	}, 500*time.Millisecond, 50*time.Millisecond)
+	ent, _ := fetchC1()
+	assert.Contains(t, ent.Status.BuildFailedReason, "build failed")
+	assert.False(t, ent.Status.BuildFailedAt.IsZero())
 }
 
 func Test_reInit_initError_keepsRetrying(t *testing.T) {

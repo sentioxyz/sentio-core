@@ -24,6 +24,11 @@ type entryStatus[CLIENT pool.Status] struct {
 	Client     CLIENT
 	ClientName string
 
+	// A build failure means the static config is malformed: it is permanent (never retried) and
+	// recorded separately from the Init failures below, which are transient and retried.
+	BuildFailedReason string
+	BuildFailedAt     time.Time
+
 	Initialized            bool
 	InitializeFailedTimes  int
 	InitializeFailedReason string
@@ -43,6 +48,10 @@ func (es entryStatus[CLIENT]) Snapshot() any {
 	}
 	if !reflect.ValueOf(es.Client).IsNil() {
 		sn["client"] = es.Client.Snapshot()
+	}
+	if es.BuildFailedReason != "" {
+		sn["buildFailedReason"] = es.BuildFailedReason
+		sn["buildFailedAt"] = es.BuildFailedAt.String()
 	}
 	if es.InitializeFailedTimes > 0 {
 		sn["initializeFailedTimes"] = es.InitializeFailedTimes
@@ -316,13 +325,13 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 		})
 		if err != nil {
 			// the config itself is malformed, retrying cannot help
-			es.InitializeFailedTimes++
-			es.InitializeFailedReason = err.Error()
-			es.InitializeFailedAt = time.Now()
+			es.BuildFailedReason = err.Error()
+			es.BuildFailedAt = time.Now()
 			pushChan(ctx, ch, es)
 			logger.With("config", config).Warne(err, "client config is invalid")
 			return
 		}
+		es.BuildFailedReason = ""
 		es.Client = client
 		es.ClientName = es.Client.GetName()
 		if !p.initEntry(ctx, config, &es, ch) {

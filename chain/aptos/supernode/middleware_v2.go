@@ -64,14 +64,10 @@ const (
 	addressStartSearchTimeout = 2 * time.Minute
 )
 
-// AccountResourceProber reports whether the account owns at least one resource at the given
-// transaction (ledger) version, by asking an upstream fullnode.
-type AccountResourceProber func(ctx context.Context, address string, txVersion uint64) (bool, error)
-
 type RPCServiceV2 struct {
-	slotCache chain.LatestSlotCache[*aptos.Slot]
-	store     Storage
-	prober    AccountResourceProber
+	slotCache  chain.LatestSlotCache[*aptos.Slot]
+	store      Storage
+	clientPool *aptos.ClientPool
 
 	cachedMinimalistTxn         *lru.Cache[uint64, aptos.MinimalistTransaction]
 	cachedAddressStartTxVersion *lru.Cache[string, uint64]
@@ -80,7 +76,7 @@ type RPCServiceV2 struct {
 func NewRPCServiceV2(
 	slotCache chain.LatestSlotCache[*aptos.Slot],
 	store Storage,
-	prober AccountResourceProber,
+	clientPool *aptos.ClientPool,
 ) *RPCServiceV2 {
 	cachedMinimalistTxn, err := lru.New[uint64, aptos.MinimalistTransaction](MinimalistTxnCacheSize)
 	if err != nil {
@@ -93,7 +89,7 @@ func NewRPCServiceV2(
 	return &RPCServiceV2{
 		slotCache:                   slotCache,
 		store:                       store,
-		prober:                      prober,
+		clientPool:                  clientPool,
 		cachedMinimalistTxn:         cachedMinimalistTxn,
 		cachedAddressStartTxVersion: cachedAddressStartTxVersion,
 	}
@@ -263,8 +259,8 @@ func (s *RPCServiceV2) searchAddressStartTxVersion(
 	address string,
 	maxTxVersion uint64,
 ) (uint64, bool, error) {
-	if s.prober == nil {
-		return 0, false, errors.New("no account resource prober configured")
+	if s.clientPool == nil {
+		return 0, false, errors.New("no client pool configured")
 	}
 	var addr aptossdk.AccountAddress
 	if err := addr.ParseStringRelaxed(address); err != nil {
@@ -273,7 +269,11 @@ func (s *RPCServiceV2) searchAddressStartTxVersion(
 	normalized := addr.String()
 	ctx, cancel := context.WithTimeout(ctx, addressStartSearchTimeout)
 	defer cancel()
-	if has, err := s.prober(ctx, normalized, maxTxVersion); err != nil {
+	probe := func(txVersion uint64) (bool, error) {
+		has, r := s.clientPool.HasAccountResources(ctx, "supernode", normalized, txVersion)
+		return has, r.Err
+	}
+	if has, err := probe(maxTxVersion); err != nil {
 		return 0, false, err
 	} else if !has {
 		return 0, false, nil
@@ -281,7 +281,7 @@ func (s *RPCServiceV2) searchAddressStartTxVersion(
 	low, high := uint64(0), maxTxVersion
 	for low < high {
 		mid := low + (high-low)/2
-		if has, err := s.prober(ctx, normalized, mid); err != nil {
+		if has, err := probe(mid); err != nil {
 			return 0, false, err
 		} else if has {
 			high = mid

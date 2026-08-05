@@ -44,7 +44,6 @@ go_test(
         "//common/log",
         "//common/range",
         "@com_github_aptos_labs_aptos_go_sdk//api",
-        "@com_github_pkg_errors//:errors",
         "@com_github_stretchr_testify//assert",
         "@org_uber_go_zap//zapcore",
     ],

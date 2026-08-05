@@ -72,6 +72,14 @@ type PoolConfig[CONFIG EntryConfig[CONFIG]] struct {
 
 	ConsumerMaxWait time.Duration `json:"consumer_max_wait" yaml:"consumer_max_wait"`
 
+	// ReInitInterval is the base interval for periodically re-running Init on each initialized
+	// entry, so whatever Init detected about the endpoint (data ranges, ...) does not stay stale
+	// forever when the node behind it changes. To avoid all entries of a pool re-initializing at
+	// the same time (and leaving no endpoint available), each cycle actually waits a random
+	// duration in [ReInitInterval, 2*ReInitInterval). 0 means the default (1 hour); a negative
+	// value disables periodic re-init.
+	ReInitInterval time.Duration `json:"re_init_interval" yaml:"re_init_interval"`
+
 	ClientConfigs []ClientConfig[CONFIG] `json:"endpoints" yaml:"endpoints"`
 }
 
@@ -88,6 +96,8 @@ func (c PoolConfig[CONFIG]) Trim(configModifiers []ConfigModifier[CONFIG]) PoolC
 		UpgradeSensitivity:     utils.Select(c.UpgradeSensitivity > 0, c.UpgradeSensitivity, time.Minute*3),
 		TagDuration:            utils.Select(c.TagDuration > 0, c.TagDuration, time.Minute*30),
 		ConsumerMaxWait:        utils.Select(c.ConsumerMaxWait > 0, c.ConsumerMaxWait, time.Minute*2),
+		// 0 → default 1h; negative → 0 (periodic re-init disabled)
+		ReInitInterval: utils.Select(c.ReInitInterval != 0, max(c.ReInitInterval, 0), time.Hour),
 		ClientConfigs: utils.MapSliceNoErrWithIndex(c.ClientConfigs, func(index int, cc ClientConfig[CONFIG]) (ClientConfig[CONFIG], bool) {
 			ccc := cc.Config
 			for _, m := range configModifiers {

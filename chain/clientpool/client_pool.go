@@ -30,7 +30,12 @@ type entryStatus[CLIENT pool.Status] struct {
 	InitializeFailedReason string
 	InitializeFailedAt     time.Time
 	InitializedAt          time.Time
-	LatestBlock            Block
+	// ReInitAt is the deadline of the next periodic re-init (zero when disabled). It lives in the
+	// entry status ON PURPOSE: the status survives Disable/Enable cycles (priority downgrades and
+	// upgrades pause and resume the refresher all the time), so the re-init timer keeps counting
+	// across them instead of being reset on every resume.
+	ReInitAt    time.Time
+	LatestBlock Block
 }
 
 func (es entryStatus[CLIENT]) Snapshot() any {
@@ -48,6 +53,9 @@ func (es entryStatus[CLIENT]) Snapshot() any {
 	if es.Initialized {
 		sn["initializedAt"] = es.InitializedAt.String()
 		sn["latestBlock"] = es.LatestBlock.String()
+	}
+	if !es.ReInitAt.IsZero() {
+		sn["reInitAt"] = es.ReInitAt.String()
 	}
 	return sn
 }
@@ -305,45 +313,115 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 			}
 		})
 		es.ClientName = es.Client.GetName()
-		var latest Block
-		err := backoff.RetryNotify(
-			func() (err error) {
-				latest, err = es.Client.Init(ctx)
-				if err == nil {
-					return
-				}
-				es.InitializeFailedTimes++
-				es.InitializeFailedReason = err.Error()
-				es.InitializeFailedAt = time.Now()
-				pushChan(ctx, ch, es)
-				if errors.Is(err, ErrInvalidConfig) {
-					logger.With("config", config).Warne(err, "client config is invalid")
-					return backoff.Permanent(err)
-				}
-				return err
-			},
-			backoff.WithContext(backoff.NewExponentialBackOff(backoff.WithMaxElapsedTime(0)), ctx), // retry forever
-			func(err error, duration time.Duration) {
-				logger.Warnfe(err, "client init failed, will retry after %s", duration)
-			})
-		if err != nil {
-			return // because ctx canceled or has invalid config
-		}
-		es.Initialized = true
-		es.InitializedAt = time.Now()
-		es.LatestBlock = latest
-		logger.Infof("client initialized, latest block %s", latest)
-		if !pushChan(ctx, ch, es) {
+		if !p.initEntry(ctx, config, &es, ch) {
 			return
-		}
-		if p.notifier != nil {
-			p.notifier.EntryLatestBlock(config, latest)
 		}
 	}
 
+	for {
+		if !p.serveEntry(ctx, config, &es, ch) {
+			return // ctx canceled
+		}
+		// the re-init deadline has passed: re-run Init on the same client so whatever it detected
+		// at startup does not stay stale forever when the node behind the endpoint changes
+		logger.Infof("client re-init started")
+		if !p.initEntry(ctx, config, &es, ch) {
+			return
+		}
+	}
+}
+
+// nextReInitAt returns the deadline of the next periodic re-init, or the zero time when
+// periodic re-init is disabled. Each cycle waits a random duration in [interval, 2*interval)
+// so the entries of a pool spread out instead of all re-initializing at the same time.
+func (p *ClientPool[CONFIG, CLIENT]) nextReInitAt() time.Time {
+	p.mu.Lock()
+	interval := p.config.ReInitInterval
+	p.mu.Unlock()
+	if interval <= 0 {
+		return time.Time{}
+	}
+	return time.Now().Add(interval + time.Duration(rand.Int63n(int64(interval))))
+}
+
+// initEntry runs es.Client.Init with retry-forever backoff, keeping es and the pool status in
+// sync. On a re-init the entry drops out of rotation (Initialized=false) on the first failure
+// and rejoins once Init succeeds again. It returns false when the refresher should exit,
+// i.e. ctx was canceled or the config is invalid.
+func (p *ClientPool[CONFIG, CLIENT]) initEntry(
+	ctx context.Context,
+	config ClientConfig[CONFIG],
+	es *entryStatus[CLIENT],
+	ch chan<- entryStatus[CLIENT],
+) bool {
+	_, logger := log.FromContext(ctx)
+	var latest Block
+	err := backoff.RetryNotify(
+		func() (err error) {
+			latest, err = es.Client.Init(ctx)
+			if err == nil {
+				return
+			}
+			es.Initialized = false
+			es.InitializeFailedTimes++
+			es.InitializeFailedReason = err.Error()
+			es.InitializeFailedAt = time.Now()
+			pushChan(ctx, ch, *es)
+			if errors.Is(err, ErrInvalidConfig) {
+				logger.With("config", config).Warne(err, "client config is invalid")
+				return backoff.Permanent(err)
+			}
+			return err
+		},
+		backoff.WithContext(backoff.NewExponentialBackOff(backoff.WithMaxElapsedTime(0)), ctx), // retry forever
+		func(err error, duration time.Duration) {
+			logger.Warnfe(err, "client init failed, will retry after %s", duration)
+		})
+	if err != nil {
+		return false // because ctx canceled or has invalid config
+	}
+	es.Initialized = true
+	es.InitializedAt = time.Now()
+	es.ReInitAt = p.nextReInitAt()
+	if latest.Number >= es.LatestBlock.Number {
+		es.LatestBlock = latest
+	} else {
+		// never move the latest block backwards: a lagging answer right after a re-init would
+		// otherwise disqualify the entry in poolStatusBuilder until it catches up again
+		logger.Warnf("client init latest block %s is behind the known %s, will be ignored",
+			latest, es.LatestBlock)
+	}
+	logger.Infof("client initialized, latest block %s", latest)
+	if !pushChan(ctx, ch, *es) {
+		return false
+	}
+	if p.notifier != nil {
+		p.notifier.EntryLatestBlock(config, es.LatestBlock)
+	}
+	return true
+}
+
+// serveEntry runs the client's latest-block subscription until the re-init deadline passes
+// (returns true) or ctx is canceled (returns false). The deadline is an absolute point in time
+// taken from es.ReInitAt, so periods during which the entry was disabled count against it.
+func (p *ClientPool[CONFIG, CLIENT]) serveEntry(
+	ctx context.Context,
+	config ClientConfig[CONFIG],
+	es *entryStatus[CLIENT],
+	ch chan<- entryStatus[CLIENT],
+) bool {
+	_, logger := log.FromContext(ctx)
+	subCtx := ctx
+	if !es.ReInitAt.IsZero() {
+		var cancel context.CancelFunc
+		subCtx, cancel = context.WithDeadline(ctx, es.ReInitAt)
+		defer cancel()
+	}
 	latestChan := make(chan Block)
-	defer close(latestChan)
+	consumerDone := make(chan struct{})
 	go func() {
+		// this goroutine owns es until consumerDone is closed
+		defer close(consumerDone)
 		for latest := range latestChan {
 			if latest.Number < es.LatestBlock.Number {
 				logger.Warnf("client latest block backed off from %s to %s, will be ignored", es.LatestBlock, latest)
@@ -355,7 +433,7 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 				logger.Debugf("client latest block increased from %s to %s", es.LatestBlock, latest)
 			}
 			es.LatestBlock = latest
-			if !pushChan(ctx, ch, es) {
+			if !pushChan(ctx, ch, *es) {
 				return
 			}
 			if p.notifier != nil {
@@ -363,7 +441,10 @@ func (p *ClientPool[CONFIG, CLIENT]) entryStatusRefresher(
 			}
 		}
 	}()
-	es.Client.SubscribeLatest(ctx, latestChan)
+	es.Client.SubscribeLatest(subCtx, latestChan)
+	close(latestChan)
+	<-consumerDone
+	return ctx.Err() == nil
 }
 
 var rd = rand.New(rand.NewSource(time.Now().UnixNano()))

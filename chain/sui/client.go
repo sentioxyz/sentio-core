@@ -112,18 +112,22 @@ func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) *Client {
 	}
 }
 
+// Init is re-entrant: the client pool re-runs it periodically (PoolConfig.ReInitInterval) while
+// the client may be serving concurrent calls, so it must only ever create what is still missing.
 func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 	// c.rpcClient
-	var err error
-	c.rpcClient, err = rpc.DialOptions(ctx, c.config.Endpoint, rpc.WithHTTPClient(c.httpClient))
-	if err != nil {
-		// always because the endpoint is invalid
-		return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
-			"failed to dial endpoint %q: %v", c.config.Endpoint, err)
+	if c.rpcClient == nil {
+		rpcClient, err := rpc.DialOptions(ctx, c.config.Endpoint, rpc.WithHTTPClient(c.httpClient))
+		if err != nil {
+			// always because the endpoint is invalid
+			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
+				"failed to dial endpoint %q: %v", c.config.Endpoint, err)
+		}
+		c.rpcClient = rpcClient
 	}
 
 	// c.grpcConn
-	if c.config.GrpcEndpoint != "" {
+	if c.config.GrpcEndpoint != "" && c.grpcConn == nil {
 		var ep string
 		opts := []grpc.DialOption{grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(c.config.MaxCallRecvMsgSize))}
 		if strings.HasPrefix(c.config.GrpcEndpoint, "http://") {
@@ -136,10 +140,11 @@ func (c *Client) Init(ctx context.Context) (clientpool.Block, error) {
 			return clientpool.Block{}, errors.Wrapf(clientpool.ErrInvalidConfig,
 				"invalid grpc endpoint %q", c.config.GrpcEndpoint)
 		}
-		c.grpcConn, err = grpc.NewClient(ep, opts...)
+		grpcConn, err := grpc.NewClient(ep, opts...)
 		if err != nil {
 			return clientpool.Block{}, errors.Wrapf(err, "failed to dial grpc endpoint %q", c.config.GrpcEndpoint)
 		}
+		c.grpcConn = grpcConn
 	}
 
 	return c.getLatest(ctx, "init")

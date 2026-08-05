@@ -55,6 +55,7 @@ func (c *testClient) current() Block {
 }
 
 func (c *testClient) Init(ctx context.Context) (Block, error) {
+	c.Do("init")
 	select {
 	case <-time.After(c.config.InitUsed):
 	case <-ctx.Done():
@@ -67,6 +68,12 @@ func (c *testClient) Init(ctx context.Context) (Block, error) {
 		return Block{}, errors.Errorf("not the time")
 	}
 	return c.current(), nil
+}
+
+func (c *testClient) initCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.stat["init"]
 }
 
 // SubscribeLatest should not stop until ctx canceled
@@ -1190,6 +1197,95 @@ func Test_ResultString(t *testing.T) {
 	assert.Equal(t, "Err[has error],Broken,BrokenForTask,AddTags[tag1,tag2]", r.String())
 	r.Err = nil
 	assert.Equal(t, "Broken,BrokenForTask,AddTags[tag1,tag2]", r.String())
+}
+
+// ── periodic re-init ──────────────────────────────────────────────────────────
+
+// grabClient fetches the live client instance of the given entry through UseClient.
+func grabClient(t *testing.T, p *ClientPool[testClientConfig, *testClient], name string) *testClient {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var cli *testClient
+	r := p.UseClient(ctx, "grab", func(_ context.Context, c *testClient) Result {
+		cli = c
+		return Result{}
+	}, WithConfigFilter[testClientConfig](func(c testClientConfig) bool {
+		return c.Name == name
+	}))
+	require.NoError(t, r.Err)
+	return cli
+}
+
+func Test_reInit_periodic(t *testing.T) {
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{quickClientCfg("c1", 1)})
+	cfg.ReInitInterval = 100 * time.Millisecond // each cycle waits within [100ms, 200ms)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+
+	cli := grabClient(t, p, "c1")
+	assert.Eventually(t, func() bool {
+		return cli.initCount() >= 3
+	}, 5*time.Second, 10*time.Millisecond, "Init should be re-run periodically")
+}
+
+func Test_reInit_disabled_neverReInits(t *testing.T) {
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{quickClientCfg("c1", 1)})
+	cfg.ReInitInterval = -1 // disabled (note: updateConfig is called directly, without Trim)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+
+	cli := grabClient(t, p, "c1")
+	assert.Never(t, func() bool {
+		return cli.initCount() > 1
+	}, 500*time.Millisecond, 50*time.Millisecond)
+}
+
+func Test_reInit_timerNotResetByDisableEnable(t *testing.T) {
+	// The pool pauses and resumes entries all the time (priority downgrades and upgrades call
+	// Disable/Enable). The re-init deadline is part of the persisted entry status, so those
+	// cycles must not reset the timer — otherwise an entry toggled more often than the interval
+	// would never re-init at all.
+	cfg := defaultPoolConfig([]ClientConfig[testClientConfig]{quickClientCfg("c1", 1)})
+	cfg.ReInitInterval = 200 * time.Millisecond // each cycle waits within [200ms, 400ms)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(cfg)
+	go p.Start(ctx, make(chan PoolConfig[testClientConfig]))
+
+	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer readyCancel()
+	require.NoError(t, p.WaitReady(readyCtx))
+	cli := grabClient(t, p, "c1")
+	require.Equal(t, 1, cli.initCount())
+
+	// toggle the entry more often than the re-init interval
+	deadline := time.Now().Add(1500 * time.Millisecond)
+	for time.Now().Before(deadline) && cli.initCount() < 2 {
+		p.pool.Disable("c1")
+		p.pool.Enable("c1")
+		time.Sleep(50 * time.Millisecond)
+	}
+	assert.GreaterOrEqual(t, cli.initCount(), 2,
+		"re-init must still fire even though the entry never stays enabled for a full interval")
 }
 
 // ── UseClient: InterruptWithTags ──────────────────────────────────────────────

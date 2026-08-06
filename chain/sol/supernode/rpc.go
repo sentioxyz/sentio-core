@@ -13,6 +13,7 @@ import (
 	"sentioxyz/sentio-core/chain/sol"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	rg "sentioxyz/sentio-core/common/range"
+	"sentioxyz/sentio-core/common/version"
 )
 
 // NewSuperNode builds the middleware chain serving the sol_* data methods from the latest-slot
@@ -65,6 +66,15 @@ func NewSuperNode(
 					return jsonrpc.CallMethod(svc.GetContractStartBlock, ctx, params)
 				case "sol_getPreviousUnskippedBlock":
 					return jsonrpc.CallMethod(svc.GetPreviousUnskippedBlock, ctx, params)
+				case "getVersion":
+					// Node-identity method: answer for the super node itself instead of proxying,
+					// which would report a random upstream's identity (a different one per request
+					// as the client pool rotates). Shaped like Solana's getVersion response;
+					// feature-set 0 marks that this is not a real validator's feature set.
+					return map[string]any{
+						"solana-core": version.ClientVersion("sentio-super-node"),
+						"feature-set": 0,
+					}, nil
 				default:
 					return next(ctx, method, params)
 				}

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "supernode",
     srcs = [
+        "client_version.go",
         "custom_function_proxy.go",
         "extra.go",
         "proxy.go",
@@ -25,6 +26,7 @@ go_library(
         "//common/range",
         "//common/set",
         "//common/utils",
+        "//common/version",
         "@com_github_cenkalti_backoff_v4//:backoff",
         "@com_github_ethereum_go_ethereum//common",
         "@com_github_ethereum_go_ethereum//common/hexutil",
@@ -37,6 +39,7 @@ go_library(
 go_test(
     name = "supernode_test",
     srcs = [
+        "client_version_test.go",
         "ex_test.go",
         "rpc_test.go",
     ],
@@ -56,6 +59,7 @@ go_test(
         "@com_github_ethereum_go_ethereum//common/hexutil",
         "@com_github_ethereum_go_ethereum//core/types",
         "@com_github_ethereum_go_ethereum//rpc",
+        "@com_github_pkg_errors//:errors",
         "@com_github_stretchr_testify//assert",
         "@org_uber_go_zap//zapcore",
     ],

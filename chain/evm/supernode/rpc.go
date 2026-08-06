@@ -17,6 +17,7 @@ func NewSimpleProxyService(
 ) []jsonrpc.Middleware {
 	return []jsonrpc.Middleware{
 		NewForcedProxyMiddleware(client, forcedProxyMethods),
+		NewClientVersionMiddleware(),
 		NewCustomFunctionProxyMiddleware(client),
 		NewProxyExtraMiddleware(client),
 		NewSubscribeMiddleware(slotCache),
@@ -41,6 +42,7 @@ func NewRPCService(
 
 	return []jsonrpc.Middleware{
 		NewForcedProxyMiddleware(client, forcedProxyMethods),
+		NewClientVersionMiddleware(),
 		NewCustomFunctionProxyMiddleware(client),
 		NewExtraMiddleware(slotCache, rangeStore, store),
 		NewSubscribeMiddleware(slotCache),

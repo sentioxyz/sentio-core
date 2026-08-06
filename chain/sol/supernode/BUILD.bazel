@@ -13,6 +13,7 @@ go_library(
         "//chain/sol",
         "//common/jsonrpc",
         "//common/range",
+        "//common/version",
         "@com_github_gagliardetto_solana_go//:solana-go",
         "@com_github_pkg_errors//:errors",
     ],

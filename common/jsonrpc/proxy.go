@@ -165,9 +165,6 @@ func NewJSONRPCProxyMiddleware[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jso
 ) Middleware {
 	return func(next MethodHandler) MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
-			if GetCtxData(ctx).WebsocketSession != nil {
-				return next(ctx, method, params)
-			}
 			args, err := ParseParams(params)
 			if err != nil {
 				return nil, err

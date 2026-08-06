@@ -3,6 +3,7 @@ package supernode
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/jsonrpc"
 	"sentioxyz/sentio-core/common/log"
@@ -18,8 +19,16 @@ import (
 func NewProxyMiddleware(client *evm.ClientPool) jsonrpc.Middleware {
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (interface{}, error) {
-			if jsonrpc.GetCtxData(ctx).WebsocketSession != nil {
-				return next(ctx, method, params)
+			switch strings.ToLower(method) {
+			case "eth_subscribe", "eth_unsubscribe":
+				// Subscriptions are stateful and served locally by the subscribe middleware on
+				// websocket sessions; a one-shot proxy call upstream can never deliver
+				// notifications back, so reject explicitly instead of proxying.
+				return nil, jsonrpc.NewJSONError(
+					jsonrpc.MethodNotFoundErrorCode,
+					fmt.Sprintf("the method %s is not proxied: notifications are not supported here", method),
+					nil,
+				)
 			}
 			args, err := jsonrpc.ParseParams(params)
 			if err != nil {

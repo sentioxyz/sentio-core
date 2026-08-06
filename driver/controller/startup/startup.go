@@ -88,7 +88,7 @@ func (c *baseStartupController) dialOptions() []grpc.DialOption {
 
 func (c *baseStartupController) connectToProcessorService(ctx context.Context) error {
 	_, logger := log.FromContext(ctx)
-	conn, err := rpc.Dial(c.config.ProcessorService, c.dialOptions()...)
+	conn, err := rpc.DialAuto(c.config.ProcessorService, c.dialOptions()...)
 	if err != nil {
 		return errors.Wrapf(err, "dial to processor service %s failed", c.config.ProcessorService)
 	}
@@ -107,7 +107,7 @@ func (c *baseStartupController) connectToUsageService(ctx context.Context) error
 		logger.Warnf("no usage service so will not connect to usage service")
 		return nil
 	}
-	conn, err := rpc.Dial(c.config.UsageService, c.dialOptions()...)
+	conn, err := rpc.DialAuto(c.config.UsageService, c.dialOptions()...)
 	if err != nil {
 		return errors.Wrapf(err, "dial to usage service %s failed", c.config.UsageService)
 	}
@@ -130,7 +130,7 @@ func (c *baseStartupController) connectToDBRegistryService(ctx context.Context) 
 		logger.Warnf("no db registry service configured so will not connect to it")
 		return nil
 	}
-	conn, err := rpc.Dial(c.config.DBRegistryService, c.dialOptions()...)
+	conn, err := rpc.DialAuto(c.config.DBRegistryService, c.dialOptions()...)
 	if err != nil {
 		return errors.Wrapf(err, "dial to db registry service %s failed", c.config.DBRegistryService)
 	}
@@ -178,7 +178,7 @@ func (c *baseStartupController) createWebhookSubscription(ctx context.Context) e
 		logger.Warn("no webhook service so will not create webhook subscription")
 		return nil
 	}
-	conn, err := rpc.Dial(c.config.WebhookService, c.dialOptions()...)
+	conn, err := rpc.DialAuto(c.config.WebhookService, c.dialOptions()...)
 	if err != nil {
 		return errors.Wrapf(err, "dial to webhook service %s failed", c.config.WebhookService)
 	}

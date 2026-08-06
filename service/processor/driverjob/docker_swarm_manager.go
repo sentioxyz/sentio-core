@@ -123,6 +123,10 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 		// two don't have to overload -billing-server.
 		fmt.Sprintf("-db-registry-service=%s", d.config.DBRegistryService),
 		fmt.Sprintf("-rpcnode-service=%s", ""),
+		// Swarm-managed services talk plaintext gRPC in-cluster; the driver
+		// binary's enable_tls flag defaults to true (hosted mTLS), which would
+		// make it attempt TLS handshakes against these plaintext endpoints.
+		"-enable_tls=false",
 		fmt.Sprintf("-pubsub-topic=%s", ""),
 		fmt.Sprintf("-timescale-db-config=%s", ""),
 		// Point to the processor service on the internal network
@@ -369,6 +373,7 @@ cd /app/driver/cmd/cmd_/cmd.runfiles/_main
         -processor-id={{.ProcessorID}} \
         -use-pnpm=true \
         -rpcnode-service= \
+        -enable_tls=false \
         -clickhouse-config-path={{.ClickhouseConfigPath}}
 
 # prepare2

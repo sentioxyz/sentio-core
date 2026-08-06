@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/pubsub"
@@ -86,9 +87,21 @@ func (c *baseStartupController) dialOptions() []grpc.DialOption {
 	return opts
 }
 
+// dial connects to a configured service address honoring an explicit URL
+// scheme: http:// forces plaintext (standalone charts address the in-cluster
+// services this way, and binary-injected TLS credentials must not override
+// it), while https:// and scheme-less targets use the injected credentials
+// when present.
+func (c *baseStartupController) dial(target string) (*grpc.ClientConn, error) {
+	if rest, ok := strings.CutPrefix(target, "http://"); ok {
+		return rpc.DialInsecure(rest, rpc.RetryDialOption)
+	}
+	return rpc.Dial(strings.TrimPrefix(target, "https://"), c.dialOptions()...)
+}
+
 func (c *baseStartupController) connectToProcessorService(ctx context.Context) error {
 	_, logger := log.FromContext(ctx)
-	conn, err := rpc.DialAuto(c.config.ProcessorService, c.dialOptions()...)
+	conn, err := c.dial(c.config.ProcessorService)
 	if err != nil {
 		return errors.Wrapf(err, "dial to processor service %s failed", c.config.ProcessorService)
 	}
@@ -107,7 +120,7 @@ func (c *baseStartupController) connectToUsageService(ctx context.Context) error
 		logger.Warnf("no usage service so will not connect to usage service")
 		return nil
 	}
-	conn, err := rpc.DialAuto(c.config.UsageService, c.dialOptions()...)
+	conn, err := c.dial(c.config.UsageService)
 	if err != nil {
 		return errors.Wrapf(err, "dial to usage service %s failed", c.config.UsageService)
 	}
@@ -130,7 +143,7 @@ func (c *baseStartupController) connectToDBRegistryService(ctx context.Context) 
 		logger.Warnf("no db registry service configured so will not connect to it")
 		return nil
 	}
-	conn, err := rpc.DialAuto(c.config.DBRegistryService, c.dialOptions()...)
+	conn, err := c.dial(c.config.DBRegistryService)
 	if err != nil {
 		return errors.Wrapf(err, "dial to db registry service %s failed", c.config.DBRegistryService)
 	}
@@ -178,7 +191,7 @@ func (c *baseStartupController) createWebhookSubscription(ctx context.Context) e
 		logger.Warn("no webhook service so will not create webhook subscription")
 		return nil
 	}
-	conn, err := rpc.DialAuto(c.config.WebhookService, c.dialOptions()...)
+	conn, err := c.dial(c.config.WebhookService)
 	if err != nil {
 		return errors.Wrapf(err, "dial to webhook service %s failed", c.config.WebhookService)
 	}

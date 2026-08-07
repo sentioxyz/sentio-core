@@ -287,9 +287,9 @@ func (p *preparer) installPackages(ctx context.Context, targetDir string) {
 
 // writeSDKChainsConfig builds the chains config the sentio-sdk processor-runner
 // reads and writes it into targetDir. The SDK reads a much smaller shape than
-// the streaming controller's config.ChainConfig: only the endpoint —
-// ChainServer for the SDK 3.x runtime, Rpc.Url for the SDK 4.x one, both
-// falling back to Https[0].
+// the streaming controller's config.ChainConfig: only the endpoint — the SDK
+// 3.x runtime reads ChainServer, the SDK 4.x runtime reads Rpc (Url + Headers);
+// Https[0] is only a fallback for either, so it is never written here.
 func (p *preparer) writeSDKChainsConfig(ctx context.Context, targetDir string) {
 	_, logger := log.FromContext(ctx)
 	proc := p.base.processor
@@ -300,29 +300,23 @@ func (p *preparer) writeSDKChainsConfig(ctx context.Context, targetDir string) {
 		logger.Fatale(err, "load chains config failed")
 	}
 
-	// Default to the direct case: the SDK reaches the endpoint itself, so
-	// carry ChainServer + Https straight from the config file. A customized
-	// endpoint (network override) only carries Endpoint.
+	// Default to the direct case: the SDK reaches the driver's own endpoint,
+	// filled into both the ChainServer (SDK 3.x) and Rpc (SDK 4.x) forms.
 	sdkChainsConfig := make(map[string]*processor.ChainConfig, len(chainsConfig))
 	for chainID, cfg := range chainsConfig {
 		id := cfg.ChainID
 		if id == "" {
 			id = chainID
 		}
-		https := cfg.HTTPServers
-		if len(https) == 0 && cfg.IsCustomizedEndpoint && cfg.Endpoint != "" {
-			https = []string{cfg.Endpoint}
+		sc := &processor.ChainConfig{ChainID: id}
+		if cfg.Endpoint != "" {
+			sc.ChainServer = cfg.Endpoint
+			sc.Rpc = &processor.Rpc{Url: cfg.Endpoint}
 		}
-		sdkChainsConfig[chainID] = &processor.ChainConfig{
-			ChainID:     id,
-			ChainServer: cfg.ChainServer,
-			Https:       https,
-		}
+		sdkChainsConfig[chainID] = sc
 	}
 
-	// With an rpc-node proxy available, route the SDK through it: point both
-	// ChainServer (SDK 3.x runtime) and Rpc (SDK 4.x runtime) at the proxy;
-	// Https is then redundant and dropped.
+	// With an rpc-node proxy available, route the SDK through it instead.
 	if p.config.RPCNode != nil {
 		node, err := p.config.RPCNode.Resolve(ctx, proc.ID)
 		if err != nil {
@@ -352,7 +346,6 @@ func (p *preparer) writeSDKChainsConfig(ctx context.Context, targetDir string) {
 			sc := sdkChainsConfig[chainID]
 			sc.ChainServer = chainServer
 			sc.Rpc = rpc
-			sc.Https = nil
 			logger.Infof("chain server for chain %s will use rpc: %+v", chainID, sc.Rpc)
 		}
 	}

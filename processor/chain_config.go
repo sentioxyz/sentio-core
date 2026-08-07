@@ -21,9 +21,11 @@ type Rpc struct {
 //   - SDK 2.x / 3.x runtime: ChainServer (primary), else Https[0].
 //   - SDK 4.x runtime:       Rpc.Url (primary), else Https[0].
 //
-// So the driver sets ChainServer and Rpc together when routing through the
-// rpc-node proxy, and falls back to ChainServer + Https for the
-// direct/customized-endpoint case where the SDK reaches the endpoint itself.
+// So the driver v3/v4 prepare step (startup.PrepareMain) always sets
+// ChainServer and Rpc together — from the rpc-node proxy when one is
+// configured, from the streaming controller's own endpoint otherwise — while
+// the driver v2 preparation writes ChainServer + Https for the SDK 2.x
+// runtime to reach the endpoint itself.
 //
 // This is distinct from driver/controller/config.ChainConfig, which is the Go
 // streaming controller's own configuration; ChainConfig here is the shape the

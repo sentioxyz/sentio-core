@@ -162,8 +162,12 @@ func (p *preparer) prepareEnv(ctx context.Context) (targetDir string, targetPath
 		logger.Fatale(err, "downloaded ", downloadURL, " to ", targetPath, " failed")
 	}
 
-	p.writePackageJSON(ctx, targetDir)
-	p.installPackages(ctx, targetDir)
+	version, err := processor.ParseVersion(proc.SdkVersion)
+	if err != nil {
+		logger.Fatale(err, "version parse failed")
+	}
+	p.writePackageJSON(ctx, targetDir, version)
+	p.installPackages(ctx, targetDir, version.IsDevelopmentVersion())
 	p.writeSDKChainsConfig(ctx, targetDir)
 	return targetDir, targetPath
 }
@@ -172,16 +176,11 @@ func (p *preparer) prepareEnv(ctx context.Context) (targetDir string, targetPath
 // protos versions for the processor-runner. Driver v3/v4 processors are always
 // SDK 3.x+ (ESM, @sentio/sdk-bundle), so none of the SDK 2.x compatibility
 // patches apply here.
-func (p *preparer) writePackageJSON(ctx context.Context, targetDir string) {
+func (p *preparer) writePackageJSON(ctx context.Context, targetDir string, version *processor.Version) {
 	_, logger := log.FromContext(ctx)
 	proc := p.base.processor
 
 	sdkVersionStr := proc.SdkVersion
-	version, err := processor.ParseVersion(sdkVersionStr)
-	if err != nil {
-		logger.Fatale(err, "version parse failed")
-	}
-
 	runtimeVersion, err := processor.GetRuntimeVersion(sdkVersionStr)
 	if err != nil {
 		logger.Fatale(err, "failed to get runtime version")
@@ -228,20 +227,20 @@ func (p *preparer) writePackageJSON(ctx context.Context, targetDir string) {
 }
 
 // installPackages runs yarn/pnpm in targetDir to materialize node_modules.
-func (p *preparer) installPackages(ctx context.Context, targetDir string) {
+func (p *preparer) installPackages(ctx context.Context, targetDir string, isDevelopmentVersion bool) {
 	_, logger := log.FromContext(ctx)
 
-	if version, err := processor.ParseVersion(p.base.processor.SdkVersion); err == nil && version.IsDevelopmentVersion() {
+	if isDevelopmentVersion {
 		// a development version floats, so drop the lock and modules from the
 		// reused cache dir to force a fresh resolution
 		lockFile := "yarn.lock"
 		if p.config.UsePNPM {
 			lockFile = "pnpm-lock.yaml"
 		}
-		if err = os.Remove(filepath.Join(targetDir, lockFile)); err != nil {
+		if err := os.Remove(filepath.Join(targetDir, lockFile)); err != nil {
 			logger.Errore(err, "failed to clean lock file")
 		}
-		if err = os.RemoveAll(filepath.Join(targetDir, "node_modules")); err != nil {
+		if err := os.RemoveAll(filepath.Join(targetDir, "node_modules")); err != nil {
 			logger.Errore(err, "failed to clean node_modules")
 		}
 	}

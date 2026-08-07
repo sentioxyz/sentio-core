@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "checkpoint.go",
         "entity.go",
+        "prepare.go",
         "quota.go",
         "standard.go",
         "startup.go",
@@ -55,6 +56,7 @@ go_library(
         "//driver/subgraph/manifest",
         "//driver/timeseries",
         "//driver/timeseries/clickhouse",
+        "//processor",
         "//processor/protos",
         "//service/common/errors",
         "//service/common/models",

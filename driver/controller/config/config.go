@@ -23,6 +23,13 @@ type ChainConfig struct {
 	KeepSuiEventTypePackage  bool
 	SkipStartBlockValidation bool
 	IsCustomizedEndpoint     bool
+
+	// ChainServer and HTTPServers are not read by the streaming controller
+	// itself: they are the endpoints the TypeScript SDK reaches directly, and
+	// are only consumed by the prepare step (startup.PrepareMain) to build the
+	// SDK-facing chains-config.json when no rpc-node proxy is configured.
+	ChainServer string
+	HTTPServers []string `json:"Https"`
 }
 
 // PatchChainsConfigEnv is the env var that, when set, carries a JSON patch

@@ -88,8 +88,8 @@ func NewCacheableMetaWithTTL(
 		ttl:              ttl,
 		refreshInterval:  refreshInterval,
 	}
-	// Query-only cache: no table creation happens here, so the on-chain
-	// registrar is not needed.
+	// Query-only cache: no table creation happens here, so no on-chain
+	// probe is passed (nil falls back to emptyProbe inside the store).
 	tableNamePrefix, logicDatabase, logicTableNamePrefix := processorTablePattern.GetProcessorDBConfig(
 		conn.GetDatabase(), processorId, processorReplica)
 	tsm.store = clickhouse.NewStore(

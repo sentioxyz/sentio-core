@@ -46,9 +46,11 @@ func (ProcessorAllocationRow) TableName() string { return "sentio_node_processor
 
 type ProcessorInfoRow struct {
 	gorm.Model
-	StateKey     string `gorm:"uniqueIndex:processor_info_state_key_processor_id_unique;column:state_key"`
-	ProcessorId  string `gorm:"uniqueIndex:processor_info_state_key_processor_id_unique;column:processor_id"`
-	EntitySchema string `gorm:"not null;column:entity_schema"`
+	StateKey                string `gorm:"uniqueIndex:processor_info_state_key_processor_id_unique;column:state_key"`
+	ProcessorId             string `gorm:"uniqueIndex:processor_info_state_key_processor_id_unique;column:processor_id"`
+	EntitySchema            string `gorm:"not null;column:entity_schema"`
+	EntitySchemaVersion     int32  `gorm:"not null;default:0;column:entity_schema_version"`
+	TimeseriesSchemaVersion int32  `gorm:"not null;default:0;column:timeseries_schema_version"`
 }
 
 func (ProcessorInfoRow) TableName() string { return "sentio_node_processor_infos" }
@@ -179,8 +181,10 @@ func (s *PostgresStore) Load(ctx context.Context) (*PlainState, error) {
 	}
 	for _, r := range processorInfos {
 		st.ProcessorInfos[r.ProcessorId] = ProcessorInfo{
-			ProcessorId:  r.ProcessorId,
-			EntitySchema: r.EntitySchema,
+			ProcessorId:             r.ProcessorId,
+			EntitySchema:            r.EntitySchema,
+			EntitySchemaVersion:     r.EntitySchemaVersion,
+			TimeseriesSchemaVersion: r.TimeseriesSchemaVersion,
 		}
 	}
 
@@ -362,9 +366,11 @@ func (s *PostgresStore) Save(ctx context.Context, state State) error {
 			var rows []ProcessorInfoRow
 			for _, info := range state.GetProcessorInfos() {
 				rows = append(rows, ProcessorInfoRow{
-					StateKey:     s.stateKey,
-					ProcessorId:  info.ProcessorId,
-					EntitySchema: info.EntitySchema,
+					StateKey:                s.stateKey,
+					ProcessorId:             info.ProcessorId,
+					EntitySchema:            info.EntitySchema,
+					EntitySchemaVersion:     info.EntitySchemaVersion,
+					TimeseriesSchemaVersion: info.TimeseriesSchemaVersion,
 				})
 			}
 			if len(rows) > 0 {

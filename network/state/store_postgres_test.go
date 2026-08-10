@@ -85,6 +85,50 @@ func TestPostgresStoreTableSchemasRoundTripReplaceAndStateKeyIsolation(t *testin
 	assertPostgresTableSchemas(t, ctx, storeA, replacement.LastBlock, replacement.TableSchemas)
 }
 
+func TestPostgresStoreProcessorInfosRoundTrip(t *testing.T) {
+	dsn := os.Getenv("SENTIO_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set SENTIO_TEST_POSTGRES_DSN to run the PostgreSQL store integration test")
+	}
+
+	ctx := context.Background()
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	store, err := NewPostgresStore(dsn, "processor-infos-"+suffix)
+	if err != nil {
+		t.Fatalf("NewPostgresStore: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	want := map[string]ProcessorInfo{
+		"proc-a": {
+			ProcessorId:             "proc-a",
+			EntitySchema:            "type Foo @entity { id: ID! }",
+			EntitySchemaVersion:     8,
+			TimeseriesSchemaVersion: 1,
+		},
+		"proc-b": {
+			ProcessorId:  "proc-b",
+			EntitySchema: "type Bar @entity { id: ID! }",
+		},
+	}
+	if err := store.Save(ctx, &PlainState{LastBlock: 7, ProcessorInfos: want}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := store.Load(ctx)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(got.ProcessorInfos) != len(want) {
+		t.Fatalf("ProcessorInfos length = %d, want %d: %+v", len(got.ProcessorInfos), len(want), got.ProcessorInfos)
+	}
+	for id, wantInfo := range want {
+		if gotInfo, ok := got.ProcessorInfos[id]; !ok || gotInfo != wantInfo {
+			t.Fatalf("ProcessorInfos[%q] = %+v, %v; want %+v", id, gotInfo, ok, wantInfo)
+		}
+	}
+}
+
 func assertPostgresTableSchemas(
 	t *testing.T,
 	ctx context.Context,

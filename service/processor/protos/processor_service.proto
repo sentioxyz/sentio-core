@@ -497,6 +497,11 @@ message Processor {
   string create_tx_hash = 31;
 
   string table_pattern = 32;
+
+  // Feature bits for timeseries (metric/event) storage, see
+  // driver/timeseries BuildFeatures. Bit 0: BigFloat columns use
+  // Decimal512 instead of Decimal256.
+  int32 timeseries_schema_version = 33;
 }
 
 message ProcessorUpgradeHistory {
@@ -593,6 +598,7 @@ message GetProcessorStatusResponse {
     string sn_chain_id = 26;
     repeated string sn_required_chains = 27;
     int32 entity_schema_version = 28;
+    int32 timeseries_schema_version = 29;
   }
 
   message ProcessorStatus {

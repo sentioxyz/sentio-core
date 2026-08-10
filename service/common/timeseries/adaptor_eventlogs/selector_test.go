@@ -262,7 +262,7 @@ func TestExpression_verifySelector_ComparisonOperators_Success(t *testing.T) {
 		{"GTE_numeric", protos.Selector_GTE, "numeric_field", "CAST(`numeric_field`, 'Int64')"},
 		{"LT_string", protos.Selector_LT, "string_field", "CAST(`string_field`, 'String')"},
 		{"LTE_time", protos.Selector_LTE, "time_field", "`time_field`::DateTime64(6, 'UTC')"},
-		{"GT_nested_numeric", protos.Selector_GT, "nested_field.nested_field.json.x.numeric_field", "CAST(`nested_field`.`nested_field`.`json`.`x`.`numeric_field`, 'Decimal(76, 30)')"},
+		{"GT_nested_numeric", protos.Selector_GT, "nested_field.nested_field.json.x.numeric_field", "CAST(`nested_field`.`nested_field`.`json`.`x`.`numeric_field`, 'Decimal(154, 60)')"},
 		{"LT_nested_string", protos.Selector_LT, "nested_field.nested_field.string_field", "CAST(`nested_field`.`nested_field`.`string_field`, 'String')"},
 	}
 

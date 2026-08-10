@@ -25,7 +25,8 @@ func (b *task) ConvertTimeSeriesData(data []*protos.TimeseriesResult) (
 		b.GetBlockHash(),
 		b.GetBlockTime(),
 		b.metricConfigs,
-		data)
+		data,
+		timeseries.BuildFeatures(b.processor.TimeseriesSchemaVersion))
 	if err == nil {
 		return dss, nil
 	}

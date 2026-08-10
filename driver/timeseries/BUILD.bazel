@@ -6,6 +6,7 @@ go_library(
         "aggregation.go",
         "convert.go",
         "data.go",
+        "features.go",
         "merge.go",
         "meta.go",
         "meta_field.go",
@@ -32,6 +33,7 @@ go_test(
     srcs = [
         "convert_test.go",
         "data_test.go",
+        "features_test.go",
         "meta_field_test.go",
         "meta_test.go",
     ],

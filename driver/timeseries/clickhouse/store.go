@@ -24,6 +24,10 @@ type Option struct {
 	// Maximum total number of time series summed over all tracked metrics and chains,
 	// 0 means the default
 	SeriesLimitTotal int
+	// Schema-affecting feature bits of the owning processor, built from its
+	// TimeseriesSchemaVersion. Only used when creating tables; reading existing
+	// tables recognizes all column type variants unconditionally.
+	Features timeseries.Features
 }
 
 type Probe interface {

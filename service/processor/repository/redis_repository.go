@@ -485,6 +485,7 @@ func (r *RedisProcessorRepo) CreateOrUpdateProcessor(
 		DriverVersion:               1,
 		NumWorkers:                  numWorkers,
 		EntitySchemaVersion:         0,
+		TimeseriesSchemaVersion:     0,
 	}
 	if sentioNetworkProperties.ChainID == "" {
 		processor.TablePattern = models.TablePatternPlatformV1

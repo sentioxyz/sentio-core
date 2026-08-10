@@ -23,8 +23,13 @@ var (
 	int256Max = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(1))
 
 	// Decimal(76, 30) range: [-(10^76-1)/10^30, (10^76-1)/10^30]
-	// ClickHouse stores FieldTypeBigFloat as Decimal(76, 30).
+	// ClickHouse stores FieldTypeBigFloat as Decimal(76, 30) by default.
 	decimal76_30_max = decimal.NewFromBigInt(new(big.Int).Sub(new(big.Int).Exp(big.NewInt(10), big.NewInt(76), nil), big.NewInt(1)), -30)
+
+	// Decimal(154, 60) range: [-(10^154-1)/10^60, (10^154-1)/10^60]
+	// ClickHouse stores FieldTypeBigFloat as Decimal(154, 60) when
+	// Features.BigFloatUseDecimal512 is enabled.
+	decimal154_60_max = decimal.NewFromBigInt(new(big.Int).Sub(new(big.Int).Exp(big.NewInt(10), big.NewInt(154), nil), big.NewInt(1)), -60)
 
 	metricTypeMapping = map[protos.MetricType]MetaType{
 		protos.MetricType_COUNTER: MetaTypeCounter,
@@ -88,7 +93,14 @@ func containsReservedMetricNameSuffix(name string) bool {
 	})
 }
 
-func UpdateEvents(data *commonProtos.RichStruct, row *Row, meta *Meta, blockTime time.Time) error {
+func (f Features) bigFloatMax() decimal.Decimal {
+	if f.BigFloatUseDecimal512 {
+		return decimal154_60_max
+	}
+	return decimal76_30_max
+}
+
+func UpdateEvents(data *commonProtos.RichStruct, row *Row, meta *Meta, blockTime time.Time, fea Features) error {
 	for fn, val := range data.GetFields() {
 		// rename field name
 		// distinctEntityId is the user field distinctId, it was renamed by sdk,
@@ -152,7 +164,7 @@ func UpdateEvents(data *commonProtos.RichStruct, row *Row, meta *Meta, blockTime
 			fieldType, (*row)[fn] = FieldTypeBigInt, bigIntVal
 		case *commonProtos.RichValue_BigdecimalValue:
 			bigFloatVal, _ := rsh.GetBigDecimal(val)
-			if bigFloatVal.Abs().GreaterThan(decimal76_30_max) {
+			if bigFloatVal.Abs().GreaterThan(fea.bigFloatMax()) {
 				return errors.Wrapf(ErrInvalidMeta,
 					"field %s.%s has bigdecimal value %s out of range", meta.GetFullName(), fn, bigFloatVal.String())
 			}
@@ -211,6 +223,7 @@ func Convert(
 	blockTime time.Time,
 	metricConfigs MetricConfigSet,
 	data []*protos.TimeseriesResult,
+	fea Features,
 ) ([]Dataset, error) {
 	var datasets = make(map[string]*Dataset)
 	for _, r := range data {
@@ -269,7 +282,7 @@ func Convert(
 			SystemFieldPrefix + "severity":          "",
 		}
 		if r.GetType() == protos.TimeseriesResult_EVENT {
-			if err := UpdateEvents(r.Data, &row, &datasets[metaFullName].Meta, blockTime); err != nil {
+			if err := UpdateEvents(r.Data, &row, &datasets[metaFullName].Meta, blockTime, fea); err != nil {
 				return nil, err
 			}
 		} else {

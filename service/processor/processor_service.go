@@ -380,9 +380,10 @@ func (s *Service) getProcessorStatus(
 			DriverVersion:       strconv.FormatInt(int64(processor.DriverVersion), 10),
 			NumWorkers:          strconv.FormatInt(int64(processor.NumWorkers), 10),
 			EntitySchema:        processor.EntitySchema,
-			SnChainId:           string(processor.ChainID),
-			SnRequiredChains:    []string(processor.RequiredChains),
-			EntitySchemaVersion: processor.EntitySchemaVersion,
+			SnChainId:               string(processor.ChainID),
+			SnRequiredChains:        []string(processor.RequiredChains),
+			EntitySchemaVersion:     processor.EntitySchemaVersion,
+			TimeseriesSchemaVersion: processor.TimeseriesSchemaVersion,
 		}
 		if originProcessor.ID != processor.ID {
 			response.Processors[i].ReferenceProjectId = processor.ProjectID
@@ -898,9 +899,10 @@ func (s *Service) RunProcessor(ctx context.Context, req *protos.RunProcessorRequ
 			UploadedAt:          req.CreatedAt.AsTime(),
 			ProjectID:           project.ID,
 			Project:             project,
-			K8sClusterID:        0,
-			EntitySchemaVersion: 0,
-			DriverVersion:       1,
+			K8sClusterID:            0,
+			EntitySchemaVersion:     0,
+			TimeseriesSchemaVersion: 0,
+			DriverVersion:           1,
 			NumWorkers:          req.NumWorkers,
 			VersionState:        int32(protos.ProcessorVersionState_ACTIVE),
 			TablePattern:        models.TablePattern(req.TablePattern),

@@ -32,6 +32,7 @@ go_library(
 go_test(
     name = "clickhouse_test",
     srcs = [
+        "features_test.go",
         "limits_test.go",
         "meta_test.go",
         "store_test.go",

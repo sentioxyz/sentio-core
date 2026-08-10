@@ -411,8 +411,9 @@ type Processor struct {
 	ClickhouseShardingIndex int32 `gorm:"default:0"`
 	K8sClusterID            int32 `gorm:"default:0"`
 
-	EventlogVersion     int32 `gorm:"default:1"`
-	EntitySchemaVersion int32
+	EventlogVersion         int32 `gorm:"default:1"`
+	EntitySchemaVersion     int32
+	TimeseriesSchemaVersion int32
 
 	DriverVersion int32        `gorm:"default:0"`
 	NumWorkers    int32        `gorm:"default:1"`
@@ -558,6 +559,7 @@ func (p *Processor) ToPB(referencedProcessor *Processor) (*protos.Processor, err
 		ClickhouseShardingIndex: p.ClickhouseShardingIndex,
 		K8SClusterId:            p.K8sClusterID,
 		EntitySchemaVersion:     p.EntitySchemaVersion,
+		TimeseriesSchemaVersion: p.TimeseriesSchemaVersion,
 		EventlogVersion:         p.EventlogVersion,
 		DriverVersion:           p.DriverVersion,
 		NumWorkers:              p.NumWorkers,
@@ -580,6 +582,7 @@ func (p *Processor) FromPB(processor *protos.Processor) error {
 	p.ProjectID = processor.ProjectId
 	p.Version = processor.Version
 	p.EntitySchemaVersion = processor.EntitySchemaVersion
+	p.TimeseriesSchemaVersion = processor.TimeseriesSchemaVersion
 
 	// subgraph properties
 	p.VersionLabel = processor.VersionLabel

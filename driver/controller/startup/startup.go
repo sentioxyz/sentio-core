@@ -264,7 +264,9 @@ func (c *baseStartupController) buildTimeSeriesStore(ctx context.Context) error 
 		return err
 	}
 
-	c.timeSeriesStore = timeserieschs.NewStore(ctrl, timeserieschs.Option{}, probe)
+	c.timeSeriesStore = timeserieschs.NewStore(ctrl, timeserieschs.Option{
+		Features: timeseries.BuildFeatures(c.processor.TimeseriesSchemaVersion),
+	}, probe)
 	if err := c.timeSeriesStore.Init(ctx); err != nil {
 		return errors.Wrapf(err, "init time series store failed")
 	}

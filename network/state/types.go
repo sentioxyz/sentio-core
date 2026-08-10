@@ -21,9 +21,10 @@ type ProcessorAllocation struct {
 }
 
 type ProcessorInfo struct {
-	ProcessorId         string `json:"processorId" yaml:"processor_id"`
-	EntitySchema        string `json:"entitySchema" yaml:"entity_schema"`
-	EntitySchemaVersion int32  `json:"entitySchemaVersion" yaml:"entity_schema_version"`
+	ProcessorId             string `json:"processorId" yaml:"processor_id"`
+	EntitySchema            string `json:"entitySchema" yaml:"entity_schema"`
+	EntitySchemaVersion     int32  `json:"entitySchemaVersion" yaml:"entity_schema_version"`
+	TimeseriesSchemaVersion int32  `json:"timeseriesSchemaVersion,omitempty" yaml:"timeseries_schema_version,omitempty"`
 }
 
 // DatabaseType mirrors the on-chain Types.DatabaseType enum:

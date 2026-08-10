@@ -33,7 +33,7 @@ func TestUpdateEvents_BasicStringField(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, "test value", row["testField"])
@@ -57,7 +57,7 @@ func TestUpdateEvents_IntField(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), row["intField"])
@@ -81,7 +81,7 @@ func TestUpdateEvents_Int64Field(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(9223372036854775807), row["int64Field"])
@@ -105,7 +105,7 @@ func TestUpdateEvents_BoolField(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, true, row["boolField"])
@@ -129,7 +129,7 @@ func TestUpdateEvents_FloatField(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, 3.14, row["floatField"])
@@ -154,7 +154,7 @@ func TestUpdateEvents_BytesField(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, hexutil.Encode(testBytes), row["bytesField"])
@@ -181,7 +181,7 @@ func TestUpdateEvents_TimestampField(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, testTime, row["timestampField"])
@@ -210,7 +210,7 @@ func TestUpdateEvents_BigintField(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, Field{Name: "bigintField", Type: FieldTypeBigInt, NestedStructSchema: make(map[string]FieldType), NestedIndex: make(map[string]FieldType)}, meta.Fields["bigintField"])
@@ -237,7 +237,7 @@ func TestUpdateEvents_BigintField_MaxInt256(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, time.Now())
+	err := UpdateEvents(data, &row, meta, time.Now(), Features{})
 	require.NoError(t, err)
 	require.IsType(t, (*big.Int)(nil), row["bigintField"])
 	assert.Equal(t, 0, row["bigintField"].(*big.Int).Cmp(maxVal))
@@ -259,7 +259,7 @@ func TestUpdateEvents_BigintField_OverflowInt256(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, time.Now())
+	err := UpdateEvents(data, &row, meta, time.Now(), Features{})
 	require.ErrorIs(t, err, ErrInvalidMeta)
 	assert.ErrorContains(t, err, "out of Int256 range")
 }
@@ -280,7 +280,7 @@ func TestUpdateEvents_BigintField_UnderflowInt256(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, time.Now())
+	err := UpdateEvents(data, &row, meta, time.Now(), Features{})
 	require.ErrorIs(t, err, ErrInvalidMeta)
 	assert.ErrorContains(t, err, "out of Int256 range")
 }
@@ -310,7 +310,7 @@ func TestUpdateEvents_BigdecimalField(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, Field{Name: "bigdecimalField", Type: FieldTypeBigFloat, NestedStructSchema: make(map[string]FieldType), NestedIndex: make(map[string]FieldType)}, meta.Fields["bigdecimalField"])
@@ -336,7 +336,7 @@ func TestUpdateEvents_BigdecimalField_MaxDecimal76_30(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, time.Now())
+	err := UpdateEvents(data, &row, meta, time.Now(), Features{})
 	require.NoError(t, err)
 	result, ok := row["bigdecimalField"].(decimal.Decimal)
 	require.True(t, ok)
@@ -359,7 +359,7 @@ func TestUpdateEvents_BigdecimalField_OverflowDecimal76_30(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, time.Now())
+	err := UpdateEvents(data, &row, meta, time.Now(), Features{})
 	require.ErrorIs(t, err, ErrInvalidMeta)
 	assert.ErrorContains(t, err, "out of range")
 }
@@ -380,7 +380,7 @@ func TestUpdateEvents_BigdecimalField_UnderflowDecimal76_30(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, time.Now())
+	err := UpdateEvents(data, &row, meta, time.Now(), Features{})
 	require.ErrorIs(t, err, ErrInvalidMeta)
 	assert.ErrorContains(t, err, "out of range")
 }
@@ -410,7 +410,7 @@ func TestUpdateEvents_ListValue(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, Field{Name: "listField", Type: FieldTypeArray, NestedStructSchema: make(map[string]FieldType), NestedIndex: make(map[string]FieldType)}, meta.Fields["listField"])
@@ -462,7 +462,7 @@ func TestUpdateEvents_StructValue(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, Field{Name: "structField", Type: FieldTypeJSON, NestedStructSchema: map[string]FieldType{
@@ -529,7 +529,7 @@ func TestUpdateEvents_StructValue_Merge(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, Field{Name: "structField", Type: FieldTypeJSON, NestedStructSchema: map[string]FieldType{
@@ -581,7 +581,7 @@ func TestUpdateEvents_TokenValue(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, Field{Name: "tokenField", Type: FieldTypeToken, NestedStructSchema: make(map[string]FieldType), NestedIndex: make(map[string]FieldType)}, meta.Fields["tokenField"])
@@ -614,7 +614,7 @@ func TestUpdateEvents_NullValue_Skipped(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	// Null field should be skipped
@@ -641,7 +641,7 @@ func TestUpdateEvents_SeverityFieldRenamed(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	// Field should be renamed to meta.severity
@@ -666,7 +666,7 @@ func TestUpdateEvents_DistinctEntityIdRenamed(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	// Field should be renamed to distinctId
@@ -696,7 +696,7 @@ func TestUpdateEvents_DistinctEntityId_Empty(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	// Empty distinctEntityId should be skipped
@@ -721,7 +721,7 @@ func TestUpdateEvents_DistinctEntityId_NullSkipped(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	// Null distinctEntityId should be skipped
@@ -747,7 +747,7 @@ func TestUpdateEvents_ReservedFieldRenamed(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	// Original reserved value is preserved
@@ -776,7 +776,7 @@ func TestUpdateEvents_CompatibleFieldTypes(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, "new value", row["existingField"])
@@ -807,7 +807,7 @@ func TestUpdateEvents_IncompatibleFieldTypes(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "types of fields")
@@ -839,7 +839,7 @@ func TestUpdateEvents_MultipleFields(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Equal(t, "test", row["stringField"])
@@ -861,7 +861,7 @@ func TestUpdateEvents_EmptyData(t *testing.T) {
 		Fields: nil,
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.NoError(t, err)
 	assert.Empty(t, row)
@@ -886,7 +886,7 @@ func TestUpdateEvents_UnsupportedValueType(t *testing.T) {
 		},
 	}
 
-	err := UpdateEvents(data, &row, meta, blockTime)
+	err := UpdateEvents(data, &row, meta, blockTime, Features{})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalidField has invalid type")

@@ -20,6 +20,10 @@ var (
 	timeseriesMetaLogPrintEveryN = flag.Int("timeseries-meta-log-print-debug-every-n", 10, "")
 )
 
+// BigFloat column type used when Features.BigFloatUseDecimal512 is enabled,
+// mirroring the entity driver's Decimal512 support (precision 154, scale 60).
+const bigFloatDecimal512DBType = "Decimal(154, 60)"
+
 var (
 	dbTypeMapping = map[timeseries.FieldType]string{
 		timeseries.FieldTypeString:   "String",
@@ -33,10 +37,6 @@ var (
 		timeseries.FieldTypeArray:    "Array(Dynamic)",
 		timeseries.FieldTypeToken:    "Tuple(symbol String, chain String, address String, amount Decimal(76, 30), timestamp DateTime64(6, 'UTC'))",
 	}
-
-	// BigFloat column type used when Features.BigFloatUseDecimal512 is enabled,
-	// mirroring the entity driver's Decimal512 support (precision 154, scale 60).
-	bigFloatDecimal512DBType = "Decimal(154, 60)"
 
 	escapeSQLString = func(s string) string {
 		return strings.ReplaceAll(s, "'", "''")

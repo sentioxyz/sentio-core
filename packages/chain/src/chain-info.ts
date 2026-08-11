@@ -220,22 +220,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
       'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan',
     lightIcon: 'https://assets.sentio.xyz/chains/avalanche.svg'
   },
-  [EthChainId.MOONBEAM]: {
-    name: 'Moonbeam',
-    slug: 'moonbeam',
-    chainId: EthChainId.MOONBEAM,
-    nativeChainId: 1284,
-    variation: EthVariation.SUBSTRATE,
-    priceTokenAddress: '0xacc15dc74880c9944775448304b263d191c6077f', // WGLMR
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0xacc15dc74880c9944775448304b263d191c6077f',
-    tokenSymbol: 'GLMR',
-    tokenDecimals: 18,
-    explorerApiType: ExplorerApiType.ETHERSCAN_V2,
-    explorerUrl: 'https://moonscan.io',
-    explorerApi: 'https://api.etherscan.io/v2',
-    lightIcon: 'https://assets.sentio.xyz/chains/moonbeam.svg'
-  },
   [EthChainId.ASTAR]: {
     name: 'Astar',
     slug: 'astar',

@@ -92,8 +92,6 @@ var chainIDMap = map[string]string{
 	"mode":                  "34443",
 	"mode-mainnet":          "34443",
 	"moonbase-alpha":        "1287",
-	"moonbeam":              "1284",
-	"moonbeam-mainnet":      "1284",
 	"opt":                   "10",
 	"opt-mainnet":           "10",
 	"polygon":               "137",

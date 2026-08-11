@@ -53,7 +53,6 @@ async function main() {
       'sepolia.etherscan.io': EthChainId.SEPOLIA,
       'bscscan.com': EthChainId.BSC,
       'lineascan.build': EthChainId.LINEA,
-      'moonscan.io': EthChainId.MOONBEAM,
       'scrollscan.com': EthChainId.SCROLL,
       'arbiscan.io': EthChainId.ARBITRUM,
       'blastscan.io': EthChainId.BLAST,

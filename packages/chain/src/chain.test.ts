@@ -8,7 +8,7 @@ import * as console from 'node:console'
 describe('Chain Test', () => {
   it('chain name', () => {
     assert.equal(getChainName(ChainId.ZKSYNC_ERA), 'zkSync Era')
-    assert.equal(getChainName('592'), 'Astar')
+    assert.equal(getChainName('59144'), 'Linea')
   })
 
   it('chain id and map key matches', () => {

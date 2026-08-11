@@ -220,22 +220,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
       'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan',
     lightIcon: 'https://assets.sentio.xyz/chains/avalanche.svg'
   },
-  [EthChainId.ASTAR]: {
-    name: 'Astar',
-    slug: 'astar',
-    chainId: EthChainId.ASTAR,
-    nativeChainId: 592,
-    variation: EthVariation.SUBSTRATE,
-    priceTokenAddress: '0xaeaaf0e2c81af264101b9129c00f4440ccf0f720', // WASTR
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0xaeaaf0e2c81af264101b9129c00f4440ccf0f720',
-    tokenSymbol: 'ASTR',
-    tokenDecimals: 18,
-    explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerUrl: 'https://astar.blockscout.com',
-    explorerApi: 'https://astar.blockscout.com',
-    lightIcon: 'https://assets.sentio.xyz/chains/astar.svg'
-  },
   [EthChainId.LINEA]: {
     name: 'Linea',
     slug: 'linea',
@@ -746,22 +730,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
       'https://api.routescan.io/v2/network/mainnet/evm/88888/etherscan',
     lightIcon: 'https://assets.sentio.xyz/chains/chiliz.svg'
   },
-  [EthChainId.ZKLINK_NOVA]: {
-    name: 'zkLink Nova',
-    slug: 'zklink-nova',
-    chainId: EthChainId.ZKLINK_NOVA,
-    nativeChainId: 810180,
-    variation: EthVariation.ZKSYNC,
-    priceTokenAddress: '0x000000000000000000000000000000000000800A',
-    tokenAddress: '0x000000000000000000000000000000000000800A', //special
-    wrappedTokenAddress: '0x000000000000000000000000000000000000800A',
-    tokenSymbol: 'ETH',
-    tokenDecimals: 18,
-    explorerUrl: 'https://explorer.zklink.io',
-    explorerApiType: ExplorerApiType.ETHERSCAN,
-    explorerApi: 'https://explorer-api.zklink.io',
-    lightIcon: 'https://assets.sentio.xyz/chains/zklink.svg'
-  },
   [EthChainId.AURORA]: {
     name: 'Aurora',
     slug: 'aurora',
@@ -1054,21 +1022,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApiType: ExplorerApiType.BLOCKSCOUT,
     explorerApi: 'https://explorer.etherlink.com',
     lightIcon: 'https://assets.sentio.xyz/chains/etherlink.svg'
-  },
-  [EthChainId.MEV_COMMIT]: {
-    name: 'MEV Commit',
-    slug: 'mev-commit',
-    chainId: EthChainId.MEV_COMMIT,
-    nativeChainId: 57173,
-    variation: EthVariation.DEFAULT,
-    priceTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenSymbol: 'ETH',
-    tokenDecimals: 18,
-    explorerUrl: 'https://www.mev-commit.xyz',
-    lightIcon: 'https://assets.sentio.xyz/chains/mev-commit-dark.svg',
-    darkIcon: 'https://assets.sentio.xyz/chains/mev-commit.svg'
   },
   [EthChainId.HEMI]: {
     name: 'Hemi',

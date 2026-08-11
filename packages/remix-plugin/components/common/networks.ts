@@ -3,20 +3,17 @@ const assetPrefix =
 
 export enum EthChainName {
   ETHEREUM = 'Ethereum Mainnet',
-  POLYGON = 'Polygon',
-  ASTAR = 'Astar Network'
+  POLYGON = 'Polygon'
 }
 
 export const EthChainIds = {
   [EthChainName.ETHEREUM]: '1',
-  [EthChainName.POLYGON]: '137',
-  [EthChainName.ASTAR]: '592'
+  [EthChainName.POLYGON]: '137'
 }
 
 export const EthChainLogos = {
   [EthChainName.ETHEREUM]: `${assetPrefix}/ethereum.webp`,
-  [EthChainName.POLYGON]: `${assetPrefix}/polygon.webp`,
-  [EthChainName.ASTAR]: `${assetPrefix}/astar.webp`
+  [EthChainName.POLYGON]: `${assetPrefix}/polygon.webp`
 }
 
 export const ChainDecimals: Record<
@@ -32,10 +29,6 @@ export const ChainDecimals: Record<
   },
   '137': {
     unit: 'MATIC',
-    decimal: 18
-  },
-  '592': {
-    unit: 'ASTR',
     decimal: 18
   }
 }

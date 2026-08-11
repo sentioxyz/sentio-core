@@ -48,8 +48,6 @@ var chainIDMap = map[string]string{
 	// sentio network
 	"arb":                   "42161",
 	"arb-mainnet":           "42161",
-	"astar":                 "592",
-	"astar-mainnet":         "592",
 	"astar-zkevm":           "3776",
 	"aurora":                "1313161554",
 	"aurora-mainnet":        "1313161554",

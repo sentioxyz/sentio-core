@@ -268,27 +268,25 @@ export const IndexComponent = () => {
                   <SelectContent>
                     <SelectGroup>
                       <SelectLabel>Network</SelectLabel>
-                      {[
-                        EthChainName.ETHEREUM,
-                        EthChainName.POLYGON,
-                        EthChainName.ASTAR
-                      ].map((networkName) => (
-                        <SelectItem
-                          value={EthChainIds[networkName]}
-                          key={networkName}
-                        >
-                          <span className="inline-flex items-center justify-between gap-2">
-                            <Image
-                              src={EthChainLogos[networkName]}
-                              className="inline-block align-text-bottom"
-                              height={16}
-                              width={16}
-                              alt={networkName}
-                            />
-                            {networkName}
-                          </span>
-                        </SelectItem>
-                      ))}
+                      {[EthChainName.ETHEREUM, EthChainName.POLYGON].map(
+                        (networkName) => (
+                          <SelectItem
+                            value={EthChainIds[networkName]}
+                            key={networkName}
+                          >
+                            <span className="inline-flex items-center justify-between gap-2">
+                              <Image
+                                src={EthChainLogos[networkName]}
+                                className="inline-block align-text-bottom"
+                                height={16}
+                                width={16}
+                                alt={networkName}
+                              />
+                              {networkName}
+                            </span>
+                          </SelectItem>
+                        )
+                      )}
                     </SelectGroup>
                   </SelectContent>
                 </Select>

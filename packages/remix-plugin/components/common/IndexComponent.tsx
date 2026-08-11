@@ -201,7 +201,7 @@ export const IndexComponent = () => {
   return (
     <div className="h-screen overflow-auto">
       <Tabs defaultValue="overview">
-        <div className="bg-light sticky top-0 z-1 space-y-2 px-2 py-2 shadow-xs">
+        <div className="bg-light z-1 shadow-xs sticky top-0 space-y-2 px-2 py-2">
           <Collapsible className="space-y-2">
             <div className="flex w-full flex-wrap items-center gap-2">
               {fileName ? (
@@ -216,7 +216,7 @@ export const IndexComponent = () => {
                         {fileInfo?.name}
                       </span>
                     </div>
-                    <span className="shrink ml-auto grow-0 truncate text-xs">
+                    <span className="ml-auto shrink grow-0 truncate text-xs">
                       {fileInfo.path}
                     </span>
                   </div>
@@ -271,7 +271,6 @@ export const IndexComponent = () => {
                       {[
                         EthChainName.ETHEREUM,
                         EthChainName.POLYGON,
-                        EthChainName.MOONBEAM,
                         EthChainName.ASTAR
                       ].map((networkName) => (
                         <SelectItem
@@ -368,7 +367,7 @@ export const IndexComponent = () => {
                               <CopyButton
                                 text={item.functionSelector}
                                 size={14}
-                                className="invisible group-hover:visible!"
+                                className="group-hover:visible! invisible"
                               />
                             </div>
                           </div>

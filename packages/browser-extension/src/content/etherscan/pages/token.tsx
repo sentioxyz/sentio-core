@@ -51,7 +51,6 @@ function injectSentioLink(chainId, address, host) {
     case 'polygonscan.com':
     case 'zkevm.polygonscan.com':
     case 'lineascan.build':
-    case 'moonscan.io':
       sentioButton.innerHTML = /* HTML */ `<a
         class="btn btn-sm btn-secondary btn-xss ml-1"
         style="display: flex; align-items: center"

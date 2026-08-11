@@ -21,7 +21,6 @@ export async function genManifest(browser: Browser = 'chrome') {
           'https://sepolia.etherscan.io/*',
           'https://bscscan.com/*',
           'https://lineascan.build/*',
-          'https://moonscan.io/*',
           'https://scrollscan.com/*',
           'https://arbiscan.io/*',
           'https://blastscan.io/*',
@@ -46,15 +45,13 @@ export async function genManifest(browser: Browser = 'chrome') {
     host_permissions: [
       // 'https://etherscan.io/*',
       // 'https://polygonscan.com/*',
-      // 'https://moonbeam.subscan.io/*',
       // 'https://astar.subscan.io/*',
       // 'https://blockscout.com/*',
       // 'https://goerli.etherscan.io/*',
       // 'https://sepolia.etherscan.io/*',
       // 'https://bscscan.com/*',
       // 'https://zkevm.polygonscan.com/*',
-      // 'https://lineascan.build/*',
-      // 'https://moonscan.io/*'
+      // 'https://lineascan.build/*'
     ],
     web_accessible_resources: [
       {

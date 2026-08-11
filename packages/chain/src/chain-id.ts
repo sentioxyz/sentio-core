@@ -42,7 +42,6 @@ export enum EthChainId {
   CONFLUX = '1030',
   METIS = '1088',
   CORE_MAINNET = '1116',
-  MOONBEAM = '1284',
   UNICHAIN_SEPOLIA = '1301',
   SEI = '1329',
   SONEIUM_TESTNET = '1946',

@@ -55,7 +55,6 @@ export enum EthChainId {
   MANTLE = '5000',
   BASE = '8453',
   BASE_SEPOLIA = '84532',
-  MEV_COMMIT = '57173',
   PLASMA_MAINNET = '9745',
   PLASMA_TESTNET = '9746',
   MONAD_TESTNET = '10143',

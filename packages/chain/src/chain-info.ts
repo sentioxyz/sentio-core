@@ -1055,21 +1055,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApi: 'https://explorer.etherlink.com',
     lightIcon: 'https://assets.sentio.xyz/chains/etherlink.svg'
   },
-  [EthChainId.MEV_COMMIT]: {
-    name: 'MEV Commit',
-    slug: 'mev-commit',
-    chainId: EthChainId.MEV_COMMIT,
-    nativeChainId: 57173,
-    variation: EthVariation.DEFAULT,
-    priceTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenSymbol: 'ETH',
-    tokenDecimals: 18,
-    explorerUrl: 'https://www.mev-commit.xyz',
-    lightIcon: 'https://assets.sentio.xyz/chains/mev-commit-dark.svg',
-    darkIcon: 'https://assets.sentio.xyz/chains/mev-commit.svg'
-  },
   [EthChainId.HEMI]: {
     name: 'Hemi',
     slug: 'hemi',

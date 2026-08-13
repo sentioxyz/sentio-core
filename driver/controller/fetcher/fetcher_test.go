@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/driver/controller"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
@@ -259,4 +261,65 @@ func Test_Fetcher(t *testing.T) {
 	assert.Equal(t, uint64(41), f.fetchingEnd)
 	assert.Equal(t, 0, f.totalSize)
 
+}
+
+// A context.Canceled that leaks out of queryFunc while the fetcher's own context is alive (e.g. a
+// shared singleflight fetch whose starter aborted) must be retried like any other failure. Exiting
+// on it would end KeepFetch with fetchingFailed unset and fetchingDone never closed, so every
+// Get() would block forever.
+func Test_Fetcher_LeakedCancelIsRetried(t *testing.T) {
+	log.ManuallySetLevel(zap.DebugLevel)
+	log.BindFlag()
+
+	var calls atomic.Int64
+	fr := NewFetcher[testData](
+		"leakedCancelFetcher",
+		nil,
+		controller.BlockRange{StartBlock: 10},
+		newTestBlockHeader(12),
+		3,
+		10,
+		20,
+		0, // maxReadyBlockCount: unlimited
+		20,
+		time.Second,
+		3,
+		time.Millisecond*10,
+		1.2,
+		func(ctx context.Context, start, end uint64, latest controller.BlockHeader) (map[uint64]testData, error) {
+			if calls.Add(1) == 1 {
+				// Not produced by ctx (which is still alive): simulates a cancellation leaked
+				// from an unrelated caller sharing the underlying request.
+				return nil, errors.Wrap(context.Canceled, "shared flight starter aborted")
+			}
+			r := make(map[uint64]testData)
+			for i := start; i <= end; i++ {
+				if br := buildTestData(i); len(br) > 0 {
+					r[i] = br
+				}
+			}
+			return r, nil
+		},
+	)
+	f := fr.(*fetcher[testData])
+
+	var g sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	g.Add(1)
+	go func() {
+		defer g.Done()
+		f.KeepFetch(ctx)
+	}()
+
+	getCtx, getCancel := context.WithTimeout(ctx, time.Second*5)
+	defer getCancel()
+	r, has, _, err := f.Get(getCtx, 11)
+	assert.Nil(t, err)
+	assert.True(t, has)
+	assert.Equal(t, buildTestData(11), r)
+	assert.GreaterOrEqual(t, calls.Load(), int64(2), "the leaked Canceled must have been retried")
+
+	// A real cancellation (our own context) still stops the fetch loop.
+	cancel()
+	g.Wait()
 }

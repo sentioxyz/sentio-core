@@ -1,13 +1,20 @@
 package data
 
 import (
+	"context"
 	"strconv"
+	"time"
 
 	"sentioxyz/sentio-core/common/utils"
 
 	lru "github.com/sentioxyz/golang-lru"
 	"golang.org/x/sync/singleflight"
 )
+
+// flightTimeout bounds a detached in-flight fetch. The flight runs on a context decoupled from
+// every caller (see GetOrFetch), so without its own deadline an unresponsive RPC would leak the
+// flight goroutine forever.
+const flightTimeout = time.Minute
 
 // BlockCache is an LRU keyed by block number combined with singleflight. Chain clients prefetch
 // headers/blocks concurrently from several fetchers, so the same block is frequently requested by
@@ -52,29 +59,48 @@ func (c *BlockCache[V]) Keys() []uint64 {
 // Concurrent misses for the same block are coalesced into a single fetch. fetch is not invoked even
 // when a caller arrives just after an in-flight fetch finished: the cache is re-checked inside the
 // flight, so the just-fetched value is reused rather than fetched again.
-func (c *BlockCache[V]) GetOrFetch(blockNumber uint64, fetch func() (V, error)) (V, error) {
+//
+// The flight is shared by callers that know nothing about each other, so fetch runs on a context
+// detached from the caller that happened to start it (bounded by flightTimeout instead): a starter
+// whose request dies must not fail every waiter with its context.Canceled. fetch must therefore use
+// the context it is handed, not one captured from a caller. Each waiter is still released by its
+// own ctx: cancellation returns that ctx's error immediately while the flight finishes (and caches)
+// in the background.
+func (c *BlockCache[V]) GetOrFetch(
+	ctx context.Context,
+	blockNumber uint64,
+	fetch func(ctx context.Context) (V, error),
+) (V, error) {
 	// Fast path: avoids the strconv + singleflight bookkeeping when the block is already cached.
 	if v, ok := c.cache.Get(blockNumber); ok {
 		return v, nil
 	}
-	v, err, _ := c.sf.Do(strconv.FormatUint(blockNumber, 10), func() (any, error) {
+	ch := c.sf.DoChan(strconv.FormatUint(blockNumber, 10), func() (any, error) {
 		// Re-check inside the flight (double-checked): a preceding flight for this block may have
-		// finished and populated the cache between the miss above and entering Do.
+		// finished and populated the cache between the miss above and entering DoChan.
 		if v, ok := c.cache.Get(blockNumber); ok {
 			return v, nil
 		}
-		v, err := fetch()
+		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), flightTimeout)
+		defer cancel()
+		v, err := fetch(fetchCtx)
 		if err != nil {
 			return nil, err
 		}
 		c.cache.Add(blockNumber, v)
 		return v, nil
 	})
-	if err != nil {
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			var zero V
+			return zero, res.Err
+		}
+		return res.Val.(V), nil
+	case <-ctx.Done():
 		var zero V
-		return zero, err
+		return zero, ctx.Err()
 	}
-	return v.(V), nil
 }
 
 // Snapshot renders up to maxCount entries for the debug tracker, using valuePreview to stringify each

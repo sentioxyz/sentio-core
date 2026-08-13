@@ -215,7 +215,10 @@ func (f *transferFetcher[F, T]) transfer(ctx context.Context, blockNumber uint64
 				retry = -1
 			}
 			tryLogger := logger.With("blockNumber", blockNumber, "used", used.String(), "retry", retry)
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.Canceled) && ctx.Err() != nil {
+				// Quietly stop only when it is OUR context that is gone (controller shutdown).
+				// Returning here on a Canceled leaked from someone else's cancellation would skip
+				// setFetchFailed below, leaving the block never fetched and readyEnd stuck forever.
 				tryLogger.Debug("fetch canceled")
 				return
 			}

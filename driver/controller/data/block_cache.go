@@ -14,7 +14,7 @@ import (
 // maxTakeoverAttempts bounds the GetOrFetch takeover loop. Each retry means the previous flight
 // died with its starter's cancellation while we are still alive, so a couple of attempts is
 // plenty; the bound only guards against a fetch that keeps returning context.Canceled for some
-// other reason, which would otherwise loop forever since our own context never expires it.
+// other reason — our own context stays alive, so without the bound nothing would end the loop.
 const maxTakeoverAttempts = 3
 
 // BlockCache is an LRU keyed by block number combined with singleflight. Chain clients prefetch

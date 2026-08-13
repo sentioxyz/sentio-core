@@ -231,8 +231,8 @@ func (c *nativeClient) GetHeaderIgnoreCache(ctx context.Context, blockNumber uin
 
 func (c *nativeClient) GetBlock(ctx context.Context, blockNumber uint64) (Block, error) {
 	// Cache + singleflight: concurrent fetchers asking for the same block share one sol_getBlock.
-	return c.cachedHeaders.GetOrFetch(ctx, blockNumber, func(fetchCtx context.Context) (Block, error) {
-		return c.fetchBlock(fetchCtx, blockNumber)
+	return c.cachedHeaders.GetOrFetch(ctx, blockNumber, func() (Block, error) {
+		return c.fetchBlock(ctx, blockNumber)
 	})
 }
 
@@ -510,7 +510,11 @@ func (c *nativeClient) GetPreviousUnskippedBlock(
 }
 
 func (c *nativeClient) ResetCache(r controller.BlockRange) {
-	c.cachedHeaders.InvalidateRange(r)
+	for _, bn := range c.cachedHeaders.Keys() {
+		if r.Contains(bn) {
+			c.cachedHeaders.Remove(bn)
+		}
+	}
 }
 
 func (c *nativeClient) Snapshot() any {

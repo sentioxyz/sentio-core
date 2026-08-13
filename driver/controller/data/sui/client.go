@@ -204,8 +204,8 @@ func (c *client) GetHeaderIgnoreCache(ctx context.Context, blockNumber uint64) (
 func (c *client) GetSimpleBlock(ctx context.Context, blockNumber uint64) (SimpleBlock, error) {
 	// The cache + singleflight (in BlockCache) collapses the concurrent prefetch requests for the same
 	// checkpoint — made by the object-change / txn / interval fetchers — into a single RPC.
-	return c.cachedSimpleBlock.GetOrFetch(ctx, blockNumber, func(fetchCtx context.Context) (SimpleBlock, error) {
-		return c.fetchSimpleBlock(fetchCtx, blockNumber)
+	return c.cachedSimpleBlock.GetOrFetch(ctx, blockNumber, func() (SimpleBlock, error) {
+		return c.fetchSimpleBlock(ctx, blockNumber)
 	})
 }
 
@@ -858,7 +858,11 @@ func (c *client) GetObjectCreation(ctx context.Context, objectID string, start u
 }
 
 func (c *client) ResetCache(r controller.BlockRange) {
-	c.cachedSimpleBlock.InvalidateRange(r)
+	for _, bn := range c.cachedSimpleBlock.Keys() {
+		if r.Contains(bn) {
+			c.cachedSimpleBlock.Remove(bn)
+		}
+	}
 }
 
 func (c *client) Snapshot() any {

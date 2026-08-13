@@ -229,8 +229,8 @@ func (c *client) GetTransaction(ctx context.Context, txnVersion uint64) (aptos.T
 
 func (c *client) GetMinimalistTransaction(ctx context.Context, txnVersion uint64) (MinimalistTransaction, error) {
 	// Cache + singleflight: concurrent fetchers asking for the same version share one RPC.
-	return c.cachedMinimalistTxn.GetOrFetch(ctx, txnVersion, func(fetchCtx context.Context) (MinimalistTransaction, error) {
-		return c.fetchMinimalistTransaction(fetchCtx, txnVersion)
+	return c.cachedMinimalistTxn.GetOrFetch(ctx, txnVersion, func() (MinimalistTransaction, error) {
+		return c.fetchMinimalistTransaction(ctx, txnVersion)
 	})
 }
 
@@ -341,7 +341,11 @@ func (c *client) GetAddressStartBlock(ctx context.Context, address string, start
 }
 
 func (c *client) ResetCache(r controller.BlockRange) {
-	c.cachedMinimalistTxn.InvalidateRange(r)
+	for _, bn := range c.cachedMinimalistTxn.Keys() {
+		if r.Contains(bn) {
+			c.cachedMinimalistTxn.Remove(bn)
+		}
+	}
 }
 
 func (c *client) Snapshot() any {

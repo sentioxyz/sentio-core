@@ -146,8 +146,8 @@ func (c *client) GetHeaderIgnoreCache(ctx context.Context, blockNumber uint64) (
 
 func (c *client) GetBlock(ctx context.Context, blockNumber uint64) (Block, error) {
 	// Cache + singleflight: concurrent fetchers asking for the same block share one fuel_getBlockHeader.
-	return c.cachedHeaders.GetOrFetch(ctx, blockNumber, func(fetchCtx context.Context) (Block, error) {
-		return c.fetchBlock(fetchCtx, blockNumber)
+	return c.cachedHeaders.GetOrFetch(ctx, blockNumber, func() (Block, error) {
+		return c.fetchBlock(ctx, blockNumber)
 	})
 }
 
@@ -173,7 +173,11 @@ func (c *client) GetContractCreateBlockHeight(
 }
 
 func (c *client) ResetCache(r controller.BlockRange) {
-	c.cachedHeaders.InvalidateRange(r)
+	for _, bn := range c.cachedHeaders.Keys() {
+		if r.Contains(bn) {
+			c.cachedHeaders.Remove(bn)
+		}
+	}
 }
 
 func (c *client) Snapshot() any {

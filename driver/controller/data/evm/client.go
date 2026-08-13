@@ -259,8 +259,8 @@ func (c *client) GetLatest(ctx context.Context) (controller.BlockHeader, uint64,
 
 func (c *client) GetHeader(ctx context.Context, blockNumber uint64) (BlockHeader, error) {
 	// Cache + singleflight: concurrent fetchers asking for the same block share one eth_getBlockByNumber.
-	return c.cachedHeaders.GetOrFetch(ctx, blockNumber, func(fetchCtx context.Context) (BlockHeader, error) {
-		return c.fetchHeader(fetchCtx, blockNumber)
+	return c.cachedHeaders.GetOrFetch(ctx, blockNumber, func() (BlockHeader, error) {
+		return c.fetchHeader(ctx, blockNumber)
 	})
 }
 
@@ -759,7 +759,11 @@ func (c *client) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNu
 }
 
 func (c *client) ResetCache(r controller.BlockRange) {
-	c.cachedHeaders.InvalidateRange(r)
+	for _, bn := range c.cachedHeaders.Keys() {
+		if r.Contains(bn) {
+			c.cachedHeaders.Remove(bn)
+		}
+	}
 }
 
 func (c *client) Snapshot() any {

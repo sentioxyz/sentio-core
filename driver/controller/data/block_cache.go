@@ -2,28 +2,20 @@ package data
 
 import (
 	"context"
+	"errors"
 	"strconv"
-	"sync"
-	"time"
-
-	"github.com/pkg/errors"
 
 	"sentioxyz/sentio-core/common/utils"
-	"sentioxyz/sentio-core/driver/controller"
 
 	lru "github.com/sentioxyz/golang-lru"
 	"golang.org/x/sync/singleflight"
 )
 
-// flightTimeout bounds a detached in-flight fetch. The flight runs on a context decoupled from
-// every caller (see GetOrFetch), so without its own deadline an unresponsive RPC would leak the
-// flight goroutine forever.
-const flightTimeout = time.Minute
-
-// ErrFlightInvalidated reports that InvalidateRange ran while the fetch was in flight, so the
-// fetched value may describe the invalidated (e.g. reorged-away) state and was discarded instead
-// of being cached or served. It is a transient condition: retrying starts a fresh fetch.
-var ErrFlightInvalidated = errors.New("in-flight fetch invalidated by a cache reset, retry")
+// maxTakeoverAttempts bounds the GetOrFetch takeover loop. Each retry means the previous flight
+// died with its starter's cancellation while we are still alive, so a couple of attempts is
+// plenty; the bound only guards against a fetch that keeps returning context.Canceled for some
+// other reason, which would otherwise loop forever since our own context never expires it.
+const maxTakeoverAttempts = 3
 
 // BlockCache is an LRU keyed by block number combined with singleflight. Chain clients prefetch
 // headers/blocks concurrently from several fetchers, so the same block is frequently requested by
@@ -33,13 +25,6 @@ var ErrFlightInvalidated = errors.New("in-flight fetch invalidated by a cache re
 type BlockCache[V any] struct {
 	cache *lru.Cache[uint64, V]
 	sf    singleflight.Group
-
-	// mu orders flight completion against InvalidateRange: a flight may commit its value only
-	// after re-checking (under mu) that no invalidation happened since it started. gen counts
-	// invalidations; it is part of the singleflight key, so callers arriving after an
-	// invalidation never join a flight started before it.
-	mu  sync.Mutex
-	gen uint64
 }
 
 // NewBlockCache creates a BlockCache holding up to size entries. It errors only when size <= 0.
@@ -61,22 +46,14 @@ func (c *BlockCache[V]) Add(blockNumber uint64, v V) {
 	c.cache.Add(blockNumber, v)
 }
 
-// InvalidateRange drops every cached entry in r AND obsoletes every fetch currently in flight
-// (whatever block it is for): an in-flight value may describe the invalidated state, is not yet
-// in the LRU (so removing keys cannot catch it), and its flight keeps running detached from the
-// canceled callers — so it must not be cached or served once it completes. Obsoleted flights fail
-// with ErrFlightInvalidated and their waiters simply retry. Invalidation is global rather than
-// per-key because it happens only on rare events (reorgs), where one wasted retry for an
-// unrelated in-flight block is cheaper than tracking per-key generations.
-func (c *BlockCache[V]) InvalidateRange(r controller.BlockRange) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.gen++
-	for _, bn := range c.cache.Keys() {
-		if r.Contains(bn) {
-			c.cache.Remove(bn)
-		}
-	}
+// Remove drops blockNumber from the cache.
+func (c *BlockCache[V]) Remove(blockNumber uint64) {
+	c.cache.Remove(blockNumber)
+}
+
+// Keys returns the currently cached block numbers (used to evict a reorged range).
+func (c *BlockCache[V]) Keys() []uint64 {
+	return c.cache.Keys()
 }
 
 // GetOrFetch returns the cached value for blockNumber, or fetches it via fetch and caches the result.
@@ -84,59 +61,50 @@ func (c *BlockCache[V]) InvalidateRange(r controller.BlockRange) {
 // when a caller arrives just after an in-flight fetch finished: the cache is re-checked inside the
 // flight, so the just-fetched value is reused rather than fetched again.
 //
-// The flight is shared by callers that know nothing about each other, so fetch runs on a context
-// detached from the caller that happened to start it (bounded by flightTimeout instead): a starter
-// whose request dies must not fail every waiter with its context.Canceled. fetch must therefore use
-// the context it is handed, not one captured from a caller. Each waiter is still released by its
-// own ctx: cancellation returns that ctx's error immediately while the flight finishes (and caches)
-// in the background — unless InvalidateRange runs meanwhile, which discards the flight's value
-// (see ErrFlightInvalidated).
+// The flight runs the fn of the caller that starts it, so it lives and dies with that caller's
+// context (fetch should capture the caller's own ctx). A caller sharing a flight whose starter got
+// canceled mid-way therefore sees a context.Canceled that says nothing about its own liveness:
+// when our ctx is still alive we simply retry — the dead flight is gone, so the retry starts (or
+// joins) a fresh one under a live context. Dying with the starter also means no flight can outlive
+// its run: a reorg's ResetCache never races a detached fetch. Each caller is released by its own
+// ctx while waiting, without aborting the shared flight.
 func (c *BlockCache[V]) GetOrFetch(
 	ctx context.Context,
 	blockNumber uint64,
-	fetch func(ctx context.Context) (V, error),
+	fetch func() (V, error),
 ) (V, error) {
-	// Fast path: avoids the strconv + singleflight bookkeeping when the block is already cached.
-	if v, ok := c.cache.Get(blockNumber); ok {
-		return v, nil
-	}
-	c.mu.Lock()
-	gen := c.gen
-	c.mu.Unlock()
-	key := strconv.FormatUint(gen, 10) + ":" + strconv.FormatUint(blockNumber, 10)
-	ch := c.sf.DoChan(key, func() (any, error) {
-		// Re-check inside the flight (double-checked): a preceding flight for this block may have
-		// finished and populated the cache between the miss above and entering DoChan.
+	var zero V
+	for attempt := 1; ; attempt++ {
+		// Also serves as the fast path: on the first pass it avoids the strconv + singleflight
+		// bookkeeping when the block is already cached.
 		if v, ok := c.cache.Get(blockNumber); ok {
 			return v, nil
 		}
-		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), flightTimeout)
-		defer cancel()
-		v, err := fetch(fetchCtx)
-		if err != nil {
-			return nil, err
-		}
-		// Commit under mu so the staleness re-check and the Add are atomic with respect to
-		// InvalidateRange: without it an invalidation could slip between them and the stale
-		// value would land in the cache anyway.
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if c.gen != gen {
-			return nil, ErrFlightInvalidated
-		}
-		c.cache.Add(blockNumber, v)
-		return v, nil
-	})
-	select {
-	case res := <-ch:
-		if res.Err != nil {
-			var zero V
+		ch := c.sf.DoChan(strconv.FormatUint(blockNumber, 10), func() (any, error) {
+			// Re-check inside the flight (double-checked): a preceding flight for this block may
+			// have finished and populated the cache between the miss above and entering DoChan.
+			if v, ok := c.cache.Get(blockNumber); ok {
+				return v, nil
+			}
+			v, err := fetch()
+			if err != nil {
+				return nil, err
+			}
+			c.cache.Add(blockNumber, v)
+			return v, nil
+		})
+		select {
+		case res := <-ch:
+			if res.Err == nil {
+				return res.Val.(V), nil
+			}
+			if errors.Is(res.Err, context.Canceled) && ctx.Err() == nil && attempt < maxTakeoverAttempts {
+				continue
+			}
 			return zero, res.Err
+		case <-ctx.Done():
+			return zero, ctx.Err()
 		}
-		return res.Val.(V), nil
-	case <-ctx.Done():
-		var zero V
-		return zero, ctx.Err()
 	}
 }
 

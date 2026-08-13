@@ -2,6 +2,7 @@ package supernode
 
 import (
 	"context"
+	"encoding/json"
 	"math/big"
 	"testing"
 
@@ -357,4 +358,32 @@ func TestRangeQueryBeyondHead(t *testing.T) {
 	block, err := s.GetBlockByNumber(context.Background(), rpc.BlockNumber(110), false)
 	assert.NoError(t, err)
 	assert.Nil(t, block)
+}
+
+func TestProxyWithNilSlotCacheRejectsExMethods(t *testing.T) {
+	// with neither a ClickHouse store (this middleware never runs on those deployments) nor a
+	// slot cache, the Sentio-specific methods must be rejected locally: no upstream node can
+	// answer them, and the error text lets capability-probing callers degrade to the plain form
+	mw := NewProxyWithLatestSlotCacheMiddleware(nil, nil)
+	var nextCalled bool
+	handler := mw(func(ctx context.Context, method string, params json.RawMessage) (any, error) {
+		nextCalled = true
+		return nil, nil
+	})
+
+	for _, method := range []string{"eth_getLogsEx", "trace_filterEx", "eth_getLatestBlockNumber"} {
+		nextCalled = false
+		_, err := handler(context.Background(), method, nil)
+		assert.ErrorContains(t, err, "is not supported without a latest slot cache", method)
+		assert.False(t, nextCalled, method)
+		var rpcErr rpc.Error
+		if assert.ErrorAs(t, err, &rpcErr, method) {
+			assert.Equal(t, jsonrpc.MethodNotFoundErrorCode, rpcErr.ErrorCode(), method)
+		}
+	}
+
+	// standard methods keep falling through to the proxy
+	_, err := handler(context.Background(), "eth_getLogs", nil)
+	assert.NoError(t, err)
+	assert.True(t, nextCalled)
 }

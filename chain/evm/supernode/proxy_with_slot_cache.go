@@ -3,6 +3,7 @@ package supernode
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -26,8 +27,17 @@ func NewProxyWithLatestSlotCacheMiddleware(
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (result any, err error) {
 			if slotCache == nil {
-				if method == "eth_getLatestBlockNumber" {
-					return nil, errors.Errorf("method %s not support", method)
+				switch method {
+				case "eth_getLatestBlockNumber", "eth_getLogsEx", "trace_filterEx":
+					// Sentio-specific methods that no upstream node can answer: without a slot
+					// cache (a deployment with a ClickHouse store never reaches here — the
+					// standard middleware serves them) reject explicitly so the caller degrades
+					// to the plain method instead of the call being proxied upstream.
+					return nil, jsonrpc.NewJSONError(
+						jsonrpc.MethodNotFoundErrorCode,
+						fmt.Sprintf("the method %s is not supported without a latest slot cache", method),
+						nil,
+					)
 				}
 				return next(ctx, method, params)
 			}

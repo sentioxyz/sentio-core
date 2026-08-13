@@ -229,7 +229,7 @@ func (c *client) GetTransaction(ctx context.Context, txnVersion uint64) (aptos.T
 
 func (c *client) GetMinimalistTransaction(ctx context.Context, txnVersion uint64) (MinimalistTransaction, error) {
 	// Cache + singleflight: concurrent fetchers asking for the same version share one RPC.
-	return c.cachedMinimalistTxn.GetOrFetch(txnVersion, func() (MinimalistTransaction, error) {
+	return c.cachedMinimalistTxn.GetOrFetch(ctx, txnVersion, func(ctx context.Context) (MinimalistTransaction, error) {
 		return c.fetchMinimalistTransaction(ctx, txnVersion)
 	})
 }

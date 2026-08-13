@@ -1,6 +1,8 @@
 package data
 
 import (
+	"context"
+	"errors"
 	"strconv"
 
 	"sentioxyz/sentio-core/common/utils"
@@ -8,6 +10,12 @@ import (
 	lru "github.com/sentioxyz/golang-lru"
 	"golang.org/x/sync/singleflight"
 )
+
+// maxTakeoverAttempts bounds the GetOrFetch takeover loop. Each retry means the previous flight
+// died with its starter's cancellation while we are still alive, so a couple of attempts is
+// plenty; the bound only guards against a fetch that keeps returning context.Canceled for some
+// other reason — our own context stays alive, so without the bound nothing would end the loop.
+const maxTakeoverAttempts = 3
 
 // BlockCache is an LRU keyed by block number combined with singleflight. Chain clients prefetch
 // headers/blocks concurrently from several fetchers, so the same block is frequently requested by
@@ -52,29 +60,53 @@ func (c *BlockCache[V]) Keys() []uint64 {
 // Concurrent misses for the same block are coalesced into a single fetch. fetch is not invoked even
 // when a caller arrives just after an in-flight fetch finished: the cache is re-checked inside the
 // flight, so the just-fetched value is reused rather than fetched again.
-func (c *BlockCache[V]) GetOrFetch(blockNumber uint64, fetch func() (V, error)) (V, error) {
-	// Fast path: avoids the strconv + singleflight bookkeeping when the block is already cached.
-	if v, ok := c.cache.Get(blockNumber); ok {
-		return v, nil
-	}
-	v, err, _ := c.sf.Do(strconv.FormatUint(blockNumber, 10), func() (any, error) {
-		// Re-check inside the flight (double-checked): a preceding flight for this block may have
-		// finished and populated the cache between the miss above and entering Do.
+//
+// The flight runs the fn of the caller that starts it, so it lives and dies with that caller's
+// context — fetch receives that ctx as its argument and must use it, not one captured from
+// elsewhere. A caller sharing a flight whose starter got canceled mid-way therefore sees a
+// context.Canceled that says nothing about its own liveness: when our ctx is still alive we
+// simply retry — the dead flight is gone, so the retry starts (or joins) a fresh one under a live
+// context. Dying with the starter also means no flight can outlive its run: a reorg's ResetCache
+// never races a detached fetch. Each caller is released by its own ctx while waiting, without
+// aborting the shared flight.
+func (c *BlockCache[V]) GetOrFetch(
+	ctx context.Context,
+	blockNumber uint64,
+	fetch func(ctx context.Context) (V, error),
+) (V, error) {
+	var zero V
+	for attempt := 1; ; attempt++ {
+		// Also serves as the fast path: on the first pass it avoids the strconv + singleflight
+		// bookkeeping when the block is already cached.
 		if v, ok := c.cache.Get(blockNumber); ok {
 			return v, nil
 		}
-		v, err := fetch()
-		if err != nil {
-			return nil, err
+		ch := c.sf.DoChan(strconv.FormatUint(blockNumber, 10), func() (any, error) {
+			// Re-check inside the flight (double-checked): a preceding flight for this block may
+			// have finished and populated the cache between the miss above and entering DoChan.
+			if v, ok := c.cache.Get(blockNumber); ok {
+				return v, nil
+			}
+			v, err := fetch(ctx)
+			if err != nil {
+				return nil, err
+			}
+			c.cache.Add(blockNumber, v)
+			return v, nil
+		})
+		select {
+		case res := <-ch:
+			if res.Err == nil {
+				return res.Val.(V), nil
+			}
+			if errors.Is(res.Err, context.Canceled) && ctx.Err() == nil && attempt < maxTakeoverAttempts {
+				continue
+			}
+			return zero, res.Err
+		case <-ctx.Done():
+			return zero, ctx.Err()
 		}
-		c.cache.Add(blockNumber, v)
-		return v, nil
-	})
-	if err != nil {
-		var zero V
-		return zero, err
 	}
-	return v.(V), nil
 }
 
 // Snapshot renders up to maxCount entries for the debug tracker, using valuePreview to stringify each

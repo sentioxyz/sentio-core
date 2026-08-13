@@ -259,7 +259,7 @@ func (c *client) GetLatest(ctx context.Context) (controller.BlockHeader, uint64,
 
 func (c *client) GetHeader(ctx context.Context, blockNumber uint64) (BlockHeader, error) {
 	// Cache + singleflight: concurrent fetchers asking for the same block share one eth_getBlockByNumber.
-	return c.cachedHeaders.GetOrFetch(blockNumber, func() (BlockHeader, error) {
+	return c.cachedHeaders.GetOrFetch(ctx, blockNumber, func(ctx context.Context) (BlockHeader, error) {
 		return c.fetchHeader(ctx, blockNumber)
 	})
 }

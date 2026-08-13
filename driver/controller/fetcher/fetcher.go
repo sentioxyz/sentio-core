@@ -240,7 +240,12 @@ func (f *fetcher[T]) growth(ctx context.Context) (pause bool, reject bool, chang
 				err = pe.Err
 				retry = -1
 			}
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.Canceled) && ctx.Err() != nil {
+				// Quietly stop only when it is OUR context that is gone (controller shutdown).
+				// A Canceled that arrives while ctx is still alive leaked out of someone else's
+				// cancellation (e.g. a shared singleflight whose starter aborted) — exiting on it
+				// would kill this fetch loop with fetchingFailed unset and fetchingDone never
+				// closed, wedging every Get() forever. Treat it as an ordinary failure instead.
 				tryLogger.Debug("fetch canceled")
 				f.mu.Lock()
 				return true, true, nil

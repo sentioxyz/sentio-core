@@ -62,16 +62,17 @@ func (c *BlockCache[V]) Keys() []uint64 {
 // flight, so the just-fetched value is reused rather than fetched again.
 //
 // The flight runs the fn of the caller that starts it, so it lives and dies with that caller's
-// context (fetch should capture the caller's own ctx). A caller sharing a flight whose starter got
-// canceled mid-way therefore sees a context.Canceled that says nothing about its own liveness:
-// when our ctx is still alive we simply retry — the dead flight is gone, so the retry starts (or
-// joins) a fresh one under a live context. Dying with the starter also means no flight can outlive
-// its run: a reorg's ResetCache never races a detached fetch. Each caller is released by its own
-// ctx while waiting, without aborting the shared flight.
+// context — fetch receives that ctx as its argument and must use it, not one captured from
+// elsewhere. A caller sharing a flight whose starter got canceled mid-way therefore sees a
+// context.Canceled that says nothing about its own liveness: when our ctx is still alive we
+// simply retry — the dead flight is gone, so the retry starts (or joins) a fresh one under a live
+// context. Dying with the starter also means no flight can outlive its run: a reorg's ResetCache
+// never races a detached fetch. Each caller is released by its own ctx while waiting, without
+// aborting the shared flight.
 func (c *BlockCache[V]) GetOrFetch(
 	ctx context.Context,
 	blockNumber uint64,
-	fetch func() (V, error),
+	fetch func(ctx context.Context) (V, error),
 ) (V, error) {
 	var zero V
 	for attempt := 1; ; attempt++ {
@@ -86,7 +87,7 @@ func (c *BlockCache[V]) GetOrFetch(
 			if v, ok := c.cache.Get(blockNumber); ok {
 				return v, nil
 			}
-			v, err := fetch()
+			v, err := fetch(ctx)
 			if err != nil {
 				return nil, err
 			}

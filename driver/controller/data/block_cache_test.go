@@ -16,7 +16,7 @@ func TestBlockCacheGetOrFetch(t *testing.T) {
 	require.NoError(t, err)
 
 	var fetches atomic.Int64
-	fetch := func() (uint64, error) {
+	fetch := func(context.Context) (uint64, error) {
 		fetches.Add(1)
 		return 70, nil
 	}
@@ -55,11 +55,11 @@ func TestBlockCacheGetOrFetchError(t *testing.T) {
 	require.NoError(t, err)
 
 	boom := errors.New("boom")
-	_, err = c.GetOrFetch(context.Background(), 1, func() (uint64, error) { return 0, boom })
+	_, err = c.GetOrFetch(context.Background(), 1, func(context.Context) (uint64, error) { return 0, boom })
 	require.ErrorIs(t, err, boom)
 
 	// Errors are not cached: a subsequent successful fetch for the same block still runs and caches.
-	v, err := c.GetOrFetch(context.Background(), 1, func() (uint64, error) { return 42, nil })
+	v, err := c.GetOrFetch(context.Background(), 1, func(context.Context) (uint64, error) { return 42, nil })
 	require.NoError(t, err)
 	require.Equal(t, uint64(42), v)
 
@@ -76,7 +76,7 @@ func TestBlockCacheGetOrFetchTakesOverAfterStarterCancel(t *testing.T) {
 	require.NoError(t, err)
 
 	var fetches atomic.Int64
-	v, err := c.GetOrFetch(context.Background(), 5, func() (uint64, error) {
+	v, err := c.GetOrFetch(context.Background(), 5, func(context.Context) (uint64, error) {
 		if fetches.Add(1) == 1 {
 			// What a shared flight yields when its starter bails mid-way.
 			return 0, errors.Wrap(context.Canceled, "starter of the shared flight bailed")
@@ -100,7 +100,7 @@ func TestBlockCacheGetOrFetchOwnCancelIsNotRetried(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var fetches atomic.Int64
-	_, err = c.GetOrFetch(ctx, 6, func() (uint64, error) {
+	_, err = c.GetOrFetch(ctx, 6, func(ctx context.Context) (uint64, error) {
 		fetches.Add(1)
 		cancel() // the flight dies together with us, its starter
 		return 0, ctx.Err()
@@ -116,7 +116,7 @@ func TestBlockCacheGetOrFetchTakeoverIsBounded(t *testing.T) {
 	require.NoError(t, err)
 
 	var fetches atomic.Int64
-	_, err = c.GetOrFetch(context.Background(), 7, func() (uint64, error) {
+	_, err = c.GetOrFetch(context.Background(), 7, func(context.Context) (uint64, error) {
 		fetches.Add(1)
 		return 0, errors.Wrap(context.Canceled, "always canceled")
 	})
@@ -135,10 +135,10 @@ func TestBlockCacheGetOrFetchWaiterSurvivesStarterCancel(t *testing.T) {
 	fetchStarted := make(chan struct{})
 	starterErr := make(chan error, 1)
 	go func() {
-		_, err := c.GetOrFetch(starterCtx, 8, func() (uint64, error) {
+		_, err := c.GetOrFetch(starterCtx, 8, func(ctx context.Context) (uint64, error) {
 			close(fetchStarted)
-			<-starterCtx.Done() // the RPC dies together with the starter's context
-			return 0, errors.Wrap(starterCtx.Err(), "rpc aborted")
+			<-ctx.Done() // the RPC dies together with the starter's context
+			return 0, errors.Wrap(ctx.Err(), "rpc aborted")
 		})
 		starterErr <- err
 	}()
@@ -150,7 +150,7 @@ func TestBlockCacheGetOrFetchWaiterSurvivesStarterCancel(t *testing.T) {
 	}
 	waiterRes := make(chan res, 1)
 	go func() {
-		v, err := c.GetOrFetch(context.Background(), 8, func() (uint64, error) {
+		v, err := c.GetOrFetch(context.Background(), 8, func(context.Context) (uint64, error) {
 			return 123, nil // runs when the waiter takes over as the new starter
 		})
 		waiterRes <- res{v, err}
@@ -180,7 +180,7 @@ func TestBlockCacheGetOrFetchWaiterCancelReturnsEarly(t *testing.T) {
 	fetchStarted := make(chan struct{})
 	releaseFetch := make(chan struct{})
 	go func() {
-		_, _ = c.GetOrFetch(context.Background(), 9, func() (uint64, error) {
+		_, _ = c.GetOrFetch(context.Background(), 9, func(context.Context) (uint64, error) {
 			close(fetchStarted)
 			<-releaseFetch
 			return 11, nil
@@ -191,7 +191,7 @@ func TestBlockCacheGetOrFetchWaiterCancelReturnsEarly(t *testing.T) {
 	waiterCtx, waiterCancel := context.WithCancel(context.Background())
 	waiterCancel()
 	start := time.Now()
-	_, err = c.GetOrFetch(waiterCtx, 9, func() (uint64, error) { return 0, nil })
+	_, err = c.GetOrFetch(waiterCtx, 9, func(context.Context) (uint64, error) { return 0, nil })
 	require.ErrorIs(t, err, context.Canceled)
 	require.Less(t, time.Since(start), time.Second, "a canceled waiter must not block on the flight")
 

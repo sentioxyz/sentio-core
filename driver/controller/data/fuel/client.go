@@ -146,7 +146,7 @@ func (c *client) GetHeaderIgnoreCache(ctx context.Context, blockNumber uint64) (
 
 func (c *client) GetBlock(ctx context.Context, blockNumber uint64) (Block, error) {
 	// Cache + singleflight: concurrent fetchers asking for the same block share one fuel_getBlockHeader.
-	return c.cachedHeaders.GetOrFetch(ctx, blockNumber, func() (Block, error) {
+	return c.cachedHeaders.GetOrFetch(ctx, blockNumber, func(ctx context.Context) (Block, error) {
 		return c.fetchBlock(ctx, blockNumber)
 	})
 }

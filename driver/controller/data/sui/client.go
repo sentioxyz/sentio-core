@@ -204,7 +204,7 @@ func (c *client) GetHeaderIgnoreCache(ctx context.Context, blockNumber uint64) (
 func (c *client) GetSimpleBlock(ctx context.Context, blockNumber uint64) (SimpleBlock, error) {
 	// The cache + singleflight (in BlockCache) collapses the concurrent prefetch requests for the same
 	// checkpoint — made by the object-change / txn / interval fetchers — into a single RPC.
-	return c.cachedSimpleBlock.GetOrFetch(ctx, blockNumber, func() (SimpleBlock, error) {
+	return c.cachedSimpleBlock.GetOrFetch(ctx, blockNumber, func(ctx context.Context) (SimpleBlock, error) {
 		return c.fetchSimpleBlock(ctx, blockNumber)
 	})
 }

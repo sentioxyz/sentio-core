@@ -173,11 +173,7 @@ func (c *client) GetContractCreateBlockHeight(
 }
 
 func (c *client) ResetCache(r controller.BlockRange) {
-	for _, bn := range c.cachedHeaders.Keys() {
-		if r.Contains(bn) {
-			c.cachedHeaders.Remove(bn)
-		}
-	}
+	c.cachedHeaders.InvalidateRange(r)
 }
 
 func (c *client) Snapshot() any {

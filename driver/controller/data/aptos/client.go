@@ -341,11 +341,7 @@ func (c *client) GetAddressStartBlock(ctx context.Context, address string, start
 }
 
 func (c *client) ResetCache(r controller.BlockRange) {
-	for _, bn := range c.cachedMinimalistTxn.Keys() {
-		if r.Contains(bn) {
-			c.cachedMinimalistTxn.Remove(bn)
-		}
-	}
+	c.cachedMinimalistTxn.InvalidateRange(r)
 }
 
 func (c *client) Snapshot() any {

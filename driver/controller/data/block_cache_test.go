@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"sentioxyz/sentio-core/common/utils"
+	"sentioxyz/sentio-core/driver/controller"
 )
 
 func TestBlockCacheGetOrFetch(t *testing.T) {
@@ -145,4 +148,73 @@ func TestBlockCacheGetOrFetchWaiterCancelReturnsEarly(t *testing.T) {
 	require.Less(t, time.Since(start), time.Second, "a canceled waiter must not block on the flight")
 
 	close(releaseFetch)
+}
+
+// InvalidateRange must obsolete work already in flight, not just cached entries: the in-flight
+// value may describe the invalidated (reorged-away) fork, is not yet in the LRU, and its flight
+// keeps running detached from any canceled caller. The stale flight's result must be neither
+// cached nor served, and a post-invalidation caller must not join the pre-invalidation flight.
+func TestBlockCacheInvalidateRangeObsoletesInFlight(t *testing.T) {
+	c, err := NewBlockCache[uint64](16)
+	require.NoError(t, err)
+
+	fetchStarted := make(chan struct{})
+	releaseFetch := make(chan struct{})
+	staleErr := make(chan error, 1)
+	go func() {
+		_, err := c.GetOrFetch(context.Background(), 5, func(context.Context) (uint64, error) {
+			close(fetchStarted)
+			<-releaseFetch
+			return 100, nil // value from the fork that InvalidateRange will throw away
+		})
+		staleErr <- err
+	}()
+	<-fetchStarted
+
+	c.InvalidateRange(controller.BlockRange{StartBlock: 5, EndBlock: utils.WrapPointer(uint64(5))})
+
+	// A caller arriving after the invalidation starts a fresh fetch (new singleflight key) and
+	// gets the new fork's value even though the old flight is still running.
+	type res struct {
+		v   uint64
+		err error
+	}
+	freshRes := make(chan res, 1)
+	go func() {
+		v, err := c.GetOrFetch(context.Background(), 5, func(context.Context) (uint64, error) {
+			return 200, nil
+		})
+		freshRes <- res{v, err}
+	}()
+	fresh := <-freshRes
+	require.NoError(t, fresh.err)
+	require.Equal(t, uint64(200), fresh.v)
+
+	// Only now does the old flight complete: its value is discarded and its waiter told to retry.
+	close(releaseFetch)
+	require.ErrorIs(t, <-staleErr, ErrFlightInvalidated)
+
+	got, ok := c.Get(5)
+	require.True(t, ok)
+	require.Equal(t, uint64(200), got, "the stale flight must not overwrite the post-invalidation value")
+}
+
+// InvalidateRange still removes already-cached entries in the range (the pre-existing behavior of
+// the per-key removal it replaced) and leaves entries outside the range alone.
+func TestBlockCacheInvalidateRangeRemovesCached(t *testing.T) {
+	c, err := NewBlockCache[uint64](16)
+	require.NoError(t, err)
+	c.Add(1, 10)
+	c.Add(2, 20)
+	c.Add(9, 90)
+
+	c.InvalidateRange(controller.BlockRange{StartBlock: 1, EndBlock: utils.WrapPointer(uint64(2))})
+
+	_, ok := c.Get(1)
+	require.False(t, ok)
+	_, ok = c.Get(2)
+	require.False(t, ok)
+	v, ok := c.Get(9)
+	require.True(t, ok)
+	require.Equal(t, uint64(90), v)
 }

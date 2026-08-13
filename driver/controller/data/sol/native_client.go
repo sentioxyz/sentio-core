@@ -510,11 +510,7 @@ func (c *nativeClient) GetPreviousUnskippedBlock(
 }
 
 func (c *nativeClient) ResetCache(r controller.BlockRange) {
-	for _, bn := range c.cachedHeaders.Keys() {
-		if r.Contains(bn) {
-			c.cachedHeaders.Remove(bn)
-		}
-	}
+	c.cachedHeaders.InvalidateRange(r)
 }
 
 func (c *nativeClient) Snapshot() any {

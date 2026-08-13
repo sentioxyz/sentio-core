@@ -858,11 +858,7 @@ func (c *client) GetObjectCreation(ctx context.Context, objectID string, start u
 }
 
 func (c *client) ResetCache(r controller.BlockRange) {
-	for _, bn := range c.cachedSimpleBlock.Keys() {
-		if r.Contains(bn) {
-			c.cachedSimpleBlock.Remove(bn)
-		}
-	}
+	c.cachedSimpleBlock.InvalidateRange(r)
 }
 
 func (c *client) Snapshot() any {

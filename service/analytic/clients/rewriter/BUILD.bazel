@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "rewriter",
@@ -12,5 +12,17 @@ go_library(
         "//service/rewriter/protos",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials/insecure",
+    ],
+)
+
+go_test(
+    name = "rewriter_test",
+    srcs = ["rewriter_test.go"],
+    embed = [":rewriter"],
+    deps = [
+        "//service/rewriter/protos",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//resolver",
+        "@org_golang_google_grpc//resolver/manual",
     ],
 )

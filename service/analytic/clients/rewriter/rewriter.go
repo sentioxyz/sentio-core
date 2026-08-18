@@ -24,8 +24,22 @@ type client struct {
 	protos.RewriterServiceClient
 }
 
+const roundRobinServiceConfig = `{"loadBalancingConfig":[{"round_robin":{}}]}`
+
+func rewriterTarget(addr string) string {
+	if strings.Contains(addr, "://") {
+		return addr
+	}
+	return "dns:///" + addr
+}
+
 func NewRewriterClient(addr string) (Client, error) {
-	conn, err := rpc.Dial(addr, rpc.RetryDialOption, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := rpc.Dial(
+		rewriterTarget(addr),
+		rpc.RetryDialOption,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+	)
 	if err != nil {
 		log.Warnf("failed to dial rewriter service: %v", err)
 		return nil, err

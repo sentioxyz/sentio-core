@@ -910,22 +910,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerUrl: 'https://seistream.app',
     lightIcon: 'https://assets.sentio.xyz/chains/sei.svg'
   },
-  [EthChainId.SWELL_MAINNET]: {
-    name: 'Swell Mainnet',
-    slug: 'swell-mainnet',
-    chainId: EthChainId.SWELL_MAINNET,
-    nativeChainId: 1923,
-    variation: EthVariation.OPTIMISM,
-    priceTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenSymbol: 'ETH',
-    tokenDecimals: 18,
-    explorerUrl: 'https://explorer.swellnetwork.io',
-    explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerApi: 'https://explorer.swellnetwork.io',
-    lightIcon: 'https://assets.sentio.xyz/chains/swell.svg'
-  },
   [EthChainId.TAC_TESTNET]: {
     name: 'TAC Testnet',
     slug: 'tac-testnet',

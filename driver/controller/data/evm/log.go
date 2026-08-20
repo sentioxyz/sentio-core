@@ -179,7 +179,12 @@ func MergeLogRequirements(current uint64, reqs []LogRequirement) (result []LogRe
 }
 
 var (
-	ethGetLogsMaxAddressLen = envconf.LoadUInt64("SENTIO_ETH_GETLOGS_MAX_ADDR_LEN", 200)
+	// Above this many watched addresses the fetcher drops the address filter and scans by
+	// topics only. When the topic set contains a high-volume signature (e.g. ERC20 Transfer),
+	// that scan matches nearly every block and the adaptive range shrinks to a few blocks per
+	// query, slowing backfill by orders of magnitude — while thousands of addresses in one
+	// filter measured as cheap for the server. So keep this cap high.
+	ethGetLogsMaxAddressLen = envconf.LoadUInt64("SENTIO_ETH_GETLOGS_MAX_ADDR_LEN", 3000)
 	ethGetLogsMaxTopicLen   = envconf.LoadUInt64("SENTIO_ETH_GETLOGS_MAX_TOPIC_LEN", 100)
 )
 

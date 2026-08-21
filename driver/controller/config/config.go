@@ -16,8 +16,11 @@ import (
 // which is the shape the TypeScript SDK reads from the chains-config.json
 // handed to processor-runner.
 type ChainConfig struct {
-	ChainID                  string
-	Endpoint                 string
+	ChainID  string
+	Endpoint string
+	// DisableTrace states that the chain has no trace source, so trace handlers can never run.
+	// Absent means traces work, which is what every chain that predates this field expects.
+	DisableTrace             bool
 	StartBlockOverride       int64
 	ProcessingDelayBlocks    uint64
 	KeepSuiEventTypePackage  bool

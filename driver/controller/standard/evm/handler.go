@@ -184,6 +184,7 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, latest uint6
 	_, logger := log.FromContext(ctx)
 	c.Agents = nil
 	var err error
+	var skippedTraceHandlers, tracelessFetchHandlers int
 
 	for dataSourceID, accountConfig := range c.Config.AccountConfigs {
 		accountAddress := standard.AdjustAddress(accountConfig.GetAddress())
@@ -236,6 +237,11 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, latest uint6
 		}
 
 		for _, traceConfig := range contractConfig.GetTraceConfigs() {
+			// the chain has no trace source at all, so a trace agent could only retry forever
+			if c.ChainConfig.DisableTrace {
+				skippedTraceHandlers++
+				continue
+			}
 			agent := HandlerAgentTrace{
 				BaseHandlerAgent: controller.NewBaseHandlerAgent(dataSource, dataSourceID, "trace", traceConfig, blockRange),
 				FetchConfig:      traceConfig.GetFetchConfig(),
@@ -276,6 +282,10 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, latest uint6
 					dataSource, dataSourceID, "interval", intervalConfig, blockRange),
 				FetchConfig: intervalConfig.GetFetchConfig(),
 			}
+			if c.ChainConfig.DisableTrace && intervalConfig.GetFetchConfig().GetTrace() {
+				agent.DisableTrace = true
+				tracelessFetchHandlers++
+			}
 			agent.IntervalConfig, err = standard.NewIntervalConfig(intervalConfig)
 			if err != nil {
 				return controller.NewExternalError(controller.ErrCodeUnexpectedProcessorConfig,
@@ -286,6 +296,16 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, latest uint6
 		}
 	}
 
+	if skippedTraceHandlers > 0 {
+		logger.UserVisible().Errorf(
+			"trace handler is not supported: chain %s has trace disabled, %d trace handler(s) will be ignored",
+			c.ChainConfig.ChainID, skippedTraceHandlers)
+	}
+	if tracelessFetchHandlers > 0 {
+		logger.UserVisible().Errorf(
+			"trace is not available: chain %s has trace disabled, %d block handler(s) will see no traces",
+			c.ChainConfig.ChainID, tracelessFetchHandlers)
+	}
 	logger.Infof("built %d agents", len(c.Agents))
 	return nil
 }

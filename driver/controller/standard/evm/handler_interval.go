@@ -19,6 +19,13 @@ type HandlerAgentInterval struct {
 
 	FetchConfig    *protos.EthFetchConfig
 	IntervalConfig data.IntervalConfig
+	// DisableTrace drops a FetchConfig trace request on a chain that has no trace source. The raw
+	// block still carries an empty traces field, which is what driver v2 delivers on such a chain.
+	DisableTrace bool
+}
+
+func (a HandlerAgentInterval) fetchTrace() bool {
+	return a.FetchConfig.GetTrace() && !a.DisableTrace
 }
 
 func (a HandlerAgentInterval) GetExtendRequirements(
@@ -46,7 +53,7 @@ func (a HandlerAgentInterval) GetExtendRequirements(
 	if a.FetchConfig.GetTransactionReceiptLogs() {
 		r.AllTransactionReceiptLogs = true
 	}
-	if a.FetchConfig.GetTrace() {
+	if a.fetchTrace() {
 		r.AllTraces = true
 	}
 	return r, nil
@@ -90,7 +97,7 @@ func (a HandlerAgentInterval) BuildBindingDataList(
 			block["transactionReceipts"] = raw
 		}
 		if a.FetchConfig.GetTrace() {
-			var traces []json.RawMessage
+			traces := []json.RawMessage{}
 			for _, txHash := range d.BlockHeader.TxHashes {
 				for _, trace := range d.extendData.Traces[txHash] {
 					traces = append(traces, json.RawMessage(trace.Raw))
@@ -128,5 +135,6 @@ func (a HandlerAgentInterval) Snapshot() any {
 		"Range":          a.Range.String(),
 		"IntervalConfig": a.IntervalConfig,
 		"FetchConfig":    a.FetchConfig,
+		"DisableTrace":   a.DisableTrace,
 	}
 }

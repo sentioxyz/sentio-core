@@ -131,6 +131,7 @@ func (c *HandlerController) buildAgents(
 	}
 	// build agents
 	c.agents = nil
+	var skippedCallHandlers int
 	for dataSourceID, ds := range dataSources {
 		blockRange := controller.BlockRange{StartBlock: max(ds.Source.GetStartBlock(), first)}
 		if ds.Source.EndBlock != nil {
@@ -171,6 +172,11 @@ func (c *HandlerController) buildAgents(
 			if ds.Source.Address == "" {
 				return controller.NewExternalError(controller.ErrCodeInvalidSubgraphManifest,
 					errors.Errorf("data source #%d %s has call handler but no contract address", dataSourceID, ds.Name))
+			}
+			// the chain has no trace source at all, so a call agent could only retry forever
+			if c.chainConfig.DisableTrace {
+				skippedCallHandlers++
+				continue
 			}
 			agent := HandlerAgentCall{
 				BaseHandlerAgent: controller.BaseHandlerAgent{
@@ -225,6 +231,11 @@ func (c *HandlerController) buildAgents(
 			c.agents = append(c.agents, agent)
 			logger.Infow("has new agent", "agent", agent.Snapshot())
 		}
+	}
+	if skippedCallHandlers > 0 {
+		logger.UserVisible().Errorf(
+			"call handler is not supported: chain %s has trace disabled, %d call handler(s) will be ignored",
+			c.chainID(), skippedCallHandlers)
 	}
 	return nil
 }

@@ -184,6 +184,7 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, latest uint6
 	_, logger := log.FromContext(ctx)
 	c.Agents = nil
 	var err error
+	var skippedTraceHandlers int
 
 	for dataSourceID, accountConfig := range c.Config.AccountConfigs {
 		accountAddress := standard.AdjustAddress(accountConfig.GetAddress())
@@ -236,6 +237,11 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, latest uint6
 		}
 
 		for _, traceConfig := range contractConfig.GetTraceConfigs() {
+			// the chain has no trace source at all, so a trace agent could only retry forever
+			if c.ChainConfig.DisableTrace {
+				skippedTraceHandlers++
+				continue
+			}
 			agent := HandlerAgentTrace{
 				BaseHandlerAgent: controller.NewBaseHandlerAgent(dataSource, dataSourceID, "trace", traceConfig, blockRange),
 				FetchConfig:      traceConfig.GetFetchConfig(),
@@ -286,6 +292,11 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, latest uint6
 		}
 	}
 
+	if skippedTraceHandlers > 0 {
+		logger.UserVisible().Errorf(
+			"trace handler is not supported: chain %s has trace disabled, %d trace handler(s) will be ignored",
+			c.ChainConfig.ChainID, skippedTraceHandlers)
+	}
 	logger.Infof("built %d agents", len(c.Agents))
 	return nil
 }

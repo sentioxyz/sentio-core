@@ -170,7 +170,7 @@ func TestRewriteUsesOneMinuteTimeout(t *testing.T) {
 	}
 }
 
-func TestRewriteErrorMessageUsesOneMinuteTimeout(t *testing.T) {
+func TestRewriteErrorMessageUsesFiveSecondTimeout(t *testing.T) {
 	observedDeadline := make(chan time.Duration, 1)
 	address := startDeadlineServer(t, deadlineServer{rewriteErrorMessageDeadline: observedDeadline})
 
@@ -184,8 +184,8 @@ func TestRewriteErrorMessageUsesOneMinuteTimeout(t *testing.T) {
 	}
 
 	remaining := <-observedDeadline
-	if remaining < 55*time.Second || remaining > time.Minute {
-		t.Fatalf("RewriteErrorMessage deadline remaining = %v, want between 55s and 1m", remaining)
+	if remaining < 4*time.Second || remaining > 5*time.Second {
+		t.Fatalf("RewriteErrorMessage deadline remaining = %v, want between 4s and 5s", remaining)
 	}
 }
 

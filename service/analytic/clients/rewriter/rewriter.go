@@ -70,7 +70,7 @@ func (r *client) Rewrite(ctx context.Context, req *protos.RewriteSQLRequest) (*p
 	reqJSON, _ := protojson.Marshal(req)
 	log.Debugf("rewriting request: %s", string(reqJSON))
 
-	bCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	bCtx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	resp, err := r.RewriterServiceClient.Rewrite(bCtx, req)
@@ -83,7 +83,7 @@ func (r *client) Rewrite(ctx context.Context, req *protos.RewriteSQLRequest) (*p
 }
 
 func (r *client) RewriteErrorMessage(ctx context.Context, req *protos.RewriteErrorMessageRequest) (*protos.RewriteErrorMessageResponse, error) {
-	bCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	bCtx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	reqJSON, _ := protojson.Marshal(req)

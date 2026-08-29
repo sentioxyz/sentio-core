@@ -22,6 +22,58 @@ func (s formatServer) Format(context.Context, *protos.FormatSQLRequest) (*protos
 	return &protos.FormatSQLResponse{Sql: s.response}, nil
 }
 
+type deadlineServer struct {
+	protos.UnimplementedRewriterServiceServer
+	rewriteDeadline             chan time.Duration
+	rewriteErrorMessageDeadline chan time.Duration
+	formatDeadline              chan time.Duration
+}
+
+func remainingDeadline(ctx context.Context) time.Duration {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return 0
+	}
+	return time.Until(deadline)
+}
+
+func (s deadlineServer) Rewrite(ctx context.Context, _ *protos.RewriteSQLRequest) (*protos.RewriteSQLResponse, error) {
+	s.rewriteDeadline <- remainingDeadline(ctx)
+	return &protos.RewriteSQLResponse{}, nil
+}
+
+func (s deadlineServer) RewriteErrorMessage(ctx context.Context, _ *protos.RewriteErrorMessageRequest) (*protos.RewriteErrorMessageResponse, error) {
+	s.rewriteErrorMessageDeadline <- remainingDeadline(ctx)
+	return &protos.RewriteErrorMessageResponse{}, nil
+}
+
+func (s deadlineServer) Format(ctx context.Context, _ *protos.FormatSQLRequest) (*protos.FormatSQLResponse, error) {
+	s.formatDeadline <- remainingDeadline(ctx)
+	return &protos.FormatSQLResponse{}, nil
+}
+
+func startDeadlineServer(t *testing.T, service deadlineServer) string {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+
+	server := grpc.NewServer()
+	protos.RegisterRewriterServiceServer(server, service)
+	t.Cleanup(func() {
+		server.Stop()
+		_ = listener.Close()
+	})
+
+	go func() {
+		_ = server.Serve(listener)
+	}()
+
+	return "passthrough:///" + listener.Addr().String()
+}
+
 func startFormatServer(t *testing.T, response string) string {
 	t.Helper()
 
@@ -97,4 +149,61 @@ func TestNewRewriterClientBalancesAcrossResolvedAddresses(t *testing.T) {
 	}
 
 	t.Fatalf("Format reached backends %v, want both first and second", seen)
+}
+
+func TestRewriteUsesOneMinuteTimeout(t *testing.T) {
+	observedDeadline := make(chan time.Duration, 1)
+	address := startDeadlineServer(t, deadlineServer{rewriteDeadline: observedDeadline})
+
+	client, err := NewRewriterClient(address)
+	if err != nil {
+		t.Fatalf("NewRewriterClient: %v", err)
+	}
+
+	if _, err = client.Rewrite(context.Background(), &protos.RewriteSQLRequest{Sql: "select 1"}); err != nil {
+		t.Fatalf("Rewrite: %v", err)
+	}
+
+	remaining := <-observedDeadline
+	if remaining < 55*time.Second || remaining > time.Minute {
+		t.Fatalf("Rewrite deadline remaining = %v, want between 55s and 1m", remaining)
+	}
+}
+
+func TestRewriteErrorMessageUsesOneMinuteTimeout(t *testing.T) {
+	observedDeadline := make(chan time.Duration, 1)
+	address := startDeadlineServer(t, deadlineServer{rewriteErrorMessageDeadline: observedDeadline})
+
+	client, err := NewRewriterClient(address)
+	if err != nil {
+		t.Fatalf("NewRewriterClient: %v", err)
+	}
+
+	if _, err = client.RewriteErrorMessage(context.Background(), &protos.RewriteErrorMessageRequest{Sql: "select 1"}); err != nil {
+		t.Fatalf("RewriteErrorMessage: %v", err)
+	}
+
+	remaining := <-observedDeadline
+	if remaining < 55*time.Second || remaining > time.Minute {
+		t.Fatalf("RewriteErrorMessage deadline remaining = %v, want between 55s and 1m", remaining)
+	}
+}
+
+func TestFormatKeepsFiveSecondTimeout(t *testing.T) {
+	observedDeadline := make(chan time.Duration, 1)
+	address := startDeadlineServer(t, deadlineServer{formatDeadline: observedDeadline})
+
+	client, err := NewRewriterClient(address)
+	if err != nil {
+		t.Fatalf("NewRewriterClient: %v", err)
+	}
+
+	if _, err = client.Format(context.Background(), &protos.FormatSQLRequest{Sql: "select 1"}); err != nil {
+		t.Fatalf("Format: %v", err)
+	}
+
+	remaining := <-observedDeadline
+	if remaining < 4*time.Second || remaining > 5*time.Second {
+		t.Fatalf("Format deadline remaining = %v, want between 4s and 5s", remaining)
+	}
 }

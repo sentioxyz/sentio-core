@@ -153,6 +153,11 @@ const (
 	ErrCodeTooManyEventTypes
 	ErrCodeTooManyTimeSeries
 	ErrCodeTooManyEntityTypes
+
+	// the processor is built with an SDK incompatible with this driver (e.g. it
+	// still emits data forms the driver no longer supports); permanent until the
+	// processor is rebuilt with a supported SDK, so never retried
+	ErrCodeIncompatibleSDK
 )
 
 // billing error

@@ -301,11 +301,11 @@ func (b *task) waitProcess(
 			// running an unsupported SDK and must be rejected instead of silently
 			// dropping the data.
 			if len(resp.GetResult().GetEvents()) > 0 {
-				return stat, controller.NewExternalError(controller.ErrCodeProcessFailed,
+				return stat, controller.NewExternalError(controller.ErrCodeIncompatibleSDK,
 					errors.Errorf("event v2 data is no longer supported in %s, please upgrade the processor SDK", b.title()))
 			}
 			if len(resp.GetResult().GetGauges()) > 0 || len(resp.GetResult().GetCounters()) > 0 {
-				return stat, controller.NewExternalError(controller.ErrCodeProcessFailed,
+				return stat, controller.NewExternalError(controller.ErrCodeIncompatibleSDK,
 					errors.Errorf("metric v2 data is no longer supported in %s, please upgrade the processor SDK", b.title()))
 			}
 			if tsr := resp.GetResult().GetTimeseriesResult(); len(tsr) > 0 {

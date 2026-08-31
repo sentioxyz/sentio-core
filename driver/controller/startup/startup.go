@@ -560,6 +560,8 @@ func main(ctx context.Context, config Config) (exitCode exitcode.Code, err error
 			switch {
 			case extErr.IsBillingError():
 				return exitcode.OverQuota, extErr
+			case extErr.IsUserRuntimeError():
+				return exitcode.RetryAfterOneHour, extErr
 			case extErr.IsUserError():
 				return exitcode.NeverRetry, extErr
 			}

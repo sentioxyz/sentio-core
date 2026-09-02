@@ -31,7 +31,6 @@ export enum EthChainId {
   // FANTOM = '250',
   FRAXTAL = '252',
   KUCOIN = '321',
-  CRONOS_ZKEVM = '388',
   ZKSYNC_ERA = '324',
   CRONOS_TESTNET = '338',
   DERIVE = '957',

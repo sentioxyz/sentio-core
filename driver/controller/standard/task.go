@@ -34,6 +34,9 @@ type task struct {
 	// executing the binding, so no start command is sent. Its first db read is
 	// still gated on the ready and finish waiters below.
 	started bool
+	// executing is the db request being applied. A no_response write that fails
+	// is answered on it before the binding fails (reportFailedWrite).
+	executing *protos.DBRequest
 	bindingData
 
 	sp     streamPool
@@ -131,7 +134,7 @@ func (b *task) Exec(
 	if extErr = b.getStream(ctx); extErr != nil {
 		return extErr
 	}
-	defer b.returnStream()
+	defer func() { b.releaseStream(extErr) }()
 	if extErr = b.sendBindingData(ctx); extErr != nil {
 		return extErr
 	}
@@ -155,6 +158,9 @@ func (b *task) Exec(
 		}
 	}
 	stat, extErr = b.waitProcess(ctx, checkpointCtrl)
+	if extErr != nil {
+		b.reportFailedWrite(ctx, extErr)
+	}
 	return extErr
 }
 
@@ -168,10 +174,44 @@ func (b *task) getStream(ctx context.Context) *controller.ExternalError {
 	}
 }
 
-func (b *task) returnStream() {
-	if b.stream != nil {
-		b.sp <- b.stream
+// releaseStream hands the stream back to the pool after a successful task. After
+// a failure it is closed instead: the processor may still emit for this process
+// (a write it did not wait for failed, a receive timed out, ...) and the next
+// task on the stream would read that output as an unexpected process id. A task
+// failure cancels the whole run and the pool is rebuilt for the next one, so
+// nothing waits for the missing stream.
+func (b *task) releaseStream(extErr *controller.ExternalError) {
+	if b.stream == nil {
+		return
 	}
+	if extErr == nil {
+		b.sp <- b.stream
+		return
+	}
+	if err := b.stream.CloseSend(); err != nil {
+		b.logger.Debugw("close stream after failure", "err", err)
+	}
+	b.stream = nil
+}
+
+// reportFailedWrite answers a failed no_response write with an error DBResponse.
+// The processor did not wait for the op, so this is its only chance to log the
+// failure and stop the handler; acknowledged ops get no answer, as before. Best
+// effort: the failure is cancelling the run, so the send gets its own deadline.
+func (b *task) reportFailedWrite(ctx context.Context, extErr *controller.ExternalError) {
+	if !b.executing.GetNoResponse() {
+		return
+	}
+	sendCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	req := &protos.ProcessStreamRequest{
+		ProcessId: int32(b.index.ProcessID),
+		Value: &protos.ProcessStreamRequest_DbResult{DbResult: &protos.DBResponse{
+			OpId:  b.executing.GetOpId(),
+			Value: &protos.DBResponse_Error{Error: extErr.Error()},
+		}},
+	}
+	_ = b.streamSend(sendCtx, req, "failed write report", "SE", 5*time.Second)
 }
 
 func (b *task) streamSend(
@@ -366,6 +406,7 @@ func (b *task) waitProcess(
 			return stat, controller.NewExternalError(controller.ErrCodeSystem,
 				errors.Wrapf(err, "invalid db request for %s", b.title()))
 		}
+		b.executing = dbReq
 
 		// wait resource
 		if dbReq.GetGet() != nil || dbReq.GetList() != nil {
@@ -670,10 +711,11 @@ func (b *task) waitProcess(
 			what = fmt.Sprintf("entity delete response #%d/%d", stat.Delete, stat.DeleteEntities)
 		}
 		reqLogger.With("used", start.End().String()).Debugf("%s is ready", what)
+		b.executing = nil
 
 		if dbReq.GetNoResponse() {
-			// Fire-and-forget write: the op is applied (a failure already returned
-			// above and fails the binding); the processor did not register a waiter.
+			// Fire-and-forget write: applied, and the processor registered no waiter.
+			// A failure returned above; reportFailedWrite answers it.
 			continue
 		}
 

@@ -814,23 +814,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApi: 'https://soneium-minato.blockscout.com',
     lightIcon: 'https://assets.sentio.xyz/chains/soneium.svg'
   },
-  [EthChainId.CRONOS_ZKEVM]: {
-    name: 'Cronos zkEVM',
-    slug: 'cronos-zkevm',
-    chainId: EthChainId.CRONOS_ZKEVM,
-    nativeChainId: 388,
-    variation: EthVariation.ZKSYNC,
-    priceTokenAddress: '0x000000000000000000000000000000000000800a',
-    tokenAddress: '0x000000000000000000000000000000000000800a',
-    wrappedTokenAddress: '0xc1bf55ee54e16229d9b369a5502bfe5fc9f20b6d',
-    tokenSymbol: 'zkCRO',
-    tokenDecimals: 18,
-    explorerUrl: 'https://explorer.zkevm.cronos.org',
-    explorerApiType: ExplorerApiType.UNKNOWN,
-    // explorerApi: 'https://explorer.zkevm.cronos.org',
-    lightIcon: 'https://assets.sentio.xyz/chains/cronos.svg',
-    darkIcon: 'https://assets.sentio.xyz/chains/cronos_light.svg'
-  },
   [EthChainId.DERIVE]: {
     name: 'Derive Mainnet',
     slug: 'derive-mainnet',

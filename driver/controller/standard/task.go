@@ -30,6 +30,10 @@ type waiter struct {
 }
 
 type task struct {
+	// started is set from the partition response: the processor already began
+	// executing the binding, so no start command is sent. Its first db read is
+	// still gated on the ready and finish waiters below.
+	started bool
 	bindingData
 
 	sp     streamPool
@@ -144,8 +148,10 @@ func (b *task) Exec(
 			return controller.NewExternalError(controller.ErrCodeSystem,
 				errors.Errorf("waiting all previous tasks got partition failed: %v", err))
 		}
-		if extErr = b.sendStartCommand(ctx); extErr != nil {
-			return extErr
+		if !b.started {
+			if extErr = b.sendStartCommand(ctx); extErr != nil {
+				return extErr
+			}
 		}
 	}
 	stat, extErr = b.waitProcess(ctx, checkpointCtrl)
@@ -251,6 +257,7 @@ func (b *task) recvPartition(ctx context.Context) *controller.ExternalError {
 	for _, p := range resp.GetPartitions().GetPartitions() {
 		b.partition = p.GetUserValue()
 	}
+	b.started = resp.GetPartitions().GetStarted()
 	return nil
 }
 
@@ -353,6 +360,11 @@ func (b *task) waitProcess(
 		reqLogger := b.logger.With("opid", dbReq.GetOpId())
 		reqErrLogger := func() *log.SentioLogger {
 			return reqLogger.With("binding", b.data.String(), "dbreq", dbReq.String())
+		}
+		if err := validateNoResponse(dbReq); err != nil {
+			reqErrLogger().Errore(err, "invalid db request")
+			return stat, controller.NewExternalError(controller.ErrCodeSystem,
+				errors.Wrapf(err, "invalid db request for %s", b.title()))
 		}
 
 		// wait resource
@@ -659,6 +671,12 @@ func (b *task) waitProcess(
 		}
 		reqLogger.With("used", start.End().String()).Debugf("%s is ready", what)
 
+		if dbReq.GetNoResponse() {
+			// Fire-and-forget write: the op is applied (a failure already returned
+			// above and fails the binding); the processor did not register a waiter.
+			continue
+		}
+
 		// send db result
 		req := &protos.ProcessStreamRequest{
 			ProcessId: resp.GetProcessId(),
@@ -668,4 +686,16 @@ func (b *task) waitProcess(
 			return stat, sendErr
 		}
 	}
+}
+
+// validateNoResponse rejects no_response on reads: a processor that skipped its
+// waiter for a get or list would hang on the result it never receives.
+func validateNoResponse(dbReq *protos.DBRequest) error {
+	if !dbReq.GetNoResponse() {
+		return nil
+	}
+	if dbReq.GetGet() != nil || dbReq.GetList() != nil {
+		return errors.Errorf("no_response is only valid for write ops, got %T", dbReq.GetOp())
+	}
+	return nil
 }

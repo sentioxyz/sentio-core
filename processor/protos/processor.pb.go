@@ -4468,6 +4468,7 @@ type DBRequest struct {
 	//	*DBRequest_Delete
 	//	*DBRequest_List
 	Op            isDBRequest_Op `protobuf_oneof:"op"`
+	NoResponse    bool           `protobuf:"varint,7,opt,name=no_response,json=noResponse,proto3" json:"no_response,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4559,6 +4560,13 @@ func (x *DBRequest) GetList() *DBRequest_DBList {
 		}
 	}
 	return nil
+}
+
+func (x *DBRequest) GetNoResponse() bool {
+	if x != nil {
+		return x.NoResponse
+	}
+	return false
 }
 
 type isDBRequest_Op interface {
@@ -6375,6 +6383,7 @@ func (x *MoveCallFilter_FromAndToAddress) GetTo() string {
 type ProcessStreamResponse_Partitions struct {
 	state         protoimpl.MessageState                                `protogen:"open.v1"`
 	Partitions    map[int32]*ProcessStreamResponse_Partitions_Partition `protobuf:"bytes,1,rep,name=partitions,proto3" json:"partitions,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Started       bool                                                  `protobuf:"varint,2,opt,name=started,proto3" json:"started,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6414,6 +6423,13 @@ func (x *ProcessStreamResponse_Partitions) GetPartitions() map[int32]*ProcessStr
 		return x.Partitions
 	}
 	return nil
+}
+
+func (x *ProcessStreamResponse_Partitions) GetStarted() bool {
+	if x != nil {
+		return x.Started
+	}
+	return false
 }
 
 type ProcessStreamResponse_Partitions_Partition struct {
@@ -8393,7 +8409,7 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\abinding\x18\x02 \x01(\v2\x16.processor.DataBindingH\x00R\abinding\x124\n" +
 	"\tdb_result\x18\x03 \x01(\v2\x15.processor.DBResponseH\x00R\bdbResult\x12\x16\n" +
 	"\x05start\x18\x04 \x01(\bH\x00R\x05startB\a\n" +
-	"\x05value\"\xb0\x05\n" +
+	"\x05value\"\xca\x05\n" +
 	"\x15ProcessStreamResponse\x12\x1d\n" +
 	"\n" +
 	"process_id\x18\x01 \x01(\x05R\tprocessId\x125\n" +
@@ -8402,12 +8418,13 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x06result\x18\x03 \x01(\v2\x18.processor.ProcessResultH\x00R\x06result\x12M\n" +
 	"\n" +
 	"partitions\x18\x04 \x01(\v2+.processor.ProcessStreamResponse.PartitionsH\x00R\n" +
-	"partitions\x1a\xb4\x03\n" +
+	"partitions\x1a\xce\x03\n" +
 	"\n" +
 	"Partitions\x12[\n" +
 	"\n" +
 	"partitions\x18\x01 \x03(\v2;.processor.ProcessStreamResponse.Partitions.PartitionsEntryR\n" +
-	"partitions\x1a\xd2\x01\n" +
+	"partitions\x12\x18\n" +
+	"\astarted\x18\x02 \x01(\bR\astarted\x1a\xd2\x01\n" +
 	"\tPartition\x12\x1f\n" +
 	"\n" +
 	"user_value\x18\x01 \x01(\tH\x00R\tuserValue\x12]\n" +
@@ -8485,14 +8502,16 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\ttemplates\x18\x01 \x03(\v2\x1b.processor.TemplateInstanceR\ttemplates\x12\x16\n" +
 	"\x06remove\x18\x02 \x01(\bR\x06remove\"<\n" +
 	"\tTSRequest\x12/\n" +
-	"\x04data\x18\x01 \x03(\v2\x1b.processor.TimeseriesResultR\x04data\"\x9d\b\n" +
+	"\x04data\x18\x01 \x03(\v2\x1b.processor.TimeseriesResultR\x04data\"\xbe\b\n" +
 	"\tDBRequest\x12\x13\n" +
 	"\x05op_id\x18\x01 \x01(\x04R\x04opId\x12.\n" +
 	"\x03get\x18\x02 \x01(\v2\x1a.processor.DBRequest.DBGetH\x00R\x03get\x127\n" +
 	"\x06upsert\x18\x03 \x01(\v2\x1d.processor.DBRequest.DBUpsertH\x00R\x06upsert\x127\n" +
 	"\x06update\x18\x06 \x01(\v2\x1d.processor.DBRequest.DBUpdateH\x00R\x06update\x127\n" +
 	"\x06delete\x18\x04 \x01(\v2\x1d.processor.DBRequest.DBDeleteH\x00R\x06delete\x121\n" +
-	"\x04list\x18\x05 \x01(\v2\x1b.processor.DBRequest.DBListH\x00R\x04list\x1a/\n" +
+	"\x04list\x18\x05 \x01(\v2\x1b.processor.DBRequest.DBListH\x00R\x04list\x12\x1f\n" +
+	"\vno_response\x18\a \x01(\bR\n" +
+	"noResponse\x1a/\n" +
 	"\x05DBGet\x12\x16\n" +
 	"\x06entity\x18\x01 \x01(\tR\x06entity\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x1a\xa1\x01\n" +

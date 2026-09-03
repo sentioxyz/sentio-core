@@ -873,26 +873,26 @@ func (c *checkpointController) InsertTimeSeriesData(
 	taskIndex TaskIndex,
 	data []timeseries.Dataset,
 ) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	// No need to hold c.mu: TimeSeriesController implementations are required to support Insert
+	// running concurrently with Commit, so inserts are not blocked while save() is committing.
 	c.timeSeriesCtrl.Insert(blockNumber, taskIndex, data)
 }
 
 func (c *checkpointController) InsertWebhookData(blockNumber uint64, taskIndex TaskIndex, messages []WebhookMessage) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	// No need to hold c.mu: WebhookController implementations are required to support Insert
+	// running concurrently with Commit, so inserts are not blocked while save() is committing.
 	c.webhookCtrl.Insert(blockNumber, taskIndex, messages)
 }
 
+// The entity methods below forward to c.entityCtrl without holding c.mu: EntityController
+// implementations are required to be safe for concurrent use, so entity operations are only
+// serialized against the entity commit itself instead of the whole save().
+
 func (c *checkpointController) GetEntityOrInterfaceType(entity string) schema.EntityOrInterface {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.entityCtrl.GetEntityOrInterfaceType(entity)
 }
 
 func (c *checkpointController) GetEntityType(entity string) *schema.Entity {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.entityCtrl.GetEntityType(entity)
 }
 
@@ -902,8 +902,6 @@ func (c *checkpointController) GetEntity(
 	id string,
 	blockNumber uint64,
 ) (box *persistent.EntityBox, err *ExternalError) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.entityCtrl.GetEntity(ctx, typ, id, blockNumber)
 }
 
@@ -913,8 +911,6 @@ func (c *checkpointController) GetEntityInBlock(
 	id string,
 	blockNumber uint64,
 ) (box *persistent.EntityBox, err *ExternalError) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.entityCtrl.GetEntityInBlock(ctx, typ, id, blockNumber)
 }
 
@@ -926,8 +922,6 @@ func (c *checkpointController) ListEntity(
 	limit int,
 	blockNumber uint64,
 ) (boxes []*persistent.EntityBox, next *string, err *ExternalError) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.entityCtrl.ListEntity(ctx, entityType, filters, cursor, limit, blockNumber)
 }
 
@@ -938,8 +932,6 @@ func (c *checkpointController) ListRelated(
 	fieldName string,
 	blockNumber uint64,
 ) ([]*persistent.EntityBox, schema.EntityOrInterface, *ExternalError) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.entityCtrl.ListRelated(ctx, entityType, id, fieldName, blockNumber)
 }
 
@@ -948,8 +940,6 @@ func (c *checkpointController) SetEntity(
 	entityType *schema.Entity,
 	box persistent.UncommittedEntityBox,
 ) *ExternalError {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.entityCtrl.SetEntity(ctx, entityType, box)
 }
 

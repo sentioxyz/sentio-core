@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+// WebhookController buffers webhook messages per block and delivers them on commit.
+//
+// Implementations must be safe for concurrent use: Insert may be called concurrently with Commit,
+// CachedTooMuch, Snapshot and other Inserts without any external locking (checkpointController
+// calls Insert without holding its own mutex). Callers guarantee that Insert is only invoked for
+// block numbers greater than the block number of any Commit that has started, so implementations
+// do not need to handle inserts at or below the committing block number.
 type WebhookController interface {
 	Reset(ctx context.Context, checkpoint *Checkpoint) *ExternalError
 	CachedTooMuch(blockNumber uint64) bool

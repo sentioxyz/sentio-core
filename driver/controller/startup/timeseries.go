@@ -18,9 +18,13 @@ type timeSeriesController struct {
 	chainID string
 	store   timeseries.Store
 
-	mu        sync.Mutex
-	cached    map[uint64]map[uint64][]timeseries.Dataset // map[<blockNumber>][<taskIndex>]
-	committed *uint64
+	mu     sync.Mutex
+	cached map[uint64]map[uint64][]timeseries.Dataset // map[<blockNumber>][<taskIndex>]
+	// committing is the highest block number for which a Commit has started (reset by Reset).
+	// Insert asserts against it: inserting at or below this height would race with Commit's
+	// collect-append-delete sequence and silently lose the data, so it panics instead.
+	committing *uint64
+	committed  *uint64
 }
 
 func newTimeSeriesController(chainID string, store timeseries.Store) *timeSeriesController {
@@ -36,10 +40,13 @@ func (c *timeSeriesController) Reset(ctx context.Context, checkpoint *controller
 	defer c.mu.Unlock()
 	if checkpoint == nil {
 		c.cached = make(map[uint64]map[uint64][]timeseries.Dataset)
+		c.committing = nil
 	} else {
 		utils.MapDelete(c.cached, func(bn uint64) bool {
 			return bn > checkpoint.BlockNumber
 		})
+		bn := checkpoint.BlockNumber
+		c.committing = &bn
 	}
 	var blockNumber int64 = -1
 	if checkpoint != nil {
@@ -82,6 +89,8 @@ func (c *timeSeriesController) Commit(
 	// collect data to commit
 	var data []timeseries.Dataset
 	c.mu.Lock()
+	committing := blockNumber
+	c.committing = &committing
 	for _, bn := range utils.GetOrderedMapKeys(c.cached) {
 		if bn <= blockNumber {
 			data = append(data, utils.MergeArr(utils.GetMapValuesOrderByKey(c.cached[bn])...)...)
@@ -127,6 +136,10 @@ func (c *timeSeriesController) Commit(
 func (c *timeSeriesController) Insert(blockNumber uint64, taskIndex controller.TaskIndex, data []timeseries.Dataset) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.committing != nil && blockNumber <= *c.committing {
+		panic(errors.Errorf("insert time series data at block %d, but a commit at block %d has already started",
+			blockNumber, *c.committing))
+	}
 	org, _ := utils.GetFromK2Map(c.cached, blockNumber, taskIndex.Global)
 	utils.PutIntoK2Map(c.cached, blockNumber, taskIndex.Global, append(org, data...))
 }

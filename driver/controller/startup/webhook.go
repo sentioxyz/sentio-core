@@ -21,9 +21,13 @@ type webhookController struct {
 	processor *models.Processor
 	topic     *pubsub.Topic
 
-	mu        sync.Mutex
-	cached    map[uint64]map[uint64][]controller.WebhookMessage // map[<blockNumber>][<taskIndex>]
-	committed *uint64
+	mu     sync.Mutex
+	cached map[uint64]map[uint64][]controller.WebhookMessage // map[<blockNumber>][<taskIndex>]
+	// committing is the highest block number for which a Commit has started (reset by Reset).
+	// Insert asserts against it: inserting at or below this height would race with Commit's
+	// collect-publish-delete sequence and silently lose the messages, so it panics instead.
+	committing *uint64
+	committed  *uint64
 }
 
 func newWebhookController(processor *models.Processor, topic *pubsub.Topic) *webhookController {
@@ -39,10 +43,13 @@ func (c *webhookController) Reset(ctx context.Context, checkpoint *controller.Ch
 	defer c.mu.Unlock()
 	if checkpoint == nil {
 		c.cached = make(map[uint64]map[uint64][]controller.WebhookMessage)
+		c.committing = nil
 	} else {
 		utils.MapDelete(c.cached, func(bn uint64) bool {
 			return bn > checkpoint.BlockNumber
 		})
+		bn := checkpoint.BlockNumber
+		c.committing = &bn
 	}
 	// sent msg cannot be canceled
 	return nil
@@ -88,6 +95,8 @@ func (c *webhookController) Commit(
 	stat = make(map[string]int)
 	dict := make(map[string][]SingleWebhookMessage)
 	c.mu.Lock()
+	committing := blockNumber
+	c.committing = &committing
 	for _, bn := range utils.GetOrderedMapKeys(c.cached) {
 		if bn > blockNumber {
 			continue
@@ -159,6 +168,10 @@ func (c *webhookController) Insert(
 ) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.committing != nil && blockNumber <= *c.committing {
+		panic(errors.Errorf("insert webhook messages at block %d, but a commit at block %d has already started",
+			blockNumber, *c.committing))
+	}
 	org, _ := utils.GetFromK2Map(c.cached, blockNumber, taskIndex.Global)
 	utils.PutIntoK2Map(c.cached, blockNumber, taskIndex.Global, append(org, messages...))
 }

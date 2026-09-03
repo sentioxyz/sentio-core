@@ -41,12 +41,16 @@ func (c *timeSeriesController) Reset(ctx context.Context, checkpoint *controller
 	if checkpoint == nil {
 		c.cached = make(map[uint64]map[uint64][]timeseries.Dataset)
 		c.committing = nil
+		c.committed = nil
 	} else {
 		utils.MapDelete(c.cached, func(bn uint64) bool {
 			return bn > checkpoint.BlockNumber
 		})
 		bn := checkpoint.BlockNumber
 		c.committing = &bn
+		if c.committed != nil && *c.committed > bn {
+			c.committed = &bn
+		}
 	}
 	var blockNumber int64 = -1
 	if checkpoint != nil {

@@ -44,12 +44,16 @@ func (c *webhookController) Reset(ctx context.Context, checkpoint *controller.Ch
 	if checkpoint == nil {
 		c.cached = make(map[uint64]map[uint64][]controller.WebhookMessage)
 		c.committing = nil
+		c.committed = nil
 	} else {
 		utils.MapDelete(c.cached, func(bn uint64) bool {
 			return bn > checkpoint.BlockNumber
 		})
 		bn := checkpoint.BlockNumber
 		c.committing = &bn
+		if c.committed != nil && *c.committed > bn {
+			c.committed = &bn
+		}
 	}
 	// sent msg cannot be canceled
 	return nil

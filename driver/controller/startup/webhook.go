@@ -49,10 +49,9 @@ func (c *webhookController) Reset(ctx context.Context, checkpoint *controller.Ch
 		utils.MapDelete(c.cached, func(bn uint64) bool {
 			return bn > checkpoint.BlockNumber
 		})
-		bn := checkpoint.BlockNumber
-		c.committing = &bn
-		if c.committed != nil && *c.committed > bn {
-			c.committed = &bn
+		c.committing = new(checkpoint.BlockNumber)
+		if c.committed != nil && *c.committed > checkpoint.BlockNumber {
+			c.committed = new(checkpoint.BlockNumber)
 		}
 	}
 	// sent msg cannot be canceled
@@ -99,8 +98,7 @@ func (c *webhookController) Commit(
 	stat = make(map[string]int)
 	dict := make(map[string][]SingleWebhookMessage)
 	c.mu.Lock()
-	committing := blockNumber
-	c.committing = &committing
+	c.committing = new(blockNumber)
 	for _, bn := range utils.GetOrderedMapKeys(c.cached) {
 		if bn > blockNumber {
 			continue
@@ -184,6 +182,7 @@ func (c *webhookController) Snapshot() any {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return map[string]any{
+		"committing":      c.committing,
 		"committed":       c.committed,
 		"uncommitedTotal": c.getCachedSize(math.MaxUint64),
 		"uncommited": cacheSnapshot(c.cached, func(msgs []controller.WebhookMessage) (s int) {

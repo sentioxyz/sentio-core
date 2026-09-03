@@ -46,10 +46,9 @@ func (c *timeSeriesController) Reset(ctx context.Context, checkpoint *controller
 		utils.MapDelete(c.cached, func(bn uint64) bool {
 			return bn > checkpoint.BlockNumber
 		})
-		bn := checkpoint.BlockNumber
-		c.committing = &bn
-		if c.committed != nil && *c.committed > bn {
-			c.committed = &bn
+		c.committing = new(checkpoint.BlockNumber)
+		if c.committed != nil && *c.committed > checkpoint.BlockNumber {
+			c.committed = new(checkpoint.BlockNumber)
 		}
 	}
 	var blockNumber int64 = -1
@@ -93,8 +92,7 @@ func (c *timeSeriesController) Commit(
 	// collect data to commit
 	var data []timeseries.Dataset
 	c.mu.Lock()
-	committing := blockNumber
-	c.committing = &committing
+	c.committing = new(blockNumber)
 	for _, bn := range utils.GetOrderedMapKeys(c.cached) {
 		if bn <= blockNumber {
 			data = append(data, utils.MergeArr(utils.GetMapValuesOrderByKey(c.cached[bn])...)...)
@@ -152,6 +150,7 @@ func (c *timeSeriesController) Snapshot() any {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return map[string]any{
+		"committing":      c.committing,
 		"committed":       c.committed,
 		"uncommitedTotal": c.getCachedSize(math.MaxUint64),
 		"uncommited": cacheSnapshot(c.cached, func(dss []timeseries.Dataset) (s int) {

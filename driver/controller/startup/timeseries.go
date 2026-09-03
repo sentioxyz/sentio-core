@@ -46,6 +46,9 @@ func (c *timeSeriesController) Reset(ctx context.Context, checkpoint *controller
 		utils.MapDelete(c.cached, func(bn uint64) bool {
 			return bn > checkpoint.BlockNumber
 		})
+		// new with a value expression allocates a copy and returns its pointer — Go 1.26+ syntax
+		// (this module requires go 1.26.3); the other new(...) watermark assignments in this
+		// package rely on it too.
 		c.committing = new(checkpoint.BlockNumber)
 		if c.committed != nil && *c.committed > checkpoint.BlockNumber {
 			c.committed = new(checkpoint.BlockNumber)

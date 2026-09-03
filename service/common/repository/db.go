@@ -19,19 +19,15 @@ var maxIdleConnsFlag = flag.Int("max-idle-conns", 16, "max idle conns")
 var maxConnLifetimeFlag = flag.Duration("max-conn-lifetime", 5*time.Minute, "max connection lifetime, 0 means no limit")
 var noGormCache = flag.Bool("no-gorm-cache", false, "no cache")
 
-// GORM's PrepareStmt cache guards its statement map with a single RWMutex. Under
-// concurrency, a goroutine that already holds a pooled connection inside a
-// transaction can block acquiring the read lock while another goroutine waits for
-// the write lock. Go's RWMutex favours pending writers, so every subsequent
-// RLock queues behind that writer and the cycle never breaks: the transactions
-// never release their connections, the pool drains, and every query deadlocks.
-// Disabling the cache removes the shared lock entirely at the cost of losing
-// server-side prepared statements.
+// See ConnectDBWithStatementCache for why the cache deadlocks under concurrency.
+// This stays a flag so the cache can be restored without a code change.
 var prepareStmt = flag.Bool("db-prepare-stmt", false,
 	"enable GORM prepared statement cache; disabled by default because its shared RWMutex can deadlock under concurrency")
 
 func Connect(dbURL string) (*gorm.DB, error) {
-	conn, err := db.ConnectDBWithPrepare(dbURL, *prepareStmt)
+	// Not ConnectDBWithPrepare: that would also drop pgx to the simple protocol,
+	// which breaks protobuf enum and JSON parameters. Only the cache goes away.
+	conn, err := db.ConnectDBWithStatementCache(dbURL, *prepareStmt)
 	if err != nil {
 		return nil, err
 	}

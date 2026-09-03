@@ -24,7 +24,31 @@ func ConnectDB(dbURL string) *gorm.DB {
 	return db
 }
 
+// ConnectDBWithPrepare ties two independent settings together: prepare=false both
+// drops GORM's statement cache and puts pgx on the simple protocol, which
+// interpolates parameters as SQL text. Under the simple protocol pgx renders any
+// fmt.Stringer through String(), so a protobuf enum arrives as "ACTIVE" rather
+// than its int32, and JSON columns lose their type annotation — both are rejected
+// by Postgres. Callers that only want the statement cache gone must use
+// ConnectDBWithStatementCache instead.
 func ConnectDBWithPrepare(dbURL string, prepare bool, opts ...func(*gorm.Config)) (*gorm.DB, error) {
+	return connect(dbURL, prepare, !prepare, opts...)
+}
+
+// ConnectDBWithStatementCache controls GORM's prepared statement cache while
+// keeping pgx on the extended protocol, so parameters stay binary-encoded.
+//
+// The cache guards its statement map with a single RWMutex. Under concurrency a
+// goroutine that already holds a pooled connection inside a transaction can block
+// acquiring the read lock while another waits for the write lock; Go's RWMutex
+// favours pending writers, so every subsequent RLock queues behind that writer and
+// the cycle never breaks — the transactions never release their connections, the
+// pool drains, and every query deadlocks.
+func ConnectDBWithStatementCache(dbURL string, statementCache bool, opts ...func(*gorm.Config)) (*gorm.DB, error) {
+	return connect(dbURL, statementCache, false, opts...)
+}
+
+func connect(dbURL string, statementCache, simpleProtocol bool, opts ...func(*gorm.Config)) (*gorm.DB, error) {
 	schema.RegisterSerializer("protojson", &ProtoJSONSerializer{})
 
 	logConfig := logger.Config{
@@ -39,13 +63,13 @@ func ConnectDBWithPrepare(dbURL string, prepare bool, opts ...func(*gorm.Config)
 
 	c := &gorm.Config{
 		Logger:      NewLogger(log.NewZap(), logConfig),
-		PrepareStmt: prepare,
+		PrepareStmt: statementCache,
 	}
 	for _, opt := range opts {
 		opt(c)
 	}
 
-	db, err := gorm.Open(postgres.Dialector{Config: &postgres.Config{DSN: dbURL, PreferSimpleProtocol: !prepare}}, c)
+	db, err := gorm.Open(postgres.Dialector{Config: &postgres.Config{DSN: dbURL, PreferSimpleProtocol: simpleProtocol}}, c)
 
 	if err != nil {
 		log.Errore(err)

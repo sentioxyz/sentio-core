@@ -3,6 +3,7 @@ package persistent
 import (
 	"context"
 	"math"
+	"sync"
 	"testing"
 	"time"
 
@@ -171,11 +172,18 @@ type EntityE2 implements EntityE @entity {
 // mockChainStore is a simple in-memory ChainStore used in tests.
 // GetEntity/ListEntities return fromCache=false on first access for an entity
 // type and fromCache=true on subsequent calls, mimicking the full-cache path.
+// Like the real ChainStore it is safe for concurrent use: Controller.Commit
+// calls SetEntities concurrently with reads.
 type mockChainStore struct {
+	mu         sync.Mutex
 	chain      string
 	schema     *schema.Schema
 	data       map[string]map[string]*EntityBox
 	fullLoaded map[string]bool // tracks which entity types have been "cached"
+
+	// setEntitiesHook, when set, runs at the start of SetEntities before any
+	// internal locking — tests use it to hold a commit open in its write phase.
+	setEntitiesHook func()
 }
 
 func (s *mockChainStore) GetChain() string { return s.chain }
@@ -193,6 +201,8 @@ func (s *mockChainStore) GetEntity(
 	entityType *schema.Entity,
 	id string,
 ) (*EntityBox, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	origin, _ := utils.GetFromK2Map(s.data, entityType.Name, id)
 	if origin == nil {
 		return nil, false, nil
@@ -207,6 +217,8 @@ func (s *mockChainStore) ListEntities(
 	limit int,
 ) ([]*EntityBox, bool, error) {
 	log.Debugf("calling mockChainStore.ListEntities(%s, %v, %d)", entityType.Name, filters, limit)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	fromCache := s.fullLoaded[entityType.Name]
 	s.fullLoaded[entityType.Name] = true
 	var list []*EntityBox
@@ -236,6 +248,11 @@ func (s *mockChainStore) SetEntities(
 	entityType *schema.Entity,
 	boxes []EntityBox,
 ) (int, error) {
+	if s.setEntitiesHook != nil {
+		s.setEntitiesHook()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for _, box := range boxes {
 		utils.PutIntoK2Map(s.data, entityType.Name, box.ID, utils.WrapPointer(box))
 	}
@@ -1055,4 +1072,84 @@ func TestController_GetEntityByInterface(t *testing.T) {
 		GenBlockNumber: 14,
 		GenBlockHash:   "0x1234",
 	}, box)
+}
+
+// ─── TestController_CommitDoesNotBlockDataPlane ──────────────────────────────
+
+// TestController_CommitDoesNotBlockDataPlane verifies the three-phase Commit:
+// while the persistent write is in flight, concurrent SetEntity/GetEntity
+// proceed instead of blocking, the committing changes stay visible to readers,
+// and changes written during the window survive the phase-3 pruning.
+func TestController_CommitDoesNotBlockDataPlane(t *testing.T) {
+	sch, err := schema.ParseAndVerifySchema(testSchema)
+	assert.NoError(t, err)
+
+	const chain = "mainnet"
+	ps, s := newTestStore(sch, chain)
+	ctrl, _ := newCtrl(s)
+	ctx := context.Background()
+	eaType := sch.GetEntity("EntityA")
+
+	newBox := func(id string, gbn uint64) EntityBox {
+		return EntityBox{
+			ID: id,
+			Data: map[string]any{
+				"id":       id,
+				"foreignA": "0x0b00",
+				"foreignD": utils.WrapPointer("0x0b00"),
+			},
+			Entity:         "EntityA",
+			GenBlockNumber: gbn,
+			GenBlockHash:   "0x1234",
+		}
+	}
+	// one uncommitted change at block 20 to give Commit something to write
+	assert.NoError(t, ctrl.SetEntity(ctx, eaType, UncommittedEntityBox{EntityBox: newBox("0x0a10", 20)}))
+
+	writeEntered := make(chan struct{})
+	writeRelease := make(chan struct{})
+	ps.setEntitiesHook = func() {
+		close(writeEntered)
+		<-writeRelease
+	}
+
+	commitDone := make(chan error, 1)
+	go func() {
+		_, _, commitErr := ctrl.Commit(ctx, 20, time.Now())
+		commitDone <- commitErr
+	}()
+	<-writeEntered // Commit is now inside its unlocked write phase
+
+	// data-plane operations must complete while the write is still held open
+	dataPlaneDone := make(chan struct{})
+	go func() {
+		defer close(dataPlaneDone)
+		assert.NoError(t, ctrl.SetEntity(ctx, eaType, UncommittedEntityBox{EntityBox: newBox("0x0a11", 21)}))
+		box, getErr := ctrl.GetEntity(ctx, eaType, "0x0a10", 21)
+		assert.NoError(t, getErr)
+		assert.NotNil(t, box) // the committing change is still visible to readers
+		box, getErr = ctrl.GetEntity(ctx, eaType, "0x0a11", 21)
+		assert.NoError(t, getErr)
+		assert.NotNil(t, box)
+	}()
+	select {
+	case <-dataPlaneDone:
+	case <-time.After(5 * time.Second):
+		close(writeRelease)
+		t.Fatal("data-plane operations blocked while Commit was writing")
+	}
+
+	close(writeRelease)
+	assert.NoError(t, <-commitDone)
+
+	// the change written during the window survived the phase-3 pruning
+	assert.Equal(t, 1, ctrl.CountUncommittedChanges(math.MaxUint64))
+	box, err := ctrl.GetEntity(ctx, eaType, "0x0a11", 21)
+	assert.NoError(t, err)
+	assert.NotNil(t, box)
+	// and the committed change reached the store
+	ps.mu.Lock()
+	_, committedInStore := ps.data["EntityA"]["0x0a10"]
+	ps.mu.Unlock()
+	assert.True(t, committedInStore)
 }

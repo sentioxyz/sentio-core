@@ -11,7 +11,6 @@ import (
 
 	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/concurrency"
-	"sentioxyz/sentio-core/common/contract"
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/https"
@@ -698,14 +697,40 @@ func (c *client) IsERC20Address(ctx context.Context, address string) (bool, erro
 	return is, nil
 }
 
+// erc20ProbeSelectors are the function selectors probed by IsERC20AddressIgnoreCache.
+// decimals() is what separates fungible tokens from ERC-721 contracts (which share
+// name/symbol/balanceOf); totalSupply() guards against unrelated contracts that happen
+// to expose a colliding decimals() selector.
+var erc20ProbeSelectors = []hexutil.Bytes{
+	{0x31, 0x3c, 0xe5, 0x67}, // decimals()
+	{0x18, 0x16, 0x0d, 0xdd}, // totalSupply()
+}
+
+// IsERC20AddressIgnoreCache probes the contract on this client's own chain endpoint
+// (the previous implementation asked a third-party token-metadata API on eth-mainnet
+// with an embedded key, so it was wrong on every other chain and died with the key).
+// An address counts as ERC-20 when every probe executes and returns data; an execution
+// revert or empty return data means "not ERC-20". Only transport-level failures surface
+// as errors, so IsERC20Address never caches a verdict produced by a broken connection.
 func (c *client) IsERC20AddressIgnoreCache(ctx context.Context, address string) (bool, error) {
-	// TODO need improvement
-	const endpoint = "https://eth-mainnet.g.alchemy.com/v2/z1Q-YhcYg60C5sOQPUzsMFqiDJSvqbsK"
-	res, err := contract.IsERC20(ctx, endpoint, address)
-	if err != nil {
-		return false, errors.Wrapf(err, "detect address %s is erc20 failed", address)
+	for _, selector := range erc20ProbeSelectors {
+		arg := map[string]any{
+			"to":    common.HexToAddress(address),
+			"input": selector,
+		}
+		var out hexutil.Bytes
+		if err := c.callContext(ctx, &out, 0, "eth_call", arg, "latest"); err != nil {
+			var rpcErr rpc.Error
+			if errors.As(err, &rpcErr) {
+				return false, nil // the call executed and failed (e.g. reverted): not an ERC-20
+			}
+			return false, errors.Wrapf(err, "detect address %s is erc20 failed", address)
+		}
+		if len(out) < 32 {
+			return false, nil // no code at the address, or the function returned nothing
+		}
 	}
-	return res, err
+	return true, nil
 }
 
 func (c *client) GetChainID(ctx context.Context) (uint64, error) {

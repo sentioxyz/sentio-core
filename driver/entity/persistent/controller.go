@@ -710,9 +710,12 @@ func (c *Controller) Commit(
 	c.committed = new(blockNumber)
 	used := time.Since(start)
 	c.timeStat.Append(&timeStatWindow{startAt: time.Now(), commit: timehist.Histogram{}.Incr(used)})
+	// OnCommit must stay under c.mu: monitor callbacks are serialized by it (see Monitor),
+	// and implementations like ReportMonitor read the whole mutable report here while the
+	// data-plane callbacks mutate it.
+	c.monitor.OnCommit(ctx, blockNumber, created, updated, used)
 	c.mu.Unlock()
 	logger.Debugw("committed changes", "created", created, "updated", updated, "used", used)
-	c.monitor.OnCommit(ctx, blockNumber, created, updated, used)
 	return
 }
 

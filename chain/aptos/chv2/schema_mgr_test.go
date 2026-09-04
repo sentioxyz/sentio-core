@@ -23,16 +23,24 @@ func TestTablesMetaAndConvertAlignment(t *testing.T) {
 	}
 	assert.Equal(t, []string{
 		tableNameBlocks, tableNameTransactions, tableNameEvents,
-		tableNameChanges, tableNameResources, tableNameModules,
 	}, tableNames)
 
-	// table_items is a view over transactions instead of a physical table
-	assert.Len(t, meta.Views, 1)
-	view := meta.Views[0]
-	assert.Equal(t, tableNameTableItems, view.Name)
-	assert.Contains(t, view.Select, "`db`.`aptos-test.transactions`")
-	// the view exposes the storage-slot identifier that the legacy physical table was missing
-	assert.Contains(t, view.Select, "JSONExtractString(changes[ci], 'state_key_hash') AS state_key_hash")
+	// the per-change tables are views over transactions instead of physical tables
+	var viewNames []string
+	for _, view := range meta.Views {
+		viewNames = append(viewNames, view.Name)
+		assert.Contains(t, view.Select, "`db`.`aptos-test.transactions`")
+	}
+	assert.Equal(t, []string{
+		tableNameChanges, tableNameResources, tableNameModules, tableNameTableItems,
+	}, viewNames)
+
+	// the table_items view exposes the storage-slot identifier that the legacy physical table
+	// was missing
+	assert.Contains(t, meta.Views[3].Select,
+		"JSONExtractString(changes[ci], 'state_key_hash') AS state_key_hash")
+	// the changes view unnests the small change_addresses column, not the big changes column
+	assert.Contains(t, meta.Views[0].Select, "ARRAY JOIN arrayEnumerate(change_addresses) AS ci")
 
 	// Chunk.RowNum must stay aligned with Tables
 	chunk, err := m.Convert(context.Background(), &aptos.Slot{})

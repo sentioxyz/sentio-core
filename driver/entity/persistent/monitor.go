@@ -13,6 +13,10 @@ import (
 // Monitor is the observer interface through which Controller reports key
 // operations.  Implementations decide what to do with each notification
 // (record metrics, accumulate stats, log, etc.).
+//
+// All callbacks (OnCommit included) are invoked while the Controller holds its
+// mutex, so implementations need no internal synchronization but must stay
+// cheap — anything slow here stalls the entity data plane.
 type Monitor interface {
 	OnGet(
 		ctx context.Context,

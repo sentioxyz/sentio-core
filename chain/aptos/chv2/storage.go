@@ -314,19 +314,38 @@ func (s *Store) GetTransactionByVersion(ctx context.Context, txVersion uint64) (
 	return &txs[0], nil
 }
 
+// normalizeAccountAddress converts an account address to its canonical AIP-40 string, the form
+// the change_addresses column stores (Transaction.fromRawTransaction), so lookups match no matter
+// how the caller padded the address. Unparseable input is passed through unchanged.
+func normalizeAccountAddress(address string) string {
+	var addr aptosSdk.AccountAddress
+	if err := addr.ParseStringRelaxed(address); err != nil {
+		return address
+	}
+	return addr.String()
+}
+
+// GetChangeStat and GetFirstChange answer from the transactions table instead of the changes
+// table: change_addresses is element-aligned with the embedded changes array (empty for changes
+// that carry no address), so filtering transactions with has() and counting occurrences with
+// countEqual() aggregates exactly the same change records — through the bloom-filter index on
+// change_addresses, and without depending on the changes table at all.
+
 func (s *Store) GetChangeStat(ctx context.Context, minTxVersion uint64, address string) (aptos.ChangeStat, error) {
 	sql := fmt.Sprintf("SELECT "+
 		"min(transaction_version), "+
 		"max(transaction_version), "+
 		"min(block_height), "+
 		"max(block_height), "+
-		"count(*) "+
-		"FROM %s WHERE transaction_version >= ? AND address = ?", s.ctrl.FullLogicName(tableNameChanges))
+		"sum(countEqual(change_addresses, ?)) "+
+		"FROM %s WHERE transaction_version >= ? AND has(change_addresses, ?)",
+		s.ctrl.FullLogicName(tableNameTransactions))
 	var cs aptos.ChangeStat
 	startAt := time.Now()
+	normalized := normalizeAccountAddress(address)
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		return rows.Scan(&cs.MinTxVersion, &cs.MaxTxVersion, &cs.MinBlockHeight, &cs.MaxBlockHeight, &cs.Count)
-	}, sql, minTxVersion, address)
+	}, sql, normalized, minTxVersion, normalized)
 	s.recordQueryChangeStat(ctx, time.Since(startAt))
 	return cs, err
 }
@@ -340,12 +359,13 @@ func (s *Store) GetFirstChange(
 		return
 	}
 	sql := fmt.Sprintf("SELECT transaction_version, block_height "+
-		"FROM %s WHERE transaction_version <= ? AND address = ? ORDER BY transaction_version LIMIT 1",
-		s.ctrl.FullLogicName(tableNameChanges))
+		"FROM %s WHERE transaction_version <= ? AND has(change_addresses, ?) "+
+		"ORDER BY transaction_version LIMIT 1",
+		s.ctrl.FullLogicName(tableNameTransactions))
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		has = true
 		return rows.Scan(&version, &blockHeight)
-	}, sql, maxTxVersion, address)
+	}, sql, maxTxVersion, normalizeAccountAddress(address))
 	return
 }
 

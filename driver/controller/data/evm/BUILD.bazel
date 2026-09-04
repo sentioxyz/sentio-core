@@ -16,7 +16,6 @@ go_library(
     deps = [
         "//chain/evm",
         "//common/concurrency",
-        "//common/contract",
         "//common/envconf",
         "//common/errgroup",
         "//common/https",

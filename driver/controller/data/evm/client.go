@@ -11,7 +11,6 @@ import (
 
 	"sentioxyz/sentio-core/chain/evm"
 	"sentioxyz/sentio-core/common/concurrency"
-	"sentioxyz/sentio-core/common/contract"
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/https"
@@ -698,14 +697,65 @@ func (c *client) IsERC20Address(ctx context.Context, address string) (bool, erro
 	return is, nil
 }
 
-func (c *client) IsERC20AddressIgnoreCache(ctx context.Context, address string) (bool, error) {
-	// TODO need improvement
-	const endpoint = "https://eth-mainnet.g.alchemy.com/v2/z1Q-YhcYg60C5sOQPUzsMFqiDJSvqbsK"
-	res, err := contract.IsERC20(ctx, endpoint, address)
-	if err != nil {
-		return false, errors.Wrapf(err, "detect address %s is erc20 failed", address)
+// erc20ProbeCalls are the eth_call payloads probed by IsERC20AddressIgnoreCache: the read
+// side of every method EIP-20 marks REQUIRED, invoked with zero-value arguments so any
+// implementation can answer. allowance(address,address) is what separates ERC-20 from
+// ERC-721, which shares balanceOf(address) but approves per token id instead. The
+// OPTIONAL name/symbol/decimals are deliberately not probed — requiring them would
+// reject compliant tokens that skip them.
+var erc20ProbeCalls = []hexutil.Bytes{
+	{0x18, 0x16, 0x0d, 0xdd},                                      // totalSupply()
+	append(hexutil.Bytes{0x70, 0xa0, 0x82, 0x31}, make([]byte, 32)...), // balanceOf(address(0))
+	append(hexutil.Bytes{0xdd, 0x62, 0xed, 0x3e}, make([]byte, 64)...), // allowance(address(0), address(0))
+}
+
+// erc20ProbeExecutionFailureMatcher matches error messages that mean the probed call
+// itself executed and failed inside the EVM.
+var erc20ProbeExecutionFailureMatcher = []*regexp.Regexp{
+	regexp.MustCompile(`revert`),
+	regexp.MustCompile(`invalid opcode`),
+	regexp.MustCompile(`out of gas`),
+}
+
+// isEVMExecutionFailure reports whether err means the call executed and failed inside
+// the EVM (reverted, bad opcode, ran out of gas) — the definitive signal that the
+// contract does not implement the probed method. Anything else — transport failures,
+// rate limits, node-side timeouts, even when they arrive as JSON-RPC errors — must be
+// treated as retryable instead of being turned into a verdict.
+func isEVMExecutionFailure(err error) bool {
+	var rpcErr rpc.Error
+	if errors.As(err, &rpcErr) && rpcErr.ErrorCode() == 3 {
+		return true // geth's typed execution-revert error
 	}
-	return res, err
+	return utils.MatchAny(strings.ToLower(err.Error()), erc20ProbeExecutionFailureMatcher)
+}
+
+// IsERC20AddressIgnoreCache probes the contract on this client's own chain endpoint
+// (the previous implementation asked a third-party token-metadata API on eth-mainnet
+// with an embedded key, so it was wrong on every other chain and died with the key).
+// An address counts as ERC-20 when every probe executes and returns data. Like any
+// external ERC-20 detection this is a fingerprint, not a proof — the standard is
+// behavioural — but a false positive only forwards an extra log to the processor.
+// An execution failure or empty return data means "not ERC-20"; every other error is
+// surfaced, so IsERC20Address never caches a verdict produced by a broken connection.
+func (c *client) IsERC20AddressIgnoreCache(ctx context.Context, address string) (bool, error) {
+	for _, input := range erc20ProbeCalls {
+		arg := map[string]any{
+			"to":    common.HexToAddress(address),
+			"input": input,
+		}
+		var out hexutil.Bytes
+		if err := c.callContext(ctx, &out, 0, "eth_call", arg, "latest"); err != nil {
+			if isEVMExecutionFailure(err) {
+				return false, nil // the contract does not implement this method: not an ERC-20
+			}
+			return false, errors.Wrapf(err, "detect address %s is erc20 failed", address)
+		}
+		if len(out) < 32 {
+			return false, nil // no code at the address, or the function returned nothing
+		}
+	}
+	return true, nil
 }
 
 func (c *client) GetChainID(ctx context.Context) (uint64, error) {

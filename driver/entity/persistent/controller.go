@@ -644,6 +644,9 @@ func (c *Controller) Commit(
 	// Phase 1: resolve operators and snapshot the changes to commit.
 	var batches []commitBatch
 	c.mu.Lock()
+	// new with a value expression allocates a copy and returns its pointer — Go 1.26+ syntax
+	// (this module requires go 1.26.3); the other new(...) watermark assignments in this
+	// package rely on it too.
 	c.committing = new(blockNumber)
 	if err = c.executeAllEntityOperator(ctx, blockNumber); err != nil {
 		c.mu.Unlock()

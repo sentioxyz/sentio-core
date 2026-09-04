@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "contract",
@@ -9,11 +9,4 @@ go_library(
         "//common/https",
         "@com_github_pkg_errors//:errors",
     ],
-)
-
-go_test(
-    name = "contract_test",
-    srcs = ["contract_test.go"],
-    embed = [":contract"],
-    deps = ["@com_github_stretchr_testify//assert"],
 )

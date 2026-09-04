@@ -314,17 +314,6 @@ func (s *Store) GetTransactionByVersion(ctx context.Context, txVersion uint64) (
 	return &txs[0], nil
 }
 
-// normalizeAccountAddress converts an account address to its canonical AIP-40 string, the form
-// the change_addresses column stores (Transaction.fromRawTransaction), so lookups match no matter
-// how the caller padded the address. Unparseable input is passed through unchanged.
-func normalizeAccountAddress(address string) string {
-	var addr aptosSdk.AccountAddress
-	if err := addr.ParseStringRelaxed(address); err != nil {
-		return address
-	}
-	return addr.String()
-}
-
 // GetChangeStat and GetFirstChange answer from the transactions table instead of the changes
 // table: change_addresses is element-aligned with the embedded changes array (empty for changes
 // that carry no address), so filtering transactions with has() and counting occurrences with
@@ -342,7 +331,8 @@ func (s *Store) GetChangeStat(ctx context.Context, minTxVersion uint64, address 
 		s.ctrl.FullLogicName(tableNameTransactions))
 	var cs aptos.ChangeStat
 	startAt := time.Now()
-	normalized := normalizeAccountAddress(address)
+	// the canonical AIP-40 form is what the change_addresses column stores
+	normalized := aptos.NormalizeAccountAddress(address)
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		return rows.Scan(&cs.MinTxVersion, &cs.MaxTxVersion, &cs.MinBlockHeight, &cs.MaxBlockHeight, &cs.Count)
 	}, sql, normalized, minTxVersion, normalized)
@@ -365,7 +355,7 @@ func (s *Store) GetFirstChange(
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		has = true
 		return rows.Scan(&version, &blockHeight)
-	}, sql, maxTxVersion, normalizeAccountAddress(address))
+	}, sql, maxTxVersion, aptos.NormalizeAccountAddress(address))
 	return
 }
 

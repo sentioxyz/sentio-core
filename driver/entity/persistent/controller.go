@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/timehist"
 	"sentioxyz/sentio-core/common/timewin"
 	"sentioxyz/sentio-core/common/utils"
@@ -27,8 +28,10 @@ import (
 // backend (e.g. clickhouse.Store) and must be called once before any ChainStore
 // is created, not once per chain.
 //
-// Implementations are not required to be thread-safe; the caller (e.g.
-// Controller) is responsible for serialising concurrent access.
+// Implementations must be safe for concurrent use: Controller.Commit calls
+// SetEntities and GrowthAggregation without holding the Controller mutex, so
+// they run concurrently with the read methods (which the Controller still
+// serialises against each other).
 type ChainStore interface {
 	GetChain() string
 	GetEntityType(entity string) *schema.Entity
@@ -74,9 +77,14 @@ type ChainStore interface {
 type Controller struct {
 	mu sync.Mutex
 
-	store     ChainStore // persistent data (chain-bound)
-	changes   changeSet  // uncommitted data
-	committed *uint64
+	store   ChainStore // persistent data (chain-bound); must be safe for concurrent use
+	changes changeSet  // uncommitted data
+	// committing is the highest block number for which a Commit has started
+	// (converged by Reorg). SetEntity asserts new boxes are above it: a write at
+	// or below a started commit would be lost by Commit's snapshot-write-prune
+	// sequence, so it panics instead.
+	committing *uint64
+	committed  *uint64
 
 	timeStat *timewin.TimeWindowsManager[*timeStatWindow]
 
@@ -478,9 +486,9 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.committed != nil && box.GenBlockNumber <= *c.committed {
-		// unreachable
-		panic(fmt.Errorf("GenBlockNumber %d must be greater than last committed block %d", box.GenBlockNumber, *c.committed))
+	if c.committing != nil && box.GenBlockNumber <= *c.committing {
+		panic(fmt.Errorf("set entity %s/%s at block %d, but a commit at block %d has already started",
+			entityType.Name, box.ID, box.GenBlockNumber, *c.committing))
 	}
 	box.Entity = entityType.Name
 
@@ -561,82 +569,128 @@ func (c *Controller) CountUncommittedChanges(blockNumber uint64) int {
 	return c.changes.Count(blockNumber)
 }
 
+// commitBatch is the phase-1 snapshot of one entity type's changes to commit.
+type commitBatch struct {
+	entityType *schema.Entity
+	boxes      []EntityBox
+	manualIDs  set.Set[string] // time series entities only: ids that were not auto-generated
+}
+
+// assignTimeSeriesIDs replaces the auto-generated placeholder IDs ("@n") in a
+// time series batch with sequential numeric IDs above the store's current max
+// ID, ordering boxes by ascending GenBlockNumber. It works on the phase-1
+// snapshot only and must not touch c.changes: it runs without holding c.mu.
+// May return ErrUpdateImmutable.
+func (c *Controller) assignTimeSeriesIDs(
+	ctx context.Context,
+	entityType *schema.Entity,
+	boxes []EntityBox,
+	manualIDs set.Set[string],
+) ([]EntityBox, error) {
+	maxID, err := c.store.GetTimeSeriesEntityMaxID(ctx, entityType)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range manualIDs.DumpValues() {
+		if manualID, _ := strconv.ParseInt(id, 10, 64); manualID <= maxID {
+			return nil, fmt.Errorf("%w: manual id %s for time series entity %q is too small, less than max id in store %d",
+				ErrUpdateImmutable, id, entityType.Name, maxID)
+		}
+	}
+	entities := make([]EntityBox, len(boxes))
+	copy(entities, boxes)
+	sort.Slice(entities, func(i, j int) bool {
+		return entities[i].GenBlockNumber < entities[j].GenBlockNumber
+	})
+	for i := range entities {
+		if strings.HasPrefix(entities[i].ID, "@") {
+			// need reset the ID
+			maxID++
+			entities[i].ID = strconv.FormatInt(maxID, 10)
+			for manualIDs.Contains(entities[i].ID) {
+				// skip manual ID
+				maxID++
+				entities[i].ID = strconv.FormatInt(maxID, 10)
+			}
+		}
+	}
+	return entities, nil
+}
+
 // Commit persists all uncommitted changes up to the given block
 // number. May return ErrInvalidFieldValue or ErrUpdateImmutable.
+//
+// Commit runs in three phases so the expensive persistent writes do not block
+// concurrent entity reads and writes:
+//  1. under c.mu: resolve operators and snapshot every change at or below
+//     blockNumber — the changes stay in c.changes, so readers keep seeing them
+//     while the writes are in flight;
+//  2. without c.mu: write the snapshot to the store (SetEntities and
+//     GrowthAggregation), which therefore must be safe for concurrent use;
+//  3. under c.mu: prune the committed changes and advance the committed
+//     watermark.
+//
+// Only one Commit runs at a time (the checkpoint controller serialises
+// save/reset), and SetEntity panics on writes at or below a started commit, so
+// the phase-1 snapshot cannot go stale before phase 3 prunes it.
 func (c *Controller) Commit(
 	ctx context.Context,
 	blockNumber uint64,
 	blockTime time.Time,
 ) (created map[string]int, updated map[string]int, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "blockNumber", blockNumber)
 
+	// Phase 1: resolve operators and snapshot the changes to commit.
+	var batches []commitBatch
+	c.mu.Lock()
+	// new with a value expression allocates a copy and returns its pointer — Go 1.26+ syntax
+	// (this module requires go 1.26.3); the other new(...) watermark assignments in this
+	// package rely on it too.
+	c.committing = new(blockNumber)
 	if err = c.executeAllEntityOperator(ctx, blockNumber); err != nil {
+		c.mu.Unlock()
 		logger.Errorfe(err, "execute all entity operators failed")
 		return
 	}
-
-	created, updated = make(map[string]int), make(map[string]int)
-	newChanges := c.changes.Split(blockNumber)
-	for entity, set := range c.changes {
-		entityLogger := logger.With("entity", entity)
-		// save to persistent
-		entityStart := time.Now()
-		entityType := c.store.GetEntityType(entity)
-		var entities []EntityBox
-		if entityType.IsTimeSeries() {
-			// set timestamp and reset id for all boxes
-			var maxID int64
-			maxID, err = c.store.GetTimeSeriesEntityMaxID(ctx, entityType)
-			if err != nil {
-				entityLogger.Errorfe(err, "commit changes of entity failed: get count of time series entity %q failed", entity)
-				return
+	for entity, entityChanges := range c.changes {
+		batch := commitBatch{entityType: c.store.GetEntityType(entity)}
+		if batch.entityType.IsTimeSeries() {
+			batch.manualIDs = set.New[string]()
+		}
+		for id, history := range entityChanges {
+			cnt := history.Count(blockNumber)
+			if cnt == 0 {
+				continue
 			}
-			manualIDSet := make(map[string]bool)
-			var tmp []EntityBox
-			for id, history := range set {
-				if !strings.HasPrefix(id, "@") {
-					manualIDSet[id] = true
-					if manualID, _ := strconv.ParseInt(id, 10, 64); manualID <= maxID {
-						entityLogger.Errorf("manual id %s for time series entity %q is too small, less than max id in store %d",
-							id, entity, maxID)
-						err = fmt.Errorf("%w: manual id %s for time series entity %q is too small, less than max id in store %d",
-							ErrUpdateImmutable, id, entity, maxID)
-						return
-					}
-				}
-				for _, box := range history {
-					tmp = append(tmp, box.EntityBox)
-				}
+			for _, box := range history[:cnt] {
+				batch.boxes = append(batch.boxes, box.EntityBox)
 			}
-
-			sort.Slice(tmp, func(i, j int) bool {
-				return tmp[i].GenBlockNumber < tmp[j].GenBlockNumber
-			})
-			for _, box := range tmp {
-				if strings.HasPrefix(box.ID, "@") {
-					// need reset box.ID
-					maxID++
-					box.ID = strconv.FormatInt(maxID, 10)
-					for manualIDSet[box.ID] {
-						// skip manual ID
-						maxID++
-						box.ID = strconv.FormatInt(maxID, 10)
-					}
-				}
-				entities = append(entities, box)
-			}
-		} else {
-			for _, history := range set {
-				for _, box := range history {
-					entities = append(entities, box.EntityBox)
-				}
+			if batch.manualIDs != nil && !strings.HasPrefix(id, "@") {
+				batch.manualIDs.Add(id)
 			}
 		}
-		created[entity], err = c.store.SetEntities(ctx, entityType, entities)
+		if len(batch.boxes) > 0 {
+			batches = append(batches, batch)
+		}
+	}
+	c.mu.Unlock()
+
+	// Phase 2: write the snapshot to the persistent store.
+	created, updated = make(map[string]int), make(map[string]int)
+	for _, batch := range batches {
+		entity := batch.entityType.Name
+		entityLogger := logger.With("entity", entity)
+		entityStart := time.Now()
+		entities := batch.boxes
+		if batch.entityType.IsTimeSeries() {
+			// set timestamp and reset id for all boxes
+			if entities, err = c.assignTimeSeriesIDs(ctx, batch.entityType, batch.boxes, batch.manualIDs); err != nil {
+				entityLogger.Errorfe(err, "commit changes of entity failed: assign time series entity ids failed")
+				return
+			}
+		}
+		created[entity], err = c.store.SetEntities(ctx, batch.entityType, entities)
 		updated[entity] = len(entities) - created[entity]
 		entityLogger = entityLogger.With("used", time.Since(entityStart))
 		if err != nil {
@@ -645,18 +699,20 @@ func (c *Controller) Commit(
 		}
 		entityLogger.Debugw("commit changes of entity succeed", "created", created[entity], "updated", updated[entity])
 	}
-
 	if err = c.store.GrowthAggregation(ctx, blockTime); err != nil {
 		logger.Errorfe(err, "growth aggregation failed")
 		return
 	}
 
-	c.changes = newChanges
-	c.committed = &blockNumber
+	// Phase 3: prune the committed changes and advance the watermark.
+	c.mu.Lock()
+	c.changes = c.changes.Split(blockNumber)
+	c.committed = new(blockNumber)
 	used := time.Since(start)
+	c.timeStat.Append(&timeStatWindow{startAt: time.Now(), commit: timehist.Histogram{}.Incr(used)})
+	c.mu.Unlock()
 	logger.Debugw("committed changes", "created", created, "updated", updated, "used", used)
 	c.monitor.OnCommit(ctx, blockNumber, created, updated, used)
-	c.timeStat.Append(&timeStatWindow{startAt: time.Now(), commit: timehist.Histogram{}.Incr(used)})
 	return
 }
 
@@ -674,11 +730,14 @@ func (c *Controller) Reorg(ctx context.Context, blockNumberGT int64) error {
 	if blockNumberGT < 0 {
 		c.changes = make(changeSet)
 		c.committed = nil
+		c.committing = nil
 	} else {
 		_ = c.changes.Split(uint64(blockNumberGT)) // discard changes above blockNumberGT, clean up empty entries
 		if c.committed != nil && *c.committed > uint64(blockNumberGT) {
-			n := uint64(blockNumberGT)
-			c.committed = &n
+			c.committed = new(uint64(blockNumberGT))
+		}
+		if c.committing != nil && *c.committing > uint64(blockNumberGT) {
+			c.committing = new(uint64(blockNumberGT))
 		}
 	}
 	return c.store.Reorg(ctx, blockNumberGT)
@@ -689,6 +748,7 @@ func (c *Controller) Snapshot() any {
 	defer c.mu.Unlock()
 	return map[string]any{
 		"store":       c.store.Snapshot(),
+		"committing":  c.committing,
 		"committed":   c.committed,
 		"uncommitted": c.changes.Snapshot(),
 		"statistics":  c.timeStat.Snapshot(),

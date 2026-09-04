@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"sort"
+	"sync"
 	"time"
 
 	lru "github.com/sentioxyz/golang-lru"
@@ -28,11 +29,24 @@ type cachedEntityBox struct {
 // ChainStore wraps Store for a single chain, providing entity read/write caching.
 // It implements persistent.ChainStore (chain-bound interface).
 //
-// ChainStore is NOT thread-safe by itself; callers (e.g. Controller.mu) are
-// expected to serialise access.
+// ChainStore is safe for concurrent use: persistent.Controller calls
+// SetEntities/GrowthAggregation outside its own mutex during Commit, so they
+// run concurrently with the read methods. All cache state is guarded by mu;
+// SetEntities does not hold mu across the persistent write itself, so reads
+// are not blocked for the duration of a ClickHouse insert.
 type ChainStore struct {
 	store *Store
 	chain string
+
+	// mu guards all cache state below.
+	mu sync.Mutex
+
+	// writing marks entity types whose SetEntities persistent write is in
+	// flight. While marked, tryLoadFullCache/tryLoadFullIDCache refuse to load:
+	// a load during the write would capture a half-written store state, and the
+	// post-write cache update would then apply the written boxes on top of it
+	// (double-counting versioned-collapsing versions).
+	writing set.Set[string]
 
 	// lruCache caches individual entity lookups.  Key is "entityName/id".
 	// The deleted items will not in the set.
@@ -84,6 +98,7 @@ func NewChainStore(
 	cs := &ChainStore{
 		store:               store,
 		chain:               chain,
+		writing:             set.New[string](),
 		fullCacheDataLimit:  fullCacheDataSizeLimit,
 		fullIDCacheMaxCount: fullIDCacheMaxCount,
 		fullIDCache:         make(map[string]set.Set[string]),
@@ -134,6 +149,9 @@ func (c *ChainStore) GetEntity(
 	entityType *schema.Entity,
 	id string,
 ) (box *persistent.EntityBox, fromCache bool, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if entityType.IsCache() {
 		cache, has := c.cacheEntity[entityType.GetName()]
 		if !has {
@@ -191,6 +209,9 @@ func (c *ChainStore) ListEntities(
 	filters []persistent.EntityFilter,
 	limit int,
 ) (boxes []*persistent.EntityBox, fromCache bool, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if entityType.IsCache() {
 		cache, has := c.cacheEntity[entityType.GetName()]
 		if !has {
@@ -262,6 +283,13 @@ func (c *ChainStore) GetTimeSeriesEntityMaxID(ctx context.Context, entityType *s
 }
 
 // SetEntities writes entities to persistent storage and updates the local cache.
+//
+// It runs in three phases so a slow persistent write does not block cache
+// readers: under mu it loads the caches if needed and materialises the
+// per-ID answers the write needs (so the write never touches the caches),
+// then performs the persistent write without holding mu, and finally updates
+// the caches under mu again. The `writing` mark keeps the caches from being
+// loaded from a half-written store state in between.
 func (c *ChainStore) SetEntities(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -271,6 +299,8 @@ func (c *ChainStore) SetEntities(
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "dataSize", dataSize, "chainID", c.chain)
 	var knownExistingIDChecker func(id string) bool
 	var knownPreBoxGetter func(id string) (*cachedEntityBox, bool)
+
+	c.mu.Lock()
 	if !entityType.IsCache() {
 		if entityType.IsTimeSeries() {
 			knownExistingIDChecker = func(id string) bool {
@@ -278,30 +308,55 @@ func (c *ChainStore) SetEntities(
 			}
 		} else {
 			if _, err := c.tryLoadCache(ctx, entityType); err != nil {
+				c.mu.Unlock()
 				return 0, err
+			}
+			ids := set.New[string]()
+			for i := range boxes {
+				ids.Add(boxes[i].ID)
 			}
 			if !c.store.useVersionedCollapsingTable(entityType) {
 				// Opportunity 1: pass existing IDs to skip queryExistEntity
 				if c.fullCacheLoaded[entityType.Name] {
-					knownExistingIDChecker = func(id string) bool {
-						ent, has := c.fullCache[entityType.Name][id]
-						return has && ent.Data != nil
+					existing := set.New[string]()
+					for _, id := range ids.DumpValues() {
+						if ent, has := c.fullCache[entityType.Name][id]; has && ent.Data != nil {
+							existing.Add(id)
+						}
 					}
+					knownExistingIDChecker = existing.Contains
 				} else if c.fullIDCacheLoaded[entityType.Name] {
-					knownExistingIDChecker = func(id string) bool {
-						return c.fullIDCache[entityType.Name].Contains(id)
+					existing := set.New[string]()
+					for _, id := range ids.DumpValues() {
+						if c.fullIDCache[entityType.Name].Contains(id) {
+							existing.Add(id)
+						}
 					}
+					knownExistingIDChecker = existing.Contains
 				}
 			} else if c.fullCacheLoaded[entityType.Name] {
 				// Opportunity 2: pass pre-values to skip listEntities for VC tables
+				pre := make(map[string]*cachedEntityBox, ids.Size())
+				for _, id := range ids.DumpValues() {
+					if er, has := c.fullCache[entityType.Name][id]; has {
+						pre[id] = er
+					}
+				}
 				knownPreBoxGetter = func(id string) (*cachedEntityBox, bool) {
-					er, has := c.fullCache[entityType.Name][id]
+					er, has := pre[id]
 					return er, has
 				}
 			}
 		}
 	}
+	c.writing.Add(entityType.Name)
+	c.mu.Unlock()
+
 	created, err := c.store.setEntities(ctx, entityType, c.chain, boxes, knownExistingIDChecker, knownPreBoxGetter)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.writing.Remove(entityType.Name)
 	if err != nil {
 		return created, err
 	}
@@ -396,6 +451,8 @@ func (c *ChainStore) GrowthAggregation(ctx context.Context, curBlockTime time.Ti
 
 // Reorg purges caches and delegates to the underlying Store.
 func (c *ChainStore) Reorg(ctx context.Context, blockNumber int64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.purgeCache()
 	for _, cache := range c.cacheEntity {
 		for _, key := range cache.Keys() {
@@ -415,6 +472,8 @@ func (c *ChainStore) CheckValue(entityType *schema.Entity, data map[string]any) 
 
 // Snapshot returns a map describing the current cache state (for debugging/monitoring).
 func (c *ChainStore) Snapshot() any {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	fullIDCache := make(map[string]any)
 	for entity, loaded := range c.fullIDCacheLoaded {
 		if loaded {
@@ -498,6 +557,11 @@ func (c *ChainStore) tryLoadFullCache(
 	entityType *schema.Entity,
 ) (has bool, loaded bool, knownCount int64, err error) {
 	knownCount = -1
+	if c.writing.Contains(entityType.Name) {
+		// A persistent write for this entity type is in flight; loading now would
+		// capture a half-written state. Fall back to direct store queries.
+		return false, false, knownCount, nil
+	}
 	if c.fullCacheRefused[entityType.Name] || !entityType.IsSparse() {
 		return false, false, knownCount, nil
 	}
@@ -556,6 +620,10 @@ func (c *ChainStore) tryLoadFullIDCache(
 	entityType *schema.Entity,
 	knownCount int64,
 ) (loaded bool, err error) {
+	if c.writing.Contains(entityType.Name) {
+		// See tryLoadFullCache: do not load while a persistent write is in flight.
+		return false, nil
+	}
 	if c.fullIDCacheRefused[entityType.Name] {
 		return false, nil
 	}

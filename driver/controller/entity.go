@@ -12,10 +12,12 @@ import (
 //
 // Implementations must be safe for concurrent use: the entity read/write methods may be called
 // concurrently with each other and with Commit, CachedTooMuch and Snapshot without any external
-// locking (checkpointController forwards to them without holding its own mutex). Callers guarantee
-// that SetEntity is only invoked for block numbers greater than the block number of any Commit
-// that has started, so implementations do not need to handle writes at or below the committing
-// block number (persistent.Controller enforces this with a panic).
+// locking (checkpointController forwards to them without holding its own mutex), and the
+// persistent write inside Commit must not block them (persistent.Controller commits in three
+// phases and only locks around snapshotting and pruning its uncommitted changes). Callers
+// guarantee that SetEntity is only invoked for block numbers greater than the block number of
+// any Commit that has started, so implementations do not need to handle writes at or below the
+// committing block number (persistent.Controller enforces this with a panic).
 type EntityController interface {
 	Reset(ctx context.Context, checkpoint *Checkpoint) *ExternalError
 	CachedTooMuch(blockNumber uint64) bool

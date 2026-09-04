@@ -18,6 +18,7 @@ go_library(
         "//common/anyutil",
         "//common/log",
         "//common/richstructhelper",
+        "//common/set",
         "//common/timehist",
         "//common/timewin",
         "//common/utils",

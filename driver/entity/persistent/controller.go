@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/timehist"
 	"sentioxyz/sentio-core/common/timewin"
 	"sentioxyz/sentio-core/common/utils"
@@ -572,7 +573,7 @@ func (c *Controller) CountUncommittedChanges(blockNumber uint64) int {
 type commitBatch struct {
 	entityType *schema.Entity
 	boxes      []EntityBox
-	manualIDs  map[string]bool // time series entities only: ids that were not auto-generated
+	manualIDs  set.Set[string] // time series entities only: ids that were not auto-generated
 }
 
 // assignTimeSeriesIDs replaces the auto-generated placeholder IDs ("@n") in a
@@ -584,13 +585,13 @@ func (c *Controller) assignTimeSeriesIDs(
 	ctx context.Context,
 	entityType *schema.Entity,
 	boxes []EntityBox,
-	manualIDs map[string]bool,
+	manualIDs set.Set[string],
 ) ([]EntityBox, error) {
 	maxID, err := c.store.GetTimeSeriesEntityMaxID(ctx, entityType)
 	if err != nil {
 		return nil, err
 	}
-	for id := range manualIDs {
+	for _, id := range manualIDs.DumpValues() {
 		if manualID, _ := strconv.ParseInt(id, 10, 64); manualID <= maxID {
 			return nil, fmt.Errorf("%w: manual id %s for time series entity %q is too small, less than max id in store %d",
 				ErrUpdateImmutable, id, entityType.Name, maxID)
@@ -606,7 +607,7 @@ func (c *Controller) assignTimeSeriesIDs(
 			// need reset the ID
 			maxID++
 			entities[i].ID = strconv.FormatInt(maxID, 10)
-			for manualIDs[entities[i].ID] {
+			for manualIDs.Contains(entities[i].ID) {
 				// skip manual ID
 				maxID++
 				entities[i].ID = strconv.FormatInt(maxID, 10)
@@ -649,12 +650,12 @@ func (c *Controller) Commit(
 		logger.Errorfe(err, "execute all entity operators failed")
 		return
 	}
-	for entity, set := range c.changes {
+	for entity, entityChanges := range c.changes {
 		batch := commitBatch{entityType: c.store.GetEntityType(entity)}
 		if batch.entityType.IsTimeSeries() {
-			batch.manualIDs = make(map[string]bool)
+			batch.manualIDs = set.New[string]()
 		}
-		for id, history := range set {
+		for id, history := range entityChanges {
 			cnt := history.Count(blockNumber)
 			if cnt == 0 {
 				continue
@@ -663,7 +664,7 @@ func (c *Controller) Commit(
 				batch.boxes = append(batch.boxes, box.EntityBox)
 			}
 			if batch.manualIDs != nil && !strings.HasPrefix(id, "@") {
-				batch.manualIDs[id] = true
+				batch.manualIDs.Add(id)
 			}
 		}
 		if len(batch.boxes) > 0 {

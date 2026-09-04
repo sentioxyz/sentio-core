@@ -46,7 +46,7 @@ type ChainStore struct {
 	// a load during the write would capture a half-written store state, and the
 	// post-write cache update would then apply the written boxes on top of it
 	// (double-counting versioned-collapsing versions).
-	writing map[string]bool
+	writing set.Set[string]
 
 	// lruCache caches individual entity lookups.  Key is "entityName/id".
 	// The deleted items will not in the set.
@@ -98,7 +98,7 @@ func NewChainStore(
 	cs := &ChainStore{
 		store:               store,
 		chain:               chain,
-		writing:             make(map[string]bool),
+		writing:             set.New[string](),
 		fullCacheDataLimit:  fullCacheDataSizeLimit,
 		fullIDCacheMaxCount: fullIDCacheMaxCount,
 		fullIDCache:         make(map[string]set.Set[string]),
@@ -311,34 +311,33 @@ func (c *ChainStore) SetEntities(
 				c.mu.Unlock()
 				return 0, err
 			}
-			ids := make(map[string]bool, len(boxes))
+			ids := set.New[string]()
 			for i := range boxes {
-				ids[boxes[i].ID] = true
+				ids.Add(boxes[i].ID)
 			}
 			if !c.store.useVersionedCollapsingTable(entityType) {
 				// Opportunity 1: pass existing IDs to skip queryExistEntity
 				if c.fullCacheLoaded[entityType.Name] {
-					existing := make(map[string]bool, len(ids))
-					for id := range ids {
-						ent, has := c.fullCache[entityType.Name][id]
-						existing[id] = has && ent.Data != nil
+					existing := set.New[string]()
+					for _, id := range ids.DumpValues() {
+						if ent, has := c.fullCache[entityType.Name][id]; has && ent.Data != nil {
+							existing.Add(id)
+						}
 					}
-					knownExistingIDChecker = func(id string) bool {
-						return existing[id]
-					}
+					knownExistingIDChecker = existing.Contains
 				} else if c.fullIDCacheLoaded[entityType.Name] {
-					existing := make(map[string]bool, len(ids))
-					for id := range ids {
-						existing[id] = c.fullIDCache[entityType.Name].Contains(id)
+					existing := set.New[string]()
+					for _, id := range ids.DumpValues() {
+						if c.fullIDCache[entityType.Name].Contains(id) {
+							existing.Add(id)
+						}
 					}
-					knownExistingIDChecker = func(id string) bool {
-						return existing[id]
-					}
+					knownExistingIDChecker = existing.Contains
 				}
 			} else if c.fullCacheLoaded[entityType.Name] {
 				// Opportunity 2: pass pre-values to skip listEntities for VC tables
-				pre := make(map[string]*cachedEntityBox, len(ids))
-				for id := range ids {
+				pre := make(map[string]*cachedEntityBox, ids.Size())
+				for _, id := range ids.DumpValues() {
 					if er, has := c.fullCache[entityType.Name][id]; has {
 						pre[id] = er
 					}
@@ -350,14 +349,14 @@ func (c *ChainStore) SetEntities(
 			}
 		}
 	}
-	c.writing[entityType.Name] = true
+	c.writing.Add(entityType.Name)
 	c.mu.Unlock()
 
 	created, err := c.store.setEntities(ctx, entityType, c.chain, boxes, knownExistingIDChecker, knownPreBoxGetter)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.writing, entityType.Name)
+	c.writing.Remove(entityType.Name)
 	if err != nil {
 		return created, err
 	}
@@ -558,7 +557,7 @@ func (c *ChainStore) tryLoadFullCache(
 	entityType *schema.Entity,
 ) (has bool, loaded bool, knownCount int64, err error) {
 	knownCount = -1
-	if c.writing[entityType.Name] {
+	if c.writing.Contains(entityType.Name) {
 		// A persistent write for this entity type is in flight; loading now would
 		// capture a half-written state. Fall back to direct store queries.
 		return false, false, knownCount, nil
@@ -621,7 +620,7 @@ func (c *ChainStore) tryLoadFullIDCache(
 	entityType *schema.Entity,
 	knownCount int64,
 ) (loaded bool, err error) {
-	if c.writing[entityType.Name] {
+	if c.writing.Contains(entityType.Name) {
 		// See tryLoadFullCache: do not load while a persistent write is in flight.
 		return false, nil
 	}

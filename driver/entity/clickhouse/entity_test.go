@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/ext"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap/zapcore"
@@ -28,7 +29,9 @@ const (
 	//skip = false
 )
 
-func Test_usingTempTable(t *testing.T) {
+const timeLayoutAllDigital = "20060102150405"
+
+func Test_usingExternalTable(t *testing.T) {
 	if skip {
 		t.Skip("test filter condition with too many elements")
 	}
@@ -44,26 +47,13 @@ func Test_usingTempTable(t *testing.T) {
 	assert.NoError(t, db.Exec(ctx, "INSERT INTO `book` (id, name) VALUES ('b0', 'book0'), ('b1', 'book1')"))
 
 	query := func(ctx context.Context, ids []string) []string {
-		err = db.Exec(ctx, "CREATE TEMPORARY TABLE ids (id String) ENGINE = Memory")
+		table, err := ext.NewTable("ids", ext.Column("id", "String"))
 		assert.NoError(t, err)
-		for s := 0; s < len(ids); s += 1000 {
-			n := min(1000, len(ids)-s)
-			b := make([]any, n)
-			for k := 0; k < n; k++ {
-				b[k] = ids[s+k]
-			}
-			assert.NoError(t, db.Exec(ctx, fmt.Sprintf("INSERT INTO ids (id) VALUES %s", utils.Dup("(?)", ",", n)), b...))
+		for _, id := range ids {
+			assert.NoError(t, table.Append(id))
 		}
 		sql := "select id from book where id not in (select id from ids) order by id"
-		args := make([]any, 0)
-
-		//sql := fmt.Sprintf("select id from book where id not in (%s)", utils.Dup("?", ",", num))
-		//args := utils.ToAnyArray(ids)
-
-		//sql := "select id from book where id not in ?"
-		//args := []any{ids}
-
-		rows, err := db.Query(ctx, sql, args...)
+		rows, err := db.Query(clickhouse.Context(ctx, clickhouse.WithExternalTable(table)), sql)
 		assert.NoError(t, err)
 		var result []string
 		for rows.Next() {
@@ -71,7 +61,7 @@ func Test_usingTempTable(t *testing.T) {
 			assert.NoError(t, rows.Scan(&id))
 			result = append(result, id)
 		}
-		assert.NoError(t, db.Exec(ctx, "DROP TEMPORARY TABLE ids"))
+		assert.NoError(t, rows.Close())
 		return result
 	}
 

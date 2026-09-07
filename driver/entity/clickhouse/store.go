@@ -24,7 +24,7 @@ type TableOption struct {
 	// Determines the batch size of the batch insert
 	BatchInsertSizeLimit int
 	// for the IN and NOT_IN filter conditions of the primary key,
-	// if the id collection size exceeds this value, a temporary table will be used
+	// if the id collection size exceeds this value, the ids are sent as an external table instead of SQL args
 	HugeIDSetSize uint
 
 	TableSettings map[string]string

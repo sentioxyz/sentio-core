@@ -128,7 +128,12 @@ func (c *standardStartupController) buildMainControllers(ctx context.Context) (
 				break
 			}
 			if status.Code(startErr) == codes.InvalidArgument {
-				return ctrls, exitcode.AlwaysRetry, errors.Wrapf(startErr, "call start for processor failed")
+				// the SDK answers InvalidArgument only when loading the processor module
+				// itself failed, i.e. the user's initialization code threw: report it as
+				// a user error and retry hourly instead of crash-looping as a system error
+				extErr := controller.NewExternalError(controller.ErrCodeLoadProcessorFailed,
+					errors.Wrapf(startErr, "call start for processor failed"))
+				return ctrls, exitcode.RetryAfterOneHour, extErr
 			}
 			logger.Warnfe(startErr, "call start for processor #%d failed, will retry after %s", i, initRetryInterval)
 			if startErr = utils.Sleep(ctx, initRetryInterval); startErr != nil {

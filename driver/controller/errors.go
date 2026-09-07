@@ -60,7 +60,7 @@ func (e *ExternalError) IsUserError() bool {
 
 func (e *ExternalError) IsUserRuntimeError() bool {
 	switch e.code {
-	case ErrCodeProcessFailed:
+	case ErrCodeProcessFailed, ErrCodeLoadProcessorFailed:
 		return true
 	default:
 		return false
@@ -158,6 +158,13 @@ const (
 	// still emits data forms the driver no longer supports); permanent until the
 	// processor is rebuilt with a supported SDK, so never retried
 	ErrCodeIncompatibleSDK
+
+	// loading the processor module failed when the driver called Start, i.e. the
+	// user's top-level initialization code threw (the SDK reports this as
+	// InvalidArgument "Failed to load processor"). A user runtime error like
+	// ErrCodeProcessFailed: often transient (e.g. an RPC call made during
+	// initialization), so retried after one hour rather than crash-looping
+	ErrCodeLoadProcessorFailed
 )
 
 // billing error

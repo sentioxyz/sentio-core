@@ -124,6 +124,10 @@ func (c Controller) BatchInsert(
 			}
 			break
 		}
+		// Flush has no context watchdog (Send has one), so honour cancellation between blocks here.
+		if err = ctx.Err(); err != nil {
+			return err
+		}
 		if err = batch.Flush(); err != nil {
 			return errors.Wrapf(err, "batch flush failed")
 		}

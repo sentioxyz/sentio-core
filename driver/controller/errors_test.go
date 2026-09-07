@@ -35,6 +35,25 @@ func Test_externalErrorWrap(t *testing.T) {
 	log.Errorf("extErr2: %+v", extErr2)
 }
 
+func Test_externalErrorClassification(t *testing.T) {
+	// codes are appended, never renumbered: the docs, the frontend badge and the
+	// status-monitor description map all key on the numeric value
+	assert.Equal(t, 330, ErrCodeIncompatibleSDK)
+	assert.Equal(t, 331, ErrCodeLoadProcessorFailed)
+
+	loadErr := NewExternalError(ErrCodeLoadProcessorFailed, errors.Errorf("load failed"))
+	assert.True(t, loadErr.IsUserError())
+	assert.True(t, loadErr.IsUserRuntimeError())
+	assert.Equal(t, "ERR331: load failed", loadErr.Error())
+
+	processErr := NewExternalError(ErrCodeProcessFailed, errors.Errorf("process failed"))
+	assert.True(t, processErr.IsUserRuntimeError())
+
+	incompatibleErr := NewExternalError(ErrCodeIncompatibleSDK, errors.Errorf("incompatible"))
+	assert.True(t, incompatibleErr.IsUserError())
+	assert.False(t, incompatibleErr.IsUserRuntimeError())
+}
+
 func Test_errgroup(t *testing.T) {
 	g, gctx := errgroup.WithContext(context.Background())
 	fn := func(ctx context.Context, wait time.Duration, code int) *ExternalError {

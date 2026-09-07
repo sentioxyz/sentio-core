@@ -37,6 +37,11 @@ var conditionSymbol = map[persistent.EntityFilterOp]string{
 
 const externalTableFieldName = "s"
 
+// externalTableWarnRows is the external table size above which listEntities logs a warning. The whole table
+// stays in memory on both sides and the server builds a hash set from it, so an unusually large one is worth
+// noticing; nothing is rejected.
+const externalTableWarnRows = 100000
+
 // buildExternalTable packs the filter values into an external table that is sent together with the query.
 // A temporary table would be bound to the pooled connection that created it, and the following statements are
 // not guaranteed to run on the same connection.
@@ -425,6 +430,12 @@ func (s *Store) listEntities(
 		sqlArgs = append(sqlArgs, primaryKeyParams...)
 		sqlArgs = append(sqlArgs, otherParams...)
 		sqlArgs = append(sqlArgs, limit)
+	}
+	for _, table := range extTables {
+		if rows := table.Block().Rows(); rows > externalTableWarnRows {
+			_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
+			logger.Warnw("list entity with a huge external table", "table", table.Name(), "rows", rows)
+		}
 	}
 	// execute query and get the response; the external tables built for huge IN sets travel with the query
 	err = s.ctrl.Query(chx.ExternalTableCtx(SelectCtx(ctx), extTables...), func(rows driver.Rows) error {

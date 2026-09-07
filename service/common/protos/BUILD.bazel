@@ -48,6 +48,9 @@ go_library(
 es_proto(
     name = "common_protos_es_proto",
     protos = [":protos_proto"],
+    # The SDK does not use the protojson (*Json) shapes; suppress them to keep the
+    # generated copy lean (matches the processor es_proto targets).
+    json_types = False,
     visibility = ["//visibility:public"],
 )
 

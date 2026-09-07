@@ -87,15 +87,27 @@ func (c Controller) BatchInsert(
 			logger.Debug("clickhouse batch insert succeed")
 		}
 	}()
+	// The whole call is one INSERT on one connection. Every batchSize rows are flushed as a data block to bound
+	// memory, instead of preparing a new batch per block: every PrepareBatch acquires a connection from the pool,
+	// and connection-scoped objects (e.g. temporary tables) are invisible from another connection.
+	// ClickHouse extends the user deduplication token with the source block number, so identical blocks within
+	// this INSERT are not deduplicated against each other.
+	uniqToken := strconv.FormatUint(rand.Uint64(), 16)
+	batch, err := c.conn.PrepareBatch(InsertCtx(ctx, uniqToken), sql)
+	if err != nil {
+		return errors.Wrapf(err, "prepare batch failed")
+	}
+	defer func() {
+		if e != nil {
+			// Flush does not release the connection on most errors. Releasing is idempotent, so this is also safe
+			// after Append or Send already released it.
+			_ = batch.Abort()
+		}
+	}()
 	has := true
 	for has {
-		uniqToken := strconv.FormatUint(rand.Uint64(), 16)
-		batch, err := c.conn.PrepareBatch(InsertCtx(ctx, uniqToken), sql)
-		if err != nil {
-			return errors.Wrapf(err, "prepare batch failed")
-		}
-		var thisBatchSize int
-		for thisBatchSize = 0; thisBatchSize < batchSize; thisBatchSize++ {
+		var pending int
+		for pending = 0; pending < batchSize; pending++ {
 			var columns []any
 			columns, has = getter()
 			if !has {
@@ -106,14 +118,24 @@ func (c Controller) BatchInsert(
 			}
 			rowsNum++
 		}
-		if thisBatchSize > 0 {
-			if err = batch.Send(); err != nil {
-				return errors.Wrapf(err, "batch send failed")
+		if !has {
+			if pending > 0 {
+				batchNum++
 			}
-			batchNum++
-		} else if err = batch.Close(); err != nil {
-			return errors.Wrapf(err, "batch close failed")
+			break
 		}
+		// Flush has no context watchdog (Send has one), so honour cancellation between blocks here.
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		if err = batch.Flush(); err != nil {
+			return errors.Wrapf(err, "batch flush failed")
+		}
+		batchNum++
+	}
+	// Send flushes the remaining rows (possibly none) and terminates the INSERT.
+	if err = batch.Send(); err != nil {
+		return errors.Wrapf(err, "batch send failed")
 	}
 	return nil
 }

@@ -2,7 +2,6 @@ package clickhouse
 
 import (
 	"context"
-	"crypto/sha1"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -17,8 +16,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2/ext"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/graph-gophers/graphql-go/types"
+	"github.com/pkg/errors"
 )
 
 var conditionSymbol = map[persistent.EntityFilterOp]string{
@@ -34,54 +35,23 @@ var conditionSymbol = map[persistent.EntityFilterOp]string{
 	persistent.EntityFilterOpNotLike: "NOT LIKE",
 }
 
-const timeLayoutAllDigital = "20060102150405"
-const tempTableFieldName = "s"
+const externalTableFieldName = "s"
 
-func (s *Store) buildTemporaryTable(ctx context.Context, filter persistent.EntityFilter) (string, func(), error) {
-	start := time.Now()
-	name := s.buildName("filter",
-		fmt.Sprintf("%x_%s_%08x", sha1.Sum([]byte(filter.String())), start.Format(timeLayoutAllDigital), rand.Uint32()))
-	_, logger := log.FromContext(ctx, "tmpTableName", name)
-	table := chx.Table{
-		Name:        name,
-		IsTemporary: true,
-		Config: chx.TableConfig{
-			Engine: chx.NewMemoryEngine(),
-		},
-		Fields: []chx.Field{{Name: tempTableFieldName, Type: chx.FieldTypeString}},
+// buildExternalTable packs the filter values into an external table that is sent together with the query.
+// A temporary table would be bound to the pooled connection that created it, and the following statements are
+// not guaranteed to run on the same connection.
+func (s *Store) buildExternalTable(filter persistent.EntityFilter) (*ext.Table, error) {
+	name := fmt.Sprintf("filter_%016x", rand.Uint64())
+	table, err := ext.NewTable(name, ext.Column(externalTableFieldName, "String"))
+	if err != nil {
+		return nil, errors.Wrapf(err, "create external table %s for filter %s failed", name, filter.String())
 	}
-	if err := s.ctrl.Create(ctx, table); err != nil {
-		logger.With("filter", filter.String(), "used", time.Since(start).String()).
-			Errore(err, "created temporary table failed")
-		return name, nil, err
-	}
-	logger.Debugw("created temporary table", "used", time.Since(start).String())
-	const dropTempTableTimeout = time.Second * 30
-	epilogue := func() {
-		dropCtx, cancel := context.WithTimeout(context.Background(), dropTempTableTimeout)
-		defer cancel()
-		dropStart := time.Now()
-		dropErr := s.ctrl.Drop(dropCtx, table)
-		if dropErr != nil {
-			logger.With("filter", filter.String(), "used", time.Since(dropStart).String()).
-				Warne(dropErr, "drop temporary table failed")
-		} else {
-			logger.With("used", time.Since(dropStart).String()).
-				Debug("drop temporary table succeed")
+	for _, v := range filter.Value {
+		if err = table.Append(v); err != nil {
+			return nil, errors.Wrapf(err, "append %v to external table %s for filter %s failed", v, name, filter.String())
 		}
 	}
-	start = time.Now()
-	sql := fmt.Sprintf("INSERT INTO %s (%s)", s.ctrl.LogicName(table.Name), tempTableFieldName)
-	getter := chx.NewGetter(filter.Value, func(v any) []any {
-		return []any{v}
-	})
-	if err := s.ctrl.BatchInsert(ctx, sql, s.tableOpt.BatchInsertSizeLimit, getter); err != nil {
-		logger.With("filter", filter.String(), "used", time.Since(start).String()).
-			Errore(err, "insert to temporary table failed")
-		return name, epilogue, err
-	}
-	logger.Debugw("insert to temporary table succeed", "used", time.Since(start).String())
-	return name, epilogue, nil
+	return table, nil
 }
 
 func _isNil(v any) bool {
@@ -96,10 +66,10 @@ func _isNil(v any) bool {
 	}
 }
 
-func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persistent.EntityFilter) (
+func (s *Store) buildCondition(entity Entity, filter persistent.EntityFilter) (
 	condition string,
 	param []any,
-	epilogue func(),
+	extTable *ext.Table,
 	err error,
 ) {
 	invalidErr := func(format string, args ...any) error {
@@ -161,12 +131,11 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 			return
 		}
 		if filter.Field.Name == schema.EntityPrimaryFieldName && uint(len(filter.Value)) > s.tableOpt.HugeIDSetSize {
-			var tempTable string
-			tempTable, epilogue, err = s.buildTemporaryTable(ctx, filter)
+			extTable, err = s.buildExternalTable(filter)
 			if err != nil {
 				return
 			}
-			slot = fmt.Sprintf("(SELECT %s FROM %s)", tempTableFieldName, s.ctrl.LogicName(tempTable))
+			slot = fmt.Sprintf("(SELECT %s FROM %s)", externalTableFieldName, quote(extTable.Name()))
 		} else {
 			var hasNil bool
 			var setSize int
@@ -252,42 +221,32 @@ func (s *Store) buildCondition(ctx context.Context, entity Entity, filter persis
 	return
 }
 
-func mergeFunc(fn []func()) func() {
-	return func() {
-		for _, f := range fn {
-			if f != nil {
-				f()
-			}
-		}
-	}
-}
-
 func (s *Store) buildConditions(
-	ctx context.Context,
 	entity Entity,
 	filters []persistent.EntityFilter,
 	conditionPrefix string,
 ) (
 	condition string,
 	params []any,
-	epilogue func(),
+	extTables []*ext.Table,
 	err error,
 ) {
 	if len(filters) == 0 {
-		return "", nil, func() {}, nil
+		return "", nil, nil, nil
 	}
 	var conditions []string
-	var epilogues []func()
 	for _, filter := range filters {
-		cond, param, epi, buildErr := s.buildCondition(ctx, entity, filter)
+		cond, param, extTable, buildErr := s.buildCondition(entity, filter)
 		if buildErr != nil {
-			return "", nil, mergeFunc(epilogues), buildErr
+			return "", nil, nil, buildErr
 		}
 		conditions = append(conditions, cond)
 		params = append(params, param...)
-		epilogues = append(epilogues, epi)
+		if extTable != nil {
+			extTables = append(extTables, extTable)
+		}
 	}
-	return conditionPrefix + strings.Join(conditions, " AND "), params, mergeFunc(epilogues), nil
+	return conditionPrefix + strings.Join(conditions, " AND "), params, extTables, nil
 }
 
 func splitFilters(filters []persistent.EntityFilter) (primaryKeyFilters, otherFilters []persistent.EntityFilter) {
@@ -308,36 +267,6 @@ func (s *Store) listEntities(
 	filters []persistent.EntityFilter,
 	excludeDeleted bool,
 	limit int,
-) ([]*entityRow, error) {
-	const maxRetry = 10
-	const retryInterval = time.Second
-	// List entity may use temporary table.
-	// If the session is interrupted, the temporary table will be automatically released,
-	// and will got a 'Table xxx does not exist' error. In this case, we should retry.
-	for retry := maxRetry; ; retry-- {
-		thisCtx, _ := log.FromContext(ctx, "retry", retry)
-		result, err := s._listEntities(thisCtx, entityType, chain, filters, excludeDeleted, limit)
-		if err == nil {
-			return result, nil
-		}
-		if retry == 0 || !strings.Contains(err.Error(), "does not exist") {
-			return nil, err
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(retryInterval):
-		}
-	}
-}
-
-func (s *Store) _listEntities(
-	ctx context.Context,
-	entityType *schema.Entity,
-	chain string,
-	filters []persistent.EntityFilter,
-	excludeDeleted bool,
-	limit int,
 ) (result []*entityRow, err error) {
 	if entityType.IsCache() {
 		return nil, nil
@@ -347,6 +276,7 @@ func (s *Store) _listEntities(
 	kit := s.NewEntity(entityType)
 	var sql string
 	var sqlArgs []any
+	var extTables []*ext.Table
 	if s.useVersionedCollapsingTable(entityType) {
 		// The select field name needs to be converted, otherwise the aggregated field will be referenced
 		// in the where clause, it will cause error
@@ -376,8 +306,8 @@ func (s *Store) _listEntities(
 			innerSelects[i] = fmt.Sprintf("any_respect_nulls(%s) AS __any_%s", field, field)
 			outerSelects[i] = fmt.Sprintf("__any_%s AS %s", field, field)
 		}
-		filterConditions, params, epilogue, err := s.buildConditions(ctx, kit, filters, "AND ")
-		defer epilogue()
+		filterConditions, params, tables, err := s.buildConditions(kit, filters, "AND ")
+		extTables = tables
 		if err != nil {
 			return nil, err
 		}
@@ -415,8 +345,8 @@ func (s *Store) _listEntities(
 		// WHERE __genBlockChain__ = ? AND NOT __deleted__ AND propA > ?
 		// ORDER BY id
 		// LIMIT ?
-		filterConditions, params, epilogue, err := s.buildConditions(ctx, kit, filters, "AND ")
-		defer epilogue()
+		filterConditions, params, tables, err := s.buildConditions(kit, filters, "AND ")
+		extTables = tables
 		if err != nil {
 			return nil, err
 		}
@@ -456,13 +386,13 @@ func (s *Store) _listEntities(
 			lastAs[i] = fmt.Sprintf("__last__.%d AS %s", i+1, quote(fieldName))
 		}
 		primaryKeyFilters, otherFilters := splitFilters(filters)
-		primaryKeyConditions, primaryKeyParams, primaryEpi, err := s.buildConditions(ctx, kit, primaryKeyFilters, "AND ")
-		defer primaryEpi()
+		primaryKeyConditions, primaryKeyParams, primaryTables, err := s.buildConditions(kit, primaryKeyFilters, "AND ")
+		extTables = append(extTables, primaryTables...)
 		if err != nil {
 			return nil, err
 		}
-		otherConditions, otherParams, otherEpi, err := s.buildConditions(ctx, kit, otherFilters, "AND ")
-		defer otherEpi()
+		otherConditions, otherParams, otherTables, err := s.buildConditions(kit, otherFilters, "AND ")
+		extTables = append(extTables, otherTables...)
 		if err != nil {
 			return nil, err
 		}
@@ -496,9 +426,8 @@ func (s *Store) _listEntities(
 		sqlArgs = append(sqlArgs, otherParams...)
 		sqlArgs = append(sqlArgs, limit)
 	}
-	// execute query and get the response
-	// may be used temporary table, so here do not use SelectCtx(ctx) instead of ctx
-	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
+	// execute query and get the response; the external tables built for huge IN sets travel with the query
+	err = s.ctrl.Query(chx.ExternalTableCtx(SelectCtx(ctx), extTables...), func(rows driver.Rows) error {
 		row, scanErr := kit.scanOne(rows)
 		if scanErr != nil {
 			return scanErr

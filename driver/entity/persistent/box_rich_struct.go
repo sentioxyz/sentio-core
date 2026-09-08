@@ -372,9 +372,9 @@ func (e *UncommittedEntityBox) FromEntityUpdateData(
 				return fmt.Errorf("load %s.%s %s from rich value %s failed: %w",
 					entityType.Name, fieldName, field.Type.String(), fieldValue.String(), loadErr)
 			}
-			round[fieldName] = Operator{Set: &OperatorSet{Value: val}}
+			round[fieldName] = Operator{Set: &operatorSet{Value: val}}
 		case entityProtos.EntityUpdateData_ADD:
-			op := Operator{NumCalc: &OperatorNumCalc{
+			op := Operator{NumCalc: &operatorNumCalc{
 				Multi: rsh.NewIntValue(1),
 				Add:   fieldValue.GetValue(),
 			}}
@@ -383,7 +383,7 @@ func (e *UncommittedEntityBox) FromEntityUpdateData(
 			}
 			round[fieldName] = op
 		case entityProtos.EntityUpdateData_MULTIPLY:
-			op := Operator{NumCalc: &OperatorNumCalc{
+			op := Operator{NumCalc: &operatorNumCalc{
 				Multi: fieldValue.GetValue(),
 				Add:   rsh.NewIntValue(0),
 			}}

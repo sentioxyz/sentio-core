@@ -110,10 +110,17 @@ func (e *UncommittedEntityBox) Resolved() bool {
 // HasExpression reports whether any pending correction carries an expression.
 func (e *UncommittedEntityBox) HasExpression() bool {
 	for _, round := range e.Operator {
-		for _, op := range round {
-			if op.Exp != nil {
-				return true
-			}
+		if roundHasExpression(round) {
+			return true
+		}
+	}
+	return false
+}
+
+func roundHasExpression(round map[string]Operator) bool {
+	for _, op := range round {
+		if op.Exp != nil {
+			return true
 		}
 	}
 	return false
@@ -127,7 +134,7 @@ func (e *UncommittedEntityBox) corrections() (map[string]Operator, error) {
 	}
 	round := make(map[string]Operator)
 	for fieldName, val := range e.Data {
-		round[fieldName] = Operator{Set: &OperatorSet{Value: val}}
+		round[fieldName] = Operator{Set: &operatorSet{Value: val}}
 	}
 	if len(e.Operator) == 1 {
 		for fieldName, op := range e.Operator[0] {
@@ -194,16 +201,17 @@ func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *Uncommit
 		e.Data = next
 		return nil
 	}
-	if !newOne.HasExpression() {
+	last := e.Operator[len(e.Operator)-1]
+	if !roundHasExpression(last) && !roundHasExpression(round) {
 		// nothing reads the state between the last round and this write, so the corrections compose
 		// field by field into the last round
-		last := e.Operator[len(e.Operator)-1]
 		for fieldName, op := range round {
 			last[fieldName] = mergeOperator(entityType.GetFieldByName(fieldName).Type, last[fieldName], op)
 		}
 		return nil
 	}
-	// the expressions must read the resolved result of every round before them
+	// a round with expressions reads the resolved result of every round before it and must stay
+	// as it was issued, so it neither takes later corrections nor folds into an earlier round
 	e.Operator = append(e.Operator, round)
 	return nil
 }

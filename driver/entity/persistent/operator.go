@@ -11,35 +11,35 @@ import (
 	"sentioxyz/sentio-core/service/common/protos"
 )
 
-// OperatorNumCalc newValue = preValue * Multi + Add
-type OperatorNumCalc struct {
+// operatorNumCalc newValue = preValue * Multi + Add
+type operatorNumCalc struct {
 	Multi *protos.RichValue
 	Add   *protos.RichValue
 }
 
-func (o OperatorNumCalc) Calc(origin decimal.Decimal) decimal.Decimal {
+func (o operatorNumCalc) Calc(origin decimal.Decimal) decimal.Decimal {
 	multi, _ := rsh.GetBigDecimal(o.Multi)
 	add, _ := rsh.GetBigDecimal(o.Add)
 	return origin.Mul(multi).Add(add)
 }
 
-// OperatorSet replaces the value of a field.
-type OperatorSet struct {
+func (o operatorNumCalc) String() string {
+	return fmt.Sprintf("x*%s+%s", richValueText(o.Multi), richValueText(o.Add))
+}
+
+// operatorSet replaces the value of a field.
+type operatorSet struct {
 	Value any
 }
 
-// Operator is one correction of a field, derived from the previous version of the entity:
-//
-//	newValue = NumCalc(Set | Exp(previousEntity) | previousValue)
-//
-// Set replaces the value, Exp evaluates an expression against the whole previous entity (it may
-// reference other fields), otherwise the previous value of the field itself is the input; NumCalc,
-// when set, is then applied to that input. An Operator with nothing set keeps the latest value.
-// mergeOperator never leaves Set and NumCalc together, it computes the value instead.
+// Operator is one correction of a field, derived from the previous version of the entity. Exactly
+// one of the three is set: Set replaces the value, NumCalc applies an affine calculation to the
+// previous value of the field, Exp evaluates an expression against the whole previous entity (it
+// may reference other fields). An Operator with none set keeps the latest value.
 type Operator struct {
-	Set     *OperatorSet
+	Set     *operatorSet
+	NumCalc *operatorNumCalc
 	Exp     *compiledExp
-	NumCalc *OperatorNumCalc
 }
 
 func richValueText(v *protos.RichValue) string {
@@ -48,21 +48,20 @@ func richValueText(v *protos.RichValue) string {
 }
 
 func (o Operator) RemainLatest() bool {
-	return o.Set == nil && o.Exp == nil && o.NumCalc == nil
+	return o.Set == nil && o.NumCalc == nil && o.Exp == nil
 }
 
 func (o Operator) String() string {
-	input := "x"
 	switch {
 	case o.Set != nil:
-		input = fmt.Sprintf("%v", o.Set.Value)
+		return fmt.Sprintf("%v", o.Set.Value)
+	case o.NumCalc != nil:
+		return o.NumCalc.String()
 	case o.Exp != nil:
-		input = fmt.Sprintf("(%s)", o.Exp)
+		return o.Exp.String()
+	default:
+		return "x"
 	}
-	if o.NumCalc == nil {
-		return input
-	}
-	return fmt.Sprintf("%s*%s+%s", input, richValueText(o.NumCalc.Multi), richValueText(o.NumCalc.Add))
 }
 
 func checkNumCalcValueTypeMatch(typ types.Type, val *protos.RichValue) error {
@@ -88,38 +87,27 @@ func checkNumCalcValueTypeMatch(typ types.Type, val *protos.RichValue) error {
 }
 
 // mergeOperator composes two corrections of the same field in the same round: op2(op1(x)).
-//
-// op2 is never an expression: an expression reads the previous version of the whole entity, so
-// UncommittedEntityBox.Merge resolves it right away against a concrete box and appends the write
-// as a new round otherwise.
+// Neither may be an expression: an expression reads the previous version of the whole entity, so
+// a round with expressions is never merged with another one (see UncommittedEntityBox.Merge).
 func mergeOperator(typ types.Type, op1, op2 Operator) Operator {
-	if op1.RemainLatest() {
-		return op2
+	if op1.Exp != nil || op2.Exp != nil {
+		panic(fmt.Errorf("unreachable: merge expression operators %s and %s", op1, op2))
 	}
-	if op2.RemainLatest() {
+	switch {
+	case op2.RemainLatest():
 		return op1
-	}
-	if op2.Set != nil {
+	case op1.RemainLatest(), op2.Set != nil:
 		return op2
-	}
-	if op2.Exp != nil {
-		panic(fmt.Errorf("unreachable: merge %s on top of unresolved operator %s", op2, op1))
-	}
-	if op1.Set != nil {
+	case op1.Set != nil:
 		// the input is concrete, so is the result
-		return Operator{Set: &OperatorSet{Value: calcNumCalc(typ, op1.Set.Value, op2.NumCalc)}}
+		return Operator{Set: &operatorSet{Value: calcNumCalc(typ, op1.Set.Value, op2.NumCalc)}}
+	default:
+		return Operator{NumCalc: mergeNumCalc(typ, op1.NumCalc, op2.NumCalc)}
 	}
-	return Operator{Exp: op1.Exp, NumCalc: mergeNumCalc(typ, op1.NumCalc, op2.NumCalc)}
 }
 
 // mergeNumCalc composes two affine calculations: (x * m1 + a1) * m2 + a2 = x * (m1 * m2) + (a1 * m2 + a2)
-func mergeNumCalc(typ types.Type, c1, c2 *OperatorNumCalc) *OperatorNumCalc {
-	if c1 == nil {
-		return c2
-	}
-	if c2 == nil {
-		return c1
-	}
+func mergeNumCalc(typ types.Type, c1, c2 *operatorNumCalc) *operatorNumCalc {
 	typeChain := schema.BreakType(typ)
 	if typeChain.CountListLayer() > 0 {
 		panic(fmt.Errorf("type %s is not support NumCalc operator", typ.String()))
@@ -135,7 +123,7 @@ func mergeNumCalc(typ types.Type, c1, c2 *OperatorNumCalc) *OperatorNumCalc {
 		a1, _ := rsh.GetBigInt(c1.Add)
 		m2, _ := rsh.GetBigInt(c2.Multi)
 		a2, _ := rsh.GetBigInt(c2.Add)
-		return &OperatorNumCalc{
+		return &operatorNumCalc{
 			Multi: rsh.NewBigIntValue(new(big.Int).Mul(m1, m2)),
 			Add:   rsh.NewBigIntValue(new(big.Int).Add(new(big.Int).Mul(a1, m2), a2)),
 		}
@@ -144,7 +132,7 @@ func mergeNumCalc(typ types.Type, c1, c2 *OperatorNumCalc) *OperatorNumCalc {
 		a1, _ := rsh.GetBigDecimal(c1.Add)
 		m2, _ := rsh.GetBigDecimal(c2.Multi)
 		a2, _ := rsh.GetBigDecimal(c2.Add)
-		return &OperatorNumCalc{
+		return &operatorNumCalc{
 			Multi: rsh.NewBigDecimalValue(m1.Mul(m2)),
 			Add:   rsh.NewBigDecimalValue(a1.Mul(m2).Add(a2)),
 		}
@@ -156,30 +144,24 @@ func mergeNumCalc(typ types.Type, c1, c2 *OperatorNumCalc) *OperatorNumCalc {
 // calcOperator resolves an operator: originVal is the previous value of the field itself and row
 // is the previous version of the whole entity, which expressions read their references from.
 func calcOperator(typ types.Type, originVal any, operator Operator, row expRow) (any, error) {
-	if operator.RemainLatest() {
-		// just use origin value
-		return originVal, nil
-	}
 	switch {
 	case operator.Set != nil:
-		originVal = operator.Set.Value
+		return operator.Set.Value, nil
+	case operator.NumCalc != nil:
+		return calcNumCalc(typ, originVal, operator.NumCalc), nil
 	case operator.Exp != nil:
 		result, err := operator.Exp.eval(row)
 		if err != nil {
 			return nil, err
 		}
-		if originVal, err = expValueToField(typ, result); err != nil {
-			return nil, err
-		}
-	}
-	if operator.NumCalc == nil {
+		return expValueToField(typ, result)
+	default:
+		// just use origin value
 		return originVal, nil
 	}
-	return calcNumCalc(typ, originVal, operator.NumCalc), nil
 }
 
-func calcNumCalc(typ types.Type, originVal any, numCalc *OperatorNumCalc) any {
-	operator := Operator{NumCalc: numCalc}
+func calcNumCalc(typ types.Type, originVal any, numCalc *operatorNumCalc) any {
 	typeChain := schema.BreakType(typ)
 	if typeChain.CountListLayer() > 0 {
 		panic(fmt.Errorf("type %s is not support operator", typ.String()))
@@ -201,7 +183,7 @@ func calcNumCalc(typ types.Type, originVal any, numCalc *OperatorNumCalc) any {
 				origin = *ov
 			}
 		}
-		result := int32(operator.NumCalc.Calc(decimal.NewFromInt32(origin)).Round(0).IntPart())
+		result := int32(numCalc.Calc(decimal.NewFromInt32(origin)).Round(0).IntPart())
 		if nullable {
 			return &result
 		}
@@ -216,7 +198,7 @@ func calcNumCalc(typ types.Type, originVal any, numCalc *OperatorNumCalc) any {
 				origin = *ov
 			}
 		}
-		result := operator.NumCalc.Calc(decimal.NewFromInt(origin)).Round(0).IntPart()
+		result := numCalc.Calc(decimal.NewFromInt(origin)).Round(0).IntPart()
 		if nullable {
 			return &result
 		}
@@ -231,7 +213,7 @@ func calcNumCalc(typ types.Type, originVal any, numCalc *OperatorNumCalc) any {
 				origin = ov
 			}
 		}
-		result := operator.NumCalc.Calc(decimal.NewFromBigInt(origin, 0)).Round(0).BigInt()
+		result := numCalc.Calc(decimal.NewFromBigInt(origin, 0)).Round(0).BigInt()
 		// BigInt is special, always use *big.Int regardless of nonNull declaration
 		return result
 	case "Float":
@@ -244,7 +226,7 @@ func calcNumCalc(typ types.Type, originVal any, numCalc *OperatorNumCalc) any {
 				origin = *ov
 			}
 		}
-		result, _ := operator.NumCalc.Calc(decimal.NewFromFloat(origin)).Float64()
+		result, _ := numCalc.Calc(decimal.NewFromFloat(origin)).Float64()
 		if nullable {
 			return &result
 		}
@@ -259,7 +241,7 @@ func calcNumCalc(typ types.Type, originVal any, numCalc *OperatorNumCalc) any {
 				origin = *ov
 			}
 		}
-		result := operator.NumCalc.Calc(origin)
+		result := numCalc.Calc(origin)
 		if nullable {
 			return &result
 		}

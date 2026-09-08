@@ -333,7 +333,7 @@ func TestFromEntityUpdateData_expression(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Empty(t, box.Data)
-	assert.Equal(t, Operator{Set: &OperatorSet{Value: "x"}}, box.Operator[0]["propA1"])
+	assert.Equal(t, Operator{Set: &operatorSet{Value: "x"}}, box.Operator[0]["propA1"])
 	assert.True(t, box.HasExpression())
 	assert.Equal(t, "coalesce(propD1, 0) + propJ1", box.Operator[0]["propD1"].Exp.String())
 	assert.Nil(t, box.Operator[0]["propD1"].NumCalc)
@@ -396,56 +396,46 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 		assert.Equal(t, map[string]any{"id": "", "propA": "new", "propB": int32(5)}, box.Data)
 	})
 
-	t.Run("affine operator composes on top of a pending expression", func(t *testing.T) {
+	t.Run("rounds with expressions are never merged with other rounds", func(t *testing.T) {
 		box := &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator: []map[string]Operator{{
-				"propB": exprOp(t, e, "propB", "propB * 2"),
-				"propA": {},
-				"id":    {},
-			}},
+			Operator:  []map[string]Operator{{"propA": {Set: &operatorSet{Value: "a"}}, "propB": intOp(1, 3), "id": {}}},
 		}
-		err := box.Merge(e, &UncommittedEntityBox{
-			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator: []map[string]Operator{{
-				"propB": intOp(1, 3),
-				"propA": {},
-				"id":    {},
-			}},
-		})
-		assert.NoError(t, err)
-		assert.Equal(t, "(propB * 2)*1+3", box.Operator[0]["propB"].String())
-		got, err := calcOperator(e.GetFieldByName("propB").Type, int32(0), box.Operator[0]["propB"],
-			expRow{exists: true, data: map[string]any{"propB": int32(5)}})
-		assert.NoError(t, err)
-		assert.Equal(t, int32(13), got)
-	})
-
-	t.Run("expression on a pending box starts a new round, plain writes compose into the last one", func(t *testing.T) {
-		box := &UncommittedEntityBox{
-			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator:  []map[string]Operator{{"propA": {Set: &OperatorSet{Value: "a"}}, "propB": intOp(1, 3), "id": {}}},
-		}
-		// round 2: propB is pending, so the expression has to wait for round 1
+		// round 2: an expression always starts a new round
 		assert.NoError(t, box.Merge(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator:  []map[string]Operator{{"propB": exprOp(t, e, "propB", "propB * 2"), "propA": {}, "id": {}}},
 		}))
-		// no expression: composes into round 2 (a SET replaces, an ADD stacks on the expression)
+		// round 3: a plain write does not fold into a round with expressions either
 		assert.NoError(t, box.Merge(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator:  []map[string]Operator{{"propA": {Set: &OperatorSet{Value: "b"}}, "propB": intOp(1, 100), "id": {}}},
+			Operator:  []map[string]Operator{{"propA": {Set: &operatorSet{Value: "b"}}, "propB": intOp(1, 100), "id": {}}},
+		}))
+		// still round 3: plain writes compose into a plain last round (SET replaces, ADD stacks)
+		assert.NoError(t, box.Merge(e, &UncommittedEntityBox{
+			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
+			Operator:  []map[string]Operator{{"propA": {Set: &operatorSet{Value: "c"}}, "propB": intOp(2, 1), "id": {}}},
 		}))
 		assert.Empty(t, box.Data)
-		assert.Len(t, box.Operator, 2)
+		assert.Len(t, box.Operator, 3)
 		assert.Equal(t, "x*1+3", box.Operator[0]["propB"].String())
-		assert.Equal(t, "(propB * 2)*1+100", box.Operator[1]["propB"].String())
-		assert.Equal(t, Operator{Set: &OperatorSet{Value: "b"}}, box.Operator[1]["propA"])
-		assert.True(t, box.Operator[1]["id"].RemainLatest())
+		assert.Equal(t, "propB * 2", box.Operator[1]["propB"].String())
+		assert.Equal(t, "x*2+201", box.Operator[2]["propB"].String())
+		assert.Equal(t, Operator{Set: &operatorSet{Value: "c"}}, box.Operator[2]["propA"])
+		assert.True(t, box.Operator[2]["id"].RemainLatest())
 		assert.False(t, box.Resolved())
+
+		// resolve against a previous version: propB = ((5 + 3) * 2) * 2 + 201
+		row := expRow{exists: true, data: map[string]any{"id": "e", "propA": "z", "propB": int32(5)}}
+		for _, round := range box.Operator {
+			next := utils.CopyMap(row.data)
+			assert.NoError(t, resolveRound(e, round, row, next))
+			row = expRow{exists: true, data: next}
+		}
+		assert.Equal(t, map[string]any{"id": "e", "propA": "c", "propB": int32(233)}, row.data)
 	})
 
-	t.Run("an upsert on a pending box makes it concrete", func(t *testing.T) {
+	t.Run("an upsert on a pending box travels as a round", func(t *testing.T) {
 		box := &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator: []map[string]Operator{
@@ -457,11 +447,9 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 			Entity: "EntityE1", ID: "e", GenBlockNumber: 3,
 			Data: map[string]any{"id": "e", "propA": "u", "propB": int32(7)},
 		}}))
-		// the upsert covers every field, but it still travels as a round because the pending rounds
-		// cannot be dropped: the box is resolved by the store read like any other pending box
-		assert.Len(t, box.Operator, 2)
-		assert.Equal(t, "u", box.Operator[1]["propA"].Set.Value)
-		assert.Equal(t, int32(7), box.Operator[1]["propB"].Set.Value)
+		assert.Len(t, box.Operator, 3)
+		assert.Equal(t, "u", box.Operator[2]["propA"].Set.Value)
+		assert.Equal(t, int32(7), box.Operator[2]["propB"].Set.Value)
 	})
 
 	t.Run("a write with several rounds is rejected", func(t *testing.T) {
@@ -602,7 +590,7 @@ func TestController_UpdateWithExpression(t *testing.T) {
 		}))))
 		history, _ := utils.GetFromK2Map(ctrl.changes, "EntityE1", "e0")
 		assert.Len(t, history, 1)
-		assert.Len(t, history[0].Operator, 3) // the ADD composed into the expression round before it
+		assert.Len(t, history[0].Operator, 4)
 		// (10 + 5) * 2 + 1 + 1000, propA was "big" when the last expression read it
 		assert.Equal(t, map[string]any{"id": "e0", "propA": "set", "propB": int32(1031)}, getData(ctrl, "e0", 11))
 		assert.True(t, history[0].Resolved())
@@ -612,7 +600,7 @@ func TestController_UpdateWithExpression(t *testing.T) {
 		assert.Equal(t, map[string]any{"id": "e0", "propA": "set", "propB": int32(1031)}, ps.data["EntityE1"]["e0"].Data)
 	})
 
-	t.Run("same block: expression then ADD composes without resolving", func(t *testing.T) {
+	t.Run("same block: expression then ADD stays as two rounds", func(t *testing.T) {
 		ps, s := newTestStore(sch, "mainnet")
 		seed(ps, "e0", "a", 10)
 		ctrl, _ := newCtrl(s)
@@ -624,7 +612,9 @@ func TestController_UpdateWithExpression(t *testing.T) {
 		}))))
 		history, _ := utils.GetFromK2Map(ctrl.changes, "EntityE1", "e0")
 		assert.Len(t, history, 1)
-		assert.Equal(t, "(propB * 2)*1+5", history[0].Operator[0]["propB"].String())
+		assert.Len(t, history[0].Operator, 2)
+		assert.Equal(t, "propB * 2", history[0].Operator[0]["propB"].String())
+		assert.Equal(t, "x*1+5", history[0].Operator[1]["propB"].String())
 		assert.Equal(t, map[string]any{"id": "e0", "propA": "a", "propB": int32(25)}, getData(ctrl, "e0", 11))
 	})
 

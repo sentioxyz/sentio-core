@@ -28,7 +28,7 @@ func TestChangeHistory_Push(t *testing.T) {
 		},
 		Operator: []map[string]Operator{{
 			"propB": {
-				NumCalc: &OperatorNumCalc{
+				NumCalc: &operatorNumCalc{
 					Multi: rsh.NewIntValue(1),
 					Add:   rsh.NewIntValue(1234),
 				},

@@ -32,7 +32,7 @@ func mustCalcOperator(t *testing.T, typ types.Type, originVal any, op Operator) 
 // intOp builds f(x) = x * multi + add using integer RichValues.
 // Suitable for Int and Int8 field operators.
 func intOp(multi, add int64) Operator {
-	return Operator{NumCalc: &OperatorNumCalc{
+	return Operator{NumCalc: &operatorNumCalc{
 		Multi: rsh.NewIntValue(int32(multi)),
 		Add:   rsh.NewIntValue(int32(add)),
 	}}
@@ -41,7 +41,7 @@ func intOp(multi, add int64) Operator {
 // bigIntOp builds f(x) = x * multi + add using BigInt RichValues.
 // Suitable for BigInt field operators.
 func bigIntOp(multi, add int64) Operator {
-	return Operator{NumCalc: &OperatorNumCalc{
+	return Operator{NumCalc: &operatorNumCalc{
 		Multi: rsh.NewBigIntValue(big.NewInt(multi)),
 		Add:   rsh.NewBigIntValue(big.NewInt(add)),
 	}}
@@ -50,7 +50,7 @@ func bigIntOp(multi, add int64) Operator {
 // decOp builds f(x) = x * multi + add using BigDecimal RichValues.
 // Suitable for Float and BigDecimal field operators.
 func decOp(multi, add float64) Operator {
-	return Operator{NumCalc: &OperatorNumCalc{
+	return Operator{NumCalc: &operatorNumCalc{
 		Multi: rsh.NewBigDecimalValue(decimal.NewFromFloat(multi)),
 		Add:   rsh.NewBigDecimalValue(decimal.NewFromFloat(add)),
 	}}
@@ -70,7 +70,7 @@ func TestOperatorNumCalc_Calc(t *testing.T) {
 		{4, 3, -1, 11}, // negative add: 4*3-1=11
 	}
 	for _, tc := range cases {
-		op := OperatorNumCalc{
+		op := operatorNumCalc{
 			Multi: rsh.NewIntValue(int32(tc.multi)),
 			Add:   rsh.NewIntValue(int32(tc.add)),
 		}

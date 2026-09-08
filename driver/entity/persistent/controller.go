@@ -518,6 +518,12 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 			return fmt.Errorf("%w: delete timeseries entity %s in chain %s",
 				ErrUpdateImmutable, entityType.Name, c.store.GetChain())
 		}
+		if !box.Resolved() {
+			// every write of a time series entity is a new row, there is no previous version an
+			// update could correct
+			return fmt.Errorf("%w: update timeseries entity %s in chain %s, use upsert",
+				ErrUpdateImmutable, entityType.Name, c.store.GetChain())
+		}
 		// id of time series entity can be auto-incremented
 		// sea: https://thegraph.com/docs/en/subgraphs/best-practices/timeseries/#defining-timeseries-entities
 		if idNum, _ := strconv.ParseInt(box.ID, 10, 64); idNum <= 0 {
@@ -526,14 +532,7 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 			// It will be reset when commit.
 			box.ID = "@" + strconv.FormatInt(uniqTimeSeriesID.Add(1), 10)
 		}
-		// the timestamp goes where the write keeps its values: Data for an upsert, the pending
-		// round for an update (which otherwise keeps the previous, missing, timestamp)
-		timestamp := box.GenBlockTime.UnixMicro()
-		if box.Resolved() {
-			box.Data[schema.EntityTimestampFieldName] = timestamp
-		} else {
-			box.Operator[0][schema.EntityTimestampFieldName] = Operator{Set: &operatorSet{Value: timestamp}}
-		}
+		box.Data[schema.EntityTimestampFieldName] = box.GenBlockTime.UnixMicro()
 	}
 
 	history, _ := utils.GetFromK2Map(c.changes, entityType.Name, box.ID)

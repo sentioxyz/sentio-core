@@ -878,7 +878,7 @@ func TestController_UpdateValidationIsAtomic(t *testing.T) {
 	})
 }
 
-func TestController_UpdateTimeSeriesTimestamp(t *testing.T) {
+func TestController_UpdateTimeSeriesRejected(t *testing.T) {
 	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
 	e := sch.GetEntity("EntityTS")
@@ -886,21 +886,25 @@ func TestController_UpdateTimeSeriesTimestamp(t *testing.T) {
 	_, s := newTestStore(sch, "mainnet")
 	ctrl, _ := newCtrl(s)
 
-	blockTime := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
-	box := UncommittedEntityBox{EntityBox: EntityBox{ID: "0", GenBlockNumber: 11, GenBlockTime: blockTime}}
+	// every write of a time series entity is a new row, so an update has nothing to correct
+	box := UncommittedEntityBox{EntityBox: EntityBox{ID: "0", GenBlockNumber: 11, GenBlockTime: time.Now()}}
 	assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
 		"propA": setField(rsh.NewStringValue("x")),
-		"propB": exprField("coalesce(propB, 0) + 1"),
 	})))
-	assert.NoError(t, ctrl.SetEntity(ctx, e, box))
+	err = ctrl.SetEntity(ctx, e, box)
+	assert.ErrorIs(t, err, ErrUpdateImmutable)
+	assert.ErrorContains(t, err, "update timeseries entity EntityTS")
+	assert.Empty(t, ctrl.changes)
 
-	var id string
-	for storedID := range ctrl.changes["EntityTS"] {
-		id = storedID
+	// an upsert is fine and gets the block timestamp
+	blockTime := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	assert.NoError(t, ctrl.SetEntity(ctx, e, UncommittedEntityBox{EntityBox: EntityBox{
+		ID: "0", GenBlockNumber: 11, GenBlockTime: blockTime,
+		Data: map[string]any{"id": int64(0), "propA": "x", "propB": int32(1)},
+	}}))
+	for id := range ctrl.changes["EntityTS"] {
+		got, err := ctrl.GetEntity(ctx, e, id, 11)
+		assert.NoError(t, err)
+		assert.Equal(t, blockTime.UnixMicro(), got.Data["timestamp"])
 	}
-	got, err := ctrl.GetEntity(ctx, e, id, 11)
-	assert.NoError(t, err)
-	assert.Equal(t, blockTime.UnixMicro(), got.Data["timestamp"])
-	assert.Equal(t, "x", got.Data["propA"])
-	assert.Equal(t, int32(1), got.Data["propB"])
 }

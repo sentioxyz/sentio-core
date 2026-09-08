@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -327,6 +328,21 @@ func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, err
 			return kindNull, err
 		}
 		return requireSame(1, 2)
+	case "concat":
+		if len(e.Arguments) == 0 {
+			return kindNull, e.Operator.BuildError("unsupported operator", " with 0 arguments")
+		}
+		for i := range argKinds {
+			if err := requireKind(i, kindString); err != nil {
+				return kindNull, err
+			}
+		}
+		return kindString, nil
+	case "tostring":
+		if err := argc(1); err != nil {
+			return kindNull, err
+		}
+		return kindString, nil
 	default:
 		return kindNull, e.Operator.BuildError("unsupported operator",
 			fmt.Sprintf(" with %d arguments", len(e.Arguments)))
@@ -472,6 +488,21 @@ func (c *compiledExp) evalNode(row expRow, e *exp.Exp) (expValue, error) {
 		}
 	}
 	switch op {
+	case "concat":
+		var buf strings.Builder
+		for _, arg := range args {
+			buf.WriteString(arg.s)
+		}
+		return expString(buf.String()), nil
+	case "tostring":
+		switch args[0].kind {
+		case kindString:
+			return args[0], nil
+		case kindBool:
+			return expString(strconv.FormatBool(args[0].b)), nil
+		default:
+			return expString(args[0].n.String()), nil
+		}
 	case "+":
 		return expNumber(args[0].n.Add(args[1].n)), nil
 	case "-":

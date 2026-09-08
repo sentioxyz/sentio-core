@@ -10,7 +10,7 @@ type Exp struct {
 	// <var> or <const>
 	Value *Word
 
-	// + - * / = != > >= < <= and or not <func>
+	// + - * / div = != > >= < <= and or not <func>
 	Operator  *Word
 	Arguments []*Exp
 }
@@ -229,7 +229,7 @@ func _binOpPriority(op string) int {
 		return 3
 	case "+", "-":
 		return 2
-	case "*", "/":
+	case "*", "/", "div":
 		return 1
 	default:
 		return 0

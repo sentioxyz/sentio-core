@@ -583,6 +583,9 @@ func Test_comparisonAndNot(t *testing.T) {
 		{"a >= -1", "a >= -1"},
 		{"a = 'x'", "a = 'x'"},
 		{"if(a > b, a, b) + 1", "if(a > b, a, b) + 1"},
+		{"a div 2 + b * 3", "(a div 2) + (b * 3)"},
+		{"a + b div 2", "a + (b div 2)"},
+		{"a DIV -2", "a div -2"},
 		// not binds tighter than and / or but looser than a comparison
 		{"not a", "not a"},
 		{"not a = b", "not (a = b)"},

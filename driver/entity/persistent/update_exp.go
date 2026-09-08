@@ -23,6 +23,11 @@ const (
 	// kindNull is the type of the null literal, it is compatible with every other kind.
 	kindNull expKind = iota
 	kindBool
+	// kindInteger is the static type of Int, Int8, BigInt and Timestamp fields and of integer
+	// literals; it only matters for div, everywhere else it is a number
+	kindInteger
+	// kindNumber is any numeric value: Float and BigDecimal fields, decimal literals and the result
+	// of a division
 	kindNumber
 	kindString
 )
@@ -33,6 +38,8 @@ func (k expKind) String() string {
 		return "null"
 	case kindBool:
 		return "boolean"
+	case kindInteger:
+		return "integer"
 	case kindNumber:
 		return "number"
 	case kindString:
@@ -42,9 +49,14 @@ func (k expKind) String() string {
 	}
 }
 
+func (k expKind) isNumeric() bool {
+	return k == kindInteger || k == kindNumber
+}
+
 // expValue is a runtime value produced while evaluating an update expression.
-// Every numeric field type (Int, Int8, BigInt, Float, BigDecimal, Timestamp) is a number and is
-// computed with decimal arithmetic; the result is converted back to the field type at the end.
+// Every numeric field type (Int, Int8, BigInt, Float, BigDecimal, Timestamp) is a kindNumber at
+// runtime and is computed with decimal arithmetic (kindInteger only exists statically); the result
+// is converted back to the field type at the end.
 type expValue struct {
 	kind expKind
 	b    bool
@@ -117,7 +129,9 @@ func fieldExpKind(typ types.Type) (expKind, error) {
 			return kindString, nil
 		case "Boolean":
 			return kindBool, nil
-		case "Int", "Int8", "BigInt", "Float", "BigDecimal", "Timestamp":
+		case "Int", "Int8", "BigInt", "Timestamp":
+			return kindInteger, nil
+		case "Float", "BigDecimal":
 			return kindNumber, nil
 		}
 	case *types.EnumTypeDefinition, *types.ObjectTypeDefinition, *types.InterfaceTypeDefinition:
@@ -150,16 +164,26 @@ func compileUpdateExp(entityType *schema.Entity, field *types.FieldDefinition, t
 	return c, nil
 }
 
+// expKindCompatible reports whether two kinds can meet in one operation: null goes with anything
+// and an integer is a number.
 func expKindCompatible(k1, k2 expKind) bool {
-	return k1 == kindNull || k2 == kindNull || k1 == k2
+	return k1 == kindNull || k2 == kindNull || k1 == k2 || k1.isNumeric() && k2.isNumeric()
 }
 
-// expKindJoin returns the common kind of two compatible kinds, null only when both are null.
+// expKindJoin returns the common kind of two compatible kinds: null only when both are null,
+// number when an integer meets a number.
 func expKindJoin(k1, k2 expKind) expKind {
-	if k1 == kindNull {
+	switch {
+	case k1 == kindNull:
 		return k2
+	case k2 == kindNull:
+		return k1
+	case k1 != k2:
+		// both numeric
+		return kindNumber
+	default:
+		return k1
 	}
-	return k1
 }
 
 func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, error) {
@@ -196,7 +220,7 @@ func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, err
 		return expKindJoin(argKinds[i], argKinds[j]), nil
 	}
 	switch op {
-	case "+", "-", "*", "/":
+	case "+", "-", "*":
 		if err := argc(2); err != nil {
 			return kindNull, err
 		}
@@ -205,10 +229,35 @@ func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, err
 				return kindNull, err
 			}
 		}
-		if op == "/" && isZeroLiteral(e.Arguments[1]) {
+		// integer when both sides are integers
+		return expKindJoin(argKinds[0], argKinds[1]), nil
+	case "/":
+		if err := argc(2); err != nil {
+			return kindNull, err
+		}
+		for i := range argKinds {
+			if err := requireKind(i, kindNumber); err != nil {
+				return kindNull, err
+			}
+		}
+		if isZeroLiteral(e.Arguments[1]) {
 			return kindNull, e.Operator.BuildError("division by zero")
 		}
 		return kindNumber, nil
+	case "div":
+		if err := argc(2); err != nil {
+			return kindNull, err
+		}
+		for i := range argKinds {
+			if argKinds[i] != kindNull && argKinds[i] != kindInteger {
+				return kindNull, e.Operator.BuildError("invalid operand",
+					fmt.Sprintf(", argument #%d is %s, expect integer", i+1, argKinds[i]))
+			}
+		}
+		if isZeroLiteral(e.Arguments[1]) {
+			return kindNull, e.Operator.BuildError("division by zero")
+		}
+		return kindInteger, nil
 	case "and", "or":
 		if err := argc(2); err != nil {
 			return kindNull, err
@@ -284,6 +333,15 @@ func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, err
 	}
 }
 
+// isIntegerLiteral reports whether a number literal is written as plain digits, e.g. 12 or -3;
+// 1.0 and 1e3 are decimal literals even though their values are integral.
+func isIntegerLiteral(cnt string) bool {
+	if len(cnt) > 0 && cnt[0] == '-' {
+		cnt = cnt[1:]
+	}
+	return len(cnt) > 0 && strings.Trim(cnt, "0123456789") == ""
+}
+
 // isZeroLiteral reports whether e is a number literal equal to zero, such as 0, 0.0 or -0.
 func isZeroLiteral(e *exp.Exp) bool {
 	if e.Value == nil || !exp.IsNumberLiteral(e.Value.Cnt) {
@@ -304,6 +362,9 @@ func (c *compiledExp) checkValue(entityType *schema.Entity, word *exp.Word) (exp
 	if exp.IsNumberLiteral(cnt) {
 		if _, err := decimal.NewFromString(cnt); err != nil {
 			return kindNull, word.BuildError("invalid number literal")
+		}
+		if isIntegerLiteral(cnt) {
+			return kindInteger, nil
 		}
 		return kindNumber, nil
 	}
@@ -422,6 +483,13 @@ func (c *compiledExp) evalNode(row expRow, e *exp.Exp) (expValue, error) {
 			return expNull, fmt.Errorf("division by zero at expression[%s]", e.Operator.P())
 		}
 		return expNumber(args[0].n.Div(args[1].n)), nil
+	case "div":
+		if args[1].n.IsZero() {
+			return expNull, fmt.Errorf("division by zero at expression[%s]", e.Operator.P())
+		}
+		// integer division truncates toward zero, QuoRem keeps the integer part exact
+		quotient, _ := args[0].n.QuoRem(args[1].n, 0)
+		return expNumber(quotient), nil
 	case "=":
 		return expBool(expCompare(args[0], args[1]) == 0), nil
 	case "!=":
@@ -548,7 +616,7 @@ func expValueToField(typ types.Type, v expValue) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if kind != v.kind {
+	if kind != v.kind && !(kind.isNumeric() && v.kind.isNumeric()) {
 		return nil, fmt.Errorf("expression result %s is %s, expect %s for type %s", v, v.kind, kind, typ.String())
 	}
 	innerType := typeChain.InnerType()

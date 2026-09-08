@@ -59,26 +59,32 @@ func TestCompileUpdateExp_errors(t *testing.T) {
 		{"propD1", "propX", "unknown field"},
 		{"propD1", "propA3 + 1", "list type"},
 		{"propD1", "propA1 + 1", "argument #1 is string, expect number"},
-		{"propD1", "propA1", "expression result is string but field EntityD.propD1 is number"},
-		{"propA1", "propD1 * 2", "expression result is number but field EntityD.propA1 is string"},
-		{"propC1", "propD1", "expression result is number but field EntityD.propC1 is boolean"},
+		{"propD1", "propA1", "expression result is string but field EntityD.propD1 is integer"},
+		{"propA1", "propD1 * 2", "expression result is integer but field EntityD.propA1 is string"},
+		{"propC1", "propD1", "expression result is integer but field EntityD.propC1 is boolean"},
 		{"propD1", "foo(1)", "unsupported operator 'foo'"},
 		{"propD1", "if(propC1, 1)", "unsupported operator 'if' at expression[0..1] with 2 arguments"},
-		{"propD1", "if(propD1, 1, 2)", "argument #1 is number, expect boolean"},
-		{"propD1", "if(propC1, 1, 'a')", "argument #2 is number but argument #3 is string"},
+		{"propD1", "if(propD1, 1, 2)", "argument #1 is integer, expect boolean"},
+		{"propD1", "if(propC1, 1, 'a')", "argument #2 is integer but argument #3 is string"},
 		{"propC1", "propC1 > propC2", "boolean is not comparable"},
-		{"propC1", "propD1 = propA1", "argument #1 is number but argument #2 is string"},
-		{"propC1", "propD1 and propC1", "argument #1 is number, expect boolean"},
-		{"propC1", "not propD1", "argument #1 is number, expect boolean"},
+		{"propC1", "propD1 = propA1", "argument #1 is integer but argument #2 is string"},
+		{"propC1", "propD1 and propC1", "argument #1 is integer, expect boolean"},
+		{"propC1", "not propD1", "argument #1 is integer, expect boolean"},
 		{"propC1", "exist(propD1)", "unsupported operator 'exist' at expression[0..4] with 1 arguments"},
 		{"propD1", "coalesce()", "unsupported operator 'coalesce' at expression[0..7] with 0 arguments"},
-		{"propD1", "coalesce(propD1, 'a')", "argument #2 is string but argument #1 is number"},
+		{"propD1", "coalesce(propD1, 'a')", "argument #2 is string but argument #1 is integer"},
 		{"propD1", "isNull()", "with 0 arguments"},
 		{"propA3", "propA1", "does not support expression"},
 		{"propD1", "propD1 +", "empty expression"},
 		{"propD1", "propD1 / 0", "division by zero"},
 		{"propD1", "propD1 / (0.0)", "division by zero"},
 		{"propD1", "1 / -0", "division by zero"},
+		{"propD1", "propD1 div 0", "division by zero"},
+		{"propD1", "propF1 div 2", "invalid operand 'div' at expression[7..9], argument #1 is number, expect integer"},
+		{"propD1", "propD1 div 2.0", "argument #2 is number, expect integer"},
+		{"propD1", "propD1 div 1e3", "argument #2 is number, expect integer"},
+		{"propD1", "(propD1 / 2) div 2", "argument #1 is number, expect integer"},
+		{"propD1", "'a' div 2", "argument #1 is string, expect integer"},
 	}
 	for i, c := range cases {
 		field := e.GetFieldByName(c.field)
@@ -102,12 +108,24 @@ func TestCompileUpdateExp_kinds(t *testing.T) {
 		kind   expKind
 		fields []string
 	}{
-		{"propD1", "1", kindNumber, nil},
+		{"propD1", "1", kindInteger, nil},
+		{"propD1", "1.0", kindNumber, nil},
+		{"propD1", "1e3", kindNumber, nil},
+		{"propD1", "-1", kindInteger, nil},
 		{"propD1", "null", kindNull, nil},
-		{"propD1", "propD1 + propD2 * 2", kindNumber, []string{"propD1", "propD2"}},
-		{"propD1", "if(exist(), propD1, null)", kindNumber, []string{"propD1"}},
+		{"propD1", "propD1 + propD2 * 2", kindInteger, []string{"propD1", "propD2"}},
+		{"propD1", "propD1 + propF1", kindNumber, []string{"propD1", "propF1"}},
+		{"propD1", "propD1 + 1.5", kindNumber, []string{"propD1"}},
+		{"propD1", "propD1 / 2", kindNumber, []string{"propD1"}},
+		{"propD1", "propD1 div 2", kindInteger, []string{"propD1"}},
+		{"propD1", "propE1 div propJ1 + propH1 div 1000000", kindInteger, []string{"propE1", "propJ1", "propH1"}},
+		{"propD1", "null div 2", kindInteger, nil},
+		{"propF1", "propD1 div 2", kindInteger, []string{"propD1"}}, // an integer is a number
+		{"propD1", "if(exist(), propD1, null)", kindInteger, []string{"propD1"}},
+		{"propD1", "if(exist(), propD1, propF1)", kindNumber, []string{"propD1", "propF1"}},
 		{"propD1", "if(true, null, null)", kindNull, nil},
-		{"propD1", "coalesce(null, propJ2, 0)", kindNumber, []string{"propJ2"}},
+		{"propD1", "coalesce(null, propJ2, 0)", kindInteger, []string{"propJ2"}},
+		{"propD1", "coalesce(propF2, 0)", kindNumber, []string{"propF2"}},
 		{"propA1", "coalesce(propA2, 'x')", kindString, []string{"propA2"}},
 		{"propA1", "foreign1", kindString, []string{"foreign1"}},
 		{"propA1", "propG1", kindString, []string{"propG1"}},
@@ -150,6 +168,14 @@ func TestCompiledExp_eval(t *testing.T) {
 		{"propD1", "propD1 - 5 * 2", row, num("0")},
 		{"propD1", "(propD1 - 5) * 2", row, num("10")},
 		{"propD1", "propD1 / 4", row, num("2.5")},
+		{"propD1", "propD1 div 4", row, num("2")},
+		{"propD1", "(0 - propD1) div 4", row, num("-2")}, // truncates toward zero
+		{"propD1", "propD1 div -3", row, num("-3")},
+		{"propD1", "propE1 div 7", row, num("142")},
+		{"propD1", "propJ2 div propD1", row, num("0")},
+		{"propD1", "propD2 div 4", row, expNull},
+		{"propD1", "propD1 div propD2", row, expNull},
+		{"propD1", "99999999999999999 div 100000000000000000", row, num("0")}, // exact, not rounded to 1
 		{"propD1", "-1 * propD1", row, num("-10")},
 		{"propF1", "propF1 + propF2 + propI1", row, num("4.25")},
 		{"propE1", "propE1 * 1e18", row, num("1000000000000000000000")},
@@ -233,6 +259,10 @@ func TestCompiledExp_eval(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = compiled.eval(row)
 	assert.ErrorContains(t, err, "division by zero")
+	compiled, err = compileUpdateExp(e, e.GetFieldByName("propD1"), "propD1 div (propD1 - 10)")
+	assert.NoError(t, err)
+	_, err = compiled.eval(row)
+	assert.ErrorContains(t, err, "division by zero")
 	// a null divisor is null, not an error
 	compiled, err = compileUpdateExp(e, e.GetFieldByName("propD1"), "propD1 / propD2")
 	assert.NoError(t, err)
@@ -287,7 +317,7 @@ func TestExpValueToField(t *testing.T) {
 	}
 
 	_, err := expValueToField(e.GetFieldByName("propD1").Type, expString("x"))
-	assert.ErrorContains(t, err, "is string, expect number")
+	assert.ErrorContains(t, err, "is string, expect integer")
 	_, err = expValueToField(e.GetFieldByName("propA3").Type, expString("x"))
 	assert.ErrorContains(t, err, "list type")
 }

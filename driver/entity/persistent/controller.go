@@ -550,7 +550,7 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 		)
 	}
 	if merged && mergedBox.Data != nil {
-		if err := c.store.CheckValue(entityType, mergedBox.Data); err != nil {
+		if err := c.store.CheckValue(entityType, mergedBox.ConcreteData()); err != nil {
 			return fmt.Errorf(
 				"%w: set entity %s/%s in chain %s failed: %v",
 				ErrInvalidFieldValue, entityType.Name,

@@ -23,8 +23,7 @@ func (o OperatorNumCalc) Calc(origin decimal.Decimal) decimal.Decimal {
 	return origin.Mul(multi).Add(add)
 }
 
-// OperatorSet replaces the value of a field. It only appears in rounds after the first one, the
-// first round keeps its SET values in UncommittedEntityBox.Data.
+// OperatorSet replaces the value of a field.
 type OperatorSet struct {
 	Value any
 }
@@ -36,6 +35,7 @@ type OperatorSet struct {
 // Set replaces the value, Exp evaluates an expression against the whole previous entity (it may
 // reference other fields), otherwise the previous value of the field itself is the input; NumCalc,
 // when set, is then applied to that input. An Operator with nothing set keeps the latest value.
+// mergeOperator never leaves Set and NumCalc together, it computes the value instead.
 type Operator struct {
 	Set     *OperatorSet
 	Exp     *compiledExp
@@ -87,11 +87,11 @@ func checkNumCalcValueTypeMatch(typ types.Type, val *protos.RichValue) error {
 	return fmt.Errorf("type %s is not support NumCalc operator with value %T %s", typ.String(), val, v)
 }
 
-// mergeOperator composes two corrections of the same field in the first round: op2(op1(x)).
+// mergeOperator composes two corrections of the same field in the same round: op2(op1(x)).
 //
-// op2 is never a Set (first-round SET values live in Data) and never an expression: an expression
-// reads the previous version of the whole entity, so UncommittedEntityBox.fold evaluates it right
-// away when the fields it reads are concrete and appends the write as a new round otherwise.
+// op2 is never an expression: an expression reads the previous version of the whole entity, so
+// UncommittedEntityBox.fold evaluates it right away when the fields it reads are concrete and
+// appends the write as a new round otherwise.
 func mergeOperator(typ types.Type, op1, op2 Operator) Operator {
 	if op1.RemainLatest() {
 		return op2
@@ -99,10 +99,17 @@ func mergeOperator(typ types.Type, op1, op2 Operator) Operator {
 	if op2.RemainLatest() {
 		return op1
 	}
-	if op2.Exp != nil || op2.Set != nil {
+	if op2.Set != nil {
+		return op2
+	}
+	if op2.Exp != nil {
 		panic(fmt.Errorf("unreachable: merge %s on top of unresolved operator %s", op2, op1))
 	}
-	return Operator{Set: op1.Set, Exp: op1.Exp, NumCalc: mergeNumCalc(typ, op1.NumCalc, op2.NumCalc)}
+	if op1.Set != nil {
+		// the input is concrete, so is the result
+		return Operator{Set: &OperatorSet{Value: calcNumCalc(typ, op1.Set.Value, op2.NumCalc)}}
+	}
+	return Operator{Exp: op1.Exp, NumCalc: mergeNumCalc(typ, op1.NumCalc, op2.NumCalc)}
 }
 
 // mergeNumCalc composes two affine calculations: (x * m1 + a1) * m2 + a2 = x * (m1 * m2) + (a1 * m2 + a2)

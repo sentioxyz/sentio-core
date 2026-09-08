@@ -332,7 +332,9 @@ func TestFromEntityUpdateData_expression(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, map[string]any{"propA1": "x"}, box.Data)
+	assert.Empty(t, box.Data)
+	assert.Equal(t, Operator{Set: &OperatorSet{Value: "x"}}, box.Operator[0]["propA1"])
+	assert.Equal(t, map[string]any{"propA1": "x"}, box.ConcreteData())
 	assert.True(t, box.HasExpression())
 	assert.Equal(t, "coalesce(propD1, 0) + propJ1", box.Operator[0]["propD1"].Exp.String())
 	assert.Nil(t, box.Operator[0]["propD1"].NumCalc)
@@ -340,8 +342,6 @@ func TestFromEntityUpdateData_expression(t *testing.T) {
 	// every other field keeps its latest value
 	assert.True(t, box.Operator[0]["propD2"].RemainLatest())
 	assert.Equal(t, "x", box.Operator[0]["propD2"].String())
-	_, hasSet := box.Operator[0]["propA1"]
-	assert.False(t, hasSet)
 
 	err = box.FromEntityUpdateData(e, &entityProtos.EntityUpdateData{
 		Fields: map[string]*entityProtos.EntityUpdateData_FieldValue{

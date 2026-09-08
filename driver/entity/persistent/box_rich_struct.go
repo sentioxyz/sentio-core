@@ -367,11 +367,12 @@ func (e *UncommittedEntityBox) FromEntityUpdateData(
 		}
 		switch fieldValue.GetOp() {
 		case entityProtos.EntityUpdateData_SET:
-			e.Data[fieldName], err = FromRichValue(fieldValue.GetValue(), field.Type)
-			if err != nil {
+			val, loadErr := FromRichValue(fieldValue.GetValue(), field.Type)
+			if loadErr != nil {
 				return fmt.Errorf("load %s.%s %s from rich value %s failed: %w",
-					entityType.Name, fieldName, field.Type.String(), fieldValue.String(), err)
+					entityType.Name, fieldName, field.Type.String(), fieldValue.String(), loadErr)
 			}
+			round[fieldName] = Operator{Set: &OperatorSet{Value: val}}
 		case entityProtos.EntityUpdateData_ADD:
 			op := Operator{NumCalc: &OperatorNumCalc{
 				Multi: rsh.NewIntValue(1),

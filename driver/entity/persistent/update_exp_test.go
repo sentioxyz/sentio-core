@@ -446,6 +446,17 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 		assert.False(t, box.Resolved())
 	})
 
+	t.Run("a write with several rounds is rejected", func(t *testing.T) {
+		box := &UncommittedEntityBox{
+			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
+		}
+		err := box.Merge(e, &UncommittedEntityBox{
+			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
+			Operator:  []map[string]Operator{{"propB": intOp(1, 3)}, {"propB": intOp(1, 4)}},
+		})
+		assert.ErrorContains(t, err, "merge entity with 2 pending rounds, expect at most one")
+	})
+
 	t.Run("delete drops every pending round", func(t *testing.T) {
 		box := &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},

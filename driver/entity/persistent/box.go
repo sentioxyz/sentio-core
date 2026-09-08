@@ -174,13 +174,28 @@ func (e *UncommittedEntityBox) readsPendingField(base *UncommittedEntityBox) boo
 	return false
 }
 
+// singleRound returns the corrections of a fresh write, which has at most one round.
+func (e *UncommittedEntityBox) singleRound() map[string]Operator {
+	if len(e.Operator) == 0 {
+		return nil
+	}
+	return e.Operator[0]
+}
+
 // Merge applies newOne, a later write in the same block, on top of e.
+//
+// newOne must be a fresh write as built by FromRichStruct or FromEntityUpdateData, i.e. with at
+// most one round: the branches below apply its corrections as one round, so a newOne with several
+// rounds would have them collapsed into one.
 func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *UncommittedEntityBox) error {
 	if e.ID != newOne.ID {
 		return fmt.Errorf("merge entity with different ID")
 	}
 	if e.Entity != newOne.Entity {
 		return fmt.Errorf("merge entity with different entity type")
+	}
+	if len(newOne.Operator) > 1 {
+		return fmt.Errorf("merge entity with %d pending rounds, expect at most one", len(newOne.Operator))
 	}
 	e.GenBlockNumber = newOne.GenBlockNumber
 	e.GenBlockTime = newOne.GenBlockTime
@@ -198,14 +213,12 @@ func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *Uncommit
 		if e.Data == nil {
 			e.Data = make(map[string]any)
 		}
-		for _, round := range newOne.Operator {
-			for fieldName, op := range round {
-				field := entityType.GetFieldByName(fieldName)
-				_, zeroVal := buildType(field.Type)
-				var err error
-				if e.Data[fieldName], err = calcOperator(field.Type, zeroVal, op, row); err != nil {
-					return fmt.Errorf("resolve operator %s for %s.%s failed: %w", op, entityType.Name, fieldName, err)
-				}
+		for fieldName, op := range newOne.singleRound() {
+			field := entityType.GetFieldByName(fieldName)
+			_, zeroVal := buildType(field.Type)
+			var err error
+			if e.Data[fieldName], err = calcOperator(field.Type, zeroVal, op, row); err != nil {
+				return fmt.Errorf("resolve operator %s for %s.%s failed: %w", op, entityType.Name, fieldName, err)
 			}
 		}
 		return nil
@@ -217,25 +230,24 @@ func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *Uncommit
 	return e.fold(entityType, newOne)
 }
 
-// appendRound keeps the corrections of newOne as a round of its own after every pending round of e.
+// appendRound keeps the corrections of newOne, a single-round write, as a round of its own after
+// every pending round of e.
 func (e *UncommittedEntityBox) appendRound(newOne *UncommittedEntityBox) {
 	round := make(map[string]Operator)
 	for fieldName, val := range newOne.Data {
 		round[fieldName] = Operator{Set: &OperatorSet{Value: val}}
 	}
-	for _, newRound := range newOne.Operator {
-		for fieldName, op := range newRound {
-			if op.RemainLatest() {
-				continue
-			}
-			round[fieldName] = op
+	for fieldName, op := range newOne.singleRound() {
+		if op.RemainLatest() {
+			continue
 		}
+		round[fieldName] = op
 	}
 	e.Operator = append(e.Operator, round)
 }
 
-// fold merges newOne into the first round of e. Expressions in newOne read the state of e on
-// entry, and every field they reference must already be concrete in e.
+// fold merges newOne, a single-round write, into the first round of e. Expressions in newOne read
+// the state of e on entry, and every field they reference must already be concrete in e.
 func (e *UncommittedEntityBox) fold(entityType *schema.Entity, newOne *UncommittedEntityBox) error {
 	// ===: concrete (in Data or Set in the first round)
 	// +++: pending operator
@@ -252,10 +264,8 @@ func (e *UncommittedEntityBox) fold(entityType *schema.Entity, newOne *Uncommitt
 	// (4) Merge Operator
 	round := e.firstRound()
 	newOps := make(map[string]Operator)
-	if len(newOne.Operator) > 0 {
-		for fieldName, op := range newOne.Operator[0] {
-			newOps[fieldName] = op
-		}
+	for fieldName, op := range newOne.singleRound() {
+		newOps[fieldName] = op
 	}
 	for fieldName, val := range newOne.Data {
 		// an upsert (or a test fixture) carries its values in Data

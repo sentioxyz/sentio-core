@@ -227,7 +227,7 @@ func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, err
 			return kindNull, err
 		}
 		return kindBool, nil
-	case "eq", "ne":
+	case "=", "!=":
 		if err := argc(2); err != nil {
 			return kindNull, err
 		}
@@ -235,7 +235,7 @@ func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, err
 			return kindNull, err
 		}
 		return kindBool, nil
-	case "gt", "gte", "lt", "lte":
+	case ">", ">=", "<", "<=":
 		if err := argc(2); err != nil {
 			return kindNull, err
 		}
@@ -422,17 +422,17 @@ func (c *compiledExp) evalNode(row expRow, e *exp.Exp) (expValue, error) {
 			return expNull, fmt.Errorf("division by zero at expression[%s]", e.Operator.P())
 		}
 		return expNumber(args[0].n.Div(args[1].n)), nil
-	case "eq":
+	case "=":
 		return expBool(expCompare(args[0], args[1]) == 0), nil
-	case "ne":
+	case "!=":
 		return expBool(expCompare(args[0], args[1]) != 0), nil
-	case "gt":
+	case ">":
 		return expBool(expCompare(args[0], args[1]) > 0), nil
-	case "gte":
+	case ">=":
 		return expBool(expCompare(args[0], args[1]) >= 0), nil
-	case "lt":
+	case "<":
 		return expBool(expCompare(args[0], args[1]) < 0), nil
-	case "lte":
+	case "<=":
 		return expBool(expCompare(args[0], args[1]) <= 0), nil
 	default:
 		// unreachable, check rejects unknown operators

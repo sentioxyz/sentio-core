@@ -66,8 +66,8 @@ func TestCompileUpdateExp_errors(t *testing.T) {
 		{"propD1", "if(propC1, 1)", "unsupported operator 'if' at expression[0..1] with 2 arguments"},
 		{"propD1", "if(propD1, 1, 2)", "argument #1 is number, expect boolean"},
 		{"propD1", "if(propC1, 1, 'a')", "argument #2 is number but argument #3 is string"},
-		{"propC1", "gt(propC1, propC2)", "boolean is not comparable"},
-		{"propC1", "eq(propD1, propA1)", "argument #1 is number but argument #2 is string"},
+		{"propC1", "propC1 > propC2", "boolean is not comparable"},
+		{"propC1", "propD1 = propA1", "argument #1 is number but argument #2 is string"},
 		{"propC1", "propD1 and propC1", "argument #1 is number, expect boolean"},
 		{"propC1", "not propD1", "argument #1 is number, expect boolean"},
 		{"propC1", "exist(propD1)", "unsupported operator 'exist' at expression[0..4] with 1 arguments"},
@@ -112,11 +112,11 @@ func TestCompileUpdateExp_kinds(t *testing.T) {
 		{"propA1", "foreign1", kindString, []string{"foreign1"}},
 		{"propA1", "propG1", kindString, []string{"propG1"}},
 		{
-			"propC1", "gt(propH1, 0) and not isNull(propF2) or eq(propA1, 'abc')",
+			"propC1", "propH1 > 0 and not isNull(propF2) or propA1 = 'abc'",
 			kindBool, []string{"propH1", "propF2", "propA1"},
 		},
-		{"propC1", "lte('a', 'b')", kindBool, nil},
-		{"propC1", "eq(null, 1)", kindBool, nil},
+		{"propC1", "'a' <= 'b'", kindBool, nil},
+		{"propC1", "null = 1", kindBool, nil},
 		{"propC1", "ISNULL(PROPD1)", kindBool, nil}, // functions are case-insensitive, field names are not
 	}
 	for i, c := range cases {
@@ -159,9 +159,9 @@ func TestCompiledExp_eval(t *testing.T) {
 		{"propD1", "propD2 + 1", row, expNull},
 		{"propD1", "propD1 + null", row, expNull},
 		{"propD1", "propD1 + 1", none, expNull},
-		{"propC1", "eq(propD2, 0)", row, expNull},
-		{"propC1", "gt(propD1, propD2)", row, expNull},
-		{"propC1", "not eq(propD2, 0)", row, expNull},
+		{"propC1", "propD2 = 0", row, expNull},
+		{"propC1", "propD1 > propD2", row, expNull},
+		{"propC1", "not propD2 = 0", row, expNull},
 		// isNull / exist / coalesce / if
 		{"propC1", "isNull(propD2)", row, expBool(true)},
 		{"propC1", "isNull(propD1)", row, expBool(false)},
@@ -175,26 +175,26 @@ func TestCompiledExp_eval(t *testing.T) {
 		{"propD1", "coalesce(propD1, 0) + 1", none, num("1")},
 		{"propD1", "if(exist(), propD1 + 1, 100)", row, num("11")},
 		{"propD1", "if(exist(), propD1 + 1, 100)", none, num("100")},
-		{"propD1", "if(eq(propD2, 1), 1, 2)", row, num("2")},  // null condition takes the false branch
+		{"propD1", "if(propD2 = 1, 1, 2)", row, num("2")},     // null condition takes the false branch
 		{"propD1", "if(true, 1, 1 / propD2)", none, num("1")}, // the unused branch is not evaluated
 		{"propD1", "coalesce(1, 1 / (propD1 - 10))", row, num("1")},
 		// comparisons
-		{"propC1", "gt(propD1, 9)", row, expBool(true)},
-		{"propC1", "gte(propD1, 10)", row, expBool(true)},
-		{"propC1", "lt(propD1, 10)", row, expBool(false)},
-		{"propC1", "lte(propD1, 10)", row, expBool(true)},
-		{"propC1", "eq(propD1, 10.0)", row, expBool(true)},
-		{"propC1", "ne(propD1, 10)", row, expBool(false)},
-		{"propC1", "eq(propA1, 'abc')", row, expBool(true)},
-		{"propC1", "gt(propA1, 'abb')", row, expBool(true)},
-		{"propC1", "eq(propG1, 'BBB')", row, expBool(true)},
-		{"propC1", "eq(foreign1, '0x0a00')", row, expBool(true)},
-		{"propC1", "eq(foreign2, '0x0a01')", row, expBool(true)},
-		{"propC1", "eq(propB1, '0x0a')", row, expBool(true)},
-		{"propC1", "eq(propC1, true)", row, expBool(true)},
-		{"propC1", "eq(propC2, propC1)", row, expBool(false)},
-		{"propC1", "eq(propE1, 1000)", row, expBool(true)},
-		{"propC1", "eq(propE2, 0)", row, expNull},
+		{"propC1", "propD1 > 9", row, expBool(true)},
+		{"propC1", "propD1 >= 10", row, expBool(true)},
+		{"propC1", "propD1 < 10", row, expBool(false)},
+		{"propC1", "propD1 <= 10", row, expBool(true)},
+		{"propC1", "propD1 = 10.0", row, expBool(true)},
+		{"propC1", "propD1 != 10", row, expBool(false)},
+		{"propC1", "propA1 = 'abc'", row, expBool(true)},
+		{"propC1", "propA1 > 'abb'", row, expBool(true)},
+		{"propC1", "propG1 = 'BBB'", row, expBool(true)},
+		{"propC1", "foreign1 = '0x0a00'", row, expBool(true)},
+		{"propC1", "foreign2 = '0x0a01'", row, expBool(true)},
+		{"propC1", "propB1 = '0x0a'", row, expBool(true)},
+		{"propC1", "propC1 = true", row, expBool(true)},
+		{"propC1", "propC2 = propC1", row, expBool(false)},
+		{"propC1", "propE1 = 1000", row, expBool(true)},
+		{"propC1", "propE2 = 0", row, expNull},
 		// three-valued logic
 		{"propC1", "propC1 and propC2", row, expBool(false)},
 		{"propC1", "propC1 or propC2", row, expBool(true)},
@@ -206,7 +206,7 @@ func TestCompiledExp_eval(t *testing.T) {
 		{"propC1", "not null", row, expNull},
 		{"propC1", "propC1 and not propC2 or false", row, expBool(true)},
 		// strings
-		{"propA1", "if(gt(propD1, 5), 'big', 'small')", row, expString("big")},
+		{"propA1", "if(propD1 > 5, 'big', 'small')", row, expString("big")},
 		{"propA1", "coalesce(propA2, propA1)", row, expString("abc")},
 		{"propA1", "'it\\'s'", row, expString("it's")},
 		{"propA1", "propA2", row, expNull},
@@ -376,7 +376,7 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 		err := box.Merge(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{"propA": "b"}},
 			Operator: []map[string]Operator{{
-				"propB": exprOp(t, e, "propB", "if(eq(propA, 'a'), propB + 10, -1)"),
+				"propB": exprOp(t, e, "propB", "if(propA = 'a', propB + 10, -1)"),
 				"id":    {},
 			}},
 		})
@@ -544,8 +544,8 @@ func TestController_UpdateWithExpression(t *testing.T) {
 		seed(ps, "e0", "a", 10)
 		ctrl, _ := newCtrl(s)
 		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
-			"propB": exprField("if(eq(propA, 'a'), propB * 2, 0)"),
-			"propA": exprField("if(gt(propB, 5), 'big', 'small')"),
+			"propB": exprField("if(propA = 'a', propB * 2, 0)"),
+			"propA": exprField("if(propB > 5, 'big', 'small')"),
 		}))))
 		// both expressions read the version at block 10
 		assert.Equal(t, map[string]any{"id": "e0", "propA": "big", "propB": int32(20)}, getData(ctrl, "e0", 11))
@@ -582,14 +582,14 @@ func TestController_UpdateWithExpression(t *testing.T) {
 		}))))
 		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
 			"propB": exprField("propB * 2"),
-			"propA": exprField("if(gt(propB, 12), 'big', 'small')"),
+			"propA": exprField("if(propB > 12, 'big', 'small')"),
 		}))))
 		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
 			"propB": addField(1),
 		}))))
 		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
 			"propA": setField(rsh.NewStringValue("set")),
-			"propB": exprField("if(eq(propA, 'big'), propB + 1000, propB)"),
+			"propB": exprField("if(propA = 'big', propB + 1000, propB)"),
 		}))))
 		history, _ := utils.GetFromK2Map(ctrl.changes, "EntityE1", "e0")
 		assert.Len(t, history, 1)
@@ -629,7 +629,7 @@ func TestController_UpdateWithExpression(t *testing.T) {
 			"propA": setField(rsh.NewStringValue("b")),
 		}))))
 		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
-			"propB": exprField("if(eq(propA, 'b'), propB + 1, propB - 1)"),
+			"propB": exprField("if(propA = 'b', propB + 1, propB - 1)"),
 		}))))
 		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
 			"propB": exprField("propB * 10"),

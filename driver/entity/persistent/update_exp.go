@@ -205,6 +205,9 @@ func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, err
 				return kindNull, err
 			}
 		}
+		if op == "/" && isZeroLiteral(e.Arguments[1]) {
+			return kindNull, e.Operator.BuildError("division by zero")
+		}
 		return kindNumber, nil
 	case "and", "or":
 		if err := argc(2); err != nil {
@@ -279,6 +282,15 @@ func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, err
 		return kindNull, e.Operator.BuildError("unsupported operator",
 			fmt.Sprintf(" with %d arguments", len(e.Arguments)))
 	}
+}
+
+// isZeroLiteral reports whether e is a number literal equal to zero, such as 0, 0.0 or -0.
+func isZeroLiteral(e *exp.Exp) bool {
+	if e.Value == nil || !exp.IsNumberLiteral(e.Value.Cnt) {
+		return false
+	}
+	n, err := decimal.NewFromString(e.Value.Cnt)
+	return err == nil && n.IsZero()
 }
 
 func (c *compiledExp) checkValue(entityType *schema.Entity, word *exp.Word) (expKind, error) {

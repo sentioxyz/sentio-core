@@ -76,6 +76,9 @@ func TestCompileUpdateExp_errors(t *testing.T) {
 		{"propD1", "isNull()", "with 0 arguments"},
 		{"propA3", "propA1", "does not support expression"},
 		{"propD1", "propD1 +", "empty expression"},
+		{"propD1", "propD1 / 0", "division by zero"},
+		{"propD1", "propD1 / (0.0)", "division by zero"},
+		{"propD1", "1 / -0", "division by zero"},
 	}
 	for i, c := range cases {
 		field := e.GetFieldByName(c.field)
@@ -172,9 +175,9 @@ func TestCompiledExp_eval(t *testing.T) {
 		{"propD1", "coalesce(propD1, 0) + 1", none, num("1")},
 		{"propD1", "if(exist(), propD1 + 1, 100)", row, num("11")},
 		{"propD1", "if(exist(), propD1 + 1, 100)", none, num("100")},
-		{"propD1", "if(eq(propD2, 1), 1, 2)", row, num("2")}, // null condition takes the false branch
-		{"propD1", "if(true, 1, 1 / 0)", row, num("1")},      // the unused branch is not evaluated
-		{"propD1", "coalesce(1, 1 / 0)", row, num("1")},
+		{"propD1", "if(eq(propD2, 1), 1, 2)", row, num("2")},  // null condition takes the false branch
+		{"propD1", "if(true, 1, 1 / propD2)", none, num("1")}, // the unused branch is not evaluated
+		{"propD1", "coalesce(1, 1 / (propD1 - 10))", row, num("1")},
 		// comparisons
 		{"propC1", "gt(propD1, 9)", row, expBool(true)},
 		{"propC1", "gte(propD1, 10)", row, expBool(true)},

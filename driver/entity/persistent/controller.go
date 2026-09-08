@@ -182,19 +182,23 @@ func (c *Controller) executeEntityOperator(
 		} else {
 			preBox = &history[i-1].EntityBox // always no Operator
 		}
-		var preData map[string]any
-		if preBox != nil && preBox.Data != nil {
-			preData = preBox.Data
-		} else {
-			preData = make(map[string]any)
+		row := expRow{exists: preBox != nil && preBox.Data != nil}
+		if row.exists {
+			row.data = preBox.Data
 		}
 		for fieldName, op := range box.Operator {
 			field := entityType.GetFieldByName(fieldName)
-			originVal, has := preData[fieldName]
+			originVal, has := row.data[fieldName]
 			if !has {
 				_, originVal = buildType(field.Type)
 			}
-			box.Data[fieldName] = calcOperator(field.Type, originVal, op)
+			box.Data[fieldName], err = calcOperator(field.Type, originVal, op, row)
+			if err != nil {
+				return from, fmt.Errorf(
+					"%w: resolve operator %s for %s.%s with id %s failed: %v",
+					ErrInvalidFieldValue, op, entityType.GetFullName(), fieldName, id, err,
+				)
+			}
 		}
 		if err = c.store.CheckValue(entityType, box.Data); err != nil {
 			return from, fmt.Errorf(
@@ -527,9 +531,30 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 		return fmt.Errorf("invalid update for %s/%s in chain %s, latest is %s: %w",
 			entityType.Name, box.ID, c.store.GetChain(), latest.String(), ErrUpdateImmutable)
 	}
+	if box.HasExpression() {
+		// expressions read the version of the entity right before this write; when an earlier
+		// write in the same block still has pending operators, resolve them now so that the
+		// merge below sees concrete values
+		if latest := history.Latest(box.GenBlockNumber); latest != nil &&
+			latest.GenBlockNumber == box.GenBlockNumber && len(latest.Operator) > 0 {
+			if _, err := c.executeEntityOperator(ctx, entityType, box.ID, box.GenBlockNumber); err != nil {
+				logger.Errorfe(err, "resolve pending operators before expression update failed")
+				return err
+			}
+			history, _ = utils.GetFromK2Map(c.changes, entityType.Name, box.ID)
+		}
+	}
 
 	// put into c.changes
-	if merged, mergedBox := history.Push(entityType, &box); merged && mergedBox.Data != nil {
+	merged, mergedBox, err := history.Push(entityType, &box)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: set entity %s/%s in chain %s failed: %v",
+			ErrInvalidFieldValue, entityType.Name,
+			box.ID, c.store.GetChain(), err,
+		)
+	}
+	if merged && mergedBox.Data != nil {
 		if err := c.store.CheckValue(entityType, mergedBox.Data); err != nil {
 			return fmt.Errorf(
 				"%w: set entity %s/%s in chain %s failed: %v",

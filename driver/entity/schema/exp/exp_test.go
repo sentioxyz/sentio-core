@@ -491,3 +491,73 @@ func (c testAliasController) GetOpName(org string) string {
 		return org
 	}
 }
+
+func Test_stringLiteral(t *testing.T) {
+	cases := []struct {
+		exp  string
+		text string
+	}{
+		{"'abc'", "'abc'"},
+		{"eq(a, 'abc')", "eq(a, 'abc')"},
+		{"if(eq(a, 'x y'), 'yes', 'no')", "if(eq(a, 'x y'), 'yes', 'no')"},
+		{`'it\'s'`, `'it\'s'`},
+		{"'a+b'", "'a+b'"},
+		{"'(,)'", "'(,)'"},
+	}
+	for i, c := range cases {
+		e, err := NewExp(c.exp)
+		assert.NoErrorf(t, err, "case #%d: %s", i, c.exp)
+		assert.Equalf(t, c.text, e.String(), "case #%d: %s", i, c.exp)
+	}
+	for i, c := range []string{"'abc", "eq(a, 'abc)", `'abc\'`} {
+		_, err := NewExp(c)
+		assert.ErrorContainsf(t, err, "unterminated string literal", "case #%d: %s", i, c)
+	}
+}
+
+func Test_unquoteStringLiteral(t *testing.T) {
+	for i, c := range []struct{ in, want string }{
+		{"'abc'", "abc"},
+		{"''", ""},
+		{`'it\'s'`, "it's"},
+		{`'a\\b'`, `a\b`},
+	} {
+		got, err := UnquoteStringLiteral(c.in)
+		assert.NoErrorf(t, err, "case #%d", i)
+		assert.Equalf(t, c.want, got, "case #%d", i)
+	}
+	assert.False(t, IsStringLiteral("abc"))
+	assert.False(t, IsStringLiteral("'"))
+	_, err := UnquoteStringLiteral("abc")
+	assert.Error(t, err)
+}
+
+func Test_negativeNumber(t *testing.T) {
+	cases := []struct {
+		exp  string
+		text string
+	}{
+		{"-1", "-1"},
+		{"(-1)", "-1"},
+		{"a * -1", "a * -1"},
+		{"a - -1", "a - -1"},
+		{"a - 1", "a - 1"},
+		{"a -1", "a - 1"},
+		{"max(-1.5, a)", "max(-1.5, a)"},
+		{"-1 + a", "-1 + a"},
+		{"a and -1", "a and -1"},
+	}
+	for i, c := range cases {
+		e, err := NewExp(c.exp)
+		assert.NoErrorf(t, err, "case #%d: %s", i, c.exp)
+		assert.Equalf(t, c.text, e.String(), "case #%d: %s", i, c.exp)
+	}
+	assert.True(t, IsNumberLiteral("-1"))
+	assert.True(t, IsNumberLiteral("1.5"))
+	assert.True(t, IsNumberLiteral("1e18"))
+	assert.False(t, IsNumberLiteral("a1"))
+	assert.False(t, IsNumberLiteral("-a"))
+	// a leading '-' before a variable stays a binary operator and is still rejected
+	_, err := NewExp("-a")
+	assert.Error(t, err)
+}

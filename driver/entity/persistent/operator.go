@@ -23,12 +23,38 @@ func (o OperatorNumCalc) Calc(origin decimal.Decimal) decimal.Decimal {
 	return origin.Mul(multi).Add(add)
 }
 
+// Operator describes how the new value of a field derives from the previous version of the entity:
+//
+//	newValue = NumCalc(Exp(previousEntity))
+//
+// Exp, when set, is evaluated first against the whole previous entity (it may reference other
+// fields); NumCalc, when set, is then applied to that result (or to the previous value of the
+// field itself when Exp is nil). An Operator with neither keeps the latest value of the field.
 type Operator struct {
+	Exp     *compiledExp
 	NumCalc *OperatorNumCalc
 }
 
+func richValueText(v *protos.RichValue) string {
+	text, _ := rsh.GetString(v)
+	return text
+}
+
 func (o Operator) RemainLatest() bool {
-	return o.NumCalc == nil
+	return o.Exp == nil && o.NumCalc == nil
+}
+
+func (o Operator) String() string {
+	switch {
+	case o.Exp != nil && o.NumCalc != nil:
+		return fmt.Sprintf("(%s)*%s+%s", o.Exp, richValueText(o.NumCalc.Multi), richValueText(o.NumCalc.Add))
+	case o.Exp != nil:
+		return o.Exp.String()
+	case o.NumCalc != nil:
+		return fmt.Sprintf("x*%s+%s", richValueText(o.NumCalc.Multi), richValueText(o.NumCalc.Add))
+	default:
+		return "x"
+	}
 }
 
 func checkNumCalcValueTypeMatch(typ types.Type, val *protos.RichValue) error {
@@ -53,57 +79,93 @@ func checkNumCalcValueTypeMatch(typ types.Type, val *protos.RichValue) error {
 	return fmt.Errorf("type %s is not support NumCalc operator with value %T %s", typ.String(), val, v)
 }
 
-func mergeOperator(typ types.Type, op1, op2 Operator) Operator {
+// mergeOperator composes two operators applied one after the other: op2(op1(x)).
+//
+// op2 must not carry an expression: an expression reads the previous version of the whole
+// entity, which is only known once op1 has been resolved, so the caller has to resolve pending
+// operators before pushing an expression on top of them (see Controller.SetEntity).
+func mergeOperator(typ types.Type, op1, op2 Operator) (Operator, error) {
 	if op1.RemainLatest() {
-		return op2
+		return op2, nil
 	}
 	if op2.RemainLatest() {
-		return op1
+		return op1, nil
+	}
+	if op2.Exp != nil {
+		return Operator{}, fmt.Errorf("cannot merge expression %s on top of unresolved operator %s", op2, op1)
+	}
+	numCalc, err := mergeNumCalc(typ, op1.NumCalc, op2.NumCalc)
+	if err != nil {
+		return Operator{}, err
+	}
+	return Operator{Exp: op1.Exp, NumCalc: numCalc}, nil
+}
+
+// mergeNumCalc composes two affine calculations: (x * m1 + a1) * m2 + a2 = x * (m1 * m2) + (a1 * m2 + a2)
+func mergeNumCalc(typ types.Type, c1, c2 *OperatorNumCalc) (*OperatorNumCalc, error) {
+	if c1 == nil {
+		return c2, nil
+	}
+	if c2 == nil {
+		return c1, nil
 	}
 	typeChain := schema.BreakType(typ)
 	if typeChain.CountListLayer() > 0 {
-		panic(fmt.Errorf("type %s is not support NumCalc operator", typ.String()))
+		return nil, fmt.Errorf("type %s is not support NumCalc operator", typ.String())
 	}
 	innerType := typeChain.InnerType()
 	scalarType, is := innerType.(*types.ScalarTypeDefinition)
 	if !is {
-		panic(fmt.Errorf("type %s is not support NumCalc operator", typ.String()))
+		return nil, fmt.Errorf("type %s is not support NumCalc operator", typ.String())
 	}
-	// op1 and op2 are both NumCalc operator,
-	// (x * m1 + a1) * m2 + a2 = x * (m1 * m2) + (a1 * m2 + a2)
 	switch scalarType.Name {
 	case "Int", "Int8", "BigInt":
-		m1, _ := rsh.GetBigInt(op1.NumCalc.Multi)
-		a1, _ := rsh.GetBigInt(op1.NumCalc.Add)
-		m2, _ := rsh.GetBigInt(op2.NumCalc.Multi)
-		a2, _ := rsh.GetBigInt(op2.NumCalc.Add)
-		return Operator{
-			NumCalc: &OperatorNumCalc{
-				Multi: rsh.NewBigIntValue(new(big.Int).Mul(m1, m2)),
-				Add:   rsh.NewBigIntValue(new(big.Int).Add(new(big.Int).Mul(a1, m2), a2)),
-			},
-		}
+		m1, _ := rsh.GetBigInt(c1.Multi)
+		a1, _ := rsh.GetBigInt(c1.Add)
+		m2, _ := rsh.GetBigInt(c2.Multi)
+		a2, _ := rsh.GetBigInt(c2.Add)
+		return &OperatorNumCalc{
+			Multi: rsh.NewBigIntValue(new(big.Int).Mul(m1, m2)),
+			Add:   rsh.NewBigIntValue(new(big.Int).Add(new(big.Int).Mul(a1, m2), a2)),
+		}, nil
 	case "Float", "BigDecimal":
-		m1, _ := rsh.GetBigDecimal(op1.NumCalc.Multi)
-		a1, _ := rsh.GetBigDecimal(op1.NumCalc.Add)
-		m2, _ := rsh.GetBigDecimal(op2.NumCalc.Multi)
-		a2, _ := rsh.GetBigDecimal(op2.NumCalc.Add)
-		return Operator{
-			NumCalc: &OperatorNumCalc{
-				Multi: rsh.NewBigDecimalValue(m1.Mul(m2)),
-				Add:   rsh.NewBigDecimalValue(a1.Mul(m2).Add(a2)),
-			},
-		}
+		m1, _ := rsh.GetBigDecimal(c1.Multi)
+		a1, _ := rsh.GetBigDecimal(c1.Add)
+		m2, _ := rsh.GetBigDecimal(c2.Multi)
+		a2, _ := rsh.GetBigDecimal(c2.Add)
+		return &OperatorNumCalc{
+			Multi: rsh.NewBigDecimalValue(m1.Mul(m2)),
+			Add:   rsh.NewBigDecimalValue(a1.Mul(m2).Add(a2)),
+		}, nil
 	default:
-		panic(fmt.Errorf("type %s is not support NumCalc operator", typ.String()))
+		return nil, fmt.Errorf("type %s is not support NumCalc operator", typ.String())
 	}
 }
 
-func calcOperator(typ types.Type, originVal any, operator Operator) any {
+// calcOperator resolves an operator: originVal is the previous value of the field itself and row
+// is the previous version of the whole entity, which expressions read their references from.
+func calcOperator(typ types.Type, originVal any, operator Operator, row expRow) (any, error) {
 	if operator.RemainLatest() {
 		// just use origin value
-		return originVal
+		return originVal, nil
 	}
+	if operator.Exp != nil {
+		result, err := operator.Exp.eval(row)
+		if err != nil {
+			return nil, err
+		}
+		if originVal, err = expValueToField(typ, result); err != nil {
+			return nil, err
+		}
+		if operator.NumCalc == nil {
+			return originVal, nil
+		}
+	}
+	return calcNumCalc(typ, originVal, operator.NumCalc), nil
+}
+
+func calcNumCalc(typ types.Type, originVal any, numCalc *OperatorNumCalc) any {
+	operator := Operator{NumCalc: numCalc}
 	typeChain := schema.BreakType(typ)
 	if typeChain.CountListLayer() > 0 {
 		panic(fmt.Errorf("type %s is not support operator", typ.String()))

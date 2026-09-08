@@ -71,24 +71,24 @@ func TestChangeHistory_Push_ReturnValues(t *testing.T) {
 
 	var his changeHistory
 	box1 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-1", Data: map[string]any{"propB": int32(1)}}}
-	merged, mergedBox := his.Push(eType, box1)
+	merged, mergedBox, _ := his.Push(eType, box1)
 	assert.False(t, merged, "first push to an empty history must not be a merge")
 	assert.Same(t, box1, mergedBox, "mergedBox must point to the pushed entry")
 
 	box2 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-2", Data: map[string]any{"propB": int32(2)}}}
-	merged, mergedBox = his.Push(eType, box2)
+	merged, mergedBox, _ = his.Push(eType, box2)
 	assert.True(t, merged, "second push with the same block number must be a merge")
 	assert.Same(t, his[0], mergedBox, "mergedBox must point to the in-history entry, not the argument")
 
 	// Push at a different (earlier) block: not a merge.
 	box3 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3, GenBlockHash: "3-1", Data: map[string]any{"propB": int32(3)}}}
-	merged, mergedBox = his.Push(eType, box3)
+	merged, mergedBox, _ = his.Push(eType, box3)
 	assert.False(t, merged)
 	assert.Same(t, his[0], mergedBox, "mergedBox must be the newly inserted entry (his[0])")
 
 	// Merge into the earlier block.
 	box4 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3, GenBlockHash: "3-2", Data: map[string]any{"propB": int32(4)}}}
-	merged, mergedBox = his.Push(eType, box4)
+	merged, mergedBox, _ = his.Push(eType, box4)
 	assert.True(t, merged)
 	assert.Same(t, his[0], mergedBox)
 }

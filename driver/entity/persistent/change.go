@@ -98,22 +98,24 @@ func (ch *changeHistory) Split(blockNumber uint64) changeHistory {
 func (ch *changeHistory) Push(
 	entityType *schema.Entity,
 	nw *UncommittedEntityBox,
-) (merged bool, mergedBox *UncommittedEntityBox) {
+) (merged bool, mergedBox *UncommittedEntityBox, err error) {
 	i := ch.Count(nw.GenBlockNumber)
 	if i > 0 && (*ch)[i-1].GenBlockNumber == nw.GenBlockNumber {
 		// just override (*ch)[i-1]
-		(*ch)[i-1].Merge(entityType, nw)
-		return true, (*ch)[i-1]
+		if err = (*ch)[i-1].Merge(entityType, nw); err != nil {
+			return true, (*ch)[i-1], err
+		}
+		return true, (*ch)[i-1], nil
 	}
 	// rebuild the history by [ch[:i] + nw + ch[i:]]
 	if i == len(*ch) {
 		*ch = append(*ch, nw)
-		return false, nw
+		return false, nw, nil
 	}
 	*ch = append(*ch, nil)
 	for j := len(*ch) - 1; j > i; j-- {
 		(*ch)[j] = (*ch)[j-1]
 	}
 	(*ch)[i] = nw
-	return false, nw
+	return false, nw, nil
 }

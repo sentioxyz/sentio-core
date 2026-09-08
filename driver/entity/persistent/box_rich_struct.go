@@ -389,6 +389,13 @@ func (e *UncommittedEntityBox) FromEntityUpdateData(
 				return fmt.Errorf("operator value type for %s.%s is not match: %w", entityType.Name, fieldName, err)
 			}
 			e.Operator[fieldName] = op
+		case entityProtos.EntityUpdateData_EXPRESSION:
+			compiled, compileErr := compileUpdateExp(entityType, field, fieldValue.GetExpression())
+			if compileErr != nil {
+				return fmt.Errorf("invalid expression %q for %s.%s: %w",
+					fieldValue.GetExpression(), entityType.Name, fieldName, compileErr)
+			}
+			e.Operator[fieldName] = Operator{Exp: compiled}
 		default:
 			return fmt.Errorf("unknown operator type %s for %s.%s", fieldValue.GetOp().String(), entityType.Name, fieldName)
 		}

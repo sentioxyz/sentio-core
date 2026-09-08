@@ -50,6 +50,68 @@ func _inWord(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '.'
 }
 
+// IsStringLiteral reports whether a word is a single-quoted string literal such as 'abc'.
+func IsStringLiteral(cnt string) bool {
+	return len(cnt) >= 2 && cnt[0] == '\'' && cnt[len(cnt)-1] == '\''
+}
+
+// UnquoteStringLiteral strips the quotes from a string literal and resolves the \' and \\ escapes.
+func UnquoteStringLiteral(cnt string) (string, error) {
+	if !IsStringLiteral(cnt) {
+		return "", fmt.Errorf("'%s' is not a string literal", cnt)
+	}
+	var buf bytes.Buffer
+	body := cnt[1 : len(cnt)-1]
+	for i := 0; i < len(body); i++ {
+		if body[i] == '\\' {
+			i++
+			if i >= len(body) {
+				return "", fmt.Errorf("invalid escape at the end of string literal %s", cnt)
+			}
+		}
+		buf.WriteByte(body[i])
+	}
+	return buf.String(), nil
+}
+
+// IsNumberLiteral reports whether a word looks like a number, e.g. 1, -2, 3.5, 1e18.
+func IsNumberLiteral(cnt string) bool {
+	if len(cnt) > 0 && cnt[0] == '-' {
+		cnt = cnt[1:]
+	}
+	return len(cnt) > 0 && (cnt[0] >= '0' && cnt[0] <= '9' || cnt[0] == '.')
+}
+
+// _mergeNegativeNumbers turns a '-' word directly followed by a number into a single negative
+// number literal when the '-' cannot be a binary operator, i.e. it is the first word or it
+// follows an operator, '(' or ','.
+func _mergeNegativeNumbers(words []Word) []Word {
+	out := words[:0]
+	for i := 0; i < len(words); i++ {
+		w := words[i]
+		if w.Cnt == "-" && i+1 < len(words) && IsNumberLiteral(words[i+1].Cnt) &&
+			words[i+1].S == w.E+1 && !IsStringLiteral(words[i+1].Cnt) {
+			unary := len(out) == 0
+			if !unary {
+				switch strings.ToLower(out[len(out)-1].Cnt) {
+				case "+", "-", "*", "/", "(", ",", "and", "or", "not":
+					unary = true
+				}
+			}
+			if unary {
+				out = append(out, Word{
+					Cnt:      "-" + words[i+1].Cnt,
+					Position: Position{S: w.S, E: words[i+1].E},
+				})
+				i++
+				continue
+			}
+		}
+		out = append(out, w)
+	}
+	return out
+}
+
 func _splitExp(exp string) (words []Word, err error) {
 	// split words
 	s := 0
@@ -67,6 +129,26 @@ func _splitExp(exp string) (words []Word, err error) {
 				},
 			})
 			s++
+		case '\'':
+			// string literal, keep the quotes so the consumer can tell it apart from a variable
+			e := s + 1
+			for e < len(exp) && exp[e] != '\'' {
+				if exp[e] == '\\' {
+					e++
+				}
+				e++
+			}
+			if e >= len(exp) {
+				return nil, fmt.Errorf("unterminated string literal at expression[%d]", s)
+			}
+			words = append(words, Word{
+				Cnt: exp[s : e+1],
+				Position: Position{
+					S: s,
+					E: e,
+				},
+			})
+			s = e + 1
 		default:
 			if _inWord(c) {
 				// var or function or const
@@ -87,6 +169,7 @@ func _splitExp(exp string) (words []Word, err error) {
 			}
 		}
 	}
+	words = _mergeNegativeNumbers(words)
 	// fill level for words
 	if len(words) == 0 {
 		return nil, nil

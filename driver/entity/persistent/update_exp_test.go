@@ -420,6 +420,37 @@ func TestFromEntityUpdateData_expression(t *testing.T) {
 	assert.False(t, box.HasExpression())
 }
 
+func TestFromEntityUpdateData_fullSetIsUpsert(t *testing.T) {
+	sch, err := schema.ParseAndVerifySchema(testSchema)
+	assert.NoError(t, err)
+	e := sch.GetEntity("EntityE1")
+
+	var box UncommittedEntityBox
+	assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
+		"id":    setField(rsh.NewStringValue("e")),
+		"propA": setField(rsh.NewStringValue("a")),
+		"propB": setField(rsh.NewIntValue(1)),
+	})))
+	assert.True(t, box.Resolved())
+	assert.Equal(t, map[string]any{"id": "e", "propA": "a", "propB": int32(1)}, box.Data)
+
+	// one field missing, or one field not a SET: still an update
+	assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
+		"id":    setField(rsh.NewStringValue("e")),
+		"propA": setField(rsh.NewStringValue("a")),
+	})))
+	assert.False(t, box.Resolved())
+	assert.Empty(t, box.Data)
+	assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
+		"id":    setField(rsh.NewStringValue("e")),
+		"propA": setField(rsh.NewStringValue("a")),
+		"propB": addField(1),
+	})))
+	assert.False(t, box.Resolved())
+	assert.Empty(t, box.Data)
+	assert.Len(t, box.Operator[0], 3)
+}
+
 // ─── Merge ───────────────────────────────────────────────────────────────────
 
 // mergeInto applies newOne on top of box in place, as SetEntity does after validation.
@@ -878,33 +909,62 @@ func TestController_UpdateValidationIsAtomic(t *testing.T) {
 	})
 }
 
-func TestController_UpdateTimeSeriesRejected(t *testing.T) {
+func TestController_UpdateImmutableRejected(t *testing.T) {
 	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
-	e := sch.GetEntity("EntityTS")
 	ctx := context.Background()
-	_, s := newTestStore(sch, "mainnet")
-	ctrl, _ := newCtrl(s)
 
-	// every write of a time series entity is a new row, so an update has nothing to correct
-	box := UncommittedEntityBox{EntityBox: EntityBox{ID: "0", GenBlockNumber: 11, GenBlockTime: time.Now()}}
-	assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
-		"propA": setField(rsh.NewStringValue("x")),
-	})))
-	err = ctrl.SetEntity(ctx, e, box)
-	assert.ErrorIs(t, err, ErrUpdateImmutable)
-	assert.ErrorContains(t, err, "update timeseries entity EntityTS")
-	assert.Empty(t, ctrl.changes)
+	t.Run("immutable entity", func(t *testing.T) {
+		e := sch.GetEntity("EntityIM")
+		_, s := newTestStore(sch, "mainnet")
+		ctrl, _ := newCtrl(s)
 
-	// an upsert is fine and gets the block timestamp
-	blockTime := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
-	assert.NoError(t, ctrl.SetEntity(ctx, e, UncommittedEntityBox{EntityBox: EntityBox{
-		ID: "0", GenBlockNumber: 11, GenBlockTime: blockTime,
-		Data: map[string]any{"id": int64(0), "propA": "x", "propB": int32(1)},
-	}}))
-	for id := range ctrl.changes["EntityTS"] {
-		got, err := ctrl.GetEntity(ctx, e, id, 11)
+		box := UncommittedEntityBox{EntityBox: EntityBox{ID: "i0", GenBlockNumber: 11}}
+		assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
+			"propA": setField(rsh.NewStringValue("x")),
+		})))
+		err := ctrl.SetEntity(ctx, e, box)
+		assert.ErrorIs(t, err, ErrUpdateImmutable)
+		assert.ErrorContains(t, err, "update immutable entity EntityIM")
+		assert.Empty(t, ctrl.changes)
+
+		// an update that sets every field is an upsert and creates the entity
+		box = UncommittedEntityBox{EntityBox: EntityBox{ID: "i0", GenBlockNumber: 11}}
+		assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
+			"id":    setField(rsh.NewStringValue("i0")),
+			"propA": setField(rsh.NewStringValue("x")),
+			"propB": setField(rsh.NewIntValue(1)),
+		})))
+		assert.NoError(t, ctrl.SetEntity(ctx, e, box))
+		got, err := ctrl.GetEntity(ctx, e, "i0", 11)
 		assert.NoError(t, err)
-		assert.Equal(t, blockTime.UnixMicro(), got.Data["timestamp"])
-	}
+		assert.Equal(t, map[string]any{"id": "i0", "propA": "x", "propB": int32(1)}, got.Data)
+	})
+
+	t.Run("timeseries entity", func(t *testing.T) {
+		e := sch.GetEntity("EntityTS")
+		_, s := newTestStore(sch, "mainnet")
+		ctrl, _ := newCtrl(s)
+
+		// every write of a time series entity is a new row, so an update has nothing to correct
+		box := UncommittedEntityBox{EntityBox: EntityBox{ID: "0", GenBlockNumber: 11, GenBlockTime: time.Now()}}
+		assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
+			"propA": setField(rsh.NewStringValue("x")),
+		})))
+		err := ctrl.SetEntity(ctx, e, box)
+		assert.ErrorIs(t, err, ErrUpdateImmutable)
+		assert.Empty(t, ctrl.changes)
+
+		// an upsert is fine and gets the block timestamp
+		blockTime := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+		assert.NoError(t, ctrl.SetEntity(ctx, e, UncommittedEntityBox{EntityBox: EntityBox{
+			ID: "0", GenBlockNumber: 11, GenBlockTime: blockTime,
+			Data: map[string]any{"id": int64(0), "propA": "x", "propB": int32(1)},
+		}}))
+		for id := range ctrl.changes["EntityTS"] {
+			got, err := ctrl.GetEntity(ctx, e, id, 11)
+			assert.NoError(t, err)
+			assert.Equal(t, blockTime.UnixMicro(), got.Data["timestamp"])
+		}
+	})
 }

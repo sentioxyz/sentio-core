@@ -513,15 +513,15 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "box", box.String())
 
+	if entityType.IsImmutable() && !box.Resolved() {
+		// an update reads and corrects the previous version, which an immutable entity must not
+		// have; an update that sets every field is already an upsert (see FromEntityUpdateData)
+		return fmt.Errorf("%w: update immutable entity %s in chain %s, use upsert",
+			ErrUpdateImmutable, entityType.Name, c.store.GetChain())
+	}
 	if entityType.IsTimeSeries() {
 		if box.Data == nil {
 			return fmt.Errorf("%w: delete timeseries entity %s in chain %s",
-				ErrUpdateImmutable, entityType.Name, c.store.GetChain())
-		}
-		if !box.Resolved() {
-			// every write of a time series entity is a new row, there is no previous version an
-			// update could correct
-			return fmt.Errorf("%w: update timeseries entity %s in chain %s, use upsert",
 				ErrUpdateImmutable, entityType.Name, c.store.GetChain())
 		}
 		// id of time series entity can be auto-incremented

@@ -402,6 +402,24 @@ func (e *UncommittedEntityBox) FromEntityUpdateData(
 			return fmt.Errorf("unknown operator type %s for %s.%s", fieldValue.GetOp().String(), entityType.Name, fieldName)
 		}
 	}
+	if len(lostFields) == 0 {
+		// every field is present: when all of them are SET the request replaces the whole entity,
+		// which is an upsert; keep it concrete so that it does not depend on the previous version
+		allSet := true
+		for _, op := range round {
+			if op.Set == nil {
+				allSet = false
+				break
+			}
+		}
+		if allSet {
+			for fieldName, op := range round {
+				e.Data[fieldName] = op.Set.Value
+			}
+			e.Operator = nil
+			return
+		}
+	}
 	for fieldName := range lostFields {
 		// lost field use latest value
 		round[fieldName] = Operator{}

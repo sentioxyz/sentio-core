@@ -166,6 +166,12 @@ type EntityE2 implements EntityE @entity {
 	propB: String!
 }
 
+type EntityIM @entity(immutable: true) {
+	id: ID!
+	propA: String!
+	propB: Int!
+}
+
 type EntityTS @entity(timeseries: true) {
 	id: Int8!
 	timestamp: Timestamp!

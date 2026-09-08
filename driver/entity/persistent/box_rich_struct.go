@@ -421,6 +421,12 @@ func (e *UncommittedEntityBox) FromEntityUpdateData(
 		}
 	}
 	for fieldName := range lostFields {
+		if fieldName == schema.EntityPrimaryFieldName {
+			// the primary key of a row is its box ID, also when the update creates the entity;
+			// keeping the latest value would leave the zero value in the row until it is stored
+			round[fieldName] = Operator{Set: &operatorSet{Value: e.ID}}
+			continue
+		}
 		// lost field use latest value
 		round[fieldName] = Operator{}
 	}

@@ -422,6 +422,25 @@ func TestFromEntityUpdateData_expression(t *testing.T) {
 	assert.False(t, box.HasExpression())
 }
 
+func TestFromEntityUpdateData_primaryKey(t *testing.T) {
+	sch, err := schema.ParseAndVerifySchema(testSchema)
+	assert.NoError(t, err)
+	e := sch.GetEntity("EntityE1")
+
+	// an update that does not mention id gets it from the box, so a created entity carries its id
+	box := UncommittedEntityBox{EntityBox: EntityBox{ID: "e"}}
+	assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{"propB": addField(1)})))
+	assert.Equal(t, Operator{Set: &operatorSet{Value: "e"}}, box.Operator[0]["id"])
+	assert.True(t, box.Operator[0]["propA"].RemainLatest())
+
+	// an explicit id is kept as sent
+	assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
+		"id":    setField(rsh.NewStringValue("other")),
+		"propB": addField(1),
+	})))
+	assert.Equal(t, Operator{Set: &operatorSet{Value: "other"}}, box.Operator[0]["id"])
+}
+
 func TestFromEntityUpdateData_fullSetIsUpsert(t *testing.T) {
 	sch, err := schema.ParseAndVerifySchema(testSchema)
 	assert.NoError(t, err)
@@ -673,13 +692,13 @@ func TestController_UpdateWithExpression(t *testing.T) {
 			"propB": exprField("coalesce(propB, 0) + 1"),
 			"propA": exprField("if(exist(), 'old', 'new')"),
 		}))))
-		assert.Equal(t, map[string]any{"id": "", "propA": "new", "propB": int32(1)}, getData(ctrl, "e1", 11))
+		assert.Equal(t, map[string]any{"id": "e1", "propA": "new", "propB": int32(1)}, getData(ctrl, "e1", 11))
 
 		// a null result for a non-null field is left as nil for CheckValue to reject
 		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e2", 11, updateReq(fieldValues{
 			"propB": exprField("propB + 1"),
 		}))))
-		assert.Equal(t, map[string]any{"id": "", "propA": "", "propB": nil}, getData(ctrl, "e2", 11))
+		assert.Equal(t, map[string]any{"id": "e2", "propA": "", "propB": nil}, getData(ctrl, "e2", 11))
 		_ = ps
 	})
 

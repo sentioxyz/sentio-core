@@ -26,14 +26,14 @@ func TestChangeHistory_Push(t *testing.T) {
 			GenBlockHash:   "3-2",
 			Data:           map[string]any{},
 		},
-		Operator: map[string]Operator{
+		Operator: []map[string]Operator{{
 			"propB": {
 				NumCalc: &OperatorNumCalc{
 					Multi: rsh.NewIntValue(1),
 					Add:   rsh.NewIntValue(1234),
 				},
 			},
-		},
+		}},
 	})
 	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-1", Data: map[string]any{"propB": int32(3)}}})
 	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-2", Data: map[string]any{"propB": int32(4)}}})

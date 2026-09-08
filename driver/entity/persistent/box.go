@@ -87,27 +87,65 @@ func SortEntityBoxes(list []*EntityBox) {
 	})
 }
 
+// UncommittedEntityBox is the pending state of one entity in one block.
+//
+// Data holds the concrete values known so far. Operator holds the rounds of corrections that still
+// have to be applied on top of the previous version of the entity, in order: every round maps a
+// field to the one correction (a value, an affine calculation or an expression) that round makes to
+// it, and a field absent from a round is untouched by it. A write in the block usually folds into
+// the first round, because SET values are concrete and affine calculations compose; a write whose
+// expression reads a field that is still pending is appended as a new round instead, so that it
+// reads the resolved result of the rounds before it.
 type UncommittedEntityBox struct {
 	EntityBox
 
-	Operator map[string]Operator
+	Operator []map[string]Operator
 }
 
-// HasExpression reports whether any operator of the box carries an expression.
+// Resolved reports whether Data holds the final state, i.e. no round is pending.
+func (e *UncommittedEntityBox) Resolved() bool {
+	return len(e.Operator) == 0
+}
+
+// HasExpression reports whether any pending correction carries an expression.
 func (e *UncommittedEntityBox) HasExpression() bool {
-	for _, op := range e.Operator {
-		if op.Exp != nil {
-			return true
+	for _, round := range e.Operator {
+		for _, op := range round {
+			if op.Exp != nil {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// Merge folds newOne, a later write in the same block, into e.
-//
-// Expressions in newOne read the state of the entity right before newOne, i.e. e as it is on
-// entry. That state must be concrete: when newOne carries an expression, e must not have any
-// pending operator left (Controller.SetEntity resolves them beforehand).
+// firstRound returns the first pending round, creating it when needed.
+func (e *UncommittedEntityBox) firstRound() map[string]Operator {
+	if len(e.Operator) == 0 {
+		e.Operator = []map[string]Operator{make(map[string]Operator)}
+	}
+	return e.Operator[0]
+}
+
+// readsPendingField reports whether an expression of e references a field that has no concrete
+// value in Data of layer yet.
+func (e *UncommittedEntityBox) readsPendingField(layer *UncommittedEntityBox) bool {
+	for _, round := range e.Operator {
+		for _, op := range round {
+			if op.Exp == nil {
+				continue
+			}
+			for _, fieldName := range op.Exp.fields {
+				if _, has := layer.Data[fieldName]; !has {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// Merge applies newOne, a later write in the same block, on top of e.
 func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *UncommittedEntityBox) error {
 	if e.ID != newOne.ID {
 		return fmt.Errorf("merge entity with different ID")
@@ -119,6 +157,7 @@ func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *Uncommit
 	e.GenBlockTime = newOne.GenBlockTime
 	e.GenBlockHash = newOne.GenBlockHash
 	if newOne.Data == nil {
+		// deleted, nothing before matters anymore
 		e.Data, e.Operator = nil, nil
 		return nil
 	}
@@ -126,19 +165,45 @@ func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *Uncommit
 		// the entity was deleted earlier in this block, so newOne sees no previous version
 		row := expRow{exists: false}
 		e.Data, e.Operator = newOne.Data, nil
-		for fieldName, op := range newOne.Operator {
-			field := entityType.GetFieldByName(fieldName)
-			_, zeroVal := buildType(field.Type)
-			var err error
-			if e.Data[fieldName], err = calcOperator(field.Type, zeroVal, op, row); err != nil {
-				return fmt.Errorf("resolve operator %s for %s.%s failed: %w", op, entityType.Name, fieldName, err)
+		for _, round := range newOne.Operator {
+			for fieldName, op := range round {
+				field := entityType.GetFieldByName(fieldName)
+				_, zeroVal := buildType(field.Type)
+				var err error
+				if e.Data[fieldName], err = calcOperator(field.Type, zeroVal, op, row); err != nil {
+					return fmt.Errorf("resolve operator %s for %s.%s failed: %w", op, entityType.Name, fieldName, err)
+				}
 			}
 		}
 		return nil
 	}
-	if newOne.HasExpression() && len(e.Operator) > 0 {
-		return fmt.Errorf("cannot merge an expression update on top of unresolved operators")
+	if len(e.Operator) > 1 || newOne.readsPendingField(e) {
+		e.appendRound(newOne)
+		return nil
 	}
+	return e.fold(entityType, newOne)
+}
+
+// appendRound keeps newOne as a round of its own after every pending round of e.
+func (e *UncommittedEntityBox) appendRound(newOne *UncommittedEntityBox) {
+	round := make(map[string]Operator)
+	for fieldName, val := range newOne.Data {
+		round[fieldName] = Operator{Set: &OperatorSet{Value: val}}
+	}
+	for _, newRound := range newOne.Operator {
+		for fieldName, op := range newRound {
+			if op.RemainLatest() {
+				continue
+			}
+			round[fieldName] = op
+		}
+	}
+	e.Operator = append(e.Operator, round)
+}
+
+// fold merges newOne into Data and the first round of e. Expressions in newOne read the state of
+// e on entry, and every field they reference must already be concrete in e.Data.
+func (e *UncommittedEntityBox) fold(entityType *schema.Entity, newOne *UncommittedEntityBox) error {
 	// ===: has value
 	// +++: has operator
 	//
@@ -147,36 +212,58 @@ func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *Uncommit
 	// ret === === === +++
 	//     (1) (2) (3) (4)
 	//
+	// (0) Calc Expression, always concrete here
 	// (1) Calc Operator
 	// (2) Cover
 	// (3) Cover
 	// (4) Merge Operator
+	var newOps map[string]Operator
+	if len(newOne.Operator) > 0 {
+		newOps = newOne.Operator[0]
+	}
 	row := expRow{exists: true, data: e.Data}
-	if newOne.HasExpression() {
-		// expressions must read the state before (2) & (3) are applied
-		row.data = utils.CopyMap(e.Data)
+	expResults := make(map[string]any)
+	for fieldName, op := range newOps {
+		if op.Exp == nil {
+			continue
+		}
+		// (0) expressions read the state before this write, so they go before any field is covered
+		field := entityType.GetFieldByName(fieldName)
+		var err error
+		if expResults[fieldName], err = calcOperator(field.Type, nil, op, row); err != nil {
+			return fmt.Errorf("resolve operator %s for %s.%s failed: %w", op, entityType.Name, fieldName, err)
+		}
 	}
 	for fieldName, val := range newOne.Data {
 		// (2) & (3)
 		e.Data[fieldName] = val
 	}
+	var oldOps map[string]Operator
+	if len(e.Operator) > 0 {
+		oldOps = e.Operator[0]
+	}
 	newOperators := make(map[string]Operator)
-	for fieldName, op := range newOne.Operator {
+	for fieldName, op := range newOps {
+		if val, has := expResults[fieldName]; has {
+			e.Data[fieldName] = val
+			continue
+		}
 		field := entityType.GetFieldByName(fieldName)
-		var err error
 		if originVal, has := e.Data[fieldName]; has {
 			// (1)
+			var err error
 			if e.Data[fieldName], err = calcOperator(field.Type, originVal, op, row); err != nil {
 				return fmt.Errorf("resolve operator %s for %s.%s failed: %w", op, entityType.Name, fieldName, err)
 			}
 		} else {
 			// (4)
-			preOp := e.Operator[fieldName]
-			if newOperators[fieldName], err = mergeOperator(field.Type, preOp, op); err != nil {
-				return fmt.Errorf("merge operator for %s.%s failed: %w", entityType.Name, fieldName, err)
-			}
+			newOperators[fieldName] = mergeOperator(field.Type, oldOps[fieldName], op)
 		}
 	}
-	e.Operator = newOperators
+	if len(newOperators) == 0 {
+		e.Operator = nil
+	} else {
+		e.Operator = []map[string]Operator{newOperators}
+	}
 	return nil
 }

@@ -21,14 +21,6 @@ func numEntity(t *testing.T) *schema.Entity {
 	return sch.GetEntity("EntityD")
 }
 
-// mustMergeOperator wraps mergeOperator for operators that are known to compose.
-func mustMergeOperator(t *testing.T, typ types.Type, op1, op2 Operator) Operator {
-	t.Helper()
-	op, err := mergeOperator(typ, op1, op2)
-	assert.NoError(t, err)
-	return op
-}
-
 // mustCalcOperator wraps calcOperator for operators that do not read other fields.
 func mustCalcOperator(t *testing.T, typ types.Type, originVal any, op Operator) any {
 	t.Helper()
@@ -104,15 +96,15 @@ func TestMergeOperator(t *testing.T) {
 		remain := Operator{} // NumCalc == nil → RemainLatest
 
 		// remain ∘ op → op unchanged
-		m1 := mustMergeOperator(t, field.Type, remain, op)
+		m1 := mergeOperator(field.Type, remain, op)
 		assert.Equal(t, decimal.NewFromInt(13), m1.NumCalc.Calc(decimal.NewFromInt(5)))
 
 		// op ∘ remain → op unchanged
-		m2 := mustMergeOperator(t, field.Type, op, remain)
+		m2 := mergeOperator(field.Type, op, remain)
 		assert.Equal(t, decimal.NewFromInt(13), m2.NumCalc.Calc(decimal.NewFromInt(5)))
 
 		// remain ∘ remain → remain
-		assert.True(t, mustMergeOperator(t, field.Type, remain, remain).RemainLatest())
+		assert.True(t, mergeOperator(field.Type, remain, remain).RemainLatest())
 	})
 
 	// Int and Int8 use big.Int arithmetic internally.
@@ -127,14 +119,14 @@ func TestMergeOperator(t *testing.T) {
 		t.Run("Int_like/"+tc.fieldName, func(t *testing.T) {
 			field := e.GetFieldByName(tc.fieldName)
 			// f(x)=2x+3, g(x)=4x+5 → g(f(10))=(10*2+3)*4+5=97
-			merged := mustMergeOperator(t, field.Type, tc.op(2, 3), tc.op(4, 5))
+			merged := mergeOperator(field.Type, tc.op(2, 3), tc.op(4, 5))
 			assert.Equal(t, decimal.NewFromInt(97), merged.NumCalc.Calc(decimal.NewFromInt(10)))
 		})
 	}
 
 	t.Run("BigInt", func(t *testing.T) {
 		field := e.GetFieldByName("propE1") // BigInt!
-		merged := mustMergeOperator(t, field.Type, bigIntOp(2, 3), bigIntOp(4, 5))
+		merged := mergeOperator(field.Type, bigIntOp(2, 3), bigIntOp(4, 5))
 		assert.Equal(t, decimal.NewFromInt(97), merged.NumCalc.Calc(decimal.NewFromInt(10)))
 	})
 
@@ -144,7 +136,7 @@ func TestMergeOperator(t *testing.T) {
 		t.Run("Float_like/"+fieldName, func(t *testing.T) {
 			field := e.GetFieldByName(fieldName)
 			// f(x)=2.5x+1, g(x)=2x+0.5 → g(f(4))=(4*2.5+1)*2+0.5=22.5
-			merged := mustMergeOperator(t, field.Type, decOp(2.5, 1.0), decOp(2.0, 0.5))
+			merged := mergeOperator(field.Type, decOp(2.5, 1.0), decOp(2.0, 0.5))
 			want, _ := decimal.NewFromString("22.5")
 			assert.Equal(t, want, merged.NumCalc.Calc(decimal.NewFromInt(4)))
 		})

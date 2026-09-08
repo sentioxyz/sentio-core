@@ -167,7 +167,7 @@ func (c *Controller) executeEntityOperator(
 		if box.Data == nil {
 			continue
 		}
-		if len(box.Operator) == 0 {
+		if box.Resolved() {
 			continue
 		}
 		var preBox *EntityBox
@@ -186,27 +186,35 @@ func (c *Controller) executeEntityOperator(
 		if row.exists {
 			row.data = preBox.Data
 		}
-		for fieldName, op := range box.Operator {
-			field := entityType.GetFieldByName(fieldName)
-			originVal, has := row.data[fieldName]
-			if !has {
-				_, originVal = buildType(field.Type)
+		// resolve round by round, each round reads the resolved result of the one before it
+		for r, round := range box.Operator {
+			next := box.Data // the first round has its SET values and eager results in Data already
+			if r > 0 {
+				next = utils.CopyMap(row.data)
 			}
-			box.Data[fieldName], err = calcOperator(field.Type, originVal, op, row)
-			if err != nil {
-				return from, fmt.Errorf(
-					"%w: resolve operator %s for %s.%s with id %s failed: %v",
-					ErrInvalidFieldValue, op, entityType.GetFullName(), fieldName, id, err,
-				)
+			for fieldName, op := range round {
+				field := entityType.GetFieldByName(fieldName)
+				originVal, has := row.data[fieldName]
+				if !has {
+					_, originVal = buildType(field.Type)
+				}
+				next[fieldName], err = calcOperator(field.Type, originVal, op, row)
+				if err != nil {
+					return from, fmt.Errorf(
+						"%w: resolve operator %s for %s.%s with id %s failed: %v",
+						ErrInvalidFieldValue, op, entityType.GetFullName(), fieldName, id, err,
+					)
+				}
 			}
+			row = expRow{exists: true, data: next}
 		}
+		box.Data, box.Operator = row.data, nil
 		if err = c.store.CheckValue(entityType, box.Data); err != nil {
 			return from, fmt.Errorf(
 				"%w: entity operator result for %s with id %s: %v",
 				ErrInvalidFieldValue, entityType.GetFullName(), id, err,
 			)
 		}
-		box.Operator = nil
 	}
 	return
 }
@@ -244,7 +252,7 @@ func (c *Controller) getEntity(
 		if inBlock && uctBox.GenBlockNumber < blockNumber {
 			uctBox = nil
 		}
-		if uctBox != nil && len(uctBox.Operator) > 0 {
+		if uctBox != nil && !uctBox.Resolved() {
 			// calculate operators
 			// uctBox will be changed,  uctBox.Operator will be set to nil and uctBox.Data will be filled
 			if from, err = c.executeEntityOperator(ctx, entityType, id, blockNumber); err != nil {
@@ -428,7 +436,7 @@ func (c *Controller) listEntity(
 		if uctBox.Data == nil {
 			continue // deleted
 		}
-		if len(uctBox.Operator) > 0 {
+		if !uctBox.Resolved() {
 			// calculate operators
 			// uctBox will be changed, uctBox.Operator will be set to nil and uctBox.Data will be filled
 			if _, err = c.executeEntityOperator(ctx, entityType, uctBox.ID, blockNumber); err != nil {
@@ -530,19 +538,6 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 		logger.Errorw("update immutable entity", "latest", latest.String())
 		return fmt.Errorf("invalid update for %s/%s in chain %s, latest is %s: %w",
 			entityType.Name, box.ID, c.store.GetChain(), latest.String(), ErrUpdateImmutable)
-	}
-	if box.HasExpression() {
-		// expressions read the version of the entity right before this write; when an earlier
-		// write in the same block still has pending operators, resolve them now so that the
-		// merge below sees concrete values
-		if latest := history.Latest(box.GenBlockNumber); latest != nil &&
-			latest.GenBlockNumber == box.GenBlockNumber && len(latest.Operator) > 0 {
-			if _, err := c.executeEntityOperator(ctx, entityType, box.ID, box.GenBlockNumber); err != nil {
-				logger.Errorfe(err, "resolve pending operators before expression update failed")
-				return err
-			}
-			history, _ = utils.GetFromK2Map(c.changes, entityType.Name, box.ID)
-		}
 	}
 
 	// put into c.changes

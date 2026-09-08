@@ -334,13 +334,13 @@ func TestFromEntityUpdateData_expression(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]any{"propA1": "x"}, box.Data)
 	assert.True(t, box.HasExpression())
-	assert.Equal(t, "coalesce(propD1, 0) + propJ1", box.Operator["propD1"].Exp.String())
-	assert.Nil(t, box.Operator["propD1"].NumCalc)
-	assert.Equal(t, "x*1+1", box.Operator["propJ1"].String())
+	assert.Equal(t, "coalesce(propD1, 0) + propJ1", box.Operator[0]["propD1"].Exp.String())
+	assert.Nil(t, box.Operator[0]["propD1"].NumCalc)
+	assert.Equal(t, "x*1+1", box.Operator[0]["propJ1"].String())
 	// every other field keeps its latest value
-	assert.True(t, box.Operator["propD2"].RemainLatest())
-	assert.Equal(t, "x", box.Operator["propD2"].String())
-	_, hasSet := box.Operator["propA1"]
+	assert.True(t, box.Operator[0]["propD2"].RemainLatest())
+	assert.Equal(t, "x", box.Operator[0]["propD2"].String())
+	_, hasSet := box.Operator[0]["propA1"]
 	assert.False(t, hasSet)
 
 	err = box.FromEntityUpdateData(e, &entityProtos.EntityUpdateData{
@@ -373,10 +373,10 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 		}}
 		err := box.Merge(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{"propA": "b"}},
-			Operator: map[string]Operator{
+			Operator: []map[string]Operator{{
 				"propB": exprOp(t, e, "propB", "if(eq(propA, 'a'), propB + 10, -1)"),
 				"id":    {},
-			},
+			}},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]any{"id": "e", "propA": "b", "propB": int32(11)}, box.Data)
@@ -387,11 +387,11 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 		box := &UncommittedEntityBox{EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3}}
 		err := box.Merge(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator: map[string]Operator{
+			Operator: []map[string]Operator{{
 				"propB": exprOp(t, e, "propB", "if(exist(), propB + 10, coalesce(propB, 5))"),
 				"propA": exprOp(t, e, "propA", "coalesce(propA, 'new')"),
 				"id":    {},
-			},
+			}},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]any{"id": "", "propA": "new", "propB": int32(5)}, box.Data)
@@ -400,38 +400,64 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 	t.Run("affine operator composes on top of a pending expression", func(t *testing.T) {
 		box := &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator: map[string]Operator{
+			Operator: []map[string]Operator{{
 				"propB": exprOp(t, e, "propB", "propB * 2"),
 				"propA": {},
 				"id":    {},
-			},
+			}},
 		}
 		err := box.Merge(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator: map[string]Operator{
+			Operator: []map[string]Operator{{
 				"propB": intOp(1, 3),
 				"propA": {},
 				"id":    {},
-			},
+			}},
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, "(propB * 2)*1+3", box.Operator["propB"].String())
-		got, err := calcOperator(e.GetFieldByName("propB").Type, int32(0), box.Operator["propB"],
+		assert.Equal(t, "(propB * 2)*1+3", box.Operator[0]["propB"].String())
+		got, err := calcOperator(e.GetFieldByName("propB").Type, int32(0), box.Operator[0]["propB"],
 			expRow{exists: true, data: map[string]any{"propB": int32(5)}})
 		assert.NoError(t, err)
 		assert.Equal(t, int32(13), got)
 	})
 
-	t.Run("expression on top of pending operators is rejected", func(t *testing.T) {
+	t.Run("expression reading a pending field starts a new round", func(t *testing.T) {
+		box := &UncommittedEntityBox{
+			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{"propA": "a"}},
+			Operator:  []map[string]Operator{{"propB": intOp(1, 3), "id": {}}},
+		}
+		// round 2: reads propB, which round 1 leaves pending
+		assert.NoError(t, box.Merge(e, &UncommittedEntityBox{
+			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
+			Operator:  []map[string]Operator{{"propB": exprOp(t, e, "propB", "propB * 2"), "propA": {}, "id": {}}},
+		}))
+		// round 3: once rounds are pending every later write is appended, SET included
+		assert.NoError(t, box.Merge(e, &UncommittedEntityBox{
+			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{"propA": "b"}},
+			Operator:  []map[string]Operator{{"propB": intOp(1, 100), "id": {}}},
+		}))
+		assert.Equal(t, map[string]any{"propA": "a"}, box.Data)
+		assert.Len(t, box.Operator, 3)
+		assert.Equal(t, "x*1+3", box.Operator[0]["propB"].String())
+		assert.Equal(t, "(propB * 2)", box.Operator[1]["propB"].String())
+		assert.Equal(t,
+			map[string]Operator{"propB": intOp(1, 100), "propA": {Set: &OperatorSet{Value: "b"}}}, box.Operator[2])
+		assert.False(t, box.Resolved())
+	})
+
+	t.Run("delete drops every pending round", func(t *testing.T) {
 		box := &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator:  map[string]Operator{"propB": intOp(1, 3), "propA": {}, "id": {}},
+			Operator: []map[string]Operator{
+				{"propB": intOp(1, 3), "propA": {}, "id": {}},
+				{"propB": exprOp(t, e, "propB", "propB * 2")},
+			},
 		}
-		err := box.Merge(e, &UncommittedEntityBox{
-			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator:  map[string]Operator{"propB": exprOp(t, e, "propB", "propB * 2"), "propA": {}, "id": {}},
-		})
-		assert.ErrorContains(t, err, "cannot merge an expression update on top of unresolved operators")
+		deleted := &UncommittedEntityBox{EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3}}
+		assert.NoError(t, box.Merge(e, deleted))
+		assert.Nil(t, box.Data)
+		assert.True(t, box.Resolved())
 	})
 
 	t.Run("evaluation error is reported", func(t *testing.T) {
@@ -441,7 +467,7 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 		}}
 		err := box.Merge(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
-			Operator:  map[string]Operator{"propB": exprOp(t, e, "propB", "1 / propB")},
+			Operator:  []map[string]Operator{{"propB": exprOp(t, e, "propB", "1 / propB")}},
 		})
 		assert.ErrorContains(t, err, "division by zero")
 	})
@@ -527,7 +553,7 @@ func TestController_UpdateWithExpression(t *testing.T) {
 		_ = ps
 	})
 
-	t.Run("same block: ADD then expression resolves the pending operator first", func(t *testing.T) {
+	t.Run("same block: ADD then expression resolves round by round", func(t *testing.T) {
 		ps, s := newTestStore(sch, "mainnet")
 		seed(ps, "e0", "a", 10)
 		ctrl, _ := newCtrl(s)
@@ -536,8 +562,25 @@ func TestController_UpdateWithExpression(t *testing.T) {
 		}))))
 		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
 			"propB": exprField("propB * 2"),
+			"propA": exprField("if(gt(propB, 12), 'big', 'small')"),
 		}))))
-		assert.Equal(t, map[string]any{"id": "e0", "propA": "a", "propB": int32(30)}, getData(ctrl, "e0", 11))
+		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
+			"propB": addField(1),
+		}))))
+		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
+			"propA": setField(rsh.NewStringValue("set")),
+			"propB": exprField("if(eq(propA, 'big'), propB + 1000, propB)"),
+		}))))
+		history, _ := utils.GetFromK2Map(ctrl.changes, "EntityE1", "e0")
+		assert.Len(t, history, 1)
+		assert.Len(t, history[0].Operator, 4)
+		// (10 + 5) * 2 + 1 + 1000, propA was "big" when the last expression read it
+		assert.Equal(t, map[string]any{"id": "e0", "propA": "set", "propB": int32(1031)}, getData(ctrl, "e0", 11))
+		assert.True(t, history[0].Resolved())
+
+		_, _, err := ctrl.Commit(ctx, 11, time.Now())
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]any{"id": "e0", "propA": "set", "propB": int32(1031)}, ps.data["EntityE1"]["e0"].Data)
 	})
 
 	t.Run("same block: expression then ADD composes without resolving", func(t *testing.T) {
@@ -552,7 +595,7 @@ func TestController_UpdateWithExpression(t *testing.T) {
 		}))))
 		history, _ := utils.GetFromK2Map(ctrl.changes, "EntityE1", "e0")
 		assert.Len(t, history, 1)
-		assert.Equal(t, "(propB * 2)*1+5", history[0].Operator["propB"].String())
+		assert.Equal(t, "(propB * 2)*1+5", history[0].Operator[0]["propB"].String())
 		assert.Equal(t, map[string]any{"id": "e0", "propA": "a", "propB": int32(25)}, getData(ctrl, "e0", 11))
 	})
 

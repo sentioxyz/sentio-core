@@ -2,6 +2,7 @@ package persistent
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -421,6 +422,15 @@ func TestFromEntityUpdateData_expression(t *testing.T) {
 
 // ─── Merge ───────────────────────────────────────────────────────────────────
 
+// mergeInto applies newOne on top of box in place, as SetEntity does after validation.
+func mergeInto(t *testing.T, e *schema.Entity, box, newOne *UncommittedEntityBox) {
+	t.Helper()
+	merged, err := box.Merged(e, newOne)
+	if assert.NoError(t, err) {
+		*box = *merged
+	}
+}
+
 func exprOp(t *testing.T, e *schema.Entity, field, text string) Operator {
 	t.Helper()
 	compiled, err := compileUpdateExp(e, e.GetFieldByName(field), text)
@@ -438,7 +448,7 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 			Entity: "EntityE1", ID: "e", GenBlockNumber: 3,
 			Data: map[string]any{"id": "e", "propA": "a", "propB": int32(1)},
 		}}
-		err := box.Merge(e, &UncommittedEntityBox{
+		merged, err := box.Merged(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{"propA": "b"}},
 			Operator: []map[string]Operator{{
 				"propB": exprOp(t, e, "propB", "if(propA = 'a', propB + 10, -1)"),
@@ -446,13 +456,15 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 			}},
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, map[string]any{"id": "e", "propA": "b", "propB": int32(11)}, box.Data)
-		assert.Empty(t, box.Operator)
+		assert.Equal(t, map[string]any{"id": "e", "propA": "b", "propB": int32(11)}, merged.Data)
+		assert.Empty(t, merged.Operator)
+		// the original box is untouched
+		assert.Equal(t, map[string]any{"id": "e", "propA": "a", "propB": int32(1)}, box.Data)
 	})
 
 	t.Run("update after delete in the same block sees no previous version", func(t *testing.T) {
 		box := &UncommittedEntityBox{EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3}}
-		err := box.Merge(e, &UncommittedEntityBox{
+		merged, err := box.Merged(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator: []map[string]Operator{{
 				"propB": exprOp(t, e, "propB", "if(exist(), propB + 10, coalesce(propB, 5))"),
@@ -461,7 +473,8 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 			}},
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, map[string]any{"id": "", "propA": "new", "propB": int32(5)}, box.Data)
+		assert.Equal(t, map[string]any{"id": "", "propA": "new", "propB": int32(5)}, merged.Data)
+		assert.Nil(t, box.Data)
 	})
 
 	t.Run("rounds with expressions are never merged with other rounds", func(t *testing.T) {
@@ -470,20 +483,20 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 			Operator:  []map[string]Operator{{"propA": {Set: &operatorSet{Value: "a"}}, "propB": intOp(1, 3), "id": {}}},
 		}
 		// round 2: an expression always starts a new round
-		assert.NoError(t, box.Merge(e, &UncommittedEntityBox{
+		mergeInto(t, e, box, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator:  []map[string]Operator{{"propB": exprOp(t, e, "propB", "propB * 2"), "propA": {}, "id": {}}},
-		}))
+		})
 		// round 3: a plain write does not fold into a round with expressions either
-		assert.NoError(t, box.Merge(e, &UncommittedEntityBox{
+		mergeInto(t, e, box, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator:  []map[string]Operator{{"propA": {Set: &operatorSet{Value: "b"}}, "propB": intOp(1, 100), "id": {}}},
-		}))
+		})
 		// still round 3: plain writes compose into a plain last round (SET replaces, ADD stacks)
-		assert.NoError(t, box.Merge(e, &UncommittedEntityBox{
+		mergeInto(t, e, box, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator:  []map[string]Operator{{"propA": {Set: &operatorSet{Value: "c"}}, "propB": intOp(2, 1), "id": {}}},
-		}))
+		})
 		assert.Empty(t, box.Data)
 		assert.Len(t, box.Operator, 3)
 		assert.Equal(t, "x*1+3", box.Operator[0]["propB"].String())
@@ -511,10 +524,10 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 				{"propB": exprOp(t, e, "propB", "propB * 2")},
 			},
 		}
-		assert.NoError(t, box.Merge(e, &UncommittedEntityBox{EntityBox: EntityBox{
+		mergeInto(t, e, box, &UncommittedEntityBox{EntityBox: EntityBox{
 			Entity: "EntityE1", ID: "e", GenBlockNumber: 3,
 			Data: map[string]any{"id": "e", "propA": "u", "propB": int32(7)},
-		}}))
+		}})
 		assert.Len(t, box.Operator, 3)
 		assert.Equal(t, "u", box.Operator[2]["propA"].Set.Value)
 		assert.Equal(t, int32(7), box.Operator[2]["propB"].Set.Value)
@@ -524,7 +537,7 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 		box := &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 		}
-		err := box.Merge(e, &UncommittedEntityBox{
+		_, err := box.Merged(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator:  []map[string]Operator{{"propB": intOp(1, 3)}, {"propB": intOp(1, 4)}},
 		})
@@ -540,7 +553,7 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 			},
 		}
 		deleted := &UncommittedEntityBox{EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3}}
-		assert.NoError(t, box.Merge(e, deleted))
+		mergeInto(t, e, box, deleted)
 		assert.Nil(t, box.Data)
 		assert.True(t, box.Resolved())
 	})
@@ -550,7 +563,7 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 			Entity: "EntityE1", ID: "e", GenBlockNumber: 3,
 			Data: map[string]any{"id": "e", "propA": "a", "propB": int32(0)},
 		}}
-		err := box.Merge(e, &UncommittedEntityBox{
+		_, err := box.Merged(e, &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator:  []map[string]Operator{{"propB": exprOp(t, e, "propB", "1 / propB")}},
 		})
@@ -727,4 +740,167 @@ func TestController_UpdateWithExpression(t *testing.T) {
 		assert.ErrorIs(t, err, ErrInvalidFieldValue)
 		assert.ErrorContains(t, err, "division by zero")
 	})
+}
+
+// rejectValue is a CheckValue that rejects one specific value of one field, standing in for the
+// enum membership and numeric range checks of the real store.
+func rejectValue(field string, bad any) func(*schema.Entity, map[string]any) error {
+	return func(_ *schema.Entity, data map[string]any) error {
+		if v, has := data[field]; has && v == bad {
+			return fmt.Errorf("%s cannot be %v", field, bad)
+		}
+		return nil
+	}
+}
+
+func TestController_UpdateValidationIsAtomic(t *testing.T) {
+	sch, err := schema.ParseAndVerifySchema(testSchema)
+	assert.NoError(t, err)
+	e := sch.GetEntity("EntityE1")
+	ctx := context.Background()
+
+	newBox := func(id string, block uint64, data *entityProtos.EntityUpdateData) UncommittedEntityBox {
+		box := UncommittedEntityBox{EntityBox: EntityBox{ID: id, GenBlockNumber: block, GenBlockHash: "0x1234"}}
+		assert.NoError(t, box.FromEntityUpdateData(e, data))
+		return box
+	}
+	seed := func(ps *mockChainStore, id string, propA string, propB int32) {
+		utils.PutIntoK2Map(ps.data, "EntityE1", id, &EntityBox{
+			Entity: "EntityE1", ID: id, GenBlockNumber: 10, GenBlockHash: "0x1234",
+			Data: map[string]any{"id": id, "propA": propA, "propB": propB},
+		})
+	}
+
+	t.Run("an invalid SET of the first write is rejected before it enters the history", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		ps.checkValueHook = rejectValue("propA", "bad")
+		ctrl, _ := newCtrl(s)
+		err := ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
+			"propA": setField(rsh.NewStringValue("bad")),
+			"propB": addField(1),
+		})))
+		assert.ErrorIs(t, err, ErrInvalidFieldValue)
+		assert.ErrorContains(t, err, "propA cannot be bad")
+		_, has := ctrl.changes["EntityE1"]
+		assert.False(t, has)
+	})
+
+	t.Run("an invalid SET merged into a pending box leaves the history untouched", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		ps.checkValueHook = rejectValue("propA", "bad")
+		ctrl, _ := newCtrl(s)
+		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{"propB": addField(1)}))))
+		before := ctrl.changes["EntityE1"]["e0"][0]
+		beforeOps := utils.CopyMap(before.Operator[0])
+		err := ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
+			"propA": setField(rsh.NewStringValue("bad")),
+		})))
+		assert.ErrorIs(t, err, ErrInvalidFieldValue)
+		after := ctrl.changes["EntityE1"]["e0"][0]
+		assert.Same(t, before, after)
+		assert.Len(t, after.Operator, 1)
+		assert.Equal(t, beforeOps, after.Operator[0])
+	})
+
+	t.Run("a failing expression merged on a concrete box leaves it as it was", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		ctrl, _ := newCtrl(s)
+		assert.NoError(t, ctrl.SetEntity(ctx, e, UncommittedEntityBox{EntityBox: EntityBox{
+			ID: "e0", GenBlockNumber: 11, GenBlockHash: "0x1234",
+			Data: map[string]any{"id": "e0", "propA": "a", "propB": int32(0)},
+		}}))
+		err := ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
+			"propA": setField(rsh.NewStringValue("changed")),
+			"propB": exprField("1 / propB"),
+		})))
+		assert.ErrorIs(t, err, ErrInvalidFieldValue)
+		assert.ErrorContains(t, err, "division by zero")
+		box := ctrl.changes["EntityE1"]["e0"][0]
+		assert.Equal(t, map[string]any{"id": "e0", "propA": "a", "propB": int32(0)}, box.Data)
+		assert.True(t, box.Resolved())
+		_ = ps
+	})
+
+	t.Run("a failing update after a delete keeps the delete", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		seed(ps, "e0", "a", 10)
+		ctrl, _ := newCtrl(s)
+		assert.NoError(t, ctrl.SetEntity(ctx, e, UncommittedEntityBox{EntityBox: EntityBox{
+			ID: "e0", GenBlockNumber: 11, GenBlockHash: "0x1234",
+		}}))
+		err := ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
+			"propB": exprField("1 / coalesce(propB, 0)"),
+		})))
+		assert.ErrorContains(t, err, "division by zero")
+		box := ctrl.changes["EntityE1"]["e0"][0]
+		assert.Nil(t, box.Data)
+		got, err := ctrl.GetEntity(ctx, e, "e0", 11)
+		assert.NoError(t, err)
+		assert.Nil(t, got.Data)
+	})
+
+	t.Run("a rejected resolution keeps the box pending", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		seed(ps, "e0", "a", 10)
+		ps.checkValueHook = rejectValue("propA", "bad")
+		ctrl, _ := newCtrl(s)
+		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
+			"propA": exprField("if(propB > 5, 'bad', 'good')"),
+		}))))
+		_, err := ctrl.GetEntity(ctx, e, "e0", 11)
+		assert.ErrorIs(t, err, ErrInvalidFieldValue)
+		box := ctrl.changes["EntityE1"]["e0"][0]
+		assert.False(t, box.Resolved())
+		assert.Empty(t, box.Data)
+		// every later read fails the same way instead of returning the invalid row
+		_, err = ctrl.GetEntity(ctx, e, "e0", 11)
+		assert.ErrorIs(t, err, ErrInvalidFieldValue)
+		// once the store accepts the value, the same box resolves
+		ps.checkValueHook = nil
+		got, err := ctrl.GetEntity(ctx, e, "e0", 11)
+		assert.NoError(t, err)
+		assert.Equal(t, "bad", got.Data["propA"])
+	})
+
+	t.Run("a runtime error in resolution keeps the box pending", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		seed(ps, "e0", "a", 0)
+		ctrl, _ := newCtrl(s)
+		assert.NoError(t, ctrl.SetEntity(ctx, e, newBox("e0", 11, updateReq(fieldValues{
+			"propA": setField(rsh.NewStringValue("x")),
+			"propB": exprField("1 / propB"),
+		}))))
+		_, err := ctrl.GetEntity(ctx, e, "e0", 11)
+		assert.ErrorContains(t, err, "division by zero")
+		box := ctrl.changes["EntityE1"]["e0"][0]
+		assert.False(t, box.Resolved())
+		assert.Empty(t, box.Data)
+	})
+}
+
+func TestController_UpdateTimeSeriesTimestamp(t *testing.T) {
+	sch, err := schema.ParseAndVerifySchema(testSchema)
+	assert.NoError(t, err)
+	e := sch.GetEntity("EntityTS")
+	ctx := context.Background()
+	_, s := newTestStore(sch, "mainnet")
+	ctrl, _ := newCtrl(s)
+
+	blockTime := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	box := UncommittedEntityBox{EntityBox: EntityBox{ID: "0", GenBlockNumber: 11, GenBlockTime: blockTime}}
+	assert.NoError(t, box.FromEntityUpdateData(e, updateReq(fieldValues{
+		"propA": setField(rsh.NewStringValue("x")),
+		"propB": exprField("coalesce(propB, 0) + 1"),
+	})))
+	assert.NoError(t, ctrl.SetEntity(ctx, e, box))
+
+	var id string
+	for storedID := range ctrl.changes["EntityTS"] {
+		id = storedID
+	}
+	got, err := ctrl.GetEntity(ctx, e, id, 11)
+	assert.NoError(t, err)
+	assert.Equal(t, blockTime.UnixMicro(), got.Data["timestamp"])
+	assert.Equal(t, "x", got.Data["propA"])
+	assert.Equal(t, int32(1), got.Data["propB"])
 }

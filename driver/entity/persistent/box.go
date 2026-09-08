@@ -127,21 +127,34 @@ func roundHasExpression(round map[string]Operator) bool {
 }
 
 // corrections returns the corrections of a fresh write (as built by FromRichStruct or
-// FromEntityUpdateData) as one round, with the values of an upsert turned into Set corrections.
+// FromEntityUpdateData) as one round, with the values in Data turned into Set corrections.
 func (e *UncommittedEntityBox) corrections() (map[string]Operator, error) {
 	if len(e.Operator) > 1 {
 		return nil, fmt.Errorf("merge entity with %d pending rounds, expect at most one", len(e.Operator))
 	}
 	round := make(map[string]Operator)
-	for fieldName, val := range e.Data {
-		round[fieldName] = Operator{Set: &operatorSet{Value: val}}
-	}
 	if len(e.Operator) == 1 {
 		for fieldName, op := range e.Operator[0] {
 			round[fieldName] = op
 		}
 	}
+	for fieldName, val := range e.Data {
+		round[fieldName] = Operator{Set: &operatorSet{Value: val}}
+	}
 	return round, nil
+}
+
+// SetValues returns the values of every Set correction, for validation before the box is stored.
+func (e *UncommittedEntityBox) SetValues() map[string]any {
+	values := make(map[string]any)
+	for _, round := range e.Operator {
+		for fieldName, op := range round {
+			if op.Set != nil {
+				values[fieldName] = op.Set.Value
+			}
+		}
+	}
+	return values
 }
 
 // resolveRound applies one round of corrections on top of row, the previous version of the entity,
@@ -164,54 +177,60 @@ func resolveRound(entityType *schema.Entity, round map[string]Operator, row expR
 	return nil
 }
 
-// Merge applies newOne, a later write in the same block, on top of e.
-func (e *UncommittedEntityBox) Merge(entityType *schema.Entity, newOne *UncommittedEntityBox) error {
+// Merged returns the state after applying newOne, a later write in the same block, on top of e.
+// Neither e nor newOne is modified, so a caller can validate the result before storing it.
+func (e *UncommittedEntityBox) Merged(
+	entityType *schema.Entity,
+	newOne *UncommittedEntityBox,
+) (*UncommittedEntityBox, error) {
 	if e.ID != newOne.ID {
-		return fmt.Errorf("merge entity with different ID")
+		return nil, fmt.Errorf("merge entity with different ID")
 	}
 	if e.Entity != newOne.Entity {
-		return fmt.Errorf("merge entity with different entity type")
+		return nil, fmt.Errorf("merge entity with different entity type")
 	}
-	e.GenBlockNumber = newOne.GenBlockNumber
-	e.GenBlockTime = newOne.GenBlockTime
-	e.GenBlockHash = newOne.GenBlockHash
+	merged := &UncommittedEntityBox{EntityBox: EntityBox{
+		Entity:         e.Entity,
+		ID:             e.ID,
+		GenBlockNumber: newOne.GenBlockNumber,
+		GenBlockTime:   newOne.GenBlockTime,
+		GenBlockHash:   newOne.GenBlockHash,
+	}}
 	if newOne.Data == nil {
 		// deleted, nothing before matters anymore
-		e.Data, e.Operator = nil, nil
-		return nil
+		return merged, nil
 	}
 	round, err := newOne.corrections()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if e.Resolved() {
 		// e is concrete, or deleted earlier in this block (then the entity has no previous version
 		// and every field starts from its zero value); either way the round resolves right away
 		row := expRow{exists: e.Data != nil, data: e.Data}
-		next := e.Data
-		if next == nil || newOne.HasExpression() {
-			next = utils.CopyMap(e.Data)
-			if next == nil {
-				next = make(map[string]any)
-			}
+		merged.Data = utils.CopyMap(e.Data)
+		if merged.Data == nil {
+			merged.Data = make(map[string]any)
 		}
-		if err = resolveRound(entityType, round, row, next); err != nil {
-			return err
+		if err = resolveRound(entityType, round, row, merged.Data); err != nil {
+			return nil, err
 		}
-		e.Data = next
-		return nil
+		return merged, nil
 	}
+	merged.Data = make(map[string]any)
 	last := e.Operator[len(e.Operator)-1]
 	if !roundHasExpression(last) && !roundHasExpression(round) {
 		// nothing reads the state between the last round and this write, so the corrections compose
-		// field by field into the last round
+		// field by field into the last round; the earlier rounds are never modified and are shared
+		composed := utils.CopyMap(last)
 		for fieldName, op := range round {
-			last[fieldName] = mergeOperator(entityType.GetFieldByName(fieldName).Type, last[fieldName], op)
+			composed[fieldName] = mergeOperator(entityType.GetFieldByName(fieldName).Type, composed[fieldName], op)
 		}
-		return nil
+		merged.Operator = append(append([]map[string]Operator{}, e.Operator[:len(e.Operator)-1]...), composed)
+		return merged, nil
 	}
 	// a round with expressions reads the resolved result of every round before it and must stay
 	// as it was issued, so it neither takes later corrections nor folds into an earlier round
-	e.Operator = append(e.Operator, round)
-	return nil
+	merged.Operator = append(append([]map[string]Operator{}, e.Operator...), round)
+	return merged, nil
 }

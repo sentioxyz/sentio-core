@@ -198,15 +198,31 @@ func (c *Controller) executeEntityOperator(
 			}
 			row = expRow{exists: true, data: next}
 		}
-		box.Data, box.Operator = row.data, nil
-		if err = c.store.CheckValue(entityType, box.Data); err != nil {
+		// validate before touching the box, so that a rejected result leaves it pending and a later
+		// read does not return the invalid row as resolved
+		if err = c.store.CheckValue(entityType, row.data); err != nil {
 			return from, fmt.Errorf(
 				"%w: entity operator result for %s with id %s: %v",
 				ErrInvalidFieldValue, entityType.GetFullName(), id, err,
 			)
 		}
+		box.Data, box.Operator = row.data, nil
 	}
 	return
+}
+
+// checkBox validates every value a write carries before it is stored: the concrete Data and the
+// Set corrections of its rounds. Expression and affine results are validated when they resolve.
+func (c *Controller) checkBox(entityType *schema.Entity, box *UncommittedEntityBox) error {
+	if box.Data != nil {
+		if err := c.store.CheckValue(entityType, box.Data); err != nil {
+			return err
+		}
+	}
+	if len(box.Operator) > 0 {
+		return c.store.CheckValue(entityType, box.SetValues())
+	}
+	return nil
 }
 
 func (c *Controller) executeAllEntityOperator(ctx context.Context, blockNumber uint64) error {
@@ -494,16 +510,6 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	}
 	box.Entity = entityType.Name
 
-	if box.Data != nil {
-		if err := c.store.CheckValue(entityType, box.Data); err != nil {
-			return fmt.Errorf(
-				"%w: set entity %s/%s in chain %s failed: %v",
-				ErrInvalidFieldValue, entityType.Name,
-				box.ID, c.store.GetChain(), err,
-			)
-		}
-	}
-
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "box", box.String())
 
@@ -520,7 +526,14 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 			// It will be reset when commit.
 			box.ID = "@" + strconv.FormatInt(uniqTimeSeriesID.Add(1), 10)
 		}
-		box.Data[schema.EntityTimestampFieldName] = box.GenBlockTime.UnixMicro()
+		// the timestamp goes where the write keeps its values: Data for an upsert, the pending
+		// round for an update (which otherwise keeps the previous, missing, timestamp)
+		timestamp := box.GenBlockTime.UnixMicro()
+		if box.Resolved() {
+			box.Data[schema.EntityTimestampFieldName] = timestamp
+		} else {
+			box.Operator[0][schema.EntityTimestampFieldName] = Operator{Set: &operatorSet{Value: timestamp}}
+		}
 	}
 
 	history, _ := utils.GetFromK2Map(c.changes, entityType.Name, box.ID)
@@ -530,23 +543,14 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 			entityType.Name, box.ID, c.store.GetChain(), latest.String(), ErrUpdateImmutable)
 	}
 
-	// put into c.changes
-	merged, mergedBox, err := history.Push(entityType, &box)
-	if err != nil {
+	// put into c.changes, validated first so that a rejected write changes nothing
+	validate := func(stored *UncommittedEntityBox) error { return c.checkBox(entityType, stored) }
+	if _, _, err := history.Push(entityType, &box, validate); err != nil {
 		return fmt.Errorf(
 			"%w: set entity %s/%s in chain %s failed: %v",
 			ErrInvalidFieldValue, entityType.Name,
 			box.ID, c.store.GetChain(), err,
 		)
-	}
-	if merged && mergedBox.Data != nil {
-		if err := c.store.CheckValue(entityType, mergedBox.Data); err != nil {
-			return fmt.Errorf(
-				"%w: set entity %s/%s in chain %s failed: %v",
-				ErrInvalidFieldValue, entityType.Name,
-				box.ID, c.store.GetChain(), err,
-			)
-		}
 	}
 	utils.PutIntoK2Map(c.changes, entityType.Name, box.ID, history)
 

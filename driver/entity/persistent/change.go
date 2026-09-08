@@ -95,17 +95,33 @@ func (ch *changeHistory) Split(blockNumber uint64) changeHistory {
 	return ret
 }
 
+// Push stores nw, a write at block nw.GenBlockNumber. When the history already has an entry for
+// that block, nw is merged into it and mergedBox is the merged entry, otherwise nw itself is
+// inserted in block order. validate, when given, sees the box that is about to be stored and can
+// reject it: the history is only changed after it returns nil, so a rejected write leaves no trace.
 func (ch *changeHistory) Push(
 	entityType *schema.Entity,
 	nw *UncommittedEntityBox,
+	validate func(box *UncommittedEntityBox) error,
 ) (merged bool, mergedBox *UncommittedEntityBox, err error) {
 	i := ch.Count(nw.GenBlockNumber)
 	if i > 0 && (*ch)[i-1].GenBlockNumber == nw.GenBlockNumber {
 		// just override (*ch)[i-1]
-		if err = (*ch)[i-1].Merge(entityType, nw); err != nil {
-			return true, (*ch)[i-1], err
+		if mergedBox, err = (*ch)[i-1].Merged(entityType, nw); err != nil {
+			return true, nil, err
 		}
+		if validate != nil {
+			if err = validate(mergedBox); err != nil {
+				return true, nil, err
+			}
+		}
+		*(*ch)[i-1] = *mergedBox
 		return true, (*ch)[i-1], nil
+	}
+	if validate != nil {
+		if err = validate(nw); err != nil {
+			return false, nil, err
+		}
 	}
 	// rebuild the history by [ch[:i] + nw + ch[i:]]
 	if i == len(*ch) {

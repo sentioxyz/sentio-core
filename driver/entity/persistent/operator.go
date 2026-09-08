@@ -90,8 +90,8 @@ func checkNumCalcValueTypeMatch(typ types.Type, val *protos.RichValue) error {
 // mergeOperator composes two corrections of the same field in the same round: op2(op1(x)).
 //
 // op2 is never an expression: an expression reads the previous version of the whole entity, so
-// UncommittedEntityBox.fold evaluates it right away when the fields it reads are concrete and
-// appends the write as a new round otherwise.
+// UncommittedEntityBox.Merge resolves it right away against a concrete box and appends the write
+// as a new round otherwise.
 func mergeOperator(typ types.Type, op1, op2 Operator) Operator {
 	if op1.RemainLatest() {
 		return op2

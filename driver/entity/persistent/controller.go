@@ -187,24 +187,14 @@ func (c *Controller) executeEntityOperator(
 			row.data = preBox.Data
 		}
 		// resolve round by round, each round reads the resolved result of the one before it
-		for r, round := range box.Operator {
-			next := box.Data // the first round has its SET values and eager results in Data already
-			if r > 0 {
-				next = utils.CopyMap(row.data)
+		for _, round := range box.Operator {
+			next := utils.CopyMap(row.data)
+			if next == nil {
+				next = make(map[string]any)
 			}
-			for fieldName, op := range round {
-				field := entityType.GetFieldByName(fieldName)
-				originVal, has := row.data[fieldName]
-				if !has {
-					_, originVal = buildType(field.Type)
-				}
-				next[fieldName], err = calcOperator(field.Type, originVal, op, row)
-				if err != nil {
-					return from, fmt.Errorf(
-						"%w: resolve operator %s for %s.%s with id %s failed: %v",
-						ErrInvalidFieldValue, op, entityType.GetFullName(), fieldName, id, err,
-					)
-				}
+			if err = resolveRound(entityType, round, row, next); err != nil {
+				return from, fmt.Errorf("%w: resolve %s with id %s failed: %v",
+					ErrInvalidFieldValue, entityType.GetFullName(), id, err)
 			}
 			row = expRow{exists: true, data: next}
 		}
@@ -550,7 +540,7 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 		)
 	}
 	if merged && mergedBox.Data != nil {
-		if err := c.store.CheckValue(entityType, mergedBox.ConcreteData()); err != nil {
+		if err := c.store.CheckValue(entityType, mergedBox.Data); err != nil {
 			return fmt.Errorf(
 				"%w: set entity %s/%s in chain %s failed: %v",
 				ErrInvalidFieldValue, entityType.Name,

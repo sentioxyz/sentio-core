@@ -54,7 +54,7 @@ func (o Operator) RemainLatest() bool {
 func (o Operator) String() string {
 	switch {
 	case o.Set != nil:
-		return fmt.Sprintf("%v", o.Set.Value)
+		return utils.MustJSONMarshal(o.Set.Value)
 	case o.NumCalc != nil:
 		return o.NumCalc.String()
 	case o.Exp != nil:

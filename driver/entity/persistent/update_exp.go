@@ -297,7 +297,7 @@ func (c *compiledExp) check(entityType *schema.Entity, e *exp.Exp) (expKind, err
 			return kindNull, e.Operator.BuildError("invalid operand", ", boolean is not comparable")
 		}
 		return kindBool, nil
-	case "exist", "exists":
+	case "exist":
 		if err := argc(0); err != nil {
 			return kindNull, err
 		}
@@ -424,7 +424,7 @@ func (c *compiledExp) evalNode(row expRow, e *exp.Exp) (expValue, error) {
 	op := strings.ToLower(e.Operator.Cnt)
 	// if, coalesce, and, or evaluate lazily so an error in an unused branch is not reported
 	switch op {
-	case "exist", "exists":
+	case "exist":
 		return expBool(row.exists), nil
 	case "if":
 		cond, err := c.evalNode(row, e.Arguments[0])

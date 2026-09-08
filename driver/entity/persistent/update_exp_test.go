@@ -72,6 +72,7 @@ func TestCompileUpdateExp_errors(t *testing.T) {
 		{"propC1", "propD1 and propC1", "argument #1 is integer, expect boolean"},
 		{"propC1", "not propD1", "argument #1 is integer, expect boolean"},
 		{"propC1", "exist(propD1)", "unsupported operator 'exist' at expression[0..4] with 1 arguments"},
+		{"propC1", "exists()", "unsupported operator 'exists' at expression[0..5] with 0 arguments"},
 		{"propD1", "coalesce()", "unsupported operator 'coalesce' at expression[0..7] with 0 arguments"},
 		{"propD1", "coalesce(propD1, 'a')", "argument #2 is string but argument #1 is integer"},
 		{"propD1", "isNull()", "with 0 arguments"},
@@ -210,7 +211,8 @@ func TestCompiledExp_eval(t *testing.T) {
 		{"propC1", "isNull(0)", none, expBool(false)},
 		{"propC1", "isNull(propD2 + 1)", row, expBool(true)},
 		{"propC1", "exist()", row, expBool(true)},
-		{"propC1", "exists()", none, expBool(false)},
+		{"propC1", "exist()", none, expBool(false)},
+		{"propC1", "EXIST()", none, expBool(false)},
 		{"propD1", "coalesce(propD2, propD1, 0)", row, num("10")},
 		{"propD1", "coalesce(propD2, null)", row, expNull},
 		{"propD1", "coalesce(propD1, 0) + 1", none, num("1")},
@@ -547,7 +549,7 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 		assert.Equal(t, map[string]any{"id": "e", "propA": "c", "propB": int32(233)}, row.data)
 	})
 
-	t.Run("an upsert on a pending box travels as a round", func(t *testing.T) {
+	t.Run("an upsert on a pending box replaces everything", func(t *testing.T) {
 		box := &UncommittedEntityBox{
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator: []map[string]Operator{
@@ -559,9 +561,8 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 			Entity: "EntityE1", ID: "e", GenBlockNumber: 3,
 			Data: map[string]any{"id": "e", "propA": "u", "propB": int32(7)},
 		}})
-		assert.Len(t, box.Operator, 3)
-		assert.Equal(t, "u", box.Operator[2]["propA"].Set.Value)
-		assert.Equal(t, int32(7), box.Operator[2]["propB"].Set.Value)
+		assert.True(t, box.Resolved())
+		assert.Equal(t, map[string]any{"id": "e", "propA": "u", "propB": int32(7)}, box.Data)
 	})
 
 	t.Run("a write with several rounds is rejected", func(t *testing.T) {
@@ -572,7 +573,7 @@ func TestUncommittedEntityBox_Merge_expression(t *testing.T) {
 			EntityBox: EntityBox{Entity: "EntityE1", ID: "e", GenBlockNumber: 3, Data: map[string]any{}},
 			Operator:  []map[string]Operator{{"propB": intOp(1, 3)}, {"propB": intOp(1, 4)}},
 		})
-		assert.ErrorContains(t, err, "merge entity with 2 pending rounds, expect at most one")
+		assert.ErrorContains(t, err, "merge entity with 2 pending rounds, expect exactly one")
 	})
 
 	t.Run("delete drops every pending round", func(t *testing.T) {

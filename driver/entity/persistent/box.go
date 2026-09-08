@@ -126,41 +126,41 @@ func roundHasExpression(round map[string]Operator) bool {
 	return false
 }
 
-// corrections returns the corrections of a fresh write (as built by FromRichStruct or
-// FromEntityUpdateData) as one round, with the values in Data turned into Set corrections.
+// corrections returns the round of a fresh update (as built by FromEntityUpdateData).
 func (e *UncommittedEntityBox) corrections() (map[string]Operator, error) {
-	if len(e.Operator) > 1 {
-		return nil, fmt.Errorf("merge entity with %d pending rounds, expect at most one", len(e.Operator))
+	if len(e.Operator) != 1 {
+		return nil, fmt.Errorf("merge entity with %d pending rounds, expect exactly one", len(e.Operator))
 	}
-	round := make(map[string]Operator)
-	if len(e.Operator) == 1 {
-		for fieldName, op := range e.Operator[0] {
-			round[fieldName] = op
-		}
+	round := make(map[string]Operator, len(e.Operator[0]))
+	for fieldName, op := range e.Operator[0] {
+		round[fieldName] = op
 	}
 	for fieldName, val := range e.Data {
+		// nothing puts values into Data next to a pending round today, but a value there is concrete
 		round[fieldName] = Operator{Set: &operatorSet{Value: val}}
 	}
 	return round, nil
 }
 
-// SetValues returns the values of every Set correction, for validation before the box is stored.
-func (e *UncommittedEntityBox) SetValues() map[string]any {
+// LastRoundSetValues returns the values of the Set corrections of the last pending round, the only
+// round a write can add values to (see Merged), for validation before the box is stored.
+func (e *UncommittedEntityBox) LastRoundSetValues() map[string]any {
 	values := make(map[string]any)
-	for _, round := range e.Operator {
-		for fieldName, op := range round {
-			if op.Set != nil {
-				values[fieldName] = op.Set.Value
-			}
+	if len(e.Operator) == 0 {
+		return values
+	}
+	for fieldName, op := range e.Operator[len(e.Operator)-1] {
+		if op.Set != nil {
+			values[fieldName] = op.Set.Value
 		}
 	}
 	return values
 }
 
 // resolveRound applies one round of corrections on top of row, the previous version of the entity,
-// and writes the results into next. next may be row.data itself when the round carries no
-// expression; with expressions it must be a copy, so that every expression reads the state before
-// the round. A field missing from row starts from the zero value of its type.
+// and writes the results into next, which must not be row.data: every correction, expressions
+// included, reads the state before the round. A field missing from row starts from the zero value
+// of its type.
 func resolveRound(entityType *schema.Entity, round map[string]Operator, row expRow, next map[string]any) error {
 	for fieldName, op := range round {
 		field := entityType.GetFieldByName(fieldName)
@@ -198,6 +198,11 @@ func (e *UncommittedEntityBox) Merged(
 	}}
 	if newOne.Data == nil {
 		// deleted, nothing before matters anymore
+		return merged, nil
+	}
+	if newOne.Resolved() {
+		// an upsert replaces every field, whatever was pending before
+		merged.Data = utils.CopyMap(newOne.Data)
 		return merged, nil
 	}
 	round, err := newOne.corrections()

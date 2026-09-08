@@ -212,15 +212,16 @@ func (c *Controller) executeEntityOperator(
 }
 
 // checkBox validates every value a write carries before it is stored: the concrete Data and the
-// Set corrections of its rounds. Expression and affine results are validated when they resolve.
+// Set corrections of the last pending round (earlier rounds were validated when they were stored).
+// Expression and affine results are validated when they resolve.
 func (c *Controller) checkBox(entityType *schema.Entity, box *UncommittedEntityBox) error {
 	if box.Data != nil {
 		if err := c.store.CheckValue(entityType, box.Data); err != nil {
 			return err
 		}
 	}
-	if len(box.Operator) > 0 {
-		return c.store.CheckValue(entityType, box.SetValues())
+	if !box.Resolved() {
+		return c.store.CheckValue(entityType, box.LastRoundSetValues())
 	}
 	return nil
 }

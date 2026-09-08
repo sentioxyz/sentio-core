@@ -165,6 +165,19 @@ type EntityE2 implements EntityE @entity {
 	propA: String!
 	propB: String!
 }
+
+type EntityIM @entity(immutable: true) {
+	id: ID!
+	propA: String!
+	propB: Int!
+}
+
+type EntityTS @entity(timeseries: true) {
+	id: Int8!
+	timestamp: Timestamp!
+	propA: String!
+	propB: Int!
+}
 `
 
 // ─── mock store ───────────────────────────────────────────────────────────────
@@ -184,6 +197,9 @@ type mockChainStore struct {
 	// setEntitiesHook, when set, runs at the start of SetEntities before any
 	// internal locking — tests use it to hold a commit open in its write phase.
 	setEntitiesHook func()
+
+	// checkValueHook, when set, replaces the always-passing CheckValue.
+	checkValueHook func(entityType *schema.Entity, data map[string]any) error
 }
 
 func (s *mockChainStore) GetChain() string { return s.chain }
@@ -263,7 +279,12 @@ func (s *mockChainStore) SetEntities(
 
 func (s *mockChainStore) GrowthAggregation(_ context.Context, _ time.Time) error { return nil }
 
-func (s *mockChainStore) CheckValue(_ *schema.Entity, _ map[string]any) error { return nil }
+func (s *mockChainStore) CheckValue(entityType *schema.Entity, data map[string]any) error {
+	if s.checkValueHook != nil {
+		return s.checkValueHook(entityType, data)
+	}
+	return nil
+}
 
 func (s *mockChainStore) Reorg(_ context.Context, _ int64) error { panic("not implemented") }
 

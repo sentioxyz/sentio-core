@@ -10,7 +10,7 @@ type Exp struct {
 	// <var> or <const>
 	Value *Word
 
-	// + - * / and or not <func>
+	// + - * / div = != > >= < <= and or not <func>
 	Operator  *Word
 	Arguments []*Exp
 }
@@ -50,6 +50,68 @@ func _inWord(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '.'
 }
 
+// IsStringLiteral reports whether a word is a single-quoted string literal such as 'abc'.
+func IsStringLiteral(cnt string) bool {
+	return len(cnt) >= 2 && cnt[0] == '\'' && cnt[len(cnt)-1] == '\''
+}
+
+// UnquoteStringLiteral strips the quotes from a string literal and resolves the \' and \\ escapes.
+func UnquoteStringLiteral(cnt string) (string, error) {
+	if !IsStringLiteral(cnt) {
+		return "", fmt.Errorf("'%s' is not a string literal", cnt)
+	}
+	var buf bytes.Buffer
+	body := cnt[1 : len(cnt)-1]
+	for i := 0; i < len(body); i++ {
+		if body[i] == '\\' {
+			i++
+			if i >= len(body) {
+				return "", fmt.Errorf("invalid escape at the end of string literal %s", cnt)
+			}
+		}
+		buf.WriteByte(body[i])
+	}
+	return buf.String(), nil
+}
+
+// IsNumberLiteral reports whether a word looks like a number, e.g. 1, -2, 3.5, 1e18.
+func IsNumberLiteral(cnt string) bool {
+	if len(cnt) > 0 && cnt[0] == '-' {
+		cnt = cnt[1:]
+	}
+	return len(cnt) > 0 && (cnt[0] >= '0' && cnt[0] <= '9' || cnt[0] == '.')
+}
+
+// _mergeNegativeNumbers turns a '-' word directly followed by a number into a single negative
+// number literal when the '-' cannot be a binary operator, i.e. it is the first word or it
+// follows an operator, '(' or ','.
+func _mergeNegativeNumbers(words []Word) []Word {
+	out := words[:0]
+	for i := 0; i < len(words); i++ {
+		w := words[i]
+		if w.Cnt == "-" && i+1 < len(words) && IsNumberLiteral(words[i+1].Cnt) &&
+			words[i+1].S == w.E+1 && !IsStringLiteral(words[i+1].Cnt) {
+			unary := len(out) == 0
+			if !unary {
+				prev := strings.ToLower(out[len(out)-1].Cnt)
+				if prev == "(" || prev == "," || prev == "not" || isBinaryOp(prev) {
+					unary = true
+				}
+			}
+			if unary {
+				out = append(out, Word{
+					Cnt:      "-" + words[i+1].Cnt,
+					Position: Position{S: w.S, E: words[i+1].E},
+				})
+				i++
+				continue
+			}
+		}
+		out = append(out, w)
+	}
+	return out
+}
+
 func _splitExp(exp string) (words []Word, err error) {
 	// split words
 	s := 0
@@ -67,6 +129,43 @@ func _splitExp(exp string) (words []Word, err error) {
 				},
 			})
 			s++
+		case '=', '!', '>', '<':
+			// comparison operator: = != > >= < <=
+			e := s
+			if e+1 < len(exp) && exp[e+1] == '=' {
+				e++
+			}
+			if c == '!' && e == s {
+				return nil, fmt.Errorf("invalid character '!' (0x21) in expression[%d], expect '!='", s)
+			}
+			words = append(words, Word{
+				Cnt: exp[s : e+1],
+				Position: Position{
+					S: s,
+					E: e,
+				},
+			})
+			s = e + 1
+		case '\'':
+			// string literal, keep the quotes so the consumer can tell it apart from a variable
+			e := s + 1
+			for e < len(exp) && exp[e] != '\'' {
+				if exp[e] == '\\' {
+					e++
+				}
+				e++
+			}
+			if e >= len(exp) {
+				return nil, fmt.Errorf("unterminated string literal at expression[%d]", s)
+			}
+			words = append(words, Word{
+				Cnt: exp[s : e+1],
+				Position: Position{
+					S: s,
+					E: e,
+				},
+			})
+			s = e + 1
 		default:
 			if _inWord(c) {
 				// var or function or const
@@ -87,6 +186,7 @@ func _splitExp(exp string) (words []Word, err error) {
 			}
 		}
 	}
+	words = _mergeNegativeNumbers(words)
 	// fill level for words
 	if len(words) == 0 {
 		return nil, nil
@@ -116,19 +216,30 @@ func _splitExp(exp string) (words []Word, err error) {
 	return
 }
 
+// _binOpPriority ranks binary operators, a larger value binds looser and is split first; 0 means
+// the word is not a binary operator. "not" sits between "and" and the comparisons: it binds tighter
+// than "and" / "or" but looser than a comparison, so "not a = b" reads not(a = b).
 func _binOpPriority(op string) int {
 	switch strings.ToLower(op) {
-	case "and":
-		return 1
 	case "or":
-		return 2
-	case "*", "/":
+		return 6
+	case "and":
+		return 5
+	case "=", "!=", ">", ">=", "<", "<=":
 		return 3
 	case "+", "-":
-		return 4
+		return 2
+	case "*", "/", "div":
+		return 1
 	default:
-		return 5
+		return 0
 	}
+}
+
+const _notPriority = 4
+
+func isBinaryOp(op string) bool {
+	return _binOpPriority(op) > 0
 }
 
 func _buildExp(words []Word) (*Exp, error) {
@@ -142,15 +253,20 @@ func _buildExp(words []Word) (*Exp, error) {
 		if words[i].Lvl != lvl {
 			continue
 		}
-		switch strings.ToLower(words[i].Cnt) {
-		case ",":
+		if words[i].Cnt == "," {
 			return nil, words[i].BuildUnexpectedError()
-		case "and", "or", "+", "-", "*", "/":
-			cp := _binOpPriority(words[i].Cnt)
-			if binOpPriority <= cp {
-				binOp, binOpPriority = i, cp
-			}
 		}
+		if cp := _binOpPriority(words[i].Cnt); cp > 0 && binOpPriority <= cp {
+			binOp, binOpPriority = i, cp
+		}
+	}
+	if strings.ToLower(words[0].Cnt) == "not" && binOpPriority < _notPriority {
+		// not <exp>, every binary operator inside binds tighter than "not"
+		right, err := _buildExp(words[1:])
+		if err != nil {
+			return nil, err
+		}
+		return &Exp{Operator: &words[0], Arguments: []*Exp{right}}, nil
 	}
 	if binOp > 0 {
 		// found binary operator
@@ -166,7 +282,6 @@ func _buildExp(words []Word) (*Exp, error) {
 	}
 	// no binary operator, must be one part, possible formats:
 	// - ( <exp> )
-	// - not <exp>
 	// - <func> ( <exp> , <exp> , <exp> )
 	// - <var>
 	// - <const>
@@ -194,14 +309,6 @@ func _buildExp(words []Word) (*Exp, error) {
 			return nil, words[rp].BuildError("missing content before")
 		}
 		return _buildExp(words[1 : len(words)-1])
-	}
-	if strings.ToLower(words[0].Cnt) == "not" {
-		// not <exp>
-		right, err := _buildExp(words[1:])
-		if err != nil {
-			return nil, err
-		}
-		return &Exp{Operator: &words[0], Arguments: []*Exp{right}}, nil
 	}
 	if lp > 0 {
 		// <func> ( <exp> , <exp> , <exp> )
@@ -276,19 +383,20 @@ func (e *Exp) Text(aliasCtl AliasController) string {
 	if e.Value != nil {
 		return aliasCtl.GetVarName(e.Value.Cnt)
 	}
-	switch op := strings.ToLower(e.Operator.Cnt); op {
-	case "+", "-", "*", "/", "and", "or":
-		left := e.Arguments[0].Text(aliasCtl)
-		right := e.Arguments[1].Text(aliasCtl)
-		if e.Arguments[0].Operator != nil && _binOpPriority(e.Arguments[0].Operator.Cnt) <= 4 {
-			left = "(" + left + ")"
+	op := strings.ToLower(e.Operator.Cnt)
+	// an argument that is itself a binary operator (or "not") is always parenthesized
+	argText := func(arg *Exp) string {
+		text := arg.Text(aliasCtl)
+		if arg.Operator != nil && (isBinaryOp(arg.Operator.Cnt) || strings.ToLower(arg.Operator.Cnt) == "not") {
+			return "(" + text + ")"
 		}
-		if e.Arguments[1].Operator != nil && _binOpPriority(e.Arguments[1].Operator.Cnt) <= 4 {
-			right = "(" + right + ")"
-		}
-		return fmt.Sprintf("%s %s %s", left, op, right)
-	case "not":
-		return "not " + e.Arguments[0].Text(aliasCtl)
+		return text
+	}
+	switch {
+	case isBinaryOp(op):
+		return fmt.Sprintf("%s %s %s", argText(e.Arguments[0]), op, argText(e.Arguments[1]))
+	case op == "not":
+		return "not " + argText(e.Arguments[0])
 	default:
 		var buf bytes.Buffer
 		buf.WriteString(aliasCtl.GetOpName(e.Operator.Cnt))

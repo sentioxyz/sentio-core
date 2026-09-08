@@ -357,7 +357,8 @@ func (e *UncommittedEntityBox) FromEntityUpdateData(
 	}
 	lostFields := utils.BuildSet(entityType.ListFieldNames(true, true, false))
 	e.Data = make(map[string]any)
-	e.Operator = make(map[string]Operator)
+	round := make(map[string]Operator)
+	e.Operator = []map[string]Operator{round}
 	for fieldName, fieldValue := range data.GetFields() {
 		delete(lostFields, fieldName)
 		field := entityType.GetFieldByName(fieldName)
@@ -366,36 +367,62 @@ func (e *UncommittedEntityBox) FromEntityUpdateData(
 		}
 		switch fieldValue.GetOp() {
 		case entityProtos.EntityUpdateData_SET:
-			e.Data[fieldName], err = FromRichValue(fieldValue.GetValue(), field.Type)
-			if err != nil {
+			val, loadErr := FromRichValue(fieldValue.GetValue(), field.Type)
+			if loadErr != nil {
 				return fmt.Errorf("load %s.%s %s from rich value %s failed: %w",
-					entityType.Name, fieldName, field.Type.String(), fieldValue.String(), err)
+					entityType.Name, fieldName, field.Type.String(), fieldValue.String(), loadErr)
 			}
+			round[fieldName] = Operator{Set: &operatorSet{Value: val}}
 		case entityProtos.EntityUpdateData_ADD:
-			op := Operator{NumCalc: &OperatorNumCalc{
+			op := Operator{NumCalc: &operatorNumCalc{
 				Multi: rsh.NewIntValue(1),
 				Add:   fieldValue.GetValue(),
 			}}
 			if err = checkNumCalcValueTypeMatch(field.Type, fieldValue.GetValue()); err != nil {
 				return fmt.Errorf("operator value type for %s.%s is not match: %w", entityType.Name, fieldName, err)
 			}
-			e.Operator[fieldName] = op
+			round[fieldName] = op
 		case entityProtos.EntityUpdateData_MULTIPLY:
-			op := Operator{NumCalc: &OperatorNumCalc{
+			op := Operator{NumCalc: &operatorNumCalc{
 				Multi: fieldValue.GetValue(),
 				Add:   rsh.NewIntValue(0),
 			}}
 			if err = checkNumCalcValueTypeMatch(field.Type, fieldValue.GetValue()); err != nil {
 				return fmt.Errorf("operator value type for %s.%s is not match: %w", entityType.Name, fieldName, err)
 			}
-			e.Operator[fieldName] = op
+			round[fieldName] = op
+		case entityProtos.EntityUpdateData_EXPRESSION:
+			compiled, compileErr := compileUpdateExp(entityType, field, fieldValue.GetExpression())
+			if compileErr != nil {
+				return fmt.Errorf("invalid expression %q for %s.%s: %w",
+					fieldValue.GetExpression(), entityType.Name, fieldName, compileErr)
+			}
+			round[fieldName] = Operator{Exp: compiled}
 		default:
 			return fmt.Errorf("unknown operator type %s for %s.%s", fieldValue.GetOp().String(), entityType.Name, fieldName)
 		}
 	}
+	if len(lostFields) == 0 {
+		// every field is present: when all of them are SET the request replaces the whole entity,
+		// which is an upsert; keep it concrete so that it does not depend on the previous version
+		allSet := true
+		for _, op := range round {
+			if op.Set == nil {
+				allSet = false
+				break
+			}
+		}
+		if allSet {
+			for fieldName, op := range round {
+				e.Data[fieldName] = op.Set.Value
+			}
+			e.Operator = nil
+			return
+		}
+	}
 	for fieldName := range lostFields {
 		// lost field use latest value
-		e.Operator[fieldName] = Operator{}
+		round[fieldName] = Operator{}
 	}
 	return
 }

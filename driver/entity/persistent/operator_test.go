@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/graph-gophers/graphql-go/types"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
@@ -20,10 +21,18 @@ func numEntity(t *testing.T) *schema.Entity {
 	return sch.GetEntity("EntityD")
 }
 
+// mustCalcOperator wraps calcOperator for operators that do not read other fields.
+func mustCalcOperator(t *testing.T, typ types.Type, originVal any, op Operator) any {
+	t.Helper()
+	val, err := calcOperator(typ, originVal, op, expRow{exists: true})
+	assert.NoError(t, err)
+	return val
+}
+
 // intOp builds f(x) = x * multi + add using integer RichValues.
 // Suitable for Int and Int8 field operators.
 func intOp(multi, add int64) Operator {
-	return Operator{NumCalc: &OperatorNumCalc{
+	return Operator{NumCalc: &operatorNumCalc{
 		Multi: rsh.NewIntValue(int32(multi)),
 		Add:   rsh.NewIntValue(int32(add)),
 	}}
@@ -32,7 +41,7 @@ func intOp(multi, add int64) Operator {
 // bigIntOp builds f(x) = x * multi + add using BigInt RichValues.
 // Suitable for BigInt field operators.
 func bigIntOp(multi, add int64) Operator {
-	return Operator{NumCalc: &OperatorNumCalc{
+	return Operator{NumCalc: &operatorNumCalc{
 		Multi: rsh.NewBigIntValue(big.NewInt(multi)),
 		Add:   rsh.NewBigIntValue(big.NewInt(add)),
 	}}
@@ -41,7 +50,7 @@ func bigIntOp(multi, add int64) Operator {
 // decOp builds f(x) = x * multi + add using BigDecimal RichValues.
 // Suitable for Float and BigDecimal field operators.
 func decOp(multi, add float64) Operator {
-	return Operator{NumCalc: &OperatorNumCalc{
+	return Operator{NumCalc: &operatorNumCalc{
 		Multi: rsh.NewBigDecimalValue(decimal.NewFromFloat(multi)),
 		Add:   rsh.NewBigDecimalValue(decimal.NewFromFloat(add)),
 	}}
@@ -61,7 +70,7 @@ func TestOperatorNumCalc_Calc(t *testing.T) {
 		{4, 3, -1, 11}, // negative add: 4*3-1=11
 	}
 	for _, tc := range cases {
-		op := OperatorNumCalc{
+		op := operatorNumCalc{
 			Multi: rsh.NewIntValue(int32(tc.multi)),
 			Add:   rsh.NewIntValue(int32(tc.add)),
 		}
@@ -153,36 +162,36 @@ func TestCalcOperator(t *testing.T) {
 	t.Run("RemainLatest_returns_origin_unchanged", func(t *testing.T) {
 		field := e.GetFieldByName("propD1")
 		remain := Operator{}
-		assert.Equal(t, int32(42), calcOperator(field.Type, int32(42), remain))
-		assert.Nil(t, calcOperator(field.Type, nil, remain))
+		assert.Equal(t, int32(42), mustCalcOperator(t, field.Type, int32(42), remain))
+		assert.Nil(t, mustCalcOperator(t, field.Type, nil, remain))
 	})
 
 	t.Run("Int_non_null", func(t *testing.T) {
 		field := e.GetFieldByName("propD1")
-		assert.Equal(t, int32(13), calcOperator(field.Type, int32(5), op))     // 5*2+3=13
-		assert.Equal(t, int32(3), calcOperator(field.Type, nil, op))            // zero origin
-		assert.Equal(t, int32(3), calcOperator(field.Type, (*int32)(nil), op)) // nil ptr → 0
+		assert.Equal(t, int32(13), mustCalcOperator(t, field.Type, int32(5), op))     // 5*2+3=13
+		assert.Equal(t, int32(3), mustCalcOperator(t, field.Type, nil, op))           // zero origin
+		assert.Equal(t, int32(3), mustCalcOperator(t, field.Type, (*int32)(nil), op)) // nil ptr → 0
 	})
 
 	t.Run("Int_nullable", func(t *testing.T) {
 		field := e.GetFieldByName("propD2")
 		v13, v3 := int32(13), int32(3)
-		assert.Equal(t, &v13, calcOperator(field.Type, int32(5), op))
-		assert.Equal(t, &v3, calcOperator(field.Type, nil, op))
+		assert.Equal(t, &v13, mustCalcOperator(t, field.Type, int32(5), op))
+		assert.Equal(t, &v3, mustCalcOperator(t, field.Type, nil, op))
 	})
 
 	t.Run("Int8_non_null", func(t *testing.T) {
 		field := e.GetFieldByName("propJ1")
-		assert.Equal(t, int64(13), calcOperator(field.Type, int64(5), op))
-		assert.Equal(t, int64(3), calcOperator(field.Type, nil, op))
-		assert.Equal(t, int64(3), calcOperator(field.Type, (*int64)(nil), op))
+		assert.Equal(t, int64(13), mustCalcOperator(t, field.Type, int64(5), op))
+		assert.Equal(t, int64(3), mustCalcOperator(t, field.Type, nil, op))
+		assert.Equal(t, int64(3), mustCalcOperator(t, field.Type, (*int64)(nil), op))
 	})
 
 	t.Run("Int8_nullable", func(t *testing.T) {
 		field := e.GetFieldByName("propJ2")
 		v13, v3 := int64(13), int64(3)
-		assert.Equal(t, &v13, calcOperator(field.Type, int64(5), op))
-		assert.Equal(t, &v3, calcOperator(field.Type, nil, op))
+		assert.Equal(t, &v13, mustCalcOperator(t, field.Type, int64(5), op))
+		assert.Equal(t, &v3, mustCalcOperator(t, field.Type, nil, op))
 	})
 
 	// BigInt is special: always returns *big.Int regardless of nullable/non-null.
@@ -192,38 +201,38 @@ func TestCalcOperator(t *testing.T) {
 			field := e.GetFieldByName(fieldName)
 
 			// *big.Int origin
-			got := calcOperator(field.Type, big.NewInt(5), bigOp)
+			got := mustCalcOperator(t, field.Type, big.NewInt(5), bigOp)
 			result, ok := got.(*big.Int)
 			assert.True(t, ok, "%s: expected *big.Int, got %T", fieldName, got)
 			assert.Equal(t, big.NewInt(13), result)
 
 			// big.Int (value, not pointer) origin
 			val := *big.NewInt(5)
-			got2 := calcOperator(field.Type, val, bigOp)
+			got2 := mustCalcOperator(t, field.Type, val, bigOp)
 			result2, ok2 := got2.(*big.Int)
 			assert.True(t, ok2, "%s: expected *big.Int for value origin, got %T", fieldName, got2)
 			assert.Equal(t, big.NewInt(13), result2)
 
 			// nil origin → treat as 0
-			got3 := calcOperator(field.Type, nil, bigOp)
+			got3 := mustCalcOperator(t, field.Type, nil, bigOp)
 			assert.Equal(t, big.NewInt(3), got3)
 		}
 	})
 
 	t.Run("Float_non_null", func(t *testing.T) {
 		field := e.GetFieldByName("propI1")
-		assert.Equal(t, float64(13), calcOperator(field.Type, float64(5), op))
-		assert.Equal(t, float64(3), calcOperator(field.Type, nil, op))
-		assert.Equal(t, float64(3), calcOperator(field.Type, (*float64)(nil), op))
+		assert.Equal(t, float64(13), mustCalcOperator(t, field.Type, float64(5), op))
+		assert.Equal(t, float64(3), mustCalcOperator(t, field.Type, nil, op))
+		assert.Equal(t, float64(3), mustCalcOperator(t, field.Type, (*float64)(nil), op))
 	})
 
 	t.Run("Float_nullable", func(t *testing.T) {
 		field := e.GetFieldByName("propI2")
-		got := calcOperator(field.Type, float64(5), op)
+		got := mustCalcOperator(t, field.Type, float64(5), op)
 		p, ok := got.(*float64)
 		assert.True(t, ok)
 		assert.Equal(t, float64(13), *p)
-		got2 := calcOperator(field.Type, nil, op)
+		got2 := mustCalcOperator(t, field.Type, nil, op)
 		p2, ok2 := got2.(*float64)
 		assert.True(t, ok2)
 		assert.Equal(t, float64(3), *p2)
@@ -231,20 +240,20 @@ func TestCalcOperator(t *testing.T) {
 
 	t.Run("BigDecimal_non_null", func(t *testing.T) {
 		field := e.GetFieldByName("propF1")
-		assert.Equal(t, decimal.NewFromInt(13), calcOperator(field.Type, decimal.NewFromInt(5), op))
-		assert.Equal(t, decimal.NewFromInt(3), calcOperator(field.Type, nil, op))
+		assert.Equal(t, decimal.NewFromInt(13), mustCalcOperator(t, field.Type, decimal.NewFromInt(5), op))
+		assert.Equal(t, decimal.NewFromInt(3), mustCalcOperator(t, field.Type, nil, op))
 		// *decimal.Decimal origin
 		d := decimal.NewFromInt(5)
-		assert.Equal(t, decimal.NewFromInt(13), calcOperator(field.Type, &d, op))
+		assert.Equal(t, decimal.NewFromInt(13), mustCalcOperator(t, field.Type, &d, op))
 	})
 
 	t.Run("BigDecimal_nullable", func(t *testing.T) {
 		field := e.GetFieldByName("propF2")
-		got := calcOperator(field.Type, decimal.NewFromInt(5), op)
+		got := mustCalcOperator(t, field.Type, decimal.NewFromInt(5), op)
 		p, ok := got.(*decimal.Decimal)
 		assert.True(t, ok)
 		assert.Equal(t, decimal.NewFromInt(13), *p)
-		got2 := calcOperator(field.Type, nil, op)
+		got2 := mustCalcOperator(t, field.Type, nil, op)
 		p2, ok2 := got2.(*decimal.Decimal)
 		assert.True(t, ok2)
 		assert.Equal(t, decimal.NewFromInt(3), *p2)

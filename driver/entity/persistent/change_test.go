@@ -19,30 +19,30 @@ func TestChangeHistory_Push(t *testing.T) {
 	eType := sch.GetEntity("EntityE1")
 
 	var his changeHistory
-	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3, GenBlockHash: "3-1", Data: map[string]any{"propB": int32(1)}}})
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3, GenBlockHash: "3-1", Data: map[string]any{"propB": int32(1)}}}, nil)
 	his.Push(eType, &UncommittedEntityBox{
 		EntityBox: EntityBox{
 			GenBlockNumber: 3,
 			GenBlockHash:   "3-2",
 			Data:           map[string]any{},
 		},
-		Operator: map[string]Operator{
+		Operator: []map[string]Operator{{
 			"propB": {
-				NumCalc: &OperatorNumCalc{
+				NumCalc: &operatorNumCalc{
 					Multi: rsh.NewIntValue(1),
 					Add:   rsh.NewIntValue(1234),
 				},
 			},
-		},
-	})
-	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-1", Data: map[string]any{"propB": int32(3)}}})
-	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-2", Data: map[string]any{"propB": int32(4)}}})
-	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1, GenBlockHash: "1-1", Data: map[string]any{"propB": int32(5)}}})
-	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1, GenBlockHash: "1-2", Data: map[string]any{"propB": int32(6)}}})
-	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4, GenBlockHash: "4-1", Data: map[string]any{"propB": int32(7)}}})
-	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4, GenBlockHash: "4-2", Data: map[string]any{"propB": int32(8)}}})
-	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2, GenBlockHash: "2-1", Data: map[string]any{"propB": int32(9)}}})
-	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2, GenBlockHash: "2-2", Data: map[string]any{"propB": int32(10)}}})
+		}},
+	}, nil)
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-1", Data: map[string]any{"propB": int32(3)}}}, nil)
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-2", Data: map[string]any{"propB": int32(4)}}}, nil)
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1, GenBlockHash: "1-1", Data: map[string]any{"propB": int32(5)}}}, nil)
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 1, GenBlockHash: "1-2", Data: map[string]any{"propB": int32(6)}}}, nil)
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4, GenBlockHash: "4-1", Data: map[string]any{"propB": int32(7)}}}, nil)
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 4, GenBlockHash: "4-2", Data: map[string]any{"propB": int32(8)}}}, nil)
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2, GenBlockHash: "2-1", Data: map[string]any{"propB": int32(9)}}}, nil)
+	his.Push(eType, &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 2, GenBlockHash: "2-2", Data: map[string]any{"propB": int32(10)}}}, nil)
 
 	// One entry per block, keyed by the last hash for that block.
 	assert.Equal(t,
@@ -71,24 +71,24 @@ func TestChangeHistory_Push_ReturnValues(t *testing.T) {
 
 	var his changeHistory
 	box1 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-1", Data: map[string]any{"propB": int32(1)}}}
-	merged, mergedBox := his.Push(eType, box1)
+	merged, mergedBox, _ := his.Push(eType, box1, nil)
 	assert.False(t, merged, "first push to an empty history must not be a merge")
 	assert.Same(t, box1, mergedBox, "mergedBox must point to the pushed entry")
 
 	box2 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 5, GenBlockHash: "5-2", Data: map[string]any{"propB": int32(2)}}}
-	merged, mergedBox = his.Push(eType, box2)
+	merged, mergedBox, _ = his.Push(eType, box2, nil)
 	assert.True(t, merged, "second push with the same block number must be a merge")
 	assert.Same(t, his[0], mergedBox, "mergedBox must point to the in-history entry, not the argument")
 
 	// Push at a different (earlier) block: not a merge.
 	box3 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3, GenBlockHash: "3-1", Data: map[string]any{"propB": int32(3)}}}
-	merged, mergedBox = his.Push(eType, box3)
+	merged, mergedBox, _ = his.Push(eType, box3, nil)
 	assert.False(t, merged)
 	assert.Same(t, his[0], mergedBox, "mergedBox must be the newly inserted entry (his[0])")
 
 	// Merge into the earlier block.
 	box4 := &UncommittedEntityBox{EntityBox: EntityBox{GenBlockNumber: 3, GenBlockHash: "3-2", Data: map[string]any{"propB": int32(4)}}}
-	merged, mergedBox = his.Push(eType, box4)
+	merged, mergedBox, _ = his.Push(eType, box4, nil)
 	assert.True(t, merged)
 	assert.Same(t, his[0], mergedBox)
 }

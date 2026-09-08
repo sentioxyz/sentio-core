@@ -167,7 +167,7 @@ func (c *Controller) executeEntityOperator(
 		if box.Data == nil {
 			continue
 		}
-		if len(box.Operator) == 0 {
+		if box.Resolved() {
 			continue
 		}
 		var preBox *EntityBox
@@ -182,29 +182,48 @@ func (c *Controller) executeEntityOperator(
 		} else {
 			preBox = &history[i-1].EntityBox // always no Operator
 		}
-		var preData map[string]any
-		if preBox != nil && preBox.Data != nil {
-			preData = preBox.Data
-		} else {
-			preData = make(map[string]any)
+		row := expRow{exists: preBox != nil && preBox.Data != nil}
+		if row.exists {
+			row.data = preBox.Data
 		}
-		for fieldName, op := range box.Operator {
-			field := entityType.GetFieldByName(fieldName)
-			originVal, has := preData[fieldName]
-			if !has {
-				_, originVal = buildType(field.Type)
+		// resolve round by round, each round reads the resolved result of the one before it
+		for _, round := range box.Operator {
+			next := utils.CopyMap(row.data)
+			if next == nil {
+				next = make(map[string]any)
 			}
-			box.Data[fieldName] = calcOperator(field.Type, originVal, op)
+			if err = resolveRound(entityType, round, row, next); err != nil {
+				return from, fmt.Errorf("%w: resolve %s with id %s failed: %v",
+					ErrInvalidFieldValue, entityType.GetFullName(), id, err)
+			}
+			row = expRow{exists: true, data: next}
 		}
-		if err = c.store.CheckValue(entityType, box.Data); err != nil {
+		// validate before touching the box, so that a rejected result leaves it pending and a later
+		// read does not return the invalid row as resolved
+		if err = c.store.CheckValue(entityType, row.data); err != nil {
 			return from, fmt.Errorf(
 				"%w: entity operator result for %s with id %s: %v",
 				ErrInvalidFieldValue, entityType.GetFullName(), id, err,
 			)
 		}
-		box.Operator = nil
+		box.Data, box.Operator = row.data, nil
 	}
 	return
+}
+
+// checkBox validates every value a write carries before it is stored: the concrete Data and the
+// Set corrections of the last pending round (earlier rounds were validated when they were stored).
+// Expression and affine results are validated when they resolve.
+func (c *Controller) checkBox(entityType *schema.Entity, box *UncommittedEntityBox) error {
+	if box.Data != nil {
+		if err := c.store.CheckValue(entityType, box.Data); err != nil {
+			return err
+		}
+	}
+	if !box.Resolved() {
+		return c.store.CheckValue(entityType, box.LastRoundSetValues())
+	}
+	return nil
 }
 
 func (c *Controller) executeAllEntityOperator(ctx context.Context, blockNumber uint64) error {
@@ -240,7 +259,7 @@ func (c *Controller) getEntity(
 		if inBlock && uctBox.GenBlockNumber < blockNumber {
 			uctBox = nil
 		}
-		if uctBox != nil && len(uctBox.Operator) > 0 {
+		if uctBox != nil && !uctBox.Resolved() {
 			// calculate operators
 			// uctBox will be changed,  uctBox.Operator will be set to nil and uctBox.Data will be filled
 			if from, err = c.executeEntityOperator(ctx, entityType, id, blockNumber); err != nil {
@@ -424,7 +443,7 @@ func (c *Controller) listEntity(
 		if uctBox.Data == nil {
 			continue // deleted
 		}
-		if len(uctBox.Operator) > 0 {
+		if !uctBox.Resolved() {
 			// calculate operators
 			// uctBox will be changed, uctBox.Operator will be set to nil and uctBox.Data will be filled
 			if _, err = c.executeEntityOperator(ctx, entityType, uctBox.ID, blockNumber); err != nil {
@@ -492,19 +511,15 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 	}
 	box.Entity = entityType.Name
 
-	if box.Data != nil {
-		if err := c.store.CheckValue(entityType, box.Data); err != nil {
-			return fmt.Errorf(
-				"%w: set entity %s/%s in chain %s failed: %v",
-				ErrInvalidFieldValue, entityType.Name,
-				box.ID, c.store.GetChain(), err,
-			)
-		}
-	}
-
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "box", box.String())
 
+	if entityType.IsImmutable() && !box.Resolved() {
+		// an update reads and corrects the previous version, which an immutable entity must not
+		// have; an update that sets every field is already an upsert (see FromEntityUpdateData)
+		return fmt.Errorf("%w: update immutable entity %s in chain %s, use upsert",
+			ErrUpdateImmutable, entityType.Name, c.store.GetChain())
+	}
 	if entityType.IsTimeSeries() {
 		if box.Data == nil {
 			return fmt.Errorf("%w: delete timeseries entity %s in chain %s",
@@ -528,15 +543,14 @@ func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, b
 			entityType.Name, box.ID, c.store.GetChain(), latest.String(), ErrUpdateImmutable)
 	}
 
-	// put into c.changes
-	if merged, mergedBox := history.Push(entityType, &box); merged && mergedBox.Data != nil {
-		if err := c.store.CheckValue(entityType, mergedBox.Data); err != nil {
-			return fmt.Errorf(
-				"%w: set entity %s/%s in chain %s failed: %v",
-				ErrInvalidFieldValue, entityType.Name,
-				box.ID, c.store.GetChain(), err,
-			)
-		}
+	// put into c.changes, validated first so that a rejected write changes nothing
+	validate := func(stored *UncommittedEntityBox) error { return c.checkBox(entityType, stored) }
+	if _, _, err := history.Push(entityType, &box, validate); err != nil {
+		return fmt.Errorf(
+			"%w: set entity %s/%s in chain %s failed: %v",
+			ErrInvalidFieldValue, entityType.Name,
+			box.ID, c.store.GetChain(), err,
+		)
 	}
 	utils.PutIntoK2Map(c.changes, entityType.Name, box.ID, history)
 

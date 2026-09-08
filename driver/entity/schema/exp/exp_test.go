@@ -269,34 +269,35 @@ func Test_newExpSuccess1(t *testing.T) {
 		}},
 	}, e)
 
+	// "and" binds looser than "+"
 	e, err = NewExp("v1+ v2 and 1")
 	assert.NoError(t, err)
 	assert.Equal(t, &Exp{
 		Operator: &Word{
-			Cnt:      "+",
-			Position: Position{S: 2, E: 2},
+			Cnt:      "and",
+			Position: Position{S: 7, E: 9},
 		},
 		Arguments: []*Exp{{
-			Value: &Word{
-				Cnt:      "v1",
-				Position: Position{S: 0, E: 1},
-			},
-		}, {
 			Operator: &Word{
-				Cnt:      "and",
-				Position: Position{S: 7, E: 9},
+				Cnt:      "+",
+				Position: Position{S: 2, E: 2},
 			},
 			Arguments: []*Exp{{
+				Value: &Word{
+					Cnt:      "v1",
+					Position: Position{S: 0, E: 1},
+				},
+			}, {
 				Value: &Word{
 					Cnt:      "v2",
 					Position: Position{S: 4, E: 5},
 				},
-			}, {
-				Value: &Word{
-					Cnt:      "1",
-					Position: Position{S: 11, E: 11},
-				},
 			}},
+		}, {
+			Value: &Word{
+				Cnt:      "1",
+				Position: Position{S: 11, E: 11},
+			},
 		}},
 	}, e)
 
@@ -489,5 +490,128 @@ func (c testAliasController) GetOpName(org string) string {
 		return "min_test"
 	default:
 		return org
+	}
+}
+
+func Test_stringLiteral(t *testing.T) {
+	cases := []struct {
+		exp  string
+		text string
+	}{
+		{"'abc'", "'abc'"},
+		{"eq(a, 'abc')", "eq(a, 'abc')"},
+		{"if(eq(a, 'x y'), 'yes', 'no')", "if(eq(a, 'x y'), 'yes', 'no')"},
+		{`'it\'s'`, `'it\'s'`},
+		{"'a+b'", "'a+b'"},
+		{"'(,)'", "'(,)'"},
+	}
+	for i, c := range cases {
+		e, err := NewExp(c.exp)
+		assert.NoErrorf(t, err, "case #%d: %s", i, c.exp)
+		assert.Equalf(t, c.text, e.String(), "case #%d: %s", i, c.exp)
+	}
+	for i, c := range []string{"'abc", "eq(a, 'abc)", `'abc\'`} {
+		_, err := NewExp(c)
+		assert.ErrorContainsf(t, err, "unterminated string literal", "case #%d: %s", i, c)
+	}
+}
+
+func Test_unquoteStringLiteral(t *testing.T) {
+	for i, c := range []struct{ in, want string }{
+		{"'abc'", "abc"},
+		{"''", ""},
+		{`'it\'s'`, "it's"},
+		{`'a\\b'`, `a\b`},
+	} {
+		got, err := UnquoteStringLiteral(c.in)
+		assert.NoErrorf(t, err, "case #%d", i)
+		assert.Equalf(t, c.want, got, "case #%d", i)
+	}
+	assert.False(t, IsStringLiteral("abc"))
+	assert.False(t, IsStringLiteral("'"))
+	_, err := UnquoteStringLiteral("abc")
+	assert.Error(t, err)
+}
+
+func Test_negativeNumber(t *testing.T) {
+	cases := []struct {
+		exp  string
+		text string
+	}{
+		{"-1", "-1"},
+		{"(-1)", "-1"},
+		{"a * -1", "a * -1"},
+		{"a - -1", "a - -1"},
+		{"a - 1", "a - 1"},
+		{"a -1", "a - 1"},
+		{"max(-1.5, a)", "max(-1.5, a)"},
+		{"-1 + a", "-1 + a"},
+		{"a and -1", "a and -1"},
+	}
+	for i, c := range cases {
+		e, err := NewExp(c.exp)
+		assert.NoErrorf(t, err, "case #%d: %s", i, c.exp)
+		assert.Equalf(t, c.text, e.String(), "case #%d: %s", i, c.exp)
+	}
+	assert.True(t, IsNumberLiteral("-1"))
+	assert.True(t, IsNumberLiteral("1.5"))
+	assert.True(t, IsNumberLiteral("1e18"))
+	assert.False(t, IsNumberLiteral("a1"))
+	assert.False(t, IsNumberLiteral("-a"))
+	// a leading '-' before a variable stays a binary operator and is still rejected
+	_, err := NewExp("-a")
+	assert.Error(t, err)
+}
+
+func Test_comparisonAndNot(t *testing.T) {
+	cases := []struct {
+		exp  string
+		text string
+	}{
+		{"a = b", "a = b"},
+		{"a != b", "a != b"},
+		{"a > b", "a > b"},
+		{"a >= b", "a >= b"},
+		{"a < b", "a < b"},
+		{"a <= b", "a <= b"},
+		{"a>=b", "a >= b"},
+		{"a<b", "a < b"},
+		// comparisons bind looser than arithmetic and tighter than and / or
+		{"a + 1 > b * 2", "(a + 1) > (b * 2)"},
+		{"a > 1 and b < 2 or c = 3", "((a > 1) and (b < 2)) or (c = 3)"},
+		{"a > 1 or b < 2 and c = 3", "(a > 1) or ((b < 2) and (c = 3))"},
+		{"a >= -1", "a >= -1"},
+		{"a = 'x'", "a = 'x'"},
+		{"if(a > b, a, b) + 1", "if(a > b, a, b) + 1"},
+		{"a div 2 + b * 3", "(a div 2) + (b * 3)"},
+		{"a + b div 2", "a + (b div 2)"},
+		{"a DIV -2", "a div -2"},
+		// not binds tighter than and / or but looser than a comparison
+		{"not a", "not a"},
+		{"not a = b", "not (a = b)"},
+		{"not a and b", "(not a) and b"},
+		{"not a = b or c", "(not (a = b)) or c"},
+		{"a and not b = c", "a and (not (b = c))"},
+		{"not not a", "not (not a)"},
+		{"not (a and b)", "not (a and b)"},
+		{"not f(a)", "not f(a)"},
+	}
+	for i, c := range cases {
+		e, err := NewExp(c.exp)
+		assert.NoErrorf(t, err, "case #%d: %s", i, c.exp)
+		assert.Equalf(t, c.text, e.String(), "case #%d: %s", i, c.exp)
+		// the rendered text parses back to the same tree
+		e2, err := NewExp(c.text)
+		assert.NoErrorf(t, err, "case #%d: %s", i, c.text)
+		assert.Equalf(t, c.text, e2.String(), "case #%d: %s", i, c.text)
+	}
+	for i, c := range []struct{ exp, err string }{
+		{"a ! b", "invalid character '!' (0x21) in expression[2], expect '!='"},
+		{"a = ", "empty expression"},
+		{"= a", "unexpected 'a' at expression[2], the operator may be missing"},
+		{"a == b", "unexpected '==' at expression[2..3], the operator may be missing"},
+	} {
+		_, err := NewExp(c.exp)
+		assert.ErrorContainsf(t, err, c.err, "case #%d: %s", i, c.exp)
 	}
 }

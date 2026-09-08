@@ -544,9 +544,10 @@ func (ProcessStreamResponse_Partitions_Partition_SysValue) EnumDescriptor() ([]b
 type EntityUpdateData_Operator int32
 
 const (
-	EntityUpdateData_SET      EntityUpdateData_Operator = 0
-	EntityUpdateData_ADD      EntityUpdateData_Operator = 1
-	EntityUpdateData_MULTIPLY EntityUpdateData_Operator = 2
+	EntityUpdateData_SET        EntityUpdateData_Operator = 0
+	EntityUpdateData_ADD        EntityUpdateData_Operator = 1
+	EntityUpdateData_MULTIPLY   EntityUpdateData_Operator = 2
+	EntityUpdateData_EXPRESSION EntityUpdateData_Operator = 3
 )
 
 // Enum value maps for EntityUpdateData_Operator.
@@ -555,11 +556,13 @@ var (
 		0: "SET",
 		1: "ADD",
 		2: "MULTIPLY",
+		3: "EXPRESSION",
 	}
 	EntityUpdateData_Operator_value = map[string]int32{
-		"SET":      0,
-		"ADD":      1,
-		"MULTIPLY": 2,
+		"SET":        0,
+		"ADD":        1,
+		"MULTIPLY":   2,
+		"EXPRESSION": 3,
 	}
 )
 
@@ -6548,6 +6551,7 @@ type EntityUpdateData_FieldValue struct {
 	state         protoimpl.MessageState    `protogen:"open.v1"`
 	Value         *protos.RichValue         `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	Op            EntityUpdateData_Operator `protobuf:"varint,2,opt,name=op,proto3,enum=processor.EntityUpdateData_Operator" json:"op,omitempty"`
+	Expression    string                    `protobuf:"bytes,3,opt,name=expression,proto3" json:"expression,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6594,6 +6598,13 @@ func (x *EntityUpdateData_FieldValue) GetOp() EntityUpdateData_Operator {
 		return x.Op
 	}
 	return EntityUpdateData_SET
+}
+
+func (x *EntityUpdateData_FieldValue) GetExpression() string {
+	if x != nil {
+		return x.Expression
+	}
+	return ""
 }
 
 type DBRequest_DBGet struct {
@@ -8466,20 +8477,25 @@ const file_processor_protos_processor_proto_rawDesc = "" +
 	"\x04data\x18\x05 \x01(\v2\x12.common.RichStructR\x04data\";\n" +
 	"\n" +
 	"EntityList\x12-\n" +
-	"\bentities\x18\x01 \x03(\v2\x11.processor.EntityR\bentities\"\xcf\x02\n" +
+	"\bentities\x18\x01 \x03(\v2\x11.processor.EntityR\bentities\"\x80\x03\n" +
 	"\x10EntityUpdateData\x12?\n" +
-	"\x06fields\x18\x01 \x03(\v2'.processor.EntityUpdateData.FieldsEntryR\x06fields\x1ak\n" +
+	"\x06fields\x18\x01 \x03(\v2'.processor.EntityUpdateData.FieldsEntryR\x06fields\x1a\x8b\x01\n" +
 	"\n" +
 	"FieldValue\x12'\n" +
 	"\x05value\x18\x01 \x01(\v2\x11.common.RichValueR\x05value\x124\n" +
-	"\x02op\x18\x02 \x01(\x0e2$.processor.EntityUpdateData.OperatorR\x02op\x1aa\n" +
+	"\x02op\x18\x02 \x01(\x0e2$.processor.EntityUpdateData.OperatorR\x02op\x12\x1e\n" +
+	"\n" +
+	"expression\x18\x03 \x01(\tR\n" +
+	"expression\x1aa\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\v2&.processor.EntityUpdateData.FieldValueR\x05value:\x028\x01\"*\n" +
+	"\x05value\x18\x02 \x01(\v2&.processor.EntityUpdateData.FieldValueR\x05value:\x028\x01\":\n" +
 	"\bOperator\x12\a\n" +
 	"\x03SET\x10\x00\x12\a\n" +
 	"\x03ADD\x10\x01\x12\f\n" +
-	"\bMULTIPLY\x10\x02\"_\n" +
+	"\bMULTIPLY\x10\x02\x12\x0e\n" +
+	"\n" +
+	"EXPRESSION\x10\x03\"_\n" +
 	"\n" +
 	"TPLRequest\x129\n" +
 	"\ttemplates\x18\x01 \x03(\v2\x1b.processor.TemplateInstanceR\ttemplates\x12\x16\n" +

@@ -367,6 +367,55 @@ func TestChainStore_EnsureCaches_DiscardsALoadOlderThanAWrite(t *testing.T) {
 	cs.mu.Unlock()
 }
 
+func TestChainStore_EnsureCaches_DiscardsALoadOverlappingAWriteInFlight(t *testing.T) {
+	cs, e := newTestChainStore(t)
+	cs.fullIDCacheRefused[e.Name] = false
+	b := newBlockingIO()
+	cs.io.countEntity = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
+	cs.io.getAllID = func(context.Context, *schema.Entity) (set.Set[string], error) {
+		b.wait()
+		return set.New("old"), nil
+	}
+	cs.io.getEntity = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+		return positionRow(id, 1), nil
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := cs.GetEntity(context.Background(), e, "old")
+		done <- err
+	}()
+	<-b.started
+	// a write starts while the ID set is being loaded and is still in flight when the load ends:
+	// SetEntities marks the entity type as writing before its persistent write
+	cs.mu.Lock()
+	cs.writing.Add(e.Name)
+	cs.mu.Unlock()
+	close(b.release)
+	assert.NoError(t, <-done)
+	cs.mu.Lock()
+	assert.False(t, cs.fullIDCacheLoaded[e.Name], "a load that may have seen part of the write is not installed")
+	cs.mu.Unlock()
+
+	// once the write has landed, the next caller loads the current state
+	_, logger := log.FromContext(context.Background())
+	cs.mu.Lock()
+	cs.writing.Remove(e.Name)
+	cs.applyWriteToCaches(logger, e, []persistent.EntityBox{{
+		Entity: "Position", ID: "new", Data: map[string]any{"id": "new", "balance": int32(2)},
+	}})
+	cs.mu.Unlock()
+	cs.io.getAllID = func(context.Context, *schema.Entity) (set.Set[string], error) {
+		return set.New("old", "new"), nil
+	}
+	box, _, err := cs.GetEntity(context.Background(), e, "new")
+	assert.NoError(t, err)
+	require.NotNil(t, box)
+	cs.mu.Lock()
+	assert.True(t, cs.fullIDCacheLoaded[e.Name])
+	assert.True(t, cs.fullIDCache[e.Name].Contains("new"))
+	cs.mu.Unlock()
+}
+
 func TestChainStore_Reorg_RunsOffTheLock(t *testing.T) {
 	cs, e := newTestChainStore(t)
 	seedLRU(t, cs, e, "hot")

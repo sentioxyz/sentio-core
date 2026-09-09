@@ -232,8 +232,9 @@ type loadedCaches struct {
 
 // ensureCaches loads the full-data cache or the full-ID cache of entityType when neither has been
 // loaded or refused yet. The store queries run without mu: only one caller loads a given entity
-// type at a time and, meanwhile, the others carry on with direct store queries. loadedNow reports
-// that this call loaded a cache (as opposed to finding it loaded already).
+// type at a time and, meanwhile, the others carry on with direct store queries. A load that
+// overlaps a persistent write of the same entity type, whichever started first, is discarded.
+// loadedNow reports that this call loaded a cache (as opposed to finding it loaded already).
 func (c *ChainStore) ensureCaches(ctx context.Context, entityType *schema.Entity) (loadedNow bool, err error) {
 	name := entityType.Name
 	c.mu.Lock()
@@ -261,9 +262,10 @@ func (c *ChainStore) ensureCaches(ctx context.Context, entityType *schema.Entity
 	if loaded.idsRefused {
 		c.fullIDCacheRefused[name] = true
 	}
-	if c.cacheGen[name] != gen || c.cacheEpoch != epoch {
-		// a write landed or the caches were purged while loading: what was loaded may be stale,
-		// the next caller loads again
+	if c.cacheGen[name] != gen || c.cacheEpoch != epoch || c.writing.Contains(name) {
+		// a write landed, a write is still in flight (the load may have seen part of it; cacheGen
+		// only moves once it has landed) or the caches were purged while loading: what was loaded
+		// may be stale, the next caller loads again
 		return false, nil
 	}
 	if loaded.full != nil {

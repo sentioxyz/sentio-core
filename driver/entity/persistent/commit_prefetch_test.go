@@ -328,3 +328,40 @@ func TestController_CommitPicksUpAWriteMadeDuringThePrefetch(t *testing.T) {
 	assert.Equal(t, int32(2), ps.data["EntityE1"]["e0"].Data["propB"])
 	assert.Equal(t, int32(5), ps.data["EntityE1"]["late"].Data["propB"])
 }
+
+func TestController_ListRelatedReadsTheStoreOffTheLock(t *testing.T) {
+	sch, err := schema.ParseAndVerifySchema(testSchema)
+	assert.NoError(t, err)
+	ctx := context.Background()
+	ps, s := newTestStore(sch, "mainnet")
+	ctrl, _ := newCtrl(s)
+	ea, eb := sch.GetEntity("EntityA"), sch.GetEntity("EntityB")
+
+	// a write to the listed entity type from inside its store list must complete: the related
+	// list holds the lock for its uncommitted snapshot only
+	written := make(chan error, 1)
+	ps.listEntitiesHook = func(*schema.Entity) {
+		done := make(chan error, 1)
+		go func() {
+			done <- ctrl.SetEntity(ctx, eb, UncommittedEntityBox{EntityBox: EntityBox{
+				ID: "0x0b02", GenBlockNumber: 12, GenBlockHash: "0x1234",
+				Data: map[string]any{"id": "0x0b02", "foreignB": "0x0a00", "foreignE": []*string{}, "foreignF": []string{}},
+			}})
+		}()
+		select {
+		case err := <-done:
+			written <- err
+		case <-time.After(2 * time.Second):
+			written <- fmt.Errorf("SetEntity blocked while the store was being listed")
+		}
+	}
+	boxes, target, err := ctrl.ListRelated(ctx, ea, "0x0a00", "foreignB", 11)
+	assert.NoError(t, err)
+	assert.NoError(t, <-written)
+	assert.Equal(t, "EntityB", target.GetName())
+	ids := make([]string, 0, len(boxes))
+	for _, b := range boxes {
+		ids = append(ids, b.ID)
+	}
+	assert.Equal(t, []string{"0x0b00", "0x0b01"}, ids, "the snapshot at block 11 does not include the block-12 write")
+}

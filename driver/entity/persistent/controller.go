@@ -482,27 +482,46 @@ func (c *Controller) ListRelated(
 			ErrInvalidField, fieldTitle, targetFieldTitle, targetFieldTitle)
 	}
 
-	// each listEntity takes c.mu for its own uncommitted part only
-	for _, targetEntityType := range target.ListEntities() {
+	// the target may be an interface with several concrete entity types: their uncommitted parts
+	// are taken in one snapshot, under c.mu once, and their store queries then run without it
+	targets := target.ListEntities()
+	filters := make([][]EntityFilter, len(targets))
+	for i, targetEntityType := range targets {
 		targetField := targetEntityType.GetFieldByName(field.GetReverseFieldName())
 		many := schema.BreakType(targetField.Type).CountListLayer() > 0
-		filter := EntityFilter{
+		filters[i] = []EntityFilter{{
 			Field: targetField,
 			Op:    utils.Select(many, EntityFilterOpHasAny, EntityFilterOpEq),
 			Value: []any{id},
+		}}
+	}
+	start := time.Now()
+	uncommitted := make([]uncommittedList, len(targets))
+	err = c.withStoreVersions(ctx, func(prefetched map[prefetchKey]storeVersion) (wants []prefetchWant) {
+		for _, targetEntityType := range targets {
+			wants = append(wants, c.pendingWants(targetEntityType, blockNumber, prefetched, listKeep("", blockNumber))...)
 		}
-		var targetBoxes []*EntityBox
-		targetBoxes, _, err = c.listEntity(
-			ctx,
-			targetEntityType,
-			[]EntityFilter{filter},
-			"",
-			math.MaxInt,
-			true,
-			blockNumber)
+		return wants
+	}, func(prefetched map[prefetchKey]storeVersion) error {
+		for i, targetEntityType := range targets {
+			var err error
+			uncommitted[i], err = c.listUncommitted(
+				ctx, targetEntityType, filters[i], "", math.MaxInt, blockNumber, prefetched)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	for i, targetEntityType := range targets {
+		targetBoxes, _, persistentPart, from, err := c.listPersistent(ctx, targetEntityType, filters[i], "", uncommitted[i])
 		if err != nil {
 			return nil, nil, err
 		}
+		c.recordList(ctx, targetEntityType, blockNumber, true, from, targetBoxes, persistentPart, time.Since(start))
 		boxes = append(boxes, targetBoxes...)
 	}
 	return
@@ -520,9 +539,9 @@ func (c *Controller) ListEntity(
 	return c.listEntity(ctx, entityType, filters, cursor, limit, false, blockNumber)
 }
 
-// listEntity merges the uncommitted changes with the store. The uncommitted part is computed under
-// c.mu, with the store versions its pending entities need read beforehand (see withStoreVersions);
-// the store query for the rest runs without c.mu.
+// listEntity merges the uncommitted changes with the store: the uncommitted part is a snapshot
+// taken under c.mu (with the store versions its pending entities need read beforehand, see
+// withStoreVersions), the store query for the rest runs without c.mu.
 func (c *Controller) listEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -532,115 +551,27 @@ func (c *Controller) listEntity(
 	loadRelated bool,
 	blockNumber uint64,
 ) (boxes []*EntityBox, next *string, err error) {
-	var persistentPart []*EntityBox
-	var persistentPartFromCache bool
-	var from = "uncommitted"
-
-	start := time.Now()
-	_, logger := log.FromContext(ctx)
-
 	if limit == 0 {
 		return nil, nil, nil
 	}
-
-	// get uncommitted part result
-	cp, cid := splitListCursor(cursor)
-	checked := make(map[string]bool)
-	inCursor := func(id string) bool { return !cp && id > cid }
-	enough := false
+	start := time.Now()
+	var uncommitted uncommittedList
 	err = c.withStoreVersions(ctx, func(prefetched map[prefetchKey]storeVersion) []prefetchWant {
-		return c.pendingWants(entityType, blockNumber, prefetched, func(id string, history changeHistory) bool {
-			uctBox := history.Latest(blockNumber)
-			return uctBox != nil && uctBox.Data != nil && inCursor(uctBox.ID)
-		})
-	}, func(prefetched map[prefetchKey]storeVersion) error {
-		for _, change := range c.changes[entityType.Name] {
-			uctBox := change.Latest(blockNumber)
-			if uctBox == nil {
-				continue
-			}
-			checked[uctBox.ID] = true
-			if !inCursor(uctBox.ID) {
-				continue // before the cursor
-			}
-			if uctBox.Data == nil {
-				continue // deleted
-			}
-			if !uctBox.Resolved() {
-				// calculate operators
-				// uctBox will be changed, uctBox.Operator will be set to nil and uctBox.Data will be filled
-				if _, err := c.executeEntityOperator(ctx, entityType, uctBox.ID, blockNumber, prefetched); err != nil {
-					logger.Errorfe(err, "execute operator failed")
-					return err
-				}
-			}
-			if pass, cke := CheckFilters(filters, uctBox.EntityBox); cke != nil {
-				logger.With("used", time.Since(start).String()).Errore(cke, "check filters failed")
-				return cke
-			} else if !pass {
-				continue // not match the filter
-			}
-			// a copy: the store query below runs without c.mu, and a same-block SetEntity would
-			// merge into the history entry itself meanwhile
-			boxes = append(boxes, uctBox.EntityBox.Copy())
-		}
-		SortEntityBoxes(boxes)
-		if len(boxes) >= limit {
-			boxes = boxes[:limit]
-			next = utils.WrapPointer(buildListCursor(false, boxes[limit-1].ID))
-			enough = true
-		}
-		return nil
+		return c.pendingWants(entityType, blockNumber, prefetched, listKeep(cursor, blockNumber))
+	}, func(prefetched map[prefetchKey]storeVersion) (err error) {
+		uncommitted, err = c.listUncommitted(ctx, entityType, filters, cursor, limit, blockNumber, prefetched)
+		return err
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-
-	if !enough {
-		limit -= len(boxes)
-
-		// get persistent part result, without c.mu
-		primaryField := entityType.GetFieldByName(schema.EntityPrimaryFieldName)
-		filters = append(filters, EntityFilter{
-			Field: primaryField,
-			Op:    EntityFilterOpNotIn,
-			Value: utils.ToAnyArray(utils.GetOrderedMapKeys(checked)),
-			idSet: checked,
-		})
-		if cp {
-			filters = append(filters, EntityFilter{
-				Field: primaryField,
-				Op:    EntityFilterOpGt,
-				Value: []any{cid},
-			})
-		}
-		persistentPart, persistentPartFromCache, err = c.store.ListEntities(ctx, entityType, filters, limit)
-		if err != nil {
-			logger.With("used", time.Since(start).String()).Errore(err, "list entity in store failed")
-			return nil, nil, err
-		}
-		from = utils.Select(persistentPartFromCache, "cache", "persistent")
-
-		// merge result and return
-		boxes = append(boxes, persistentPart...)
-		if len(persistentPart) == limit {
-			next = utils.WrapPointer(buildListCursor(true, boxes[len(boxes)-1].ID))
-		}
+	boxes, next, persistentPart, from, err := c.listPersistent(ctx, entityType, filters, cursor, uncommitted)
+	if err != nil {
+		return nil, nil, err
 	}
-
 	used := time.Since(start)
-	c.mu.Lock() // monitor callbacks are serialized by c.mu
-	c.monitor.OnList(ctx, entityType.GetName(), blockNumber, loadRelated, from, len(boxes), len(persistentPart), used)
-	c.mu.Unlock()
-	c.timeStat.Append(&timeStatWindow{
-		startAt: time.Now(),
-		entityStat: map[string]entityTimeStat{
-			entityType.Name: {
-				list:      map[string]timehist.Histogram{from: timehist.Histogram{}.Incr(used)},
-				listTotal: map[string]time.Duration{from: used},
-			},
-		},
-	})
+	c.recordList(ctx, entityType, blockNumber, loadRelated, from, boxes, persistentPart, used)
+	_, logger := log.FromContext(ctx)
 	logger.Debugw("list entity",
 		"loadRelated", loadRelated,
 		"entityType", entityType.GetName(),
@@ -653,6 +584,149 @@ func (c *Controller) listEntity(
 		"from", from,
 		"used", used)
 	return
+}
+
+// listKeep selects, for pendingWants, the uncommitted entities a list has to resolve: the ones
+// with a live version at blockNumber after the cursor.
+func listKeep(cursor string, blockNumber uint64) func(id string, history changeHistory) bool {
+	cp, cid := splitListCursor(cursor)
+	return func(id string, history changeHistory) bool {
+		uctBox := history.Latest(blockNumber)
+		return uctBox != nil && uctBox.Data != nil && !cp && uctBox.ID > cid
+	}
+}
+
+// uncommittedList is the part of a list taken from the uncommitted changes.
+type uncommittedList struct {
+	// boxes are copies of the matching uncommitted entities, sorted by id, at most the limit
+	boxes []*EntityBox
+	// checked holds every id with an uncommitted change at the block; the store must skip them
+	checked map[string]bool
+	// next is set when the uncommitted part alone fills the limit, the store is not consulted then
+	next *string
+	// limit is what is left for the store part
+	limit int
+}
+
+// listUncommitted takes the uncommitted part of a list. Must be called under c.mu, with the store
+// versions of the pending entities in prefetched (see listKeep).
+func (c *Controller) listUncommitted(
+	ctx context.Context,
+	entityType *schema.Entity,
+	filters []EntityFilter,
+	cursor string,
+	limit int,
+	blockNumber uint64,
+	prefetched map[prefetchKey]storeVersion,
+) (u uncommittedList, err error) {
+	_, logger := log.FromContext(ctx)
+	cp, cid := splitListCursor(cursor)
+	u.checked = make(map[string]bool)
+	for _, change := range c.changes[entityType.Name] {
+		uctBox := change.Latest(blockNumber)
+		if uctBox == nil {
+			continue
+		}
+		u.checked[uctBox.ID] = true
+		if cp || uctBox.ID <= cid {
+			continue // before the cursor
+		}
+		if uctBox.Data == nil {
+			continue // deleted
+		}
+		if !uctBox.Resolved() {
+			// calculate operators
+			// uctBox will be changed, uctBox.Operator will be set to nil and uctBox.Data will be filled
+			if _, err = c.executeEntityOperator(ctx, entityType, uctBox.ID, blockNumber, prefetched); err != nil {
+				logger.Errorfe(err, "execute operator failed")
+				return u, err
+			}
+		}
+		if pass, cke := CheckFilters(filters, uctBox.EntityBox); cke != nil {
+			logger.Errore(cke, "check filters failed")
+			return u, cke
+		} else if !pass {
+			continue // not match the filter
+		}
+		// a copy: the store query runs without c.mu, and a same-block SetEntity would merge into
+		// the history entry itself meanwhile
+		u.boxes = append(u.boxes, uctBox.EntityBox.Copy())
+	}
+	SortEntityBoxes(u.boxes)
+	if len(u.boxes) >= limit {
+		u.boxes = u.boxes[:limit]
+		u.next = utils.WrapPointer(buildListCursor(false, u.boxes[limit-1].ID))
+		return u, nil
+	}
+	u.limit = limit - len(u.boxes)
+	return u, nil
+}
+
+// listPersistent completes a list with the store part, without c.mu, and merges the two. from
+// says where the result came from, for the stats.
+func (c *Controller) listPersistent(
+	ctx context.Context,
+	entityType *schema.Entity,
+	filters []EntityFilter,
+	cursor string,
+	u uncommittedList,
+) (boxes []*EntityBox, next *string, persistentPart []*EntityBox, from string, err error) {
+	boxes, next, from = u.boxes, u.next, "uncommitted"
+	if u.next != nil {
+		return
+	}
+	cp, cid := splitListCursor(cursor)
+	primaryField := entityType.GetFieldByName(schema.EntityPrimaryFieldName)
+	filters = append(filters, EntityFilter{
+		Field: primaryField,
+		Op:    EntityFilterOpNotIn,
+		Value: utils.ToAnyArray(utils.GetOrderedMapKeys(u.checked)),
+		idSet: u.checked,
+	})
+	if cp {
+		filters = append(filters, EntityFilter{
+			Field: primaryField,
+			Op:    EntityFilterOpGt,
+			Value: []any{cid},
+		})
+	}
+	var fromCache bool
+	persistentPart, fromCache, err = c.store.ListEntities(ctx, entityType, filters, u.limit)
+	if err != nil {
+		_, logger := log.FromContext(ctx)
+		logger.Errore(err, "list entity in store failed")
+		return nil, nil, nil, "", err
+	}
+	from = utils.Select(fromCache, "cache", "persistent")
+	boxes = append(boxes, persistentPart...)
+	if len(persistentPart) == u.limit {
+		next = utils.WrapPointer(buildListCursor(true, boxes[len(boxes)-1].ID))
+	}
+	return
+}
+
+// recordList reports a list to the monitor (under c.mu, as Monitor requires) and the time stats.
+func (c *Controller) recordList(
+	ctx context.Context,
+	entityType *schema.Entity,
+	blockNumber uint64,
+	loadRelated bool,
+	from string,
+	boxes, persistentPart []*EntityBox,
+	used time.Duration,
+) {
+	c.mu.Lock()
+	c.monitor.OnList(ctx, entityType.GetName(), blockNumber, loadRelated, from, len(boxes), len(persistentPart), used)
+	c.mu.Unlock()
+	c.timeStat.Append(&timeStatWindow{
+		startAt: time.Now(),
+		entityStat: map[string]entityTimeStat{
+			entityType.Name: {
+				list:      map[string]timehist.Histogram{from: timehist.Histogram{}.Incr(used)},
+				listTotal: map[string]time.Duration{from: used},
+			},
+		},
+	})
 }
 
 var uniqTimeSeriesID atomic.Int64

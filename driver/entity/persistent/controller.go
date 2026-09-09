@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"sentioxyz/sentio-core/common/concurrency"
+	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/timehist"
@@ -152,11 +154,25 @@ func (c *Controller) getEntityOrInterface(
 	return // not found, return the last get result
 }
 
+// prefetchKey identifies the store version of one entity that a commit needs to resolve its
+// pending operators.
+type prefetchKey struct {
+	entity string
+	id     string
+}
+
+// commitPrefetchConcurrency bounds the parallel store reads of prefetchPreviousVersions.
+const commitPrefetchConcurrency = 16
+
+// executeEntityOperator resolves the pending operators of one entity up to blockNumber. The first
+// pending version reads the store, either from prefetched (see prefetchPreviousVersions) or
+// directly; every later version reads the resolved version before it. Must be called under c.mu.
 func (c *Controller) executeEntityOperator(
 	ctx context.Context,
 	entityType *schema.Entity,
 	id string,
 	blockNumber uint64,
+	prefetched map[prefetchKey]*EntityBox,
 ) (from string, err error) {
 	from = "uncommitted"
 	history, _ := utils.GetFromK2Map(c.changes, entityType.Name, id)
@@ -172,12 +188,16 @@ func (c *Controller) executeEntityOperator(
 		}
 		var preBox *EntityBox
 		if i == 0 {
-			var fromCache bool
-			preBox, fromCache, err = c.store.GetEntity(ctx, entityType, id)
-			from = utils.Select(fromCache, "cache", "persistent")
-			if err != nil {
-				return from, fmt.Errorf("execute entity operator for %s with id %s failed: get entity failed: %w",
-					entityType.GetFullName(), id, err)
+			if pre, has := prefetched[prefetchKey{entity: entityType.Name, id: id}]; has {
+				preBox, from = pre, "prefetched"
+			} else {
+				var fromCache bool
+				preBox, fromCache, err = c.store.GetEntity(ctx, entityType, id)
+				from = utils.Select(fromCache, "cache", "persistent")
+				if err != nil {
+					return from, fmt.Errorf("execute entity operator for %s with id %s failed: get entity failed: %w",
+						entityType.GetFullName(), id, err)
+				}
 			}
 		} else {
 			preBox = &history[i-1].EntityBox // always no Operator
@@ -226,16 +246,75 @@ func (c *Controller) checkBox(entityType *schema.Entity, box *UncommittedEntityB
 	return nil
 }
 
-func (c *Controller) executeAllEntityOperator(ctx context.Context, blockNumber uint64) error {
+func (c *Controller) executeAllEntityOperator(
+	ctx context.Context,
+	blockNumber uint64,
+	prefetched map[prefetchKey]*EntityBox,
+) error {
 	for entity, set := range c.changes {
 		entityType := c.store.GetEntityType(entity)
 		for id := range set {
-			if _, err := c.executeEntityOperator(ctx, entityType, id, blockNumber); err != nil {
+			if _, err := c.executeEntityOperator(ctx, entityType, id, blockNumber, prefetched); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// prefetchPreviousVersions reads, without holding c.mu, the store versions that
+// executeAllEntityOperator would otherwise read one by one under c.mu: the first pending version of
+// every entity changed at or before blockNumber. The commit then resolves in memory only, so the
+// handlers' SetEntity calls are not stalled behind a store round trip per pending entity.
+//
+// The store is only written by Commit itself, which runs alone, so a version read here cannot go
+// stale before it is used. An entity whose first pending version appears after the snapshot is
+// simply missing from the result and falls back to a direct read.
+func (c *Controller) prefetchPreviousVersions(
+	ctx context.Context,
+	blockNumber uint64,
+) (map[prefetchKey]*EntityBox, error) {
+	type want struct {
+		entityType *schema.Entity
+		id         string
+	}
+	var wants []want
+	c.mu.Lock()
+	for entity, set := range c.changes {
+		entityType := c.store.GetEntityType(entity)
+		for id, history := range set {
+			if len(history) == 0 {
+				continue
+			}
+			if first := history[0]; first.GenBlockNumber > blockNumber || first.Data == nil || first.Resolved() {
+				continue
+			}
+			wants = append(wants, want{entityType: entityType, id: id})
+		}
+	}
+	c.mu.Unlock()
+	if len(wants) == 0 {
+		return nil, nil
+	}
+
+	prefetched := make(map[prefetchKey]*EntityBox, len(wants))
+	var mu sync.Mutex
+	g, gctx := errgroup.WithContext(ctx)
+	concurrency.RunWithTaskArray(g, gctx, commitPrefetchConcurrency, wants,
+		func(ctx context.Context, w want) error {
+			box, _, err := c.store.GetEntity(ctx, w.entityType, w.id)
+			if err != nil {
+				return fmt.Errorf("prefetch %s with id %s failed: %w", w.entityType.GetFullName(), w.id, err)
+			}
+			mu.Lock()
+			prefetched[prefetchKey{entity: w.entityType.Name, id: w.id}] = box
+			mu.Unlock()
+			return nil
+		})
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return prefetched, nil
 }
 
 func (c *Controller) getEntity(
@@ -262,7 +341,7 @@ func (c *Controller) getEntity(
 		if uctBox != nil && !uctBox.Resolved() {
 			// calculate operators
 			// uctBox will be changed,  uctBox.Operator will be set to nil and uctBox.Data will be filled
-			if from, err = c.executeEntityOperator(ctx, entityType, id, blockNumber); err != nil {
+			if from, err = c.executeEntityOperator(ctx, entityType, id, blockNumber, nil); err != nil {
 				logger.Errorfe(err, "execute operator failed")
 				return
 			}
@@ -446,7 +525,7 @@ func (c *Controller) listEntity(
 		if !uctBox.Resolved() {
 			// calculate operators
 			// uctBox will be changed, uctBox.Operator will be set to nil and uctBox.Data will be filled
-			if _, err = c.executeEntityOperator(ctx, entityType, uctBox.ID, blockNumber); err != nil {
+			if _, err = c.executeEntityOperator(ctx, entityType, uctBox.ID, blockNumber, nil); err != nil {
 				logger.Errorfe(err, "execute operator failed")
 				return
 			}
@@ -644,6 +723,10 @@ func (c *Controller) assignTimeSeriesIDs(
 //  3. under c.mu: prune the committed changes and advance the committed
 //     watermark.
 //
+// Before phase 1, the store versions the pending operators read are prefetched
+// without c.mu (prefetchPreviousVersions), so that the lock is held for in-memory
+// work only and the handlers' SetEntity calls are not stalled behind store reads.
+//
 // Only one Commit runs at a time (the checkpoint controller serialises
 // save/reset), and SetEntity panics on writes at or below a started commit, so
 // the phase-1 snapshot cannot go stale before phase 3 prunes it.
@@ -655,6 +738,15 @@ func (c *Controller) Commit(
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "blockNumber", blockNumber)
 
+	// Phase 0: read the store versions the pending operators need, without c.mu.
+	prefetched, err := c.prefetchPreviousVersions(ctx, blockNumber)
+	if err != nil {
+		logger.Errorfe(err, "prefetch previous versions for entity operators failed")
+		return
+	}
+	logger.Debugw("prefetched previous versions for entity operators",
+		"count", len(prefetched), "used", time.Since(start))
+
 	// Phase 1: resolve operators and snapshot the changes to commit.
 	var batches []commitBatch
 	c.mu.Lock()
@@ -662,7 +754,7 @@ func (c *Controller) Commit(
 	// (this module requires go 1.26.3); the other new(...) watermark assignments in this
 	// package rely on it too.
 	c.committing = new(blockNumber)
-	if err = c.executeAllEntityOperator(ctx, blockNumber); err != nil {
+	if err = c.executeAllEntityOperator(ctx, blockNumber, prefetched); err != nil {
 		c.mu.Unlock()
 		logger.Errorfe(err, "execute all entity operators failed")
 		return

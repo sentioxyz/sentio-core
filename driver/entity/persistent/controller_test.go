@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -200,6 +201,14 @@ type mockChainStore struct {
 
 	// checkValueHook, when set, replaces the always-passing CheckValue.
 	checkValueHook func(entityType *schema.Entity, data map[string]any) error
+
+	// getEntityHook, when set, runs at the start of every GetEntity outside the store lock; a
+	// returned error is reported by GetEntity. getEntityCalls / getEntityMaxInFlight observe the
+	// reads for the commit prefetch tests.
+	getEntityHook        func(entityType *schema.Entity, id string) error
+	getEntityCalls       atomic.Int64
+	getEntityInFlight    atomic.Int64
+	getEntityMaxInFlight atomic.Int64
 }
 
 func (s *mockChainStore) GetChain() string { return s.chain }
@@ -217,6 +226,20 @@ func (s *mockChainStore) GetEntity(
 	entityType *schema.Entity,
 	id string,
 ) (*EntityBox, bool, error) {
+	s.getEntityCalls.Add(1)
+	inFlight := s.getEntityInFlight.Add(1)
+	defer s.getEntityInFlight.Add(-1)
+	for {
+		seen := s.getEntityMaxInFlight.Load()
+		if inFlight <= seen || s.getEntityMaxInFlight.CompareAndSwap(seen, inFlight) {
+			break
+		}
+	}
+	if s.getEntityHook != nil {
+		if err := s.getEntityHook(entityType, id); err != nil {
+			return nil, false, err
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	origin, _ := utils.GetFromK2Map(s.data, entityType.Name, id)

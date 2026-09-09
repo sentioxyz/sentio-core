@@ -17,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common/anyutil",
+        "//common/errgroup",
         "//common/log",
         "//common/richstructhelper",
         "//common/set",
@@ -41,6 +42,7 @@ go_test(
     srcs = [
         "box_rich_struct_test.go",
         "change_test.go",
+        "commit_prefetch_test.go",
         "controller_test.go",
         "filter_test.go",
         "operator_test.go",

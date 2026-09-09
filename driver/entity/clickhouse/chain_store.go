@@ -41,6 +41,17 @@ type ChainStore struct {
 	// mu guards all cache state below.
 	mu sync.Mutex
 
+	// readEntity is the persistent point read GetEntity performs outside mu on an LRU miss. It
+	// is a field so that tests can stand in for the store while exercising the real locking.
+	readEntity func(ctx context.Context, entityType *schema.Entity, id string) (*entityRow, error)
+
+	// cacheGen counts, per entity type, the cache updates applied after persistent writes, and
+	// cacheEpoch counts the cache purges. GetEntity records both before it reads the store
+	// without mu and only caches the row it read when neither moved in between: otherwise the
+	// row may predate a write (or a reorg) whose result is already in the caches.
+	cacheGen   map[string]uint64
+	cacheEpoch uint64
+
 	// writing marks entity types whose SetEntities persistent write is in
 	// flight. While marked, tryLoadFullCache/tryLoadFullIDCache refuse to load:
 	// a load during the write would capture a half-written store state, and the
@@ -108,6 +119,10 @@ func NewChainStore(
 		fullCacheLoaded:     make(map[string]bool),
 		fullCacheRefused:    make(map[string]bool),
 		cacheEntity:         make(map[string]*lru.Cache[string, *persistent.EntityBox]),
+		cacheGen:            make(map[string]uint64),
+	}
+	cs.readEntity = func(ctx context.Context, entityType *schema.Entity, id string) (*entityRow, error) {
+		return cs.store.getEntity(ctx, entityType, cs.chain, id)
 	}
 	var err error
 	cs.lruCache, err = simplelru.NewLRU[string, *persistent.EntityBox](lruCapacity, func(_ string, _ *persistent.EntityBox) {
@@ -144,28 +159,64 @@ func (c *ChainStore) tryLoadCache(ctx context.Context, entityType *schema.Entity
 
 // GetEntity returns the entity with the given id, possibly from cache.
 // fromCache is true when the result was served entirely from in-memory cache.
+//
+// Only the cache lookups run under mu. A store read (LRU miss) runs without it, so that
+// concurrent reads overlap each other instead of queueing on the cache lock, and other cache
+// readers are not blocked for a ClickHouse round trip.
 func (c *ChainStore) GetEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
 	id string,
 ) (box *persistent.EntityBox, fromCache bool, err error) {
+	box, fromCache, key, gen, epoch, done, err := c.getEntityFromCache(ctx, entityType, id)
+	if done || err != nil {
+		return box, fromCache, err
+	}
+
+	// Not in LRU — fetch from the store, without mu.
+	row, err := c.readEntity(ctx, entityType, id)
+	if err != nil {
+		return nil, false, err
+	}
+	if row != nil && row.Data != nil {
+		box = &row.EntityBox
+	}
+	if box != nil {
+		c.mu.Lock()
+		if c.cacheGen[entityType.Name] == gen && c.cacheEpoch == epoch {
+			// no write landed and no purge happened while the read was in flight
+			c.lruCache.Add(key, box.Copy())
+		}
+		c.mu.Unlock()
+	}
+	return box, false, nil
+}
+
+// getEntityFromCache is the part of GetEntity that runs under mu. done reports that box and
+// fromCache are the answer; otherwise the caller has to read the store for key, and gen / epoch
+// are the cache generations it must compare against before caching what it read.
+func (c *ChainStore) getEntityFromCache(
+	ctx context.Context,
+	entityType *schema.Entity,
+	id string,
+) (box *persistent.EntityBox, fromCache bool, key string, gen, epoch uint64, done bool, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if entityType.IsCache() {
 		cache, has := c.cacheEntity[entityType.GetName()]
 		if !has {
-			return nil, true, nil
+			return nil, true, "", 0, 0, true, nil
 		}
 		box, has = cache.Get(id)
 		if !has {
-			return nil, true, nil
+			return nil, true, "", 0, 0, true, nil
 		}
-		return box, true, nil
+		return box, true, "", 0, 0, true, nil
 	}
 
 	if fromCache, err = c.tryLoadCache(ctx, entityType); err != nil {
-		return nil, false, err
+		return nil, false, "", 0, 0, true, err
 	}
 
 	if c.fullCacheLoaded[entityType.Name] {
@@ -173,32 +224,19 @@ func (c *ChainStore) GetEntity(
 		if cached := c.fullCache[entityType.Name][id]; cached != nil && cached.Data != nil {
 			box = cached.Copy()
 		}
-		return box, fromCache, nil
-	} else {
-		// use LRU + fullIDCache.
-		// When the full-ID cache was refused (too many IDs to hold in memory),
-		// skip the existence shortcut and fall through to the LRU + DB lookup.
-		if c.fullIDCacheLoaded[entityType.Name] && !c.fullIDCache[entityType.Name].Contains(id) {
-			return nil, fromCache, nil // ID not in persistent storage
-		}
-		key := chainStoreCacheKey(entityType.Name, id)
-		if cached, ok := c.lruCache.Get(key); ok {
-			return cached.Copy(), fromCache, nil
-		}
-		// Not in LRU — fetch from DB.
-		var row *entityRow
-		row, err = c.store.getEntity(ctx, entityType, c.chain, id)
-		if err != nil {
-			return nil, false, err
-		}
-		if row != nil && row.Data != nil {
-			box = &row.EntityBox
-		}
-		if box != nil {
-			c.lruCache.Add(key, box.Copy())
-		}
-		return box, false, nil
+		return box, fromCache, "", 0, 0, true, nil
 	}
+	// use LRU + fullIDCache.
+	// When the full-ID cache was refused (too many IDs to hold in memory),
+	// skip the existence shortcut and fall through to the LRU + DB lookup.
+	if c.fullIDCacheLoaded[entityType.Name] && !c.fullIDCache[entityType.Name].Contains(id) {
+		return nil, fromCache, "", 0, 0, true, nil // ID not in persistent storage
+	}
+	key = chainStoreCacheKey(entityType.Name, id)
+	if cached, ok := c.lruCache.Get(key); ok {
+		return cached.Copy(), fromCache, key, 0, 0, true, nil
+	}
+	return nil, false, key, c.cacheGen[entityType.Name], c.cacheEpoch, false, nil
 }
 
 // ListEntities returns entities matching the filters, possibly from cache.
@@ -363,6 +401,20 @@ func (c *ChainStore) SetEntities(
 	if entityType.IsTimeSeries() {
 		return created, nil
 	}
+	c.applyWriteToCaches(logger, entityType, boxes)
+	return created, nil
+}
+
+// applyWriteToCaches updates the caches after boxes were written to the store. Must be called
+// under mu.
+func (c *ChainStore) applyWriteToCaches(
+	logger *log.SentioLogger,
+	entityType *schema.Entity,
+	boxes []persistent.EntityBox,
+) {
+	dataSize := entityType.DataSize()
+	// a GetEntity that read the store before this write landed must not cache what it read
+	c.cacheGen[entityType.Name]++
 	// Build a map of the latest box per ID (later entries override earlier).
 	latest := make(map[string]*persistent.EntityBox)
 	for i := range boxes { // newer entries appear later
@@ -441,7 +493,6 @@ func (c *ChainStore) SetEntities(
 			logger.Info("will keep to use full cache")
 		}
 	}
-	return created, nil
 }
 
 // GrowthAggregation runs growth aggregation for the chain.
@@ -529,6 +580,8 @@ func (c *ChainStore) Snapshot() any {
 
 // purgeCache resets all cache state (except cacheEntity, which is trimmed by Reorg).
 func (c *ChainStore) purgeCache() {
+	// a GetEntity that read the store before the purge must not cache what it read
+	c.cacheEpoch++
 	c.lruCache.Purge()
 	c.fullIDCache = make(map[string]set.Set[string])
 	c.fullIDCacheLoaded = make(map[string]bool)

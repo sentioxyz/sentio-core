@@ -40,6 +40,7 @@ go_library(
 go_test(
     name = "clickhouse_test",
     srcs = [
+        "chain_store_test.go",
         "check_value_test.go",
         "create_test.go",
         "decimal512_integration_test.go",

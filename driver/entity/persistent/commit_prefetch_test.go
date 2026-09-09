@@ -215,6 +215,10 @@ func TestController_GetEntityReadsTheStoreOffTheLock(t *testing.T) {
 		_, err = ctrl.GetEntity(ctx, e, "e0", 11)
 		assert.NoError(t, err)
 		assert.Equal(t, int64(1), ps.getEntityCalls.Load())
+		// what a read returned is a copy: a same-block change after it merges into the history
+		// entry, not into the box the caller holds
+		assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 11, 1000)))
+		assert.Equal(t, int32(2), got.Data["propB"])
 	})
 
 	t.Run("no change: the store version itself", func(t *testing.T) {
@@ -270,7 +274,15 @@ func TestController_ListEntityReadsTheStoreOffTheLock(t *testing.T) {
 	writtenDuringList := make(chan error, 1)
 	ps.listEntitiesHook = func(*schema.Entity) {
 		done := make(chan error, 1)
-		go func() { done <- ctrl.SetEntity(ctx, e, addBox(t, e, "other-list", 12, 5)) }()
+		go func() {
+			// a new entity, and a same-block change to e0 that merges into the history entry the
+			// list has already taken
+			err := ctrl.SetEntity(ctx, e, addBox(t, e, "other-list", 12, 5))
+			if err == nil {
+				err = ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 11, 1000))
+			}
+			done <- err
+		}()
 		select {
 		case err := <-done:
 			writtenDuringList <- err
@@ -287,8 +299,13 @@ func TestController_ListEntityReadsTheStoreOffTheLock(t *testing.T) {
 	for _, b := range boxes {
 		got[b.ID] = b.Data["propB"].(int32)
 	}
-	assert.Equal(t, map[string]int32{"e0": 100, "e1": 101, "e2": 2, "new": 9}, got)
+	assert.Equal(t, map[string]int32{"e0": 100, "e1": 101, "e2": 2, "new": 9}, got,
+		"the list is a snapshot: the change to e0 that landed during the store query is not in it")
 	assert.Equal(t, int64(3), ps.getEntityCalls.Load(), "e0, e1 and new: one store read each, e3 is deleted")
+	// the merged change is visible to a later read
+	e0, err := ctrl.GetEntity(ctx, e, "e0", 11)
+	assert.NoError(t, err)
+	assert.Equal(t, int32(1100), e0.Data["propB"])
 }
 
 func TestController_CommitPicksUpAWriteMadeDuringThePrefetch(t *testing.T) {

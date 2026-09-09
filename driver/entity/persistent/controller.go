@@ -415,7 +415,9 @@ func (c *Controller) getEntity(
 					return err
 				}
 			}
-			box = &uctBox.EntityBox
+			// a copy, so that a later same-block SetEntity merging into the history entry does not
+			// change what the caller received
+			box = uctBox.EntityBox.Copy()
 		} else if !inBlock {
 			pre := prefetched[key] // all changes in store will before block number
 			box = pre.box
@@ -578,7 +580,9 @@ func (c *Controller) listEntity(
 			} else if !pass {
 				continue // not match the filter
 			}
-			boxes = append(boxes, &uctBox.EntityBox)
+			// a copy: the store query below runs without c.mu, and a same-block SetEntity would
+			// merge into the history entry itself meanwhile
+			boxes = append(boxes, uctBox.EntityBox.Copy())
 		}
 		SortEntityBoxes(boxes)
 		if len(boxes) >= limit {

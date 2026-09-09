@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"sentioxyz/sentio-core/common/concurrency"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/set"
@@ -299,18 +300,9 @@ func (c *Controller) prefetchPreviousVersions(
 	prefetched := make(map[prefetchKey]*EntityBox, len(wants))
 	var mu sync.Mutex
 	g, gctx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, commitPrefetchConcurrency)
-prefetch:
-	for _, w := range wants {
-		select {
-		case sem <- struct{}{}:
-		case <-gctx.Done():
-			// a read already failed, g.Wait reports it
-			break prefetch
-		}
-		g.Go(func() error {
-			defer func() { <-sem }()
-			box, _, err := c.store.GetEntity(gctx, w.entityType, w.id)
+	concurrency.RunWithTaskArray(g, gctx, commitPrefetchConcurrency, wants,
+		func(ctx context.Context, w want) error {
+			box, _, err := c.store.GetEntity(ctx, w.entityType, w.id)
 			if err != nil {
 				return fmt.Errorf("prefetch %s with id %s failed: %w", w.entityType.GetFullName(), w.id, err)
 			}
@@ -319,7 +311,6 @@ prefetch:
 			mu.Unlock()
 			return nil
 		})
-	}
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}

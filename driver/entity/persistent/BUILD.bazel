@@ -17,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common/anyutil",
+        "//common/concurrency",
         "//common/errgroup",
         "//common/log",
         "//common/richstructhelper",

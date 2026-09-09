@@ -3,6 +3,8 @@ package concurrency
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
+
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/utils"
@@ -36,6 +38,37 @@ func RunWithProducer[T any](
 		return producer(ctx, taskChan)
 	})
 	RunWithTaskChan(g, ctx, concurrency, taskChan, consumer)
+}
+
+// RunWithTaskArray runs consumer over every task of tasks with at most concurrency consumers
+// (never more than there are tasks). Consumers take the next task through a shared index, so the
+// tasks are consumed in order and each exactly once; they stop early when consumer returns an
+// error or ctx is done, and g.Wait reports the first error.
+func RunWithTaskArray[T any](
+	g *errgroup.Group,
+	ctx context.Context,
+	concurrency int,
+	tasks []T,
+	consumer func(ctx context.Context, task T) error,
+) {
+	var next atomic.Int64
+	for i := 0; i < min(concurrency, len(tasks)); i++ {
+		consumerCtx := context.WithValue(ctx, ctxKeyConsumer, i)
+		g.Go(func() error {
+			for {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				k := int(next.Add(1) - 1)
+				if k >= len(tasks) {
+					return nil
+				}
+				if err := consumer(consumerCtx, tasks[k]); err != nil {
+					return err
+				}
+			}
+		})
+	}
 }
 
 func RunWithTaskChan[T any](

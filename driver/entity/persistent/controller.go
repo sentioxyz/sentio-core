@@ -154,25 +154,54 @@ func (c *Controller) getEntityOrInterface(
 	return // not found, return the last get result
 }
 
-// prefetchKey identifies the store version of one entity that a commit needs to resolve its
-// pending operators.
+// prefetchKey identifies the store version of one entity.
 type prefetchKey struct {
 	entity string
 	id     string
 }
 
-// commitPrefetchConcurrency bounds the parallel store reads of prefetchPreviousVersions.
-const commitPrefetchConcurrency = 16
+// storeVersion is the store version of one entity, read without c.mu.
+type storeVersion struct {
+	box       *EntityBox
+	fromCache bool
+}
+
+// prefetchWant names a store version to read.
+type prefetchWant struct {
+	entityType *schema.Entity
+	id         string
+}
+
+const (
+	// storeReadConcurrency bounds the parallel store reads of prefetchStoreVersions.
+	storeReadConcurrency = 16
+	// maxStoreVersionRounds bounds how often withStoreVersions goes back to the store for versions
+	// that concurrent writes made necessary since its previous round.
+	maxStoreVersionRounds = 4
+)
+
+// storeVersionNeeded reports whether resolving history up to blockNumber reads the store: only the
+// first pending version does, and only when it exists and is not resolved yet.
+func storeVersionNeeded(history changeHistory, blockNumber uint64) bool {
+	if len(history) == 0 {
+		return false
+	}
+	first := history[0]
+	return first.GenBlockNumber <= blockNumber && first.Data != nil && !first.Resolved()
+}
 
 // executeEntityOperator resolves the pending operators of one entity up to blockNumber. The first
-// pending version reads the store, either from prefetched (see prefetchPreviousVersions) or
-// directly; every later version reads the resolved version before it. Must be called under c.mu.
+// pending version reads the store version from prefetched; every later version reads the resolved
+// version before it. Must be called under c.mu.
+//
+// A version missing from prefetched is read under c.mu as a last resort; withStoreVersions only
+// lets that happen after maxStoreVersionRounds rounds of concurrent writes on the entities read.
 func (c *Controller) executeEntityOperator(
 	ctx context.Context,
 	entityType *schema.Entity,
 	id string,
 	blockNumber uint64,
-	prefetched map[prefetchKey]*EntityBox,
+	prefetched map[prefetchKey]storeVersion,
 ) (from string, err error) {
 	from = "uncommitted"
 	history, _ := utils.GetFromK2Map(c.changes, entityType.Name, id)
@@ -189,8 +218,11 @@ func (c *Controller) executeEntityOperator(
 		var preBox *EntityBox
 		if i == 0 {
 			if pre, has := prefetched[prefetchKey{entity: entityType.Name, id: id}]; has {
-				preBox, from = pre, "prefetched"
+				preBox = pre.box
+				from = utils.Select(pre.fromCache, "cache", "persistent")
 			} else {
+				_, logger := log.FromContext(ctx, "entityType", entityType.Name, "id", id, "blockNumber", blockNumber)
+				logger.Warn("store version was not prefetched, reading it under the controller lock")
 				var fromCache bool
 				preBox, fromCache, err = c.store.GetEntity(ctx, entityType, id)
 				from = utils.Select(fromCache, "cache", "persistent")
@@ -249,7 +281,7 @@ func (c *Controller) checkBox(entityType *schema.Entity, box *UncommittedEntityB
 func (c *Controller) executeAllEntityOperator(
 	ctx context.Context,
 	blockNumber uint64,
-	prefetched map[prefetchKey]*EntityBox,
+	prefetched map[prefetchKey]storeVersion,
 ) error {
 	for entity, set := range c.changes {
 		entityType := c.store.GetEntityType(entity)
@@ -262,61 +294,80 @@ func (c *Controller) executeAllEntityOperator(
 	return nil
 }
 
-// prefetchPreviousVersions reads, without holding c.mu, the store versions that
-// executeAllEntityOperator would otherwise read one by one under c.mu: the first pending version of
-// every entity changed at or before blockNumber. The commit then resolves in memory only, so the
-// handlers' SetEntity calls are not stalled behind a store round trip per pending entity.
-//
-// The store is only written by Commit itself, which runs alone, so a version read here cannot go
-// stale before it is used. An entity whose first pending version appears after the snapshot is
-// simply missing from the result and falls back to a direct read.
-func (c *Controller) prefetchPreviousVersions(
-	ctx context.Context,
+// pendingWants lists, under c.mu, the entities of entityType (all of them when ids is nil) whose
+// resolution up to blockNumber reads the store and whose store version is not in prefetched yet.
+func (c *Controller) pendingWants(
+	entityType *schema.Entity,
 	blockNumber uint64,
-) (map[prefetchKey]*EntityBox, error) {
-	type want struct {
-		entityType *schema.Entity
-		id         string
-	}
-	var wants []want
-	c.mu.Lock()
-	for entity, set := range c.changes {
-		entityType := c.store.GetEntityType(entity)
-		for id, history := range set {
-			if len(history) == 0 {
-				continue
-			}
-			if first := history[0]; first.GenBlockNumber > blockNumber || first.Data == nil || first.Resolved() {
-				continue
-			}
-			wants = append(wants, want{entityType: entityType, id: id})
+	prefetched map[prefetchKey]storeVersion,
+	keep func(id string, history changeHistory) bool,
+) (wants []prefetchWant) {
+	for id, history := range c.changes[entityType.Name] {
+		if !storeVersionNeeded(history, blockNumber) || (keep != nil && !keep(id, history)) {
+			continue
 		}
+		if _, has := prefetched[prefetchKey{entity: entityType.Name, id: id}]; has {
+			continue
+		}
+		wants = append(wants, prefetchWant{entityType: entityType, id: id})
 	}
-	c.mu.Unlock()
-	if len(wants) == 0 {
-		return nil, nil
-	}
+	return
+}
 
-	prefetched := make(map[prefetchKey]*EntityBox, len(wants))
+// prefetchStoreVersions reads wants from the store without c.mu, in parallel, into prefetched.
+func (c *Controller) prefetchStoreVersions(
+	ctx context.Context,
+	wants []prefetchWant,
+	prefetched map[prefetchKey]storeVersion,
+) error {
 	var mu sync.Mutex
 	g, gctx := errgroup.WithContext(ctx)
-	concurrency.RunWithTaskArray(g, gctx, commitPrefetchConcurrency, wants,
-		func(ctx context.Context, w want) error {
-			box, _, err := c.store.GetEntity(ctx, w.entityType, w.id)
+	concurrency.RunWithTaskArray(g, gctx, storeReadConcurrency, wants,
+		func(ctx context.Context, w prefetchWant) error {
+			box, fromCache, err := c.store.GetEntity(ctx, w.entityType, w.id)
 			if err != nil {
 				return fmt.Errorf("prefetch %s with id %s failed: %w", w.entityType.GetFullName(), w.id, err)
 			}
 			mu.Lock()
-			prefetched[prefetchKey{entity: w.entityType.Name, id: w.id}] = box
+			prefetched[prefetchKey{entity: w.entityType.Name, id: w.id}] = storeVersion{box: box, fromCache: fromCache}
 			mu.Unlock()
 			return nil
 		})
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-	return prefetched, nil
+	return g.Wait()
 }
 
+// withStoreVersions runs body under c.mu once every store version it needs is at hand, so that no
+// store round trip happens while the lock is held. needs, called under c.mu, lists the versions
+// still missing from prefetched; they are read without c.mu, and the check repeats because a
+// concurrent write can make another version necessary. After maxStoreVersionRounds rounds body runs
+// anyway (see executeEntityOperator for what it then does with a missing version).
+//
+// The store is only written by Commit, which runs alone, so a version read in an earlier round
+// cannot go stale before body uses it.
+func (c *Controller) withStoreVersions(
+	ctx context.Context,
+	needs func(prefetched map[prefetchKey]storeVersion) []prefetchWant,
+	body func(prefetched map[prefetchKey]storeVersion) error,
+) error {
+	prefetched := make(map[prefetchKey]storeVersion)
+	for round := 0; ; round++ {
+		c.mu.Lock()
+		wants := needs(prefetched)
+		if len(wants) == 0 || round >= maxStoreVersionRounds {
+			err := body(prefetched)
+			c.mu.Unlock()
+			return err
+		}
+		c.mu.Unlock()
+		if err := c.prefetchStoreVersions(ctx, wants, prefetched); err != nil {
+			return err
+		}
+	}
+}
+
+// getEntity returns the version of the entity at blockNumber: the latest uncommitted change (only
+// one made in that very block when inBlock), else the store version. The store is read without
+// c.mu (see withStoreVersions).
 func (c *Controller) getEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -324,52 +375,65 @@ func (c *Controller) getEntity(
 	blockNumber uint64,
 	inBlock bool,
 ) (box *EntityBox, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "entityType", entityType.Name, "id", id, "blockNumber", blockNumber)
-
-	// get from s.changes
+	key := prefetchKey{entity: entityType.Name, id: id}
 	from := "uncommitted"
-	history, _ := utils.GetFromK2Map(c.changes, entityType.Name, id)
-	uctBox := history.Latest(blockNumber)
-	if uctBox != nil { // has uncommitted change
-		if inBlock && uctBox.GenBlockNumber < blockNumber {
+
+	// latest is the uncommitted change the read is about, nil when the store answers; under c.mu
+	latest := func() (*UncommittedEntityBox, changeHistory) {
+		history, _ := utils.GetFromK2Map(c.changes, entityType.Name, id)
+		uctBox := history.Latest(blockNumber)
+		if uctBox != nil && inBlock && uctBox.GenBlockNumber < blockNumber {
 			uctBox = nil
 		}
-		if uctBox != nil && !uctBox.Resolved() {
-			// calculate operators
-			// uctBox will be changed,  uctBox.Operator will be set to nil and uctBox.Data will be filled
-			if from, err = c.executeEntityOperator(ctx, entityType, id, blockNumber, nil); err != nil {
-				logger.Errorfe(err, "execute operator failed")
-				return
-			}
-		}
-		if uctBox != nil {
-			box = &uctBox.EntityBox
-		}
-	} else if !inBlock {
-		var fromCache bool
-		box, fromCache, err = c.store.GetEntity(ctx, entityType, id) // all changes in store will before block number
-		if err != nil {
-			logger.Errore(err, "get entity from store failed")
-			return
-		}
-		from = utils.Select(fromCache, "cache", "persistent")
+		return uctBox, history
 	}
-
-	used := time.Since(start)
-	logger.Debugw("got entity", "box", box.String(), "from", from, "used", used)
-	c.monitor.OnGet(ctx, entityType.GetName(), id, blockNumber, inBlock, from, used)
-	c.timeStat.Append(&timeStatWindow{
-		startAt: time.Now(),
-		entityStat: map[string]entityTimeStat{
-			entityType.Name: {
-				get:      map[string]timehist.Histogram{from: timehist.Histogram{}.Incr(used)},
-				getTotal: map[string]time.Duration{from: used},
+	err = c.withStoreVersions(ctx, func(prefetched map[prefetchKey]storeVersion) []prefetchWant {
+		if _, has := prefetched[key]; has {
+			return nil
+		}
+		uctBox, history := latest()
+		if uctBox != nil {
+			if !uctBox.Resolved() && storeVersionNeeded(history, blockNumber) {
+				return []prefetchWant{{entityType: entityType, id: id}}
+			}
+			return nil
+		}
+		if inBlock {
+			return nil // no change in that block, the store is not consulted
+		}
+		return []prefetchWant{{entityType: entityType, id: id}} // the store version is the answer
+	}, func(prefetched map[prefetchKey]storeVersion) error {
+		uctBox, _ := latest()
+		if uctBox != nil { // has uncommitted change
+			if !uctBox.Resolved() {
+				// calculate operators
+				// uctBox will be changed, uctBox.Operator will be set to nil and uctBox.Data will be filled
+				if from, err = c.executeEntityOperator(ctx, entityType, id, blockNumber, prefetched); err != nil {
+					logger.Errorfe(err, "execute operator failed")
+					return err
+				}
+			}
+			box = &uctBox.EntityBox
+		} else if !inBlock {
+			pre := prefetched[key] // all changes in store will before block number
+			box = pre.box
+			from = utils.Select(pre.fromCache, "cache", "persistent")
+		}
+		used := time.Since(start)
+		logger.Debugw("got entity", "box", box.String(), "from", from, "used", used)
+		c.monitor.OnGet(ctx, entityType.GetName(), id, blockNumber, inBlock, from, used)
+		c.timeStat.Append(&timeStatWindow{
+			startAt: time.Now(),
+			entityStat: map[string]entityTimeStat{
+				entityType.Name: {
+					get:      map[string]timehist.Histogram{from: timehist.Histogram{}.Incr(used)},
+					getTotal: map[string]time.Duration{from: used},
+				},
 			},
-		},
+		})
+		return nil
 	})
 	return
 }
@@ -401,9 +465,6 @@ func (c *Controller) ListRelated(
 	fieldName string,
 	blockNumber uint64,
 ) (boxes []*EntityBox, target schema.EntityOrInterface, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	field := entityType.GetForeignKeyFieldByName(fieldName)
 	if field == nil {
 		return nil, nil, fmt.Errorf("%w: %s.%s is not exists", ErrInvalidField, entityType.GetName(), fieldName)
@@ -419,6 +480,7 @@ func (c *Controller) ListRelated(
 			ErrInvalidField, fieldTitle, targetFieldTitle, targetFieldTitle)
 	}
 
+	// each listEntity takes c.mu for its own uncommitted part only
 	for _, targetEntityType := range target.ListEntities() {
 		targetField := targetEntityType.GetFieldByName(field.GetReverseFieldName())
 		many := schema.BreakType(targetField.Type).CountListLayer() > 0
@@ -445,7 +507,6 @@ func (c *Controller) ListRelated(
 }
 
 // ListEntity returns entities matching the given filters.
-// May return ErrInvalidFieldValue or ErrInvalidListFilter.
 func (c *Controller) ListEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -454,11 +515,12 @@ func (c *Controller) ListEntity(
 	limit int,
 	blockNumber uint64,
 ) (boxes []*EntityBox, next *string, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.listEntity(ctx, entityType, filters, cursor, limit, false, blockNumber)
 }
 
+// listEntity merges the uncommitted changes with the store. The uncommitted part is computed under
+// c.mu, with the store versions its pending entities need read beforehand (see withStoreVersions);
+// the store query for the rest runs without c.mu.
 func (c *Controller) listEntity(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -475,34 +537,6 @@ func (c *Controller) listEntity(
 	start := time.Now()
 	_, logger := log.FromContext(ctx)
 
-	defer func() {
-		if err != nil {
-			return
-		}
-		used := time.Since(start)
-		c.monitor.OnList(ctx, entityType.GetName(), blockNumber, loadRelated, from, len(boxes), len(persistentPart), used)
-		c.timeStat.Append(&timeStatWindow{
-			startAt: time.Now(),
-			entityStat: map[string]entityTimeStat{
-				entityType.Name: {
-					list:      map[string]timehist.Histogram{from: timehist.Histogram{}.Incr(used)},
-					listTotal: map[string]time.Duration{from: used},
-				},
-			},
-		})
-		logger.Debugw("list entity",
-			"loadRelated", loadRelated,
-			"entityType", entityType.GetName(),
-			"filters", EntityFiltersString(filters),
-			"cursor", cursor,
-			"limit", limit,
-			"next", next,
-			"count", len(boxes),
-			"persistentCount", len(persistentPart),
-			"from", from,
-			"used", used)
-	}()
-
 	if limit == 0 {
 		return nil, nil, nil
 	}
@@ -510,69 +544,110 @@ func (c *Controller) listEntity(
 	// get uncommitted part result
 	cp, cid := splitListCursor(cursor)
 	checked := make(map[string]bool)
-	for _, change := range c.changes[entityType.Name] {
-		uctBox := change.Latest(blockNumber)
-		if uctBox == nil {
-			continue
-		}
-		checked[uctBox.ID] = true
-		if cp || uctBox.ID <= cid {
-			continue // before the cursor
-		}
-		if uctBox.Data == nil {
-			continue // deleted
-		}
-		if !uctBox.Resolved() {
-			// calculate operators
-			// uctBox will be changed, uctBox.Operator will be set to nil and uctBox.Data will be filled
-			if _, err = c.executeEntityOperator(ctx, entityType, uctBox.ID, blockNumber, nil); err != nil {
-				logger.Errorfe(err, "execute operator failed")
-				return
-			}
-		}
-		if pass, cke := CheckFilters(filters, uctBox.EntityBox); cke != nil {
-			logger.With("used", time.Since(start).String()).Errore(err, "check filters failed")
-			return nil, nil, cke
-		} else if !pass {
-			continue // not match the filter
-		}
-		boxes = append(boxes, &uctBox.EntityBox)
-	}
-	SortEntityBoxes(boxes)
-	if len(boxes) >= limit {
-		boxes = boxes[:limit]
-		next = utils.WrapPointer(buildListCursor(false, boxes[limit-1].ID))
-		return
-	}
-	limit -= len(boxes)
-
-	// get persistent part result
-	primaryField := entityType.GetFieldByName(schema.EntityPrimaryFieldName)
-	filters = append(filters, EntityFilter{
-		Field: primaryField,
-		Op:    EntityFilterOpNotIn,
-		Value: utils.ToAnyArray(utils.GetOrderedMapKeys(checked)),
-		idSet: checked,
-	})
-	if cp {
-		filters = append(filters, EntityFilter{
-			Field: primaryField,
-			Op:    EntityFilterOpGt,
-			Value: []any{cid},
+	inCursor := func(id string) bool { return !cp && id > cid }
+	enough := false
+	err = c.withStoreVersions(ctx, func(prefetched map[prefetchKey]storeVersion) []prefetchWant {
+		return c.pendingWants(entityType, blockNumber, prefetched, func(id string, history changeHistory) bool {
+			uctBox := history.Latest(blockNumber)
+			return uctBox != nil && uctBox.Data != nil && inCursor(uctBox.ID)
 		})
-	}
-	persistentPart, persistentPartFromCache, err = c.store.ListEntities(ctx, entityType, filters, limit)
+	}, func(prefetched map[prefetchKey]storeVersion) error {
+		for _, change := range c.changes[entityType.Name] {
+			uctBox := change.Latest(blockNumber)
+			if uctBox == nil {
+				continue
+			}
+			checked[uctBox.ID] = true
+			if !inCursor(uctBox.ID) {
+				continue // before the cursor
+			}
+			if uctBox.Data == nil {
+				continue // deleted
+			}
+			if !uctBox.Resolved() {
+				// calculate operators
+				// uctBox will be changed, uctBox.Operator will be set to nil and uctBox.Data will be filled
+				if _, err := c.executeEntityOperator(ctx, entityType, uctBox.ID, blockNumber, prefetched); err != nil {
+					logger.Errorfe(err, "execute operator failed")
+					return err
+				}
+			}
+			if pass, cke := CheckFilters(filters, uctBox.EntityBox); cke != nil {
+				logger.With("used", time.Since(start).String()).Errore(cke, "check filters failed")
+				return cke
+			} else if !pass {
+				continue // not match the filter
+			}
+			boxes = append(boxes, &uctBox.EntityBox)
+		}
+		SortEntityBoxes(boxes)
+		if len(boxes) >= limit {
+			boxes = boxes[:limit]
+			next = utils.WrapPointer(buildListCursor(false, boxes[limit-1].ID))
+			enough = true
+		}
+		return nil
+	})
 	if err != nil {
-		logger.With("used", time.Since(start).String()).Errore(err, "list entity in store failed")
 		return nil, nil, err
 	}
-	from = utils.Select(persistentPartFromCache, "cache", "persistent")
 
-	// merge result and return
-	boxes = append(boxes, persistentPart...)
-	if len(persistentPart) == limit {
-		next = utils.WrapPointer(buildListCursor(true, boxes[len(boxes)-1].ID))
+	if !enough {
+		limit -= len(boxes)
+
+		// get persistent part result, without c.mu
+		primaryField := entityType.GetFieldByName(schema.EntityPrimaryFieldName)
+		filters = append(filters, EntityFilter{
+			Field: primaryField,
+			Op:    EntityFilterOpNotIn,
+			Value: utils.ToAnyArray(utils.GetOrderedMapKeys(checked)),
+			idSet: checked,
+		})
+		if cp {
+			filters = append(filters, EntityFilter{
+				Field: primaryField,
+				Op:    EntityFilterOpGt,
+				Value: []any{cid},
+			})
+		}
+		persistentPart, persistentPartFromCache, err = c.store.ListEntities(ctx, entityType, filters, limit)
+		if err != nil {
+			logger.With("used", time.Since(start).String()).Errore(err, "list entity in store failed")
+			return nil, nil, err
+		}
+		from = utils.Select(persistentPartFromCache, "cache", "persistent")
+
+		// merge result and return
+		boxes = append(boxes, persistentPart...)
+		if len(persistentPart) == limit {
+			next = utils.WrapPointer(buildListCursor(true, boxes[len(boxes)-1].ID))
+		}
 	}
+
+	used := time.Since(start)
+	c.mu.Lock() // monitor callbacks are serialized by c.mu
+	c.monitor.OnList(ctx, entityType.GetName(), blockNumber, loadRelated, from, len(boxes), len(persistentPart), used)
+	c.mu.Unlock()
+	c.timeStat.Append(&timeStatWindow{
+		startAt: time.Now(),
+		entityStat: map[string]entityTimeStat{
+			entityType.Name: {
+				list:      map[string]timehist.Histogram{from: timehist.Histogram{}.Incr(used)},
+				listTotal: map[string]time.Duration{from: used},
+			},
+		},
+	})
+	logger.Debugw("list entity",
+		"loadRelated", loadRelated,
+		"entityType", entityType.GetName(),
+		"filters", EntityFiltersString(filters),
+		"cursor", cursor,
+		"limit", limit,
+		"next", next,
+		"count", len(boxes),
+		"persistentCount", len(persistentPart),
+		"from", from,
+		"used", used)
 	return
 }
 
@@ -724,7 +799,7 @@ func (c *Controller) assignTimeSeriesIDs(
 //     watermark.
 //
 // Before phase 1, the store versions the pending operators read are prefetched
-// without c.mu (prefetchPreviousVersions), so that the lock is held for in-memory
+// without c.mu (withStoreVersions), so that the lock is held for in-memory
 // work only and the handlers' SetEntity calls are not stalled behind store reads.
 //
 // Only one Commit runs at a time (the checkpoint controller serialises
@@ -738,49 +813,49 @@ func (c *Controller) Commit(
 	start := time.Now()
 	_, logger := log.FromContext(ctx, "blockNumber", blockNumber)
 
-	// Phase 0: read the store versions the pending operators need, without c.mu.
-	prefetched, err := c.prefetchPreviousVersions(ctx, blockNumber)
-	if err != nil {
-		logger.Errorfe(err, "prefetch previous versions for entity operators failed")
-		return
-	}
-	logger.Debugw("prefetched previous versions for entity operators",
-		"count", len(prefetched), "used", time.Since(start))
-
-	// Phase 1: resolve operators and snapshot the changes to commit.
+	// Phase 1: resolve operators and snapshot the changes to commit. The store versions the
+	// operators read are fetched beforehand, without c.mu (see withStoreVersions).
 	var batches []commitBatch
-	c.mu.Lock()
-	// new with a value expression allocates a copy and returns its pointer — Go 1.26+ syntax
-	// (this module requires go 1.26.3); the other new(...) watermark assignments in this
-	// package rely on it too.
-	c.committing = new(blockNumber)
-	if err = c.executeAllEntityOperator(ctx, blockNumber, prefetched); err != nil {
-		c.mu.Unlock()
+	err = c.withStoreVersions(ctx, func(prefetched map[prefetchKey]storeVersion) (wants []prefetchWant) {
+		for entity := range c.changes {
+			wants = append(wants, c.pendingWants(c.store.GetEntityType(entity), blockNumber, prefetched, nil)...)
+		}
+		return wants
+	}, func(prefetched map[prefetchKey]storeVersion) error {
+		// new with a value expression allocates a copy and returns its pointer — Go 1.26+ syntax
+		// (this module requires go 1.26.3); the other new(...) watermark assignments in this
+		// package rely on it too.
+		c.committing = new(blockNumber)
+		if err := c.executeAllEntityOperator(ctx, blockNumber, prefetched); err != nil {
+			return err
+		}
+		for entity, entityChanges := range c.changes {
+			batch := commitBatch{entityType: c.store.GetEntityType(entity)}
+			if batch.entityType.IsTimeSeries() {
+				batch.manualIDs = set.New[string]()
+			}
+			for id, history := range entityChanges {
+				cnt := history.Count(blockNumber)
+				if cnt == 0 {
+					continue
+				}
+				for _, box := range history[:cnt] {
+					batch.boxes = append(batch.boxes, box.EntityBox)
+				}
+				if batch.manualIDs != nil && !strings.HasPrefix(id, "@") {
+					batch.manualIDs.Add(id)
+				}
+			}
+			if len(batch.boxes) > 0 {
+				batches = append(batches, batch)
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		logger.Errorfe(err, "execute all entity operators failed")
 		return
 	}
-	for entity, entityChanges := range c.changes {
-		batch := commitBatch{entityType: c.store.GetEntityType(entity)}
-		if batch.entityType.IsTimeSeries() {
-			batch.manualIDs = set.New[string]()
-		}
-		for id, history := range entityChanges {
-			cnt := history.Count(blockNumber)
-			if cnt == 0 {
-				continue
-			}
-			for _, box := range history[:cnt] {
-				batch.boxes = append(batch.boxes, box.EntityBox)
-			}
-			if batch.manualIDs != nil && !strings.HasPrefix(id, "@") {
-				batch.manualIDs.Add(id)
-			}
-		}
-		if len(batch.boxes) > 0 {
-			batches = append(batches, batch)
-		}
-	}
-	c.mu.Unlock()
 
 	// Phase 2: write the snapshot to the persistent store.
 	created, updated = make(map[string]int), make(map[string]int)
@@ -825,9 +900,10 @@ func (c *Controller) Commit(
 	return
 }
 
+// Reorg drops the changes above blockNumberGT and reorgs the store. Callers run it while no
+// handler is active; the store part still runs without c.mu, like every other store round trip.
 func (c *Controller) Reorg(ctx context.Context, blockNumberGT int64) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	startAt := time.Now()
 	defer func() {
 		c.timeStat.Append(&timeStatWindow{
@@ -849,6 +925,7 @@ func (c *Controller) Reorg(ctx context.Context, blockNumberGT int64) error {
 			c.committing = new(uint64(blockNumberGT))
 		}
 	}
+	c.mu.Unlock()
 	return c.store.Reorg(ctx, blockNumberGT)
 }
 

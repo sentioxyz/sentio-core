@@ -14,9 +14,11 @@ import (
 	entityProtos "sentioxyz/sentio-core/processor/protos"
 )
 
-// Commit resolves the pending operators of every changed entity, and the first pending version
-// of each needs the store version. These tests check that those reads happen before the commit
-// takes the controller lock (so writers are not stalled), in parallel, once per entity.
+// Resolving pending operators needs the store version of every entity's first pending version,
+// and a read without an uncommitted change needs the store version as its answer. These tests
+// check that the controller reads the store before it takes its lock (so writers are never
+// stalled behind a store round trip), in parallel, once per entity, for the commit as well as for
+// the get and list paths, and that a write arriving during such a read is picked up.
 
 func prefetchFixture(t *testing.T) (*schema.Schema, *schema.Entity) {
 	t.Helper()
@@ -160,4 +162,152 @@ func TestController_CommitPrefetchFailure(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]int{"EntityE1": 2}, updated)
 	assert.Equal(t, int32(2), ps.data["EntityE1"]["e1"].Data["propB"])
+}
+
+// writeDuringStoreRead returns a getEntityHook that, the first time id is read, writes another
+// entity at block from inside the read. With the read under the controller lock this would
+// deadlock; the returned channel reports the outcome of that write.
+func writeDuringStoreRead(
+	t *testing.T,
+	ctrl *Controller,
+	e *schema.Entity,
+	id string,
+	block uint64,
+	other string,
+) (func(*schema.Entity, string) error, chan error) {
+	t.Helper()
+	written := make(chan error, 1)
+	fired := false
+	return func(_ *schema.Entity, got string) error {
+		if got != id || fired {
+			return nil
+		}
+		fired = true
+		done := make(chan error, 1)
+		go func() { done <- ctrl.SetEntity(context.Background(), e, addBox(t, e, other, block, 5)) }()
+		select {
+		case err := <-done:
+			written <- err
+		case <-time.After(2 * time.Second):
+			written <- fmt.Errorf("SetEntity blocked while the store was being read")
+		}
+		return nil
+	}, written
+}
+
+func TestController_GetEntityReadsTheStoreOffTheLock(t *testing.T) {
+	sch, e := prefetchFixture(t)
+	ctx := context.Background()
+
+	t.Run("pending change: its previous version", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		seedE1(ps, "e0", 1)
+		ctrl, _ := newCtrl(s)
+		assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 11, 1)))
+		hook, written := writeDuringStoreRead(t, ctrl, e, "e0", 11, "other")
+		ps.getEntityHook = hook
+		got, err := ctrl.GetEntity(ctx, e, "e0", 11)
+		assert.NoError(t, err)
+		assert.Equal(t, int32(2), got.Data["propB"])
+		assert.NoError(t, <-written)
+		assert.Equal(t, int64(1), ps.getEntityCalls.Load())
+		// resolved once: a second read is served from the uncommitted change
+		_, err = ctrl.GetEntity(ctx, e, "e0", 11)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(1), ps.getEntityCalls.Load())
+	})
+
+	t.Run("no change: the store version itself", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		seedE1(ps, "e0", 7)
+		ctrl, _ := newCtrl(s)
+		hook, written := writeDuringStoreRead(t, ctrl, e, "e0", 11, "other")
+		ps.getEntityHook = hook
+		got, err := ctrl.GetEntity(ctx, e, "e0", 11)
+		assert.NoError(t, err)
+		assert.Equal(t, int32(7), got.Data["propB"])
+		assert.NoError(t, <-written)
+		// a read in the block only looks at the changes of that block: no store read at all
+		calls := ps.getEntityCalls.Load()
+		got, err = ctrl.GetEntityInBlock(ctx, e, "e0", 11)
+		assert.NoError(t, err)
+		assert.Nil(t, got)
+		assert.Equal(t, calls, ps.getEntityCalls.Load())
+	})
+
+	t.Run("a change arriving during the store read is the answer", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		seedE1(ps, "e0", 7)
+		ctrl, _ := newCtrl(s)
+		// the read of e0 itself writes e0 at block 11 before returning
+		hook, written := writeDuringStoreRead(t, ctrl, e, "e0", 11, "e0")
+		ps.getEntityHook = hook
+		got, err := ctrl.GetEntity(ctx, e, "e0", 11)
+		assert.NoError(t, err)
+		assert.NoError(t, <-written)
+		assert.Equal(t, int32(12), got.Data["propB"], "the write that landed during the read is included")
+		assert.Equal(t, int64(1), ps.getEntityCalls.Load(), "the store version read once serves the resolution too")
+	})
+}
+
+func TestController_ListEntityReadsTheStoreOffTheLock(t *testing.T) {
+	sch, e := prefetchFixture(t)
+	ctx := context.Background()
+	ps, s := newTestStore(sch, "mainnet")
+	for i := range 4 {
+		seedE1(ps, fmt.Sprintf("e%d", i), int32(i))
+	}
+	ctrl, _ := newCtrl(s)
+	// e0, e1 pending; e2 untouched; e3 deleted; new created by an update
+	assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 11, 100)))
+	assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e1", 11, 100)))
+	assert.NoError(t, ctrl.SetEntity(ctx, e, UncommittedEntityBox{EntityBox: EntityBox{ID: "e3", GenBlockNumber: 11}}))
+	assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "new", 11, 9)))
+
+	// the store is read for the pending entities and then listed, both without the lock
+	hook, writtenDuringGet := writeDuringStoreRead(t, ctrl, e, "e0", 12, "other-get")
+	ps.getEntityHook = hook
+	writtenDuringList := make(chan error, 1)
+	ps.listEntitiesHook = func(*schema.Entity) {
+		done := make(chan error, 1)
+		go func() { done <- ctrl.SetEntity(ctx, e, addBox(t, e, "other-list", 12, 5)) }()
+		select {
+		case err := <-done:
+			writtenDuringList <- err
+		case <-time.After(2 * time.Second):
+			writtenDuringList <- fmt.Errorf("SetEntity blocked while the store was being listed")
+		}
+	}
+	boxes, next, err := ctrl.ListEntity(ctx, e, nil, "", 100, 11)
+	assert.NoError(t, err)
+	assert.NoError(t, <-writtenDuringGet)
+	assert.NoError(t, <-writtenDuringList)
+	assert.Nil(t, next)
+	got := map[string]int32{}
+	for _, b := range boxes {
+		got[b.ID] = b.Data["propB"].(int32)
+	}
+	assert.Equal(t, map[string]int32{"e0": 100, "e1": 101, "e2": 2, "new": 9}, got)
+	assert.Equal(t, int64(3), ps.getEntityCalls.Load(), "e0, e1 and new: one store read each, e3 is deleted")
+}
+
+func TestController_CommitPicksUpAWriteMadeDuringThePrefetch(t *testing.T) {
+	sch, e := prefetchFixture(t)
+	ctx := context.Background()
+	ps, s := newTestStore(sch, "mainnet")
+	seedE1(ps, "e0", 1)
+	ctrl, _ := newCtrl(s)
+	assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 11, 1)))
+
+	// while e0 is being prefetched, a handler creates "late" at the same block: the commit goes
+	// back to the store for it (a second round) instead of reading it under the lock
+	hook, written := writeDuringStoreRead(t, ctrl, e, "e0", 11, "late")
+	ps.getEntityHook = hook
+	_, updated, err := ctrl.Commit(ctx, 11, time.Now())
+	assert.NoError(t, err)
+	assert.NoError(t, <-written)
+	assert.Equal(t, map[string]int{"EntityE1": 2}, updated)
+	assert.Equal(t, int64(2), ps.getEntityCalls.Load(), "e0 in the first round, late in the second")
+	assert.Equal(t, int32(2), ps.data["EntityE1"]["e0"].Data["propB"])
+	assert.Equal(t, int32(5), ps.data["EntityE1"]["late"].Data["propB"])
 }

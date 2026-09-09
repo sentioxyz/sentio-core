@@ -38,12 +38,12 @@ type ChainStore struct {
 	store *Store
 	chain string
 
-	// mu guards all cache state below.
-	mu sync.Mutex
-
 	// readEntity is the persistent point read GetEntity performs outside mu on an LRU miss. It
 	// is a field so that tests can stand in for the store while exercising the real locking.
 	readEntity func(ctx context.Context, entityType *schema.Entity, id string) (*entityRow, error)
+
+	// mu guards all cache state below.
+	mu sync.Mutex
 
 	// cacheGen counts, per entity type, the cache updates applied after persistent writes, and
 	// cacheEpoch counts the cache purges. GetEntity records both before it reads the store

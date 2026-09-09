@@ -208,8 +208,9 @@ func (c *ChainStore) GetEntityOrInterfaceType(name string) schema.EntityOrInterf
 
 // cacheLoadPlan says which caches of an entity type still have to be loaded. Must be called under mu.
 // Nothing is planned while a persistent write is in flight (the load would capture a half-written
-// state), while another load or a reorg is running, or once the full-data cache is loaded.
-func (c *ChainStore) cacheLoadPlan(entityType *schema.Entity) (full, ids bool) {
+// state), while another load or a reorg is running, or once the full-data cache is loaded. The
+// full-ID cache is only planned when the caller can use it (withIDs).
+func (c *ChainStore) cacheLoadPlan(entityType *schema.Entity, withIDs bool) (full, ids bool) {
 	name := entityType.Name
 	if entityType.IsCache() || c.writing.Contains(name) || c.loading.Contains(name) || c.reorging {
 		return false, false
@@ -218,7 +219,7 @@ func (c *ChainStore) cacheLoadPlan(entityType *schema.Entity) (full, ids bool) {
 		return false, false
 	}
 	full = entityType.IsSparse() && !c.fullCacheRefused[name]
-	ids = !c.fullIDCacheLoaded[name] && !c.fullIDCacheRefused[name]
+	ids = withIDs && !c.fullIDCacheLoaded[name] && !c.fullIDCacheRefused[name]
 	return full, ids
 }
 
@@ -234,11 +235,17 @@ type loadedCaches struct {
 // loaded or refused yet. The store queries run without mu: only one caller loads a given entity
 // type at a time and, meanwhile, the others carry on with direct store queries. A load that
 // overlaps a persistent write of the same entity type, whichever started first, is discarded.
+// withIDs says whether the caller can use the full-ID cache: point reads and writes can, a list
+// only serves from the full-data cache and must not pay for an ID scan it does not use.
 // loadedNow reports that this call loaded a cache (as opposed to finding it loaded already).
-func (c *ChainStore) ensureCaches(ctx context.Context, entityType *schema.Entity) (loadedNow bool, err error) {
+func (c *ChainStore) ensureCaches(
+	ctx context.Context,
+	entityType *schema.Entity,
+	withIDs bool,
+) (loadedNow bool, err error) {
 	name := entityType.Name
 	c.mu.Lock()
-	full, ids := c.cacheLoadPlan(entityType)
+	full, ids := c.cacheLoadPlan(entityType, withIDs)
 	if !full && !ids {
 		c.mu.Unlock()
 		return false, nil
@@ -365,7 +372,7 @@ func (c *ChainStore) GetEntity(
 	entityType *schema.Entity,
 	id string,
 ) (box *persistent.EntityBox, fromCache bool, err error) {
-	loadedNow, err := c.ensureCaches(ctx, entityType)
+	loadedNow, err := c.ensureCaches(ctx, entityType, true)
 	if err != nil {
 		return nil, false, err
 	}
@@ -446,7 +453,7 @@ func (c *ChainStore) ListEntities(
 	filters []persistent.EntityFilter,
 	limit int,
 ) (boxes []*persistent.EntityBox, fromCache bool, err error) {
-	loadedNow, err := c.ensureCaches(ctx, entityType)
+	loadedNow, err := c.ensureCaches(ctx, entityType, false) // a list only serves from the full-data cache
 	if err != nil {
 		return nil, false, err
 	}
@@ -553,7 +560,7 @@ func (c *ChainStore) SetEntities(
 
 	if !entityType.IsCache() && !entityType.IsTimeSeries() {
 		// the caches the write consults are loaded without mu
-		if _, err := c.ensureCaches(ctx, entityType); err != nil {
+		if _, err := c.ensureCaches(ctx, entityType, true); err != nil {
 			return 0, err
 		}
 	}

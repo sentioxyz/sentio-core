@@ -270,6 +270,33 @@ func TestChainStore_ListEntities_QueriesOffTheLock(t *testing.T) {
 	assert.Equal(t, 2, <-done)
 }
 
+func TestChainStore_ListEntities_DoesNotLoadTheIDCache(t *testing.T) {
+	cs, e := newTestChainStore(t)
+	cs.fullIDCacheRefused[e.Name] = false // undecided, but a list cannot use it
+	cs.io.countEntity = func(context.Context, *schema.Entity, bool) (uint64, error) {
+		return 0, errors.New("a list must not count the entity")
+	}
+	cs.io.listEntities = func(
+		context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
+	) ([]*entityRow, error) {
+		return []*entityRow{positionRow("p1", 1)}, nil
+	}
+	boxes, _, err := cs.ListEntities(context.Background(), e, nil, 10)
+	assert.NoError(t, err)
+	assert.Len(t, boxes, 1)
+	cs.mu.Lock()
+	assert.False(t, cs.fullIDCacheLoaded[e.Name])
+	cs.mu.Unlock()
+	// a point read still loads it
+	cs.io.countEntity = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
+	cs.io.getAllID = func(context.Context, *schema.Entity) (set.Set[string], error) { return set.New("p1"), nil }
+	_, _, err = cs.GetEntity(context.Background(), e, "missing")
+	assert.NoError(t, err)
+	cs.mu.Lock()
+	assert.True(t, cs.fullIDCacheLoaded[e.Name])
+	cs.mu.Unlock()
+}
+
 func TestChainStore_EnsureCaches_LoadsOffTheLock(t *testing.T) {
 	cs, e := newTestChainStore(t)
 	seedLRU(t, cs, e, "warm") // while both caches are refused

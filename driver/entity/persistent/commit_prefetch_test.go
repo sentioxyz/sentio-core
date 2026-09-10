@@ -3,6 +3,7 @@ package persistent
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -474,4 +475,60 @@ func TestController_ReadDropsStoreVersionsWhenACommitLands(t *testing.T) {
 		close(release)
 		assert.Equal(t, int32(11), (<-done).Data["propB"])
 	})
+}
+
+// When commits keep landing during a read, withStoreVersions gives up re-reading without the lock
+// after maxStoreVersionRounds rounds and reads the missing versions under it: a read whose answer
+// is the store version itself still gets the latest committed row, never a missing one.
+func TestController_ReadFallsBackToALockedStoreReadAfterRepeatedCommits(t *testing.T) {
+	sch, e := prefetchFixture(t)
+	ctx := context.Background()
+	ps, s := newTestStore(sch, "mainnet")
+	seedE1(ps, "e0", 1)
+	ctrl, _ := newCtrl(s)
+
+	// every store read of e0 without the lock (maxStoreVersionRounds of them) is followed by a
+	// commit of another +10, which moves the watermark and makes the read stale; the read under
+	// the lock that follows is left alone (a commit from inside it would deadlock on c.mu)
+	var commits, inHook atomic.Int64
+	ps.getEntityAfterHook = func(_ *schema.Entity, id string, _ *EntityBox) {
+		// the commit below reads the store itself: that nested read must not commit again
+		if id != "e0" || !inHook.CompareAndSwap(0, 1) {
+			return
+		}
+		defer inHook.Store(0)
+		if commits.Load() >= maxStoreVersionRounds {
+			return
+		}
+		block := uint64(10 + commits.Add(1))
+		assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", block, 10)))
+		_, _, err := ctrl.Commit(ctx, block, time.Now())
+		assert.NoError(t, err)
+	}
+	got, err := ctrl.GetEntity(ctx, e, "e0", 100)
+	assert.NoError(t, err)
+	if assert.NotNil(t, got) {
+		assert.Equal(t, int32(1+10*maxStoreVersionRounds), got.Data["propB"], "the latest committed row")
+	}
+	assert.Equal(t, int64(maxStoreVersionRounds), commits.Load())
+
+	// the snapshot tells the reads apart: maxStoreVersionRounds rounds of reads without the lock
+	// (each dropped by the commit that followed), then one read under it
+	reads := storeReadsFromSnapshot(t, ctrl)
+	assert.Equal(t, maxStoreVersionRounds, reads["staleRounds"])
+	assert.Equal(t, 1, reads["underLockCalls"])
+	assert.GreaterOrEqual(t, reads["offLockCalls"], maxStoreVersionRounds)
+}
+
+// storeReadsFromSnapshot sums the storeReads part of every statistics window of the snapshot.
+func storeReadsFromSnapshot(t *testing.T, ctrl *Controller) map[string]int {
+	t.Helper()
+	sum := map[string]int{}
+	for _, w := range ctrl.timeStat.Snapshot() {
+		reads := w.(map[string]any)["storeReads"].(map[string]any)
+		sum["staleRounds"] += reads["staleRounds"].(int)
+		sum["offLockCalls"] += reads["offLock"].(map[string]any)["calls"].(int)
+		sum["underLockCalls"] += reads["underLock"].(map[string]any)["calls"].(int)
+	}
+	return sum
 }

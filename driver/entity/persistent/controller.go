@@ -87,6 +87,11 @@ type Controller struct {
 	// sequence, so it panics instead.
 	committing *uint64
 	committed  *uint64
+	// commitGen counts the commits that have pruned changes (Commit phase 3, Reorg). A store
+	// version read without c.mu is only valid for the history it was read against: once a commit
+	// has written newer versions and pruned the entries between them and the pending changes, the
+	// read must be repeated (see withStoreVersions).
+	commitGen uint64
 
 	timeStat *timewin.TimeWindowsManager[*timeStatWindow]
 
@@ -342,16 +347,26 @@ func (c *Controller) prefetchStoreVersions(
 // concurrent write can make another version necessary. After maxStoreVersionRounds rounds body runs
 // anyway (see executeEntityOperator for what it then does with a missing version).
 //
-// The store is only written by Commit, which runs alone, so a version read in an earlier round
-// cannot go stale before body uses it.
+// The store is only written by Commit, but a read may overlap one. A version read before a
+// commit's write is still the right predecessor of the pending changes as long as the history
+// entries the commit resolved are still there: they are resolved under c.mu, and a later change
+// then reads the resolved entry before it, not the store. Once the commit has pruned those entries
+// (commitGen moves), the first pending change would be resolved against the stale version and a
+// later commit would persist a lost update, so every version read before that point is discarded
+// and read again.
 func (c *Controller) withStoreVersions(
 	ctx context.Context,
 	needs func(prefetched map[prefetchKey]storeVersion) []prefetchWant,
 	body func(prefetched map[prefetchKey]storeVersion) error,
 ) error {
 	prefetched := make(map[prefetchKey]storeVersion)
+	var readAt uint64 // c.commitGen when the versions in prefetched were asked for
 	for round := 0; ; round++ {
 		c.mu.Lock()
+		if round > 0 && c.commitGen != readAt {
+			clear(prefetched)
+		}
+		readAt = c.commitGen
 		wants := needs(prefetched)
 		if len(wants) == 0 || round >= maxStoreVersionRounds {
 			err := body(prefetched)
@@ -967,6 +982,7 @@ func (c *Controller) Commit(
 	c.mu.Lock()
 	c.changes = c.changes.Split(blockNumber)
 	c.committed = new(blockNumber)
+	c.commitGen++
 	used := time.Since(start)
 	c.timeStat.Append(&timeStatWindow{startAt: time.Now(), commit: timehist.Histogram{}.Incr(used)})
 	// OnCommit must stay under c.mu: monitor callbacks are serialized by it (see Monitor),
@@ -1003,6 +1019,7 @@ func (c *Controller) Reorg(ctx context.Context, blockNumberGT int64) error {
 			c.committing = new(uint64(blockNumberGT))
 		}
 	}
+	c.commitGen++ // the store is about to change under any read still in flight
 	c.mu.Unlock()
 	return c.store.Reorg(ctx, blockNumberGT)
 }

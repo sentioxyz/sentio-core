@@ -3,6 +3,7 @@ package persistent
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -364,4 +365,60 @@ func TestController_ListRelatedReadsTheStoreOffTheLock(t *testing.T) {
 		ids = append(ids, b.ID)
 	}
 	assert.Equal(t, []string{"0x0b00", "0x0b01"}, ids, "the snapshot at block 11 does not include the block-12 write")
+}
+
+func TestController_GetEntityRereadsTheStoreAfterACommitPrunedItsHistory(t *testing.T) {
+	sch, e := prefetchFixture(t)
+	ctx := context.Background()
+	ps, s := newTestStore(sch, "mainnet")
+	seedE1(ps, "e0", 0)
+	ctrl, _ := newCtrl(s)
+	assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 11, 1)))
+	assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 12, 1)))
+
+	// The read at block 12 fetches the store version, 0, and is held right after, before it takes
+	// the lock again. Only that fetch is held; the commit's own prefetch passes straight through.
+	fetched := make(chan int32, 1)
+	release := make(chan struct{})
+	var held atomic.Bool
+	ps.getEntityAfterHook = func(_ *schema.Entity, id string, box *EntityBox) {
+		if id == "e0" && box != nil && held.CompareAndSwap(false, true) {
+			fetched <- box.Data["propB"].(int32)
+			<-release
+		}
+	}
+	type readResult struct {
+		box *EntityBox
+		err error
+	}
+	read := make(chan readResult, 1)
+	go func() {
+		box, err := ctrl.GetEntity(ctx, e, "e0", 12)
+		read <- readResult{box, err}
+	}()
+	select {
+	case v := <-fetched:
+		assert.Equal(t, int32(0), v, "the read fetched the version from before the commit")
+	case <-time.After(2 * time.Second):
+		t.Fatal("the read never fetched the store version")
+	}
+
+	// Meanwhile the commit of block 11 resolves e0 to 1, writes it and prunes block 11, so block
+	// 12 is now the first pending change and the version the read holds no longer precedes it.
+	_, _, err := ctrl.Commit(ctx, 11, time.Now())
+	assert.NoError(t, err)
+	assert.Equal(t, int32(1), ps.data["EntityE1"]["e0"].Data["propB"])
+
+	close(release)
+	result := <-read
+	assert.NoError(t, result.err)
+	assert.Equal(t, int32(2), result.box.Data["propB"],
+		"block 12 applies its ADD to the committed value, not to the version the commit superseded")
+	assert.Equal(t, int64(3), ps.getEntityCalls.Load(),
+		"the read fetched once before the commit and once after it pruned the history; the commit once")
+
+	// What the read resolved is what the next commit persists: no update is lost.
+	_, _, err = ctrl.Commit(ctx, 12, time.Now())
+	assert.NoError(t, err)
+	assert.Equal(t, int32(2), ps.data["EntityE1"]["e0"].Data["propB"])
 }

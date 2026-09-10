@@ -205,7 +205,10 @@ type mockChainStore struct {
 	// getEntityHook, when set, runs at the start of every GetEntity outside the store lock; a
 	// returned error is reported by GetEntity. getEntityCalls / getEntityMaxInFlight observe the
 	// reads for the commit prefetch tests.
-	getEntityHook        func(entityType *schema.Entity, id string) error
+	getEntityHook func(entityType *schema.Entity, id string) error
+	// getEntityAfterHook, when set, runs after GetEntity has read its result and before it
+	// returns it, outside the store lock; tests use it to hold a read that already has its value.
+	getEntityAfterHook   func(entityType *schema.Entity, id string, box *EntityBox)
 	listEntitiesHook     func(entityType *schema.Entity)
 	getEntityCalls       atomic.Int64
 	getEntityInFlight    atomic.Int64
@@ -242,12 +245,19 @@ func (s *mockChainStore) GetEntity(
 		}
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	origin, _ := utils.GetFromK2Map(s.data, entityType.Name, id)
-	if origin == nil {
+	var box *EntityBox
+	if origin != nil {
+		box = origin.Copy()
+	}
+	s.mu.Unlock()
+	if s.getEntityAfterHook != nil {
+		s.getEntityAfterHook(entityType, id, box)
+	}
+	if box == nil {
 		return nil, false, nil
 	}
-	return origin.Copy(), false, nil
+	return box, false, nil
 }
 
 func (s *mockChainStore) ListEntities(

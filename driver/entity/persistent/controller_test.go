@@ -206,6 +206,7 @@ type mockChainStore struct {
 	// returned error is reported by GetEntity. getEntityCalls / getEntityMaxInFlight observe the
 	// reads for the commit prefetch tests.
 	getEntityHook        func(entityType *schema.Entity, id string) error
+	listEntitiesHook     func(entityType *schema.Entity)
 	getEntityCalls       atomic.Int64
 	getEntityInFlight    atomic.Int64
 	getEntityMaxInFlight atomic.Int64
@@ -256,6 +257,9 @@ func (s *mockChainStore) ListEntities(
 	limit int,
 ) ([]*EntityBox, bool, error) {
 	log.Debugf("calling mockChainStore.ListEntities(%s, %v, %d)", entityType.Name, filters, limit)
+	if s.listEntitiesHook != nil {
+		s.listEntitiesHook(entityType)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	fromCache := s.fullLoaded[entityType.Name]

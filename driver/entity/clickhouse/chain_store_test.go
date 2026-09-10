@@ -19,7 +19,7 @@ import (
 )
 
 // ChainStore never holds its cache lock across a store round trip. These tests drive the real
-// ChainStore with the store operations replaced by fakes (io), and check that reads overlap, that
+// ChainStore over a fake store (fakeStore), and check that reads overlap, that
 // the lock stays free while a read, a list, a cache load or a reorg is in flight, and that the
 // guards keep a row read before a write or a purge out of the caches.
 
@@ -30,32 +30,84 @@ type Position @entity {
 }
 `
 
-func newTestChainStore(t *testing.T) (*ChainStore, *schema.Entity) {
+// fakeStore is a chainStoreBackend for tests: every query goes through a func field, so a test
+// controls what the store returns and when. Methods without a func fail the test if called.
+type fakeStore struct {
+	chainStoreBackend // nil: any method a test does not expect panics
+
+	t             *testing.T
+	getEntity_    func(ctx context.Context, entityType *schema.Entity, id string) (*entityRow, error)
+	listEntities_ func(
+		ctx context.Context,
+		entityType *schema.Entity,
+		filters []persistent.EntityFilter,
+		excludeDeleted bool,
+		limit int,
+	) ([]*entityRow, error)
+	countEntity_ func(ctx context.Context, entityType *schema.Entity, excludeDeleted bool) (uint64, error)
+	getAllID_    func(ctx context.Context, entityType *schema.Entity) (set.Set[string], error)
+	reorg_       func(ctx context.Context, blockNumber int64) error
+}
+
+func (f *fakeStore) useVersionedCollapsingTable(schema.EntityOrInterface) bool { return false }
+
+func (f *fakeStore) getEntity(
+	ctx context.Context, entityType *schema.Entity, _ string, id string,
+) (*entityRow, error) {
+	if f.getEntity_ == nil {
+		f.t.Fatal("getEntity not expected")
+	}
+	return f.getEntity_(ctx, entityType, id)
+}
+
+func (f *fakeStore) listEntities(
+	ctx context.Context,
+	entityType *schema.Entity,
+	_ string,
+	filters []persistent.EntityFilter,
+	excludeDeleted bool,
+	limit int,
+) ([]*entityRow, error) {
+	if f.listEntities_ == nil {
+		f.t.Fatal("listEntities not expected")
+	}
+	return f.listEntities_(ctx, entityType, filters, excludeDeleted, limit)
+}
+
+func (f *fakeStore) countEntity(
+	ctx context.Context, entityType *schema.Entity, _ string, excludeDeleted bool,
+) (uint64, error) {
+	if f.countEntity_ == nil {
+		f.t.Fatal("countEntity not expected")
+	}
+	return f.countEntity_(ctx, entityType, excludeDeleted)
+}
+
+func (f *fakeStore) getAllID(ctx context.Context, entityType *schema.Entity, _ string) (set.Set[string], error) {
+	if f.getAllID_ == nil {
+		f.t.Fatal("getAllID not expected")
+	}
+	return f.getAllID_(ctx, entityType)
+}
+
+func (f *fakeStore) reorg(ctx context.Context, blockNumber int64, _ string) error {
+	if f.reorg_ == nil {
+		f.t.Fatal("reorg not expected")
+	}
+	return f.reorg_(ctx, blockNumber)
+}
+
+func newTestChainStore(t *testing.T) (*ChainStore, *fakeStore, *schema.Entity) {
 	t.Helper()
 	sch, err := schema.ParseAndVerifySchema(chainStoreTestSchema)
 	require.NoError(t, err)
 	e := sch.GetEntity("Position")
-	cs := NewChainStore(nil, "chain", 1000, 1<<20, 1000)
-	cs.io = chainStoreIO{
-		getEntity: func(context.Context, *schema.Entity, string) (*entityRow, error) {
-			return nil, errors.New("getEntity not expected")
-		},
-		listEntities: func(context.Context, *schema.Entity, []persistent.EntityFilter, bool, int) ([]*entityRow, error) {
-			return nil, errors.New("listEntities not expected")
-		},
-		countEntity: func(context.Context, *schema.Entity, bool) (uint64, error) {
-			return 0, errors.New("countEntity not expected")
-		},
-		getAllID: func(context.Context, *schema.Entity) (set.Set[string], error) {
-			return nil, errors.New("getAllID not expected")
-		},
-		reorg:               func(context.Context, int64) error { return errors.New("reorg not expected") },
-		versionedCollapsing: func(*schema.Entity) bool { return false },
-	}
+	fs := &fakeStore{t: t}
+	cs := NewChainStore(fs, "chain", 1000, 1<<20, 1000)
 	// both caches refused: the LRU + store path is under test unless a test loads them
 	cs.fullCacheRefused[e.Name] = true
 	cs.fullIDCacheRefused[e.Name] = true
-	return cs, e
+	return cs, fs, e
 }
 
 // lruHit asserts that id is served from the LRU without a store read, and returns how long it took.
@@ -92,9 +144,9 @@ func positionRow(id string, balance int32) *entityRow {
 }
 
 func TestChainStore_GetEntity_ReadsOverlapOffTheLock(t *testing.T) {
-	cs, e := newTestChainStore(t)
+	cs, fs, e := newTestChainStore(t)
 	var reads, inFlight, maxInFlight atomic.Int64
-	cs.io.getEntity = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		reads.Add(1)
 		n := inFlight.Add(1)
 		defer inFlight.Add(-1)
@@ -152,9 +204,9 @@ func blockingRead(row *entityRow) (
 }
 
 func TestChainStore_GetEntity_DoesNotCacheARowOlderThanAWrite(t *testing.T) {
-	cs, e := newTestChainStore(t)
+	cs, fs, e := newTestChainStore(t)
 	read, started, release := blockingRead(positionRow("p", 1))
-	cs.io.getEntity = read
+	fs.getEntity_ = read
 
 	type result struct {
 		box *persistent.EntityBox
@@ -180,7 +232,7 @@ func TestChainStore_GetEntity_DoesNotCacheARowOlderThanAWrite(t *testing.T) {
 	assert.Equal(t, int32(1), r.box.Data["balance"], "the read returns what the store had")
 
 	// the LRU keeps the written version, not the older row the read brought back
-	cs.io.getEntity = func(context.Context, *schema.Entity, string) (*entityRow, error) {
+	fs.getEntity_ = func(context.Context, *schema.Entity, string) (*entityRow, error) {
 		return nil, errors.New("must be served from the LRU")
 	}
 	box, _, err := cs.GetEntity(context.Background(), e, "p")
@@ -189,9 +241,9 @@ func TestChainStore_GetEntity_DoesNotCacheARowOlderThanAWrite(t *testing.T) {
 }
 
 func TestChainStore_GetEntity_DoesNotCacheARowOlderThanAPurge(t *testing.T) {
-	cs, e := newTestChainStore(t)
+	cs, fs, e := newTestChainStore(t)
 	read, started, release := blockingRead(positionRow("p", 1))
-	cs.io.getEntity = read
+	fs.getEntity_ = read
 
 	done := make(chan error, 1)
 	go func() {
@@ -209,7 +261,7 @@ func TestChainStore_GetEntity_DoesNotCacheARowOlderThanAPurge(t *testing.T) {
 
 	// nothing was cached: the next read goes to the store again
 	var reads atomic.Int64
-	cs.io.getEntity = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		reads.Add(1)
 		return positionRow(id, 3), nil
 	}
@@ -220,8 +272,8 @@ func TestChainStore_GetEntity_DoesNotCacheARowOlderThanAPurge(t *testing.T) {
 }
 
 func TestChainStore_GetEntity_StoreErrorAndMissing(t *testing.T) {
-	cs, e := newTestChainStore(t)
-	cs.io.getEntity = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+	cs, fs, e := newTestChainStore(t)
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		if id == "bad" {
 			return nil, errors.New("store is down")
 		}
@@ -238,9 +290,9 @@ func TestChainStore_GetEntity_StoreErrorAndMissing(t *testing.T) {
 }
 
 // seedLRU puts id into the LRU through a store read so later reads are cache hits.
-func seedLRU(t *testing.T, cs *ChainStore, e *schema.Entity, id string) {
+func seedLRU(t *testing.T, cs *ChainStore, fs *fakeStore, e *schema.Entity, id string) {
 	t.Helper()
-	cs.io.getEntity = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		return positionRow(id, 1), nil
 	}
 	_, _, err := cs.GetEntity(context.Background(), e, id)
@@ -248,10 +300,10 @@ func seedLRU(t *testing.T, cs *ChainStore, e *schema.Entity, id string) {
 }
 
 func TestChainStore_ListEntities_QueriesOffTheLock(t *testing.T) {
-	cs, e := newTestChainStore(t)
-	seedLRU(t, cs, e, "hot")
+	cs, fs, e := newTestChainStore(t)
+	seedLRU(t, cs, fs, e, "hot")
 	b := newBlockingIO()
-	cs.io.listEntities = func(
+	fs.listEntities_ = func(
 		context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
 	) ([]*entityRow, error) {
 		b.wait()
@@ -271,12 +323,12 @@ func TestChainStore_ListEntities_QueriesOffTheLock(t *testing.T) {
 }
 
 func TestChainStore_ListEntities_DoesNotLoadTheIDCache(t *testing.T) {
-	cs, e := newTestChainStore(t)
+	cs, fs, e := newTestChainStore(t)
 	cs.fullIDCacheRefused[e.Name] = false // undecided, but a list cannot use it
-	cs.io.countEntity = func(context.Context, *schema.Entity, bool) (uint64, error) {
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) {
 		return 0, errors.New("a list must not count the entity")
 	}
-	cs.io.listEntities = func(
+	fs.listEntities_ = func(
 		context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
 	) ([]*entityRow, error) {
 		return []*entityRow{positionRow("p1", 1)}, nil
@@ -288,8 +340,8 @@ func TestChainStore_ListEntities_DoesNotLoadTheIDCache(t *testing.T) {
 	assert.False(t, cs.fullIDCacheLoaded[e.Name])
 	cs.mu.Unlock()
 	// a point read still loads it
-	cs.io.countEntity = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
-	cs.io.getAllID = func(context.Context, *schema.Entity) (set.Set[string], error) { return set.New("p1"), nil }
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
+	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) { return set.New("p1"), nil }
 	_, _, err = cs.GetEntity(context.Background(), e, "missing")
 	assert.NoError(t, err)
 	cs.mu.Lock()
@@ -298,20 +350,20 @@ func TestChainStore_ListEntities_DoesNotLoadTheIDCache(t *testing.T) {
 }
 
 func TestChainStore_EnsureCaches_LoadsOffTheLock(t *testing.T) {
-	cs, e := newTestChainStore(t)
-	seedLRU(t, cs, e, "warm") // while both caches are refused
+	cs, fs, e := newTestChainStore(t)
+	seedLRU(t, cs, fs, e, "warm") // while both caches are refused
 	cs.mu.Lock()
 	cs.fullIDCacheRefused[e.Name] = false // from now on the full-ID cache may be loaded
 	cs.mu.Unlock()
 
 	b := newBlockingIO()
 	var direct atomic.Int64
-	cs.io.countEntity = func(context.Context, *schema.Entity, bool) (uint64, error) { return 3, nil }
-	cs.io.getAllID = func(context.Context, *schema.Entity) (set.Set[string], error) {
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 3, nil }
+	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
 		b.wait()
 		return set.New("a", "b", "c"), nil
 	}
-	cs.io.getEntity = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		direct.Add(1)
 		return positionRow(id, 1), nil
 	}
@@ -351,15 +403,15 @@ func TestChainStore_EnsureCaches_LoadsOffTheLock(t *testing.T) {
 }
 
 func TestChainStore_EnsureCaches_DiscardsALoadOlderThanAWrite(t *testing.T) {
-	cs, e := newTestChainStore(t)
+	cs, fs, e := newTestChainStore(t)
 	cs.fullIDCacheRefused[e.Name] = false
 	b := newBlockingIO()
-	cs.io.countEntity = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
-	cs.io.getAllID = func(context.Context, *schema.Entity) (set.Set[string], error) {
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
+	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
 		b.wait()
 		return set.New("old"), nil
 	}
-	cs.io.getEntity = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		return positionRow(id, 1), nil
 	}
 	done := make(chan error, 1)
@@ -382,7 +434,7 @@ func TestChainStore_EnsureCaches_DiscardsALoadOlderThanAWrite(t *testing.T) {
 	cs.mu.Lock()
 	assert.False(t, cs.fullIDCacheLoaded[e.Name])
 	cs.mu.Unlock()
-	cs.io.getAllID = func(context.Context, *schema.Entity) (set.Set[string], error) {
+	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
 		return set.New("old", "new"), nil
 	}
 	box, _, err := cs.GetEntity(context.Background(), e, "new")
@@ -395,15 +447,15 @@ func TestChainStore_EnsureCaches_DiscardsALoadOlderThanAWrite(t *testing.T) {
 }
 
 func TestChainStore_EnsureCaches_DiscardsALoadOverlappingAWriteInFlight(t *testing.T) {
-	cs, e := newTestChainStore(t)
+	cs, fs, e := newTestChainStore(t)
 	cs.fullIDCacheRefused[e.Name] = false
 	b := newBlockingIO()
-	cs.io.countEntity = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
-	cs.io.getAllID = func(context.Context, *schema.Entity) (set.Set[string], error) {
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
+	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
 		b.wait()
 		return set.New("old"), nil
 	}
-	cs.io.getEntity = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		return positionRow(id, 1), nil
 	}
 	done := make(chan error, 1)
@@ -431,7 +483,7 @@ func TestChainStore_EnsureCaches_DiscardsALoadOverlappingAWriteInFlight(t *testi
 		Entity: "Position", ID: "new", Data: map[string]any{"id": "new", "balance": int32(2)},
 	}})
 	cs.mu.Unlock()
-	cs.io.getAllID = func(context.Context, *schema.Entity) (set.Set[string], error) {
+	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
 		return set.New("old", "new"), nil
 	}
 	box, _, err := cs.GetEntity(context.Background(), e, "new")
@@ -444,10 +496,10 @@ func TestChainStore_EnsureCaches_DiscardsALoadOverlappingAWriteInFlight(t *testi
 }
 
 func TestChainStore_Reorg_RunsOffTheLock(t *testing.T) {
-	cs, e := newTestChainStore(t)
-	seedLRU(t, cs, e, "hot")
+	cs, fs, e := newTestChainStore(t)
+	seedLRU(t, cs, fs, e, "hot")
 	b := newBlockingIO()
-	cs.io.reorg = func(context.Context, int64) error {
+	fs.reorg_ = func(context.Context, int64) error {
 		b.wait()
 		return nil
 	}

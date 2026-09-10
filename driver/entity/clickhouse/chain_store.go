@@ -36,12 +36,10 @@ type cachedEntityBox struct {
 // loads, writes and reorgs release it around the store call and re-check the
 // cache generations before they touch the caches again.
 type ChainStore struct {
-	store *Store
+	// store is the persistent side; *Store in production, a fake in tests that exercise the
+	// locking. ChainStore never holds mu while calling one of its query methods.
+	store chainStoreBackend
 	chain string
-
-	// io holds the persistent operations that run outside mu. It is a field so that tests can
-	// stand in for the store while exercising the real locking.
-	io chainStoreIO
 
 	// mu guards all cache state below. No persistent query runs while it is held: the methods
 	// below take it to look at or update the caches and release it around store round trips.
@@ -105,58 +103,47 @@ type ChainStore struct {
 	fullIDCacheMaxCount uint64
 }
 
-// chainStoreIO is the set of persistent operations a ChainStore performs. ChainStore never holds
-// mu while calling one of them.
-type chainStoreIO struct {
-	getEntity    func(ctx context.Context, entityType *schema.Entity, id string) (*entityRow, error)
-	listEntities func(
+// chainStoreBackend is what a ChainStore needs from the Store. *Store implements it; tests stand
+// in with a fake to exercise the locking without ClickHouse.
+type chainStoreBackend interface {
+	GetEntityType(entity string) *schema.Entity
+	GetEntityOrInterfaceType(name string) schema.EntityOrInterface
+	CheckValue(entityType *schema.Entity, data map[string]any) error
+	useVersionedCollapsingTable(item schema.EntityOrInterface) bool
+	getEntity(ctx context.Context, entityType *schema.Entity, chain, id string) (*entityRow, error)
+	listEntities(
 		ctx context.Context,
 		entityType *schema.Entity,
+		chain string,
 		filters []persistent.EntityFilter,
 		excludeDeleted bool,
 		limit int,
 	) ([]*entityRow, error)
-	countEntity         func(ctx context.Context, entityType *schema.Entity, excludeDeleted bool) (uint64, error)
-	getAllID            func(ctx context.Context, entityType *schema.Entity) (set.Set[string], error)
-	reorg               func(ctx context.Context, blockNumber int64) error
-	versionedCollapsing func(entityType *schema.Entity) bool
+	countEntity(
+		ctx context.Context, entityType *schema.Entity, chain string, excludeDeleted bool,
+	) (uint64, error)
+	getAllID(ctx context.Context, entityType *schema.Entity, chain string) (set.Set[string], error)
+	setEntities(
+		ctx context.Context,
+		entityType *schema.Entity,
+		chain string,
+		entities []persistent.EntityBox,
+		knownExistingIDChecker func(string) bool,
+		knownPreBoxGetter func(string) (*cachedEntityBox, bool),
+	) (int, error)
+	getMaxID(ctx context.Context, entityType *schema.Entity, chain string) (int64, error)
+	growthAggregation(ctx context.Context, chain string, curBlockTime time.Time) error
+	reorg(ctx context.Context, blockNumber int64, chain string) error
 }
 
-func (s *Store) chainStoreIO(chain string) chainStoreIO {
-	return chainStoreIO{
-		getEntity: func(ctx context.Context, entityType *schema.Entity, id string) (*entityRow, error) {
-			return s.getEntity(ctx, entityType, chain, id)
-		},
-		listEntities: func(
-			ctx context.Context,
-			entityType *schema.Entity,
-			filters []persistent.EntityFilter,
-			excludeDeleted bool,
-			limit int,
-		) ([]*entityRow, error) {
-			return s.listEntities(ctx, entityType, chain, filters, excludeDeleted, limit)
-		},
-		countEntity: func(ctx context.Context, entityType *schema.Entity, excludeDeleted bool) (uint64, error) {
-			return s.countEntity(ctx, entityType, chain, excludeDeleted)
-		},
-		getAllID: func(ctx context.Context, entityType *schema.Entity) (set.Set[string], error) {
-			return s.getAllID(ctx, entityType, chain)
-		},
-		reorg: func(ctx context.Context, blockNumber int64) error {
-			return s.reorg(ctx, blockNumber, chain)
-		},
-		versionedCollapsing: func(entityType *schema.Entity) bool {
-			return s.useVersionedCollapsingTable(entityType)
-		},
-	}
-}
+var _ chainStoreBackend = (*Store)(nil)
 
 // NewChainStore creates a ChainStore bound to the given chain.
 //   - lruCapacity: number of entity entries in the LRU cache.
 //   - fullCacheDataSizeLimit: max total byte size of the full-data cache.
 //   - fullIDCacheMaxCount: max number of entity IDs the full-ID cache may hold.
 func NewChainStore(
-	store *Store,
+	store chainStoreBackend,
 	chain string,
 	lruCapacity int,
 	fullCacheDataSizeLimit int,
@@ -177,9 +164,6 @@ func NewChainStore(
 		fullCacheRefused:    make(map[string]bool),
 		cacheEntity:         make(map[string]*lru.Cache[string, *persistent.EntityBox]),
 		cacheGen:            make(map[string]uint64),
-	}
-	if store != nil {
-		cs.io = store.chainStoreIO(chain)
 	}
 	var err error
 	cs.lruCache, err = simplelru.NewLRU[string, *persistent.EntityBox](lruCapacity, func(_ string, _ *persistent.EntityBox) {
@@ -303,9 +287,9 @@ func (c *ChainStore) loadCaches(
 	if full {
 		// for the entity using versioned collapsing table, full cache should include deleted items,
 		// because version is always needed
-		excludeDeleted := !c.io.versionedCollapsing(entityType)
+		excludeDeleted := !c.store.useVersionedCollapsingTable(entityType)
 		var count uint64
-		if count, err = c.io.countEntity(ctx, entityType, excludeDeleted); err != nil {
+		if count, err = c.store.countEntity(ctx, entityType, c.chain, excludeDeleted); err != nil {
 			logger.Errore(err, "load entities from persistent for full cache failed: count exists failed")
 			return
 		}
@@ -318,7 +302,7 @@ func (c *ChainStore) loadCaches(
 		} else {
 			logger.Debugf("will really load all %d entities from persistent for full cache", count)
 			var rows []*entityRow
-			if rows, err = c.io.listEntities(ctx, entityType, nil, excludeDeleted, math.MaxInt); err != nil {
+			if rows, err = c.store.listEntities(ctx, entityType, c.chain, nil, excludeDeleted, math.MaxInt); err != nil {
 				logger.With("used", time.Since(start).String()).
 					Errore(err, "load entities from persistent for full cache failed")
 				return
@@ -337,7 +321,7 @@ func (c *ChainStore) loadCaches(
 	}
 	if knownCount < 0 {
 		var count uint64
-		if count, err = c.io.countEntity(ctx, entityType, true); err != nil {
+		if count, err = c.store.countEntity(ctx, entityType, c.chain, true); err != nil {
 			logger.Errore(err, "load all entity ids from persistent for full cache failed: count exists failed")
 			return
 		}
@@ -351,7 +335,7 @@ func (c *ChainStore) loadCaches(
 		return
 	}
 	logger.Debugf("will load all entity ids from persistent for full id cache")
-	if loaded.ids, err = c.io.getAllID(ctx, entityType); err != nil {
+	if loaded.ids, err = c.store.getAllID(ctx, entityType, c.chain); err != nil {
 		logger.With("used", time.Since(start).String()).
 			Errore(err, "load all entity ids from persistent for full cache failed")
 		return
@@ -382,7 +366,7 @@ func (c *ChainStore) GetEntity(
 	}
 
 	// Not in LRU — fetch from the store, without mu.
-	row, err := c.io.getEntity(ctx, entityType, id)
+	row, err := c.store.getEntity(ctx, entityType, c.chain, id)
 	if err != nil {
 		return nil, false, err
 	}
@@ -463,7 +447,7 @@ func (c *ChainStore) ListEntities(
 	}
 
 	// No full cache — query the store, without mu.
-	rows, err := c.io.listEntities(ctx, entityType, filters, true, limit)
+	rows, err := c.store.listEntities(ctx, entityType, c.chain, filters, true, limit)
 	if err != nil {
 		return nil, false, err
 	}
@@ -575,7 +559,7 @@ func (c *ChainStore) SetEntities(
 			for i := range boxes {
 				ids.Add(boxes[i].ID)
 			}
-			if !c.io.versionedCollapsing(entityType) {
+			if !c.store.useVersionedCollapsingTable(entityType) {
 				// Opportunity 1: pass existing IDs to skip queryExistEntity
 				if c.fullCacheLoaded[entityType.Name] {
 					existing := set.New[string]()
@@ -678,7 +662,7 @@ func (c *ChainStore) applyWriteToCaches(
 		}
 	} else if c.fullCacheLoaded[entityType.Name] {
 		// Full-data cache path.
-		if c.io.versionedCollapsing(entityType) {
+		if c.store.useVersionedCollapsingTable(entityType) {
 			// need deleted items and version in fullCache
 			idWriteCount := make(map[string]int)
 			for i := range boxes {
@@ -739,7 +723,7 @@ func (c *ChainStore) Reorg(ctx context.Context, blockNumber int64) error {
 	}
 	c.mu.Unlock()
 
-	err := c.io.reorg(ctx, blockNumber)
+	err := c.store.reorg(ctx, blockNumber, c.chain)
 
 	c.mu.Lock()
 	c.reorging = false

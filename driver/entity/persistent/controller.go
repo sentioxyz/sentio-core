@@ -194,8 +194,8 @@ func storeVersionNeeded(history changeHistory, blockNumber uint64) bool {
 // pending version reads the store version from prefetched; every later version reads the resolved
 // version before it. Must be called under c.mu.
 //
-// A version missing from prefetched is read under c.mu as a last resort; withStoreVersions only
-// lets that happen after maxStoreVersionRounds rounds of concurrent writes on the entities read.
+// A version missing from prefetched is read under c.mu as a last resort, for callers that do not
+// go through withStoreVersions.
 func (c *Controller) executeEntityOperator(
 	ctx context.Context,
 	entityType *schema.Entity,
@@ -336,30 +336,80 @@ func (c *Controller) prefetchStoreVersions(
 	return g.Wait()
 }
 
+// committedMark is the value of c.committed as a comparable, for withStoreVersions.
+type committedMark struct {
+	set   bool
+	block uint64
+}
+
+// committedMark returns the committed watermark. Must be called under c.mu.
+func (c *Controller) committedMark() committedMark {
+	if c.committed == nil {
+		return committedMark{}
+	}
+	return committedMark{set: true, block: *c.committed}
+}
+
 // withStoreVersions runs body under c.mu once every store version it needs is at hand, so that no
 // store round trip happens while the lock is held. needs, called under c.mu, lists the versions
 // still missing from prefetched; they are read without c.mu, and the check repeats because a
-// concurrent write can make another version necessary. After maxStoreVersionRounds rounds body runs
-// anyway (see executeEntityOperator for what it then does with a missing version).
+// concurrent write can make another version necessary. After maxStoreVersionRounds rounds the
+// versions still missing are read under c.mu instead, so body always finds what it asked for.
 //
-// The store is only written by Commit, which runs alone, so a version read in an earlier round
-// cannot go stale before body uses it.
+// The store is only written by Commit, and a version read here is only valid for the history it
+// was read for: once a Commit finishes (it writes the store and prunes the committed history, so
+// the first pending version of an entity, or the answer of a read without a change, is another one
+// now), every version read so far is dropped and read again. Commit itself runs alone, so its own
+// reads never go stale; the handlers' reads run concurrently with it. The committed watermark
+// moves exactly when a Commit finishes (or a Reorg rolls it back), so it tells.
 func (c *Controller) withStoreVersions(
 	ctx context.Context,
 	needs func(prefetched map[prefetchKey]storeVersion) []prefetchWant,
 	body func(prefetched map[prefetchKey]storeVersion) error,
 ) error {
 	prefetched := make(map[prefetchKey]storeVersion)
+	var readUnder committedMark // the watermark the versions in prefetched were read under
+	var stat storeReadStat
+	defer func() {
+		if stat != (storeReadStat{}) {
+			c.timeStat.Append(&timeStatWindow{startAt: time.Now(), storeReads: stat})
+		}
+	}()
 	for round := 0; ; round++ {
 		c.mu.Lock()
+		if mark := c.committedMark(); mark != readUnder {
+			if len(prefetched) > 0 {
+				// a commit landed since the reads (or a reorg): what was read is stale
+				clear(prefetched)
+				stat.stale++
+			}
+			readUnder = mark
+		}
 		wants := needs(prefetched)
-		if len(wants) == 0 || round >= maxStoreVersionRounds {
+		if len(wants) > 0 && round >= maxStoreVersionRounds {
+			// concurrent writes or commits kept making versions necessary: read the last ones under
+			// c.mu, so that body always has every version it asked for
+			start := time.Now()
+			err := c.prefetchStoreVersions(ctx, wants, prefetched)
+			stat.underLock, stat.underLockTotal = stat.underLock.Incr(time.Since(start)), stat.underLockTotal+time.Since(start)
+			stat.underLockVersions += len(wants)
+			if err != nil {
+				c.mu.Unlock()
+				return err
+			}
+			wants = nil
+		}
+		if len(wants) == 0 {
 			err := body(prefetched)
 			c.mu.Unlock()
 			return err
 		}
 		c.mu.Unlock()
-		if err := c.prefetchStoreVersions(ctx, wants, prefetched); err != nil {
+		start := time.Now()
+		err := c.prefetchStoreVersions(ctx, wants, prefetched)
+		stat.offLock, stat.offLockTotal = stat.offLock.Incr(time.Since(start)), stat.offLockTotal+time.Since(start)
+		stat.offLockVersions += len(wants)
+		if err != nil {
 			return err
 		}
 	}
@@ -734,8 +784,15 @@ var uniqTimeSeriesID atomic.Int64
 // SetEntity stores an entity into the uncommitted change set.
 // May return ErrInvalidFieldValue or ErrUpdateImmutable.
 func (c *Controller) SetEntity(ctx context.Context, entityType *schema.Entity, box UncommittedEntityBox) error {
+	waitStart := time.Now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// how long the writer waited for the lock: the figure that shows when a store round trip is
+	// still held under it somewhere
+	lockWait := time.Since(waitStart)
+	c.timeStat.Append(&timeStatWindow{
+		startAt: time.Now(), lockWait: timehist.Histogram{}.Incr(lockWait), lockWaitTotal: lockWait,
+	})
 
 	if c.committing != nil && box.GenBlockNumber <= *c.committing {
 		panic(fmt.Errorf("set entity %s/%s at block %d, but a commit at block %d has already started",

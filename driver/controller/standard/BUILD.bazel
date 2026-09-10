@@ -43,12 +43,14 @@ go_test(
     srcs = [
         "convert_test.go",
         "stream_summary_test.go",
+        "task_no_response_test.go",
     ],
     embed = [":standard"],
     deps = [
         "//driver/controller",
         "//processor/protos",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/structpb",
     ],

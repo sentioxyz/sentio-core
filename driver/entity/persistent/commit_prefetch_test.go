@@ -365,3 +365,113 @@ func TestController_ListRelatedReadsTheStoreOffTheLock(t *testing.T) {
 	}
 	assert.Equal(t, []string{"0x0b00", "0x0b01"}, ids, "the snapshot at block 11 does not include the block-12 write")
 }
+
+// holdReadOf returns a getEntityAfterHook that holds the first store read of id (after its answer
+// was taken, so the answer is what the store had then) until release is closed.
+func holdReadOf(id string) (hook func(*schema.Entity, string, *EntityBox), held chan struct{}, release chan struct{}) {
+	held, release = make(chan struct{}), make(chan struct{})
+	fired := false
+	return func(_ *schema.Entity, got string, _ *EntityBox) {
+		if got != id || fired {
+			return
+		}
+		fired = true
+		close(held)
+		<-release
+	}, held, release
+}
+
+// A handler read runs concurrently with Commit. Its store version is read without the lock; when a
+// Commit finishes meanwhile, it has written the store and pruned the history the version was read
+// for, so the version is stale and must be read again.
+func TestController_ReadDropsStoreVersionsWhenACommitLands(t *testing.T) {
+	sch, e := prefetchFixture(t)
+	ctx := context.Background()
+
+	// e0 = 1 in the store, +10 at block 11 and +100 at block 12 pending
+	setup := func(t *testing.T) (*mockChainStore, *Controller) {
+		ps, s := newTestStore(sch, "mainnet")
+		seedE1(ps, "e0", 1)
+		ctrl, _ := newCtrl(s)
+		assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 11, 10)))
+		assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 12, 100)))
+		return ps, ctrl
+	}
+	// commitWhileHeld runs Commit(11) while a read holds the store version it took before
+	commitWhileHeld := func(t *testing.T, ps *mockChainStore, ctrl *Controller, held, release chan struct{}) {
+		<-held
+		ps.getEntityAfterHook = nil // the commit's own reads are not held
+		_, _, err := ctrl.Commit(ctx, 11, time.Now())
+		assert.NoError(t, err)
+		assert.Equal(t, int32(11), ps.data["EntityE1"]["e0"].Data["propB"])
+		close(release)
+	}
+
+	t.Run("get", func(t *testing.T) {
+		ps, ctrl := setup(t)
+		hook, held, release := holdReadOf("e0")
+		ps.getEntityAfterHook = hook
+		type result struct {
+			box *EntityBox
+			err error
+		}
+		done := make(chan result, 1)
+		go func() {
+			box, err := ctrl.GetEntity(ctx, e, "e0", 12)
+			done <- result{box, err}
+		}()
+		commitWhileHeld(t, ps, ctrl, held, release)
+		got := <-done
+		assert.NoError(t, got.err)
+		assert.Equal(t, int32(111), got.box.Data["propB"], "1 + 10 (committed meanwhile) + 100")
+		_, _, err := ctrl.Commit(ctx, 12, time.Now())
+		assert.NoError(t, err)
+		assert.Equal(t, int32(111), ps.data["EntityE1"]["e0"].Data["propB"])
+	})
+
+	t.Run("list", func(t *testing.T) {
+		ps, ctrl := setup(t)
+		hook, held, release := holdReadOf("e0")
+		ps.getEntityAfterHook = hook
+		type result struct {
+			boxes []*EntityBox
+			err   error
+		}
+		done := make(chan result, 1)
+		go func() {
+			boxes, _, err := ctrl.ListEntity(ctx, e, nil, "", 10, 12)
+			done <- result{boxes, err}
+		}()
+		commitWhileHeld(t, ps, ctrl, held, release)
+		got := <-done
+		assert.NoError(t, got.err)
+		if assert.Len(t, got.boxes, 1) {
+			assert.Equal(t, int32(111), got.boxes[0].Data["propB"])
+		}
+		_, _, err := ctrl.Commit(ctx, 12, time.Now())
+		assert.NoError(t, err)
+		assert.Equal(t, int32(111), ps.data["EntityE1"]["e0"].Data["propB"])
+	})
+
+	t.Run("no change: the store answer is read again after a commit", func(t *testing.T) {
+		ps, s := newTestStore(sch, "mainnet")
+		seedE1(ps, "e0", 1)
+		ctrl, _ := newCtrl(s)
+		hook, held, release := holdReadOf("e0")
+		ps.getEntityAfterHook = hook
+		done := make(chan *EntityBox, 1)
+		go func() {
+			box, err := ctrl.GetEntity(ctx, e, "e0", 12)
+			assert.NoError(t, err)
+			done <- box
+		}()
+		<-held
+		// a change arrives and is committed while the read holds the old store version
+		ps.getEntityAfterHook = nil
+		assert.NoError(t, ctrl.SetEntity(ctx, e, addBox(t, e, "e0", 11, 10)))
+		_, _, err := ctrl.Commit(ctx, 11, time.Now())
+		assert.NoError(t, err)
+		close(release)
+		assert.Equal(t, int32(11), (<-done).Data["propB"])
+	})
+}

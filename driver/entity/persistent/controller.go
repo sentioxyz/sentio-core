@@ -336,22 +336,48 @@ func (c *Controller) prefetchStoreVersions(
 	return g.Wait()
 }
 
+// committedMark is the value of c.committed as a comparable, for withStoreVersions.
+type committedMark struct {
+	set   bool
+	block uint64
+}
+
+// committedMark returns the committed watermark. Must be called under c.mu.
+func (c *Controller) committedMark() committedMark {
+	if c.committed == nil {
+		return committedMark{}
+	}
+	return committedMark{set: true, block: *c.committed}
+}
+
 // withStoreVersions runs body under c.mu once every store version it needs is at hand, so that no
 // store round trip happens while the lock is held. needs, called under c.mu, lists the versions
 // still missing from prefetched; they are read without c.mu, and the check repeats because a
 // concurrent write can make another version necessary. After maxStoreVersionRounds rounds body runs
 // anyway (see executeEntityOperator for what it then does with a missing version).
 //
-// The store is only written by Commit, which runs alone, so a version read in an earlier round
-// cannot go stale before body uses it.
+// The store is only written by Commit, and a version read here is only valid for the history it
+// was read for: once a Commit finishes (it writes the store and prunes the committed history, so
+// the first pending version of an entity, or the answer of a read without a change, is another one
+// now), every version read so far is dropped and read again. Commit itself runs alone, so its own
+// reads never go stale; the handlers' reads run concurrently with it. The committed watermark
+// moves exactly when a Commit finishes (or a Reorg rolls it back), so it tells.
 func (c *Controller) withStoreVersions(
 	ctx context.Context,
 	needs func(prefetched map[prefetchKey]storeVersion) []prefetchWant,
 	body func(prefetched map[prefetchKey]storeVersion) error,
 ) error {
 	prefetched := make(map[prefetchKey]storeVersion)
+	var readUnder committedMark // the watermark the versions in prefetched were read under
 	for round := 0; ; round++ {
 		c.mu.Lock()
+		if mark := c.committedMark(); mark != readUnder {
+			if len(prefetched) > 0 {
+				// a commit landed since the reads (or a reorg): what was read is stale
+				clear(prefetched)
+			}
+			readUnder = mark
+		}
 		wants := needs(prefetched)
 		if len(wants) == 0 || round >= maxStoreVersionRounds {
 			err := body(prefetched)

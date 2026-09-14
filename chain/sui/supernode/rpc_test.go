@@ -73,7 +73,27 @@ func (m *mockStorageJSONRPC) QueryLastObjectChange(_ context.Context, _ string, 
 func (m *mockStorageJSONRPC) Snapshot() any { return nil }
 
 // mockStorageGRPC implements supernode.StorageGRPC with empty responses.
-type mockStorageGRPC struct{}
+type mockStorageGRPC struct {
+	committedRanges []rg.Range
+	rangeErr        error
+	rangeCalls      int
+	lastChange      *sui.ObjectChangeRecord
+	lastChangeErr   error
+	queryCalls      int
+	queryObjectID   string
+	queryCheckpoint uint64
+}
+
+func (m *mockStorageGRPC) CommittedObjectHistoryRange(_ context.Context) (rg.Range, error) {
+	m.rangeCalls++
+	if m.rangeErr != nil {
+		return rg.EmptyRange, m.rangeErr
+	}
+	if len(m.committedRanges) == 0 {
+		return rg.EmptyRange, nil
+	}
+	return m.committedRanges[min(m.rangeCalls-1, len(m.committedRanges)-1)], nil
+}
 
 func (m *mockStorageGRPC) QuerySimpleCheckpoint(_ context.Context, _ uint64) (sui.SimpleCheckpoint, error) {
 	return sui.SimpleCheckpoint{}, errors.Errorf("not found")
@@ -92,10 +112,73 @@ func (m *mockStorageGRPC) QueryObjectChanges(
 func (m *mockStorageGRPC) QueryObjectsStat(_ context.Context, _, _ uint64, _ []string) (map[string]sui.ObjectStat, error) {
 	return nil, nil
 }
-func (m *mockStorageGRPC) QueryLastObjectChange(_ context.Context, _ string, _, _ uint64) (*sui.ObjectChangeRecord, error) {
-	return nil, nil
+func (m *mockStorageGRPC) QueryLastObjectChange(_ context.Context, id string, _ uint64, checkpoint uint64) (*sui.ObjectChangeRecord, error) {
+	m.queryCalls++
+	m.queryObjectID, m.queryCheckpoint = id, checkpoint
+	return m.lastChange, m.lastChangeErr
 }
 func (m *mockStorageGRPC) Snapshot() any { return nil }
+
+func TestGrpcObjectChangeAtCheckpoint(t *testing.T) {
+	const checkpoint = uint64(100)
+	const objectID = "0x123"
+	live := &sui.ObjectChangeRecord{Checkpoint: 12, ObjectVersion: 14, Type: "created", TxDigest: "tx"}
+	for _, test := range []struct {
+		name       string
+		ranges     []rg.Range
+		record     *sui.ObjectChangeRecord
+		rangeErr   error
+		queryErr   error
+		wantErr    bool
+		queryCalls int
+	}{
+		{name: "complete absence", ranges: []rg.Range{rg.NewRange(0, checkpoint)}, queryCalls: 1},
+		{name: "complete idle object", ranges: []rg.Range{rg.NewRange(0, checkpoint)}, record: live, queryCalls: 1},
+		{name: "truncated missing creation", ranges: []rg.Range{rg.NewRange(50, checkpoint)}, wantErr: true},
+		{name: "truncated surviving row", ranges: []rg.Range{rg.NewRange(50, checkpoint)}, record: live, wantErr: true},
+		{name: "lagging archive with old version", ranges: []rg.Range{rg.NewRange(0, 99)}, record: live, wantErr: true},
+		{name: "empty archive", wantErr: true},
+		{name: "unbounded metadata", ranges: []rg.Range{{Start: 0}}, wantErr: true},
+		{name: "coverage read failure", rangeErr: errors.New("range unavailable"), wantErr: true},
+		{name: "object read failure", ranges: []rg.Range{rg.NewRange(0, checkpoint)}, queryErr: errors.New("object unavailable"), wantErr: true, queryCalls: 1},
+		{name: "retention during absent lookup", ranges: []rg.Range{rg.NewRange(0, checkpoint), rg.NewRange(50, checkpoint)}, wantErr: true, queryCalls: 1},
+		{name: "retention during live lookup", ranges: []rg.Range{rg.NewRange(0, checkpoint), rg.NewRange(50, checkpoint)}, record: live, wantErr: true, queryCalls: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			storage := &mockStorageGRPC{committedRanges: test.ranges, rangeErr: test.rangeErr, lastChange: test.record, lastChangeErr: test.queryErr}
+			// No slot cache: consulting the live head or stitching in its tail would panic.
+			service := &SuperService{storageGRPC: storage}
+			result, err := service.GetGrpcObjectChangeAtCheckpoint(context.Background(), objectID, checkpoint)
+			assert.Equal(t, test.wantErr, err != nil)
+			assert.Equal(t, test.queryCalls, storage.queryCalls)
+			if test.wantErr {
+				assert.Nil(t, result)
+			} else if assert.NotNil(t, result) {
+				assert.Equal(t, objectID, result.ObjectID)
+				assert.Equal(t, checkpoint, result.Checkpoint)
+				assert.Zero(t, result.HistoryStartCheckpoint)
+				assert.Equal(t, test.record, result.Change)
+				assert.Equal(t, 2, storage.rangeCalls)
+				assert.Equal(t, objectID, storage.queryObjectID)
+				assert.Equal(t, checkpoint, storage.queryCheckpoint)
+			}
+		})
+	}
+}
+
+func TestGrpcObjectChangeAtCheckpointRPC(t *testing.T) {
+	service := &SuperService{storageGRPC: &mockStorageGRPC{committedRanges: []rg.Range{rg.NewRange(0, 100)}}}
+	handler := NewSuperNode(service, &sui.ClientPool{})[0](func(context.Context, string, json.RawMessage) (any, error) {
+		return nil, errors.New("strict history method was not registered")
+	})
+	result, err := handler(context.Background(), "sui_getGrpcObjectChangeAtCheckpoint", json.RawMessage(`["0x123",100]`))
+	assert.NoError(t, err)
+	raw, err := json.Marshal(result)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"object_id":"0x123","checkpoint":100,"history_start_checkpoint":0,"change":null}`, string(raw))
+	_, err = (&SuperService{}).GetGrpcObjectChangeAtCheckpoint(context.Background(), "0x123", 100)
+	assert.Error(t, err)
+}
 
 type rpcRequest struct {
 	JSONRPC string `json:"jsonrpc"`

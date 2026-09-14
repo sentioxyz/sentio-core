@@ -34,6 +34,20 @@ func NewStorage(ctrl chx.Controller, rangeStore chain.RangeStore) *Storage {
 	return s
 }
 
+// CommittedObjectHistoryRange uses the same range store as the all-table writer.
+// SimpleDimension advances it only across contiguous completed checkpoints and
+// removes retained ranges before deleting their rows. Bypass the metadata cache
+// to make those retention updates visible to strict historical lookups.
+func (s *Storage) CommittedObjectHistoryRange(ctx context.Context) (rg.Range, error) {
+	store, ok := s.rangeStore.(interface {
+		GetPersisted(context.Context) (rg.Range, error)
+	})
+	if !ok {
+		return rg.EmptyRange, errors.New("persisted object history coverage is unavailable")
+	}
+	return store.GetPersisted(ctx)
+}
+
 func (s *Storage) checkRange(ctx context.Context, queryRange rg.Range) error {
 	_, logger := log.FromContext(ctx)
 	curRange, err := s.rangeStore.Get(ctx)

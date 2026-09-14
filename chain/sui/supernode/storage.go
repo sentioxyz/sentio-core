@@ -4,6 +4,7 @@ import (
 	"context"
 	"sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/chain/sui/types"
+	rg "sentioxyz/sentio-core/common/range"
 )
 
 // StorageShared is the format-agnostic subset served by either backing storage.
@@ -59,6 +60,11 @@ type StorageJSONRPC interface {
 }
 
 type StorageGRPC interface {
+	// CommittedObjectHistoryRange reads the persisted, continuous checkpoint range
+	// acknowledged by all storage tables, including object history. It must bypass
+	// cached range metadata so a retention change cannot be hidden from a caller.
+	CommittedObjectHistoryRange(ctx context.Context) (rg.Range, error)
+
 	// QuerySimpleCheckpoint will return error if checkpoint not found
 	QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) (sui.SimpleCheckpoint, error)
 

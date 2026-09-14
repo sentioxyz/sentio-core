@@ -53,6 +53,8 @@ func NewSuperNode(
 					return jsonrpc.CallMethod(superSvr.GetLastObjectChangeV2, ctx, params)
 				case "sui_getGrpcLastObjectChange": // DriverVersion[2]
 					return jsonrpc.CallMethod(superSvr.GetGrpcLastObjectChange, ctx, params)
+				case "sui_getGrpcObjectChangeAtCheckpoint":
+					return jsonrpc.CallMethod(superSvr.GetGrpcObjectChangeAtCheckpoint, ctx, params)
 				case "sui_getObjectsStat": // DriverVersion[0,1,2]
 					return jsonrpc.CallMethod(superSvr.GetObjectsStat, ctx, params)
 				case "sui_getGrpcTransactions": // DriverVersion[2]
@@ -749,6 +751,50 @@ func (s *SuperService) GetGrpcLastObjectChange(
 		return nil, err
 	}
 	return newestObjectChangeRecord(records), nil
+}
+
+// ObjectChangeAtCheckpoint is a checkpoint-final lookup backed by continuous
+// committed object history from genesis. Change is nil only if no change exists
+// at or before Checkpoint; it does not indicate missing archive coverage.
+type ObjectChangeAtCheckpoint struct {
+	ObjectID               string                  `json:"object_id"`
+	Checkpoint             uint64                  `json:"checkpoint"`
+	HistoryStartCheckpoint uint64                  `json:"history_start_checkpoint"`
+	Change                 *sui.ObjectChangeRecord `json:"change"`
+}
+
+// GetGrpcObjectChangeAtCheckpoint requires the durable archive to cover every
+// checkpoint from genesis through the target. The live slot-cache head cannot
+// prove that an idle object's history is present, so this method never uses it.
+// Check coverage again after the lookup to reject concurrent retention changes.
+// Existing last-change methods retain their weaker "newest recorded" contract.
+func (s *SuperService) GetGrpcObjectChangeAtCheckpoint(
+	ctx context.Context, objectID string, checkpoint uint64,
+) (*ObjectChangeAtCheckpoint, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
+	checkCoverage := func() error {
+		committed, err := s.storageGRPC.CommittedObjectHistoryRange(ctx)
+		if err != nil {
+			return errors.Wrap(err, "read committed object history range")
+		}
+		if committed.End == nil || !committed.Include(rg.NewRange(0, checkpoint)) {
+			return errors.Errorf("incomplete object history: require [0,%d], committed %s", checkpoint, committed)
+		}
+		return nil
+	}
+	if err := checkCoverage(); err != nil {
+		return nil, err
+	}
+	change, err := s.storageGRPC.QueryLastObjectChange(ctx, objectID, 0, checkpoint)
+	if err != nil {
+		return nil, err
+	}
+	if err = checkCoverage(); err != nil {
+		return nil, err
+	}
+	return &ObjectChangeAtCheckpoint{ObjectID: objectID, Checkpoint: checkpoint, Change: change}, nil
 }
 
 // newestObjectChangeRecord picks the record with the highest object version.

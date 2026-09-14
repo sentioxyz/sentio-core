@@ -46,6 +46,8 @@ jobs:
         run: bazel test --config=ci //...
         env:
           RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
+      - name: Test strict Sui history coverage
+        run: bazel test --config=ci //chain/sui/supernode:supernode_test --test_filter=TestGrpcObjectChangeAtCheckpoint
       - name: Wait bazel cache clean
         run: |
           for i in $(seq 1 10); do

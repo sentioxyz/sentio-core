@@ -140,6 +140,10 @@ func (s *RangeStore) get(ctx context.Context) (r rg.Range, err error) {
 	if cur, has := s.getCurrent(); has {
 		return cur, nil
 	}
+	return s.getPersisted(ctx)
+}
+
+func (s *RangeStore) getPersisted(ctx context.Context) (r rg.Range, err error) {
 	r = rg.EmptyRange
 	sql := fmt.Sprintf("SELECT left, right FROM %s ORDER BY create_at DESC LIMIT 1", s.ctrl.FullLogicName(s.name))
 	err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -166,6 +170,14 @@ func (s *RangeStore) Get(ctx context.Context) (rg.Range, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.get(ctx)
+}
+
+// GetPersisted bypasses the metadata cache. Strict historical reads use this
+// before and after their data lookup so retention updates are visible promptly.
+func (s *RangeStore) GetPersisted(ctx context.Context) (rg.Range, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.getPersisted(ctx)
 }
 
 func (s *RangeStore) Update(ctx context.Context, operator rg.RangeOperator) (rg.Range, error) {

@@ -140,7 +140,11 @@ func (s *RangeStore) get(ctx context.Context) (r rg.Range, err error) {
 	if cur, has := s.getCurrent(); has {
 		return cur, nil
 	}
-	return s.getPersisted(ctx)
+	r, err = s.getPersisted(ctx)
+	if err == nil {
+		s.setCurrent(r, time.Second)
+	}
+	return r, err
 }
 
 func (s *RangeStore) getPersisted(ctx context.Context) (r rg.Range, err error) {
@@ -157,7 +161,6 @@ func (s *RangeStore) getPersisted(ctx context.Context) (r rg.Range, err error) {
 	if err != nil {
 		return r, err
 	}
-	s.setCurrent(r, time.Second)
 	return r, nil
 }
 
@@ -174,9 +177,9 @@ func (s *RangeStore) Get(ctx context.Context) (rg.Range, error) {
 
 // GetPersisted bypasses the metadata cache. Strict historical reads use this
 // before and after their data lookup so retention updates are visible promptly.
+// It does not touch cache state, so independent archive lookups can read metadata
+// concurrently without serializing their database round trips under s.mu.
 func (s *RangeStore) GetPersisted(ctx context.Context) (rg.Range, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.getPersisted(ctx)
 }
 

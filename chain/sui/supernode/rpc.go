@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"strconv"
+	"sync"
 
 	"github.com/pkg/errors"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
@@ -53,6 +54,8 @@ func NewSuperNode(
 					return jsonrpc.CallMethod(superSvr.GetLastObjectChangeV2, ctx, params)
 				case "sui_getGrpcLastObjectChange": // DriverVersion[2]
 					return jsonrpc.CallMethod(superSvr.GetGrpcLastObjectChange, ctx, params)
+				case "sui_getGrpcObjectChangesAtCheckpoint":
+					return jsonrpc.CallMethod(superSvr.GetGrpcObjectChangesAtCheckpoint, ctx, params)
 				case "sui_getGrpcObjectChangeAtCheckpoint":
 					return jsonrpc.CallMethod(superSvr.GetGrpcObjectChangeAtCheckpoint, ctx, params)
 				case "sui_getObjectsStat": // DriverVersion[0,1,2]
@@ -774,27 +777,95 @@ func (s *SuperService) GetGrpcObjectChangeAtCheckpoint(
 	if err := s.requireGRPC(); err != nil {
 		return nil, err
 	}
-	checkCoverage := func() error {
-		committed, err := s.storageGRPC.CommittedObjectHistoryRange(ctx)
-		if err != nil {
-			return errors.Wrap(err, "read committed object history range")
-		}
-		if committed.End == nil || !committed.Include(rg.NewRange(0, checkpoint)) {
-			return errors.Errorf("incomplete object history: require [0,%d], committed %s", checkpoint, committed)
-		}
-		return nil
-	}
-	if err := checkCoverage(); err != nil {
+
+	if err := s.checkObjectHistoryCoverage(ctx, checkpoint); err != nil {
 		return nil, err
 	}
 	change, err := s.storageGRPC.QueryLastObjectChange(ctx, objectID, 0, checkpoint)
 	if err != nil {
 		return nil, err
 	}
-	if err = checkCoverage(); err != nil {
+	if err = s.checkObjectHistoryCoverage(ctx, checkpoint); err != nil {
 		return nil, err
 	}
 	return &ObjectChangeAtCheckpoint{ObjectID: objectID, Checkpoint: checkpoint, Change: change}, nil
+}
+
+// checkObjectHistoryCoverage deliberately bypasses the live slot cache.
+func (s *SuperService) checkObjectHistoryCoverage(ctx context.Context, checkpoint uint64) error {
+	committed, err := s.storageGRPC.CommittedObjectHistoryRange(ctx)
+	if err != nil {
+		return errors.Wrap(err, "read committed object history range")
+	}
+	if committed.End == nil || !committed.Include(rg.NewRange(0, checkpoint)) {
+		return errors.Errorf("incomplete object history: require [0,%d], committed %s", checkpoint, committed)
+	}
+	return nil
+}
+
+// GetGrpcObjectChangesAtCheckpoint preserves the single-object contract for a
+// bounded batch. One complete inventory query proves which IDs have any history;
+// absent fields need no per-ID last-change query. Live and removed objects still
+// use their final lifecycle record. Coverage is checked before and after all reads.
+func (s *SuperService) GetGrpcObjectChangesAtCheckpoint(ctx context.Context, objectIDs []string, checkpoint uint64) ([]*ObjectChangeAtCheckpoint, error) {
+	if err := s.requireGRPC(); err != nil {
+		return nil, err
+	}
+	const maxBatch = 32
+	if len(objectIDs) == 0 || len(objectIDs) > maxBatch {
+		return nil, errors.New("object history batch must contain 1 to 32 IDs")
+	}
+	targets := make(map[string]bool, len(objectIDs))
+	for _, id := range objectIDs {
+		if id == "" || targets[id] {
+			return nil, errors.New("object history batch has an empty or duplicate ID")
+		}
+		targets[id] = true
+	}
+	if err := s.checkObjectHistoryCoverage(ctx, checkpoint); err != nil {
+		return nil, err
+	}
+	stats, err := s.storageGRPC.QueryObjectsStat(ctx, 0, checkpoint, objectIDs)
+	if err != nil {
+		return nil, err
+	}
+	for id, stat := range stats {
+		if !targets[id] || stat.Count == 0 || stat.MaxObjectVersion == 0 || stat.MaxCheckpoint > checkpoint {
+			return nil, errors.New("invalid checkpoint-bounded object inventory")
+		}
+	}
+	results := make([]*ObjectChangeAtCheckpoint, len(objectIDs))
+	errs := make([]error, len(objectIDs))
+	for start := 0; start < len(objectIDs); start += 8 {
+		var wg sync.WaitGroup
+		for i := start; i < min(start+8, len(objectIDs)); i++ {
+			id := objectIDs[i]
+			results[i] = &ObjectChangeAtCheckpoint{ObjectID: id, Checkpoint: checkpoint}
+			stat, exists := stats[id]
+			if !exists {
+				continue
+			}
+			wg.Add(1)
+			go func(i int, id string, stat sui.ObjectStat) {
+				defer wg.Done()
+				change, err := s.storageGRPC.QueryLastObjectChange(ctx, id, 0, checkpoint)
+				if err == nil && (change == nil || change.ObjectVersion != stat.MaxObjectVersion || change.Checkpoint > checkpoint) {
+					err = errors.New("object inventory disagrees with final lifecycle record")
+				}
+				results[i].Change, errs[i] = change, err
+			}(i, id, stat)
+		}
+		wg.Wait()
+	}
+	for _, err := range errs {
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := s.checkObjectHistoryCoverage(ctx, checkpoint); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 // newestObjectChangeRecord picks the record with the highest object version.

@@ -29,4 +29,4 @@ jobs:
       - name: Build & Test All
         run: bazel test --config=ci //...
       - name: Test strict Sui history coverage
-        run: bazel test --config=ci //chain/sui/supernode:supernode_test --test_filter=TestGrpcObjectChangeAtCheckpoint
+        run: bazel test --config=ci //chain/sui/supernode:supernode_test --test_filter=TestGrpcObjectChanges?AtCheckpoint

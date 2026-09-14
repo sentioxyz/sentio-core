@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -74,6 +75,10 @@ func (m *mockStorageJSONRPC) Snapshot() any { return nil }
 
 // mockStorageGRPC implements supernode.StorageGRPC with empty responses.
 type mockStorageGRPC struct {
+	mu              sync.Mutex
+	stats           map[string]sui.ObjectStat
+	statsErr        error
+	changes         map[string]*sui.ObjectChangeRecord
 	committedRanges []rg.Range
 	rangeErr        error
 	rangeCalls      int
@@ -110,11 +115,16 @@ func (m *mockStorageGRPC) QueryObjectChanges(
 	return nil, nil
 }
 func (m *mockStorageGRPC) QueryObjectsStat(_ context.Context, _, _ uint64, _ []string) (map[string]sui.ObjectStat, error) {
-	return nil, nil
+	return m.stats, m.statsErr
 }
 func (m *mockStorageGRPC) QueryLastObjectChange(_ context.Context, id string, _ uint64, checkpoint uint64) (*sui.ObjectChangeRecord, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.queryCalls++
 	m.queryObjectID, m.queryCheckpoint = id, checkpoint
+	if m.changes != nil {
+		return m.changes[id], m.lastChangeErr
+	}
 	return m.lastChange, m.lastChangeErr
 }
 func (m *mockStorageGRPC) Snapshot() any { return nil }
@@ -325,4 +335,74 @@ func Test_suiRpc(t *testing.T) {
 
 	cancel()
 	_ = g.Wait()
+}
+
+func TestGrpcObjectChangesAtCheckpoint(t *testing.T) {
+	for _, kind := range []string{"mixed", "truncated", "retention", "stats error", "unexpected ID", "future stat", "zero stat", "missing record", "wrong version", "lookup error"} {
+		t.Run(kind, func(t *testing.T) {
+			storage := &mockStorageGRPC{
+				committedRanges: []rg.Range{rg.NewRange(0, 100)},
+				stats:           map[string]sui.ObjectStat{"live": {Count: 1, MaxObjectVersion: 14, MaxCheckpoint: 90}, "deleted": {Count: 2, MaxObjectVersion: 15, MaxCheckpoint: 95}},
+				changes:         map[string]*sui.ObjectChangeRecord{"live": {Checkpoint: 90, ObjectVersion: 14, Type: "mutated", TxDigest: "tx"}, "deleted": {Checkpoint: 95, ObjectVersion: 15, Type: "deleted"}},
+			}
+			switch kind {
+			case "truncated":
+				storage.committedRanges = []rg.Range{rg.NewRange(50, 100)}
+			case "retention":
+				storage.committedRanges = append(storage.committedRanges, rg.NewRange(50, 100))
+			case "stats error":
+				storage.statsErr = errors.New("unavailable")
+			case "unexpected ID":
+				storage.stats["unexpected"] = sui.ObjectStat{Count: 1, MaxObjectVersion: 1}
+			case "future stat":
+				stat := storage.stats["live"]
+				stat.MaxCheckpoint = 101
+				storage.stats["live"] = stat
+			case "zero stat":
+				storage.stats["live"] = sui.ObjectStat{}
+			case "missing record":
+				delete(storage.changes, "live")
+			case "wrong version":
+				storage.changes["live"].ObjectVersion = 13
+			case "lookup error":
+				storage.lastChangeErr = errors.New("unavailable")
+			}
+			result, err := (&SuperService{storageGRPC: storage}).GetGrpcObjectChangesAtCheckpoint(context.Background(), []string{"absent", "live", "deleted"}, 100)
+			if kind != "mixed" {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
+			if !assert.NoError(t, err) || !assert.Len(t, result, 3) {
+				return
+			}
+			assert.Equal(t, "absent", result[0].ObjectID)
+			assert.Nil(t, result[0].Change)
+			assert.Equal(t, storage.changes["live"], result[1].Change)
+			assert.Equal(t, "deleted", result[2].Change.Type)
+			assert.Equal(t, 2, storage.queryCalls, "proven absent IDs must not trigger per-object reads")
+			assert.Equal(t, 2, storage.rangeCalls)
+			for _, row := range result {
+				assert.Equal(t, uint64(100), row.Checkpoint)
+				assert.Zero(t, row.HistoryStartCheckpoint)
+			}
+		})
+	}
+}
+
+func TestGrpcObjectChangesAtCheckpointRPCAndBounds(t *testing.T) {
+	storage := &mockStorageGRPC{committedRanges: []rg.Range{rg.NewRange(0, 100)}}
+	service := &SuperService{storageGRPC: storage}
+	handler := NewSuperNode(service, &sui.ClientPool{})[0](func(context.Context, string, json.RawMessage) (any, error) {
+		return nil, errors.New("missing batch method")
+	})
+	result, err := handler(context.Background(), "sui_getGrpcObjectChangesAtCheckpoint", json.RawMessage(`[["id"],100]`))
+	assert.NoError(t, err)
+	raw, err := json.Marshal(result)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `[{"object_id":"id","checkpoint":100,"history_start_checkpoint":0,"change":null}]`, string(raw))
+	for _, ids := range [][]string{nil, {""}, {"id", "id"}, make([]string, 33)} {
+		_, err := service.GetGrpcObjectChangesAtCheckpoint(context.Background(), ids, 100)
+		assert.Error(t, err)
+	}
 }

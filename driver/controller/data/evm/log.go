@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
 
@@ -28,14 +30,16 @@ type LogFilter struct {
 
 // FilterLogs all filters is linked by OR
 func FilterLogs(ctx context.Context, cli Client, logs []types.Log, filters ...LogFilter) ([]types.Log, error) {
-	checkers := utils.MapSliceNoError(filters, func(f LogFilter) func(log types.Log) (bool, error) {
-		return f.BuildChecker(ctx, cli)
-	})
+	return CheckLogs(ctx, cli, logs, CompileLogFilters(filters)...)
+}
+
+// CheckLogs returns the logs matched by any of the checkers.
+func CheckLogs(ctx context.Context, cli Client, logs []types.Log, checkers ...*LogChecker) ([]types.Log, error) {
 	return utils.FilterArrWithErr(logs, func(log types.Log) (bool, error) {
 		for _, ck := range checkers {
-			if fok, err := ck(log); err != nil {
+			if ok, err := ck.Check(ctx, cli, log); err != nil {
 				return false, err
-			} else if fok {
+			} else if ok {
 				return true, nil
 			}
 		}
@@ -43,24 +47,85 @@ func FilterLogs(ctx context.Context, cli Client, logs []types.Log, filters ...Lo
 	})
 }
 
-func (f LogFilter) BuildChecker(ctx context.Context, cli Client) func(log types.Log) (bool, error) {
-	addrSet := set.New(f.Address...)
-	topicsSet := utils.MapSliceNoError(f.Topics, func(ss []string) set.Set[string] {
-		return set.New(ss...)
-	})
-	return func(log types.Log) (bool, error) {
-		for i, topic := range log.Topics {
-			if i < len(topicsSet) && !topicsSet[i].Empty() && !topicsSet[i].Contains(topic.String()) {
+// LogChecker is a LogFilter compiled for matching: the address and topic conditions are decoded
+// once into fixed-size keys, so that matching a log compares its common.Address and common.Hash
+// values directly and allocates nothing. A filter is matched against every log of every block;
+// build its checker once when the filter is created and reuse it, instead of rebuilding the
+// conditions (and formatting every log's topics as hex strings) per block.
+type LogChecker struct {
+	// topics[i] is the condition on the i-th topic of a log. A nil map accepts any topic; a map
+	// accepts the topics in it, so an empty one (every value of the filter was malformed) accepts
+	// none. Topics of a log beyond the conditions are not checked.
+	topics []map[common.Hash]struct{}
+	// addresses is the address condition, with the same nil / empty meaning.
+	addresses            map[common.Address]struct{}
+	addressShouldBeERC20 bool
+}
+
+// Compile decodes the filter's conditions into a LogChecker. A malformed hex value in a
+// condition never matches, as it never did when values were compared as strings.
+func (f LogFilter) Compile() *LogChecker {
+	c := &LogChecker{
+		topics:               make([]map[common.Hash]struct{}, len(f.Topics)),
+		addressShouldBeERC20: f.AddressShouldBeERC20,
+	}
+	for i, values := range f.Topics {
+		if len(values) == 0 {
+			continue
+		}
+		c.topics[i] = make(map[common.Hash]struct{}, len(values))
+		for _, value := range values {
+			if b, err := hexutil.Decode(value); err == nil && len(b) == common.HashLength {
+				c.topics[i][common.BytesToHash(b)] = struct{}{}
+			}
+		}
+	}
+	if len(f.Address) > 0 {
+		c.addresses = make(map[common.Address]struct{}, len(f.Address))
+		for _, value := range f.Address {
+			if b, err := hexutil.Decode(value); err == nil && len(b) == common.AddressLength {
+				c.addresses[common.BytesToAddress(b)] = struct{}{}
+			}
+		}
+	}
+	return c
+}
+
+// CompileLogFilters compiles every filter; the results are meant to be kept and reused.
+func CompileLogFilters(filters []LogFilter) []*LogChecker {
+	return utils.MapSliceNoError(filters, LogFilter.Compile)
+}
+
+// Check reports whether the log matches the filter. cli is only used by the ERC-20 address
+// condition and may be nil otherwise.
+func (c *LogChecker) Check(ctx context.Context, cli Client, log types.Log) (bool, error) {
+	for i, topic := range log.Topics {
+		if i >= len(c.topics) {
+			break
+		}
+		if accepted := c.topics[i]; accepted != nil {
+			if _, ok := accepted[topic]; !ok {
 				return false, nil
 			}
 		}
-		if !addrSet.Empty() && !addrSet.Contains(strings.ToLower(log.Address.String())) {
+	}
+	if c.addresses != nil {
+		if _, ok := c.addresses[log.Address]; !ok {
 			return false, nil
 		}
-		if f.AddressShouldBeERC20 {
-			return cli.IsERC20Address(ctx, log.Address.String())
-		}
-		return true, nil
+	}
+	if c.addressShouldBeERC20 {
+		return cli.IsERC20Address(ctx, log.Address.String())
+	}
+	return true, nil
+}
+
+// BuildChecker compiles the filter into a matching func. Prefer Compile and a kept LogChecker
+// when the same filter is matched against many blocks.
+func (f LogFilter) BuildChecker(ctx context.Context, cli Client) func(log types.Log) (bool, error) {
+	c := f.Compile()
+	return func(log types.Log) (bool, error) {
+		return c.Check(ctx, cli, log)
 	}
 }
 

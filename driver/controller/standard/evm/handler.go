@@ -204,6 +204,7 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, latest uint6
 				return controller.NewExternalError(controller.ErrCodeUnexpectedProcessorConfig,
 					errors.Wrapf(err, "unexpected config for handler %s", agent.GetHandlerID().String()))
 			}
+			agent.checkers = evm.CompileLogFilters(agent.Filters)
 			c.Agents = append(c.Agents, agent)
 			logger.Infow("has new agent", "agent", agent.Snapshot())
 		}
@@ -232,6 +233,7 @@ func (c *HandlerController) buildAgents(ctx context.Context, first, latest uint6
 				return controller.NewExternalError(controller.ErrCodeUnexpectedProcessorConfig,
 					errors.Wrapf(err, "unexpected config for handler %s", agent.GetHandlerID().String()))
 			}
+			agent.checkers = evm.CompileLogFilters(agent.Filters)
 			c.Agents = append(c.Agents, agent)
 			logger.Infow("has new agent", "agent", agent.Snapshot())
 		}

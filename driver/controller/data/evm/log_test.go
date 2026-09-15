@@ -1,10 +1,13 @@
 package evm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
 
@@ -43,6 +46,65 @@ func Test_logFilter(t *testing.T) {
 	ok, err := f.BuildChecker(nil, nil)(ev)
 	assert.NoError(t, err)
 	assert.True(t, ok)
+}
+
+func Test_LogChecker(t *testing.T) {
+	const transfer = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+	const other = "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925"
+	const address = "0xbe9895146f7af43049ca1c1ae358b0541ea49704"
+	ev := types.Log{Address: common.HexToAddress(address), Topics: []common.Hash{common.HexToHash(transfer), {}}}
+	cases := []struct {
+		name   string
+		filter LogFilter
+		match  bool
+	}{
+		{"no condition", LogFilter{}, true},
+		{"topic and address", LogFilter{Topics: [][]string{{transfer}}, Address: []string{address}}, true},
+		{"other topic", LogFilter{Topics: [][]string{{other}}}, false},
+		{"either topic", LogFilter{Topics: [][]string{{other, transfer}}}, true},
+		{"any first topic, second topic checked", LogFilter{Topics: [][]string{{}, {transfer}}}, false},
+		{"condition beyond the log's topics is not checked", LogFilter{Topics: [][]string{{transfer}, {}, {other}}}, true},
+		{"other address", LogFilter{Address: []string{"0x0000000000000000000000000000000000000001"}}, false},
+		{"upper-case values match", LogFilter{
+			Topics: [][]string{{strings.ToUpper(transfer[2:])}}, Address: []string{"0x" + strings.ToUpper(address[2:])},
+		}, false},
+		{"upper-case hex digits match", LogFilter{
+			Topics: [][]string{{"0x" + strings.ToUpper(transfer[2:])}}, Address: []string{"0x" + strings.ToUpper(address[2:])},
+		}, true},
+		{"malformed topic never matches", LogFilter{Topics: [][]string{{"transfer"}}}, false},
+		{"malformed address never matches", LogFilter{Address: []string{address[:10]}}, false},
+		{"malformed value next to a good one", LogFilter{Topics: [][]string{{"transfer", transfer}}}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ok, err := c.filter.Compile().Check(context.Background(), nil, ev)
+			assert.NoError(t, err)
+			assert.Equal(t, c.match, ok)
+			ok, err = c.filter.BuildChecker(context.Background(), nil)(ev)
+			assert.NoError(t, err)
+			assert.Equal(t, c.match, ok)
+		})
+	}
+
+	// matching is on the hot path of every block and must not allocate
+	checker := LogFilter{Topics: [][]string{{transfer}}, Address: []string{address}}.Compile()
+	allocs := testing.AllocsPerRun(1000, func() {
+		_, _ = checker.Check(context.Background(), nil, ev)
+	})
+	assert.Zero(t, allocs)
+
+	// a log with fewer topics than the condition has positions is not checked at those positions
+	logs := []types.Log{ev, {Address: ev.Address, Topics: []common.Hash{common.HexToHash(other)}}, ev}
+	matched, err := CheckLogs(context.Background(), nil, logs, checker)
+	assert.NoError(t, err)
+	assert.Len(t, matched, 2)
+	// checkers are linked by OR
+	matched, err = CheckLogs(context.Background(), nil, logs, checker, LogFilter{Topics: [][]string{{other}}}.Compile())
+	assert.NoError(t, err)
+	assert.Len(t, matched, 3)
+	matched, err = FilterLogs(context.Background(), nil, logs, LogFilter{Address: []string{address}})
+	assert.NoError(t, err)
+	assert.Len(t, matched, 3)
 }
 
 func Test_MergeLogRequirements(t *testing.T) {

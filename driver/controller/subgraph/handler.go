@@ -165,6 +165,7 @@ func (c *HandlerController) buildAgents(
 					Address: []string{strings.ToLower(ds.Source.Address)},
 				},
 			}
+			agent.checker = agent.Filter.Compile()
 			c.agents = append(c.agents, agent)
 			logger.Infow("has new agent", "agent", agent.Snapshot())
 		}

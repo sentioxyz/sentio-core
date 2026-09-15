@@ -15,13 +15,26 @@ type HandlerAgentEvent struct {
 	DataSource *manifest.DataSource
 
 	Filter evm.LogFilter
+	// checker is Filter compiled once at construction; the agent matches it against every log
+	// of every block
+	checker *evm.LogChecker
 }
 
-func (a HandlerAgentEvent) GetExtendRequirements(_ context.Context, bd *BlockData) (evm.BlockExtendRequirement, error) {
+func (a HandlerAgentEvent) logChecker() *evm.LogChecker {
+	if a.checker == nil {
+		return a.Filter.Compile()
+	}
+	return a.checker
+}
+
+func (a HandlerAgentEvent) GetExtendRequirements(
+	ctx context.Context,
+	bd *BlockData,
+) (evm.BlockExtendRequirement, error) {
 	txHashSet := set.New[string]()
-	checker := a.Filter.BuildChecker(nil, nil)
+	checker := a.logChecker()
 	for _, log := range bd.mainData.Logs {
-		if ok, _ := checker(log); ok {
+		if ok, _ := checker.Check(ctx, nil, log); ok {
 			txHashSet.Add(log.TxHash.String())
 		}
 	}
@@ -33,12 +46,12 @@ func (a HandlerAgentEvent) GetExtendRequirements(_ context.Context, bd *BlockDat
 	}, nil
 }
 
-func (a HandlerAgentEvent) BuildTaskDataList(_ context.Context, bd *BlockData) ([]taskData, error) {
+func (a HandlerAgentEvent) BuildTaskDataList(ctx context.Context, bd *BlockData) ([]taskData, error) {
 	eventAbi := a.DataSource.Mapping.EventHandlers[a.HandlerID.ID].GetABI()
 	var r []taskData
-	checker := a.Filter.BuildChecker(nil, nil)
+	checker := a.logChecker()
 	for _, log := range bd.mainData.Logs {
-		if ok, _ := checker(log); !ok {
+		if ok, _ := checker.Check(ctx, nil, log); !ok {
 			continue
 		}
 		if succeed, err := bd.transactionSucceed(log.TxHash.String()); err != nil {

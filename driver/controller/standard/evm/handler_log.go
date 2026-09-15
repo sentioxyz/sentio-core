@@ -23,6 +23,16 @@ type HandlerAgentLog struct {
 
 	FetchConfig *protos.EthFetchConfig
 	Filters     []evm.LogFilter // linked by OR
+	// checkers is Filters compiled once at construction; the agent matches them against every
+	// log of every block
+	checkers []*evm.LogChecker
+}
+
+func (a HandlerAgentLog) logCheckers() []*evm.LogChecker {
+	if a.checkers == nil {
+		return evm.CompileLogFilters(a.Filters)
+	}
+	return a.checkers
 }
 
 func (a HandlerAgentLog) GetExtendRequirements(
@@ -39,7 +49,7 @@ func (a HandlerAgentLog) GetExtendRequirements(
 		return r, nil
 	}
 
-	logs, err := evm.FilterLogs(ctx, a.Client, d.mainData.Logs, a.Filters...)
+	logs, err := evm.CheckLogs(ctx, a.Client, d.mainData.Logs, a.logCheckers()...)
 	if err != nil {
 		return r, err
 	}
@@ -66,7 +76,7 @@ func (a HandlerAgentLog) BuildBindingDataList(
 	d *BlockData,
 ) (r []standard.BindingDataInner, err error) {
 	var logs []types.Log
-	logs, err = evm.FilterLogs(ctx, a.Client, d.mainData.Logs, a.Filters...)
+	logs, err = evm.CheckLogs(ctx, a.Client, d.mainData.Logs, a.logCheckers()...)
 	if err != nil {
 		return nil, err
 	}

@@ -8,7 +8,6 @@ import (
 	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/format"
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
@@ -617,7 +616,7 @@ func isQueryMemoryLimitExceededError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "Query memory limit exceeded")
 }
 
-func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids set.Set[string], err error) {
+func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids *idSet, err error) {
 	queryCtx, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
 	ids, err = s._getAllID(queryCtx, entityType, chain, "")
 	if err == nil {
@@ -634,7 +633,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 	)
 	for buckets := minBuckets; err != nil && buckets <= maxBuckets; buckets *= multi {
 		logger.Warnfe(err, "result too large, will query in %d bucket", buckets)
-		ids, err = set.New[string](), nil
+		ids, err = newIDSet(), nil
 		for bi := 0; bi < buckets; bi++ {
 			condition := fmt.Sprintf(" AND cityHash64(%s) %% %d = %d", quote(schema.EntityPrimaryFieldName), buckets, bi)
 			bucketIndex := fmt.Sprintf("%d/%d", bi, buckets)
@@ -649,9 +648,7 @@ func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain s
 					break
 				}
 			}
-			bucketResult.Traverse(func(id string) {
-				ids.Add(id)
-			})
+			ids.Merge(bucketResult)
 		}
 	}
 	if err != nil {
@@ -671,7 +668,7 @@ func (s *Store) _getAllID(
 	entityType *schema.Entity,
 	chain string,
 	extraCondition string,
-) (ids set.Set[string], err error) {
+) (ids *idSet, err error) {
 	var sql string
 	if entityType.IsImmutable() {
 		sql = fmt.Sprintf("SELECT %s FROM %s WHERE %s = ?%s",
@@ -745,7 +742,7 @@ func (s *Store) _getAllID(
 				})
 		}
 	}
-	ids = set.New[string]()
+	ids = newIDSet()
 	useInt64ID := idUseInt64(entityType)
 	err = s.ctrl.Query(SelectCtx(ctx), func(rows driver.Rows) error {
 		id, scanErr := scanIDColumn(rows, useInt64ID)

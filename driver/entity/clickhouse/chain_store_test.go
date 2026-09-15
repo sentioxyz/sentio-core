@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/driver/entity/persistent"
 	"sentioxyz/sentio-core/driver/entity/schema"
 )
@@ -45,7 +44,7 @@ type fakeStore struct {
 		limit int,
 	) ([]*entityRow, error)
 	countEntity_ func(ctx context.Context, entityType *schema.Entity, excludeDeleted bool) (uint64, error)
-	getAllID_    func(ctx context.Context, entityType *schema.Entity) (set.Set[string], error)
+	getAllID_    func(ctx context.Context, entityType *schema.Entity) (*idSet, error)
 	reorg_       func(ctx context.Context, blockNumber int64) error
 }
 
@@ -83,7 +82,7 @@ func (f *fakeStore) countEntity(
 	return f.countEntity_(ctx, entityType, excludeDeleted)
 }
 
-func (f *fakeStore) getAllID(ctx context.Context, entityType *schema.Entity, _ string) (set.Set[string], error) {
+func (f *fakeStore) getAllID(ctx context.Context, entityType *schema.Entity, _ string) (*idSet, error) {
 	if f.getAllID_ == nil {
 		f.t.Fatal("getAllID not expected")
 	}
@@ -341,7 +340,7 @@ func TestChainStore_ListEntities_DoesNotLoadTheIDCache(t *testing.T) {
 	cs.mu.Unlock()
 	// a point read still loads it
 	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
-	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) { return set.New("p1"), nil }
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) { return newIDSet("p1"), nil }
 	_, _, err = cs.GetEntity(context.Background(), e, "missing")
 	assert.NoError(t, err)
 	cs.mu.Lock()
@@ -359,9 +358,9 @@ func TestChainStore_EnsureCaches_LoadsOffTheLock(t *testing.T) {
 	b := newBlockingIO()
 	var direct atomic.Int64
 	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 3, nil }
-	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) {
 		b.wait()
-		return set.New("a", "b", "c"), nil
+		return newIDSet("a", "b", "c"), nil
 	}
 	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		direct.Add(1)
@@ -407,9 +406,9 @@ func TestChainStore_EnsureCaches_DiscardsALoadOlderThanAWrite(t *testing.T) {
 	cs.fullIDCacheRefused[e.Name] = false
 	b := newBlockingIO()
 	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
-	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) {
 		b.wait()
-		return set.New("old"), nil
+		return newIDSet("old"), nil
 	}
 	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		return positionRow(id, 1), nil
@@ -434,8 +433,8 @@ func TestChainStore_EnsureCaches_DiscardsALoadOlderThanAWrite(t *testing.T) {
 	cs.mu.Lock()
 	assert.False(t, cs.fullIDCacheLoaded[e.Name])
 	cs.mu.Unlock()
-	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
-		return set.New("old", "new"), nil
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) {
+		return newIDSet("old", "new"), nil
 	}
 	box, _, err := cs.GetEntity(context.Background(), e, "new")
 	assert.NoError(t, err)
@@ -451,9 +450,9 @@ func TestChainStore_EnsureCaches_DiscardsALoadOverlappingAWriteInFlight(t *testi
 	cs.fullIDCacheRefused[e.Name] = false
 	b := newBlockingIO()
 	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
-	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) {
 		b.wait()
-		return set.New("old"), nil
+		return newIDSet("old"), nil
 	}
 	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
 		return positionRow(id, 1), nil
@@ -483,8 +482,8 @@ func TestChainStore_EnsureCaches_DiscardsALoadOverlappingAWriteInFlight(t *testi
 		Entity: "Position", ID: "new", Data: map[string]any{"id": "new", "balance": int32(2)},
 	}})
 	cs.mu.Unlock()
-	fs.getAllID_ = func(context.Context, *schema.Entity) (set.Set[string], error) {
-		return set.New("old", "new"), nil
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) {
+		return newIDSet("old", "new"), nil
 	}
 	box, _, err := cs.GetEntity(context.Background(), e, "new")
 	assert.NoError(t, err)

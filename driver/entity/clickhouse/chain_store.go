@@ -75,7 +75,7 @@ type ChainStore struct {
 	// fullIDCache holds the complete set of known IDs for entities that are
 	// too large to fully cache.  Key is entity name.
 	// The deleted items will not in the set.
-	fullIDCache        map[string]set.Set[string]
+	fullIDCache        map[string]*idSet
 	fullIDCacheLoaded  map[string]bool
 	fullIDCacheRefused map[string]bool
 
@@ -122,7 +122,7 @@ type chainStoreBackend interface {
 	countEntity(
 		ctx context.Context, entityType *schema.Entity, chain string, excludeDeleted bool,
 	) (uint64, error)
-	getAllID(ctx context.Context, entityType *schema.Entity, chain string) (set.Set[string], error)
+	getAllID(ctx context.Context, entityType *schema.Entity, chain string) (*idSet, error)
 	setEntities(
 		ctx context.Context,
 		entityType *schema.Entity,
@@ -156,7 +156,7 @@ func NewChainStore(
 		loading:             set.New[string](),
 		fullCacheDataLimit:  fullCacheDataSizeLimit,
 		fullIDCacheMaxCount: fullIDCacheMaxCount,
-		fullIDCache:         make(map[string]set.Set[string]),
+		fullIDCache:         make(map[string]*idSet),
 		fullIDCacheLoaded:   make(map[string]bool),
 		fullIDCacheRefused:  make(map[string]bool),
 		fullCache:           make(map[string]map[string]*cachedEntityBox),
@@ -211,7 +211,7 @@ func (c *ChainStore) cacheLoadPlan(entityType *schema.Entity, withIDs bool) (ful
 type loadedCaches struct {
 	full        map[string]*cachedEntityBox
 	fullRefused bool
-	ids         set.Set[string]
+	ids         *idSet
 	idsRefused  bool
 }
 
@@ -327,6 +327,10 @@ func (c *ChainStore) loadCaches(
 		}
 		knownCount = int64(count)
 	}
+	// TODO: the cap is per entity type, as is the full-data cache limit above; several entity
+	// types each under their cap can still hold more together than the process affords. A budget
+	// over all entity types (and chains) should be added for both caches at once, not for this
+	// one alone.
 	if uint64(knownCount) > c.fullIDCacheMaxCount {
 		// holding that many IDs in memory could OOM the process; callers handle a missing ID
 		// cache by querying the persistent store directly
@@ -799,7 +803,7 @@ func (c *ChainStore) purgeCache() {
 	// a GetEntity that read the store before the purge must not cache what it read
 	c.cacheEpoch++
 	c.lruCache.Purge()
-	c.fullIDCache = make(map[string]set.Set[string])
+	c.fullIDCache = make(map[string]*idSet)
 	c.fullIDCacheLoaded = make(map[string]bool)
 	c.fullIDCacheRefused = make(map[string]bool)
 	c.fullCache = make(map[string]map[string]*cachedEntityBox)

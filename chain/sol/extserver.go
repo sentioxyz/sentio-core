@@ -78,10 +78,14 @@ type rawParsedBlock struct {
 	Transactions      []ParsedTransactionWithMeta `json:"transactions"`
 }
 
+// getParsedBlockOpts must advertise the newest transaction version the chain can contain: the RPC
+// refuses the whole block (-32015) once any transaction exceeds maxSupportedTransactionVersion,
+// which is what happened on sol-mainnet at slot 447120004 (2026-09-15) when v1 transactions
+// appeared. solana-go's rpc.TransactionVersion already decodes any numeric version.
 var getParsedBlockOpts = rpc.M{
 	"encoding":                       solana.EncodingJSONParsed,
 	"transactionDetails":             rpc.TransactionDetailsFull,
-	"maxSupportedTransactionVersion": uint64(0),
+	"maxSupportedTransactionVersion": uint64(1),
 	"rewards":                        false,
 }
 

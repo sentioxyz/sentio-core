@@ -8,7 +8,7 @@ import (
 )
 
 // ParsedTransactionWithMeta is one transaction inside a parsed block, as returned by the
-// jsonParsed/full form of the getBlock RPC. Version distinguishes legacy from versioned (v0)
+// jsonParsed/full form of the getBlock RPC. Version distinguishes legacy from versioned (v0, v1)
 // transactions and is required to fully reconstruct the transaction.
 type ParsedTransactionWithMeta struct {
 	Transaction *rpc.ParsedTransaction     `json:"transaction"`

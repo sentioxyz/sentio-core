@@ -112,10 +112,12 @@ func (c *nativeClient) callContext(ctx context.Context, result any, priority uin
 	case "sol_getBlockFull":
 		// solana-go's GetBlockWithOpts rejects the jsonParsed encoding, so issue the raw getBlock
 		// call to fetch every transaction's parsed detail (and the header) in one request.
+		// maxSupportedTransactionVersion must cover every version on chain (v1 since sol-mainnet
+		// slot 447120004), or the RPC rejects the whole block with -32015.
 		obj := rpc.M{
 			"encoding":                       solana.EncodingJSONParsed,
 			"transactionDetails":             rpc.TransactionDetailsFull,
-			"maxSupportedTransactionVersion": uint64(0),
+			"maxSupportedTransactionVersion": uint64(1),
 			"rewards":                        false,
 		}
 		r := result.(*parsedBlockResult)

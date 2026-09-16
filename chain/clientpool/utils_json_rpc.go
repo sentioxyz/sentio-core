@@ -41,6 +41,9 @@ var missDataErrorMatcher = []*regexp.Regexp{
 	// data range: "no available upstreams to process a request. Cause - ... Upstream lower height
 	// 42810022 of type RECEIPTS is greater than 35662252"
 	regexp.MustCompile("no available upstreams"),
+	// aggregator endpoints (e.g. dRPC) reporting a pruned state range with HTTP 400 and vendor
+	// code 27: {"error":{"message":"Unknown state. First available state is 1","code":27}}
+	regexp.MustCompile("unknown state"),
 }
 
 var brokenMsgErrorMatcher = []*regexp.Regexp{
@@ -82,75 +85,79 @@ func (err *jsonError) ErrorCode() int {
 	return *err.Code
 }
 
+// ErrorData makes a JSON-RPC error carried by an HTTP error response an rpc.DataError, like the
+// errors the rpc client produces for a JSON-RPC error in a 200 response.
+func (err *jsonError) ErrorData() any {
+	return nil
+}
+
 type jsonrpcMessage struct {
 	Error *jsonError `json:"error,omitempty"`
 }
 
-func isInvalidMethodError(err error) bool {
+// JSONRPCError returns the JSON-RPC error the node answered with: the error itself when it came
+// in a 200 response, or the one embedded in the body of an HTTP 4xx/5xx response (aggregators
+// such as dRPC report e.g. a pruned state with HTTP 400 and a JSON-RPC error body). The result
+// implements rpc.Error and rpc.DataError in both cases.
+func JSONRPCError(err error) (rpc.Error, bool) {
 	if err == nil {
-		return false
+		return nil, false
 	}
 	var httpErr rpc.HTTPError
 	if errors.As(err, &httpErr) {
 		if httpErr.StatusCode < 400 {
-			return false
+			return nil, false
 		}
 		var msg jsonrpcMessage
 		if json.Unmarshal(httpErr.Body, &msg) != nil || msg.Error == nil || msg.Error.Code == nil {
-			return false // not jsonrpc message with error
+			return nil, false // not jsonrpc message with error
 		}
-		err = msg.Error
+		return msg.Error, true
 	}
 	var rpcErr rpc.Error
 	if errors.As(err, &rpcErr) {
-		switch rpcErr.ErrorCode() {
-		case -32601:
-			return true
-		case -32000:
-			return isOneOf(err.Error(), invalidEVMMethodErrorMatcher)
-		default:
-			return false
-		}
+		return rpcErr, true
 	}
-	return false
+	return nil, false
+}
+
+func isInvalidMethodError(err error) bool {
+	rpcErr, ok := JSONRPCError(err)
+	if !ok {
+		return false
+	}
+	switch rpcErr.ErrorCode() {
+	case -32601:
+		return true
+	case -32000:
+		return isOneOf(rpcErr.Error(), invalidEVMMethodErrorMatcher)
+	default:
+		return false
+	}
 }
 
 func isMissDataError(method string, err error) bool {
-	if err == nil {
+	rpcErr, ok := JSONRPCError(err)
+	if !ok {
 		return false
 	}
-	var httpErr rpc.HTTPError
-	if errors.As(err, &httpErr) {
-		if httpErr.StatusCode < 400 {
-			return false
-		}
-		var msg jsonrpcMessage
-		if json.Unmarshal(httpErr.Body, &msg) != nil || msg.Error == nil || msg.Error.Code == nil {
-			return false // not jsonrpc message with error
-		}
-		err = msg.Error
+	// Codes in (-32000, 0] are standard application-level JSON-RPC errors — never miss-data.
+	// Codes <= -32000 (server error range) go through message matching, and so do positive
+	// codes: those are non-standard vendor codes, e.g. dRPC reports "no available upstreams"
+	// with code 1 and X Layer legacy-range proxying reports "Temporary internal error" with
+	// code 19. The only standard positive code is 3 (execution reverted), excluded below.
+	if code := rpcErr.ErrorCode(); code > -32000 && code <= 0 {
+		return false
 	}
-	var rpcErr rpc.Error
-	if errors.As(err, &rpcErr) {
-		// Codes in (-32000, 0] are standard application-level JSON-RPC errors — never miss-data.
-		// Codes <= -32000 (server error range) go through message matching, and so do positive
-		// codes: those are non-standard vendor codes, e.g. dRPC reports "no available upstreams"
-		// with code 1 and X Layer legacy-range proxying reports "Temporary internal error" with
-		// code 19. The only standard positive code is 3 (execution reverted), excluded below.
-		if code := rpcErr.ErrorCode(); code > -32000 && code <= 0 {
-			return false
-		}
-		// "execution reverted: <reason>" carries a contract-controlled revert reason (standard
-		// code 3, but some vendors report it under other codes). For methods that execute
-		// contract code it is a deterministic result of the call, not missing data, and the
-		// reason must never reach the keyword matching below: a contract reverting with e.g.
-		// "Unexpected error" would otherwise be retried on every endpoint in the pool.
-		if isRevertableMethod(method) && strings.HasPrefix(strings.ToLower(err.Error()), executionRevertedPrefix) {
-			return false
-		}
-		return isOneOf(err.Error(), missDataErrorMatcher)
+	// "execution reverted: <reason>" carries a contract-controlled revert reason (standard
+	// code 3, but some vendors report it under other codes). For methods that execute
+	// contract code it is a deterministic result of the call, not missing data, and the
+	// reason must never reach the keyword matching below: a contract reverting with e.g.
+	// "Unexpected error" would otherwise be retried on every endpoint in the pool.
+	if isRevertableMethod(method) && strings.HasPrefix(strings.ToLower(rpcErr.Error()), executionRevertedPrefix) {
+		return false
 	}
-	return false
+	return isOneOf(rpcErr.Error(), missDataErrorMatcher)
 }
 
 func isBrokenError(err error) bool {

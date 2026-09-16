@@ -27,6 +27,7 @@ type fakeStateNode struct {
 	chainID   uint64 // 0 means eth_chainId is not expected to be called
 	minProbed uint64 // lowest block eth_getBalance/eth_getCode was asked for
 	hangBelow uint64 // state calls below this block hang past the method timeout (0 disables)
+	missHTTP  bool   // report a missing state with HTTP 400 and a vendor JSON-RPC error body, like dRPC
 }
 
 func (n *fakeStateNode) setStateFrom(from uint64) {
@@ -74,6 +75,13 @@ func (n *fakeStateNode) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		if uint64(bn) >= stateFrom && uint64(bn) <= latest {
 			reply(`"0x0"`)
+			return
+		}
+		if n.missHTTP {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprintf(w,
+				`{"id":%s,"jsonrpc":"2.0","error":{"message":"Unknown state. First available state is %d","code":27}}`,
+				req.ID, stateFrom)
 			return
 		}
 		_, _ = fmt.Fprintf(w,
@@ -153,6 +161,23 @@ func Test_Init_arbitrumProbesClassicRangeOnce(t *testing.T) {
 	// Other chains keep probing all the way down to block 0.
 	_, node = newStateProbeClient(t, 100000, 0)
 	assert.Equal(t, uint64(0), node.minProbed)
+}
+
+func Test_Init_missStateReportedAsHTTP400(t *testing.T) {
+	// dRPC reports a block outside its state range with HTTP 400 and a JSON-RPC error body; the
+	// detection must read it as missing state instead of retrying it as a transport failure.
+	node := &fakeStateNode{latest: 100000, stateFrom: 80001, minProbed: math.MaxUint64, missHTTP: true}
+	server := httptest.NewServer(http.HandlerFunc(node.handle))
+	t.Cleanup(server.Close)
+	cli, err := NewClient(ClientConfig{
+		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: server.URL},
+	}, func(string, time.Duration, bool) {})
+	require.NoError(t, err)
+	start := time.Now()
+	_, err = cli.Init(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, uint64(80001), cli.hasStateDataFrom.Load())
+	assert.Less(t, time.Since(start), 5*time.Second, "no retry back-off may be spent on a miss-state answer")
 }
 
 func Test_Init_detectsArchiveAndBoundary(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
+	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/common/log"
 	"time"
 )
@@ -23,7 +24,15 @@ func checkMissState(
 		if callErr == nil {
 			return nil
 		}
+		// Any JSON-RPC error means the node holds no state for the block. The rpc client reports
+		// one in a 200 response as rpc.DataError; aggregators such as dRPC carry it in the body of
+		// an HTTP 400 ("Unknown state. First available state is 1"), which must not be retried as
+		// a transport failure either.
 		if errors.As(callErr, &dataErr) {
+			return nil
+		}
+		if rpcErr, ok := clientpool.JSONRPCError(callErr); ok {
+			dataErr = rpcErr.(rpc.DataError)
 			return nil
 		}
 		return callErr // retry

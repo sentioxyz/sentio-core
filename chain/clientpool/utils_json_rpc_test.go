@@ -227,3 +227,41 @@ func Test_WithAuthorityVeto_noopWithoutMethodTag(t *testing.T) {
 	assert.NotContains(t, r.WithAuthorityVeto("foo_bar", true).AddTags,
 		MethodNotSupportedByAuthorityTag("foo_bar"))
 }
+
+// ── JSONRPCError / miss-data carried by an HTTP 400 body ──────────
+
+// The exact body observed from dRPC for a block outside its state range.
+const drpcUnknownStateBody = `{"id":1,"jsonrpc":"2.0",` +
+	`"error":{"message":"Unknown state. First available state is 1","code":27}}`
+
+func Test_JSONRPCError_http400Body_isRPCAndDataError(t *testing.T) {
+	rpcErr, ok := JSONRPCError(fmt.Errorf("call failed: %w", httpErr(400, drpcUnknownStateBody)))
+	assert.True(t, ok)
+	assert.Equal(t, 27, rpcErr.ErrorCode())
+	assert.Equal(t, "Unknown state. First available state is 1", rpcErr.Error())
+	_, isDataErr := rpcErr.(rpc.DataError)
+	assert.True(t, isDataErr)
+}
+
+func Test_JSONRPCError_directRPCError(t *testing.T) {
+	rpcErr, ok := JSONRPCError(fmt.Errorf("wrapped: %w", fakeRPCErr{code: -32000, msg: "missing trie node"}))
+	assert.True(t, ok)
+	assert.Equal(t, -32000, rpcErr.ErrorCode())
+}
+
+func Test_JSONRPCError_notJSONRPC(t *testing.T) {
+	_, ok := JSONRPCError(httpErr(403, "Forbidden"))
+	assert.False(t, ok)
+	_, ok = JSONRPCError(context.DeadlineExceeded)
+	assert.False(t, ok)
+	_, ok = JSONRPCError(nil)
+	assert.False(t, ok)
+}
+
+func Test_isMissDataError_drpcUnknownState_http400_missData(t *testing.T) {
+	// dRPC answers a state call outside its range with HTTP 400 and a vendor code: the pool
+	// must retry such a call on another endpoint instead of returning the error to the caller.
+	assert.True(t, isMissDataError("eth_getBalance", httpErr(400, drpcUnknownStateBody)))
+	assert.True(t, isMissDataError("eth_getBalance",
+		fakeRPCErr{code: 27, msg: "Unknown state. First available state is 1"}))
+}

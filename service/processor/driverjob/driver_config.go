@@ -23,7 +23,9 @@ type DriverSpecificConfig struct {
 	SamplingInterval                       int    `yaml:"sampling_interval,omitempty"`
 	RealtimeProcessingOwnerWhitelist       string `yaml:"realtime_processing_owner_whitelist,omitempty"`
 	AllowSingleBlockBackfillOwnerWhitelist string `yaml:"allow_single_block_backfill_owner_whitelist,omitempty"`
-	EntityStoreCacheSize                   int    `yaml:"entity_store_cache_size,omitempty"`
+	// EntityStoreCacheSize is passed to the driver as SENTIO_ENTITY_STORE_CACHE_SIZE (the entity
+	// store reads its cache limits from the environment); 0 leaves the driver's default.
+	EntityStoreCacheSize int `yaml:"entity_store_cache_size,omitempty"`
 }
 
 // DriverConfig holds the configuration for the driver and processor
@@ -38,8 +40,8 @@ type DriverConfig struct {
 	// two concerns independently even though both happen to be served by
 	// sentio-node on the same UsageGRPCPort today.
 	DBRegistryService string `yaml:"db_registry_service"`
-	CacheDir         string `yaml:"cache_dir"`
-	ChainsConfig     string `yaml:"chains_config"`
+	CacheDir          string `yaml:"cache_dir"`
+	ChainsConfig      string `yaml:"chains_config"`
 
 	// Forwarded to the driver container as SENTIO_NETWORK_HOUSEGATE_{DSN,DB}.
 	// Required for network_v1 processors that write directly to housegate.

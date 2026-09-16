@@ -156,9 +156,6 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 	if d.config.Driver.Verbose != "" {
 		args = append(args, fmt.Sprintf("-verbose=%s", d.config.Driver.Verbose))
 	}
-	if d.config.Driver.EntityStoreCacheSize > 0 {
-		args = append(args, fmt.Sprintf("-entity-store-cache-size=%d", d.config.Driver.EntityStoreCacheSize))
-	}
 	if d.config.Driver.ProcessorUseChainServer {
 		args = append(args, "-use-chain-server=true")
 	}
@@ -219,6 +216,10 @@ func (d *DockerSwarmManager) buildDriverServiceSpec(processor *models.Processor,
 	}
 	if d.config.HousegateDB != "" {
 		envs = append(envs, "SENTIO_NETWORK_HOUSEGATE_DB="+d.config.HousegateDB)
+	}
+	if d.config.Driver.EntityStoreCacheSize > 0 {
+		// the entity store reads its cache limits from the environment, see clickhouse.NewChainStore
+		envs = append(envs, fmt.Sprintf("SENTIO_ENTITY_STORE_CACHE_SIZE=%d", d.config.Driver.EntityStoreCacheSize))
 	}
 
 	return swarm.ServiceSpec{

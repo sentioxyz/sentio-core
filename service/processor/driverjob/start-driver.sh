@@ -11,7 +11,6 @@
   -pubsub-topic=sentio-test-topic \
   -log-format=json \
   -timescale-db-config=/etc/sentio/timescale_db_config.yaml \
-  -entity-store-cache-size=300000 \
   -processor-id=0XhWA854 \
   -clickhouse-read-timeout=600 \
   -clickhouse-dial-timeout=600 \

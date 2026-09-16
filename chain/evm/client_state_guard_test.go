@@ -13,8 +13,9 @@ import (
 
 const guardTestAddress = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 
-// The CallContext state guard of a non-archive node must only short-circuit calls whose block
-// number is known to be below the start of the state data; everything else goes to the node.
+// The CallContext state guard of a non-archive node short-circuits calls whose block number is
+// below the start of the state data or whose block is given by hash; everything else goes to
+// the node, including calls without a block parameter.
 func Test_CallContext_stateGuard(t *testing.T) {
 	ctx := context.Background()
 	cli, _ := newStateProbeClient(t, 100000, 80001)
@@ -38,10 +39,12 @@ func Test_CallContext_stateGuard(t *testing.T) {
 	r = cli.CallContext(ctx, nil, "test", "eth_getBalance", guardTestAddress, nil)
 	assert.NoError(t, r.Err)
 
-	// a block hash cannot be compared with the boundary and is left to the node
+	// a block hash cannot be compared with the boundary and is rejected for the task
 	hash := rpc.BlockNumberOrHashWithHash(common.HexToHash("0x1"), false)
 	r = cli.CallContext(ctx, nil, "test", "eth_getBalance", guardTestAddress, hash)
-	assert.NoError(t, r.Err)
+	require.Error(t, r.Err)
+	assert.Contains(t, r.Err.Error(), "miss state data at block")
+	assert.True(t, r.BrokenForTask)
 
 	// an unparsable block parameter is still an invalid request
 	r = cli.CallContext(ctx, nil, "test", "eth_getBalance", guardTestAddress, "not-a-block")

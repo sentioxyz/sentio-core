@@ -537,10 +537,11 @@ func (c *Client) CallContext(
 						method, bp.String()),
 				}
 			}
-			// A block hash cannot be compared with the start of the state data here, so such a call
-			// is left to the node: a missing state is then reported per task like any other
-			// miss-data error.
-			if bp.BlockHash == nil && *bp.BlockNumber >= 0 && uint64(*bp.BlockNumber) < from {
+			// A block hash cannot be compared with the start of the state data, so it is rejected
+			// for the task as well: the pool then retries on an archive node, whereas forwarding
+			// it would leave the failover to the node's error message, which the miss-data
+			// matching does not recognize for every node implementation.
+			if bp.BlockHash != nil || (*bp.BlockNumber >= 0 && uint64(*bp.BlockNumber) < from) {
 				var reason string
 				if from == math.MaxUint64 {
 					reason = "this is a full node"

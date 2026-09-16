@@ -10,6 +10,7 @@ import (
 	lru "github.com/sentioxyz/golang-lru"
 	"github.com/sentioxyz/golang-lru/simplelru"
 
+	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/driver/entity/persistent"
@@ -139,24 +140,36 @@ type chainStoreBackend interface {
 
 var _ chainStoreBackend = (*Store)(nil)
 
-// NewChainStore creates a ChainStore bound to the given chain.
-//   - lruCapacity: number of entity entries in the LRU cache.
-//   - fullCacheDataSizeLimit: max total byte size of the full-data cache.
-//   - fullIDCacheMaxCount: max number of entity IDs the full-ID cache may hold.
-func NewChainStore(
-	store chainStoreBackend,
-	chain string,
-	lruCapacity int,
-	fullCacheDataSizeLimit int,
-	fullIDCacheMaxCount uint64,
-) *ChainStore {
+// The cache limits of a ChainStore come from the environment, read once at start, so that a
+// project can tune them through its project variables (the driver container gets those as env).
+// They only bound how much of the process's memory the entity caches may take; the pod's memory
+// limit still applies.
+var (
+	// defaultEntityStoreCacheSize is the number of entity entries the LRU cache holds. Must be
+	// positive: 0 is not "off".
+	defaultEntityStoreCacheSize = envconf.LoadUInt64("SENTIO_ENTITY_STORE_CACHE_SIZE",
+		300000, envconf.WithMin(1), envconf.WithMax(math.MaxInt32))
+	// defaultEntityStoreFullCacheSize is the total data size (in entity DataSize units, per entity
+	// type) the full-data cache may hold; an entity type with more falls back to the LRU and the
+	// full-ID cache.
+	defaultEntityStoreFullCacheSize = envconf.LoadUInt64("SENTIO_ENTITY_STORE_FULL_CACHE_SIZE",
+		10000000, envconf.WithMax(math.MaxInt32))
+	// defaultEntityStoreFullIDCacheMaxCount is the number of IDs the full-ID cache of one entity
+	// type may hold; an entity type with more falls back to per-query existence checks.
+	defaultEntityStoreFullIDCacheMaxCount = envconf.LoadUInt64("SENTIO_ENTITY_STORE_FULL_ID_CACHE_MAX_COUNT",
+		30000000)
+)
+
+// NewChainStore creates a ChainStore bound to the given chain, with the cache limits from the
+// environment (see the default* variables above).
+func NewChainStore(store chainStoreBackend, chain string) *ChainStore {
 	cs := &ChainStore{
 		store:               store,
 		chain:               chain,
 		writing:             set.New[string](),
 		loading:             set.New[string](),
-		fullCacheDataLimit:  fullCacheDataSizeLimit,
-		fullIDCacheMaxCount: fullIDCacheMaxCount,
+		fullCacheDataLimit:  int(defaultEntityStoreFullCacheSize),
+		fullIDCacheMaxCount: defaultEntityStoreFullIDCacheMaxCount,
 		fullIDCache:         make(map[string]*idSet),
 		fullIDCacheLoaded:   make(map[string]bool),
 		fullIDCacheRefused:  make(map[string]bool),
@@ -167,11 +180,12 @@ func NewChainStore(
 		cacheGen:            make(map[string]uint64),
 	}
 	var err error
-	cs.lruCache, err = simplelru.NewLRU[string, *persistent.EntityBox](lruCapacity, func(_ string, _ *persistent.EntityBox) {
-		cs.lruEvicted++
-	})
+	cs.lruCache, err = simplelru.NewLRU[string, *persistent.EntityBox](int(defaultEntityStoreCacheSize),
+		func(_ string, _ *persistent.EntityBox) {
+			cs.lruEvicted++
+		})
 	if err != nil {
-		panic(err) // only if lruCapacity <= 0
+		panic(err) // only if the capacity is <= 0, which the WithMin(1) above rules out
 	}
 	return cs
 }

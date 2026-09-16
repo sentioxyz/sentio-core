@@ -102,7 +102,14 @@ func newTestChainStore(t *testing.T) (*ChainStore, *fakeStore, *schema.Entity) {
 	require.NoError(t, err)
 	e := sch.GetEntity("Position")
 	fs := &fakeStore{t: t}
-	cs := NewChainStore(fs, "chain", 1000, 1<<20, 1000)
+	cacheSize, fullCacheSize, fullIDCacheMaxCount :=
+		defaultEntityStoreCacheSize, defaultEntityStoreFullCacheSize, defaultEntityStoreFullIDCacheMaxCount
+	defaultEntityStoreCacheSize, defaultEntityStoreFullCacheSize, defaultEntityStoreFullIDCacheMaxCount = 1000, 1<<20, 1000
+	t.Cleanup(func() {
+		defaultEntityStoreCacheSize, defaultEntityStoreFullCacheSize, defaultEntityStoreFullIDCacheMaxCount =
+			cacheSize, fullCacheSize, fullIDCacheMaxCount
+	})
+	cs := NewChainStore(fs, "chain")
 	// both caches refused: the LRU + store path is under test unless a test loads them
 	cs.fullCacheRefused[e.Name] = true
 	cs.fullIDCacheRefused[e.Name] = true

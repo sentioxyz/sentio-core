@@ -343,13 +343,7 @@ func (c *standardStartupController) buildMainController(
 	// entity controller
 	var entityCtrl controller.EntityController = controller.EmptyEntityController{}
 	if c.entityStore != nil {
-		entityCtrl = newEntityController(
-			c.entityStore,
-			chainID,
-			c.config.EntityStoreCacheSize,
-			c.config.EntityStoreFullCacheSize,
-			c.config.EntityStoreFullIDCacheMaxCount,
-			c.config.EntityMetricsMonitor)
+		entityCtrl = newEntityController(c.entityStore, chainID, c.config.EntityMetricsMonitor)
 	}
 	// checkpoint store
 	var store controller.CheckpointStore

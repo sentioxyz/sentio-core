@@ -25,6 +25,7 @@ type fakeStateNode struct {
 	latest    uint64
 	stateFrom uint64 // 0 means archive
 	chainID   uint64 // 0 means eth_chainId is not expected to be called
+	minProbed uint64 // lowest block eth_getBalance/eth_getCode was asked for
 }
 
 func (n *fakeStateNode) setStateFrom(from uint64) {
@@ -61,6 +62,11 @@ func (n *fakeStateNode) handle(w http.ResponseWriter, r *http.Request) {
 			reply(`"0x0"`) // a block tag like "latest"
 			return
 		}
+		n.mu.Lock()
+		if uint64(bn) < n.minProbed {
+			n.minProbed = uint64(bn)
+		}
+		n.mu.Unlock()
 		if uint64(bn) >= stateFrom && uint64(bn) <= latest {
 			reply(`"0x0"`)
 			return
@@ -75,11 +81,17 @@ func (n *fakeStateNode) handle(w http.ResponseWriter, r *http.Request) {
 
 func newStateProbeClient(t *testing.T, latest uint64, stateFrom uint64) (*Client, *fakeStateNode) {
 	t.Helper()
-	node := &fakeStateNode{latest: latest, stateFrom: stateFrom}
+	return newChainStateProbeClient(t, 0, latest, stateFrom)
+}
+
+func newChainStateProbeClient(t *testing.T, chainID, latest, stateFrom uint64) (*Client, *fakeStateNode) {
+	t.Helper()
+	node := &fakeStateNode{latest: latest, stateFrom: stateFrom, chainID: chainID, minProbed: math.MaxUint64}
 	server := httptest.NewServer(http.HandlerFunc(node.handle))
 	t.Cleanup(server.Close)
 	cli, err := NewClient(ClientConfig{
 		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: server.URL},
+		ChainID:       chainID,
 	}, func(string, time.Duration, bool) {})
 	require.NoError(t, err)
 	_, err = cli.Init(context.Background())
@@ -93,6 +105,26 @@ func Test_NewClient_invalidEndpoint_failsAtBuild(t *testing.T) {
 		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: "://not-a-url"},
 	}, func(string, time.Duration, bool) {})
 	require.ErrorIs(t, err, clientpool.ErrInvalidConfig)
+}
+
+func Test_Init_arbitrumNeverProbesClassicRange(t *testing.T) {
+	const arb = 42161
+	latest := arbitrumNitroGenesis + 200000
+
+	// A nitro node with state from its own genesis counts as an archive node: the classic range
+	// is assumed to hold state and is never probed.
+	nitro, node := newChainStateProbeClient(t, arb, latest, arbitrumNitroGenesis)
+	assert.Equal(t, uint64(0), nitro.hasStateDataFrom.Load())
+	assert.Equal(t, arbitrumNitroGenesis, node.minProbed)
+
+	// A pruned nitro node is still bisected, but only above the classic range.
+	pruned, node := newChainStateProbeClient(t, arb, latest, arbitrumNitroGenesis+50000)
+	assert.Equal(t, arbitrumNitroGenesis+50000, pruned.hasStateDataFrom.Load())
+	assert.GreaterOrEqual(t, node.minProbed, arbitrumNitroGenesis)
+
+	// Other chains keep probing all the way down to block 0.
+	_, node = newStateProbeClient(t, 100000, 0)
+	assert.Equal(t, uint64(0), node.minProbed)
 }
 
 func Test_Init_detectsArchiveAndBoundary(t *testing.T) {

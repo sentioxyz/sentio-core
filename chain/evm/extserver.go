@@ -356,7 +356,7 @@ func (d *ExtServerDimension) fetchTraces(ctx context.Context, st *Slot) error {
 		return nil
 	}
 
-	if d.chainID == string(chains.ArbitrumID) && blockNumber < 22207818 {
+	if d.chainID == string(chains.ArbitrumID) && blockNumber < arbitrumNitroGenesis {
 		// Arbitrum classic
 		r := d.client.UseClient(
 			ctx,

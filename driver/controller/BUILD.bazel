@@ -12,6 +12,7 @@ go_library(
         "handler.go",
         "main.go",
         "notifier.go",
+        "processed_window.go",
         "quota.go",
         "range.go",
         "timeseries.go",

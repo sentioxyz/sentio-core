@@ -3,6 +3,7 @@ package chv4
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/chain/move"
 	"sentioxyz/sentio-core/chain/sui"
@@ -271,6 +272,15 @@ func (s *Storage) queryObjectChanges(
 	startAt := time.Now()
 	var rawRows int
 	var result []*sui.ExtendedGrpcChangedObject
+	// MergeTree does not enforce its ordering key's uniqueness. A repeated
+	// physical row must not dispatch the same object change to a handler twice.
+	// Keep the raw scan limit unchanged so deduplication cannot hide truncation.
+	type changeKey struct {
+		checkpoint uint64
+		txIndex    uint64
+		objectID   string
+	}
+	seen := make(map[changeKey]*sui.ExtendedGrpcChangedObject)
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		var oc Object
 		if scanErr := rows.Scan(objectx.CollectFieldPointers(&oc, fieldFilter)...); scanErr != nil {
@@ -278,6 +288,15 @@ func (s *Storage) queryObjectChanges(
 		}
 		rawRows++
 		res := oc.ToChangedObject()
+		key := changeKey{oc.Checkpoint, oc.TxIndex, oc.ObjectID}
+		if previous, exists := seen[key]; exists {
+			if !reflect.DeepEqual(previous, res) {
+				return errors.Errorf("conflicting object changes at checkpoint %d, transaction %d, object %s",
+					oc.Checkpoint, oc.TxIndex, oc.ObjectID)
+			}
+			return nil
+		}
+		seen[key] = res
 		// post filter
 		if postFilter(res) {
 			result = append(result, res)

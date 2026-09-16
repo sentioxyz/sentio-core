@@ -2,10 +2,17 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
+
+	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/timer"
 )
 
 type testCheckpointStore struct {
@@ -180,4 +187,69 @@ func Test_save(t *testing.T) {
 		assert.Nil(t, cc.Save(ctx, true))
 	}
 	assert.Equal(t, makeCheckpoints(0, 128, 160, 176, 192, 196, 198, 199, 200), cs.checkpoints)
+}
+
+func Test_MakeCheckpoint_printProcessed(t *testing.T) {
+	core, logs := observer.New(zapcore.InfoLevel)
+	ctx := log.ToContext(context.Background(), log.FromZap(zap.New(core)))
+	cc, err := NewCheckpointController(
+		ctx,
+		"1",
+		0,
+		time.Hour,
+		10,
+		&testCheckpointStore{},
+		EmptyQuotaService{},
+		EmptyTimeSeriesController{},
+		EmptyEntityController{},
+		EmptyWebhookController{},
+		nil,
+	)
+	assert.NoError(t, err)
+	// Never let the throttle expire during the test so the output does not depend on timing.
+	cc.(*checkpointController).printProcessedExecutor = timer.NewMinimumIntervalExecutor(time.Hour)
+
+	processedLines := func() []string {
+		var lines []string
+		for _, entry := range logs.TakeAll() {
+			if strings.HasPrefix(entry.Message, "Processed ") {
+				lines = append(lines, entry.Message)
+			}
+		}
+		return lines
+	}
+	withBindings := func(blockNumber uint64) BlockDataSummary {
+		summary := newSimpleTestBlockDataSummary(blockNumber)
+		summary.TaskCount = 3
+		return summary
+	}
+
+	// Backfill: the blocks are far behind the latest block, so only the first block is reported even though
+	// every block has bindings.
+	progressBar := ProgressBar{LatestBlock: newSimpleTestBlockData(100000)}
+	for blockNumber := uint64(0); blockNumber < 9; blockNumber++ {
+		_, extErr := cc.MakeCheckpoint(ctx, withBindings(blockNumber), progressBar)
+		assert.Nil(t, extErr)
+	}
+	lines := processedLines()
+	if assert.Len(t, lines, 1) {
+		assert.Contains(t, lines[0], "/0/")
+		assert.Contains(t, lines[0], "with 3 bindings")
+	}
+
+	// The 10th block reaches maxKeepCheckpointCount and triggers a save, so it is reported regardless of the throttle.
+	_, extErr := cc.MakeCheckpoint(ctx, withBindings(9), progressBar)
+	assert.Nil(t, extErr)
+	lines = processedLines()
+	if assert.Len(t, lines, 1) {
+		assert.Contains(t, lines[0], "/9/")
+	}
+
+	// Watching the chain tip: every block is reported.
+	progressBar = ProgressBar{LatestBlock: newSimpleTestBlockData(20)}
+	for blockNumber := uint64(11); blockNumber < 14; blockNumber++ {
+		_, extErr := cc.MakeCheckpoint(ctx, withBindings(blockNumber), progressBar)
+		assert.Nil(t, extErr)
+	}
+	assert.Len(t, processedLines(), 3)
 }

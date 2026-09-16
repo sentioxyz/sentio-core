@@ -140,6 +140,11 @@ func getOrCreateCounter(callSite string) *int64 {
 	return counter
 }
 
+// FromZap wraps a zap logger, mainly so tests can capture the output with zaptest/observer.
+func FromZap(l *zap.Logger) *SentioLogger {
+	return fromRaw(l)
+}
+
 func ToContext(ctx context.Context, logger *SentioLogger) context.Context {
 	return context.WithValue(ctx, ctxLogKey, logger)
 }

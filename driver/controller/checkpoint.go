@@ -553,29 +553,37 @@ func (c *checkpointController) MakeCheckpoint(
 	}
 	c.checkpoints = append(c.checkpoints, ck)
 
+	realtime := c.saveDelay == 0 && ck.InWatching()
+	var saveReason string
+	if realtime {
+		// realtime mode saves every checkpoint, the thresholds below only matter during backfill
+	} else if uint64(len(c.checkpoints)) >= c.maxKeepCheckpointCount {
+		saveReason = "there are too many checkpoints"
+	} else if c.webhookCtrl.CachedTooMuch(ck.BlockNumber) {
+		saveReason = "there are too many uncommitted webhook message"
+	} else if c.timeSeriesCtrl.CachedTooMuch(ck.BlockNumber) {
+		saveReason = "there are too many uncommitted time series data"
+	} else if c.entityCtrl.CachedTooMuch(ck.BlockNumber) {
+		saveReason = "there are too many uncommitted entity changes"
+	}
+
+	// Every block gets a progress line while watching the chain tip. During backfill the line is throttled to
+	// PrintProcessedInterval even when the block had bindings: on chains with sub-second blocks a processor that
+	// matches a little data in nearly every block would otherwise emit hundreds of user-visible lines per second.
+	// The block that triggers a save is always reported so the progress right before the save stays visible.
 	printProcessed := func() {
 		logger.UserVisible().Info(processedMsg)
 	}
-	if ck.InWatching() || ck.TotalBindings > 0 {
+	if ck.InWatching() || saveReason != "" {
 		printProcessed()
 	} else {
 		c.printProcessedExecutor.ExecSimple(printProcessed)
 	}
 
-	if c.saveDelay == 0 && ck.InWatching() {
-		// realtime mode
+	if realtime {
 		extErr = c.save(ctx, false, true)
-	} else if uint64(len(c.checkpoints)) >= c.maxKeepCheckpointCount {
-		logger.Info("will try to save checkpoint because there are too many checkpoints")
-		extErr = c.save(ctx, false, false)
-	} else if c.webhookCtrl.CachedTooMuch(ck.BlockNumber) {
-		logger.Info("will try to save checkpoint because there are too many uncommitted webhook message")
-		extErr = c.save(ctx, false, false)
-	} else if c.timeSeriesCtrl.CachedTooMuch(ck.BlockNumber) {
-		logger.Info("will try to save checkpoint because there are too many uncommitted time series data")
-		extErr = c.save(ctx, false, false)
-	} else if c.entityCtrl.CachedTooMuch(ck.BlockNumber) {
-		logger.Info("will try to save checkpoint because there are too many uncommitted entity changes")
+	} else if saveReason != "" {
+		logger.Info("will try to save checkpoint because " + saveReason)
 		extErr = c.save(ctx, false, false)
 	}
 	return

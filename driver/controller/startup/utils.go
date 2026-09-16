@@ -3,7 +3,24 @@ package startup
 import (
 	"sentioxyz/sentio-core/common/sparsify"
 	"sentioxyz/sentio-core/common/utils"
+	"sentioxyz/sentio-core/driver/controller/config"
 )
+
+// splitSupportedChains partitions chainIDs, keeping their order, into the ones that have a chain config and the
+// ones that do not.
+func splitSupportedChains(
+	chainIDs []string,
+	chainConfigs map[string]*config.ChainConfig,
+) (supported, unsupported []string) {
+	for _, chainID := range chainIDs {
+		if _, has := chainConfigs[chainID]; has {
+			supported = append(supported, chainID)
+		} else {
+			unsupported = append(unsupported, chainID)
+		}
+	}
+	return supported, unsupported
+}
 
 func cacheSnapshot[T any](cache map[uint64]map[uint64]T, getSize func(T) int) any {
 	if len(cache) == 0 {

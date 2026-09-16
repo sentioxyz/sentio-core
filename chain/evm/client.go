@@ -273,11 +273,12 @@ func (c *Client) detectStateDataFrom(ctx context.Context, latest uint64) (uint64
 // detectStateBelowFloor decides, for a node that holds state from floor upwards, whether it also
 // serves the range below the floor. Instead of sampling and bisecting that range it sends a single
 // probe: a miss-state answer means the node's state starts at the floor, a successful answer means
-// the whole history is served (the blocks below the probe are assumed to be served as well).
-// Anything else, typically the probe timing out because the node forwards it to a busy classic
-// node, is retried only a couple of times and then resolved as served: that keeps a slow classic
-// node from ever blocking the init, and a call that fails later is still handled per task by the
-// pool.
+// the node is an archive node (the blocks below the probe are assumed to be served as well, so it
+// keeps the archive semantics of hasStateDataFrom == 0 and never enters the CallContext state
+// guard). Anything else, typically the probe timing out because the node forwards it to a busy
+// classic node, is retried only a couple of times and then resolved as an archive node too: that
+// keeps a slow classic node from ever blocking the init, and a call that fails later is still
+// handled per task by the pool.
 func (c *Client) detectStateBelowFloor(
 	ctx context.Context,
 	floor, probe uint64,
@@ -289,13 +290,13 @@ func (c *Client) detectStateBelowFloor(
 	switch {
 	case getErr != nil:
 		logger.Warnfe(getErr, "probing block %d failed, assume state data exists below block %d", probe, floor)
-		return probe, nil
+		return 0, nil
 	case missErr != nil:
 		logger.Infof("is a archive node that miss state data until block %d", floor)
 		return floor, nil
 	default:
 		logger.Infof("is a archive node, state data below block %d confirmed at block %d", floor, probe)
-		return probe, nil
+		return 0, nil
 	}
 }
 

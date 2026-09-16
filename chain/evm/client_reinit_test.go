@@ -128,9 +128,10 @@ func Test_Init_arbitrumProbesClassicRangeOnce(t *testing.T) {
 	const arb = 42161
 	latest := arbitrumNitroGenesis + 200000
 
-	// A node serving the whole history: the classic range is probed with block 1 only.
+	// A node serving the whole history is an archive node; the classic range is probed with
+	// block 1 only.
 	full, node := newChainStateProbeClient(t, arb, latest, 1)
-	assert.Equal(t, arbitrumClassicProbeBlock, full.hasStateDataFrom.Load())
+	assert.Equal(t, uint64(0), full.hasStateDataFrom.Load())
 	assert.Equal(t, arbitrumClassicProbeBlock, node.minProbed)
 
 	// A nitro-only node misses the classic range, its state starts at the nitro genesis.
@@ -143,10 +144,10 @@ func Test_Init_arbitrumProbesClassicRangeOnce(t *testing.T) {
 	assert.Equal(t, arbitrumNitroGenesis+50000, pruned.hasStateDataFrom.Load())
 	assert.GreaterOrEqual(t, node.minProbed, arbitrumNitroGenesis)
 
-	// The classic probe hanging (a busy classic node behind the nitro node) is resolved as served
-	// after a couple of attempts instead of keeping the client out of the pool.
+	// The classic probe hanging (a busy classic node behind the nitro node) is resolved as an
+	// archive node after a couple of attempts instead of keeping the client out of the pool.
 	hanging, node := newHangingStateProbeClient(t, arb, latest, 1, arbitrumNitroGenesis)
-	assert.Equal(t, arbitrumClassicProbeBlock, hanging.hasStateDataFrom.Load())
+	assert.Equal(t, uint64(0), hanging.hasStateDataFrom.Load())
 	assert.Equal(t, arbitrumClassicProbeBlock, node.minProbed)
 
 	// Other chains keep probing all the way down to block 0.

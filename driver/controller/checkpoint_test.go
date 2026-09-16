@@ -230,15 +230,16 @@ func Test_MakeCheckpoint_printProcessed(t *testing.T) {
 		assert.Nil(t, extErr)
 	}
 
-	// Blocks 1..20 have 0 1 2 3 4 0 1 2 3 4 ... bindings. Every 7 blocks with bindings make one line.
+	// Blocks 1..20 have 0 1 2 3 4 0 1 2 3 4 ... bindings. Every 7 blocks with bindings make one line, and a
+	// segment of a single block is written as [block].
 	for blockNumber := uint64(1); blockNumber <= 20; blockNumber++ {
 		process(blockNumber, (blockNumber-1)%5)
 	}
 	lines := processedLines()
 	if assert.Len(t, lines, 2) {
-		assert.Contains(t, lines[0], "[0/1-9/100000] with 16 bindings in 9 blocks: [2-5][1 2 3 4]+[7-9][1 2 3]")
+		assert.Contains(t, lines[0], "[0/1-9/100000] with 16 bindings in 7 blocks: [2-5][1 2 3 4]+[7-9][1 2 3]")
 		assert.Contains(t, lines[1],
-			"[0/10-18/100000] with 17 bindings in 9 blocks: [10-10][4]+[12-15][1 2 3 4]+[17-18][1 2]")
+			"[0/10-18/100000] with 17 bindings in 7 blocks: [10][4]+[12-15][1 2 3 4]+[17-18][1 2]")
 	}
 
 	// The save flushes what is left.
@@ -255,6 +256,6 @@ func Test_MakeCheckpoint_printProcessed(t *testing.T) {
 	assert.Nil(t, cc.Save(ctx, true))
 	lines = processedLines()
 	if assert.Len(t, lines, 1) {
-		assert.True(t, strings.HasSuffix(lines[0], "[0/21-22/100000] with 0 bindings in 2 blocks"), lines[0])
+		assert.True(t, strings.HasSuffix(lines[0], "[0/21-22/100000] with 0 bindings in 0 blocks"), lines[0])
 	}
 }

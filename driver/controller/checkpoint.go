@@ -305,7 +305,7 @@ type processedSegment struct {
 
 // processedWindow accumulates the blocks processed since the last "Processed" log line. Blocks without bindings
 // only count towards the window range, blocks with bindings keep their individual binding count so the line can
-// list them as "[from-to][b1 b2 ...]+[from-to][...]". The number of blocks with bindings per line is capped by
+// list them as "[from-to][b1 b2 ...]+[block][b]+...". The number of blocks with bindings per line is capped by
 // PrintProcessedMaxBindingBlocks, and the window is always flushed when a save starts.
 type processedWindow struct {
 	last          Checkpoint // the last block added, provides the rate and the block range of the line
@@ -353,14 +353,18 @@ func (w *processedWindow) take() string {
 		w.last.BlockNumber,
 		w.last.CurrentLastBlockNumber(),
 		w.totalBindings,
-		w.blocks)
+		w.bindingBlocks)
 	for i, seg := range w.segments {
 		if i == 0 {
 			buf.WriteString(": ")
 		} else {
 			buf.WriteByte('+')
 		}
-		fmt.Fprintf(&buf, "[%d-%d][", seg.from, seg.to)
+		if seg.from == seg.to {
+			fmt.Fprintf(&buf, "[%d][", seg.from)
+		} else {
+			fmt.Fprintf(&buf, "[%d-%d][", seg.from, seg.to)
+		}
 		for j, b := range seg.bindings {
 			if j > 0 {
 				buf.WriteByte(' ')

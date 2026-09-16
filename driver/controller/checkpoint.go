@@ -289,8 +289,8 @@ type checkpointController struct {
 	entityCtrl     EntityController
 	webhookCtrl    WebhookController
 
-	stopped                bool
-	printProcessedExecutor *timer.MinimumIntervalExecutor
+	stopped   bool
+	processed processedWindow
 
 	stat *timewin.TimeWindowsManager[*checkpointStatWindow]
 
@@ -321,7 +321,6 @@ func NewCheckpointController(
 		timeSeriesCtrl:         timeSeriesCtrl,
 		entityCtrl:             entityCtrl,
 		webhookCtrl:            webhookCtrl,
-		printProcessedExecutor: timer.NewMinimumIntervalExecutor(PrintProcessedInterval),
 		stat:                   timewin.NewTimeWindowsManager[*checkpointStatWindow](time.Minute),
 	}
 	checkpoints, templates, err := checkpointStore.Load(ctx)
@@ -393,6 +392,8 @@ func (c *checkpointController) Ready(ctx context.Context, agentStat map[string]i
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.agentStat = agentStat
+	// Processing restarts from the last checkpoint, nothing processed before a stop may leak into the next line.
+	c.processed = processedWindow{}
 	var checkpoint *Checkpoint
 	if len(c.checkpoints) > 0 {
 		checkpoint = &c.checkpoints[len(c.checkpoints)-1]
@@ -441,6 +442,11 @@ func (c *checkpointController) CleanCheckpoint(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	_, logger := log.FromContext(ctx)
+	if c.processed.blocks > 0 {
+		// Report what was processed before the rollback, the blocks after the reorg point will be reported again
+		// once they are re-processed.
+		logger.Info(c.processed.take())
+	}
 	logger = logger.UserVisible()
 	detectedMsg := fmt.Sprintf("Reorg detected when processing block %d, all blocks from block %d are invalid",
 		curBlockNumber, blockNumberGE)
@@ -517,12 +523,7 @@ func (c *checkpointController) MakeCheckpoint(
 		FullBlockRange:        progressBar.FullBlockRange,
 		Data:                  blockData.CheckpointData,
 	}
-	processedMsg := fmt.Sprintf("Processed %s[%d/%s/%d] with %d bindings",
-		ck.RateOrDelay(),
-		ck.FullBlockRange.StartBlock,
-		GetBlockSummary(blockData),
-		ck.CurrentLastBlockNumber(),
-		ck.TotalBindings)
+	c.processed.add(ck)
 
 	var templates []TemplateInstance
 	if templates, templatesChanged = c.unsavedTemplates[blockData.GetBlockNumber()]; templatesChanged {
@@ -539,7 +540,7 @@ func (c *checkpointController) MakeCheckpoint(
 			minStartBlock = min(minStartBlock, tpl.StartBlock)
 		}
 		logger = logger.UserVisible()
-		processedMsg += fmt.Sprintf(" and %d new templates [%s]",
+		processedMsg := c.processed.take() + fmt.Sprintf(" and %d new templates [%s]",
 			len(templates), strings.Join(utils.MapSliceNoError(templates, TemplateInstance.String), ","))
 		if minStartBlock == ck.BlockNumber {
 			logger.Warn(processedMsg + ", but this block will be re-processed because has new template from this block")
@@ -553,13 +554,11 @@ func (c *checkpointController) MakeCheckpoint(
 	}
 	c.checkpoints = append(c.checkpoints, ck)
 
-	printProcessed := func() {
-		logger.UserVisible().Info(processedMsg)
-	}
-	if ck.InWatching() || ck.TotalBindings > 0 {
-		printProcessed()
-	} else {
-		c.printProcessedExecutor.ExecSimple(printProcessed)
+	// The per-block progress is batched: one line per PrintProcessedMaxBindingBlocks blocks with bindings, and the
+	// rest is flushed by the next save. Users follow the progress through the user-visible "Saved" line, this
+	// line is only for the log store. On chains with sub-second blocks a line per block flooded the log pipeline.
+	if c.processed.full() {
+		logger.Info(c.processed.take())
 	}
 
 	if c.saveDelay == 0 && ck.InWatching() {
@@ -636,6 +635,10 @@ func (c *checkpointController) save(ctx context.Context, saveAll bool, checkInte
 	if cc == 0 || cc == c.savedCheckpoints {
 		// No new checkpoints or all new checkpoints are too close to the current time, so there is nothing to save.
 		return
+	}
+	if c.processed.blocks > 0 {
+		// Report the blocks processed since the last "Processed" line before the save starts.
+		logger.Info(c.processed.take())
 	}
 
 	cur := c.checkpoints[cc-1]

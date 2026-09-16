@@ -17,8 +17,10 @@ var (
 		envconf.WithMin(10000))
 	SubscribeMinWatchInterval = envconf.LoadDuration("SENTIO_SUBSCRIBE_MIN_WATCH_INTERVAL", time.Second)
 	ClientMaxConcurrency      = envconf.LoadUInt64("SENTIO_CLIENT_MAX_CONCURRENCY", 100, envconf.WithMin(10))
-	PrintProcessedInterval    = envconf.LoadDuration("SENTIO_PRINT_PROCESSED_INTERVAL", time.Second)
-	SkipStartBlockValidation  = envconf.LoadBool("SENTIO_SKIP_START_BLOCK_VALIDATION", false)
+	// PrintProcessedMaxBindingBlocks caps how many blocks with bindings one "Processed" log line lists.
+	PrintProcessedMaxBindingBlocks = envconf.LoadUInt64("SENTIO_PRINT_PROCESSED_MAX_BINDING_BLOCKS", 100,
+		envconf.WithMin(1))
+	SkipStartBlockValidation = envconf.LoadBool("SENTIO_SKIP_START_BLOCK_VALIDATION", false)
 )
 
 const (

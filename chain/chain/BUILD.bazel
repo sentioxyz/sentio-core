@@ -6,6 +6,7 @@ go_library(
         "cache_latest_slot.go",
         "dimension_external.go",
         "dimension_simple.go",
+        "dup_check.go",
         "operation.go",
         "slot.go",
         "toomany.go",
@@ -34,6 +35,7 @@ go_test(
     srcs = [
         "cache_latest_slot_test.go",
         "dimension_simple_test.go",
+        "dup_check_test.go",
         "operation_test.go",
         "toomany_test.go",
         "util_test.go",

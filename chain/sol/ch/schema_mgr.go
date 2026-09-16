@@ -41,7 +41,7 @@ func NewClickhouseSchemaMgr(
 			Settings:    blockSettings,
 		},
 		"",
-	)
+	).WithUniqueKey("slot")
 
 	txSettings := make(map[string]string)
 	chx.WithLightDeleteTableSettings(txSettings)
@@ -56,7 +56,7 @@ func NewClickhouseSchemaMgr(
 			Settings:    txSettings,
 		},
 		"",
-	)
+	).WithUniqueKey("slot", "transaction_index")
 
 	return &ClickhouseSchemaMgr{
 		tablesMeta: clickhouse.TablesMeta{

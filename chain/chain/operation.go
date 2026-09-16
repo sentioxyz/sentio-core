@@ -113,6 +113,14 @@ type SyncConfig struct {
 	// if DstTargetLen > 0, DstLeftAlign > 0 must be true
 	DstTargetLen uint64
 	DstLeftAlign uint64
+
+	// DupCheckInterval > 0 turns on the periodic duplicate-row self-check of the destination (which
+	// must implement DuplicateChecker, otherwise nothing runs): every interval the slots synced since
+	// the previous run are scanned and every table with duplicates is reported as an error log.
+	// DupCheckLookback bounds the first run to the newest DupCheckLookback slots, 0 means the check
+	// starts from the watermark seen at startup.
+	DupCheckInterval time.Duration
+	DupCheckLookback uint64
 }
 
 // Sync continuously synchronize the latest slot from src to dst chain
@@ -127,6 +135,7 @@ func Sync[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncC
 
 	ticker := time.NewTicker(config.RoundInterval)
 	defer ticker.Stop()
+	dupCheck := newDuplicateCheck(dst, config)
 	for roundIndex := uint64(0); ; roundIndex++ {
 		if roundIndex > 0 {
 			select {
@@ -178,6 +187,7 @@ func Sync[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncC
 			// Copy succeed
 			roundLogger.Info("sync succeed")
 			curRange = rg.Range{Start: curRange.Start, End: syncRange.End}
+			dupCheck.maybeStart(ctx, curRange)
 			if config.DstTargetLen > 0 && *curRange.Size() > config.DstTargetLen {
 				// need to cut head
 				targetRangeLeft := *curRange.End + 1 - config.DstTargetLen

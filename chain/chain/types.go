@@ -69,3 +69,23 @@ var (
 	ErrLink          = errors.New("link error")
 	ErrSlotNotFound  = errors.New("slot not found")
 )
+
+// DuplicateReport describes the duplicate rows a DuplicateChecker found in one table.
+type DuplicateReport struct {
+	Table     string
+	Groups    uint64 // distinct unique keys carried by more than one row
+	ExtraRows uint64 // rows beyond the first one of every duplicated key
+	First     uint64 // slot number of the first duplicated key
+	Last      uint64 // slot number of the last duplicated key
+}
+
+// DuplicateChecker is an optional interface of a Dimension (or of the slot store behind it) that
+// reports rows sharing a unique key inside interval. Sync runs it periodically on the destination
+// (see SyncConfig.DupCheckInterval) as a self-check that a retried save has not left a second
+// copy of an earlier flush behind.
+type DuplicateChecker interface {
+	CheckDuplicates(ctx context.Context, interval rg.Range) ([]DuplicateReport, error)
+}
+
+// ErrDuplicateCheckUnsupported is returned by CheckDuplicates when the underlying store cannot check.
+var ErrDuplicateCheckUnsupported = errors.New("duplicate check unsupported")

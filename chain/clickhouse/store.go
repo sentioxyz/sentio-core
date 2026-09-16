@@ -11,6 +11,16 @@ type TableSchema struct {
 	Table          chx.Table
 	NumberField    string // if NumberField is empty, delete in range will ignore this table
 	SubNumberField string
+	// UniqueKey lists the columns that identify a row: two rows of the table never share these
+	// values unless the data is broken (e.g. a flush written twice). CheckDuplicates only scans
+	// tables that declare one; leave it empty when rows have no identity of their own.
+	UniqueKey []string
+}
+
+// WithUniqueKey declares the identity columns of the table, see TableSchema.UniqueKey.
+func (t TableSchema) WithUniqueKey(columns ...string) TableSchema {
+	t.UniqueKey = columns
+	return t
 }
 
 type TablesMeta struct {

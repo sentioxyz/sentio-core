@@ -37,7 +37,7 @@ func NewClickhouseSchemaMgr(
 			Settings:    tableSettings,
 		},
 		"",
-	)
+	).WithUniqueKey("block_height", "transaction_id")
 	return &ClickhouseSchemaMgr{
 		tablesMeta: clickhouse.TablesMeta{
 			Tables:          []clickhouse.TableSchema{table},

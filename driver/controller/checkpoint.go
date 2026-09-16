@@ -291,6 +291,11 @@ type checkpointController struct {
 
 	stopped                bool
 	printProcessedExecutor *timer.MinimumIntervalExecutor
+	// Blocks whose progress line was throttled during backfill, folded into the next printed line so the binding
+	// count is never lost. unreportedFrom is the block number of the first block in this window.
+	unreportedBlocks   uint64
+	unreportedBindings uint64
+	unreportedFrom     uint64
 
 	stat *timewin.TimeWindowsManager[*checkpointStatWindow]
 
@@ -517,12 +522,24 @@ func (c *checkpointController) MakeCheckpoint(
 		FullBlockRange:        progressBar.FullBlockRange,
 		Data:                  blockData.CheckpointData,
 	}
-	processedMsg := fmt.Sprintf("Processed %s[%d/%s/%d] with %d bindings",
-		ck.RateOrDelay(),
-		ck.FullBlockRange.StartBlock,
-		GetBlockSummary(blockData),
-		ck.CurrentLastBlockNumber(),
-		ck.TotalBindings)
+	var processedMsg string
+	if c.unreportedBlocks == 0 {
+		processedMsg = fmt.Sprintf("Processed %s[%d/%s/%d] with %d bindings",
+			ck.RateOrDelay(),
+			ck.FullBlockRange.StartBlock,
+			GetBlockSummary(blockData),
+			ck.CurrentLastBlockNumber(),
+			ck.TotalBindings)
+	} else {
+		processedMsg = fmt.Sprintf("Processed %s[%d/%d-%s/%d] with %d bindings in %d blocks",
+			ck.RateOrDelay(),
+			ck.FullBlockRange.StartBlock,
+			c.unreportedFrom,
+			GetBlockSummary(blockData),
+			ck.CurrentLastBlockNumber(),
+			c.unreportedBindings+ck.TotalBindings,
+			c.unreportedBlocks+1)
+	}
 
 	var templates []TemplateInstance
 	if templates, templatesChanged = c.unsavedTemplates[blockData.GetBlockNumber()]; templatesChanged {
@@ -539,6 +556,7 @@ func (c *checkpointController) MakeCheckpoint(
 			minStartBlock = min(minStartBlock, tpl.StartBlock)
 		}
 		logger = logger.UserVisible()
+		c.unreportedBlocks, c.unreportedBindings = 0, 0
 		processedMsg += fmt.Sprintf(" and %d new templates [%s]",
 			len(templates), strings.Join(utils.MapSliceNoError(templates, TemplateInstance.String), ","))
 		if minStartBlock == ck.BlockNumber {
@@ -570,14 +588,26 @@ func (c *checkpointController) MakeCheckpoint(
 	// Every block gets a progress line while watching the chain tip. During backfill the line is throttled to
 	// PrintProcessedInterval even when the block had bindings: on chains with sub-second blocks a processor that
 	// matches a little data in nearly every block would otherwise emit hundreds of user-visible lines per second.
+	// Throttled blocks are not dropped, their range and binding count are folded into the next printed line.
 	// The block that triggers a save is always reported so the progress right before the save stays visible.
+	printed := false
 	printProcessed := func() {
+		printed = true
 		logger.UserVisible().Info(processedMsg)
 	}
 	if ck.InWatching() || saveReason != "" {
 		printProcessed()
 	} else {
 		c.printProcessedExecutor.ExecSimple(printProcessed)
+	}
+	if printed {
+		c.unreportedBlocks, c.unreportedBindings = 0, 0
+	} else {
+		if c.unreportedBlocks == 0 {
+			c.unreportedFrom = ck.BlockNumber
+		}
+		c.unreportedBlocks++
+		c.unreportedBindings += ck.TotalBindings
 	}
 
 	if realtime {

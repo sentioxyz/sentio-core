@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -233,23 +234,28 @@ func Test_MakeCheckpoint_printProcessed(t *testing.T) {
 	}
 	lines := processedLines()
 	if assert.Len(t, lines, 1) {
-		assert.Contains(t, lines[0], "/0/")
-		assert.Contains(t, lines[0], "with 3 bindings")
+		assert.Contains(t, lines[0], "[0/0/100000] with 3 bindings")
 	}
 
-	// The 10th block reaches maxKeepCheckpointCount and triggers a save, so it is reported regardless of the throttle.
+	// The 10th block reaches maxKeepCheckpointCount and triggers a save, so it is reported regardless of the
+	// throttle, and the line folds in the 8 throttled blocks and their bindings.
 	_, extErr := cc.MakeCheckpoint(ctx, withBindings(9), progressBar)
 	assert.Nil(t, extErr)
 	lines = processedLines()
 	if assert.Len(t, lines, 1) {
-		assert.Contains(t, lines[0], "/9/")
+		assert.Contains(t, lines[0], "[0/1-9/100000] with 27 bindings in 9 blocks")
 	}
 
-	// Watching the chain tip: every block is reported.
+	// Watching the chain tip: every block is reported on its own.
 	progressBar = ProgressBar{LatestBlock: newSimpleTestBlockData(20)}
 	for blockNumber := uint64(11); blockNumber < 14; blockNumber++ {
 		_, extErr := cc.MakeCheckpoint(ctx, withBindings(blockNumber), progressBar)
 		assert.Nil(t, extErr)
 	}
-	assert.Len(t, processedLines(), 3)
+	lines = processedLines()
+	if assert.Len(t, lines, 3) {
+		for i, line := range lines {
+			assert.Contains(t, line, fmt.Sprintf("[0/%d/20] with 3 bindings", 11+i))
+		}
+	}
 }

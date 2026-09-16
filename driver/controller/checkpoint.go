@@ -289,17 +289,88 @@ type checkpointController struct {
 	entityCtrl     EntityController
 	webhookCtrl    WebhookController
 
-	stopped                bool
-	printProcessedExecutor *timer.MinimumIntervalExecutor
-	// Blocks whose progress line was throttled during backfill, folded into the next printed line so the binding
-	// count is never lost. unreportedFrom is the block number of the first block in this window.
-	unreportedBlocks   uint64
-	unreportedBindings uint64
-	unreportedFrom     uint64
+	stopped   bool
+	processed processedWindow
 
 	stat *timewin.TimeWindowsManager[*checkpointStatWindow]
 
 	mu sync.Mutex
+}
+
+// processedSegment is a run of consecutive blocks that all have bindings.
+type processedSegment struct {
+	from, to uint64
+	bindings []uint64
+}
+
+// processedWindow accumulates the blocks processed since the last "Processed" log line. Blocks without bindings
+// only count towards the window range, blocks with bindings keep their individual binding count so the line can
+// list them as "[from-to][b1 b2 ...]+[from-to][...]". The number of blocks with bindings per line is capped by
+// PrintProcessedMaxBindingBlocks, and the window is always flushed when a save starts.
+type processedWindow struct {
+	last          Checkpoint // the last block added, provides the rate and the block range of the line
+	blocks        uint64
+	from          uint64
+	totalBindings uint64
+	bindingBlocks uint64
+	segments      []processedSegment
+}
+
+func (w *processedWindow) add(ck Checkpoint) {
+	if w.blocks == 0 {
+		w.from = ck.BlockNumber
+	}
+	w.blocks++
+	w.last = ck
+	if ck.TotalBindings == 0 {
+		return
+	}
+	w.totalBindings += ck.TotalBindings
+	w.bindingBlocks++
+	if n := len(w.segments); n > 0 && w.segments[n-1].to+1 == ck.BlockNumber {
+		w.segments[n-1].to = ck.BlockNumber
+		w.segments[n-1].bindings = append(w.segments[n-1].bindings, ck.TotalBindings)
+		return
+	}
+	w.segments = append(w.segments, processedSegment{
+		from:     ck.BlockNumber,
+		to:       ck.BlockNumber,
+		bindings: []uint64{ck.TotalBindings},
+	})
+}
+
+func (w *processedWindow) full() bool {
+	return w.bindingBlocks >= PrintProcessedMaxBindingBlocks
+}
+
+// take renders the window as a log message and resets it.
+func (w *processedWindow) take() string {
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "Processed %s[%d/%d-%d/%d] with %d bindings in %d blocks",
+		w.last.RateOrDelay(),
+		w.last.FullBlockRange.StartBlock,
+		w.from,
+		w.last.BlockNumber,
+		w.last.CurrentLastBlockNumber(),
+		w.totalBindings,
+		w.blocks)
+	for i, seg := range w.segments {
+		if i == 0 {
+			buf.WriteString(": ")
+		} else {
+			buf.WriteByte('+')
+		}
+		fmt.Fprintf(&buf, "[%d-%d][", seg.from, seg.to)
+		for j, b := range seg.bindings {
+			if j > 0 {
+				buf.WriteByte(' ')
+			}
+			buf.WriteString(strconv.FormatUint(b, 10))
+		}
+		buf.WriteByte(']')
+	}
+	*w = processedWindow{}
+	return buf.String()
 }
 
 func NewCheckpointController(
@@ -326,7 +397,6 @@ func NewCheckpointController(
 		timeSeriesCtrl:         timeSeriesCtrl,
 		entityCtrl:             entityCtrl,
 		webhookCtrl:            webhookCtrl,
-		printProcessedExecutor: timer.NewMinimumIntervalExecutor(PrintProcessedInterval),
 		stat:                   timewin.NewTimeWindowsManager[*checkpointStatWindow](time.Minute),
 	}
 	checkpoints, templates, err := checkpointStore.Load(ctx)
@@ -522,24 +592,7 @@ func (c *checkpointController) MakeCheckpoint(
 		FullBlockRange:        progressBar.FullBlockRange,
 		Data:                  blockData.CheckpointData,
 	}
-	var processedMsg string
-	if c.unreportedBlocks == 0 {
-		processedMsg = fmt.Sprintf("Processed %s[%d/%s/%d] with %d bindings",
-			ck.RateOrDelay(),
-			ck.FullBlockRange.StartBlock,
-			GetBlockSummary(blockData),
-			ck.CurrentLastBlockNumber(),
-			ck.TotalBindings)
-	} else {
-		processedMsg = fmt.Sprintf("Processed %s[%d/%d-%s/%d] with %d bindings in %d blocks",
-			ck.RateOrDelay(),
-			ck.FullBlockRange.StartBlock,
-			c.unreportedFrom,
-			GetBlockSummary(blockData),
-			ck.CurrentLastBlockNumber(),
-			c.unreportedBindings+ck.TotalBindings,
-			c.unreportedBlocks+1)
-	}
+	c.processed.add(ck)
 
 	var templates []TemplateInstance
 	if templates, templatesChanged = c.unsavedTemplates[blockData.GetBlockNumber()]; templatesChanged {
@@ -556,8 +609,7 @@ func (c *checkpointController) MakeCheckpoint(
 			minStartBlock = min(minStartBlock, tpl.StartBlock)
 		}
 		logger = logger.UserVisible()
-		c.unreportedBlocks, c.unreportedBindings = 0, 0
-		processedMsg += fmt.Sprintf(" and %d new templates [%s]",
+		processedMsg := c.processed.take() + fmt.Sprintf(" and %d new templates [%s]",
 			len(templates), strings.Join(utils.MapSliceNoError(templates, TemplateInstance.String), ","))
 		if minStartBlock == ck.BlockNumber {
 			logger.Warn(processedMsg + ", but this block will be re-processed because has new template from this block")
@@ -571,49 +623,27 @@ func (c *checkpointController) MakeCheckpoint(
 	}
 	c.checkpoints = append(c.checkpoints, ck)
 
-	realtime := c.saveDelay == 0 && ck.InWatching()
-	var saveReason string
-	if realtime {
-		// realtime mode saves every checkpoint, the thresholds below only matter during backfill
-	} else if uint64(len(c.checkpoints)) >= c.maxKeepCheckpointCount {
-		saveReason = "there are too many checkpoints"
-	} else if c.webhookCtrl.CachedTooMuch(ck.BlockNumber) {
-		saveReason = "there are too many uncommitted webhook message"
-	} else if c.timeSeriesCtrl.CachedTooMuch(ck.BlockNumber) {
-		saveReason = "there are too many uncommitted time series data"
-	} else if c.entityCtrl.CachedTooMuch(ck.BlockNumber) {
-		saveReason = "there are too many uncommitted entity changes"
+	// The per-block progress is batched: one line per PrintProcessedMaxBindingBlocks blocks with bindings, and the
+	// rest is flushed by the next save. Users follow the progress through the user-visible "Saved" line, this
+	// line is only for the log store. On chains with sub-second blocks a line per block flooded the log pipeline.
+	if c.processed.full() {
+		logger.Info(c.processed.take())
 	}
 
-	// Every block gets a progress line while watching the chain tip. During backfill the line is throttled to
-	// PrintProcessedInterval even when the block had bindings: on chains with sub-second blocks a processor that
-	// matches a little data in nearly every block would otherwise emit hundreds of user-visible lines per second.
-	// Throttled blocks are not dropped, their range and binding count are folded into the next printed line.
-	// The block that triggers a save is always reported so the progress right before the save stays visible.
-	printed := false
-	printProcessed := func() {
-		printed = true
-		logger.UserVisible().Info(processedMsg)
-	}
-	if ck.InWatching() || saveReason != "" {
-		printProcessed()
-	} else {
-		c.printProcessedExecutor.ExecSimple(printProcessed)
-	}
-	if printed {
-		c.unreportedBlocks, c.unreportedBindings = 0, 0
-	} else {
-		if c.unreportedBlocks == 0 {
-			c.unreportedFrom = ck.BlockNumber
-		}
-		c.unreportedBlocks++
-		c.unreportedBindings += ck.TotalBindings
-	}
-
-	if realtime {
+	if c.saveDelay == 0 && ck.InWatching() {
+		// realtime mode
 		extErr = c.save(ctx, false, true)
-	} else if saveReason != "" {
-		logger.Info("will try to save checkpoint because " + saveReason)
+	} else if uint64(len(c.checkpoints)) >= c.maxKeepCheckpointCount {
+		logger.Info("will try to save checkpoint because there are too many checkpoints")
+		extErr = c.save(ctx, false, false)
+	} else if c.webhookCtrl.CachedTooMuch(ck.BlockNumber) {
+		logger.Info("will try to save checkpoint because there are too many uncommitted webhook message")
+		extErr = c.save(ctx, false, false)
+	} else if c.timeSeriesCtrl.CachedTooMuch(ck.BlockNumber) {
+		logger.Info("will try to save checkpoint because there are too many uncommitted time series data")
+		extErr = c.save(ctx, false, false)
+	} else if c.entityCtrl.CachedTooMuch(ck.BlockNumber) {
+		logger.Info("will try to save checkpoint because there are too many uncommitted entity changes")
 		extErr = c.save(ctx, false, false)
 	}
 	return
@@ -674,6 +704,10 @@ func (c *checkpointController) save(ctx context.Context, saveAll bool, checkInte
 	if cc == 0 || cc == c.savedCheckpoints {
 		// No new checkpoints or all new checkpoints are too close to the current time, so there is nothing to save.
 		return
+	}
+	if c.processed.blocks > 0 {
+		// Report the blocks processed since the last "Processed" line before the save starts.
+		logger.Info(c.processed.take())
 	}
 
 	cur := c.checkpoints[cc-1]

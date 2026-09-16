@@ -49,7 +49,6 @@ go_test(
     deps = [
         "//common/errgroup",
         "//common/log",
-        "//common/timer",
         "//common/utils",
         "@com_github_pkg_errors//:errors",
         "@com_github_stretchr_testify//assert",

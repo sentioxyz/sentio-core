@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"sentioxyz/sentio-core/common/log"
-	"sentioxyz/sentio-core/common/timer"
 )
 
 type testCheckpointStore struct {
@@ -198,7 +196,7 @@ func Test_MakeCheckpoint_printProcessed(t *testing.T) {
 		"1",
 		0,
 		time.Hour,
-		10,
+		10000,
 		&testCheckpointStore{},
 		EmptyQuotaService{},
 		EmptyTimeSeriesController{},
@@ -207,55 +205,56 @@ func Test_MakeCheckpoint_printProcessed(t *testing.T) {
 		nil,
 	)
 	assert.NoError(t, err)
-	// Never let the throttle expire during the test so the output does not depend on timing.
-	cc.(*checkpointController).printProcessedExecutor = timer.NewMinimumIntervalExecutor(time.Hour)
+	defer func(v uint64) { PrintProcessedMaxBindingBlocks = v }(PrintProcessedMaxBindingBlocks)
+	PrintProcessedMaxBindingBlocks = 7
 
 	processedLines := func() []string {
 		var lines []string
 		for _, entry := range logs.TakeAll() {
-			if strings.HasPrefix(entry.Message, "Processed ") {
-				lines = append(lines, entry.Message)
+			if !strings.HasPrefix(entry.Message, "Processed ") {
+				continue
 			}
+			for _, field := range entry.Context {
+				assert.NotEqual(t, "user_visible", field.Key, "the Processed line is not for users")
+			}
+			lines = append(lines, entry.Message)
 		}
 		return lines
 	}
-	withBindings := func(blockNumber uint64) BlockDataSummary {
+	// Backfill: the blocks are far behind the latest block.
+	progressBar := ProgressBar{LatestBlock: newSimpleTestBlockData(100000)}
+	process := func(blockNumber, bindings uint64) {
 		summary := newSimpleTestBlockDataSummary(blockNumber)
-		summary.TaskCount = 3
-		return summary
+		summary.TaskCount = int(bindings)
+		_, extErr := cc.MakeCheckpoint(ctx, summary, progressBar)
+		assert.Nil(t, extErr)
 	}
 
-	// Backfill: the blocks are far behind the latest block, so only the first block is reported even though
-	// every block has bindings.
-	progressBar := ProgressBar{LatestBlock: newSimpleTestBlockData(100000)}
-	for blockNumber := uint64(0); blockNumber < 9; blockNumber++ {
-		_, extErr := cc.MakeCheckpoint(ctx, withBindings(blockNumber), progressBar)
-		assert.Nil(t, extErr)
+	// Blocks 1..20 have 0 1 2 3 4 0 1 2 3 4 ... bindings. Every 7 blocks with bindings make one line.
+	for blockNumber := uint64(1); blockNumber <= 20; blockNumber++ {
+		process(blockNumber, (blockNumber-1)%5)
 	}
 	lines := processedLines()
-	if assert.Len(t, lines, 1) {
-		assert.Contains(t, lines[0], "[0/0/100000] with 3 bindings")
+	if assert.Len(t, lines, 2) {
+		assert.Contains(t, lines[0], "[0/1-9/100000] with 16 bindings in 9 blocks: [2-5][1 2 3 4]+[7-9][1 2 3]")
+		assert.Contains(t, lines[1],
+			"[0/10-18/100000] with 17 bindings in 9 blocks: [10-10][4]+[12-15][1 2 3 4]+[17-18][1 2]")
 	}
 
-	// The 10th block reaches maxKeepCheckpointCount and triggers a save, so it is reported regardless of the
-	// throttle, and the line folds in the 8 throttled blocks and their bindings.
-	_, extErr := cc.MakeCheckpoint(ctx, withBindings(9), progressBar)
-	assert.Nil(t, extErr)
+	// The save flushes what is left.
+	assert.Nil(t, cc.Save(ctx, true))
 	lines = processedLines()
 	if assert.Len(t, lines, 1) {
-		assert.Contains(t, lines[0], "[0/1-9/100000] with 27 bindings in 9 blocks")
+		assert.Contains(t, lines[0], "[0/19-20/100000] with 7 bindings in 2 blocks: [19-20][3 4]")
 	}
 
-	// Watching the chain tip: every block is reported on its own.
-	progressBar = ProgressBar{LatestBlock: newSimpleTestBlockData(20)}
-	for blockNumber := uint64(11); blockNumber < 14; blockNumber++ {
-		_, extErr := cc.MakeCheckpoint(ctx, withBindings(blockNumber), progressBar)
-		assert.Nil(t, extErr)
-	}
+	// A window without any binding is reported without segments, and an empty window is not reported at all.
+	process(21, 0)
+	process(22, 0)
+	assert.Nil(t, cc.Save(ctx, true))
+	assert.Nil(t, cc.Save(ctx, true))
 	lines = processedLines()
-	if assert.Len(t, lines, 3) {
-		for i, line := range lines {
-			assert.Contains(t, line, fmt.Sprintf("[0/%d/20] with 3 bindings", 11+i))
-		}
+	if assert.Len(t, lines, 1) {
+		assert.True(t, strings.HasSuffix(lines[0], "[0/21-22/100000] with 0 bindings in 2 blocks"), lines[0])
 	}
 }

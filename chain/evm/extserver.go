@@ -356,8 +356,8 @@ func (d *ExtServerDimension) fetchTraces(ctx context.Context, st *Slot) error {
 		return nil
 	}
 
-	if d.chainID == string(chains.ArbitrumID) && blockNumber < arbitrumNitroGenesis {
-		// Arbitrum classic
+	if d.chainID == string(chains.ArbitrumID) && blockNumber <= arbitrumNitroGenesis {
+		// Arbitrum classic, including the nitro genesis block which has no nitro traces either
 		r := d.client.UseClient(
 			ctx,
 			fmt.Sprintf("ext.GetSlot.TracePart/%d", blockNumber),

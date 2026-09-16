@@ -133,6 +133,23 @@ func (c *Client) isTronChain() bool {
 	return c.info != nil && c.info.Variation == chains.EthVariationTron
 }
 
+// arbitrumNitroGenesis is the first Arbitrum One block produced by Nitro; blocks below it belong
+// to the classic chain and a nitro node only serves them by forwarding to a classic node.
+const arbitrumNitroGenesis uint64 = 22207818
+
+// stateProbeFloor is the lowest block detectStateDataFrom is allowed to probe: blocks below it
+// are assumed to hold state data without asking the node. On Arbitrum One that excludes the
+// classic range, where a nitro node forwards eth_getBalance to the classic node, which has to
+// replay the block to answer. Such a probe easily exceeds the method timeout, every retry queues
+// another replay on the classic node, and the whole detection degrades into a self-sustaining
+// storm that keeps the client out of the pool.
+func (c *Client) stateProbeFloor() uint64 {
+	if strconv.FormatUint(c.config.ChainID, 10) == string(chains.ArbitrumID) {
+		return arbitrumNitroGenesis
+	}
+	return 0
+}
+
 // Init is re-entrant: the client pool re-runs it periodically (PoolConfig.ReInitInterval) while
 // the client may be serving concurrent calls, so it must not mutate anything built by NewClient
 // and must publish detection results with a single atomic write. All its errors are retryable:
@@ -195,7 +212,12 @@ func (c *Client) detectStateDataFrom(ctx context.Context, latest uint64) (uint64
 	tryGetBalance := func(ctx context.Context, addr string, bn hexutil.Uint64) error {
 		return c.callContext(ctx, nil, "init", "eth_getBalance", addr, bn).Err
 	}
-	missBlock, missErr, getErr := getMissStateBlock(ctx, retryTimes, hexutil.Uint64(latest), tryGetBalance)
+	floor := c.stateProbeFloor()
+	if floor > 0 {
+		logger.Infof("assume state data exists below block %d, will not probe there", floor)
+	}
+	missBlock, missErr, getErr := getMissStateBlock(
+		ctx, retryTimes, hexutil.Uint64(latest), hexutil.Uint64(floor), tryGetBalance)
 	if getErr != nil {
 		return 0, getErr
 	}

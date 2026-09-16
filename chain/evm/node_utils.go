@@ -37,18 +37,26 @@ func checkMissState(
 	return nil, nil
 }
 
+// getMissStateBlock probes downwards from latest with doubling steps and returns the first block
+// found to miss state data. Blocks below floor are never probed: they are assumed to hold state.
 func getMissStateBlock(
 	ctx context.Context,
 	retryTimes uint64,
 	latest hexutil.Uint64,
+	floor hexutil.Uint64,
 	tryGetBalance func(ctx context.Context, addr string, bn hexutil.Uint64) error,
 ) (missBlock hexutil.Uint64, missErr, getErr error) {
 	_, logger := log.FromContext(ctx)
+	if floor > latest {
+		floor = latest
+	}
 	samples := []hexutil.Uint64{latest}
-	for step := hexutil.Uint64(1); step < latest; step <<= 1 {
+	for step := hexutil.Uint64(1); latest > floor+step; step <<= 1 {
 		samples = append(samples, latest-step)
 	}
-	samples = append(samples, 0)
+	if floor < latest {
+		samples = append(samples, floor)
+	}
 	for _, bn := range samples {
 		if missErr, getErr = checkMissState(ctx, retryTimes, bn, tryGetBalance); getErr != nil {
 			return
@@ -89,7 +97,7 @@ func CheckArchiveNode(ctx context.Context, endpoint string) error {
 		defer callCancel()
 		return cli.CallContext(callCtx, nil, "eth_getBalance", addr, bn)
 	}
-	if _, missErr, getErr := getMissStateBlock(ctx, retryTimes, latest, tryGetBalance); getErr != nil {
+	if _, missErr, getErr := getMissStateBlock(ctx, retryTimes, latest, 0, tryGetBalance); getErr != nil {
 		return getErr
 	} else if missErr != nil {
 		return missErr

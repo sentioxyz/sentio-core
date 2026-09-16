@@ -526,16 +526,10 @@ func (c *Client) CallContext(
 	if from := c.hasStateDataFrom.Load(); from > 0 {
 		// not a archive node
 		if argIndex, has := stateMethodBlockNumberArgIndex[method]; has {
-			var bp rpc.BlockNumberOrHash
-			if argIndex < len(args) {
-				raw, _ := json.Marshal(args[argIndex])
-				if err := json.Unmarshal(raw, &bp); err != nil {
-					// invalid request
-					return clientpool.Result{
-						Err: errors.Wrapf(err, "invalid block parameter %s in #%d arg for the method %s",
-							string(raw), argIndex, method),
-					}
-				}
+			bp, err := stateBlockParameter(args, argIndex)
+			if err != nil {
+				// invalid request
+				return clientpool.Result{Err: errors.Wrapf(err, "in #%d arg for the method %s", argIndex, method)}
 			}
 			if c.isTronChain() && (bp.BlockHash != nil || *bp.BlockNumber != rpc.LatestBlockNumber) {
 				return clientpool.Result{
@@ -543,7 +537,10 @@ func (c *Client) CallContext(
 						method, bp.String()),
 				}
 			}
-			if bp.BlockHash != nil || (*bp.BlockNumber >= 0 && uint64(*bp.BlockNumber) < from) {
+			// A block hash cannot be compared with the start of the state data here, so such a call
+			// is left to the node: a missing state is then reported per task like any other
+			// miss-data error.
+			if bp.BlockHash == nil && *bp.BlockNumber >= 0 && uint64(*bp.BlockNumber) < from {
 				var reason string
 				if from == math.MaxUint64 {
 					reason = "this is a full node"
@@ -559,6 +556,25 @@ func (c *Client) CallContext(
 		}
 	}
 	return c.callContext(ctx, result, src, method, args...)
+}
+
+// stateBlockParameter parses the block parameter of a state method. An omitted or null parameter
+// means "latest", as it does for the node itself, so the result always carries a block number or
+// a block hash.
+func stateBlockParameter(args []any, argIndex int) (rpc.BlockNumberOrHash, error) {
+	latest := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+	if argIndex >= len(args) || args[argIndex] == nil {
+		return latest, nil
+	}
+	raw, _ := json.Marshal(args[argIndex])
+	var bp rpc.BlockNumberOrHash
+	if err := json.Unmarshal(raw, &bp); err != nil {
+		return bp, errors.Wrapf(err, "invalid block parameter %s", string(raw))
+	}
+	if bp.BlockNumber == nil && bp.BlockHash == nil {
+		return latest, nil
+	}
+	return bp, nil
 }
 
 func (c *Client) callContext(

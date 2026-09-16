@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/driver/controller/config"
 	sentioerror "sentioxyz/sentio-core/service/common/errors"
 	"sentioxyz/sentio-core/service/processor/models"
 
@@ -40,4 +41,20 @@ func Test_buildProcessorUrls(t *testing.T) {
 	urls, err = s.buildProcessorUrlList()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"aaa.bbb:9999", "aaa.bbb:10000", "aaa.bbb:10001"}, urls)
+}
+
+func Test_splitSupportedChains(t *testing.T) {
+	chainConfigs := map[string]*config.ChainConfig{"1": {}, "25": {}}
+
+	supported, unsupported := splitSupportedChains([]string{"1", "388", "25"}, chainConfigs)
+	assert.Equal(t, []string{"1", "25"}, supported)
+	assert.Equal(t, []string{"388"}, unsupported)
+
+	supported, unsupported = splitSupportedChains([]string{"388", "3776"}, chainConfigs)
+	assert.Empty(t, supported)
+	assert.Equal(t, []string{"388", "3776"}, unsupported)
+
+	supported, unsupported = splitSupportedChains([]string{"1"}, chainConfigs)
+	assert.Equal(t, []string{"1"}, supported)
+	assert.Empty(t, unsupported)
 }

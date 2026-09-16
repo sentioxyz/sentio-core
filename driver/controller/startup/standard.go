@@ -177,17 +177,21 @@ func (c *standardStartupController) buildMainControllers(ctx context.Context) (
 	}
 	logger.Infow("init processors succeed", "initResult", initResultText)
 
-	// check chain
+	// check chain: a chain without a chain config (typically one retired from the platform after the processor
+	// was uploaded) is skipped so the remaining chains keep running; only an empty remainder is a config error
 	if len(c.initResult.GetChainIds()) == 0 {
 		return ctrls, exitcode.NeverRetry, controller.NewExternalError(controller.ErrCodeUnexpectedProcessorConfig,
 			errors.Errorf("no chain in processor"))
 	}
-	for _, chainID := range c.initResult.GetChainIds() {
-		if _, has := c.chainConfigs[chainID]; !has {
-			return ctrls, exitcode.NeverRetry, controller.NewExternalError(controller.ErrCodeUnexpectedProcessorConfig,
-				errors.Errorf("chain %s is not supported", chainID))
-		}
+	supported, unsupported := splitSupportedChains(c.initResult.GetChainIds(), c.chainConfigs)
+	for _, chainID := range unsupported {
+		logger.UserVisible().Warnf("chain %s is not supported, ignored", chainID)
 	}
+	if len(supported) == 0 {
+		return ctrls, exitcode.NeverRetry, controller.NewExternalError(controller.ErrCodeUnexpectedProcessorConfig,
+			errors.Errorf("none of the chains %v is supported", unsupported))
+	}
+	c.initResult.ChainIds = supported
 
 	// build entity store
 	if schemeCnt := c.initResult.GetDbSchema().GetGqlSchema(); len(schemeCnt) > 0 {

@@ -59,8 +59,8 @@ func (n *fakeStateNode) handle(w http.ResponseWriter, r *http.Request) {
 			latest, latest, 1, time.Now().Unix()))
 	case "eth_getBalance", "eth_getCode":
 		var bn hexutil.Uint64
-		if err := json.Unmarshal(req.Params[1], &bn); err != nil {
-			reply(`"0x0"`) // a block tag like "latest"
+		if len(req.Params) < 2 || json.Unmarshal(req.Params[1], &bn) != nil {
+			reply(`"0x0"`) // omitted, or a block tag like "latest", or a block hash
 			return
 		}
 		n.mu.Lock()

@@ -44,6 +44,7 @@ go_test(
         "checkpoint_test.go",
         "errors_test.go",
         "main_test.go",
+        "processed_window_test.go",
         "range_test.go",
     ],
     embed = [":controller"],

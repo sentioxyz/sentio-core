@@ -525,7 +525,54 @@ func (t TableSchema) rangeWhere(whereTpl, whereExTpl string) string {
 	})
 }
 
+// nullableUniqueKeyColumns returns the unique key columns of the table that may hold NULL.
+func (t TableSchema) nullableUniqueKeyColumns() []string {
+	var columns []string
+	for _, column := range t.UniqueKey {
+		for _, field := range t.Table.Fields {
+			if field.Name != column {
+				continue
+			}
+			if _, nullable := field.Type.(chx.FieldTypeNullable); nullable {
+				columns = append(columns, column)
+			}
+			break
+		}
+	}
+	return columns
+}
+
+// duplicateCheckSQL counts the unique keys of the table carried by more than one row of
+// rangeWhere, along with the extra rows and the slot range those keys span.
+//
+// A key column added to a table after the fact is NULL on every row written before, which says
+// the identity of the row is unknown, not that it is shared. Such rows are left out of the scan:
+// keeping them would turn one old range into a single enormous fake duplicate and hide the real
+// ones. They stay unchecked until their range is re-synced.
+func (t TableSchema) duplicateCheckSQL(fullName, rangeWhere string) string {
+	where := rangeWhere
+	for _, column := range t.nullableUniqueKeyColumns() {
+		where += fmt.Sprintf(" AND `%s` IS NOT NULL", column)
+	}
+	return fmt.Sprintf(
+		"SELECT count(), toUInt64(sum(c - 1)), toUInt64(min(n)), toUInt64(max(n)) FROM ("+
+			"SELECT count() AS c, min(`%s`) AS n FROM %s WHERE %s GROUP BY `%s` HAVING c > 1)",
+		t.NumberField,
+		fullName,
+		where,
+		strings.Join(t.UniqueKey, "`, `"),
+	)
+}
+
 func (t TableSchema) checkUniqueKey() error {
+	if t.NumberField == "" {
+		// the table is outside the slot-range machinery (it is not truncated before save either),
+		// so a check window cannot be scoped for it
+		return nil
+	}
+	if len(t.UniqueKey) == 0 {
+		return errors.Errorf("table %s declares no unique key, see TableSchema.UniqueKey", t.Table.Name)
+	}
 	for _, column := range t.UniqueKey {
 		if !slices.Contains(t.Table.Fields.Names(), column) {
 			return errors.Errorf("unique key column %q is not a column of table %s", column, t.Table.Name)
@@ -552,13 +599,9 @@ func (s *SimpleSlotStore[SLOT]) CheckDuplicates(
 		if table.NumberField == "" || len(table.UniqueKey) == 0 {
 			continue
 		}
-		sql := fmt.Sprintf(
-			"SELECT count(), toUInt64(sum(c - 1)), toUInt64(min(n)), toUInt64(max(n)) FROM ("+
-				"SELECT count() AS c, min(`%s`) AS n FROM %s WHERE %s GROUP BY `%s` HAVING c > 1)",
-			table.NumberField,
+		sql := table.duplicateCheckSQL(
 			s.ctrl.FullLogicName(table.Table.Name),
 			table.rangeWhere(whereTpl, whereExTpl),
-			strings.Join(table.UniqueKey, "`, `"),
 		)
 		report := chain.DuplicateReport{Table: table.Table.Name}
 		err = s.ctrl.Query(ctx, func(rows driver.Rows) error {

@@ -295,8 +295,8 @@ func (c *EthVariationController[BLOCK, TXN]) BuildTablesMeta(blockPartitionSize 
 		// own trace_index sequence there; `type` keeps them apart from the traces of the first transaction
 		createTableSchema(tableNameTraces, &Trace{}, "block_number", "transaction_index", "trace_index").
 			WithUniqueKey("block_number", "transaction_index", "trace_index", "type"),
-		// withdrawals only stores the block number today, so its rows have no identity to check
-		createTableSchema(tableNameWithdrawals, &Withdrawal{}, "block_number"),
+		createTableSchema(tableNameWithdrawals, &Withdrawal{}, "block_number").
+			WithUniqueKey("block_number", "withdrawal_index"),
 	}
 	const blockTableIndex = 0
 	return clickhouse.TablesMeta{

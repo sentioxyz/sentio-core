@@ -128,9 +128,15 @@ type CHUTxnExtendBase struct {
 
 type CHUMoveCall struct {
 	CHUTxnExtendBase
-	Package  string `clickhouse:"package"  index:"bloom_filter"`
-	Module   string `clickhouse:"module"   index:"bloom_filter"`
-	Function string `clickhouse:"function" index:"bloom_filter"`
+	// CommandIndex is the position of the call among the commands of the programmable transaction.
+	// It is what tells two rows apart: one transaction may call the same function any number of
+	// times, so package/module/function do not identify a call. It is NULL on every row written
+	// before the column existed, which says the position is unknown rather than zero; backfilling
+	// those rows means re-syncing their range and is a separate, long-running job.
+	CommandIndex *uint32 `clickhouse:"command_index"`
+	Package      string  `clickhouse:"package"  index:"bloom_filter"`
+	Module       string  `clickhouse:"module"   index:"bloom_filter"`
+	Function     string  `clickhouse:"function" index:"bloom_filter"`
 }
 
 type CHUEvent struct {

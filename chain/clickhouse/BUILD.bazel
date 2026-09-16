@@ -29,7 +29,10 @@ go_library(
 
 go_test(
     name = "clickhouse_test",
-    srcs = ["object_test.go"],
+    srcs = [
+        "object_test.go",
+        "store_test.go",
+    ],
     embed = [":clickhouse"],
     deps = [
         "//common/chx",

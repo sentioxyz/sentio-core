@@ -585,23 +585,18 @@ type ClickhouseConnector interface {
 }
 
 type Config struct {
-	ProcessorID              string
-	ProcessorReplica         int
-	ProcessorService         string
-	UsageService             string
-	DBRegistryService        string
-	WebhookService           string
-	WebhookTopic             string
-	ProcessorUrl             string
-	ChainConfigFile          string
-	IpfsNodeAddr             string
-	EntityStoreCacheSize     int
-	EntityStoreFullCacheSize int
-	// EntityStoreFullIDCacheMaxCount caps how many entity IDs the full-ID cache
-	// may hold per entity.
-	EntityStoreFullIDCacheMaxCount uint64
-	SubgraphTotalMemSize           uint
-	SubgraphDebugTrace             bool
+	ProcessorID          string
+	ProcessorReplica     int
+	ProcessorService     string
+	UsageService         string
+	DBRegistryService    string
+	WebhookService       string
+	WebhookTopic         string
+	ProcessorUrl         string
+	ChainConfigFile      string
+	IpfsNodeAddr         string
+	SubgraphTotalMemSize uint
+	SubgraphDebugTrace   bool
 	// PubSubProject is the GCP project used to create the webhook pubsub topic;
 	// empty disables pubsub topic creation. Provided by the driver binary.
 	PubSubProject string

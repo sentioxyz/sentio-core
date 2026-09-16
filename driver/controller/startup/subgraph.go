@@ -102,8 +102,7 @@ func (c *subgraphStartupController) buildMainControllers(ctx context.Context) (
 		return nil, exitcode.AlwaysRetry, extErr
 	}
 	// entity controller
-	entityCtrl := newEntityController(c.entityStore, chainID, c.config.EntityStoreCacheSize,
-		c.config.EntityStoreFullCacheSize, c.config.EntityStoreFullIDCacheMaxCount, c.config.EntityMetricsMonitor)
+	entityCtrl := newEntityController(c.entityStore, chainID, c.config.EntityMetricsMonitor)
 	// checkpoint store
 	var store controller.CheckpointStore
 	if store, err = c.getCheckpointStore(ctx, chainID); err != nil {

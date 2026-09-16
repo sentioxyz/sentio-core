@@ -133,21 +133,31 @@ func (c *Client) isTronChain() bool {
 	return c.info != nil && c.info.Variation == chains.EthVariationTron
 }
 
-// arbitrumNitroGenesis is the first Arbitrum One block produced by Nitro; blocks below it belong
-// to the classic chain and a nitro node only serves them by forwarding to a classic node.
-const arbitrumNitroGenesis uint64 = 22207818
+// arbitrumNitroGenesis is the first Arbitrum One block produced by Nitro, whose state every nitro
+// node holds natively. All blocks below it belong to the classic chain, and a nitro node only
+// serves those by forwarding to a classic node, which replays the block to answer.
+const arbitrumNitroGenesis uint64 = 22207817
 
-// stateProbeFloor is the lowest block detectStateDataFrom is allowed to probe: blocks below it
-// are assumed to hold state data without asking the node. On Arbitrum One that excludes the
-// classic range, where a nitro node forwards eth_getBalance to the classic node, which has to
-// replay the block to answer. Such a probe easily exceeds the method timeout, every retry queues
-// another replay on the classic node, and the whole detection degrades into a self-sustaining
-// storm that keeps the client out of the pool.
-func (c *Client) stateProbeFloor() uint64 {
+// arbitrumClassicProbeBlock is the single classic block used to tell whether a node serves the
+// classic range at all. Block 0 is unusable: nitro and classic nodes alike answer it with
+// "error creating execution cursor". Block 1 sits right after the classic genesis, so a classic
+// node answers it from its first checkpoint instantly, unlike late classic blocks that need a
+// long replay.
+const arbitrumClassicProbeBlock uint64 = 1
+
+// stateProbeFloor returns the lowest block the sampling and bisection of detectStateDataFrom may
+// touch, and the single block below it that decides whether the node serves that lower range at
+// all (see detectStateBelowFloor). Both are 0 for chains without such a split.
+//
+// On Arbitrum One the floor is the nitro genesis, which keeps the detection out of the classic
+// range: probing there makes the classic node behind the internal nitro nodes replay blocks,
+// which easily exceeds the method timeout; every retry queues another replay, and the detection
+// degrades into a self-sustaining storm that keeps the client out of the pool for hours.
+func (c *Client) stateProbeFloor() (floor, probe uint64) {
 	if strconv.FormatUint(c.config.ChainID, 10) == string(chains.ArbitrumID) {
-		return arbitrumNitroGenesis
+		return arbitrumNitroGenesis, arbitrumClassicProbeBlock
 	}
-	return 0
+	return 0, 0
 }
 
 // Init is re-entrant: the client pool re-runs it periodically (PoolConfig.ReInitInterval) while
@@ -212,16 +222,16 @@ func (c *Client) detectStateDataFrom(ctx context.Context, latest uint64) (uint64
 	tryGetBalance := func(ctx context.Context, addr string, bn hexutil.Uint64) error {
 		return c.callContext(ctx, nil, "init", "eth_getBalance", addr, bn).Err
 	}
-	floor := c.stateProbeFloor()
-	if floor > 0 {
-		logger.Infof("assume state data exists below block %d, will not probe there", floor)
-	}
+	floor, probe := c.stateProbeFloor()
 	missBlock, missErr, getErr := getMissStateBlock(
 		ctx, retryTimes, hexutil.Uint64(latest), hexutil.Uint64(floor), tryGetBalance)
 	if getErr != nil {
 		return 0, getErr
 	}
 	if missErr == nil {
+		if floor > 0 {
+			return c.detectStateBelowFloor(ctx, floor, probe, tryGetBalance)
+		}
 		logger.Infof("is a archive node")
 		return 0, nil
 	}
@@ -258,6 +268,35 @@ func (c *Client) detectStateDataFrom(ctx context.Context, latest uint64) (uint64
 	}
 	logger.Infof("is a full node that miss state data until block %d", i+1)
 	return uint64(i + 1), nil
+}
+
+// detectStateBelowFloor decides, for a node that holds state from floor upwards, whether it also
+// serves the range below the floor. Instead of sampling and bisecting that range it sends a single
+// probe: a miss-state answer means the node's state starts at the floor, a successful answer means
+// the whole history is served (the blocks below the probe are assumed to be served as well).
+// Anything else, typically the probe timing out because the node forwards it to a busy classic
+// node, is retried only a couple of times and then resolved as served: that keeps a slow classic
+// node from ever blocking the init, and a call that fails later is still handled per task by the
+// pool.
+func (c *Client) detectStateBelowFloor(
+	ctx context.Context,
+	floor, probe uint64,
+	tryGetBalance func(ctx context.Context, addr string, bn hexutil.Uint64) error,
+) (uint64, error) {
+	_, logger := log.FromContext(ctx)
+	const retryTimes = 2
+	missErr, getErr := checkMissState(ctx, retryTimes, hexutil.Uint64(probe), tryGetBalance)
+	switch {
+	case getErr != nil:
+		logger.Warnfe(getErr, "probing block %d failed, assume state data exists below block %d", probe, floor)
+		return probe, nil
+	case missErr != nil:
+		logger.Infof("is a archive node that miss state data until block %d", floor)
+		return floor, nil
+	default:
+		logger.Infof("is a archive node, state data below block %d confirmed at block %d", floor, probe)
+		return probe, nil
+	}
 }
 
 func (c *Client) subscribeUsingWebsocket(ctx context.Context, ch chan<- clientpool.Block) error {

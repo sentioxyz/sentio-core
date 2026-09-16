@@ -26,6 +26,7 @@ type fakeStateNode struct {
 	stateFrom uint64 // 0 means archive
 	chainID   uint64 // 0 means eth_chainId is not expected to be called
 	minProbed uint64 // lowest block eth_getBalance/eth_getCode was asked for
+	hangBelow uint64 // state calls below this block hang past the method timeout (0 disables)
 }
 
 func (n *fakeStateNode) setStateFrom(from uint64) {
@@ -66,7 +67,11 @@ func (n *fakeStateNode) handle(w http.ResponseWriter, r *http.Request) {
 		if uint64(bn) < n.minProbed {
 			n.minProbed = uint64(bn)
 		}
+		hangBelow := n.hangBelow
 		n.mu.Unlock()
+		if uint64(bn) < hangBelow {
+			time.Sleep(time.Second)
+		}
 		if uint64(bn) >= stateFrom && uint64(bn) <= latest {
 			reply(`"0x0"`)
 			return
@@ -86,12 +91,24 @@ func newStateProbeClient(t *testing.T, latest uint64, stateFrom uint64) (*Client
 
 func newChainStateProbeClient(t *testing.T, chainID, latest, stateFrom uint64) (*Client, *fakeStateNode) {
 	t.Helper()
-	node := &fakeStateNode{latest: latest, stateFrom: stateFrom, chainID: chainID, minProbed: math.MaxUint64}
+	return newHangingStateProbeClient(t, chainID, latest, stateFrom, 0)
+}
+
+func newHangingStateProbeClient(
+	t *testing.T, chainID, latest, stateFrom, hangBelow uint64,
+) (*Client, *fakeStateNode) {
+	t.Helper()
+	node := &fakeStateNode{
+		latest: latest, stateFrom: stateFrom, chainID: chainID, minProbed: math.MaxUint64, hangBelow: hangBelow,
+	}
 	server := httptest.NewServer(http.HandlerFunc(node.handle))
 	t.Cleanup(server.Close)
 	cli, err := NewClient(ClientConfig{
-		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: server.URL},
-		ChainID:       chainID,
+		JSONRPCConfig: clientpool.JSONRPCConfig{
+			Endpoint:      server.URL,
+			MethodTimeout: map[string]time.Duration{"eth_getBalance": 200 * time.Millisecond},
+		},
+		ChainID: chainID,
 	}, func(string, time.Duration, bool) {})
 	require.NoError(t, err)
 	_, err = cli.Init(context.Background())
@@ -107,20 +124,30 @@ func Test_NewClient_invalidEndpoint_failsAtBuild(t *testing.T) {
 	require.ErrorIs(t, err, clientpool.ErrInvalidConfig)
 }
 
-func Test_Init_arbitrumNeverProbesClassicRange(t *testing.T) {
+func Test_Init_arbitrumProbesClassicRangeOnce(t *testing.T) {
 	const arb = 42161
 	latest := arbitrumNitroGenesis + 200000
 
-	// A nitro node with state from its own genesis counts as an archive node: the classic range
-	// is assumed to hold state and is never probed.
-	nitro, node := newChainStateProbeClient(t, arb, latest, arbitrumNitroGenesis)
-	assert.Equal(t, uint64(0), nitro.hasStateDataFrom.Load())
-	assert.Equal(t, arbitrumNitroGenesis, node.minProbed)
+	// A node serving the whole history: the classic range is probed with block 1 only.
+	full, node := newChainStateProbeClient(t, arb, latest, 1)
+	assert.Equal(t, arbitrumClassicProbeBlock, full.hasStateDataFrom.Load())
+	assert.Equal(t, arbitrumClassicProbeBlock, node.minProbed)
 
-	// A pruned nitro node is still bisected, but only above the classic range.
+	// A nitro-only node misses the classic range, its state starts at the nitro genesis.
+	nitro, node := newChainStateProbeClient(t, arb, latest, arbitrumNitroGenesis)
+	assert.Equal(t, arbitrumNitroGenesis, nitro.hasStateDataFrom.Load())
+	assert.Equal(t, arbitrumClassicProbeBlock, node.minProbed)
+
+	// A pruned nitro node is bisected above the classic range, which is not probed at all.
 	pruned, node := newChainStateProbeClient(t, arb, latest, arbitrumNitroGenesis+50000)
 	assert.Equal(t, arbitrumNitroGenesis+50000, pruned.hasStateDataFrom.Load())
 	assert.GreaterOrEqual(t, node.minProbed, arbitrumNitroGenesis)
+
+	// The classic probe hanging (a busy classic node behind the nitro node) is resolved as served
+	// after a couple of attempts instead of keeping the client out of the pool.
+	hanging, node := newHangingStateProbeClient(t, arb, latest, 1, arbitrumNitroGenesis)
+	assert.Equal(t, arbitrumClassicProbeBlock, hanging.hasStateDataFrom.Load())
+	assert.Equal(t, arbitrumClassicProbeBlock, node.minProbed)
 
 	// Other chains keep probing all the way down to block 0.
 	_, node = newStateProbeClient(t, 100000, 0)

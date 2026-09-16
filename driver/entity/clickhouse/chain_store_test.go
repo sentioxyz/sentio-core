@@ -45,7 +45,7 @@ type fakeStore struct {
 	) ([]*entityRow, error)
 	countEntity_ func(ctx context.Context, entityType *schema.Entity, excludeDeleted bool) (uint64, error)
 	getAllID_    func(ctx context.Context, entityType *schema.Entity) (*idSet, error)
-	reorg_       func(ctx context.Context, blockNumber int64) error
+	reorg_       func(ctx context.Context, blockNumber int64) (bool, error)
 }
 
 func (f *fakeStore) useVersionedCollapsingTable(schema.EntityOrInterface) bool { return false }
@@ -89,7 +89,7 @@ func (f *fakeStore) getAllID(ctx context.Context, entityType *schema.Entity, _ s
 	return f.getAllID_(ctx, entityType)
 }
 
-func (f *fakeStore) reorg(ctx context.Context, blockNumber int64, _ string) error {
+func (f *fakeStore) reorg(ctx context.Context, blockNumber int64, _ string) (bool, error) {
 	if f.reorg_ == nil {
 		f.t.Fatal("reorg not expected")
 	}
@@ -498,23 +498,77 @@ func TestChainStore_Reorg_RunsOffTheLock(t *testing.T) {
 	cs, fs, e := newTestChainStore(t)
 	seedLRU(t, cs, fs, e, "hot")
 	b := newBlockingIO()
-	fs.reorg_ = func(context.Context, int64) error {
+	fs.reorg_ = func(context.Context, int64) (bool, error) {
 		b.wait()
-		return nil
+		return true, nil
 	}
 	done := make(chan error, 1)
 	go func() { done <- cs.Reorg(context.Background(), 10) }()
 	<-b.started
-	// the caches are already purged, so this is a store read; it must not wait for the reorg
+	// reads bypass the caches during the reorg, so this is a store read; it must not wait for it
+	var direct atomic.Int64
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+		direct.Add(1)
+		return positionRow(id, 1), nil
+	}
 	start := time.Now()
 	_, _, err := cs.GetEntity(context.Background(), e, "hot")
 	assert.NoError(t, err)
 	assert.Less(t, time.Since(start), time.Second)
+	assert.Equal(t, int64(1), direct.Load())
 	close(b.release)
 	assert.NoError(t, <-done)
-	// what was read during the reorg is not kept
+	// the reorg deleted rows: the caches are purged and what was read during it is not kept
 	assert.Equal(t, 0, cs.lruCache.Len())
 	cs.mu.Lock()
 	assert.False(t, cs.reorging)
 	cs.mu.Unlock()
+}
+
+func TestChainStore_Reorg_KeepsTheCachesWhenNothingWasDeleted(t *testing.T) {
+	cs, fs, e := newTestChainStore(t)
+	seedLRU(t, cs, fs, e, "hot")
+	cs.mu.Lock()
+	cs.fullIDCacheRefused[e.Name] = false
+	cs.mu.Unlock()
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) { return newIDSet("hot"), nil }
+	_, _, err := cs.GetEntity(context.Background(), e, "missing") // loads the full-ID cache
+	assert.NoError(t, err)
+	cs.mu.Lock()
+	assert.True(t, cs.fullIDCacheLoaded[e.Name])
+	cs.mu.Unlock()
+
+	b := newBlockingIO()
+	fs.reorg_ = func(context.Context, int64) (bool, error) {
+		b.wait()
+		return false, nil
+	}
+	done := make(chan error, 1)
+	go func() { done <- cs.Reorg(context.Background(), 10) }()
+	<-b.started
+	// during the reorg a read goes to the store even though the caches are loaded
+	var direct atomic.Int64
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+		direct.Add(1)
+		return positionRow(id, 1), nil
+	}
+	box, fromCache, err := cs.GetEntity(context.Background(), e, "hot")
+	assert.NoError(t, err)
+	assert.False(t, fromCache)
+	assert.Equal(t, int32(1), box.Data["balance"])
+	assert.Equal(t, int64(1), direct.Load())
+	close(b.release)
+	assert.NoError(t, <-done)
+
+	// nothing was deleted: the caches survive the reorg and answer as before
+	cs.mu.Lock()
+	assert.True(t, cs.fullIDCacheLoaded[e.Name])
+	assert.False(t, cs.reorging)
+	cs.mu.Unlock()
+	assert.Less(t, lruHit(t, cs, e, "hot"), time.Second)
+	box, _, err = cs.GetEntity(context.Background(), e, "missing")
+	assert.NoError(t, err)
+	assert.Nil(t, box)
+	assert.Equal(t, int64(1), direct.Load(), "answered by the full-ID cache, not the store")
 }

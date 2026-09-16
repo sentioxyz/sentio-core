@@ -50,7 +50,8 @@ type ChainStore struct {
 	// no second load starts.
 	loading set.Set[string]
 
-	// reorging is set while Reorg runs its persistent part; no cache loads start meanwhile.
+	// reorging is set while Reorg runs its persistent part: no cache loads start meanwhile, and
+	// reads go to the store instead of the caches, which may hold rows the reorg is deleting.
 	reorging bool
 
 	// cacheGen counts, per entity type, the cache updates applied after persistent writes, and
@@ -133,7 +134,7 @@ type chainStoreBackend interface {
 	) (int, error)
 	getMaxID(ctx context.Context, entityType *schema.Entity, chain string) (int64, error)
 	growthAggregation(ctx context.Context, chain string, curBlockTime time.Time) error
-	reorg(ctx context.Context, blockNumber int64, chain string) error
+	reorg(ctx context.Context, blockNumber int64, chain string) (changed bool, err error)
 }
 
 var _ chainStoreBackend = (*Store)(nil)
@@ -412,6 +413,10 @@ func (c *ChainStore) getEntityFromCache(
 	}
 	fromCache = !loadedNow
 
+	if c.reorging {
+		// the caches may hold rows the reorg is deleting; a purge follows if it deletes any
+		return nil, false, chainStoreCacheKey(entityType.Name, id), c.cacheGen[entityType.Name], c.cacheEpoch, false
+	}
 	if c.fullCacheLoaded[entityType.Name] {
 		// use fullCache.
 		if cached := c.fullCache[entityType.Name][id]; cached != nil && cached.Data != nil {
@@ -493,7 +498,7 @@ func (c *ChainStore) listEntitiesFromCache(
 		}
 		return boxes, true, true, nil
 	}
-	if !c.fullCacheLoaded[entityType.Name] {
+	if c.reorging || !c.fullCacheLoaded[entityType.Name] {
 		return nil, false, false, nil
 	}
 	// Serve from full cache.
@@ -710,13 +715,25 @@ func (c *ChainStore) GrowthAggregation(ctx context.Context, curBlockTime time.Ti
 	return c.store.growthAggregation(ctx, c.chain, curBlockTime)
 }
 
-// Reorg purges caches and delegates to the underlying Store. The persistent part runs without
-// mu; the caches are purged before it, so nothing stale is served from them, and again after it,
-// so nothing read from the store while the reorg was in flight stays cached.
+// Reorg delegates to the underlying Store and purges the caches if it changed anything. The
+// persistent part runs without mu; while it runs, reads bypass the caches (they may hold rows it
+// is deleting) and no cache loads start. When it deleted nothing, the store is as it was and the
+// caches stay: every run starts with a reorg to its checkpoint, and reloading the full caches of
+// a large processor for a reorg that had nothing to undo took minutes and a memory peak each
+// time. When it deleted rows, or failed, the caches are purged, so nothing read from the store
+// while the reorg was in flight stays cached either.
 func (c *ChainStore) Reorg(ctx context.Context, blockNumber int64) error {
 	c.mu.Lock()
 	c.reorging = true
-	c.purgeCache()
+	c.mu.Unlock()
+
+	changed, err := c.store.reorg(ctx, blockNumber, c.chain)
+
+	c.mu.Lock()
+	c.reorging = false
+	if changed || err != nil {
+		c.purgeCache()
+	}
 	for _, cache := range c.cacheEntity {
 		for _, key := range cache.Keys() {
 			box, _ := cache.Peek(key)
@@ -725,13 +742,6 @@ func (c *ChainStore) Reorg(ctx context.Context, blockNumber int64) error {
 			}
 		}
 	}
-	c.mu.Unlock()
-
-	err := c.store.reorg(ctx, blockNumber, c.chain)
-
-	c.mu.Lock()
-	c.reorging = false
-	c.purgeCache()
 	c.mu.Unlock()
 	return err
 }

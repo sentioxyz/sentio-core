@@ -41,6 +41,7 @@ go_test(
     srcs = [
         "balance_test.go",
         "schema_mgr_test.go",
+        "storage_test.go",
     ],
     embed = [":chv4"],
     deps = [
@@ -49,6 +50,7 @@ go_test(
         "//chain/sui/types",
         "//common/chx",
         "//common/objectx",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
         "@com_github_pkg_errors//:errors",
         "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",
         "@com_github_stretchr_testify//assert",

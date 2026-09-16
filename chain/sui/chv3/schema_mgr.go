@@ -45,12 +45,18 @@ func NewClickhouseSchemaMgr(
 		return clickhouse.BuildTable(name, tblObj, config, "")
 	}
 	tables := []clickhouse.TableSchema{
-		createTableSchema(tableNameTransactions, &CHUTransaction{}, "checkpoint", "checkpoint_timestamp_ms", "digest"),
-		createTableSchema(tableNameEvents, &CHUEvent{}, "checkpoint", "timestamp_ms", "digest"),
+		createTableSchema(tableNameTransactions, &CHUTransaction{}, "checkpoint", "checkpoint_timestamp_ms", "digest").
+			WithUniqueKey("checkpoint", "digest"),
+		createTableSchema(tableNameEvents, &CHUEvent{}, "checkpoint", "timestamp_ms", "digest").
+			WithUniqueKey("checkpoint", "digest", "event_seq"),
+		// move calls and balance changes have no identity of their own: a transaction may legitimately
+		// carry two identical move calls, so neither table declares a unique key
 		createTableSchema(tableNameMoveCalls, &CHUMoveCall{}, "checkpoint", "timestamp_ms", "digest"),
 		createTableSchema(tableNameBalanceChanges, &CHUBalanceChange{}, "checkpoint", "timestamp_ms", "digest"),
-		createTableSchema(tableNameObjectChanges, &CHUObjectChange{}, "checkpoint", "timestamp_ms", "digest"),
-		createTableSchema(tableNameObjectPositions, &CHUObjectPosition{}, "object_id", "object_version", "checkpoint"),
+		createTableSchema(tableNameObjectChanges, &CHUObjectChange{}, "checkpoint", "timestamp_ms", "digest").
+			WithUniqueKey("checkpoint", "digest", "object_id"),
+		createTableSchema(tableNameObjectPositions, &CHUObjectPosition{}, "object_id", "object_version", "checkpoint").
+			WithUniqueKey("object_id", "object_version"),
 	}
 	return &ClickhouseSchemaMgrV3{
 		tablesMeta: clickhouse.TablesMeta{

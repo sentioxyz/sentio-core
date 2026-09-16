@@ -50,9 +50,12 @@ func NewClickhouseSchemaMgr(
 		return clickhouse.BuildTable(name, tblObj, config, "")
 	}
 	tables := []clickhouse.TableSchema{
-		createTableSchema(tableNameBlocks, &Block{}, blockPartitionBy, "block_height"),
-		createTableSchema(tableNameTransactions, &Transaction{}, txnPartitionBy, "transaction_version"),
-		createTableSchema(tableNameEvents, &Event{}, txnPartitionBy, "transaction_version", "event_index"),
+		createTableSchema(tableNameBlocks, &Block{}, blockPartitionBy, "block_height").
+			WithUniqueKey("block_height"),
+		createTableSchema(tableNameTransactions, &Transaction{}, txnPartitionBy, "transaction_version").
+			WithUniqueKey("transaction_version"),
+		createTableSchema(tableNameEvents, &Event{}, txnPartitionBy, "transaction_version", "event_index").
+			WithUniqueKey("transaction_version", "event_index"),
 	}
 	views := []chx.View{
 		buildChangesView(ctrl),

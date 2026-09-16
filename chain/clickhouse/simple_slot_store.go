@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,6 +56,9 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		slowFlushThreshold: slowFlushThreshold,
 	}
 	for _, table := range tablesMeta.Tables {
+		if err := table.checkUniqueKey(); err != nil {
+			return nil, err
+		}
 		pre, has, err := s.ctrl.LoadOne(ctx, table.Table.Name, false)
 		if err != nil {
 			logger.Errorfe(err, "load table %s failed", table.Table.Name)
@@ -445,13 +449,16 @@ func (s *SimpleSlotStore[SLOT]) Load(ctx context.Context, interval rg.Range, slo
 	panic(errors.Errorf("not supported"))
 }
 
-func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
-	_, logger := log.FromContext(ctx, "interval", interval.String())
-	start := time.Now()
-
-	// build where tpl
-	whereTpl := fmt.Sprintf("%%bn#s >= %d AND %%bn#s <= %d", interval.Start, interval.EndOrMaxUInt64())
-	whereExTpl := whereTpl
+// buildRangeWhere returns the WHERE templates selecting the rows of interval: whereTpl uses the
+// number field only (placeholder bn), whereExTpl also bounds the sub-number field (placeholder
+// sbn) for the tables partitioned by it, converting the slot range through the block table.
+func (s *SimpleSlotStore[SLOT]) buildRangeWhere(ctx context.Context, interval rg.Range) (
+	whereTpl string,
+	whereExTpl string,
+	err error,
+) {
+	whereTpl = fmt.Sprintf("%%bn#s >= %d AND %%bn#s <= %d", interval.Start, interval.EndOrMaxUInt64())
+	whereExTpl = whereTpl
 	if s.tablesMeta.BlockTableIndex >= 0 {
 		// some table partition by sub-block number, but interval.L() and interval.R() is block number, so need to convert
 		// them to sub-block number range
@@ -481,7 +488,7 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 			MinSubBlockNumber uint64
 			MaxSubBlockNumber uint64
 		}
-		err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 			var b block
 			if scanErr := rows.Scan(&b.BlockNumber, &b.MinSubBlockNumber, &b.MaxSubBlockNumber); scanErr != nil {
 				return scanErr
@@ -499,28 +506,87 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 			return nil
 		}, sql)
 		if err != nil {
-			return errors.Wrapf(err, "convert block range %s to sub block range in table %s failed",
+			return "", "", errors.Wrapf(err, "convert block range %s to sub block range in table %s failed",
 				interval, blockTable.Table.Name)
 		}
 	}
+	return whereTpl, whereExTpl, nil
+}
 
+func (t TableSchema) rangeWhere(whereTpl, whereExTpl string) string {
+	if t.SubNumberField != "" {
+		return format.Format(whereExTpl, map[string]any{
+			"bn":  t.NumberField,
+			"sbn": t.SubNumberField,
+		})
+	}
+	return format.Format(whereTpl, map[string]any{
+		"bn": t.NumberField,
+	})
+}
+
+func (t TableSchema) checkUniqueKey() error {
+	for _, column := range t.UniqueKey {
+		if !slices.Contains(t.Table.Fields.Names(), column) {
+			return errors.Errorf("unique key column %q is not a column of table %s", column, t.Table.Name)
+		}
+	}
+	return nil
+}
+
+// CheckDuplicates implements chain.DuplicateChecker: every table declaring a UniqueKey is scanned
+// for keys carried by more than one row inside interval. Tables without a key are skipped.
+func (s *SimpleSlotStore[SLOT]) CheckDuplicates(
+	ctx context.Context,
+	interval rg.Range,
+) ([]chain.DuplicateReport, error) {
+	if interval.End == nil {
+		return nil, errors.Errorf("interval %s is infinity", interval)
+	}
+	whereTpl, whereExTpl, err := s.buildRangeWhere(ctx, interval)
+	if err != nil {
+		return nil, err
+	}
+	var reports []chain.DuplicateReport
+	for _, table := range s.tablesMeta.Tables {
+		if table.NumberField == "" || len(table.UniqueKey) == 0 {
+			continue
+		}
+		sql := fmt.Sprintf(
+			"SELECT count(), toUInt64(sum(c - 1)), toUInt64(min(n)), toUInt64(max(n)) FROM ("+
+				"SELECT count() AS c, min(`%s`) AS n FROM %s WHERE %s GROUP BY `%s` HAVING c > 1)",
+			table.NumberField,
+			s.ctrl.FullLogicName(table.Table.Name),
+			table.rangeWhere(whereTpl, whereExTpl),
+			strings.Join(table.UniqueKey, "`, `"),
+		)
+		report := chain.DuplicateReport{Table: table.Table.Name}
+		err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
+			return rows.Scan(&report.Groups, &report.ExtraRows, &report.First, &report.Last)
+		}, sql)
+		if err != nil {
+			return nil, errors.Wrapf(err, "check duplicates of table %s in %s failed", table.Table.Name, interval)
+		}
+		if report.Groups > 0 {
+			reports = append(reports, report)
+		}
+	}
+	return reports, nil
+}
+
+func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
+	_, logger := log.FromContext(ctx, "interval", interval.String())
+	start := time.Now()
+
+	whereTpl, whereExTpl, err := s.buildRangeWhere(ctx, interval)
+	if err != nil {
+		return err
+	}
 	for _, table := range s.tablesMeta.Tables {
 		if table.NumberField == "" {
 			continue
 		}
-
-		// build where part
-		var where string
-		if table.SubNumberField != "" {
-			where = format.Format(whereExTpl, map[string]any{
-				"bn":  table.NumberField,
-				"sbn": table.SubNumberField,
-			})
-		} else {
-			where = format.Format(whereTpl, map[string]any{
-				"bn": table.NumberField,
-			})
-		}
+		where := table.rangeWhere(whereTpl, whereExTpl)
 		// execute delete sql
 		startAt := time.Now()
 		// Lightweight deletes (patch- or mask-based) never touch projection data:

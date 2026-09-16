@@ -160,3 +160,13 @@ func (d *SimpleDimension[SLOT]) Delete(ctx context.Context, targetRange rg.Range
 	logger.Infof("delete %s succeed, curRange is %s", targetRange, after)
 	return nil
 }
+
+// CheckDuplicates implements DuplicateChecker by forwarding to the slot store; a store that does
+// not implement DuplicateChecker yields ErrDuplicateCheckUnsupported.
+func (d *SimpleDimension[SLOT]) CheckDuplicates(ctx context.Context, interval rg.Range) ([]DuplicateReport, error) {
+	checker, ok := d.SimpleSlotStore.(DuplicateChecker)
+	if !ok {
+		return nil, ErrDuplicateCheckUnsupported
+	}
+	return checker.CheckDuplicates(ctx, interval)
+}

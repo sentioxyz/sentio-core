@@ -285,10 +285,17 @@ func (c *EthVariationController[BLOCK, TXN]) BuildTablesMeta(blockPartitionSize 
 		return clickhouse.BuildTable(name, tblObj, config, "")
 	}
 	tables := []clickhouse.TableSchema{
-		createTableSchema(tableNameBlocks, c.newBlock(), "block_number"),
-		createTableSchema(tableNameTransactions, c.newTxn(), "block_number", "transaction_index"),
-		createTableSchema(tableNameLogs, &Log{}, "block_number", "transaction_index", "log_index"),
-		createTableSchema(tableNameTraces, &Trace{}, "block_number", "transaction_index", "trace_index"),
+		createTableSchema(tableNameBlocks, c.newBlock(), "block_number").
+			WithUniqueKey("block_number"),
+		createTableSchema(tableNameTransactions, c.newTxn(), "block_number", "transaction_index").
+			WithUniqueKey("block_number", "transaction_index"),
+		createTableSchema(tableNameLogs, &Log{}, "block_number", "transaction_index", "log_index").
+			WithUniqueKey("block_number", "transaction_index", "log_index"),
+		// reward traces carry no transaction position, so they land on transaction_index 0 and get their
+		// own trace_index sequence there; `type` keeps them apart from the traces of the first transaction
+		createTableSchema(tableNameTraces, &Trace{}, "block_number", "transaction_index", "trace_index").
+			WithUniqueKey("block_number", "transaction_index", "trace_index", "type"),
+		// withdrawals only stores the block number today, so its rows have no identity to check
 		createTableSchema(tableNameWithdrawals, &Withdrawal{}, "block_number"),
 	}
 	const blockTableIndex = 0

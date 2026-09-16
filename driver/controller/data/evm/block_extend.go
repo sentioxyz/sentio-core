@@ -24,6 +24,10 @@ type BlockExtendRequirement struct {
 	AllTraces bool
 }
 
+// Merge adds a's requirements to r. It only appends the special transaction lists; call Trim once
+// after the last Merge to deduplicate them. Trimming on every Merge made merging the requirements
+// of a block's agents quadratic in their number, each Trim rebuilding a set of everything merged
+// so far.
 func (r *BlockExtendRequirement) Merge(a BlockExtendRequirement) {
 	r.AllTransactions = r.AllTransactions || a.AllTransactions
 	r.AllTransactionReceipts = r.AllTransactionReceipts || a.AllTransactionReceipts
@@ -32,7 +36,6 @@ func (r *BlockExtendRequirement) Merge(a BlockExtendRequirement) {
 	r.SpecialTransactions = append(r.SpecialTransactions, a.SpecialTransactions...)
 	r.SpecialTransactionReceipts = append(r.SpecialTransactionReceipts, a.SpecialTransactionReceipts...)
 	r.SpecialTransactionReceiptLogs = append(r.SpecialTransactionReceiptLogs, a.SpecialTransactionReceiptLogs...)
-	r.Trim()
 }
 
 func (r *BlockExtendRequirement) IsEmpty() bool {
@@ -42,6 +45,7 @@ func (r *BlockExtendRequirement) IsEmpty() bool {
 		!r.AllTraces
 }
 
+// Trim deduplicates the special transaction lists and drops the ones an All* flag makes redundant.
 func (r *BlockExtendRequirement) Trim() {
 	if r.AllTransactions {
 		r.SpecialTransactions = nil

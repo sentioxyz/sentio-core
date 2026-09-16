@@ -38,6 +38,7 @@ go_library(
 go_test(
     name = "evm_test",
     srcs = [
+        "block_extend_test.go",
         "ex_test.go",
         "log_test.go",
     ],

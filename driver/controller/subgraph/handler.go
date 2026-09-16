@@ -402,6 +402,7 @@ func (c *HandlerController) getBlockExtendRequirements(
 		}
 		req.Merge(ar)
 	}
+	req.Trim()
 	return
 }
 

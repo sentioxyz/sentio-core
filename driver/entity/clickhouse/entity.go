@@ -559,7 +559,10 @@ func (s *Store) reorgInVersionedLatestTable(
 	return
 }
 
-func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) error {
+// reorg deletes the rows generated after blockNumber. changed reports whether any row was
+// deleted (or a table rebuilt): when nothing was, the store is as it was and caches of it stay
+// valid.
+func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) (changed bool, err error) {
 	_, logger := log.FromContext(ctx)
 	for _, entityType := range s.sch.ListEntities(false) {
 		failMsg := fmt.Sprintf("delete %q entities created after block %d in chain %q failed",
@@ -577,9 +580,10 @@ func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) erro
 			"used", time.Since(start).String())
 		if err != nil {
 			entityLogger.Errorfe(err, "delete failed")
-			return fmt.Errorf("%s: %w", failMsg, err)
+			return changed, fmt.Errorf("%s: %w", failMsg, err)
 		}
 		entityLogger.Infof("deleted %d rows in table %s", deleted, tableName)
+		changed = changed || deleted > 0
 
 		if s.useVersionedCollapsingTable(entityType) {
 			// delete in versionedLatestEntity table
@@ -588,13 +592,14 @@ func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) erro
 			deleted, rebuilt, err = s.reorgInVersionedLatestTable(ctx, blockNumber, chain, latestTableName, tableName)
 			if err != nil {
 				entityLogger.Errorfe(err, "delete entities failed")
-				return fmt.Errorf("%s: %w", failMsg, err)
+				return changed, fmt.Errorf("%s: %w", failMsg, err)
 			}
 			if rebuilt {
 				entityLogger.Infof("rebuilt table %s", latestTableName)
 			} else {
 				entityLogger.Infof("deleted %d rows in table %s", deleted, latestTableName)
 			}
+			changed = changed || rebuilt || deleted > 0
 		}
 	}
 	for _, agg := range s.sch.ListAggregations() {
@@ -610,9 +615,10 @@ func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) erro
 			"used", time.Since(start).String())
 		if err != nil {
 			entityLogger.Errorfe(err, "delete failed")
-			return fmt.Errorf("%s: %w", failMsg, err)
+			return changed, fmt.Errorf("%s: %w", failMsg, err)
 		}
 		entityLogger.Infof("deleted %d rows in table %s", deleted, tableName)
+		changed = changed || deleted > 0
 	}
-	return nil
+	return changed, nil
 }

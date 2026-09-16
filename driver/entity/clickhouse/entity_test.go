@@ -535,8 +535,9 @@ func Test_getSetDel(t *testing.T) {
 
 	// === clean genBlockNumber > 100
 
-	err = s.reorg(ctx, 100, chain)
+	changed, err := s.reorg(ctx, 100, chain)
 	assert.NoError(t, err)
+	assert.True(t, changed)
 	// only 0x0a00 is remained
 
 	data, err = s.getEntity(ctx, entityAType, chain, "0x0a00")

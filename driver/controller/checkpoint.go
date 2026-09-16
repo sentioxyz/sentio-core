@@ -392,6 +392,8 @@ func (c *checkpointController) Ready(ctx context.Context, agentStat map[string]i
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.agentStat = agentStat
+	// Processing restarts from the last checkpoint, nothing processed before a stop may leak into the next line.
+	c.processed = processedWindow{}
 	var checkpoint *Checkpoint
 	if len(c.checkpoints) > 0 {
 		checkpoint = &c.checkpoints[len(c.checkpoints)-1]
@@ -440,6 +442,11 @@ func (c *checkpointController) CleanCheckpoint(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	_, logger := log.FromContext(ctx)
+	if c.processed.blocks > 0 {
+		// Report what was processed before the rollback, the blocks after the reorg point will be reported again
+		// once they are re-processed.
+		logger.Info(c.processed.take())
+	}
 	logger = logger.UserVisible()
 	detectedMsg := fmt.Sprintf("Reorg detected when processing block %d, all blocks from block %d are invalid",
 		curBlockNumber, blockNumberGE)

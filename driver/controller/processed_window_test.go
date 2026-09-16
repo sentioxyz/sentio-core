@@ -84,4 +84,21 @@ func Test_processedWindow(t *testing.T) {
 	if assert.Len(t, lines, 1) {
 		assert.True(t, strings.HasSuffix(lines[0], "[0/21-22/100000] with 0 bindings in 0 blocks"), lines[0])
 	}
+
+	// A reorg reports the pending window before rolling back, and the restart clears whatever is left so the
+	// re-processed blocks are not merged with the rolled back ones.
+	process(23, 1)
+	process(24, 2)
+	assert.Nil(t, cc.CleanCheckpoint(ctx, 25, 24))
+	lines = processedLines()
+	if assert.Len(t, lines, 1) {
+		assert.Contains(t, lines[0], "[0/23-24/100000] with 3 bindings in 2 blocks: [23-24][1 2]")
+	}
+	assert.Nil(t, cc.Ready(ctx, nil))
+	process(24, 5)
+	assert.Nil(t, cc.Save(ctx, true))
+	lines = processedLines()
+	if assert.Len(t, lines, 1) {
+		assert.Contains(t, lines[0], "[0/24-24/100000] with 5 bindings in 1 blocks: [24][5]")
+	}
 }

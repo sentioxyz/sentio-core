@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "client.go",
         "extserver.go",
+        "protocol_version.go",
         "query.go",
         "rpc_types.go",
         "rpc_types_v2.go",
@@ -20,6 +21,7 @@ go_library(
         "//chain/sui/types",
         "//common/chains",
         "//common/concurrency",
+        "//common/envconf",
         "//common/https",
         "//common/log",
         "//common/protojson",
@@ -44,6 +46,7 @@ go_test(
     srcs = [
         "client_test.go",
         "extgrpc_json_test.go",
+        "protocol_version_test.go",
         "query_test.go",
         "rpc_types_v2_test.go",
     ],

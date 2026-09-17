@@ -35,6 +35,10 @@ type ExtServerDimension struct {
 	loadObjectsBatchSize   int
 	loadObjectsConcurrency int
 
+	// protocolGuard halts grpc slot loading on a protocol version this build has not been
+	// reviewed against (see protocol_version.go). nil when validation is disabled.
+	protocolGuard *protocolGuard
+
 	*chain.ExtServerDimension[*Slot]
 }
 
@@ -65,6 +69,9 @@ func NewExtServerDimension(
 		enableGrpc:             enableGrpc,
 		loadObjectsBatchSize:   loadObjectsBatchSize,
 		loadObjectsConcurrency: loadObjectsConcurrency,
+	}
+	if !skipValidate {
+		dim.protocolGuard = newProtocolGuard(variation)
 	}
 	// loadBatchSize more than 1 is meaningless
 	dim.ExtServerDimension = chain.NewExtServerDimension[*Slot](
@@ -275,9 +282,51 @@ func (d *ExtServerDimension) getGrpcCheckpoint(ctx context.Context, sn uint64) (
 	return resp.GetCheckpoint(), nil
 }
 
+// getGrpcEpochProtocolVersion reads the protocol version one epoch runs. The protocol guard calls
+// it once per epoch, so the extra round trip is negligible.
+func (d *ExtServerDimension) getGrpcEpochProtocolVersion(ctx context.Context, epoch uint64) (uint64, error) {
+	var resp *rpcv2.GetEpochResponse
+	r := d.client.UseClient(
+		ctx,
+		fmt.Sprintf("ext.GetSlot.MainPart.grpc_GetEpoch/%d", epoch),
+		func(ctx context.Context, cli *Client) clientpool.Result {
+			return cli.UseGRPCConnection(ctx, "ext.GetSlot.MainPart.grpc_GetEpoch",
+				func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
+					req := &rpcv2.GetEpochRequest{
+						Epoch:    &epoch,
+						ReadMask: &fieldmaskpb.FieldMask{Paths: []string{"epoch", "protocol_config"}},
+					}
+					var err error
+					resp, err = rpcv2.NewLedgerServiceClient(conn).GetEpoch(ctx, req)
+					if err == nil && resp.GetEpoch().GetProtocolConfig().GetProtocolVersion() == 0 {
+						// A reply without the version is useless to the guard, and treating it
+						// as "nothing to check" would let an unreviewed version through. Count
+						// it as this client's failure so the pool asks another endpoint.
+						err = errors.Errorf("epoch %d reply carries no protocol version", epoch)
+					}
+					return clientpool.Result{
+						Err:           err,
+						BrokenForTask: err != nil, // always retry using other client
+					}
+				},
+			)
+		},
+		clientpool.WithConfigFilter(ClientConfig.SupportGRPC),
+	)
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	return resp.GetEpoch().GetProtocolConfig().GetProtocolVersion(), nil
+}
+
 func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot, error) {
 	ck, err := d.getGrpcCheckpoint(ctx, sn)
 	if err != nil {
+		return nil, err
+	}
+	// Unlike the json-rpc path, nothing downstream would notice data shapes this build cannot
+	// represent, so refuse the checkpoint instead of persisting it with fields silently dropped.
+	if err = d.protocolGuard.check(ctx, ck, d.getGrpcEpochProtocolVersion); err != nil {
 		return nil, err
 	}
 	s := &Slot{GrpcCheckpoint: ck}

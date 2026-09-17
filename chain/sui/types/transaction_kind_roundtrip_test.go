@@ -41,6 +41,10 @@ func TestTransactionKindRoundTrip(t *testing.T) {
 		// A PTB with a CallArg::FundsWithdrawal input (Sui-only; payload is the
 		// FundsWithdrawalArg struct, not an enum).
 		{"testdata/sui/programmable-funds-withdrawal.json", VariationSUI, "ProgrammableTransaction", true},
+		// A PTB whose FundsWithdrawal draws on an allowance (WithdrawFrom::SenderAllowance, BCS
+		// variant 2, enabled by protocol 137). Unlike the other two sources, its json form is an
+		// object rather than a bare string.
+		{"testdata/sui/programmable-funds-withdrawal-allowance.json", VariationSUI, "ProgrammableTransaction", true},
 		{"testdata/sui/change-epoch.json", VariationSUI, "ChangeEpoch", true},
 		{"testdata/sui/consensus-commit-prologue.json", VariationSUI, "ConsensusCommitPrologue", true},
 		{"testdata/sui/consensus-commit-prologue-v2.json", VariationSUI, "ConsensusCommitPrologueV2", true},

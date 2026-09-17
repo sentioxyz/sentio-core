@@ -35,7 +35,7 @@ func TestCredentialStringMasksPassword(t *testing.T) {
 	}
 	got := fmt.Sprintf("%v", credentials)
 	want := "map[reader:{Username:reader Password: Database:default} " +
-		"writer:{Username:sentio Password:***(6) Database:default}]"
+		"writer:{Username:sentio Password:****** Database:default}]"
 	if got != want {
 		t.Errorf("printed credentials = %q, want %q", got, want)
 	}
@@ -54,7 +54,8 @@ func TestLogSerializationMasksThePrivateKey(t *testing.T) {
 	if strings.Contains(logged, privateKeyHex) {
 		t.Errorf("LogSerialization leaks the private key: %s", logged)
 	}
-	if want := "private_key=b71c71***a3f291(64)"; !strings.Contains(logged, want) {
+	// 64 hex characters, so the first and last six survive and the 52 in between are masked.
+	if want := "private_key=b71c71" + strings.Repeat("*", 52) + "a3f291"; !strings.Contains(logged, want) {
 		t.Errorf("LogSerialization = %q, want it to contain %q", logged, want)
 	}
 }

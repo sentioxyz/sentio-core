@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"net/url"
 	"strings"
 )
@@ -14,17 +13,14 @@ func mosaic(ch byte, len int) string {
 	return string(s)
 }
 
-// AddSecretMosaic replaces a secret with a hint: how long it is, plus at most a fifth of its
-// characters, the first and last len/10 of them. A secret shorter than ten characters is hidden
-// entirely. The hint is there so that an operator reading a log can tell a misconfigured value from
-// the intended one, without the log handing out the secret itself.
+// AddSecretMosaic replaces a secret with as many "*" as it has characters, keeping the first and
+// last len/10 of them: at most a fifth of the secret, and nothing at all below ten characters. What
+// is left is enough for an operator reading a log to tell a misconfigured value from the intended
+// one, without the log handing out the secret itself.
 func AddSecretMosaic(secret string) string {
 	runes := []rune(secret)
 	visible := len(runes) / 10
-	if visible == 0 {
-		return fmt.Sprintf("***(%d)", len(runes))
-	}
-	return fmt.Sprintf("%s***%s(%d)", string(runes[:visible]), string(runes[len(runes)-visible:]), len(runes))
+	return string(runes[:visible]) + mosaic('*', len(runes)-2*visible) + string(runes[len(runes)-visible:])
 }
 
 // AddURLMosaic hides the credentials of a URL so that it can safely be logged, replacing them with

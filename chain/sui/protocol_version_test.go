@@ -28,7 +28,7 @@ func fetcher(version uint64, calls *int) fetchEpochVersion {
 }
 
 func TestProtocolGuardAcceptsReviewedVersion(t *testing.T) {
-	g := &protocolGuard{variation: types.VariationSUI, max: 137, checkedEpochs: map[uint64]bool{}}
+	g := &protocolGuard{variation: types.VariationSUI, max: 137}
 	calls := 0
 	fetch := fetcher(137, &calls)
 
@@ -39,7 +39,7 @@ func TestProtocolGuardAcceptsReviewedVersion(t *testing.T) {
 }
 
 func TestProtocolGuardRejectsNewerEpochVersion(t *testing.T) {
-	g := &protocolGuard{variation: types.VariationSUI, max: 137, checkedEpochs: map[uint64]bool{}}
+	g := &protocolGuard{variation: types.VariationSUI, max: 137}
 	calls := 0
 
 	err := g.check(context.Background(), checkpointAt(42, 1300, 0), fetcher(138, &calls))
@@ -54,7 +54,7 @@ func TestProtocolGuardRejectsNewerEpochVersion(t *testing.T) {
 // An end-of-epoch checkpoint announces the next epoch's version, so the upgrade is caught one
 // checkpoint before any transaction can use the new shapes.
 func TestProtocolGuardRejectsAnnouncedVersion(t *testing.T) {
-	g := &protocolGuard{variation: types.VariationIOTA, max: 35, checkedEpochs: map[uint64]bool{}}
+	g := &protocolGuard{variation: types.VariationIOTA, max: 35}
 	calls := 0
 
 	err := g.check(context.Background(), checkpointAt(7, 100, 36), fetcher(35, &calls))
@@ -68,7 +68,7 @@ func TestProtocolGuardRejectsAnnouncedVersion(t *testing.T) {
 // only moves up), so the guard hands the check from one epoch to the next without ever asking the
 // node again.
 func TestProtocolGuardAnnouncementCoversBothEpochs(t *testing.T) {
-	g := &protocolGuard{variation: types.VariationSUI, max: 137, checkedEpochs: map[uint64]bool{}}
+	g := &protocolGuard{variation: types.VariationSUI, max: 137}
 	calls := 0
 	fetch := fetcher(137, &calls)
 
@@ -82,6 +82,29 @@ func TestProtocolGuardAnnouncementCoversBothEpochs(t *testing.T) {
 	assert.Zero(t, calls)
 }
 
+// An accepted epoch vouches for every earlier one (the protocol version never moves down), so
+// backfilling an older range never asks the node again.
+func TestProtocolGuardCoversEarlierEpochs(t *testing.T) {
+	g := &protocolGuard{variation: types.VariationSUI, max: 137}
+	calls := 0
+	fetch := fetcher(137, &calls)
+
+	require.NoError(t, g.check(context.Background(), checkpointAt(500, 1226, 0), fetch))
+	assert.Equal(t, 1, calls)
+
+	require.NoError(t, g.check(context.Background(), checkpointAt(10, 900, 0), fetch))
+	require.NoError(t, g.check(context.Background(), checkpointAt(11, 0, 0), fetch))
+	assert.Equal(t, 1, calls, "earlier epochs are covered by the accepted one")
+}
+
+// Epoch 0 must not pass for free just because nothing has been checked yet.
+func TestProtocolGuardChecksEpochZero(t *testing.T) {
+	g := &protocolGuard{variation: types.VariationSUI, max: 137}
+	calls := 0
+	require.NoError(t, g.check(context.Background(), checkpointAt(0, 0, 0), fetcher(137, &calls)))
+	assert.Equal(t, 1, calls)
+}
+
 func TestProtocolGuardDisabled(t *testing.T) {
 	calls := 0
 	// skipValidate leaves the guard nil
@@ -89,14 +112,14 @@ func TestProtocolGuardDisabled(t *testing.T) {
 	require.NoError(t, nilGuard.check(context.Background(), checkpointAt(1, 1, 999), fetcher(999, &calls)))
 
 	// an override of 0 turns the guard off
-	off := &protocolGuard{variation: types.VariationSUI, max: 0, checkedEpochs: map[uint64]bool{}}
+	off := &protocolGuard{variation: types.VariationSUI, max: 0}
 	require.NoError(t, off.check(context.Background(), checkpointAt(1, 1, 999), fetcher(999, &calls)))
 	assert.Zero(t, calls)
 }
 
 // A node that does not report a protocol version must not halt the chain.
 func TestProtocolGuardToleratesMissingVersion(t *testing.T) {
-	g := &protocolGuard{variation: types.VariationSUI, max: 137, checkedEpochs: map[uint64]bool{}}
+	g := &protocolGuard{variation: types.VariationSUI, max: 137}
 	calls := 0
 	require.NoError(t, g.check(context.Background(), checkpointAt(1, 1226, 0), fetcher(0, &calls)))
 	assert.Equal(t, 1, calls)

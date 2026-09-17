@@ -2,7 +2,7 @@ package sui
 
 import (
 	"context"
-	"sync"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 
@@ -67,18 +67,18 @@ type protocolGuard struct {
 	// max is 0 when the guard is disabled.
 	max uint64
 
-	mu sync.Mutex
-	// checkedEpochs holds the epochs whose protocol version was resolved and accepted, so the
-	// node is asked once per epoch rather than once per checkpoint. Rejected epochs are not
-	// recorded: every checkpoint in them must keep failing.
-	checkedEpochs map[uint64]bool
+	// checkedUpTo is one past the highest epoch whose protocol version was accepted. Every epoch
+	// below it is covered without asking again: the protocol version never moves down, so an
+	// accepted epoch vouches for all earlier ones (backfilling an old range included). 0 means
+	// nothing has been checked yet, which is why the bound is exclusive — epoch 0 must not pass
+	// for free. A rejected epoch never advances it: every checkpoint in it must keep failing.
+	checkedUpTo atomic.Uint64
 }
 
 func newProtocolGuard(variation types.Variation) *protocolGuard {
 	return &protocolGuard{
-		variation:     variation,
-		max:           maxSupportedProtocolVersion(variation),
-		checkedEpochs: map[uint64]bool{},
+		variation: variation,
+		max:       maxSupportedProtocolVersion(variation),
 	}
 }
 
@@ -133,7 +133,7 @@ func (g *protocolGuard) check(ctx context.Context, ck *rpcv2.Checkpoint, fetch f
 		// consensus data rather than a node's reply, so trust it for both epochs and skip the
 		// lookup — while slots are loaded in order, this hands the check from one epoch to the
 		// next and GetEpoch is never called again.
-		g.markChecked(epoch, epoch+1)
+		g.markChecked(epoch + 1)
 		return nil
 	}
 
@@ -159,15 +159,17 @@ func (g *protocolGuard) check(ctx context.Context, ck *rpcv2.Checkpoint, fetch f
 }
 
 func (g *protocolGuard) isChecked(epoch uint64) bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.checkedEpochs[epoch]
+	return epoch < g.checkedUpTo.Load()
 }
 
-func (g *protocolGuard) markChecked(epochs ...uint64) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	for _, epoch := range epochs {
-		g.checkedEpochs[epoch] = true
+func (g *protocolGuard) markChecked(epoch uint64) {
+	for {
+		cur := g.checkedUpTo.Load()
+		if epoch+1 <= cur {
+			return
+		}
+		if g.checkedUpTo.CompareAndSwap(cur, epoch+1) {
+			return
+		}
 	}
 }

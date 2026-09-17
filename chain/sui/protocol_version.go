@@ -10,7 +10,6 @@ import (
 
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/envconf"
-	"sentioxyz/sentio-core/common/log"
 )
 
 // Sui and IOTA gate every new on-chain data shape behind a protocol version: a new
@@ -153,15 +152,12 @@ func (g *protocolGuard) check(ctx context.Context, ck *rpcv2.Checkpoint, fetch f
 		return errors.Wrapf(err, "resolve protocol version of epoch %d", epoch)
 	}
 	if version == 0 {
-		// The node did not report one. There is nothing to check against, and halting the chain
-		// over a gap in a reply would be the wrong trade; stop asking for this epoch so a node
-		// that will not answer does not collect a request per slot, and rely on the
-		// announcements, which come from the checkpoints themselves.
-		_, logger := log.FromContext(ctx)
-		logger.Warnf("%s node reported no protocol version for epoch %d; an unreviewed protocol "+
-			"version will only be caught at the next epoch boundary", g.variation, epoch)
-		g.markChecked(epoch)
-		return nil
+		// Defensive: the fetcher already rejects a reply without a version, and accepting the
+		// epoch here would be fail-open - a process starting inside an epoch that upgraded while
+		// it was down would then persist unknown shapes until the next end-of-epoch
+		// announcement, which is the one case this lookup exists for.
+		return errors.Errorf("%s epoch %d has no protocol version at checkpoint %d; refusing to "+
+			"load it unchecked", g.variation, epoch, sn)
 	}
 	if err = g.accept(version, epoch, sn, false); err != nil {
 		return err

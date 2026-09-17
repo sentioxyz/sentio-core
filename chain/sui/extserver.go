@@ -298,6 +298,12 @@ func (d *ExtServerDimension) getGrpcEpochProtocolVersion(ctx context.Context, ep
 					}
 					var err error
 					resp, err = rpcv2.NewLedgerServiceClient(conn).GetEpoch(ctx, req)
+					if err == nil && resp.GetEpoch().GetProtocolConfig().GetProtocolVersion() == 0 {
+						// A reply without the version is useless to the guard, and treating it
+						// as "nothing to check" would let an unreviewed version through. Count
+						// it as this client's failure so the pool asks another endpoint.
+						err = errors.Errorf("epoch %d reply carries no protocol version", epoch)
+					}
 					return clientpool.Result{
 						Err:           err,
 						BrokenForTask: err != nil, // always retry using other client

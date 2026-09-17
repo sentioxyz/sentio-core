@@ -150,19 +150,21 @@ func TestProtocolGuardDisabled(t *testing.T) {
 	assert.Zero(t, calls)
 }
 
-// A node that does not report a protocol version must not halt the chain, and must not be asked
-// again for every checkpoint of that epoch either.
-func TestProtocolGuardToleratesMissingVersion(t *testing.T) {
+// A reply without a protocol version must never count as reviewed: that would be fail-open in
+// exactly the case this lookup exists for - a process starting inside an epoch that upgraded
+// while it was down.
+func TestProtocolGuardRejectsMissingVersion(t *testing.T) {
 	g := &protocolGuard{variation: types.VariationSUI, max: 137}
 	calls := 0
 	fetch := fetcher(0, &calls)
 
-	require.NoError(t, g.check(context.Background(), checkpointAt(1, 1226, 0), fetch))
-	require.NoError(t, g.check(context.Background(), checkpointAt(2, 1226, 0), fetch))
-	assert.Equal(t, 1, calls)
+	err := g.check(context.Background(), checkpointAt(1, 1226, 0), fetch)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no protocol version")
 
-	// announcements still apply
-	require.Error(t, g.check(context.Background(), checkpointAt(3, 1226, 138), fetch))
+	// the epoch is not recorded, so the next checkpoint asks again rather than sailing through
+	require.Error(t, g.check(context.Background(), checkpointAt(2, 1226, 0), fetch))
+	assert.Equal(t, 2, calls)
 }
 
 // Resolving an epoch is a per-epoch check, so a failure halts the chain rather than passing

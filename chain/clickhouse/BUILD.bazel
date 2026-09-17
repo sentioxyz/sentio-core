@@ -36,6 +36,7 @@ go_test(
     embed = [":clickhouse"],
     deps = [
         "//common/chx",
+        "//common/range",
         "@com_github_shopspring_decimal//:decimal",
         "@com_github_stretchr_testify//assert",
     ],

@@ -75,8 +75,8 @@ type DuplicateReport struct {
 	Table     string
 	Groups    uint64 // distinct unique keys carried by more than one row
 	ExtraRows uint64 // rows beyond the first one of every duplicated key
-	First     uint64 // slot number of the first duplicated key
-	Last      uint64 // slot number of the last duplicated key
+	First     uint64 // lowest number field value among the duplicated keys
+	Last      uint64 // highest number field value among the duplicated keys
 }
 
 // DuplicateChecker is an optional interface of a Dimension (or of the slot store behind it) that

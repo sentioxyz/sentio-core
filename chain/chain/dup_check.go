@@ -27,6 +27,8 @@ type duplicateCheck struct {
 	lastStart time.Time
 	next      uint64 // first slot of the next window, valid when hasNext; a failed run keeps it
 	hasNext   bool
+	rewinds   uint64 // counts rewinds, so a finished run can tell one happened while it ran
+	runRewind uint64 // value of rewinds when the running scan started
 }
 
 func newDuplicateCheck[SLOT Slot](dst Dimension[SLOT], config SyncConfig) *duplicateCheck {
@@ -70,6 +72,7 @@ func (c *duplicateCheck) maybeStart(ctx context.Context, cur rg.Range) {
 		return
 	}
 	c.running = true
+	c.runRewind = c.rewinds
 	go c.run(ctx, rg.NewRange(c.next, end))
 }
 
@@ -82,6 +85,7 @@ func (c *duplicateCheck) rewind(from uint64) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.rewinds++
 	if !c.hasNext || from < c.next {
 		c.next, c.hasNext = from, true
 	}
@@ -104,6 +108,10 @@ func (c *duplicateCheck) run(ctx context.Context, interval rg.Range) {
 		if ctx.Err() == nil {
 			logger.Warnfe(err, "duplicate check failed, the range will be checked again next time")
 		}
+	case c.rewinds != c.runRewind:
+		// the destination rolled back while the scan ran, so part of what it just read is being
+		// written again: leave the window where the rewind put it and scan it again
+		logger.Info("duplicate check finished over a range that has been rolled back since, will scan it again")
 	default:
 		c.next = *interval.End + 1
 		for _, r := range reports {

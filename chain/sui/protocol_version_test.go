@@ -97,6 +97,37 @@ func TestProtocolGuardCoversEarlierEpochs(t *testing.T) {
 	require.NoError(t, g.check(context.Background(), checkpointAt(10, 900, 0), fetch))
 	require.NoError(t, g.check(context.Background(), checkpointAt(11, 0, 0), fetch))
 	assert.Equal(t, 1, calls, "earlier epochs are covered by the accepted one")
+
+	// a jump forward is still resolved
+	require.NoError(t, g.check(context.Background(), checkpointAt(900, 1230, 0), fetch))
+	assert.Equal(t, 2, calls)
+}
+
+// Accepting one epoch must never wave the next one through: nothing guarantees the end-of-epoch
+// checkpoint that announces an upgrade is ever loaded (a gap, a restart, a range loaded out of
+// order), so every new epoch is resolved on its own.
+func TestProtocolGuardChecksEachNewEpoch(t *testing.T) {
+	g := &protocolGuard{variation: types.VariationSUI, max: 137}
+	asked := []uint64{}
+	fetch := func(_ context.Context, epoch uint64) (uint64, error) {
+		asked = append(asked, epoch)
+		if epoch >= 1226 {
+			return 138, nil // the upgrade this build has not reviewed
+		}
+		return 137, nil
+	}
+
+	// second-to-last checkpoint of epoch 1225, which carries no announcement
+	require.NoError(t, g.check(context.Background(), checkpointAt(99, 1225, 0), fetch))
+
+	// first checkpoint of epoch 1226, skipping the end-of-epoch checkpoint entirely
+	err := g.check(context.Background(), checkpointAt(101, 1226, 0), fetch)
+	require.Error(t, err, "a new epoch must be resolved, not inherited from the previous one")
+	assert.Contains(t, err.Error(), "protocol version 138")
+	assert.Equal(t, []uint64{1225, 1226}, asked)
+
+	// and it keeps failing rather than settling after one complaint
+	require.Error(t, g.check(context.Background(), checkpointAt(102, 1226, 0), fetch))
 }
 
 // Epoch 0 must not pass for free just because nothing has been checked yet.

@@ -127,12 +127,17 @@ func (g *protocolGuard) check(ctx context.Context, ck *rpcv2.Checkpoint, fetch f
 		if err := g.accept(next, epoch+1, sn, true); err != nil {
 			return err
 		}
+		// The protocol version only ever moves up: a validator votes for next+1 and stops at
+		// the highest version a quorum supports (sui-core choose_protocol_version_and_system_
+		// packages_v2), so an accepted next epoch vouches for this one too. The announcement is
+		// consensus data rather than a node's reply, so trust it for both epochs and skip the
+		// lookup — while slots are loaded in order, this hands the check from one epoch to the
+		// next and GetEpoch is never called again.
+		g.markChecked(epoch, epoch+1)
+		return nil
 	}
 
-	g.mu.Lock()
-	seen := g.checkedEpochs[epoch]
-	g.mu.Unlock()
-	if seen {
+	if g.isChecked(epoch) {
 		return nil
 	}
 
@@ -149,8 +154,20 @@ func (g *protocolGuard) check(ctx context.Context, ck *rpcv2.Checkpoint, fetch f
 		return err
 	}
 
-	g.mu.Lock()
-	g.checkedEpochs[epoch] = true
-	g.mu.Unlock()
+	g.markChecked(epoch)
 	return nil
+}
+
+func (g *protocolGuard) isChecked(epoch uint64) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.checkedEpochs[epoch]
+}
+
+func (g *protocolGuard) markChecked(epochs ...uint64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for _, epoch := range epochs {
+		g.checkedEpochs[epoch] = true
+	}
 }

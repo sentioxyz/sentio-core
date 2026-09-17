@@ -64,6 +64,24 @@ func TestProtocolGuardRejectsAnnouncedVersion(t *testing.T) {
 	assert.Zero(t, calls, "the announcement is in the checkpoint; no epoch lookup needed to reject")
 }
 
+// An accepted end-of-epoch announcement vouches for the next epoch as well (the protocol version
+// only moves up), so the guard hands the check from one epoch to the next without ever asking the
+// node again.
+func TestProtocolGuardAnnouncementCoversBothEpochs(t *testing.T) {
+	g := &protocolGuard{variation: types.VariationSUI, max: 137, checkedEpochs: map[uint64]bool{}}
+	calls := 0
+	fetch := fetcher(137, &calls)
+
+	// last checkpoint of epoch 1226, announcing 137 for 1227
+	require.NoError(t, g.check(context.Background(), checkpointAt(100, 1226, 137), fetch))
+	assert.Zero(t, calls, "the announcement is authoritative; no epoch lookup needed")
+
+	// both the epoch that announced and the announced one are now covered
+	require.NoError(t, g.check(context.Background(), checkpointAt(99, 1226, 0), fetch))
+	require.NoError(t, g.check(context.Background(), checkpointAt(101, 1227, 0), fetch))
+	assert.Zero(t, calls)
+}
+
 func TestProtocolGuardDisabled(t *testing.T) {
 	calls := 0
 	// skipValidate leaves the guard nil

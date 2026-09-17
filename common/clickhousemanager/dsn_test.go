@@ -2,6 +2,7 @@ package ckhmanager
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -66,5 +67,22 @@ func TestCredentialStringMasksPassword(t *testing.T) {
 		"writer:{Username:sentio Password:xxxxx Database:default}]"
 	if got != want {
 		t.Errorf("printed credentials = %q, want %q", got, want)
+	}
+}
+
+func TestParseDSNErrorHidesPassword(t *testing.T) {
+	dsn := "clickhouse://sentio:s3cr3t@ch-0:9000/default?dial_timeout=nope"
+	if _, err := ParseDSN(dsn); err == nil {
+		t.Fatal("ParseDSN succeeded, want an error")
+	} else if strings.Contains(err.Error(), "s3cr3t") {
+		t.Errorf("ParseDSN error leaks the password: %v", err)
+	}
+
+	// The driver reports a malformed DSN as a *url.Error carrying the whole DSN.
+	dsn = "clickhouse://sentio:s3cr3t@ch-0:9000/%zz"
+	if _, err := ParseDSN(dsn); err == nil {
+		t.Fatal("ParseDSN succeeded, want an error")
+	} else if strings.Contains(err.Error(), "s3cr3t") {
+		t.Errorf("ParseDSN error leaks the password: %v", err)
 	}
 }

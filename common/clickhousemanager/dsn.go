@@ -2,6 +2,9 @@ package ckhmanager
 
 import (
 	"net/url"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/pkg/errors"
 )
 
 // maskedSecret replaces every credential we strip out of a DSN before it reaches a log line.
@@ -25,4 +28,19 @@ func MaskDSN(dsn string) string {
 		parsed.RawQuery = query.Encode()
 	}
 	return parsed.Redacted()
+}
+
+// ParseDSN parses a ClickHouse DSN the way clickhouse.ParseDSN does, but reports a failure with the
+// password masked. The driver returns a *url.Error that embeds the raw DSN, so propagating that
+// error as is leaks the credentials into whatever ends up logging it.
+func ParseDSN(dsn string) (*clickhouse.Options, error) {
+	options, err := clickhouse.ParseDSN(dsn)
+	if err != nil {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
+		return nil, errors.Wrapf(err, "parse dsn %s failed", MaskDSN(dsn))
+	}
+	return options, nil
 }

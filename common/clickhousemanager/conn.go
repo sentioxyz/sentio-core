@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
-	"net/url"
 	"sync"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/mitchellh/hashstructure/v2"
-	"github.com/pkg/errors"
 )
 
 type connSettings struct {
@@ -158,15 +156,8 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 	}
 	if len(dsn) > 0 {
 		var err error
-		ckhOptions, err = clickhouse.ParseDSN(dsn)
+		ckhOptions, err = ParseDSN(dsn)
 		if err != nil {
-			// The driver reports a parse failure as a *url.Error that embeds the raw DSN, password
-			// included; keep only its cause so neither the log line nor the panic leaks credentials.
-			var urlErr *url.Error
-			if errors.As(err, &urlErr) {
-				err = urlErr.Err
-			}
-			err = errors.Wrapf(err, "parse dsn %s failed", MaskDSN(dsn))
 			log.Errore(err)
 			panic(err)
 		}

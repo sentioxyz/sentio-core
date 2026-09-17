@@ -239,6 +239,7 @@ type TransactionExpiration struct {
 	None        *struct{}
 	Epoch       *uint64
 	ValidDuring *ValidDuring
+	Validity    *Validity
 }
 
 // ValidDuring mirrors sui's TransactionExpiration::ValidDuring (BCS variant 2).
@@ -254,38 +255,51 @@ type TransactionExpiration struct {
 // `#[serde_as(as = "Readable<Base58, Bytes>")]` makes BCS length-prefix the
 // 32 bytes (serialize_bytes), so Chain is encoded as ULEB128(len)+bytes.
 type ValidDuring struct {
-	MinEpoch     *uint64
-	MaxEpoch     *uint64
-	MinTimestamp *uint64
-	MaxTimestamp *uint64
+	MinEpoch     *uint64 `bcs:"optional"`
+	MaxEpoch     *uint64 `bcs:"optional"`
+	MinTimestamp *uint64 `bcs:"optional"`
+	MaxTimestamp *uint64 `bcs:"optional"`
 	Chain        []byte
 	Nonce        uint32
 }
 
+// Validity mirrors sui's TransactionExpiration::Validity (BCS variant 3): the
+// ValidDuring fields followed by `allowed_proposers: Option<AllowedProposers>`.
+// Sui testnet started producing it at checkpoint 384489661 (2026-09-16).
+type Validity struct {
+	ValidDuring
+	AllowedProposers *AllowedProposers `bcs:"optional"`
+}
+
+// AllowedProposers mirrors sui's AllowedProposers { epoch: EpochId, proposers: Vec<u32> }.
+type AllowedProposers struct {
+	Epoch     uint64
+	Proposers []uint32
+}
+
 func (s TransactionExpiration) MarshalBCS() ([]byte, error) {
 	buf := bytes.NewBuffer(nil)
+	var payload any
 	switch {
 	case s.None != nil:
 		buf.Write(bcs.ULEB128Encode(0))
 	case s.Epoch != nil:
 		buf.Write(bcs.ULEB128Encode(1))
-		serde.Encode(buf, s.Epoch)
+		payload = s.Epoch
 	case s.ValidDuring != nil:
 		buf.Write(bcs.ULEB128Encode(2))
-		vd := s.ValidDuring
-		for _, opt := range []*uint64{vd.MinEpoch, vd.MaxEpoch, vd.MinTimestamp, vd.MaxTimestamp} {
-			if opt == nil {
-				buf.Write(bcs.ULEB128Encode(0))
-			} else {
-				buf.Write(bcs.ULEB128Encode(1))
-				serde.Encode(buf, opt)
-			}
-		}
-		buf.Write(bcs.ULEB128Encode(len(vd.Chain)))
-		buf.Write(vd.Chain)
-		serde.Encode(buf, &vd.Nonce)
+		payload = s.ValidDuring
+	case s.Validity != nil:
+		buf.Write(bcs.ULEB128Encode(3))
+		payload = s.Validity
 	default:
 		panic(errors.New("invalid TransactionExpiration"))
+	}
+	if payload == nil {
+		return buf.Bytes(), nil
+	}
+	if err := serde.Encode(buf, payload); err != nil {
+		return nil, err
 	}
 	return buf.Bytes(), nil
 }
@@ -297,44 +311,20 @@ func (s *TransactionExpiration) UnmarshalBCS(r io.Reader) (int, error) {
 	}
 	switch enumID {
 	case 0:
-		// None
 		s.None = &struct{}{}
+		return 0, nil
 	case 1:
-		// Epoch
 		s.Epoch = new(uint64)
-		err = serde.Decode(r, s.Epoch)
+		return 0, serde.Decode(r, s.Epoch)
 	case 2:
-		// ValidDuring
-		vd := &ValidDuring{}
-		for _, dst := range []**uint64{&vd.MinEpoch, &vd.MaxEpoch, &vd.MinTimestamp, &vd.MaxTimestamp} {
-			var tag int
-			if tag, _, err = bcs.ULEB128Decode[int](r); err != nil {
-				return 0, err
-			}
-			if tag == 1 {
-				v := new(uint64)
-				if err = serde.Decode(r, v); err != nil {
-					return 0, err
-				}
-				*dst = v
-			}
-		}
-		var chainLen int
-		if chainLen, _, err = bcs.ULEB128Decode[int](r); err != nil {
-			return 0, err
-		}
-		vd.Chain = make([]byte, chainLen)
-		if _, err = io.ReadFull(r, vd.Chain); err != nil {
-			return 0, err
-		}
-		if err = serde.Decode(r, &vd.Nonce); err != nil {
-			return 0, err
-		}
-		s.ValidDuring = vd
+		s.ValidDuring = &ValidDuring{}
+		return 0, serde.Decode(r, s.ValidDuring)
+	case 3:
+		s.Validity = &Validity{}
+		return 0, serde.Decode(r, s.Validity)
 	default:
 		return 0, errors.Errorf("unknown TransactionExpiration variant %d", enumID)
 	}
-	return 0, err
 }
 
 type GasData struct {
@@ -671,22 +661,23 @@ type AuthenticatorStateExpire struct {
 // the decoded BCS. IOTA uses different ChangeEpoch payloads (V2/V3/V4).
 // See https://docs.sui.io/sui-api-ref#suiendofepochtransactionkind
 type EndOfEpochTransactionSingle struct {
-	ChangeEpoch                    *ChangeEpoch                     `bcs:"enumNum[sui]=0"`
-	AuthenticatorStateCreate       *struct{}                        `bcs:"enumNum[sui]=1"`
-	AuthenticatorStateExpire       *AuthenticatorStateExpire        `bcs:"enumNum[sui]=2"`
-	RandomnessStateCreate          *struct{}                        `bcs:"enumNum[sui]=3"`
-	CoinDenyListStateCreate        *struct{}                        `bcs:"enumNum[sui]=4"`
-	BridgeStateCreate              *Digest                          `bcs:"enumNum[sui]=5"` // ChainIdentifier
-	BridgeCommitteeUpdate          *uint64                          `bcs:"enumNum[sui]=6"` // BridgeCommitteeInit(SequenceNumber)
-	StoreExecutionTimeObservations *StoredExecutionTimeObservations `bcs:"enumNum[sui]=7"`
-	AccumulatorRootCreate          *struct{}                        `bcs:"enumNum[sui]=8"`
-	CoinRegistryCreate             *struct{}                        `bcs:"enumNum[sui]=9"`
-	DisplayRegistryCreate          *struct{}                        `bcs:"enumNum[sui]=10"`
-	AddressAliasStateCreate        *struct{}                        `bcs:"enumNum[sui]=11"`
-	WriteAccumulatorStorageCost    *WriteAccumulatorStorageCost     `bcs:"enumNum[sui]=12"`
+	ChangeEpoch                     *ChangeEpoch                     `bcs:"enumNum[sui]=0"`
+	AuthenticatorStateCreate        *struct{}                        `bcs:"enumNum[sui]=1"`
+	AuthenticatorStateExpire        *AuthenticatorStateExpire        `bcs:"enumNum[sui]=2"`
+	RandomnessStateCreate           *struct{}                        `bcs:"enumNum[sui]=3"`
+	CoinDenyListStateCreate         *struct{}                        `bcs:"enumNum[sui]=4"`
+	BridgeStateCreate               *Digest                          `bcs:"enumNum[sui]=5"` // ChainIdentifier
+	BridgeCommitteeUpdate           *uint64                          `bcs:"enumNum[sui]=6"` // BridgeCommitteeInit(SequenceNumber)
+	StoreExecutionTimeObservations  *StoredExecutionTimeObservations `bcs:"enumNum[sui]=7"`
+	AccumulatorRootCreate           *struct{}                        `bcs:"enumNum[sui]=8"`
+	CoinRegistryCreate              *struct{}                        `bcs:"enumNum[sui]=9"`
+	DisplayRegistryCreate           *struct{}                        `bcs:"enumNum[sui]=10"`
+	AddressAliasStateCreate         *struct{}                        `bcs:"enumNum[sui]=11"`
+	WriteAccumulatorStorageCost     *WriteAccumulatorStorageCost     `bcs:"enumNum[sui]=12"`
+	ForwardingAddressRegistryCreate *struct{}                        `bcs:"enumNum[sui]=13"`
 	// IOTA's EndOfEpochTransactionKind ChangeEpoch payloads (V2/V3/V4 at iota
 	// variants 1/2/3); ChangeEpoch differs from Sui's so it is sui-only above.
-	ChangeEpochV2 *ChangeEpochV2 `bcs:"enumNum[sui]=13,enumNum[iota]=1"`
+	ChangeEpochV2 *ChangeEpochV2 `bcs:"enumNum[iota]=1"`
 	ChangeEpochV3 *ChangeEpochV3 `bcs:"enumNum[iota]=2"`
 	ChangeEpochV4 *ChangeEpochV4 `bcs:"enumNum[iota]=3"`
 }
@@ -776,6 +767,8 @@ func (s EndOfEpochTransactionSingle) buildRawStruct() any {
 		j = "AddressAliasStateCreate"
 	case s.WriteAccumulatorStorageCost != nil:
 		j = "WriteAccumulatorStorageCost"
+	case s.ForwardingAddressRegistryCreate != nil:
+		j = "ForwardingAddressRegistryCreate"
 	case s.ChangeEpoch != nil:
 		j = &struct {
 			ChangeEpoch *ChangeEpoch `json:"ChangeEpoch"`
@@ -853,6 +846,8 @@ func (s *EndOfEpochTransactionSingle) UnmarshalJSON(data []byte) error {
 		case "WriteAccumulatorStorageCost":
 			// payload is not in json; DeriveAux fills it from the decoded BCS.
 			s.WriteAccumulatorStorageCost = &WriteAccumulatorStorageCost{}
+		case "ForwardingAddressRegistryCreate":
+			s.ForwardingAddressRegistryCreate = &struct{}{}
 		default:
 			return errors.Errorf("invalid EndOfEpochTransactionSingle %q", str)
 		}

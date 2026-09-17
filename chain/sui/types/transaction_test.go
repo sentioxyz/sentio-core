@@ -102,10 +102,84 @@ func Test_TransactionExpiration_ValidDuring_RoundTrip(t *testing.T) {
 	assert.Equal(t, raw, buf.Bytes())
 }
 
+// Real Validity expiration bytes taken from sui-testnet tx
+// HHsEeTS9bwH2gwdeYUX5ZabW52DEfvNBW6wkpuqkVngs (checkpoint 384542031):
+// variant 3; min_epoch=Some(1225); max_epoch=Some(1226); min/max_timestamp=None;
+// chain=32-byte digest (length-prefixed); nonce=1597091592;
+// allowed_proposers=Some({epoch: 1225, proposers: [46, 61, 80]}).
+const validityExpHex = "03" +
+	"01" + "c904000000000000" + // min_epoch Some(1225)
+	"01" + "ca04000000000000" + // max_epoch Some(1226)
+	"00" + // min_timestamp None
+	"00" + // max_timestamp None
+	"20" + "4c78adacf2a2f5ad80f27ed7d54aa69d3a78f1ca67fdef9ecf5754f5b8bb77b0" + // chain
+	"08af315f" + // nonce u32 (1597091592)
+	"01" + // allowed_proposers Some
+	"c904000000000000" + // epoch 1225
+	"03" + "2e000000" + "3d000000" + "50000000" // proposers [46, 61, 80]
+
+func Test_TransactionExpiration_Validity_RoundTrip(t *testing.T) {
+	raw, err := hex.DecodeString(validityExpHex)
+	assert.NoError(t, err)
+
+	var exp TransactionExpiration
+	_, err = exp.UnmarshalBCS(bytes.NewReader(raw))
+	assert.NoError(t, err)
+
+	// decoded fields match ground truth
+	assert.Nil(t, exp.None)
+	assert.Nil(t, exp.Epoch)
+	assert.Nil(t, exp.ValidDuring)
+	if assert.NotNil(t, exp.Validity) {
+		v := exp.Validity
+		assert.Equal(t, uint64(1225), *v.MinEpoch)
+		assert.Equal(t, uint64(1226), *v.MaxEpoch)
+		assert.Nil(t, v.MinTimestamp)
+		assert.Nil(t, v.MaxTimestamp)
+		assert.Len(t, v.Chain, 32)
+		assert.Equal(t, uint32(1597091592), v.Nonce)
+		if assert.NotNil(t, v.AllowedProposers) {
+			assert.Equal(t, uint64(1225), v.AllowedProposers.Epoch)
+			assert.Equal(t, []uint32{46, 61, 80}, v.AllowedProposers.Proposers)
+		}
+	}
+
+	// re-encode must reproduce the original bytes exactly (TxSanityCheck relies on this)
+	buf := bytes.NewBuffer(nil)
+	err = serde.Encode(buf, exp)
+	assert.NoError(t, err)
+	assert.Equal(t, raw, buf.Bytes())
+}
+
+// Validity without allowed_proposers must round-trip too (the Option is None).
+func Test_TransactionExpiration_Validity_NoAllowedProposers_RoundTrip(t *testing.T) {
+	// same as validityExpHex up to the nonce, then allowed_proposers None
+	raw, err := hex.DecodeString("03" +
+		"01" + "c904000000000000" +
+		"01" + "ca04000000000000" +
+		"00" + "00" +
+		"20" + "4c78adacf2a2f5ad80f27ed7d54aa69d3a78f1ca67fdef9ecf5754f5b8bb77b0" +
+		"08af315f" +
+		"00")
+	assert.NoError(t, err)
+
+	var exp TransactionExpiration
+	_, err = exp.UnmarshalBCS(bytes.NewReader(raw))
+	assert.NoError(t, err)
+	if assert.NotNil(t, exp.Validity) {
+		assert.Nil(t, exp.Validity.AllowedProposers)
+	}
+
+	buf := bytes.NewBuffer(nil)
+	err = serde.Encode(buf, exp)
+	assert.NoError(t, err)
+	assert.Equal(t, raw, buf.Bytes())
+}
+
 func Test_TransactionExpiration_UnknownVariantErrors(t *testing.T) {
 	var exp TransactionExpiration
-	// variant 3 is not known -> must error, not silently produce an empty value
-	_, err := exp.UnmarshalBCS(bytes.NewReader([]byte{0x03}))
+	// variant 4 is not known -> must error, not silently produce an empty value
+	_, err := exp.UnmarshalBCS(bytes.NewReader([]byte{0x04}))
 	assert.Error(t, err)
 }
 
@@ -171,4 +245,31 @@ func TestCancelledTransactionsTupleJSON(t *testing.T) {
 	out2, err := json.Marshal(c2)
 	require.NoError(t, err)
 	assert.JSONEq(t, v2, string(out2))
+}
+
+// ForwardingAddressRegistryCreate is Sui's EndOfEpochTransactionKind variant 13
+// (upstream staged snapshot). That index used to be claimed by IOTA's
+// ChangeEpochV2, which would have mis-decoded a Sui end-of-epoch transaction.
+func Test_EndOfEpoch_ForwardingAddressRegistryCreate_RoundTrip(t *testing.T) {
+	raw := []byte{0x0d}
+
+	var eoe EndOfEpochTransactionSingle
+	dec := serde.NewDecoderForSelector(bytes.NewReader(raw), string(VariationSUI))
+	require.NoError(t, dec.Decode(&eoe))
+	require.NotNil(t, eoe.ForwardingAddressRegistryCreate)
+	assert.Nil(t, eoe.ChangeEpochV2)
+
+	buf := bytes.NewBuffer(nil)
+	enc := serde.NewEncoderForSelector(buf, string(VariationSUI))
+	require.NoError(t, enc.Encode(&eoe))
+	assert.Equal(t, raw, buf.Bytes())
+
+	// the json-rpc reply spells the unit variant as a bare string
+	b, err := json.Marshal(eoe)
+	require.NoError(t, err)
+	assert.Equal(t, `"ForwardingAddressRegistryCreate"`, string(b))
+
+	var back EndOfEpochTransactionSingle
+	require.NoError(t, json.Unmarshal(b, &back))
+	assert.NotNil(t, back.ForwardingAddressRegistryCreate)
 }

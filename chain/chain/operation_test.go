@@ -455,3 +455,52 @@ func TestSync_cutHeadResidue(t *testing.T) {
 		assert.GreaterOrEqual(t, n, uint64(200))
 	}
 }
+
+// syncing into an empty destination must still honour the first-run lookback: the destination
+// ends up holding exactly what was copied, however the local range was carried over.
+func TestSync_duplicateCheckFromScratch(t *testing.T) {
+	baseSlots := newTestSlots(rg.NewRange(0, 300), "")
+
+	dim1, rs1, store1 := newTestDimension()
+	store1.initFillSlots(filterSlots(baseSlots, rg.NewRange(100, 199)))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
+
+	dim2, _, store2 := newTestDimension()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	assert.Equal(t, context.DeadlineExceeded, Sync(ctx, dim1, dim2, SyncConfig{
+		RoundInterval:    time.Second,
+		DupCheckInterval: time.Millisecond,
+		DupCheckLookback: 50,
+	}))
+	assert.Equal(t, []rg.Range{rg.NewRange(150, 199)}, store2.checkedWindows())
+}
+
+// a fork rewrites slots that were already checked, which is exactly when a retried save leaves a
+// duplicate behind, so the check has to cover them again.
+func TestSync_duplicateCheckAfterFork(t *testing.T) {
+	baseSlots1 := newTestSlots(rg.NewRange(0, 300), "ca")
+	baseSlots2 := newTestSlots(rg.NewRange(150, 300), "cb", "ca149")
+
+	dim1, rs1, store1 := newTestDimension()
+	store1.initFillSlots(filterSlots(baseSlots1, rg.NewRange(100, 199)))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
+
+	dim2, rs2, store2 := newTestDimension()
+	store2.initFillSlots(filterSlots(baseSlots1, rg.NewRange(100, 149)))
+	store2.initFillSlots(filterSlots(baseSlots2, rg.NewRange(150, 169)))
+	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 169)))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	assert.Equal(t, context.DeadlineExceeded, Sync(ctx, dim1, dim2, SyncConfig{
+		RoundInterval:    time.Millisecond * 200,
+		DupCheckInterval: time.Millisecond,
+	}))
+	windows := store2.checkedWindows()
+	if assert.NotEmpty(t, windows) {
+		// the fork point, not the watermark the sync had already reached
+		assert.Equal(t, uint64(150), windows[0].Start)
+	}
+}

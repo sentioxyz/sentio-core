@@ -44,6 +44,24 @@ func (b *testSlot) Linked() bool {
 
 type testSimpleSlotStore[SLOT Slot] struct {
 	slots *utils.SafeMap[uint64, SLOT]
+
+	dupMu     sync.Mutex
+	dupChecks []rg.Range
+}
+
+// CheckDuplicates records the windows the duplicate check asks for, which is what the Sync tests
+// assert on; the store itself never holds a duplicate.
+func (s *testSimpleSlotStore[SLOT]) CheckDuplicates(_ context.Context, interval rg.Range) ([]DuplicateReport, error) {
+	s.dupMu.Lock()
+	defer s.dupMu.Unlock()
+	s.dupChecks = append(s.dupChecks, interval)
+	return nil, nil
+}
+
+func (s *testSimpleSlotStore[SLOT]) checkedWindows() []rg.Range {
+	s.dupMu.Lock()
+	defer s.dupMu.Unlock()
+	return append([]rg.Range(nil), s.dupChecks...)
 }
 
 func (s *testSimpleSlotStore[SLOT]) initFillSlots(slots []SLOT) {

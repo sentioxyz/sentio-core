@@ -20,17 +20,22 @@ func Test_checkUniqueKey(t *testing.T) {
 
 	assert.NoError(t, build().WithUniqueKey("number", "index").checkUniqueKey())
 
-	// a table taking part in the slot-range operations must say what identifies its rows, so that
-	// no table is silently left out of the duplicate check
-	assert.ErrorContains(t, build().checkUniqueKey(), "declares no unique key")
+	// a table must say what identifies its rows, so that none is silently left out of the check
+	assert.ErrorContains(t, build().checkUniqueKey(), "declares neither a unique key nor a reason")
 
 	assert.ErrorContains(t, build().WithUniqueKey("number", "missing").checkUniqueKey(),
 		`unique key column "missing" is not a column of table tbl`)
 
-	// a table outside the slot-range operations has no number field to scope a window with
-	outside := build()
+	// a table whose rows carry no identity worth checking has to say so, and why
+	assert.NoError(t, build().WithoutUniqueKey("append-only, a repeated row changes no answer").checkUniqueKey())
+	assert.ErrorContains(t,
+		build().WithUniqueKey("number").WithoutUniqueKey("both").checkUniqueKey(),
+		"declares both a unique key and a reason to go without one")
+
+	// a key the check could never scope a window for is worse than none: it reads as coverage
+	outside := build().WithUniqueKey("number", "index")
 	outside.NumberField = ""
-	assert.NoError(t, outside.checkUniqueKey())
+	assert.ErrorContains(t, outside.checkUniqueKey(), "no number field to scope a duplicate check window")
 }
 
 func Test_duplicateCheckSQL(t *testing.T) {

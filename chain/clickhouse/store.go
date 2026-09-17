@@ -12,15 +12,27 @@ type TableSchema struct {
 	NumberField    string // if NumberField is empty, delete in range will ignore this table
 	SubNumberField string
 	// UniqueKey lists the columns that identify a row: two rows of the table never share these
-	// values unless the data is broken (e.g. a flush written twice). Every table taking part in
-	// the slot-range operations (NumberField set) must declare one, so CheckDuplicates covers the
-	// whole store; a table whose rows carry no identity yet needs the missing column added first.
+	// values unless the data is broken (e.g. a flush written twice). Every table must declare one,
+	// so that CheckDuplicates covers the whole store and no table is silently left out; a table
+	// whose rows carry no identity yet needs the missing column added first.
 	UniqueKey []string
+
+	// UniqueKeyExemption says why the rows of the table carry no identity worth checking. A table
+	// declares either a UniqueKey or an exemption, never neither: leaving both out is how a table
+	// silently drops out of the duplicate check.
+	UniqueKeyExemption string
 }
 
 // WithUniqueKey declares the identity columns of the table, see TableSchema.UniqueKey.
 func (t TableSchema) WithUniqueKey(columns ...string) TableSchema {
 	t.UniqueKey = columns
+	return t
+}
+
+// WithoutUniqueKey declares that the rows of the table carry no identity worth checking, and why,
+// see TableSchema.UniqueKeyExemption.
+func (t TableSchema) WithoutUniqueKey(reason string) TableSchema {
+	t.UniqueKeyExemption = reason
 	return t
 }
 

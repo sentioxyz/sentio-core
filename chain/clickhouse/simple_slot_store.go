@@ -55,10 +55,10 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		flushConcurrency:   flushConcurrency,
 		slowFlushThreshold: slowFlushThreshold,
 	}
+	if err := tablesMeta.Validate(); err != nil {
+		return nil, err
+	}
 	for _, table := range tablesMeta.Tables {
-		if err := table.checkUniqueKey(); err != nil {
-			return nil, err
-		}
 		pre, has, err := s.ctrl.LoadOne(ctx, table.Table.Name, false)
 		if err != nil {
 			logger.Errorfe(err, "load table %s failed", table.Table.Name)
@@ -564,25 +564,50 @@ func (t TableSchema) duplicateCheckSQL(fullName, rangeWhere string) string {
 	)
 }
 
+// Validate rejects a table meta that would leave one of its tables out of the duplicate check.
+// It runs when the store is built, so a table added without an identity fails the syncer at
+// startup instead of quietly going unchecked.
+func (m TablesMeta) Validate() error {
+	for _, table := range m.Tables {
+		if err := table.checkUniqueKey(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkUniqueKey rejects a table that would drop out of the duplicate check without saying so: one
+// that declares neither an identity for its rows nor a reason to go without one, and one that
+// declares an identity the check could never scope a window for. A declared key has to mean the
+// table is really scanned, otherwise it reads as coverage that is not there.
 func (t TableSchema) checkUniqueKey() error {
-	if t.NumberField == "" {
-		// the table is outside the slot-range machinery (it is not truncated before save either),
-		// so a check window cannot be scoped for it
+	if len(t.UniqueKey) == 0 {
+		if t.UniqueKeyExemption == "" {
+			return errors.Errorf("table %s declares neither a unique key nor a reason to go without "+
+				"one, see TableSchema.UniqueKey", t.Table.Name)
+		}
 		return nil
 	}
-	if len(t.UniqueKey) == 0 {
-		return errors.Errorf("table %s declares no unique key, see TableSchema.UniqueKey", t.Table.Name)
+	if t.UniqueKeyExemption != "" {
+		return errors.Errorf("table %s declares both a unique key and a reason to go without one",
+			t.Table.Name)
 	}
 	for _, column := range t.UniqueKey {
 		if !slices.Contains(t.Table.Fields.Names(), column) {
 			return errors.Errorf("unique key column %q is not a column of table %s", column, t.Table.Name)
 		}
 	}
+	if t.NumberField == "" {
+		return errors.Errorf("table %s declares a unique key but has no number field to scope a "+
+			"duplicate check window with", t.Table.Name)
+	}
 	return nil
 }
 
-// CheckDuplicates implements chain.DuplicateChecker: every table declaring a UniqueKey is scanned
-// for keys carried by more than one row inside interval. Tables without a key are skipped.
+// CheckDuplicates implements chain.DuplicateChecker: every table is scanned for unique keys
+// carried by more than one row inside interval. Construction guarantees that a table without a key
+// has said why it needs none, and that a table with one has a number field to scope the window
+// with, so the only tables left out here are the ones that declared themselves out.
 func (s *SimpleSlotStore[SLOT]) CheckDuplicates(
 	ctx context.Context,
 	interval rg.Range,
@@ -596,8 +621,8 @@ func (s *SimpleSlotStore[SLOT]) CheckDuplicates(
 	}
 	var reports []chain.DuplicateReport
 	for _, table := range s.tablesMeta.Tables {
-		if table.NumberField == "" || len(table.UniqueKey) == 0 {
-			continue
+		if len(table.UniqueKey) == 0 {
+			continue // an exempt table, see TableSchema.UniqueKeyExemption
 		}
 		sql := table.duplicateCheckSQL(
 			s.ctrl.FullLogicName(table.Table.Name),

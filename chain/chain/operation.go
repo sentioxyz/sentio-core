@@ -186,7 +186,13 @@ func Sync[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncC
 		if err == nil {
 			// Copy succeed
 			roundLogger.Info("sync succeed")
-			curRange = rg.Range{Start: curRange.Start, End: syncRange.End}
+			if curRange.IsEmpty() {
+				// the destination was empty, so it now holds exactly what was copied: keeping the
+				// start of the empty range would leave curRange empty (its start is above any end)
+				curRange = syncRange
+			} else {
+				curRange = rg.Range{Start: curRange.Start, End: syncRange.End}
+			}
 			dupCheck.maybeStart(ctx, curRange)
 			if config.DstTargetLen > 0 && *curRange.Size() > config.DstTargetLen {
 				// need to cut head
@@ -230,6 +236,10 @@ func Sync[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncC
 		roundLogger.Warnf("detected fork from %d", forkStart)
 		if err = dst.Delete(roundCtx, rg.Range{Start: forkStart}); err != nil {
 			roundLogger.Warnfe(err, "delete slots from %d failed", forkStart)
+		} else {
+			// those slots are about to be written a second time, which is exactly when a duplicate
+			// appears, so they have to be checked again however far the check had got
+			dupCheck.rewind(forkStart)
 		}
 	}
 }

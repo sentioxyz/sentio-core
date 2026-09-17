@@ -73,6 +73,20 @@ func (c *duplicateCheck) maybeStart(ctx context.Context, cur rg.Range) {
 	go c.run(ctx, rg.NewRange(c.next, end))
 }
 
+// rewind moves the start of the next window back to from, so slots the sync is about to write
+// again are checked again however far the check had already got. Without it the window start
+// stays above a rolled back watermark and the rewritten slots are never scanned.
+func (c *duplicateCheck) rewind(from uint64) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.hasNext || from < c.next {
+		c.next, c.hasNext = from, true
+	}
+}
+
 func (c *duplicateCheck) run(ctx context.Context, interval rg.Range) {
 	_, logger := log.FromContext(ctx, "dupCheckRange", interval.String())
 	startAt := time.Now()

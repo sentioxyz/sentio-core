@@ -255,8 +255,10 @@ touching a json shape, add a sample that actually exercises it.
 ## Gotchas seen in practice
 
 - `Digest`/`ChainIdentifier`: length-prefixed 32 bytes in BCS (not raw 32).
-- `TransactionExpiration`: 3rd variant `ValidDuring` (index 2) exists now; the
-  old decoder silently ignored unknown ids and then panicked on re-encode.
+- `TransactionExpiration`: `ValidDuring` (index 2) and `Validity` (index 3,
+  `ValidDuring` + `allowed_proposers: Option<AllowedProposers>`, first seen on
+  testnet at checkpoint 384489661) exist now; the old decoder silently ignored
+  unknown ids and then panicked on re-encode.
 - Accumulator-write `ChangedObject`s (`OUTPUT_OBJECT_STATE_ACCUMULATOR_WRITE`)
   carry no input version/owner/type — don't enrich them (see `getGrpcSlot`).
 - `ConsensusCommitPrologue` naming: Sui's index-3 `ConsensusCommitPrologue` *is*
@@ -264,7 +266,9 @@ touching a json shape, add a sample that actually exercises it.
   structs — keep them separate.
 - `EndOfEpochTransactionKind` BCS variant order ≠ the json-rpc-types enum order:
   use the staged snapshot (BridgeStateCreate=5, BridgeCommitteeInit=6,
-  StoreExecutionTimeObservations=7, WriteAccumulatorStorageCost=12). Several of
+  StoreExecutionTimeObservations=7, WriteAccumulatorStorageCost=12,
+  ForwardingAddressRegistryCreate=13 — that last index used to be given to
+  IOTA's ChangeEpochV2, which is iota-only and must carry no sui index). Several of
   its variants are bare-string *units* in the json reply but carry a real BCS
   payload (`StoreExecutionTimeObservations`, `WriteAccumulatorStorageCost`); those
   payloads are `json:"-"` and filled in `DeriveAuxInformationFromBCSV1`. Every

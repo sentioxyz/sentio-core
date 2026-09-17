@@ -22,7 +22,18 @@ type Options struct {
 	payer         string
 }
 
+// Serialization renders the options into the string that identifies a cached connection. It carries
+// the signing private key, so it must never be logged: use LogSerialization for that.
 func (o *Options) Serialization() string {
+	return o.serialization(false)
+}
+
+// LogSerialization renders the options with the signing private key masked, for logging.
+func (o *Options) LogSerialization() string {
+	return o.serialization(true)
+}
+
+func (o *Options) serialization(maskSecrets bool) string {
 	var s string
 	for _, k := range utils.GetOrderedMapKeys(o.settings) {
 		s += k + "=" + anyutil.ToString(o.settings[k]) + ","
@@ -43,7 +54,11 @@ func (o *Options) Serialization() string {
 		s += "max_open_conns=" + anyutil.ParseString(o.maxOpenConns) + ","
 	}
 	if o.privateKeyHex != "" {
-		s += "private_key=" + o.privateKeyHex + ","
+		privateKey := o.privateKeyHex
+		if maskSecrets {
+			privateKey = utils.AddSecretMosaic(privateKey)
+		}
+		s += "private_key=" + privateKey + ","
 	}
 	if o.payer != "" {
 		s += "payer=" + o.payer + ","

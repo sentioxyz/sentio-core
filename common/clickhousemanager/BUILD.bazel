@@ -8,6 +8,7 @@ go_library(
         "conn_options.go",
         "conn_tracing.go",
         "constants.go",
+        "dsn.go",
         "error_code_map.go",
         "flags.go",
         "manager.go",
@@ -29,6 +30,7 @@ go_library(
         "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
         "@com_github_ethereum_go_ethereum//crypto",
         "@com_github_mitchellh_hashstructure_v2//:hashstructure",
+        "@com_github_pkg_errors//:errors",
         "@com_github_samber_lo//:lo",
         "@in_gopkg_yaml_v3//:yaml_v3",
         "@io_opentelemetry_go_otel//:otel",
@@ -46,7 +48,10 @@ filegroup(
 
 go_test(
     name = "clickhousemanager_test",
-    srcs = ["manager_test.go"],
+    srcs = [
+        "dsn_test.go",
+        "manager_test.go",
+    ],
     data = [
         "//common/clickhousemanager:test_config",
     ],

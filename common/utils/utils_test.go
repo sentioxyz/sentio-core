@@ -16,17 +16,44 @@ func Test_Fetch(t *testing.T) {
 	assert.Equal(t, "bb", Fetch(a, "aa"))
 }
 
+func Test_AddSecretMosaic(t *testing.T) {
+	testcases := [][]string{
+		{"", ""},
+		{"s3cr3t", "******"},
+		{"0123456789", "0********9"},
+		{"0123456789012345678", "0*****************8"},
+		{"01234567890123456789", "01****************89"},
+		{"密码密码密码密码密码", "密********码"},
+	}
+	for i, testcase := range testcases {
+		assert.Equal(t, testcase[1], AddSecretMosaic(testcase[0]), fmt.Sprintf("testcase #%d %#v", i, testcase))
+	}
+}
+
 func Test_AddURLMosaic(t *testing.T) {
 	testcases := [][]string{
+		{"", ""},
 		{"eth-mainnet.lb.1", "eth-mainnet.lb.1"},
-		{"http://nodes.sea.sentio.xyz/ethereum", "http://*****.***.sentio.***/ethereum"},
-		{"http://sentio-0.sentio.xyz:8080/ethereum", "http://sentio**.sentio.***:8080/ethereum"},
-		{"https://eth-mainnet.blastapi.io/b0ebe560-22bd-437f-a30f-3e6fdeb8ee7b", "https://eth-mainnet.blastapi.io/b0ebe560-22bd-437f-a30f-3e6fxxxxxxxx"},
-		{"https://eth-mainnet.blastapi.io/b0ebe560-22bd-437f-a30f-3e6fdeb8ee7b/ethereum", "https://eth-mainnet.blastapi.io/b0ebe560-22bd-437f-a30f-3e6fxxxxxxxx/ethereum"},
-		{"https://eth-mainnet.blastapi.io/b0ebe560-22bd-437f-a30f-3e6fdeb8ee7b/ethereum/b0ebe560-22bd-437f-a30f-3e6fdeb8ee7b", "https://eth-mainnet.blastapi.io/b0ebe560-22bd-437f-a30f-3e6fxxxxxxxx/ethereum/b0ebe560-22bd-437f-a30f-3e6fxxxxxxxx"},
-		{"https://rpc.startale.com/astar-zkevm", "https://rpc.startale.com/astar-zkevm"},
-		{"https://rpc.startale.com/12345678901234567890?x=12345678901234567890", "https://rpc.startale.com/123456789012xxxxxxxx?x=123456789012xxxxxxxx"},
-		{"https://user:passwd@rpc.startale.com", "https://xxxx:xxxxxx@rpc.startale.com"},
+		{"clickhouse://sentio:s3cr3t@ch-0.sentio.xyz:9000/default",
+			"clickhouse://sentio:******@ch-0.sentio.xyz:9000/default"},
+		// A long enough password keeps its ends, so a wrong one can be told apart from the intended one.
+		{"clickhouse://sentio:abcdefghijklmnopqrst@ch-0:9000/default",
+			"clickhouse://sentio:ab****************st@ch-0:9000/default"},
+		// The hint describes the configured secret, not its percent-encoded form.
+		{"clickhouse://sentio:abcde%40ghij@ch-0:9000/default", "clickhouse://sentio:a********j@ch-0:9000/default"},
+		{"clickhouse://sentio:s3cr3t@ch-0:9000,ch-1:9000/default", "clickhouse://sentio:******@ch-0:9000,ch-1:9000/default"},
+		{"postgres://sentio:s3cr3t@pg-0:5432/sentio?sslmode=disable",
+			"postgres://sentio:******@pg-0:5432/sentio?sslmode=disable"},
+		// ClickHouse also reads the credentials from the query, and the other parameters stay as configured.
+		{"tcp://ch-0:9000/default?username=sentio&password=s3cr3t&secure=true",
+			"tcp://ch-0:9000/default?username=sentio&password=******&secure=true"},
+		{"https://sentio:s3cr3t@ch-0:8443/default?password=other", "https://sentio:******@ch-0:8443/default?password=*****"},
+		// A parsed query decodes its keys, so this names the password parameter too.
+		{"clickhouse://sentio@ch-0:9000/default?pass%77ord=s3cr3t",
+			"clickhouse://sentio@ch-0:9000/default?pass%77ord=******"},
+		{"clickhouse://sentio@ch-0:9000/default?secure=true", "clickhouse://sentio@ch-0:9000/default?secure=true"},
+		// A URL that cannot be parsed may still hold a password, so it is never echoed back.
+		{"clickhouse://sentio:s3cr3t@ch-0:9000/%zz", "<unparsable url>"},
 	}
 	for i, testcase := range testcases {
 		assert.Equal(t, testcase[1], AddURLMosaic(testcase[0]), fmt.Sprintf("testcase #%d %#v", i, testcase))

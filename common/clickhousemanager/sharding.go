@@ -16,6 +16,16 @@ type Credential struct {
 	Database string
 }
 
+// String masks the password, so that printing a credential - directly or as part of the map a
+// sharding is built from - cannot leak it into a log line.
+func (c Credential) String() string {
+	password := ""
+	if c.Password != "" {
+		password = utils.AddSecretMosaic(c.Password)
+	}
+	return fmt.Sprintf("{Username:%s Password:%s Database:%s}", c.Username, password, c.Database)
+}
+
 type Addresses struct {
 	InternalTCPAddr     string   `yaml:"internal_tcp_addr" json:"internal_tcp_addr"`
 	InternalTCPReplicas []string `yaml:"internal_tcp_replicas" json:"internal_tcp_replicas"`

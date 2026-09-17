@@ -156,9 +156,9 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 	}
 	if len(dsn) > 0 {
 		var err error
-		ckhOptions, err = clickhouse.ParseDSN(dsn)
+		ckhOptions, err = ParseDSN(dsn)
 		if err != nil {
-			log.Errorf("parse dsn failed: %v", err)
+			log.Errore(err)
 			panic(err)
 		}
 		for k, v := range NewConnSettingsMacro() {
@@ -232,7 +232,8 @@ func connect(dsn string, connectOptions ...func(*Options)) Conn {
 		log.Errorf("hash clickhouse options failed: %v", err)
 		panic(err)
 	}
-	log.Debugf("[RAW-CONN] ckhHash=%d, DB=%s, Addr=%v, Auth=%+v", ckhHash, ckhOptions.Auth.Database, ckhOptions.Addr, ckhOptions.Auth)
+	log.Debugf("[RAW-CONN] ckhHash=%d, DB=%s, Addr=%v, User=%s", ckhHash, ckhOptions.Auth.Database, ckhOptions.Addr,
+		ckhOptions.Auth.Username)
 
 	clickhouseConnectJSON, _ := json.Marshal(ckhHash)
 	ckhConn, ok := rawConnections.Get(ckhHash)
@@ -267,7 +268,7 @@ func NewOrGetConn(dsn string, connectOptions ...func(*Options)) Conn {
 	}
 	conn, ok := connections.Get(dsn + connOptions.Serialization())
 	if ok {
-		log.Infof("reuse sentio-clickhouse wrapped connection: %s", dsn+"@"+connOptions.Serialization())
+		log.Infof("reuse sentio-clickhouse wrapped connection: %s", utils.AddURLMosaic(dsn)+"@"+connOptions.LogSerialization())
 		return wrapWithTracing(conn)
 	}
 	return NewConn(dsn, connectOptions...)
@@ -281,6 +282,6 @@ func NewConn(dsn string, connectOptions ...func(*Options)) Conn {
 
 	conn := connect(dsn, connectOptions...)
 	connections.Put(dsn+connOptions.Serialization(), conn)
-	log.Infof("connect sentio-clickhouse wrapped connection: %s", dsn+"@"+connOptions.Serialization())
+	log.Infof("connect sentio-clickhouse wrapped connection: %s", utils.AddURLMosaic(dsn)+"@"+connOptions.LogSerialization())
 	return wrapWithTracing(conn)
 }

@@ -57,7 +57,11 @@ func NewClickhouseSchemaMgr(
 		createTableSchema(tableNameObjectChanges, &CHUObjectChange{}, "checkpoint", "timestamp_ms", "digest").
 			WithUniqueKey("checkpoint", "digest", "object_id"),
 		createTableSchema(tableNameObjectPositions, &CHUObjectPosition{}, "object_id", "object_version", "checkpoint").
-			WithUniqueKey("object_id", "object_version"),
+			WithoutUniqueKey("append-only by design: a row states where one version of one object was " +
+				"written, so saving a range again writes the same fact again. The table carries no " +
+				"number field and stays out of the truncate before a save on purpose (partitioned by " +
+				"object id, a range delete could not prune), and a repeated row changes no answer it " +
+				"is asked for"),
 	}
 	return &ClickhouseSchemaMgrV3{
 		tablesMeta: clickhouse.TablesMeta{

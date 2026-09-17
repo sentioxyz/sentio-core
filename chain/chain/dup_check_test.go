@@ -126,11 +126,60 @@ func TestDuplicateCheck_intervalAndFailures(t *testing.T) {
 }
 
 func TestNewDuplicateCheck(t *testing.T) {
-	dim, _, _ := newTestDimension()
+	dim, _, store := newTestDimension()
 	assert.Nil(t, newDuplicateCheck(dim, SyncConfig{}))
+
+	// the dimension forwards to its slot store
 	c := newDuplicateCheck(dim, SyncConfig{DupCheckInterval: time.Hour})
 	require.NotNil(t, c)
-	// the test slot store does not implement DuplicateChecker: the dimension reports it as unsupported
 	_, err := c.checker.CheckDuplicates(context.Background(), rg.NewRange(0, 1))
+	assert.NoError(t, err)
+	assert.Equal(t, []rg.Range{rg.NewRange(0, 1)}, store.checkedWindows())
+
+	// a store that cannot check reports it, and the first run switches the check off for good
+	plain := NewSimpleDimension[*testSlot](&testRangeStore{cur: rg.EmptyRange}, &uncheckableSlotStore{})
+	c = newDuplicateCheck(plain, SyncConfig{DupCheckInterval: time.Hour})
+	require.NotNil(t, c)
+	_, err = c.checker.CheckDuplicates(context.Background(), rg.NewRange(0, 1))
 	assert.ErrorIs(t, err, ErrDuplicateCheckUnsupported)
+}
+
+// uncheckableSlotStore is a slot store that does not implement DuplicateChecker.
+type uncheckableSlotStore struct {
+	SimpleSlotStore[*testSlot]
+}
+
+func TestDuplicateCheck_rewindsWithTheDestination(t *testing.T) {
+	checker := &testDuplicateChecker{}
+	c := newTestDuplicateCheck(checker, time.Millisecond, 0)
+	ctx := context.Background()
+
+	c.maybeStart(ctx, rg.NewRange(0, 999))
+	waitIdle(t, c)
+	time.Sleep(2 * time.Millisecond)
+	c.maybeStart(ctx, rg.NewRange(0, 1999))
+	waitIdle(t, c)
+	assert.Equal(t, []rg.Range{rg.NewRange(1000, 1999)}, checker.checked())
+
+	// a fork rolls the destination back to 1500 and the sync writes those slots a second time,
+	// which is when a duplicate appears: the window has to go back with it
+	c.rewind(1500)
+	time.Sleep(2 * time.Millisecond)
+	c.maybeStart(ctx, rg.NewRange(0, 2099))
+	waitIdle(t, c)
+	assert.Equal(t, rg.NewRange(1500, 2099), checker.checked()[1])
+
+	// a rewind never gives up ground already regained
+	c.rewind(9000)
+	time.Sleep(2 * time.Millisecond)
+	c.maybeStart(ctx, rg.NewRange(0, 2199))
+	waitIdle(t, c)
+	assert.Equal(t, rg.NewRange(2100, 2199), checker.checked()[2])
+
+	// rewinding before anything was checked still pins the window to the rewritten slots
+	fresh := newTestDuplicateCheck(checker, time.Millisecond, 0)
+	fresh.rewind(42)
+	fresh.maybeStart(ctx, rg.NewRange(0, 99))
+	waitIdle(t, fresh)
+	assert.Equal(t, rg.NewRange(42, 99), checker.checked()[3])
 }

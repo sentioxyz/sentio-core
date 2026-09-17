@@ -75,20 +75,28 @@ func addUserinfoMosaic(head string) string {
 }
 
 // addPasswordParamMosaic masks the "password" parameter of a query string, which is the other place
-// clickhouse.ParseDSN reads the credentials from.
+// clickhouse.ParseDSN reads the credentials from. Both the name and the value are matched decoded,
+// the way the parsed query a reader of the URL gets is: "pass%77ord" names the same parameter.
 func addPasswordParamMosaic(query string) string {
 	params := strings.Split(query, "&")
 	for i, param := range params {
 		key, value, found := strings.Cut(param, "=")
-		if found && key == "password" && value != "" {
-			decoded, err := url.QueryUnescape(value)
-			if err != nil {
-				decoded = value
-			}
-			params[i] = key + "=" + AddSecretMosaic(decoded)
+		if !found || value == "" || unescapeOrRaw(key) != "password" {
+			continue
 		}
+		params[i] = key + "=" + AddSecretMosaic(unescapeOrRaw(value))
 	}
 	return strings.Join(params, "&")
+}
+
+// unescapeOrRaw percent-decodes a query component, falling back to the raw text when it is not
+// valid encoding - a malformed component is left to speak for itself rather than dropped.
+func unescapeOrRaw(component string) string {
+	decoded, err := url.QueryUnescape(component)
+	if err != nil {
+		return component
+	}
+	return decoded
 }
 
 func AddOwnerNameMosaic(raw string) string {

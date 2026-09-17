@@ -37,7 +37,8 @@ func Test_AddURLMosaic(t *testing.T) {
 		{"clickhouse://sentio:s3cr3t@ch-0.sentio.xyz:9000/default",
 			"clickhouse://sentio:******@ch-0.sentio.xyz:9000/default"},
 		// A long enough password keeps its ends, so a wrong one can be told apart from the intended one.
-		{"clickhouse://sentio:abcdefghijklmnopqrst@ch-0:9000/default", "clickhouse://sentio:ab****************st@ch-0:9000/default"},
+		{"clickhouse://sentio:abcdefghijklmnopqrst@ch-0:9000/default",
+			"clickhouse://sentio:ab****************st@ch-0:9000/default"},
 		// The hint describes the configured secret, not its percent-encoded form.
 		{"clickhouse://sentio:abcde%40ghij@ch-0:9000/default", "clickhouse://sentio:a********j@ch-0:9000/default"},
 		{"clickhouse://sentio:s3cr3t@ch-0:9000,ch-1:9000/default", "clickhouse://sentio:******@ch-0:9000,ch-1:9000/default"},
@@ -47,6 +48,9 @@ func Test_AddURLMosaic(t *testing.T) {
 		{"tcp://ch-0:9000/default?username=sentio&password=s3cr3t&secure=true",
 			"tcp://ch-0:9000/default?username=sentio&password=******&secure=true"},
 		{"https://sentio:s3cr3t@ch-0:8443/default?password=other", "https://sentio:******@ch-0:8443/default?password=*****"},
+		// A parsed query decodes its keys, so this names the password parameter too.
+		{"clickhouse://sentio@ch-0:9000/default?pass%77ord=s3cr3t",
+			"clickhouse://sentio@ch-0:9000/default?pass%77ord=******"},
 		{"clickhouse://sentio@ch-0:9000/default?secure=true", "clickhouse://sentio@ch-0:9000/default?secure=true"},
 		// A URL that cannot be parsed may still hold a password, so it is never echoed back.
 		{"clickhouse://sentio:s3cr3t@ch-0:9000/%zz", "<unparsable url>"},

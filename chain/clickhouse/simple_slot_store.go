@@ -604,19 +604,25 @@ func (t TableSchema) checkUniqueKey() error {
 	return nil
 }
 
-// duplicateCheckChunkRows caps the rows one duplicate scan aggregates over. The scan groups by the
-// unique key, so its memory and its time both grow with the rows it covers, while the window it is
-// given does not: it is as wide as a day of a busy chain, or as whatever a fork rolled back.
-// Splitting it keeps one scan the same size whatever it has to cover. Measured on a production sui
-// mainnet day, the 44M object rows of the window in one scan cost 10 GiB and 29s, while scans of
-// this size cost about 1.3 GiB and 0.4s each.
-const duplicateCheckChunkRows = 5_000_000
+// duplicateCheckPageRows is about how many rows one scan aggregates over, and
+// duplicateCheckBuckets how finely the rows of a window are counted to make those pages.
+//
+// A scan groups by the unique key, so its memory grows with the rows it covers, while the window
+// it is handed does not: it is as wide as whatever the range store still remembers. Measured on a
+// production sui mainnet window, scanning it whole (44M rows) cost 10 GiB and 29s, while pages of
+// this size cost around 1 GiB and a fraction of a second each. Sizing the pages from a row count
+// per bucket rather than from the total matters because rows are not spread evenly over a window:
+// a busy stretch would otherwise make some pages several times heavier than the rest.
+const (
+	duplicateCheckPageRows = 5_000_000
+	duplicateCheckBuckets  = 1_000
+)
 
-// CheckDuplicates implements chain.DuplicateChecker: every table is scanned for unique keys
-// carried by more than one row inside interval. Construction guarantees that a table without a key
-// has said why it needs none, and that a table with one has a number field to scope the window
-// with, so the only tables left out here are the ones that declared themselves out.
-func (s *SimpleSlotStore[SLOT]) CheckDuplicates(
+// ScanDuplicates implements chain.DuplicateScanner: every table is scanned for unique keys carried
+// by more than one row inside interval. Construction guarantees that a table without a key has said
+// why it needs none, and that a table with one has a number field to scope the window with, so the
+// only tables left out here are the ones that declared themselves out.
+func (s *SimpleSlotStore[SLOT]) ScanDuplicates(
 	ctx context.Context,
 	interval rg.Range,
 ) ([]chain.DuplicateReport, error) {
@@ -628,7 +634,7 @@ func (s *SimpleSlotStore[SLOT]) CheckDuplicates(
 		if len(table.UniqueKey) == 0 {
 			continue // an exempt table, see TableSchema.UniqueKeyExemption
 		}
-		report, err := s.checkTableDuplicates(ctx, table, interval)
+		report, err := s.scanTableDuplicates(ctx, table, interval)
 		if err != nil {
 			return nil, err
 		}
@@ -639,19 +645,19 @@ func (s *SimpleSlotStore[SLOT]) CheckDuplicates(
 	return reports, nil
 }
 
-// checkTableDuplicates scans one table chunk by chunk and sums up what the chunks found.
-func (s *SimpleSlotStore[SLOT]) checkTableDuplicates(
+// scanTableDuplicates scans one table page by page and sums up what the pages found.
+func (s *SimpleSlotStore[SLOT]) scanTableDuplicates(
 	ctx context.Context,
 	table TableSchema,
 	interval rg.Range,
 ) (chain.DuplicateReport, error) {
 	report := chain.DuplicateReport{Table: table.Table.Name}
-	chunks, err := s.splitForDuplicateCheck(ctx, table, interval)
+	pages, err := s.duplicateCheckPages(ctx, table, interval)
 	if err != nil {
 		return report, err
 	}
-	for _, chunk := range chunks {
-		where, whereErr := s.tableRangeWhere(ctx, table, chunk)
+	for _, page := range pages {
+		where, whereErr := s.tableRangeWhere(ctx, table, page)
 		if whereErr != nil {
 			return report, whereErr
 		}
@@ -660,7 +666,7 @@ func (s *SimpleSlotStore[SLOT]) checkTableDuplicates(
 		if err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 			return rows.Scan(&found.Groups, &found.ExtraRows, &found.First, &found.Last)
 		}, sql); err != nil {
-			return report, errors.Wrapf(err, "check duplicates of table %s in %s failed", table.Table.Name, chunk)
+			return report, errors.Wrapf(err, "check duplicates of table %s in %s failed", table.Table.Name, page)
 		}
 		if found.Groups == 0 {
 			continue
@@ -677,10 +683,11 @@ func (s *SimpleSlotStore[SLOT]) checkTableDuplicates(
 	return report, nil
 }
 
-// splitForDuplicateCheck cuts interval into chunks holding about duplicateCheckChunkRows rows of
-// the table. The count it sizes them with is answered from the primary index and costs nothing
-// measurable (10ms and 55 KiB over a day of the widest table in production).
-func (s *SimpleSlotStore[SLOT]) splitForDuplicateCheck(
+// duplicateCheckPages counts the rows of the table per bucket of the window and packs consecutive
+// buckets into pages of about duplicateCheckPageRows rows. Counting them costs next to nothing
+// (70ms and 2 MiB over a two-day window of the widest table in production): only the number field
+// is read, and it leads the sorting key of every table.
+func (s *SimpleSlotStore[SLOT]) duplicateCheckPages(
 	ctx context.Context,
 	table TableSchema,
 	interval rg.Range,
@@ -689,24 +696,52 @@ func (s *SimpleSlotStore[SLOT]) splitForDuplicateCheck(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.ctrl.QueryCount(ctx,
-		fmt.Sprintf("SELECT count() FROM %s WHERE %s", s.ctrl.FullLogicName(table.Table.Name), where))
-	if err != nil {
-		return nil, errors.Wrapf(err, "count rows of table %s in %s failed", table.Table.Name, interval)
+	bucket := max(*interval.Size()/duplicateCheckBuckets, 1)
+	sql := fmt.Sprintf("SELECT intDiv(`%s`, %d) AS b, count() FROM %s WHERE %s GROUP BY b ORDER BY b",
+		table.NumberField, bucket, s.ctrl.FullLogicName(table.Table.Name), where)
+	var counted []bucketRows
+	if err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		var b bucketRows
+		if scanErr := rows.Scan(&b.Bucket, &b.Rows); scanErr != nil {
+			return scanErr
+		}
+		counted = append(counted, b)
+		return nil
+	}, sql); err != nil {
+		return nil, errors.Wrapf(err, "count rows of table %s per bucket in %s failed", table.Table.Name, interval)
 	}
-	return duplicateCheckChunks(interval, rows), nil
+	return packDuplicateCheckPages(interval, bucket, counted), nil
 }
 
-// duplicateCheckChunks cuts interval into chunks holding about duplicateCheckChunkRows of the rows
-// rows it contains. An interval too narrow to split stays whole, so a single slot holding more
-// rows than the cap is still scanned in one go.
-func duplicateCheckChunks(interval rg.Range, rows uint64) []rg.Range {
-	chunks := (rows + duplicateCheckChunkRows - 1) / duplicateCheckChunkRows
-	if chunks <= 1 {
-		return []rg.Range{interval}
+// bucketRows is how many rows of a table fall in one bucket of a window.
+type bucketRows struct {
+	Bucket uint64
+	Rows   uint64
+}
+
+// packDuplicateCheckPages turns the row count per bucket into pages of about
+// duplicateCheckPageRows rows. Buckets holding no row are absent, so the pages skip the empty
+// stretches of the window instead of scanning them; a single bucket heavier than a page is left
+// whole, since a bucket cannot be split any further.
+func packDuplicateCheckPages(interval rg.Range, bucket uint64, counted []bucketRows) []rg.Range {
+	var pages []rg.Range
+	var start, end, rows uint64
+	var open bool
+	for _, b := range counted {
+		if !open {
+			start, rows, open = max(b.Bucket*bucket, interval.Start), 0, true
+		}
+		end = min(b.Bucket*bucket+bucket-1, *interval.End)
+		rows += b.Rows
+		if rows >= duplicateCheckPageRows {
+			pages = append(pages, rg.NewRange(start, end))
+			open = false
+		}
 	}
-	size := (*interval.Size() + chunks - 1) / chunks
-	return interval.CutByFixedSize(interval.Start, size, 0)
+	if open {
+		pages = append(pages, rg.NewRange(start, end))
+	}
+	return pages
 }
 
 // tableRangeWhere builds the condition selecting the rows of interval in one table.

@@ -115,12 +115,10 @@ type SyncConfig struct {
 	DstLeftAlign uint64
 
 	// DupCheckInterval > 0 turns on the periodic duplicate-row self-check of the destination (which
-	// must implement DuplicateChecker, otherwise nothing runs): every interval the slots synced since
-	// the previous run are scanned and every table with duplicates is reported as an error log.
-	// DupCheckLookback bounds the first run to the newest DupCheckLookback slots, 0 means the check
-	// starts from the watermark seen at startup.
+	// must implement DuplicateChecker, otherwise nothing runs): every interval the destination looks
+	// over the slots its range store still has a record of, and every table with rows sharing a
+	// unique key is reported as an error log.
 	DupCheckInterval time.Duration
-	DupCheckLookback uint64
 }
 
 // Sync continuously synchronize the latest slot from src to dst chain
@@ -193,7 +191,7 @@ func Sync[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncC
 			} else {
 				curRange = rg.Range{Start: curRange.Start, End: syncRange.End}
 			}
-			dupCheck.maybeStart(ctx, curRange)
+			dupCheck.maybeStart(ctx)
 			if config.DstTargetLen > 0 && *curRange.Size() > config.DstTargetLen {
 				// need to cut head
 				targetRangeLeft := *curRange.End + 1 - config.DstTargetLen
@@ -236,10 +234,6 @@ func Sync[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncC
 		roundLogger.Warnf("detected fork from %d", forkStart)
 		if err = dst.Delete(roundCtx, rg.Range{Start: forkStart}); err != nil {
 			roundLogger.Warnfe(err, "delete slots from %d failed", forkStart)
-		} else {
-			// those slots are about to be written a second time, which is exactly when a duplicate
-			// appears, so they have to be checked again however far the check had got
-			dupCheck.rewind(forkStart)
 		}
 	}
 }

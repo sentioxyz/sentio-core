@@ -49,9 +49,9 @@ type testSimpleSlotStore[SLOT Slot] struct {
 	dupChecks []rg.Range
 }
 
-// CheckDuplicates records the windows the duplicate check asks for, which is what the Sync tests
+// ScanDuplicates records the windows the duplicate check asks for, which is what the Sync tests
 // assert on; the store itself never holds a duplicate.
-func (s *testSimpleSlotStore[SLOT]) CheckDuplicates(_ context.Context, interval rg.Range) ([]DuplicateReport, error) {
+func (s *testSimpleSlotStore[SLOT]) ScanDuplicates(_ context.Context, interval rg.Range) ([]DuplicateReport, error) {
 	s.dupMu.Lock()
 	defer s.dupMu.Unlock()
 	s.dupChecks = append(s.dupChecks, interval)
@@ -135,8 +135,23 @@ func (s *testSimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Rang
 // backed by a transactional store and are safe for concurrent Get/Update; multiple dimension
 // range-updaters can call into a shared store concurrently, so guard cur with a mutex.
 type testRangeStore struct {
-	mu  sync.Mutex
-	cur rg.Range
+	mu       sync.Mutex
+	cur      rg.Range
+	recorded []uint64 // every end the range has been set to, like the rolling history of the real store
+}
+
+// OldestRecordedEnd implements RangeHistory over the ends this store has been set to.
+func (s *testRangeStore) OldestRecordedEnd(_ context.Context) (uint64, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.recorded) == 0 {
+		return 0, false, nil
+	}
+	oldest := s.recorded[0]
+	for _, end := range s.recorded[1:] {
+		oldest = min(oldest, end)
+	}
+	return oldest, true, nil
 }
 
 func (s *testRangeStore) Get(ctx context.Context) (rg.Range, error) {
@@ -149,6 +164,9 @@ func (s *testRangeStore) Update(ctx context.Context, operator rg.RangeOperator) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cur = operator(s.cur)
+	if !s.cur.IsEmpty() && s.cur.End != nil {
+		s.recorded = append(s.recorded, *s.cur.End)
+	}
 	return s.cur, nil
 }
 

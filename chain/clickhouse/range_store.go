@@ -162,6 +162,23 @@ func (s *RangeStore) set(ctx context.Context, r rg.Range) error {
 	return s.ctrl.Exec(ctx, sql)
 }
 
+// OldestRecordedEnd implements chain.RangeHistory: it returns the lowest range end the table still
+// holds, and whether it holds anything at all. The table is partitioned by day and keeps a bounded
+// number of days, so this reaches back about as far as that retention. It takes the lowest end
+// rather than the end of the oldest row on purpose: a rollback records an end below the ones
+// before it, and taking the lowest brings the slots that rollback is about to have rewritten back
+// into whatever window is scoped from here.
+func (s *RangeStore) OldestRecordedEnd(ctx context.Context) (uint64, bool, error) {
+	sql := fmt.Sprintf("SELECT min(right), count() FROM %s", s.ctrl.FullLogicName(s.name))
+	var oldest, records uint64
+	if err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		return rows.Scan(&oldest, &records)
+	}, sql); err != nil {
+		return 0, false, errors.Wrapf(err, "query the oldest recorded range end of %s failed", s.name)
+	}
+	return oldest, records > 0, nil
+}
+
 func (s *RangeStore) Get(ctx context.Context) (rg.Range, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -47,31 +47,33 @@ func AddURLMosaic(rawURL string) string {
 }
 
 // addUserinfoMosaic masks the password of "scheme://user:password@host/path". The authority ends at
-// the first "/", and its userinfo at the last "@", the way url.Parse splits them.
+// the first "/", and its userinfo at the last "@", the way url.Parse splits them. The scheme is
+// optional: clickhouse.ParseDSN reads the credentials of "//user:password@host" just as well.
 func addUserinfoMosaic(head string) string {
-	scheme, rest, found := strings.Cut(head, "://")
-	if !found {
+	start := strings.Index(head, "//")
+	if start < 0 || (start > 0 && !strings.HasPrefix(head[start-1:], "://")) {
 		return head
 	}
-	authority, path, hasPath := strings.Cut(rest, "/")
+	start += 2
+	authority, path := head[start:], ""
+	if slash := strings.Index(authority, "/"); slash >= 0 {
+		authority, path = authority[:slash], authority[slash:]
+	}
 	at := strings.LastIndex(authority, "@")
 	if at < 0 {
 		return head
 	}
 	userinfo, host := authority[:at], authority[at:]
-	if username, password, found := strings.Cut(userinfo, ":"); found && password != "" {
-		// The userinfo is percent-encoded; describe the configured secret, not its encoding.
-		decoded, err := url.PathUnescape(password)
-		if err != nil {
-			decoded = password
-		}
-		authority = username + ":" + AddSecretMosaic(decoded) + host
+	username, password, found := strings.Cut(userinfo, ":")
+	if !found || password == "" {
+		return head
 	}
-	masked := scheme + "://" + authority
-	if hasPath {
-		masked += "/" + path
+	// The userinfo is percent-encoded; describe the configured secret, not its encoding.
+	decoded, err := url.PathUnescape(password)
+	if err != nil {
+		decoded = password
 	}
-	return masked
+	return head[:start] + username + ":" + AddSecretMosaic(decoded) + host + path
 }
 
 // addPasswordParamMosaic masks the "password" parameter of a query string, which is the other place

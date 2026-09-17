@@ -51,7 +51,11 @@ func Test_AddURLMosaic(t *testing.T) {
 		// A parsed query decodes its keys, so this names the password parameter too.
 		{"clickhouse://sentio@ch-0:9000/default?pass%77ord=s3cr3t",
 			"clickhouse://sentio@ch-0:9000/default?pass%77ord=******"},
+		// The driver reads the credentials of a scheme-less authority too.
+		{"//sentio:s3cr3t@ch-0:9000/default", "//sentio:******@ch-0:9000/default"},
 		{"clickhouse://sentio@ch-0:9000/default?secure=true", "clickhouse://sentio@ch-0:9000/default?secure=true"},
+		// A "//" that is not the start of an authority is left alone.
+		{"clickhouse://ch-0:9000/a//b", "clickhouse://ch-0:9000/a//b"},
 		// A URL that cannot be parsed may still hold a password, so it is never echoed back.
 		{"clickhouse://sentio:s3cr3t@ch-0:9000/%zz", "<unparsable url>"},
 	}

@@ -14,6 +14,9 @@ func TestParseDSNErrorHidesPassword(t *testing.T) {
 		{name: "invalid option", dsn: "clickhouse://sentio:s3cr3t@ch-0:9000/default?dial_timeout=nope"},
 		// The driver reports a malformed DSN as a *url.Error carrying the whole DSN.
 		{name: "malformed dsn", dsn: "clickhouse://sentio:s3cr3t@ch-0:9000/%zz"},
+		// An unescaped "?" makes the password's prefix look like a port, and the parse error quotes
+		// it: neither the DSN nor the cause can be repeated.
+		{name: "password breaking the url", dsn: "clickhouse://sentio:s3cr3t?@ch-0:9000/default"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

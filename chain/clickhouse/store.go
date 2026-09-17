@@ -12,9 +12,9 @@ type TableSchema struct {
 	NumberField    string // if NumberField is empty, delete in range will ignore this table
 	SubNumberField string
 	// UniqueKey lists the columns that identify a row: two rows of the table never share these
-	// values unless the data is broken (e.g. a flush written twice). Every table must declare one,
-	// so that CheckDuplicates covers the whole store and no table is silently left out; a table
-	// whose rows carry no identity yet needs the missing column added first.
+	// values unless the data is broken (e.g. a flush written twice). A table that carries no
+	// identity yet needs the missing column added rather than being left out; one whose rows have
+	// no identity worth checking declares a UniqueKeyExemption instead.
 	UniqueKey []string
 
 	// UniqueKeyExemption says why the rows of the table carry no identity worth checking. A table

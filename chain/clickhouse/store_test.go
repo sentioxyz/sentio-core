@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"sentioxyz/sentio-core/common/chx"
+	rg "sentioxyz/sentio-core/common/range"
 )
 
 func Test_checkUniqueKey(t *testing.T) {
@@ -62,4 +63,29 @@ func Test_duplicateCheckSQL(t *testing.T) {
 	assert.Equal(t, []string{"index"}, late.nullableUniqueKeyColumns())
 	assert.Contains(t, late.duplicateCheckSQL("`db`.`tbl`", "number >= 10"),
 		"WHERE number >= 10 AND `index` IS NOT NULL GROUP BY `number`, `index`")
+}
+
+func Test_duplicateCheckChunks(t *testing.T) {
+	// a window the scan can take in one go stays whole
+	interval := rg.NewRange(1000, 2000)
+	assert.Equal(t, []rg.Range{interval}, duplicateCheckChunks(interval, 0))
+	assert.Equal(t, []rg.Range{interval}, duplicateCheckChunks(interval, duplicateCheckChunkRows))
+
+	// a day of the widest table in production: 44.2M rows over 385k slots
+	day := rg.NewRange(323281082, 323666102)
+	chunks := duplicateCheckChunks(day, 44_230_723)
+	assert.Len(t, chunks, 9)
+	assert.Equal(t, day.Start, chunks[0].Start)
+	assert.Equal(t, *day.End, *chunks[len(chunks)-1].End)
+	for i, chunk := range chunks {
+		assert.LessOrEqual(t, *chunk.Size(), uint64(45_000)) // about 5M rows at 115 rows a slot
+		if i > 0 {
+			// the chunks tile the window: no gap, no overlap
+			assert.Equal(t, *chunks[i-1].End+1, chunk.Start)
+		}
+	}
+
+	// a window too narrow to split is left alone rather than lost
+	single := rg.NewSingleRange(7)
+	assert.Equal(t, []rg.Range{single}, duplicateCheckChunks(single, 50*duplicateCheckChunkRows))
 }

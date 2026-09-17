@@ -17,13 +17,18 @@ type testDuplicateChecker struct {
 	mu        sync.Mutex
 	intervals []rg.Range
 	err       error
+	block     chan struct{} // when set, a scan waits for it before returning
 }
 
 func (c *testDuplicateChecker) CheckDuplicates(_ context.Context, interval rg.Range) ([]DuplicateReport, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.intervals = append(c.intervals, interval)
-	return nil, c.err
+	err, block := c.err, c.block
+	c.mu.Unlock()
+	if block != nil {
+		<-block
+	}
+	return nil, err
 }
 
 func (c *testDuplicateChecker) checked() []rg.Range {
@@ -182,4 +187,32 @@ func TestDuplicateCheck_rewindsWithTheDestination(t *testing.T) {
 	fresh.maybeStart(ctx, rg.NewRange(0, 99))
 	waitIdle(t, fresh)
 	assert.Equal(t, rg.NewRange(42, 99), checker.checked()[3])
+}
+
+func TestDuplicateCheck_keepsARewindThatLandsDuringAScan(t *testing.T) {
+	block := make(chan struct{})
+	checker := &testDuplicateChecker{block: block}
+	c := newTestDuplicateCheck(checker, time.Millisecond, 0)
+	ctx := context.Background()
+
+	c.maybeStart(ctx, rg.NewRange(0, 999)) // lookback 0: nothing to scan yet, the window starts at 1000
+	waitIdle(t, c)
+	time.Sleep(2 * time.Millisecond)
+	c.maybeStart(ctx, rg.NewRange(0, 1999))
+	require.Eventually(t, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return c.running
+	}, time.Second, time.Millisecond)
+
+	// a fork rolls the destination back while the scan is reading: what it read is about to be
+	// written again, so finishing must not count that range as checked
+	c.rewind(1500)
+	close(block)
+	waitIdle(t, c)
+
+	time.Sleep(2 * time.Millisecond)
+	c.maybeStart(ctx, rg.NewRange(0, 2099))
+	waitIdle(t, c)
+	assert.Equal(t, rg.NewRange(1000, 2099), checker.checked()[1])
 }

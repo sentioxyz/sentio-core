@@ -282,18 +282,19 @@ func (d *ExtServerDimension) getGrpcCheckpoint(ctx context.Context, sn uint64) (
 	return resp.GetCheckpoint(), nil
 }
 
-// getGrpcEpochProtocolVersion reads the protocol version one epoch runs. The protocol guard calls
-// it once per epoch, so the extra round trip is negligible.
-func (d *ExtServerDimension) getGrpcEpochProtocolVersion(ctx context.Context, epoch uint64) (uint64, error) {
+// getGrpcCurrentProtocolVersion reads the protocol version the chain runs right now. The request
+// carries no epoch on purpose: nodes keep only a window of recent epochs, so asking for a specific
+// one answers NotFound while backfilling an older range. The protocol guard calls this once per
+// process.
+func (d *ExtServerDimension) getGrpcCurrentProtocolVersion(ctx context.Context) (uint64, error) {
 	var resp *rpcv2.GetEpochResponse
 	r := d.client.UseClient(
 		ctx,
-		fmt.Sprintf("ext.GetSlot.MainPart.grpc_GetEpoch/%d", epoch),
+		"ext.GetSlot.MainPart.grpc_GetEpoch",
 		func(ctx context.Context, cli *Client) clientpool.Result {
 			return cli.UseGRPCConnection(ctx, "ext.GetSlot.MainPart.grpc_GetEpoch",
 				func(ctx context.Context, conn *grpc.ClientConn) clientpool.Result {
 					req := &rpcv2.GetEpochRequest{
-						Epoch:    &epoch,
 						ReadMask: &fieldmaskpb.FieldMask{Paths: []string{"epoch", "protocol_config"}},
 					}
 					var err error
@@ -320,7 +321,7 @@ func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot,
 	}
 	// Unlike the json-rpc path, nothing downstream would notice data shapes this build cannot
 	// represent, so refuse the checkpoint instead of persisting it with fields silently dropped.
-	if err = d.protocolGuard.check(ctx, ck, d.getGrpcEpochProtocolVersion); err != nil {
+	if err = d.protocolGuard.check(ctx, ck, d.getGrpcCurrentProtocolVersion); err != nil {
 		return nil, err
 	}
 	s := &Slot{GrpcCheckpoint: ck}

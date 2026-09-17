@@ -2,6 +2,7 @@ package sui
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 
 	"github.com/pkg/errors"
@@ -10,6 +11,7 @@ import (
 
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/envconf"
+	"sentioxyz/sentio-core/common/log"
 )
 
 // Sui and IOTA gate every new on-chain data shape behind a protocol version: a new
@@ -56,23 +58,28 @@ func maxSupportedProtocolVersion(variation types.Variation) uint64 {
 }
 
 // protocolGuard halts slot loading when the chain runs a protocol version this build has not been
-// reviewed against. It checks two things per checkpoint, both cheap:
+// reviewed against. It has two signals:
 //
-//   - the epoch the checkpoint belongs to, resolved once per epoch through the node (one call per
-//     epoch, i.e. roughly one per day);
-//   - the next epoch's version announced in an end-of-epoch checkpoint, which costs nothing and
-//     catches an upgrade one checkpoint *before* the new shapes can appear.
+//   - the version an end-of-epoch checkpoint announces for the next epoch. This is the main one:
+//     it is consensus data already present in the checkpoint, costs nothing, and fires one
+//     checkpoint *before* any transaction can carry the new shapes.
+//   - the chain's current version, resolved through GetEpoch once per process. This only covers
+//     the gap the announcements cannot: a process that starts up after the upgrade already
+//     happened, having never seen the end-of-epoch checkpoint that announced it.
+//
+// The current version is deliberately not resolved per epoch: nodes keep only a window of recent
+// epochs (a lookup a hundred epochs back answers NotFound), so a per-epoch lookup would fail for
+// good while backfilling an older range - and a failure here halts the chain.
 type protocolGuard struct {
 	variation types.Variation
 	// max is 0 when the guard is disabled.
 	max uint64
 
-	// checkedUpTo is one past the highest epoch whose protocol version was accepted. Every epoch
-	// below it is covered without asking again: the protocol version never moves down, so an
-	// accepted epoch vouches for all earlier ones (backfilling an old range included). 0 means
-	// nothing has been checked yet, which is why the bound is exclusive — epoch 0 must not pass
-	// for free. A rejected epoch never advances it: every checkpoint in it must keep failing.
-	checkedUpTo atomic.Uint64
+	// baselineDone records that the chain's own protocol version has been resolved once and
+	// accepted, which is all the startup check is for: from then on every upgrade arrives as an
+	// end-of-epoch announcement in the checkpoints themselves. A rejected version never sets it,
+	// so every checkpoint keeps failing until the limit is raised.
+	baselineDone atomic.Bool
 }
 
 func newProtocolGuard(variation types.Variation) *protocolGuard {
@@ -93,83 +100,74 @@ func (g *protocolGuard) overrideEnvName() string {
 	return "SENTIO_SUI_MAX_PROTOCOL_VERSION"
 }
 
-func (g *protocolGuard) accept(version uint64, epoch uint64, sn uint64, announced bool) error {
+// reject builds the error that halts slot loading, or nil when the version is within range. what
+// describes where the version came from, since the two signals mean different things: an
+// announcement is about the checkpoint at hand, while the chain's current version may be newer
+// than the checkpoint being loaded (backfilling an older range) and still has to halt - the shapes
+// we would fail to represent are already on chain.
+func (g *protocolGuard) reject(version uint64, what string) error {
 	if version <= g.max {
 		return nil
 	}
-	what := "runs"
-	if announced {
-		what = "is about to switch to"
-	}
 	return errors.Errorf(
-		"%s checkpoint %d (epoch %d) %s protocol version %d, above the highest reviewed version %d: "+
-			"this build may not know every data shape that version allows, and the grpc path would drop "+
-			"the ones it does not know without an error. Sync github.com/sentioxyz/sui-apis with upstream, "+
-			"regenerate, review chain/sui/types against the new layout, then raise the limit (override: %s)",
-		g.variation, sn, epoch, what, version, g.max, g.overrideEnvName())
+		"%s %s protocol version %d, above the highest reviewed version %d: this build may not know "+
+			"every data shape that version allows, and the grpc path would drop the ones it does not "+
+			"know without an error. Sync github.com/sentioxyz/sui-apis with upstream, regenerate, "+
+			"review chain/sui/types against the new layout, then raise the limit (override: %s)",
+		g.variation, what, version, g.max, g.overrideEnvName())
 }
 
-// fetchEpochVersion resolves the protocol version of one epoch.
-type fetchEpochVersion func(ctx context.Context, epoch uint64) (uint64, error)
+// fetchCurrentVersion resolves the protocol version the chain runs right now.
+type fetchCurrentVersion func(ctx context.Context) (uint64, error)
 
-// check validates the checkpoint's own epoch and, when the checkpoint ends an epoch, the version
-// announced for the next one. fetch is called at most once per epoch.
-func (g *protocolGuard) check(ctx context.Context, ck *rpcv2.Checkpoint, fetch fetchEpochVersion) error {
+// check validates the version announced by an end-of-epoch checkpoint and, once per process, the
+// chain's current version.
+func (g *protocolGuard) check(ctx context.Context, ck *rpcv2.Checkpoint, fetch fetchCurrentVersion) error {
 	if !g.enabled() {
 		return nil
 	}
 	summary := ck.GetSummary()
 	sn, epoch := summary.GetSequenceNumber(), summary.GetEpoch()
 
-	// The end-of-epoch announcement is already in the checkpoint: catch the upgrade before the
-	// first checkpoint that may carry the new shapes.
+	// The announcement is already in the checkpoint: catch the upgrade before the first
+	// checkpoint that may carry the new shapes.
 	if next := summary.GetEndOfEpochData().GetNextEpochProtocolVersion(); next > 0 {
-		if err := g.accept(next, epoch+1, sn, true); err != nil {
+		if err := g.reject(next, fmt.Sprintf(
+			"checkpoint %d ends epoch %d and announces, for epoch %d,", sn, epoch, epoch+1)); err != nil {
 			return err
 		}
-		// The protocol version only ever moves up: a validator votes for next+1 and stops at
-		// the highest version a quorum supports (sui-core choose_protocol_version_and_system_
-		// packages_v2), so an accepted next epoch vouches for this one too. The announcement is
-		// consensus data rather than a node's reply, so trust it for both epochs and skip the
-		// lookup — while slots are loaded in order, this hands the check from one epoch to the
-		// next and GetEpoch is never called again.
-		g.markChecked(epoch + 1)
+		// The protocol version only ever moves up: a validator votes for next+1 and stops at the
+		// highest version a quorum supports (sui-core choose_protocol_version_and_system_
+		// packages_v2). So an accepted announcement also proves the chain's version at this
+		// checkpoint is within range - exactly what the startup check establishes, from
+		// consensus data rather than a node's reply.
+		g.baselineDone.Store(true)
 		return nil
 	}
 
-	if g.isChecked(epoch) {
+	if g.baselineDone.Load() {
 		return nil
 	}
 
-	version, err := fetch(ctx, epoch)
+	version, err := fetch(ctx)
 	if err != nil {
-		return errors.Wrapf(err, "resolve protocol version of epoch %d", epoch)
+		return errors.Wrapf(err, "resolve the current protocol version of %s", g.variation)
 	}
 	if version == 0 {
-		// The node did not report one; nothing to check against, and failing here would halt the
-		// chain on an unrelated gap in the reply.
+		// The node did not report one. Stop asking - retrying per checkpoint would put a request
+		// per slot on a node that has already shown it will not answer - and rely on the
+		// announcements, which come from the checkpoints themselves.
+		_, logger := log.FromContext(ctx)
+		logger.Warnf("%s node reported no protocol version; the startup check is skipped and an "+
+			"unreviewed protocol version will only be caught at the next epoch boundary", g.variation)
+		g.baselineDone.Store(true)
 		return nil
 	}
-	if err = g.accept(version, epoch, sn, false); err != nil {
+	if err = g.reject(version, fmt.Sprintf(
+		"currently runs, while checkpoint %d (epoch %d) is being loaded,", sn, epoch)); err != nil {
 		return err
 	}
 
-	g.markChecked(epoch)
+	g.baselineDone.Store(true)
 	return nil
-}
-
-func (g *protocolGuard) isChecked(epoch uint64) bool {
-	return epoch < g.checkedUpTo.Load()
-}
-
-func (g *protocolGuard) markChecked(epoch uint64) {
-	for {
-		cur := g.checkedUpTo.Load()
-		if epoch+1 <= cur {
-			return
-		}
-		if g.checkedUpTo.CompareAndSwap(cur, epoch+1) {
-			return
-		}
-	}
 }

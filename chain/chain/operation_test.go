@@ -456,9 +456,9 @@ func TestSync_cutHeadResidue(t *testing.T) {
 	}
 }
 
-// syncing into an empty destination must still honour the first-run lookback: the destination
-// ends up holding exactly what was copied, however the local range was carried over.
-func TestSync_duplicateCheckFromScratch(t *testing.T) {
+// the window a check scans comes from the range store, so an initial sync is covered without
+// anything having to be remembered, and a fork pulls the slots it rewrites back into the window.
+func TestSync_duplicateCheckWindow(t *testing.T) {
 	baseSlots := newTestSlots(rg.NewRange(0, 300), "")
 
 	dim1, rs1, store1 := newTestDimension()
@@ -472,13 +472,12 @@ func TestSync_duplicateCheckFromScratch(t *testing.T) {
 	assert.Equal(t, context.DeadlineExceeded, Sync(ctx, dim1, dim2, SyncConfig{
 		RoundInterval:    time.Second,
 		DupCheckInterval: time.Millisecond,
-		DupCheckLookback: 50,
 	}))
-	assert.Equal(t, []rg.Range{rg.NewRange(150, 199)}, store2.checkedWindows())
+	// everything the empty destination just took on, with no watermark kept anywhere: the range
+	// store recorded an end as each part of the copy landed, so the oldest one is where it began
+	assert.Equal(t, []rg.Range{rg.NewRange(100, 199)}, store2.checkedWindows())
 }
 
-// a fork rewrites slots that were already checked, which is exactly when a retried save leaves a
-// duplicate behind, so the check has to cover them again.
 func TestSync_duplicateCheckAfterFork(t *testing.T) {
 	baseSlots1 := newTestSlots(rg.NewRange(0, 300), "ca")
 	baseSlots2 := newTestSlots(rg.NewRange(150, 300), "cb", "ca149")
@@ -500,7 +499,9 @@ func TestSync_duplicateCheckAfterFork(t *testing.T) {
 	}))
 	windows := store2.checkedWindows()
 	if assert.NotEmpty(t, windows) {
-		// the fork point, not the watermark the sync had already reached
-		assert.Equal(t, uint64(150), windows[0].Start)
+		// rolling back to the fork point recorded an end below the ones before it, which is what
+		// brings the rewritten slots back into the window
+		assert.LessOrEqual(t, windows[len(windows)-1].Start, uint64(149))
+		assert.Equal(t, uint64(199), *windows[len(windows)-1].End)
 	}
 }

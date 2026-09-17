@@ -8,27 +8,21 @@ import (
 	"github.com/pkg/errors"
 
 	"sentioxyz/sentio-core/common/log"
-	rg "sentioxyz/sentio-core/common/range"
 )
 
-// duplicateCheck drives the periodic DuplicateChecker run of Sync. Every DupCheckInterval it
-// scans the slots synced since the previous run, so consecutive windows tile the destination
-// range without overlap: a window always ends at a committed watermark and a save interval always
-// starts right after one, so a single flush never straddles two windows. The check runs in its own
-// goroutine and never blocks the sync loop; a run still in flight makes the next tick skip.
+// duplicateCheck drives the periodic self-check of Sync: every DupCheckInterval it asks the
+// destination to look itself over for rows that share a unique key. The destination picks the
+// window, which is the stretch of slots its range store still retains, so consecutive checks
+// overlap and there is no progress to remember between them or across a restart. The scan runs in
+// its own goroutine and never blocks the sync loop; one still in flight makes the next tick skip.
 type duplicateCheck struct {
 	checker  DuplicateChecker
 	interval time.Duration
-	lookback uint64
 
 	mu        sync.Mutex
 	running   bool
 	disabled  bool
 	lastStart time.Time
-	next      uint64 // first slot of the next window, valid when hasNext; a failed run keeps it
-	hasNext   bool
-	rewinds   uint64 // counts rewinds, so a finished run can tell one happened while it ran
-	runRewind uint64 // value of rewinds when the running scan started
 }
 
 func newDuplicateCheck[SLOT Slot](dst Dimension[SLOT], config SyncConfig) *duplicateCheck {
@@ -39,18 +33,12 @@ func newDuplicateCheck[SLOT Slot](dst Dimension[SLOT], config SyncConfig) *dupli
 	if !ok {
 		return nil
 	}
-	return &duplicateCheck{
-		checker:  checker,
-		interval: config.DupCheckInterval,
-		lookback: config.DupCheckLookback,
-	}
+	return &duplicateCheck{checker: checker, interval: config.DupCheckInterval}
 }
 
-// maybeStart is called after every successful sync round with the destination range cur. The
-// first run only looks back DupCheckLookback slots from the watermark (0 = nothing: everything
-// synced before startup is trusted), later runs cover (previous watermark, cur.End].
-func (c *duplicateCheck) maybeStart(ctx context.Context, cur rg.Range) {
-	if c == nil || cur.IsEmpty() {
+// maybeStart runs a check if one is due and none is in flight.
+func (c *duplicateCheck) maybeStart(ctx context.Context) {
+	if c == nil {
 		return
 	}
 	c.mu.Lock()
@@ -58,43 +46,17 @@ func (c *duplicateCheck) maybeStart(ctx context.Context, cur rg.Range) {
 	if c.disabled || c.running {
 		return
 	}
-	now := time.Now()
-	if !c.lastStart.IsZero() && now.Sub(c.lastStart) < c.interval {
-		return
-	}
-	c.lastStart = now
-	end := *cur.End
-	if !c.hasNext {
-		c.next = end + 1 - min(c.lookback, end-cur.Start+1) // lookback 0 gives an empty first window
-		c.hasNext = true
-	}
-	if c.next > end {
-		return
-	}
-	c.running = true
-	c.runRewind = c.rewinds
-	go c.run(ctx, rg.NewRange(c.next, end))
-}
-
-// rewind moves the start of the next window back to from, so slots the sync is about to write
-// again are checked again however far the check had already got. Without it the window start
-// stays above a rolled back watermark and the rewritten slots are never scanned.
-func (c *duplicateCheck) rewind(from uint64) {
-	if c == nil {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.rewinds++
-	if !c.hasNext || from < c.next {
-		c.next, c.hasNext = from, true
+	if now := time.Now(); c.lastStart.IsZero() || now.Sub(c.lastStart) >= c.interval {
+		c.lastStart = now
+		c.running = true
+		go c.run(ctx)
 	}
 }
 
-func (c *duplicateCheck) run(ctx context.Context, interval rg.Range) {
-	_, logger := log.FromContext(ctx, "dupCheckRange", interval.String())
+func (c *duplicateCheck) run(ctx context.Context) {
+	ctx, logger := log.FromContext(ctx)
 	startAt := time.Now()
-	reports, err := c.checker.CheckDuplicates(ctx, interval)
+	window, reports, err := c.checker.CheckDuplicates(ctx)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -104,16 +66,11 @@ func (c *duplicateCheck) run(ctx context.Context, interval rg.Range) {
 		c.disabled = true
 		logger.Info("duplicate check disabled, destination does not support it")
 	case err != nil:
-		// `next` stays at the window start so the next run covers it again
 		if ctx.Err() == nil {
-			logger.Warnfe(err, "duplicate check failed, the range will be checked again next time")
+			logger.Warnfe(err, "duplicate check failed, the window will be checked again next time")
 		}
-	case c.rewinds != c.runRewind:
-		// the destination rolled back while the scan ran, so part of what it just read is being
-		// written again: leave the window where the rewind put it and scan it again
-		logger.Info("duplicate check finished over a range that has been rolled back since, will scan it again")
 	default:
-		c.next = *interval.End + 1
+		logger = logger.With("window", window.String())
 		for _, r := range reports {
 			logger.Errorw("detected duplicate rows",
 				"table", r.Table,
@@ -122,6 +79,7 @@ func (c *duplicateCheck) run(ctx context.Context, interval rg.Range) {
 				"firstSlot", r.First,
 				"lastSlot", r.Last)
 		}
-		logger.Infow("duplicate check finished", "tablesWithDuplicates", len(reports), "used", time.Since(startAt).String())
+		logger.Infow("duplicate check finished",
+			"tablesWithDuplicates", len(reports), "used", time.Since(startAt).String())
 	}
 }

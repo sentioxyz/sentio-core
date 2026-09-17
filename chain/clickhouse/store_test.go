@@ -65,27 +65,33 @@ func Test_duplicateCheckSQL(t *testing.T) {
 		"WHERE number >= 10 AND `index` IS NOT NULL GROUP BY `number`, `index`")
 }
 
-func Test_duplicateCheckChunks(t *testing.T) {
-	// a window the scan can take in one go stays whole
-	interval := rg.NewRange(1000, 2000)
-	assert.Equal(t, []rg.Range{interval}, duplicateCheckChunks(interval, 0))
-	assert.Equal(t, []rg.Range{interval}, duplicateCheckChunks(interval, duplicateCheckChunkRows))
+func Test_packDuplicateCheckPages(t *testing.T) {
+	window := rg.NewRange(1000, 1999)
+	const bucket = 100
 
-	// a day of the widest table in production: 44.2M rows over 385k slots
-	day := rg.NewRange(323281082, 323666102)
-	chunks := duplicateCheckChunks(day, 44_230_723)
-	assert.Len(t, chunks, 9)
-	assert.Equal(t, day.Start, chunks[0].Start)
-	assert.Equal(t, *day.End, *chunks[len(chunks)-1].End)
-	for i, chunk := range chunks {
-		assert.LessOrEqual(t, *chunk.Size(), uint64(45_000)) // about 5M rows at 115 rows a slot
-		if i > 0 {
-			// the chunks tile the window: no gap, no overlap
-			assert.Equal(t, *chunks[i-1].End+1, chunk.Start)
-		}
+	// a window light enough for one scan stays one page, and it ends where its rows end
+	light := []bucketRows{{Bucket: 10, Rows: 3}, {Bucket: 12, Rows: 4}}
+	assert.Equal(t, []rg.Range{rg.NewRange(1000, 1299)}, packDuplicateCheckPages(window, bucket, light))
+
+	// buckets are packed until a page is full, so a busy stretch makes shorter pages rather than
+	// heavier ones: the first three buckets fill a page on their own here
+	heavy := []bucketRows{
+		{Bucket: 10, Rows: 2_000_000},
+		{Bucket: 11, Rows: 2_000_000},
+		{Bucket: 12, Rows: 2_000_000},
+		{Bucket: 13, Rows: 1},
+		{Bucket: 19, Rows: 1},
 	}
+	assert.Equal(t, []rg.Range{rg.NewRange(1000, 1299), rg.NewRange(1300, 1999)},
+		packDuplicateCheckPages(window, bucket, heavy))
 
-	// a window too narrow to split is left alone rather than lost
-	single := rg.NewSingleRange(7)
-	assert.Equal(t, []rg.Range{single}, duplicateCheckChunks(single, 50*duplicateCheckChunkRows))
+	// a bucket heavier than a page is a page of its own, since it cannot be cut any finer
+	assert.Equal(t, []rg.Range{rg.NewRange(1000, 1099), rg.NewRange(1100, 1199)},
+		packDuplicateCheckPages(window, bucket, []bucketRows{
+			{Bucket: 10, Rows: 50_000_000},
+			{Bucket: 11, Rows: 50_000_000},
+		}))
+
+	// an empty window is not scanned at all
+	assert.Empty(t, packDuplicateCheckPages(window, bucket, nil))
 }

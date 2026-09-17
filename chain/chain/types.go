@@ -79,12 +79,25 @@ type DuplicateReport struct {
 	Last      uint64 // highest number field value among the duplicated keys
 }
 
-// DuplicateChecker is an optional interface of a Dimension (or of the slot store behind it) that
-// reports rows sharing a unique key inside interval. Sync runs it periodically on the destination
-// (see SyncConfig.DupCheckInterval) as a self-check that a retried save has not left a second
-// copy of an earlier flush behind.
+// DuplicateChecker is an optional interface of a Dimension that looks itself over for rows sharing
+// a unique key, over a window of its own choosing, and reports the window it covered. Sync runs it
+// periodically on the destination (see SyncConfig.DupCheckInterval) as a self-check that a retried
+// save has not left a second copy of an earlier flush behind.
 type DuplicateChecker interface {
-	CheckDuplicates(ctx context.Context, interval rg.Range) ([]DuplicateReport, error)
+	CheckDuplicates(ctx context.Context) (rg.Range, []DuplicateReport, error)
+}
+
+// DuplicateScanner is an optional interface of a SimpleSlotStore that scans one window.
+type DuplicateScanner interface {
+	ScanDuplicates(ctx context.Context, interval rg.Range) ([]DuplicateReport, error)
+}
+
+// RangeHistory is an optional interface of a RangeStore that reports how far back the ranges it
+// has recorded still go. A store that keeps a rolling history can scope a duplicate check with it
+// without anyone having to remember where the last check got to.
+type RangeHistory interface {
+	// OldestRecordedEnd returns the end of the oldest range still retained, and whether any is.
+	OldestRecordedEnd(ctx context.Context) (uint64, bool, error)
 }
 
 // ErrDuplicateCheckUnsupported is returned by CheckDuplicates when the underlying store cannot check.

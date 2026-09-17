@@ -161,12 +161,30 @@ func (d *SimpleDimension[SLOT]) Delete(ctx context.Context, targetRange rg.Range
 	return nil
 }
 
-// CheckDuplicates implements DuplicateChecker by forwarding to the slot store; a store that does
-// not implement DuplicateChecker yields ErrDuplicateCheckUnsupported.
-func (d *SimpleDimension[SLOT]) CheckDuplicates(ctx context.Context, interval rg.Range) ([]DuplicateReport, error) {
-	checker, ok := d.SimpleSlotStore.(DuplicateChecker)
-	if !ok {
-		return nil, ErrDuplicateCheckUnsupported
+// CheckDuplicates scans the slots the range store still has a record of, which is a rolling
+// window of the last couple of days. Taking the window from there rather than from a remembered
+// watermark means consecutive checks overlap, a restart loses nothing, and a fork needs no special
+// handling: rolling the destination back records a lower end, which pulls the slots the fork is
+// about to have rewritten back into the window on their own. Anything older than the window is not
+// this check's business; it belongs to whoever goes looking through history by hand.
+func (d *SimpleDimension[SLOT]) CheckDuplicates(ctx context.Context) (rg.Range, []DuplicateReport, error) {
+	scanner, isScanner := d.SimpleSlotStore.(DuplicateScanner)
+	history, hasHistory := d.RangeStore.(RangeHistory)
+	if !isScanner || !hasHistory {
+		return rg.EmptyRange, nil, ErrDuplicateCheckUnsupported
 	}
-	return checker.CheckDuplicates(ctx, interval)
+	oldest, recorded, err := history.OldestRecordedEnd(ctx)
+	if err != nil {
+		return rg.EmptyRange, nil, errors.Wrapf(err, "get the oldest recorded range end failed")
+	}
+	cur, err := d.RangeStore.Get(ctx)
+	if err != nil {
+		return rg.EmptyRange, nil, errors.Wrapf(err, "get current range failed")
+	}
+	if !recorded || cur.IsEmpty() {
+		return rg.EmptyRange, nil, nil
+	}
+	window := rg.NewRange(min(oldest, *cur.End), *cur.End)
+	reports, err := scanner.ScanDuplicates(ctx, window)
+	return window, reports, err
 }

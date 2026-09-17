@@ -93,10 +93,21 @@ type WithdrawalTypeArg struct {
 
 func (w *WithdrawalTypeArg) IsBcsEnum() {}
 
-// WithdrawFrom: enum { Sender, Sponsor } — both unit variants.
+// WithdrawFrom: enum { Sender, Sponsor, SenderAllowance }. The first two are unit variants; the
+// third carries a payload and was enabled by Sui protocol 137 (the enable_allowances feature
+// flag), so the json form of this field is a bare string for the first two and an object for it.
 type WithdrawFrom struct {
-	Sender  *struct{}
-	Sponsor *struct{}
+	Sender          *struct{}
+	Sponsor         *struct{}
+	SenderAllowance *SenderAllowance
+}
+
+// SenderAllowance mirrors sui's WithdrawFrom::SenderAllowance (BCS variant 2): the address whose
+// balance is debited and the allowance object authorizing the withdrawal. Both are 32 raw bytes
+// in BCS (fixed arrays, no length prefix).
+type SenderAllowance struct {
+	Funder    Address  `json:"funder"`
+	Allowance ObjectID `json:"allowance"`
 }
 
 func (w *WithdrawFrom) IsBcsEnum() {}
@@ -109,7 +120,7 @@ func (f *FundsWithdrawal) UnmarshalJSON(b []byte) error {
 		TypeArg struct {
 			Balance *TypeTag `json:"balance"`
 		} `json:"typeArg"`
-		WithdrawFrom string `json:"withdrawFrom"`
+		WithdrawFrom json.RawMessage `json:"withdrawFrom"`
 	}{}
 	if err := json.Unmarshal(b, &payload); err != nil {
 		return err
@@ -124,16 +135,44 @@ func (f *FundsWithdrawal) UnmarshalJSON(b []byte) error {
 	if payload.TypeArg.Balance != nil {
 		f.TypeArg = &WithdrawalTypeArg{Balance: payload.TypeArg.Balance}
 	}
-	switch payload.WithdrawFrom {
-	case "":
-	case "sender", "Sender":
-		f.WithdrawFrom = &WithdrawFrom{Sender: &struct{}{}}
-	case "sponsor", "Sponsor":
-		f.WithdrawFrom = &WithdrawFrom{Sponsor: &struct{}{}}
-	default:
-		return errors.Errorf("invalid withdrawFrom %q", payload.WithdrawFrom)
+	withdrawFrom, err := unmarshalWithdrawFrom(payload.WithdrawFrom)
+	if err != nil {
+		return err
 	}
+	f.WithdrawFrom = withdrawFrom
 	return nil
+}
+
+// unmarshalWithdrawFrom accepts both json forms of the field: a bare string for the unit variants
+// and an object for SenderAllowance.
+func unmarshalWithdrawFrom(raw json.RawMessage) (*WithdrawFrom, error) {
+	if !jsonFieldPresent(raw) {
+		return nil, nil
+	}
+	if raw[0] == '"' {
+		var name string
+		if err := json.Unmarshal(raw, &name); err != nil {
+			return nil, err
+		}
+		switch name {
+		case "sender", "Sender":
+			return &WithdrawFrom{Sender: &struct{}{}}, nil
+		case "sponsor", "Sponsor":
+			return &WithdrawFrom{Sponsor: &struct{}{}}, nil
+		default:
+			return nil, errors.Errorf("invalid withdrawFrom %q", name)
+		}
+	}
+	var obj struct {
+		SenderAllowance *SenderAllowance `json:"senderAllowance"`
+	}
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, err
+	}
+	if obj.SenderAllowance == nil {
+		return nil, errors.Errorf("invalid withdrawFrom %s", raw)
+	}
+	return &WithdrawFrom{SenderAllowance: obj.SenderAllowance}, nil
 }
 
 func (f FundsWithdrawal) MarshalJSON() ([]byte, error) {
@@ -154,6 +193,8 @@ func (f FundsWithdrawal) MarshalJSON() ([]byte, error) {
 			r["withdrawFrom"] = "sender"
 		case f.WithdrawFrom.Sponsor != nil:
 			r["withdrawFrom"] = "sponsor"
+		case f.WithdrawFrom.SenderAllowance != nil:
+			r["withdrawFrom"] = map[string]any{"senderAllowance": f.WithdrawFrom.SenderAllowance}
 		}
 	}
 	return json.Marshal(r)

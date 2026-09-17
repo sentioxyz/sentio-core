@@ -62,6 +62,50 @@ func TestCallArgFundsWithdrawalJSON(t *testing.T) {
 	assert.Equal(t, `[{"type":"fundsWithdrawal"}]`, string(b))
 }
 
+// The SenderAllowance withdraw source is an object in json, unlike the bare-string "sender" and
+// "sponsor"; both forms must decode and round-trip. Shape taken from sui-testnet tx
+// BG7CwqiPdyep6Q447ZL4bkG18LEM4kJoLhC2RYv68rdd (checkpoint 384555991).
+func TestCallArgFundsWithdrawalSenderAllowanceJSON(t *testing.T) {
+	raw := `{"type":"fundsWithdrawal","reservation":{"maxAmountU64":"100"},` +
+		`"withdrawFrom":{"senderAllowance":{` +
+		`"funder":"0xcfa75b4b9a183074c0bcbc9b039c1b8cd2bdece99fa952aa29cc1f858870991d",` +
+		`"allowance":"0x4d87c7115cc4a0b13c29fa982c243492a4ca6d8139c8b4c9724a036a805ef164"}}}`
+
+	var fw FundsWithdrawal
+	require.NoError(t, json.Unmarshal([]byte(raw), &fw))
+	require.NotNil(t, fw.WithdrawFrom)
+	assert.Nil(t, fw.WithdrawFrom.Sender)
+	assert.Nil(t, fw.WithdrawFrom.Sponsor)
+	if assert.NotNil(t, fw.WithdrawFrom.SenderAllowance) {
+		assert.Equal(t, "0xcfa75b4b9a183074c0bcbc9b039c1b8cd2bdece99fa952aa29cc1f858870991d",
+			fw.WithdrawFrom.SenderAllowance.Funder.String())
+		assert.Equal(t, "0x4d87c7115cc4a0b13c29fa982c243492a4ca6d8139c8b4c9724a036a805ef164",
+			fw.WithdrawFrom.SenderAllowance.Allowance.String())
+	}
+
+	out, err := json.Marshal(fw)
+	require.NoError(t, err)
+	assert.JSONEq(t, raw, string(out))
+}
+
+// The unit sources keep their bare-string json form.
+func TestCallArgFundsWithdrawalUnitSourcesJSON(t *testing.T) {
+	for name, check := range map[string]func(*WithdrawFrom) bool{
+		"sender":  func(w *WithdrawFrom) bool { return w.Sender != nil },
+		"sponsor": func(w *WithdrawFrom) bool { return w.Sponsor != nil },
+	} {
+		raw := `{"type":"fundsWithdrawal","withdrawFrom":"` + name + `"}`
+		var fw FundsWithdrawal
+		require.NoError(t, json.Unmarshal([]byte(raw), &fw))
+		require.NotNil(t, fw.WithdrawFrom)
+		assert.True(t, check(fw.WithdrawFrom), name)
+
+		out, err := json.Marshal(fw)
+		require.NoError(t, err)
+		assert.JSONEq(t, raw, string(out))
+	}
+}
+
 // Real ValidDuring expiration bytes taken from sui-testnet tx
 // EeQQHi8FhWchTqbeY7R464rF6pPKaKAhC8hGXLy3Z9R1 (checkpoint 346619596):
 // variant 2; min_epoch=Some(1126); max_epoch=Some(1127); min/max_timestamp=None;

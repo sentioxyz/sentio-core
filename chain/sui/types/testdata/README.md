@@ -11,6 +11,13 @@ Captured from Sui and IOTA full nodes (mainnet/testnet) via json-rpc. For rare
 or historical kinds, locate a checkpoint known to contain the kind (e.g. an
 epoch-boundary checkpoint for end-of-epoch) and fetch that transaction.
 
+Note that Mysten has retired json-rpc on the public fullnodes
+(`sui_getTransactionBlock` answers `-32601 ... migrate to gRPC or GraphQL`), so
+new samples have to come from our own nodes, which still serve it. Port-forward
+one and post to its rpc port; to read the BCS alone, grpc
+`LedgerService/GetTransaction` with a `transaction.bcs` read mask works against
+any node.
+
 ## Files
 
 | file | chain/net | kind (json) | BCS variant | checkpoint | BCS validated |
@@ -25,6 +32,7 @@ epoch-boundary checkpoint for end-of-epoch) and fetch that transaction.
 | `sui/authenticator-state-update.json` | sui mainnet | AuthenticatorStateUpdate | 4 | 285177209 | yes |
 | `sui/end-of-epoch.json` | sui mainnet | EndOfEpochTransaction (AuthenticatorStateExpire + StoreExecutionTimeObservations + WriteAccumulatorStorageCost + ChangeEpoch) | 5 | 285177205 | yes |
 | `sui/genesis.json` | sui mainnet | Genesis | 2 | 0 | no (payload unmodeled) |
+| `sui/programmable-funds-withdrawal-allowance.json` | sui testnet | ProgrammableTransaction (FundsWithdrawal drawing on WithdrawFrom::SenderAllowance) | 0 | 384555991 | yes |
 | `sui/transactions-bundle.json` | sui mainnet | curated bundle of 60 replies (diverse Programmable + a few system txs + 1 errored tx) | — | early epochs | yes (per-tx) |
 | `iota/programmable.json` | iota testnet | ProgrammableTransaction | 0 | 225943757 | yes |
 | `iota/consensus-commit-prologue-v1.json` | iota testnet | ConsensusCommitPrologueV1 | 2 | 225937125 | yes |

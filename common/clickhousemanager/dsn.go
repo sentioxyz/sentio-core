@@ -19,7 +19,7 @@ func ParseDSN(dsn string) (*clickhouse.Options, error) {
 		if errors.As(err, &urlErr) {
 			err = urlErr.Err
 		}
-		return nil, errors.Wrapf(err, "parse dsn %s failed", utils.MaskDSN(dsn))
+		return nil, errors.Wrapf(err, "parse dsn %s failed", utils.AddURLMosaic(dsn))
 	}
 	return options, nil
 }

@@ -21,7 +21,7 @@ type Credential struct {
 func (c Credential) String() string {
 	password := ""
 	if c.Password != "" {
-		password = utils.MaskedSecret
+		password = utils.AddSecretMosaic(c.Password)
 	}
 	return fmt.Sprintf("{Username:%s Password:%s Database:%s}", c.Username, password, c.Database)
 }

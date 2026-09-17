@@ -35,8 +35,26 @@ func TestCredentialStringMasksPassword(t *testing.T) {
 	}
 	got := fmt.Sprintf("%v", credentials)
 	want := "map[reader:{Username:reader Password: Database:default} " +
-		"writer:{Username:sentio Password:xxxxx Database:default}]"
+		"writer:{Username:sentio Password:***(6) Database:default}]"
 	if got != want {
 		t.Errorf("printed credentials = %q, want %q", got, want)
+	}
+}
+
+func TestLogSerializationMasksThePrivateKey(t *testing.T) {
+	const privateKeyHex = "b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291"
+	var options Options
+	ConnectWithPrivateKey(privateKeyHex)(&options)
+
+	// The cache key keeps the raw key: two connections signing with different keys are different.
+	if !strings.Contains(options.Serialization(), privateKeyHex) {
+		t.Errorf("Serialization dropped the private key: %s", options.Serialization())
+	}
+	logged := options.LogSerialization()
+	if strings.Contains(logged, privateKeyHex) {
+		t.Errorf("LogSerialization leaks the private key: %s", logged)
+	}
+	if want := "private_key=b71c71***a3f291(64)"; !strings.Contains(logged, want) {
+		t.Errorf("LogSerialization = %q, want it to contain %q", logged, want)
 	}
 }

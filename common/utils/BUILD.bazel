@@ -8,7 +8,6 @@ go_library(
         "bigint.go",
         "bit.go",
         "compress.go",
-        "dsn.go",
         "duration.go",
         "file.go",
         "http.go",
@@ -48,7 +47,6 @@ go_test(
     srcs = [
         "any_test.go",
         "bit_test.go",
-        "dsn_test.go",
         "map_test.go",
         "strings_test.go",
         "utils_test.go",

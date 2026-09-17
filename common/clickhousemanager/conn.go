@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
+	"net/url"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/mitchellh/hashstructure/v2"
+	"github.com/pkg/errors"
 )
 
 type connSettings struct {
@@ -158,7 +160,14 @@ func parseDSNAndOptions(dsn string, connectOptions ...func(*Options)) (*clickhou
 		var err error
 		ckhOptions, err = clickhouse.ParseDSN(dsn)
 		if err != nil {
-			log.Errorf("parse dsn failed: %v", err)
+			// The driver reports a parse failure as a *url.Error that embeds the raw DSN, password
+			// included; keep only its cause so neither the log line nor the panic leaks credentials.
+			var urlErr *url.Error
+			if errors.As(err, &urlErr) {
+				err = urlErr.Err
+			}
+			err = errors.Wrapf(err, "parse dsn %s failed", MaskDSN(dsn))
+			log.Errore(err)
 			panic(err)
 		}
 		for k, v := range NewConnSettingsMacro() {
@@ -232,7 +241,8 @@ func connect(dsn string, connectOptions ...func(*Options)) Conn {
 		log.Errorf("hash clickhouse options failed: %v", err)
 		panic(err)
 	}
-	log.Debugf("[RAW-CONN] ckhHash=%d, DB=%s, Addr=%v, Auth=%+v", ckhHash, ckhOptions.Auth.Database, ckhOptions.Addr, ckhOptions.Auth)
+	log.Debugf("[RAW-CONN] ckhHash=%d, DB=%s, Addr=%v, User=%s", ckhHash, ckhOptions.Auth.Database, ckhOptions.Addr,
+		ckhOptions.Auth.Username)
 
 	clickhouseConnectJSON, _ := json.Marshal(ckhHash)
 	ckhConn, ok := rawConnections.Get(ckhHash)
@@ -267,7 +277,7 @@ func NewOrGetConn(dsn string, connectOptions ...func(*Options)) Conn {
 	}
 	conn, ok := connections.Get(dsn + connOptions.Serialization())
 	if ok {
-		log.Infof("reuse sentio-clickhouse wrapped connection: %s", dsn+"@"+connOptions.Serialization())
+		log.Infof("reuse sentio-clickhouse wrapped connection: %s", MaskDSN(dsn)+"@"+connOptions.Serialization())
 		return wrapWithTracing(conn)
 	}
 	return NewConn(dsn, connectOptions...)
@@ -281,6 +291,6 @@ func NewConn(dsn string, connectOptions ...func(*Options)) Conn {
 
 	conn := connect(dsn, connectOptions...)
 	connections.Put(dsn+connOptions.Serialization(), conn)
-	log.Infof("connect sentio-clickhouse wrapped connection: %s", dsn+"@"+connOptions.Serialization())
+	log.Infof("connect sentio-clickhouse wrapped connection: %s", MaskDSN(dsn)+"@"+connOptions.Serialization())
 	return wrapWithTracing(conn)
 }

@@ -90,6 +90,13 @@ type DuplicateChecker interface {
 // DuplicateScanner is an optional interface of a SimpleSlotStore that scans one window.
 type DuplicateScanner interface {
 	ScanDuplicates(ctx context.Context, interval rg.Range) ([]DuplicateReport, error)
+
+	// SlotsPerCommit is the most slots the store writes before the range covering them is recorded.
+	// A check reaches that far below the oldest end the range store has kept, because those slots
+	// went in with no earlier end to anchor them: on a destination that started empty the first
+	// batch it commits is the whole of its history, and the recorded end is that batch's last slot
+	// rather than its first.
+	SlotsPerCommit() uint64
 }
 
 // RangeHistory is an optional interface of a RangeStore that reports how far back the ranges it

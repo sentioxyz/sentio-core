@@ -194,6 +194,29 @@ type HandlerAgentInterval struct {
 	Filter              chainsui.ObjectChangeFilter
 	NeedSelf            bool
 	UnwrapDynamicObject bool
+	// TimerOnly marks an agent whose account config carries no address: the handler wants the
+	// interval tick alone, so no object dictionary is maintained and the binding carries no objects.
+	// It stays an explicit flag rather than being inferred from an empty Filter, because an empty
+	// ObjectChangeFilter means "match every object" to GetObjectChanges - the opposite of the intent.
+	TimerOnly bool
+}
+
+// TickBinding is the single binding a TimerOnly agent emits for one interval tick. It carries no
+// object id, no self and no owned objects: the SDK's SuiAddressProcessor reads only RawObjects, so
+// this is the same shape it already receives for an address that happens to own nothing.
+func (a HandlerAgentInterval) TickBinding(blockNumber uint64, blockTime time.Time) standard.BindingDataInner {
+	return standard.BindingDataInner{
+		HandlerType: protos.HandlerType_SUI_OBJECT,
+		TxIndex:     math.MaxInt,
+		Data: &protos.Data{
+			Value: &protos.Data_SuiObject_{
+				SuiObject: &protos.Data_SuiObject{
+					Timestamp: timestamppb.New(blockTime),
+					Slot:      blockNumber,
+				},
+			},
+		},
+	}
 }
 
 const MaxObjectDictLen = 100000
@@ -327,6 +350,9 @@ func (a HandlerAgentInterval) BuildBindingDataList(
 ) (result []standard.BindingDataInner, err error) {
 	if !data.ContainsInterval(bd.mainData.Intervals, a.IntervalConfig) {
 		return
+	}
+	if a.TimerOnly {
+		return []standard.BindingDataInner{a.TickBinding(bd.GetBlockNumber(), bd.GetBlockTime())}, nil
 	}
 
 	dict := bd.objMgr.Get(a.ObjMgrKey())
@@ -484,5 +510,6 @@ func (a HandlerAgentInterval) Snapshot() any {
 		"Filter":              a.Filter,
 		"NeedSelf":            a.NeedSelf,
 		"UnwrapDynamicObject": a.UnwrapDynamicObject,
+		"TimerOnly":           a.TimerOnly,
 	}
 }

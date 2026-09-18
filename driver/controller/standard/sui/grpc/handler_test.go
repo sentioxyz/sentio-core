@@ -7,8 +7,10 @@ import (
 
 	chainsui "sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/common/set"
+	"sentioxyz/sentio-core/driver/controller/data"
 	suidata "sentioxyz/sentio-core/driver/controller/data/sui"
 	suigrpcdata "sentioxyz/sentio-core/driver/controller/data/sui/grpc"
+	"sentioxyz/sentio-core/driver/controller/standard"
 	suihandler "sentioxyz/sentio-core/driver/controller/standard/sui"
 	"sentioxyz/sentio-core/processor/protos"
 
@@ -271,4 +273,29 @@ func Test_grpcFilterConvention(t *testing.T) {
 	assert.Equal(t, "address", j.OwnerType(protos.MoveOwnerType_ADDRESS))
 	assert.Equal(t, "object", j.OwnerType(protos.MoveOwnerType_WRAPPED_OBJECT))
 	assert.Equal(t, "ProgrammableTransaction", j.ProgrammableTxKind())
+}
+
+// The grpc path binds a timer-only interval agent the same way the json-rpc one does: one tick with
+// no object id, no self and no owned objects, and without consulting an object dictionary (the nil
+// objMgr here would panic if it still did).
+func TestTimerOnlyIntervalBindsTickWithoutObjects(t *testing.T) {
+	interval, err := standard.NewIntervalConfig(&protos.OnIntervalConfig{HandlerId: 1, Minutes: 24 * 60})
+	require.NoError(t, err)
+	agent := HandlerAgentInterval{suihandler.HandlerAgentInterval{IntervalConfig: interval, TimerOnly: true}}
+
+	bd := &BlockData{mainData: suigrpcdata.BlockMainData{Intervals: []data.IntervalConfig{interval}}}
+	bd.BlockHeader = suidata.SimpleBlock{Checkpoint: 100, Digest: "ckpt", TimestampMS: 1700000000000}
+
+	result, err := agent.BuildBindingDataList(context.Background(), bd)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+
+	obj := result[0].Data.GetSuiObject()
+	require.NotNil(t, obj)
+	assert.Empty(t, obj.GetObjectId())
+	assert.Nil(t, obj.RawSelf)
+	assert.Empty(t, obj.GetRawObjects())
+	assert.Equal(t, uint64(100), obj.GetSlot())
+	assert.Equal(t, int64(1700000000000), obj.GetTimestamp().AsTime().UnixMilli())
+	assert.Zero(t, result[0].DataSize)
 }

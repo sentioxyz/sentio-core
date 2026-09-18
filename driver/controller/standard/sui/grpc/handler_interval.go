@@ -79,6 +79,9 @@ func (a HandlerAgentInterval) BuildBindingDataList(
 	if !data.ContainsInterval(bd.mainData.Intervals, a.IntervalConfig) {
 		return
 	}
+	if a.TimerOnly {
+		return []standard.BindingDataInner{a.TickBinding(bd.GetBlockNumber(), bd.GetBlockTime())}, nil
+	}
 	dict := bd.objMgr.Get(a.ObjMgrKey())
 	if dict == nil {
 		return

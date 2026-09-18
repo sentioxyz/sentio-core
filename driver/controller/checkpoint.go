@@ -562,8 +562,11 @@ func (c *checkpointController) MakeCheckpoint(
 	}
 
 	if c.saveDelay == 0 && ck.InWatching() {
-		// realtime mode
-		extErr = c.save(ctx, false, true)
+		// Realtime mode. A batch that carries bindings is saved as soon as it is made, so what the
+		// handlers produced reaches the user without waiting out the save interval. A batch without a
+		// single binding has nothing to publish — saving it would only move the chain state forward —
+		// so it keeps the interval and is folded into the next save.
+		extErr = c.save(ctx, false, !c.hasUnsavedBindings())
 	} else if uint64(len(c.checkpoints)) >= c.maxKeepCheckpointCount {
 		logger.Info("will try to save checkpoint because there are too many checkpoints")
 		extErr = c.save(ctx, false, false)
@@ -578,6 +581,18 @@ func (c *checkpointController) MakeCheckpoint(
 		extErr = c.save(ctx, false, false)
 	}
 	return
+}
+
+// hasUnsavedBindings reports whether any checkpoint made since the last save carries bindings.
+// It returns on the first one found, and the walk is bounded by what one save interval of blocks
+// can add, because a batch with bindings is saved as soon as it is made.
+func (c *checkpointController) hasUnsavedBindings() bool {
+	for i := c.savedCheckpoints; i < len(c.checkpoints); i++ {
+		if c.checkpoints[i].TotalBindings > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *checkpointController) Save(ctx context.Context, saveAll bool) *ExternalError {

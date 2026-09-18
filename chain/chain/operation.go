@@ -177,7 +177,13 @@ func Sync[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], config SyncC
 		if err == nil {
 			// Copy succeed
 			roundLogger.Info("sync succeed")
-			curRange = rg.Range{Start: curRange.Start, End: syncRange.End}
+			if curRange.IsEmpty() {
+				// the destination was empty, so it now holds exactly what was copied: keeping the
+				// start of the empty range would leave curRange empty (its start is above any end)
+				curRange = syncRange
+			} else {
+				curRange = rg.Range{Start: curRange.Start, End: syncRange.End}
+			}
 			if config.DstTargetLen > 0 && *curRange.Size() > config.DstTargetLen {
 				// need to cut head
 				targetRangeLeft := *curRange.End + 1 - config.DstTargetLen

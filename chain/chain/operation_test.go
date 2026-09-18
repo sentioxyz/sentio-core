@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 
 	"sentioxyz/sentio-core/common/concurrency"
@@ -454,4 +455,38 @@ func TestSync_cutHeadResidue(t *testing.T) {
 	for _, n := range kept {
 		assert.GreaterOrEqual(t, n, uint64(200))
 	}
+}
+
+// A fork records an end below the ones before it, which is what lets a duplicate check scope its
+// window from the recorded history alone: the slots the fork is about to have rewritten come back
+// into the window without anyone tracking them.
+func TestSync_forkRecordsALowerEnd(t *testing.T) {
+	baseSlots1 := newTestSlots(rg.NewRange(0, 300), "ca")
+	baseSlots2 := newTestSlots(rg.NewRange(150, 300), "cb", "ca149")
+
+	dim1, rs1, store1 := newTestDimension()
+	store1.initFillSlots(filterSlots(baseSlots1, rg.NewRange(100, 199)))
+	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
+
+	dim2, rs2, store2 := newTestDimension()
+	store2.initFillSlots(filterSlots(baseSlots1, rg.NewRange(100, 149)))
+	store2.initFillSlots(filterSlots(baseSlots2, rg.NewRange(150, 169)))
+	_, _ = rs2.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 169)))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	assert.Equal(t, context.DeadlineExceeded, Sync(ctx, dim1, dim2, SyncConfig{
+		RoundInterval: time.Millisecond * 200,
+	}))
+
+	ends := rs2.recordedEnds()
+	require.NotEmpty(t, ends)
+	lowest := ends[0]
+	for _, end := range ends[1:] {
+		lowest = min(lowest, end)
+	}
+	// the rollback to the fork point, below the 169 the destination had reached before it
+	assert.Equal(t, uint64(149), lowest)
+	r2, _ := dim2.GetRange(context.Background())
+	assert.Equal(t, uint64(199), *r2.End)
 }

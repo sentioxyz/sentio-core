@@ -45,8 +45,10 @@ go_test(
     deps = [
         "//chain/sui",
         "//common/set",
+        "//driver/controller/data",
         "//driver/controller/data/sui",
         "//driver/controller/data/sui/grpc",
+        "//driver/controller/standard",
         "//driver/controller/standard/sui",
         "//processor/protos",
         "@com_github_sentioxyz_sui_apis//sui/rpc/v2:rpc",

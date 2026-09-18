@@ -172,6 +172,11 @@ func (c *HandlerController) pushIntervalAgent(ctx context.Context, blockNumber u
 		if !is || !data.ContainsInterval(blockData.mainData.Intervals, ag.IntervalConfig) {
 			continue
 		}
+		// A TimerOnly agent has no filter to push a dictionary for: it never contributes an entry to
+		// objMgr, so nothing is fetched here and nothing is written to the checkpoint for it.
+		if ag.TimerOnly {
+			continue
+		}
 		key := ag.ObjMgrKey()
 		g.Go(func() error {
 			if newDict, err := ag.PushObjectLatestVersion(gctx, blockNumber, c.objMgr.Get(key)); err != nil {

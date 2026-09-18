@@ -96,9 +96,19 @@ func BuildSuiAgents(
 			switch intervalConfig.GetOwnerType() {
 			case protos.MoveOwnerType_ADDRESS, protos.MoveOwnerType_OBJECT, protos.MoveOwnerType_WRAPPED_OBJECT:
 				if accountAddress == "" {
-					return controller.NewExternalError(controller.ErrCodeUnexpectedProcessorConfig,
-						errors.Errorf("unexpected config for handler %s: address should not be empty because owner type is %s",
-							agent.GetHandlerID().String(), intervalConfig.GetOwnerType().String()))
+					// An ADDRESS handler bound without an address wants the interval tick alone (the
+					// SDK's SuiAddressProcessor.bind({address: ALL_ADDRESS})): keep it as a pure timer
+					// rather than maintaining an object dictionary for an owner that does not exist.
+					// OBJECT / WRAPPED_OBJECT cannot degrade the same way - there the address IS the
+					// object id, and the SDK's handlers dereference the self object the driver would
+					// then have no way to supply.
+					if intervalConfig.GetOwnerType() != protos.MoveOwnerType_ADDRESS {
+						return controller.NewExternalError(controller.ErrCodeUnexpectedProcessorConfig,
+							errors.Errorf("unexpected config for handler %s: address should not be empty because owner type is %s",
+								agent.GetHandlerID().String(), intervalConfig.GetOwnerType().String()))
+					}
+					agent.TimerOnly = true
+					break // no filter to build; fall through to the shared emit below
 				}
 				agent.Filter.OwnerFilter = &chainsui.ObjectChangeOwnerFilter{
 					OwnerID:   []string{accountAddress},

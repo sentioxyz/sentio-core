@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"sentioxyz/sentio-core/chain/chain"
+	"sentioxyz/sentio-core/driver/controller"
+	"sentioxyz/sentio-core/driver/controller/config"
+	"sentioxyz/sentio-core/driver/controller/data"
+	"sentioxyz/sentio-core/driver/controller/data/sui"
+	"sentioxyz/sentio-core/driver/controller/standard"
+	"sentioxyz/sentio-core/processor/protos"
 )
 
 func Test_loadDump(t *testing.T) {
@@ -176,4 +182,89 @@ func Test_PushObjectLatestVersionPaged(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "too big")
 	})
+}
+
+// buildIntervalAgents runs the config -> agent build for a single interval handler bound to address
+// with ownerType, returning the emitted agents (or the config error).
+func buildIntervalAgents(
+	t *testing.T,
+	address string,
+	ownerType protos.MoveOwnerType,
+) ([]SuiHandlerAgent, *controller.ExternalError) {
+	t.Helper()
+	cfg := standard.HandlerConfig{AccountConfigs: []*protos.AccountConfig{{
+		Address: address,
+		MoveIntervalConfigs: []*protos.MoveOnIntervalConfig{{
+			IntervalConfig: &protos.OnIntervalConfig{HandlerId: 1, Minutes: 24 * 60},
+			OwnerType:      ownerType,
+		}},
+	}}}
+	var agents []SuiHandlerAgent
+	extErr := BuildSuiAgents(
+		context.Background(), cfg, &config.ChainConfig{ChainID: "sui_mainnet"}, nil, 0,
+		func(_ context.Context, _ string, start uint64) (uint64, error) { return start, nil },
+		func(_ context.Context, _ string) ([]string, error) { return nil, nil },
+		JSONRPCFilterConvention,
+		func(a SuiHandlerAgent) { agents = append(agents, a) },
+	)
+	return agents, extErr
+}
+
+// An address processor bound without an address (the SDK's SuiAddressProcessor.bind({address:
+// ALL_ADDRESS}), which reaches the driver as an empty address) only wants the interval tick. It must
+// build a timer-only agent instead of being rejected, and must carry no filter: an owner filter on a
+// non-existent owner would make the driver walk the whole checkpoint history to build a dictionary
+// that is empty by construction.
+func TestBuildSuiAgents_addressLessIntervalIsTimerOnly(t *testing.T) {
+	for _, address := range []string{"", "*"} {
+		agents, extErr := buildIntervalAgents(t, address, protos.MoveOwnerType_ADDRESS)
+		require.Nil(t, extErr)
+		require.Len(t, agents, 1)
+
+		agent, is := agents[0].(HandlerAgentInterval)
+		require.True(t, is)
+		assert.True(t, agent.TimerOnly)
+		assert.Nil(t, agent.Filter.OwnerFilter)
+		assert.Nil(t, agent.Filter.TypePattern)
+		assert.False(t, agent.NeedSelf)
+		assert.False(t, agent.UnwrapDynamicObject)
+	}
+}
+
+// OBJECT / WRAPPED_OBJECT cannot degrade into a timer: there the address IS the object id, and the
+// SDK's object handlers dereference the self object the driver would have no way to supply.
+func TestBuildSuiAgents_addressLessObjectOwnerRejected(t *testing.T) {
+	for _, ownerType := range []protos.MoveOwnerType{
+		protos.MoveOwnerType_OBJECT,
+		protos.MoveOwnerType_WRAPPED_OBJECT,
+	} {
+		_, extErr := buildIntervalAgents(t, "", ownerType)
+		require.NotNil(t, extErr)
+		assert.Contains(t, extErr.Error(), "address should not be empty")
+	}
+}
+
+// A timer-only agent binds one tick carrying no object id, no self and no owned objects, and it does
+// so without an object dictionary at all - the nil objMgr here would panic if the agent still looked
+// one up.
+func TestTimerOnlyIntervalBindsTickWithoutObjects(t *testing.T) {
+	agents, extErr := buildIntervalAgents(t, "*", protos.MoveOwnerType_ADDRESS)
+	require.Nil(t, extErr)
+	agent := agents[0].(HandlerAgentInterval)
+
+	bd := &BlockData{mainData: sui.BlockMainData{Intervals: []data.IntervalConfig{agent.IntervalConfig}}}
+	bd.BlockHeader = sui.SimpleBlock{Checkpoint: 100, Digest: "ckpt", TimestampMS: 1700000000000}
+
+	result, err := agent.BuildBindingDataList(context.Background(), bd)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+
+	obj := result[0].Data.GetSuiObject()
+	require.NotNil(t, obj)
+	assert.Empty(t, obj.GetObjectId())
+	assert.Nil(t, obj.RawSelf)
+	assert.Empty(t, obj.GetRawObjects())
+	assert.Equal(t, uint64(100), obj.GetSlot())
+	assert.Equal(t, int64(1700000000000), obj.GetTimestamp().AsTime().UnixMilli())
+	assert.Zero(t, result[0].DataSize)
 }

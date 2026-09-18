@@ -43,6 +43,12 @@ go_test(
     embed = [":sui"],
     deps = [
         "//chain/chain",
+        "//driver/controller",
+        "//driver/controller/config",
+        "//driver/controller/data",
+        "//driver/controller/data/sui",
+        "//driver/controller/standard",
+        "//processor/protos",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

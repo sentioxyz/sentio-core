@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 
 	"sentioxyz/sentio-core/common/concurrency"
@@ -456,45 +457,10 @@ func TestSync_cutHeadResidue(t *testing.T) {
 	}
 }
 
-// the window a check scans comes from the range store, so an initial sync is covered without
-// anything having to be remembered, and a fork pulls the slots it rewrites back into the window.
-func TestSync_duplicateCheckWindow(t *testing.T) {
-	baseSlots := newTestSlots(rg.NewRange(0, 300), "")
-
-	dim1, rs1, store1 := newTestDimension()
-	store1.initFillSlots(filterSlots(baseSlots, rg.NewRange(100, 199)))
-	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
-
-	dim2, _, store2 := newTestDimension()
-	// the destination commits the whole copy at once, so the only range it records is the one
-	// ending at the last slot: the check still has to cover the slots that batch brought in
-	store2.slotsPerCommit = 10_000
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	assert.Equal(t, context.DeadlineExceeded, Sync(ctx, dim1, dim2, SyncConfig{
-		RoundInterval:    time.Second,
-		DupCheckInterval: time.Millisecond,
-	}))
-	assert.Equal(t, []rg.Range{rg.NewRange(100, 199)}, store2.checkedWindows())
-}
-
-func Test_duplicateCheckStart(t *testing.T) {
-	cur := rg.NewRange(100, 999)
-
-	// one commit below the oldest recorded end, since that commit went in unanchored
-	assert.Equal(t, uint64(700), duplicateCheckStart(900, 200, cur))
-
-	// never below what the destination holds, and never off the bottom of the number line
-	assert.Equal(t, uint64(100), duplicateCheckStart(200, 500, cur))
-	assert.Equal(t, uint64(100), duplicateCheckStart(120, 50, cur))
-	assert.Equal(t, uint64(100), duplicateCheckStart(5, 10, cur))
-
-	// a store that commits slot by slot needs no reach back at all
-	assert.Equal(t, uint64(900), duplicateCheckStart(900, 0, cur))
-}
-
-func TestSync_duplicateCheckAfterFork(t *testing.T) {
+// A fork records an end below the ones before it, which is what lets a duplicate check scope its
+// window from the recorded history alone: the slots the fork is about to have rewritten come back
+// into the window without anyone tracking them.
+func TestSync_forkRecordsALowerEnd(t *testing.T) {
 	baseSlots1 := newTestSlots(rg.NewRange(0, 300), "ca")
 	baseSlots2 := newTestSlots(rg.NewRange(150, 300), "cb", "ca149")
 
@@ -510,14 +476,17 @@ func TestSync_duplicateCheckAfterFork(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 	assert.Equal(t, context.DeadlineExceeded, Sync(ctx, dim1, dim2, SyncConfig{
-		RoundInterval:    time.Millisecond * 200,
-		DupCheckInterval: time.Millisecond,
+		RoundInterval: time.Millisecond * 200,
 	}))
-	windows := store2.checkedWindows()
-	if assert.NotEmpty(t, windows) {
-		// rolling back to the fork point recorded an end below the ones before it, which is what
-		// brings the rewritten slots back into the window
-		assert.LessOrEqual(t, windows[len(windows)-1].Start, uint64(149))
-		assert.Equal(t, uint64(199), *windows[len(windows)-1].End)
+
+	ends := rs2.recordedEnds()
+	require.NotEmpty(t, ends)
+	lowest := ends[0]
+	for _, end := range ends[1:] {
+		lowest = min(lowest, end)
 	}
+	// the rollback to the fork point, below the 169 the destination had reached before it
+	assert.Equal(t, uint64(149), lowest)
+	r2, _ := dim2.GetRange(context.Background())
+	assert.Equal(t, uint64(199), *r2.End)
 }

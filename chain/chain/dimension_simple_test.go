@@ -44,26 +44,6 @@ func (b *testSlot) Linked() bool {
 
 type testSimpleSlotStore[SLOT Slot] struct {
 	slots *utils.SafeMap[uint64, SLOT]
-
-	slotsPerCommit uint64
-
-	dupMu     sync.Mutex
-	dupChecks []rg.Range
-}
-
-// ScanDuplicates records the windows the duplicate check asks for, which is what the Sync tests
-// assert on; the store itself never holds a duplicate.
-func (s *testSimpleSlotStore[SLOT]) ScanDuplicates(_ context.Context, interval rg.Range) ([]DuplicateReport, error) {
-	s.dupMu.Lock()
-	defer s.dupMu.Unlock()
-	s.dupChecks = append(s.dupChecks, interval)
-	return nil, nil
-}
-
-func (s *testSimpleSlotStore[SLOT]) checkedWindows() []rg.Range {
-	s.dupMu.Lock()
-	defer s.dupMu.Unlock()
-	return append([]rg.Range(nil), s.dupChecks...)
 }
 
 func (s *testSimpleSlotStore[SLOT]) initFillSlots(slots []SLOT) {
@@ -115,11 +95,6 @@ func (s *testSimpleSlotStore[SLOT]) Save(ctx context.Context, interval rg.Range,
 	return nil
 }
 
-// SlotsPerCommit implements DuplicateScanner; the double commits a whole save at once.
-func (s *testSimpleSlotStore[SLOT]) SlotsPerCommit() uint64 {
-	return s.slotsPerCommit
-}
-
 func (s *testSimpleSlotStore[SLOT]) Load(ctx context.Context, interval rg.Range, slotChan chan<- SLOT) error {
 	for sn := interval.Start; sn <= *interval.End; sn++ {
 		st, has := s.slots.Get(sn)
@@ -152,23 +127,17 @@ func (s *testSimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Rang
 // backed by a transactional store and are safe for concurrent Get/Update; multiple dimension
 // range-updaters can call into a shared store concurrently, so guard cur with a mutex.
 type testRangeStore struct {
-	mu       sync.Mutex
-	cur      rg.Range
-	recorded []uint64 // every end the range has been set to, like the rolling history of the real store
+	mu  sync.Mutex
+	cur rg.Range
+	// recorded is every end the range has been set to, the way the real store keeps a rolling
+	// history of them; a duplicate check scopes its window from that history.
+	recorded []uint64
 }
 
-// OldestRecordedEnd implements RangeHistory over the ends this store has been set to.
-func (s *testRangeStore) OldestRecordedEnd(_ context.Context) (uint64, bool, error) {
+func (s *testRangeStore) recordedEnds() []uint64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.recorded) == 0 {
-		return 0, false, nil
-	}
-	oldest := s.recorded[0]
-	for _, end := range s.recorded[1:] {
-		oldest = min(oldest, end)
-	}
-	return oldest, true, nil
+	return append([]uint64(nil), s.recorded...)
 }
 
 func (s *testRangeStore) Get(ctx context.Context) (rg.Range, error) {

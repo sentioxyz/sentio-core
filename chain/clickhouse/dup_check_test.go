@@ -100,22 +100,20 @@ func Test_duplicateCheckWindow(t *testing.T) {
 	cur := rg.NewRange(100, 999)
 
 	// nothing recorded yet, or nothing held: there is no window to scan
-	assert.True(t, duplicateCheckWindow(500, false, cur, 10).IsEmpty())
-	assert.True(t, duplicateCheckWindow(500, true, rg.EmptyRange, 10).IsEmpty())
+	assert.True(t, duplicateCheckWindow(500, false, cur).IsEmpty())
+	assert.True(t, duplicateCheckWindow(500, true, rg.EmptyRange).IsEmpty())
 
-	// one commit below the oldest recorded end, since the slots of that commit went in with no
-	// earlier end to anchor them
-	assert.Equal(t, rg.NewRange(700, 999), duplicateCheckWindow(900, true, cur, 200))
+	// from the oldest recorded end to what the destination holds now
+	assert.Equal(t, rg.NewRange(900, 999), duplicateCheckWindow(900, true, cur))
 
-	// never below the range the destination holds, and never off the bottom of the number line
-	assert.Equal(t, rg.NewRange(100, 999), duplicateCheckWindow(200, true, cur, 500))
-	assert.Equal(t, rg.NewRange(100, 999), duplicateCheckWindow(120, true, cur, 50))
-	assert.Equal(t, rg.NewRange(100, 999), duplicateCheckWindow(5, true, cur, 10))
-
-	// a destination that started empty records only the end of the batch that filled it, so the
-	// reach below is what covers the slots that batch brought in
-	assert.Equal(t, rg.NewRange(100, 199), duplicateCheckWindow(199, true, rg.NewRange(100, 199), 10_000))
+	// never below the range the destination holds, never above its end
+	assert.Equal(t, rg.NewRange(100, 999), duplicateCheckWindow(50, true, cur))
+	assert.Equal(t, rg.NewRange(999, 999), duplicateCheckWindow(5000, true, cur))
 
 	// a fork records an end below the ones before it, and the window follows it down
-	assert.Equal(t, rg.NewRange(140, 299), duplicateCheckWindow(149, true, rg.NewRange(100, 299), 9))
+	assert.Equal(t, rg.NewRange(149, 299), duplicateCheckWindow(149, true, rg.NewRange(100, 299)))
+
+	// a destination that started empty records its first range already ending at the last slot of
+	// the batch that filled it, so that batch is behind the window: it needs one look by hand
+	assert.Equal(t, rg.NewRange(199, 199), duplicateCheckWindow(199, true, rg.NewRange(100, 199)))
 }

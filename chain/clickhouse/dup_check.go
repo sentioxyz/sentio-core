@@ -90,7 +90,7 @@ func (s *SimpleSlotStore[SLOT]) CheckDuplicates(
 	if err != nil {
 		return rg.EmptyRange, nil, errors.Wrapf(err, "get current range failed")
 	}
-	window := duplicateCheckWindow(oldest, recorded, cur, uint64(s.flushBatchSize))
+	window := duplicateCheckWindow(oldest, recorded, cur)
 	if window.IsEmpty() {
 		return window, nil, nil
 	}
@@ -98,23 +98,21 @@ func (s *SimpleSlotStore[SLOT]) CheckDuplicates(
 	return window, reports, err
 }
 
-// duplicateCheckWindow is the window a check covers: from one commit below the oldest end the range
-// store has kept, up to the end the destination holds now.
+// duplicateCheckWindow is the window a check covers: from the oldest end the range store has kept
+// up to the end the destination holds now, and never below the start of what it holds.
 //
-// The reach below matters because a range is recorded when a save reports the slots it has flushed,
-// which happens once they reach the flush batch size or when the save is through: the end that gets
-// recorded is that batch's last slot, not its first. On a destination that started empty, that
-// first batch is the whole of its history and nothing below it was ever recorded. A window never
-// starts below the range the destination holds.
-func duplicateCheckWindow(oldest uint64, recorded bool, cur rg.Range, slotsPerCommit uint64) rg.Range {
+// That lower edge is exactly what the recorded history reaches, and no further. Slots written
+// before the oldest recorded end are outside a check, the same way anything older than the
+// retention is: on a destination that started empty, that is the batch that filled it, since the
+// first range it ever recorded already ends at that batch's last slot. There is nothing in the
+// history to anchor them to — how far one recorded end sits above the one before it is decided by
+// the order concurrent flushes happen to complete in, not by any batch size — so a destination
+// bootstrapped from nothing needs its first stretch looked at by hand, once.
+func duplicateCheckWindow(oldest uint64, recorded bool, cur rg.Range) rg.Range {
 	if !recorded || cur.IsEmpty() {
 		return rg.EmptyRange
 	}
-	start := cur.Start
-	if oldest >= slotsPerCommit {
-		start = max(oldest-slotsPerCommit, cur.Start)
-	}
-	return rg.NewRange(min(start, *cur.End), *cur.End)
+	return rg.NewRange(min(max(oldest, cur.Start), *cur.End), *cur.End)
 }
 
 // nullableUniqueKeyColumns returns the unique key columns of the table that may hold NULL.

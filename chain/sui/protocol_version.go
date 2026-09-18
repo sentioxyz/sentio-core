@@ -33,11 +33,16 @@ import (
 const (
 	// maxSupportedSuiProtocolVersion is the highest Sui protocol version whose data shapes have
 	// been reviewed against this build. 137 added TransactionExpiration::Validity (with
-	// allowed_proposers) and the FundsWithdrawal SENDER_ALLOWANCE source.
-	maxSupportedSuiProtocolVersion = 137
+	// allowed_proposers) and the FundsWithdrawal SENDER_ALLOWANCE source. 138 adds no shape: it
+	// bumps the gas model to 15 and turns on check_object_funds_withdraw_in_execution off
+	// mainnet, and the BumpOnly exit it introduces is an execution fallback whose effects are
+	// ordinary version bumps of the inputs.
+	maxSupportedSuiProtocolVersion = 138
 	// maxSupportedIotaProtocolVersion is the same for IOTA, whose protocol versions are numbered
-	// independently of Sui's.
-	maxSupportedIotaProtocolVersion = 35
+	// independently of Sui's. 36 adds no shape either: it only tightens validation (input object
+	// versions are checked from the transaction bytes, `<SELF>` is rejected as an identifier) and
+	// makes the Move enum variant limit explicit in the config.
+	maxSupportedIotaProtocolVersion = 36
 )
 
 // Overrides for the constants above; 0 disables the guard for that variation entirely.

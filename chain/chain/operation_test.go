@@ -466,6 +466,9 @@ func TestSync_duplicateCheckWindow(t *testing.T) {
 	_, _ = rs1.Update(context.Background(), rg.RangeSetter(rg.NewRange(100, 199)))
 
 	dim2, _, store2 := newTestDimension()
+	// the destination commits the whole copy at once, so the only range it records is the one
+	// ending at the last slot: the check still has to cover the slots that batch brought in
+	store2.slotsPerCommit = 10_000
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -473,9 +476,22 @@ func TestSync_duplicateCheckWindow(t *testing.T) {
 		RoundInterval:    time.Second,
 		DupCheckInterval: time.Millisecond,
 	}))
-	// everything the empty destination just took on, with no watermark kept anywhere: the range
-	// store recorded an end as each part of the copy landed, so the oldest one is where it began
 	assert.Equal(t, []rg.Range{rg.NewRange(100, 199)}, store2.checkedWindows())
+}
+
+func Test_duplicateCheckStart(t *testing.T) {
+	cur := rg.NewRange(100, 999)
+
+	// one commit below the oldest recorded end, since that commit went in unanchored
+	assert.Equal(t, uint64(700), duplicateCheckStart(900, 200, cur))
+
+	// never below what the destination holds, and never off the bottom of the number line
+	assert.Equal(t, uint64(100), duplicateCheckStart(200, 500, cur))
+	assert.Equal(t, uint64(100), duplicateCheckStart(120, 50, cur))
+	assert.Equal(t, uint64(100), duplicateCheckStart(5, 10, cur))
+
+	// a store that commits slot by slot needs no reach back at all
+	assert.Equal(t, uint64(900), duplicateCheckStart(900, 0, cur))
 }
 
 func TestSync_duplicateCheckAfterFork(t *testing.T) {

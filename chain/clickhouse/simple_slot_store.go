@@ -618,6 +618,13 @@ const (
 	duplicateCheckBuckets  = 1_000
 )
 
+// SlotsPerCommit implements chain.DuplicateScanner: the store reports a save done once the slots
+// it has flushed reach the batch size, so that is the most it writes before the range covering
+// them is recorded.
+func (s *SimpleSlotStore[SLOT]) SlotsPerCommit() uint64 {
+	return uint64(s.flushBatchSize)
+}
+
 // ScanDuplicates implements chain.DuplicateScanner: every table is scanned for unique keys carried
 // by more than one row inside interval. Construction guarantees that a table without a key has said
 // why it needs none, and that a table with one has a number field to scope the window with, so the

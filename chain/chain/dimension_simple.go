@@ -184,7 +184,17 @@ func (d *SimpleDimension[SLOT]) CheckDuplicates(ctx context.Context) (rg.Range, 
 	if !recorded || cur.IsEmpty() {
 		return rg.EmptyRange, nil, nil
 	}
-	window := rg.NewRange(min(oldest, *cur.End), *cur.End)
+	window := rg.NewRange(min(duplicateCheckStart(oldest, scanner.SlotsPerCommit(), cur), *cur.End), *cur.End)
 	reports, err := scanner.ScanDuplicates(ctx, window)
 	return window, reports, err
+}
+
+// duplicateCheckStart is where a check begins: one commit below the oldest end the range store has
+// kept, because the slots of that commit were written without an earlier end to anchor them, and
+// never below the start of what the destination currently holds.
+func duplicateCheckStart(oldest, slotsPerCommit uint64, cur rg.Range) uint64 {
+	if oldest < slotsPerCommit {
+		return cur.Start
+	}
+	return max(oldest-slotsPerCommit, cur.Start)
 }

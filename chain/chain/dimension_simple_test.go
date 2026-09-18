@@ -45,6 +45,8 @@ func (b *testSlot) Linked() bool {
 type testSimpleSlotStore[SLOT Slot] struct {
 	slots *utils.SafeMap[uint64, SLOT]
 
+	slotsPerCommit uint64
+
 	dupMu     sync.Mutex
 	dupChecks []rg.Range
 }
@@ -91,16 +93,31 @@ func (s *testSimpleSlotStore[SLOT]) CheckMissing(ctx context.Context, interval r
 	return nil
 }
 
+// Save reports what it saved the way the real store does: one notification once the whole save is
+// through, rather than one per slot. That is what decides how far back the recorded ranges reach,
+// so a double that notified per slot would invent history the destination never had.
 func (s *testSimpleSlotStore[SLOT]) Save(ctx context.Context, interval rg.Range, slotChan <-chan SLOT, doneChan chan<- rg.Range) error {
-	return concurrency.ForEach(ctx, slotChan, func(ctx context.Context, index int, st SLOT) error {
+	saved := rg.EmptyRangeSet
+	if err := concurrency.ForEach(ctx, slotChan, func(ctx context.Context, index int, st SLOT) error {
 		s.slots.Put(st.GetNumber(), st)
+		saved = saved.Union(rg.NewSingleRange(st.GetNumber()))
+		return nil
+	}); err != nil {
+		return err
+	}
+	for _, r := range saved.GetRanges() {
 		select {
-		case doneChan <- rg.NewSingleRange(st.GetNumber()):
+		case doneChan <- r:
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-		return nil
-	})
+	}
+	return nil
+}
+
+// SlotsPerCommit implements DuplicateScanner; the double commits a whole save at once.
+func (s *testSimpleSlotStore[SLOT]) SlotsPerCommit() uint64 {
+	return s.slotsPerCommit
 }
 
 func (s *testSimpleSlotStore[SLOT]) Load(ctx context.Context, interval rg.Range, slotChan chan<- SLOT) error {

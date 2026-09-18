@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -617,8 +619,19 @@ type Config struct {
 	DialCredentials credentials.TransportCredentials
 }
 
+// goMemoryLimit is the soft memory limit, in bytes, handed to the Go runtime. Go's own default
+// is effectively unlimited, so the GC only ever targets twice the live heap: a driver whose live
+// heap grows past half the container limit is OOM-killed before the next cycle can run, however
+// much of that heap is collectable. Setting this under the container limit makes the GC work
+// harder as it approaches it instead of being killed. 0 (the default) leaves the runtime default
+// untouched, so a deployment that has not opted in behaves exactly as before.
+var goMemoryLimit = envconf.LoadUInt64("SENTIO_GO_MEMORY_LIMIT", 0, envconf.WithMax(math.MaxInt64))
+
 func Main(config Config) {
 	const retryInterval = time.Second * 30
+	if goMemoryLimit > 0 {
+		debug.SetMemoryLimit(int64(goMemoryLimit))
+	}
 	ctx, logger := log.FromContext(concurrency.NewSignalContext(context.Background()), "processorID", config.ProcessorID)
 	for {
 		exitCode, err := main(ctx, config)

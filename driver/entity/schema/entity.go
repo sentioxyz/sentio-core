@@ -3,7 +3,6 @@ package schema
 import (
 	"fmt"
 	"github.com/graph-gophers/graphql-go/types"
-	"sentioxyz/sentio-core/common/utils"
 	"strconv"
 )
 
@@ -110,15 +109,6 @@ func (f fieldSet) ListFieldNames(includeFixed, includePositiveFK, includeNegativ
 		names = append(names, field.Name)
 	}
 	return
-}
-
-func (f fieldSet) DataSize() (size int) {
-	const arrSize = 3
-	const nonArrSize = 1
-	for _, field := range f.FieldsDefinition {
-		size += utils.Select(BreakType(field.Type).CountListLayer() > 0, arrSize, nonArrSize)
-	}
-	return size
 }
 
 type Entity struct {

@@ -100,7 +100,7 @@ type UncommittedEntityBox struct {
 │  startup/entity.go    processor_indexer.go                   │
 │                                                              │
 │  1. Call clickhouse.Store.InitEntitySchema(ctx) once         │
-│  2. Create clickhouse.NewChainStore(store, chainID, ...)     │
+│  2. Create clickhouse.NewChainStore(store, chainID)          │
 │  3. Create persistent.NewController(chainStore, monitor)     │
 └────────────────────────┬────────────────────────────────────┘
                          │
@@ -242,9 +242,13 @@ GetEntity(entityType, id)
   ├─ 1. Try full-data cache (fullCache) — only for sparse entities
   │     ├─ fullCacheRefused or !IsSparse → skip
   │     ├─ fullCacheLoaded → hit: return fullCache[entity][id].Copy()
-  │     └─ not loaded → countEntity() to size-check
-  │           ├─ count > fullCacheDataLimit/dataSize → refuse, set fullCacheRefused
-  │           └─ within limit → listEntities() and populate fullCache
+  │     └─ not loaded → size-check, then load
+  │           ├─ estimate = countEntity() × avgRowBytes() (live ids × stored row size)
+  │           ├─ unmeasurable, or estimate > fullCacheMaxBytes → refuse
+  │           └─ within limit → listEntities()
+  │                 ├─ ClickHouse query memory limit exceeded → refuse (not an error)
+  │                 ├─ loaded bytes > fullCacheMaxBytes → refuse, discard what was read
+  │                 └─ otherwise → populate fullCache, record fullCacheBytes
   │
   ├─ 2. Full-ID cache (fullIDCache) — loaded via getAllID() on first miss
   │     ├─ ID not in set → return nil (no DB roundtrip)
@@ -259,8 +263,11 @@ GetEntity(entityType, id)
 - `SetEntities`: updates fullCache / fullIDCache / lruCache in-place after a successful write.
 - `Reorg`: calls `purgeCache()` to reset all cache structures; also removes `@cache` entity
   entries whose `GenBlockNumber` exceeds the reorg target.
-- After `SetEntities`, if `fullCache` grows beyond `fullCacheDataLimit/dataSize`, it is
-  discarded and `fullCacheRefused` is set — subsequent reads use the LRU + fullIDCache path.
+- After `SetEntities`, `fullCacheBytes` — kept by addition and subtraction as boxes enter, are
+  replaced and leave, and counting each entry as well as the data in it, so that a
+  versioned-collapsing tombstone is not free — is compared with `fullCacheMaxBytes`. Over it, the
+  cache is discarded and `fullCacheRefused` is set — subsequent reads use the LRU + fullIDCache
+  path.
 
 **`@cache` entities** are stored entirely in a per-entity weight-limited LRU (`cacheEntity`).
 `SetEntities` for these types is a no-op at the ClickHouse level.
@@ -482,8 +489,9 @@ Supported operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `IN`, `NOT IN`, `LIKE`, `N
 
 | Parameter | Source | Description |
 |-----------|--------|-------------|
-| `lruCapacity` | `clickhouse.NewChainStore` | Number of entity entries in the LRU cache |
-| `fullCacheDataSizeLimit` | `clickhouse.NewChainStore` | Max total bytes kept in the full-data cache; exceeding this falls back to LRU + fullIDCache |
+| `SENTIO_ENTITY_STORE_CACHE_SIZE` | env | Number of entity entries in the LRU cache (default: 300000) |
+| `SENTIO_ENTITY_STORE_FULL_CACHE_MAX_BYTES` | env | Max bytes one entity type's full-data cache may hold; exceeding this falls back to LRU + fullIDCache (default: 512MiB) |
+| `SENTIO_ENTITY_STORE_FULL_ID_CACHE_MAX_COUNT` | env | Max ids one entity type's full-ID cache may hold; exceeding this sends existence checks to the store (default: 30000000) |
 | `schemaVersion` / `Features` | `clickhouse.BuildFeatures` | Controls ClickHouse type variants for BigDecimal, BigInt, Timestamp, and Array fields |
 | `BatchInsertSizeLimit` | `clickhouse.TableOption` | Max entities per INSERT batch (default: 1000) |
 | `HugeIDSetSize` | `clickhouse.TableOption` | Switch to temp-table for IN filters larger than this (default: 1000) |

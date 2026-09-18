@@ -612,6 +612,43 @@ func (s *Store) _countEntity(
 	return s.ctrl.QueryCount(SelectCtx(ctx), sql, chain)
 }
 
+// avgRowBytes reports the average uncompressed size, in bytes, of one stored row of entityType
+// on chain, read from the ClickHouse part metadata. Entity tables are partitioned by chain, so
+// the partition whose id is the chain name holds exactly the rows of that chain, and the answer
+// comes from system.parts alone: no table data is read.
+//
+// This is the size of a row as ClickHouse stores it, so it measures the actual payload rather
+// than the number of fields. Callers multiply it by the number of live ids (not by the row
+// count) to size a full cache: a table keeps every update of an id as its own row, and the
+// cache only ever holds the latest one per id, so the row count is the wrong multiplier -- an
+// entity with a few thousand ids behind tens of millions of update rows would look enormous.
+//
+// Returns 0 when the chain has no parts yet (nothing stored, nothing to size).
+func (s *Store) avgRowBytes(ctx context.Context, entityType *schema.Entity, chain string) (uint64, error) {
+	// the partition metadata lives on the physical table; for a versioned-collapsing entity the
+	// plain entity name is a view over it
+	table := s.TableName(entityType)
+	if s.useVersionedCollapsingTable(entityType) {
+		table = s.VersionedTableName(entityType)
+	}
+	partitions, err := s.ctrl.ListPartitions(SelectCtx(ctx), table)
+	if err != nil {
+		return 0, errors.Wrapf(err, "list partitions of %s failed", table)
+	}
+	for _, p := range partitions {
+		// Partitions of patched rows carry a synthetic `patch-...` id and never equal a chain
+		// name, so matching on the chain name also leaves them out of the average.
+		if p.Partition != chain {
+			continue
+		}
+		if p.Rows == 0 {
+			return 0, nil
+		}
+		return p.DataUncompressedBytes / p.Rows, nil
+	}
+	return 0, nil
+}
+
 func isQueryMemoryLimitExceededError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "Query memory limit exceeded")
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -27,6 +28,16 @@ type Position @entity {
   id: ID!
   balance: Int!
 }
+
+type Sparse @entity(sparse: true) {
+  id: ID!
+  balance: Int!
+}
+
+type SparseBlob @entity(sparse: true) {
+  id: ID!
+  payload: String!
+}
 `
 
 // fakeStore is a chainStoreBackend for tests: every query goes through a func field, so a test
@@ -34,9 +45,12 @@ type Position @entity {
 type fakeStore struct {
 	chainStoreBackend // nil: any method a test does not expect panics
 
-	t             *testing.T
-	getEntity_    func(ctx context.Context, entityType *schema.Entity, id string) (*entityRow, error)
-	listEntities_ func(
+	t *testing.T
+	// versionedCollapsing switches the fake to the entity shape whose deletes leave a box behind
+	// in the full-data cache to keep its version.
+	versionedCollapsing bool
+	getEntity_          func(ctx context.Context, entityType *schema.Entity, id string) (*entityRow, error)
+	listEntities_       func(
 		ctx context.Context,
 		entityType *schema.Entity,
 		filters []persistent.EntityFilter,
@@ -46,9 +60,18 @@ type fakeStore struct {
 	countEntity_ func(ctx context.Context, entityType *schema.Entity, excludeDeleted bool) (uint64, error)
 	getAllID_    func(ctx context.Context, entityType *schema.Entity) (*idSet, error)
 	reorg_       func(ctx context.Context, blockNumber int64) (bool, error)
+	// setEntities_ is unset in most tests: a write that only needs to reach the caches is served
+	// by the default below, which reports every box as written and stores nothing.
+	setEntities_ func(ctx context.Context, entityType *schema.Entity, entities []persistent.EntityBox) (int, error)
+	// avgRowBytes_ is unlike the others: every full-cache load measures the row size, so leaving
+	// it unset is normal and reports one byte per row, which keeps a test's own counts the thing
+	// that decides whether the cache fits.
+	avgRowBytes_ func(ctx context.Context, entityType *schema.Entity) (uint64, error)
 }
 
-func (f *fakeStore) useVersionedCollapsingTable(schema.EntityOrInterface) bool { return false }
+func (f *fakeStore) useVersionedCollapsingTable(schema.EntityOrInterface) bool {
+	return f.versionedCollapsing
+}
 
 func (f *fakeStore) getEntity(
 	ctx context.Context, entityType *schema.Entity, _ string, id string,
@@ -82,6 +105,27 @@ func (f *fakeStore) countEntity(
 	return f.countEntity_(ctx, entityType, excludeDeleted)
 }
 
+func (f *fakeStore) avgRowBytes(ctx context.Context, entityType *schema.Entity, _ string) (uint64, error) {
+	if f.avgRowBytes_ == nil {
+		return 1, nil
+	}
+	return f.avgRowBytes_(ctx, entityType)
+}
+
+func (f *fakeStore) setEntities(
+	ctx context.Context,
+	entityType *schema.Entity,
+	_ string,
+	entities []persistent.EntityBox,
+	_ func(string) bool,
+	_ func(string) (*cachedEntityBox, bool),
+) (int, error) {
+	if f.setEntities_ == nil {
+		return len(entities), nil
+	}
+	return f.setEntities_(ctx, entityType, entities)
+}
+
 func (f *fakeStore) getAllID(ctx context.Context, entityType *schema.Entity, _ string) (*idSet, error) {
 	if f.getAllID_ == nil {
 		f.t.Fatal("getAllID not expected")
@@ -102,12 +146,13 @@ func newTestChainStore(t *testing.T) (*ChainStore, *fakeStore, *schema.Entity) {
 	require.NoError(t, err)
 	e := sch.GetEntity("Position")
 	fs := &fakeStore{t: t}
-	cacheSize, fullCacheSize, fullIDCacheMaxCount :=
-		defaultEntityStoreCacheSize, defaultEntityStoreFullCacheSize, defaultEntityStoreFullIDCacheMaxCount
-	defaultEntityStoreCacheSize, defaultEntityStoreFullCacheSize, defaultEntityStoreFullIDCacheMaxCount = 1000, 1<<20, 1000
+	cacheSize, fullCacheMaxBytes, fullIDCacheMaxCount :=
+		defaultEntityStoreCacheSize, defaultEntityStoreFullCacheMaxBytes, defaultEntityStoreFullIDCacheMaxCount
+	defaultEntityStoreCacheSize, defaultEntityStoreFullCacheMaxBytes, defaultEntityStoreFullIDCacheMaxCount =
+		1000, 1<<20, 1000
 	t.Cleanup(func() {
-		defaultEntityStoreCacheSize, defaultEntityStoreFullCacheSize, defaultEntityStoreFullIDCacheMaxCount =
-			cacheSize, fullCacheSize, fullIDCacheMaxCount
+		defaultEntityStoreCacheSize, defaultEntityStoreFullCacheMaxBytes, defaultEntityStoreFullIDCacheMaxCount =
+			cacheSize, fullCacheMaxBytes, fullIDCacheMaxCount
 	})
 	cs := NewChainStore(fs, "chain")
 	// both caches refused: the LRU + store path is under test unless a test loads them
@@ -406,6 +451,381 @@ func TestChainStore_EnsureCaches_LoadsOffTheLock(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, box)
 	assert.Equal(t, directBefore, direct.Load())
+}
+
+// sparseEntity returns the test schema's sparse entity type, the only one the full-data cache is
+// used for. It re-parses the schema because fakeStore answers no type lookups of its own.
+func sparseEntity(t *testing.T) *schema.Entity {
+	t.Helper()
+	sch, err := schema.ParseAndVerifySchema(chainStoreTestSchema)
+	require.NoError(t, err)
+	return sch.GetEntity("Sparse")
+}
+
+// The full-data cache is admitted on what the rows actually hold. Both cases below have the same
+// two fields per row, so the field-count sizing they replace judged them the same; measured, one
+// is 6MB of payload behind 100 ids and the other 64KB behind 1000.
+func TestChainStore_EnsureCaches_AdmitsTheFullCacheByStoredBytes(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		ids         uint64
+		avgRowBytes uint64
+		wantLoaded  bool
+	}{{
+		// Loading rows this large is what exhausted the ClickHouse query memory limit, and since
+		// a cold start cannot get past it the driver never ran at all.
+		name: "few huge rows", ids: 100, avgRowBytes: 64 << 10, wantLoaded: false,
+	}, {
+		// The mirror case, and why the estimate multiplies the id count rather than the row
+		// count: a table keeps every update of an id as its own row, so an entity of a few
+		// thousand live ids can sit behind tens of millions of rows and still fit easily.
+		name: "many small rows", ids: 1000, avgRowBytes: 64, wantLoaded: true,
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			cs, fs, _ := newTestChainStore(t)
+			e := sparseEntity(t)
+			require.True(t, e.IsSparse(), "the full-data cache is only used for sparse entities")
+			cs.mu.Lock()
+			cs.fullCacheRefused[e.Name] = false
+			cs.fullIDCacheRefused[e.Name] = false
+			cs.mu.Unlock()
+
+			fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) {
+				return tc.ids, nil
+			}
+			fs.avgRowBytes_ = func(context.Context, *schema.Entity) (uint64, error) {
+				return tc.avgRowBytes, nil
+			}
+			var listed atomic.Bool
+			fs.listEntities_ = func(
+				context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
+			) ([]*entityRow, error) {
+				listed.Store(true)
+				return []*entityRow{positionRow("a", 1)}, nil
+			}
+			fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) {
+				return newIDSet("a"), nil
+			}
+			fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+				return positionRow(id, 1), nil
+			}
+
+			_, _, err := cs.GetEntity(context.Background(), e, "a")
+			assert.NoError(t, err)
+			cs.mu.Lock()
+			defer cs.mu.Unlock()
+			assert.Equal(t, tc.wantLoaded, cs.fullCacheLoaded[e.Name])
+			assert.Equal(t, !tc.wantLoaded, cs.fullCacheRefused[e.Name])
+			// A refused entity must not have been read at all: issuing the load and failing on it
+			// is the crash loop this check exists to avoid.
+			assert.Equal(t, tc.wantLoaded, listed.Load(), "the store read must follow the decision")
+			if tc.wantLoaded {
+				assert.Equal(t, cs.fullCacheBytes[e.Name], measuredBytes(cs.fullCache[e.Name]),
+					"a loaded cache accounts for exactly the boxes it holds")
+			}
+		})
+	}
+}
+
+// measuredBytes adds up what a full-data cache holds, independently of the running total the
+// store keeps, so a test can assert the two agree.
+func measuredBytes(cache map[string]*cachedEntityBox) uint64 {
+	var total uint64
+	for _, box := range cache {
+		total += box.memSize
+	}
+	return total
+}
+
+// blobEntity is an id and one large field: the shape whose size a field count cannot express.
+func blobEntity(t *testing.T) *schema.Entity {
+	t.Helper()
+	sch, err := schema.ParseAndVerifySchema(chainStoreTestSchema)
+	require.NoError(t, err)
+	return sch.GetEntity("SparseBlob")
+}
+
+func blobBoxes(from, count int, payload string) []persistent.EntityBox {
+	boxes := make([]persistent.EntityBox, count)
+	for i := range boxes {
+		id := fmt.Sprintf("id-%d", from+i)
+		boxes[i] = persistent.EntityBox{
+			Entity: "SparseBlob", ID: id, Data: map[string]any{"id": id, "payload": payload},
+		}
+	}
+	return boxes
+}
+
+// A processor starting on an empty table is the case no projection from the store can size: it
+// reports nothing stored, which is true, and says nothing about what is about to be written. The
+// cache is admitted (there is nothing to refuse) and must then be sized by what it actually
+// holds, or it would grow without limit for the whole life of the run -- the same unbounded
+// growth the limit exists to prevent, reached from the other side.
+func TestChainStore_SetEntities_SizesAFullCacheLoadedFromAnEmptyTable(t *testing.T) {
+	cs, fs, _ := newTestChainStore(t)
+	e := blobEntity(t)
+	cs.mu.Lock()
+	cs.fullCacheRefused[e.Name] = false
+	cs.fullIDCacheRefused[e.Name] = false
+	cs.mu.Unlock()
+
+	// an empty table: no rows, and no parts to measure a row size from
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 0, nil }
+	fs.avgRowBytes_ = func(context.Context, *schema.Entity) (uint64, error) { return 0, nil }
+	fs.listEntities_ = func(
+		context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
+	) ([]*entityRow, error) {
+		return nil, nil
+	}
+	fs.getEntity_ = func(context.Context, *schema.Entity, string) (*entityRow, error) { return nil, nil }
+
+	_, _, err := cs.GetEntity(context.Background(), e, "id-0")
+	require.NoError(t, err)
+	cs.mu.Lock()
+	require.True(t, cs.fullCacheLoaded[e.Name], "an empty table has nothing to refuse")
+	require.Zero(t, cs.fullCacheBytes[e.Name])
+	cs.mu.Unlock()
+
+	// 1MiB of payload against the 1MiB limit of newTestChainStore, written in batches so the
+	// check runs repeatedly rather than once on a single oversized write
+	payload := strings.Repeat("x", 16<<10)
+	var refusedAfter int
+	for batch := 0; batch < 16; batch++ {
+		_, err = cs.SetEntities(context.Background(), e, blobBoxes(batch*4, 4, payload))
+		require.NoError(t, err)
+		cs.mu.Lock()
+		refused := cs.fullCacheRefused[e.Name]
+		if !refused {
+			assert.Equal(t, measuredBytes(cs.fullCache[e.Name]), cs.fullCacheBytes[e.Name],
+				"the running total must track the boxes actually held")
+			assert.LessOrEqual(t, cs.fullCacheBytes[e.Name], cs.fullCacheMaxBytes)
+		}
+		cs.mu.Unlock()
+		if refused {
+			refusedAfter = batch + 1
+			break
+		}
+	}
+	require.NotZero(t, refusedAfter, "writes past the limit must drop the full cache")
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	assert.False(t, cs.fullCacheLoaded[e.Name])
+	assert.Empty(t, cs.fullCache[e.Name], "a refused cache is dropped, not kept and ignored")
+	assert.Zero(t, cs.fullCacheBytes[e.Name])
+}
+
+// The running total follows the boxes, not the id count: replacing an id with a larger value
+// grows it, and removing an id shrinks it. Getting either wrong would let it drift away from
+// what is held and make the check meaningless, in whichever direction it drifted.
+func TestChainStore_SetEntities_TracksFullCacheBytesThroughUpdatesAndDeletes(t *testing.T) {
+	cs, fs, _ := newTestChainStore(t)
+	e := blobEntity(t)
+	cs.mu.Lock()
+	cs.fullCacheRefused[e.Name] = false
+	cs.fullIDCacheRefused[e.Name] = false
+	cs.mu.Unlock()
+
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 0, nil }
+	fs.avgRowBytes_ = func(context.Context, *schema.Entity) (uint64, error) { return 0, nil }
+	fs.listEntities_ = func(
+		context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
+	) ([]*entityRow, error) {
+		return nil, nil
+	}
+	fs.getEntity_ = func(context.Context, *schema.Entity, string) (*entityRow, error) { return nil, nil }
+
+	_, _, err := cs.GetEntity(context.Background(), e, "id-0")
+	require.NoError(t, err)
+
+	held := func() uint64 {
+		cs.mu.Lock()
+		defer cs.mu.Unlock()
+		require.False(t, cs.fullCacheRefused[e.Name], "this test stays under the limit")
+		assert.Equal(t, measuredBytes(cs.fullCache[e.Name]), cs.fullCacheBytes[e.Name])
+		return cs.fullCacheBytes[e.Name]
+	}
+
+	_, err = cs.SetEntities(context.Background(), e, blobBoxes(0, 4, strings.Repeat("x", 512)))
+	require.NoError(t, err)
+	small := held()
+	assert.NotZero(t, small)
+
+	// same four ids, a larger payload each
+	_, err = cs.SetEntities(context.Background(), e, blobBoxes(0, 4, strings.Repeat("x", 4096)))
+	require.NoError(t, err)
+	grown := held()
+	assert.Greater(t, grown, small, "an update to a larger value must not be counted as free")
+
+	// a delete is a box with nil Data
+	deletes := blobBoxes(0, 2, "")
+	for i := range deletes {
+		deletes[i].Data = nil
+	}
+	_, err = cs.SetEntities(context.Background(), e, deletes)
+	require.NoError(t, err)
+	assert.Less(t, held(), grown, "a removed id must give its bytes back")
+}
+
+// A versioned-collapsing delete leaves a box behind to keep its version, and that box holds no
+// data. Sizing the cache by the data alone would make those entries free, so creating and
+// deleting ids could grow it without ever moving the total meant to limit it -- unbounded growth
+// again, reached by holding nothing.
+func TestChainStore_SetEntities_CountsEntriesThatHoldNoData(t *testing.T) {
+	cs, fs, _ := newTestChainStore(t)
+	fs.versionedCollapsing = true
+	e := blobEntity(t)
+	cs.mu.Lock()
+	cs.fullCacheRefused[e.Name] = false
+	cs.fullIDCacheRefused[e.Name] = false
+	cs.fullCacheMaxBytes = 64 << 10
+	cs.mu.Unlock()
+
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 0, nil }
+	fs.avgRowBytes_ = func(context.Context, *schema.Entity) (uint64, error) { return 0, nil }
+	fs.listEntities_ = func(
+		context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
+	) ([]*entityRow, error) {
+		return nil, nil
+	}
+	fs.getEntity_ = func(context.Context, *schema.Entity, string) (*entityRow, error) { return nil, nil }
+	// reached once the cache is refused and writes fall through to the id-cache path
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) { return newIDSet(), nil }
+
+	_, _, err := cs.GetEntity(context.Background(), e, "id-0")
+	require.NoError(t, err)
+
+	// each round writes fresh ids and deletes them again: nothing live accumulates, only the
+	// tombstones the versioned path keeps
+	var refused bool
+	for round := 0; round < 64 && !refused; round++ {
+		boxes := blobBoxes(round*8, 8, "x")
+		_, err = cs.SetEntities(context.Background(), e, boxes)
+		require.NoError(t, err)
+		for i := range boxes {
+			boxes[i].Data = nil
+		}
+		_, err = cs.SetEntities(context.Background(), e, boxes)
+		require.NoError(t, err)
+		cs.mu.Lock()
+		refused = cs.fullCacheRefused[e.Name]
+		if !refused {
+			require.NotEmpty(t, cs.fullCache[e.Name], "the versioned path keeps deleted ids")
+			assert.Equal(t, measuredBytes(cs.fullCache[e.Name]), cs.fullCacheBytes[e.Name])
+		}
+		cs.mu.Unlock()
+	}
+	assert.True(t, refused, "entries holding no data must still count against the limit")
+}
+
+// The estimate before a load is an average over the rows an id keeps, so it can fall short of
+// what the load must materialize. When that shortfall shows up as ClickHouse refusing the query,
+// the cache is refused and the read carries on: returning the error instead fails the run, and
+// since the load is on the way to the first read, it fails the same way on every retry -- the
+// restart loop this whole change exists to end.
+func TestChainStore_EnsureCaches_RefusesAFullLoadTheQueryLimitRejects(t *testing.T) {
+	cs, fs, _ := newTestChainStore(t)
+	e := blobEntity(t)
+	cs.mu.Lock()
+	cs.fullCacheRefused[e.Name] = false
+	cs.fullIDCacheRefused[e.Name] = false
+	cs.mu.Unlock()
+
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
+	// an id whose retained rows average small: the estimate passes
+	fs.avgRowBytes_ = func(context.Context, *schema.Entity) (uint64, error) { return 16, nil }
+	fs.listEntities_ = func(
+		context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
+	) ([]*entityRow, error) {
+		return nil, errors.New("close clickhouse rows failed: code: 241, message: " +
+			"Query memory limit exceeded: would use 12.09 GiB, maximum: 12.00 GiB")
+	}
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) { return newIDSet("id-0"), nil }
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+		return &entityRow{EntityBox: persistent.EntityBox{
+			Entity: e.Name, ID: id, Data: map[string]any{"id": id, "payload": "v"},
+		}}, nil
+	}
+
+	box, _, err := cs.GetEntity(context.Background(), e, "id-0")
+	require.NoError(t, err, "a cache too large to load must not fail the read")
+	assert.Equal(t, "v", box.Data["payload"])
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	assert.True(t, cs.fullCacheRefused[e.Name])
+	assert.False(t, cs.fullCacheLoaded[e.Name])
+	assert.True(t, cs.fullIDCacheLoaded[e.Name], "the refusal falls through to the id cache")
+}
+
+// The same shortfall without the query failing: the load succeeds and measures over the limit.
+// What was loaded is measured, so it overrules the estimate that admitted it.
+func TestChainStore_EnsureCaches_RefusesAFullLoadThatMeasuresOverTheLimit(t *testing.T) {
+	cs, fs, _ := newTestChainStore(t)
+	e := blobEntity(t)
+	cs.mu.Lock()
+	cs.fullCacheRefused[e.Name] = false
+	cs.fullIDCacheRefused[e.Name] = false
+	cs.fullCacheMaxBytes = 64 << 10
+	cs.mu.Unlock()
+
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
+	fs.avgRowBytes_ = func(context.Context, *schema.Entity) (uint64, error) { return 16, nil }
+	payload := strings.Repeat("x", 128<<10)
+	fs.listEntities_ = func(
+		context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
+	) ([]*entityRow, error) {
+		return []*entityRow{{EntityBox: persistent.EntityBox{
+			Entity: e.Name, ID: "id-0", Data: map[string]any{"id": "id-0", "payload": payload},
+		}}}, nil
+	}
+	fs.getAllID_ = func(context.Context, *schema.Entity) (*idSet, error) { return newIDSet("id-0"), nil }
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+		return &entityRow{EntityBox: persistent.EntityBox{
+			Entity: e.Name, ID: id, Data: map[string]any{"id": id, "payload": "v"},
+		}}, nil
+	}
+
+	_, _, err := cs.GetEntity(context.Background(), e, "id-0")
+	require.NoError(t, err)
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	assert.True(t, cs.fullCacheRefused[e.Name])
+	assert.False(t, cs.fullCacheLoaded[e.Name])
+	assert.Empty(t, cs.fullCache[e.Name], "an over-limit load is not installed")
+	assert.Zero(t, cs.fullCacheBytes[e.Name])
+	assert.True(t, cs.fullIDCacheLoaded[e.Name], "the refusal falls through to the id cache")
+}
+
+// An entity type whose size cannot be measured is refused rather than loaded blind: an
+// unmeasurable type is exactly the case the limit exists for.
+func TestChainStore_EnsureCaches_RefusesTheFullCacheItCannotMeasure(t *testing.T) {
+	cs, fs, _ := newTestChainStore(t)
+	e := sparseEntity(t)
+	cs.mu.Lock()
+	cs.fullCacheRefused[e.Name] = false
+	cs.fullIDCacheRefused[e.Name] = true
+	cs.mu.Unlock()
+
+	fs.countEntity_ = func(context.Context, *schema.Entity, bool) (uint64, error) { return 1, nil }
+	fs.avgRowBytes_ = func(context.Context, *schema.Entity) (uint64, error) {
+		return 0, errors.New("part metadata unavailable")
+	}
+	fs.listEntities_ = func(
+		context.Context, *schema.Entity, []persistent.EntityFilter, bool, int,
+	) ([]*entityRow, error) {
+		return nil, errors.New("an unmeasured entity must not be loaded")
+	}
+	fs.getEntity_ = func(_ context.Context, _ *schema.Entity, id string) (*entityRow, error) {
+		return positionRow(id, 1), nil
+	}
+
+	// the read still succeeds, off the LRU + store path
+	box, _, err := cs.GetEntity(context.Background(), e, "a")
+	assert.NoError(t, err)
+	assert.Equal(t, int32(1), box.Data["balance"])
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	assert.True(t, cs.fullCacheRefused[e.Name])
+	assert.False(t, cs.fullCacheLoaded[e.Name])
 }
 
 func TestChainStore_EnsureCaches_DiscardsALoadOlderThanAWrite(t *testing.T) {

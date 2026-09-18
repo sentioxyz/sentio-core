@@ -95,3 +95,27 @@ func Test_packDuplicateCheckPages(t *testing.T) {
 	// an empty window is not scanned at all
 	assert.Empty(t, packDuplicateCheckPages(window, bucket, nil))
 }
+
+func Test_duplicateCheckWindow(t *testing.T) {
+	cur := rg.NewRange(100, 999)
+
+	// nothing recorded yet, or nothing held: there is no window to scan
+	assert.True(t, duplicateCheckWindow(500, false, cur, 10).IsEmpty())
+	assert.True(t, duplicateCheckWindow(500, true, rg.EmptyRange, 10).IsEmpty())
+
+	// one commit below the oldest recorded end, since the slots of that commit went in with no
+	// earlier end to anchor them
+	assert.Equal(t, rg.NewRange(700, 999), duplicateCheckWindow(900, true, cur, 200))
+
+	// never below the range the destination holds, and never off the bottom of the number line
+	assert.Equal(t, rg.NewRange(100, 999), duplicateCheckWindow(200, true, cur, 500))
+	assert.Equal(t, rg.NewRange(100, 999), duplicateCheckWindow(120, true, cur, 50))
+	assert.Equal(t, rg.NewRange(100, 999), duplicateCheckWindow(5, true, cur, 10))
+
+	// a destination that started empty records only the end of the batch that filled it, so the
+	// reach below is what covers the slots that batch brought in
+	assert.Equal(t, rg.NewRange(100, 199), duplicateCheckWindow(199, true, rg.NewRange(100, 199), 10_000))
+
+	// a fork records an end below the ones before it, and the window follows it down
+	assert.Equal(t, rg.NewRange(140, 299), duplicateCheckWindow(149, true, rg.NewRange(100, 299), 9))
+}

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "clickhouse",
     srcs = [
+        "dup_check.go",
         "object.go",
         "range_store.go",
         "simple_slot_store.go",
@@ -30,8 +31,8 @@ go_library(
 go_test(
     name = "clickhouse_test",
     srcs = [
+        "dup_check_test.go",
         "object_test.go",
-        "store_test.go",
     ],
     embed = [":clickhouse"],
     deps = [

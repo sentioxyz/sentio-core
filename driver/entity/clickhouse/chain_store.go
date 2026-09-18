@@ -3,6 +3,7 @@ package clickhouse
 import (
 	"context"
 	"math"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -25,6 +26,27 @@ type cachedEntityBox struct {
 	persistent.EntityBox
 
 	Version uint64
+
+	// memSize is what this box adds to its full-data cache, measured once here rather than
+	// recomputed whenever the cache is sized: the cache keeps the box until it is overwritten
+	// or dropped, and both of those need the size of what is leaving.
+	memSize uint64
+}
+
+// perCachedBoxBytes is what one entry of a full-data cache costs before any data: the box
+// itself and the map entry pointing at it (a string key header, a pointer, and the share of the
+// bucket an average entry carries). Counting it is what keeps an entry that holds no data from
+// being free -- a versioned-collapsing delete leaves a box with a nil Data behind to keep its
+// version, so a run that creates and deletes ids would otherwise grow the cache without ever
+// moving the total that limits it.
+var perCachedBoxBytes = uint64(reflect.TypeOf(cachedEntityBox{}).Size()) + 48
+
+// newCachedEntityBox measures box as it is boxed. Every cachedEntityBox that enters a full-data
+// cache is built here, so ChainStore.fullCacheBytes can be kept by addition and subtraction.
+// The id is counted twice over: the map keys it and the box keeps its own copy.
+func newCachedEntityBox(box persistent.EntityBox, version uint64) *cachedEntityBox {
+	memSize := perCachedBoxBytes + 2*uint64(len(box.ID)) + uint64(len(box.GenBlockHash)) + box.MemSize()
+	return &cachedEntityBox{EntityBox: box, Version: version, memSize: memSize}
 }
 
 // ChainStore wraps Store for a single chain, providing entity read/write caching.
@@ -90,13 +112,21 @@ type ChainStore struct {
 	fullCacheLoaded  map[string]bool
 	fullCacheRefused map[string]bool
 
+	// fullCacheBytes is what each loaded full-data cache currently holds, in bytes, kept by
+	// addition and subtraction as boxes enter and leave. It is what the size check after a write
+	// reads. Measuring the cache itself, rather than projecting the size the store reported at
+	// load time, is what makes that check hold for an entity type whose rows grow after the load
+	// -- and for one whose table was empty when it was loaded, which no projection can size at
+	// all.
+	fullCacheBytes map[string]uint64
+
 	// cacheEntity holds in-memory-only ("IsCache") entities.
 	// Key is entity name; value is a weight-limited LRU.
 	cacheEntity map[string]*lru.Cache[string, *persistent.EntityBox]
 
-	// fullCacheDataLimit is the maximum total data bytes that can be kept in
-	// fullCache before falling back to the LRU + fullIDCache path.
-	fullCacheDataLimit int
+	// fullCacheMaxBytes is the maximum estimated data size, in bytes, that the full-data cache
+	// of one entity type may hold before falling back to the LRU + fullIDCache path.
+	fullCacheMaxBytes uint64
 
 	// fullIDCacheMaxCount caps how many entity IDs may be loaded into the full-ID
 	// cache.  Entities beyond this count fall back to per-query existence checks
@@ -124,6 +154,7 @@ type chainStoreBackend interface {
 	countEntity(
 		ctx context.Context, entityType *schema.Entity, chain string, excludeDeleted bool,
 	) (uint64, error)
+	avgRowBytes(ctx context.Context, entityType *schema.Entity, chain string) (uint64, error)
 	getAllID(ctx context.Context, entityType *schema.Entity, chain string) (*idSet, error)
 	setEntities(
 		ctx context.Context,
@@ -149,11 +180,14 @@ var (
 	// positive: 0 is not "off".
 	defaultEntityStoreCacheSize = envconf.LoadUInt64("SENTIO_ENTITY_STORE_CACHE_SIZE",
 		300000, envconf.WithMin(1), envconf.WithMax(math.MaxInt32))
-	// defaultEntityStoreFullCacheSize is the total data size (in entity DataSize units, per entity
-	// type) the full-data cache may hold; an entity type with more falls back to the LRU and the
-	// full-ID cache.
-	defaultEntityStoreFullCacheSize = envconf.LoadUInt64("SENTIO_ENTITY_STORE_FULL_CACHE_SIZE",
-		10000000, envconf.WithMax(math.MaxInt32))
+	// defaultEntityStoreFullCacheMaxBytes is the data size, in bytes, that the full-data cache of
+	// one entity type may hold; a type whose data is larger falls back to the LRU and the full-ID
+	// cache. Two measures are compared against it, each the only one available where it is used:
+	// before a load, the average stored row size times the number of live ids (Store.avgRowBytes),
+	// since the data is not in memory yet; afterwards, what the cache itself holds
+	// (ChainStore.fullCacheBytes), which also covers a cache loaded from a table that was empty.
+	defaultEntityStoreFullCacheMaxBytes = envconf.LoadUInt64("SENTIO_ENTITY_STORE_FULL_CACHE_MAX_BYTES",
+		512<<20)
 	// defaultEntityStoreFullIDCacheMaxCount is the number of IDs the full-ID cache of one entity
 	// type may hold; an entity type with more falls back to per-query existence checks.
 	defaultEntityStoreFullIDCacheMaxCount = envconf.LoadUInt64("SENTIO_ENTITY_STORE_FULL_ID_CACHE_MAX_COUNT",
@@ -168,8 +202,9 @@ func NewChainStore(store chainStoreBackend, chain string) *ChainStore {
 		chain:               chain,
 		writing:             set.New[string](),
 		loading:             set.New[string](),
-		fullCacheDataLimit:  int(defaultEntityStoreFullCacheSize),
+		fullCacheMaxBytes:   defaultEntityStoreFullCacheMaxBytes,
 		fullIDCacheMaxCount: defaultEntityStoreFullIDCacheMaxCount,
+		fullCacheBytes:      make(map[string]uint64),
 		fullIDCache:         make(map[string]*idSet),
 		fullIDCacheLoaded:   make(map[string]bool),
 		fullIDCacheRefused:  make(map[string]bool),
@@ -228,6 +263,9 @@ type loadedCaches struct {
 	fullRefused bool
 	ids         *idSet
 	idsRefused  bool
+	// bytes is what the boxes in full add up to, measured as they were boxed. Only meaningful
+	// when full is set.
+	bytes uint64
 }
 
 // ensureCaches loads the full-data cache or the full-ID cache of entityType when neither has been
@@ -277,6 +315,7 @@ func (c *ChainStore) ensureCaches(
 	if loaded.full != nil {
 		c.fullCache[name] = loaded.full
 		c.fullCacheLoaded[name] = true
+		c.fullCacheBytes[name] = loaded.bytes
 		return true, nil
 	}
 	if loaded.ids != nil {
@@ -288,16 +327,17 @@ func (c *ChainStore) ensureCaches(
 }
 
 // loadCaches runs the store queries of a cache load, without mu. The full-data cache is loaded
-// first when planned; it makes the full-ID cache unnecessary. An entity type with more rows than
-// the caches may hold is refused instead.
+// first when planned; it makes the full-ID cache unnecessary. An entity type too large for it is
+// refused and falls through to the full-ID cache here, whether the size was seen before the load
+// (the estimate), during it (the load exceeded ClickHouse's query memory limit) or after it (what
+// was loaded measures over the limit). Only a refusal falls through; an error is returned.
 func (c *ChainStore) loadCaches(
 	ctx context.Context,
 	entityType *schema.Entity,
 	full, ids bool,
 ) (loaded loadedCaches, err error) {
 	start := time.Now()
-	dataSize := entityType.DataSize()
-	_, logger := log.FromContext(ctx, "entity", entityType.Name, "dataSize", dataSize, "chainID", c.chain)
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chainID", c.chain)
 	knownCount := int64(-1)
 	if full {
 		// for the entity using versioned collapsing table, full cache should include deleted items,
@@ -311,24 +351,60 @@ func (c *ChainStore) loadCaches(
 		// May include deleted rows for versioned-collapsing entities, which only makes the
 		// full-ID cache check below stricter.
 		knownCount = int64(count)
-		if count > uint64(c.fullCacheDataLimit/dataSize) {
-			logger.Warnw("too many entities in persistent, refuse to use full cache", "count", count)
+		// How much the cache would hold is the stored size of a row times the number of live ids,
+		// both measured rather than assumed: the count above already excludes the superseded rows
+		// an update leaves behind, and the row size comes from the table's part metadata. Sizing
+		// it by field count instead would let an entity of few but very large rows through, and
+		// loading it then exhausts the ClickHouse query memory limit, which is fatal to the run.
+		avgRow, avgErr := c.store.avgRowBytes(ctx, entityType, c.chain)
+		estimated := avgRow * count
+		logger = logger.With("count", count, "avgRowBytes", avgRow, "estimatedBytes", estimated)
+		if avgErr != nil {
+			// Refuse rather than load blind: an unmeasurable entity type is exactly the case this
+			// check exists for, and the LRU serves it correctly, only less quickly.
+			logger.Warne(avgErr, "cannot measure entity size in persistent, refuse to use full cache")
+			loaded.fullRefused = true
+		} else if estimated > c.fullCacheMaxBytes {
+			logger.Warnw("too much entity data in persistent, refuse to use full cache",
+				"fullCacheMaxBytes", c.fullCacheMaxBytes)
 			loaded.fullRefused = true
 		} else {
 			logger.Debugf("will really load all %d entities from persistent for full cache", count)
-			var rows []*entityRow
-			if rows, err = c.store.listEntities(ctx, entityType, c.chain, nil, excludeDeleted, math.MaxInt); err != nil {
-				logger.With("used", time.Since(start).String()).
-					Errore(err, "load entities from persistent for full cache failed")
+			rows, listErr := c.store.listEntities(ctx, entityType, c.chain, nil, excludeDeleted, math.MaxInt)
+			logger = logger.With("used", time.Since(start).String())
+			switch {
+			case isQueryMemoryLimitExceededError(listErr):
+				// The estimate let this through and the load proved it wrong: the rows an id
+				// keeps are not all the size of its current one, so an average over them can
+				// fall short of what the load has to materialize. Refusing the cache is the
+				// whole answer -- the LRU serves the entity correctly -- whereas returning the
+				// error fails the read that asked for it, and with it the run, on every retry.
+				logger.Warne(listErr, "entity data too large to load for full cache, refuse to use it")
+				loaded.fullRefused = true
+			case listErr != nil:
+				err = listErr
+				logger.Errore(err, "load entities from persistent for full cache failed")
+				return
+			default:
+				loaded.full = make(map[string]*cachedEntityBox, len(rows))
+				for _, row := range rows {
+					boxed := newCachedEntityBox(row.EntityBox, row.Version)
+					loaded.full[row.ID] = boxed
+					loaded.bytes += boxed.memSize
+				}
+				if loaded.bytes > c.fullCacheMaxBytes {
+					// Same shortfall, without the query failing: what was loaded is measured, so
+					// it is the estimate that is answerable to it and not the other way round.
+					logger.Warnw("too much entity data loaded for full cache, refuse to use it",
+						"count", len(rows), "bytes", loaded.bytes, "fullCacheMaxBytes", c.fullCacheMaxBytes)
+					loaded.full, loaded.bytes = nil, 0
+					loaded.fullRefused = true
+					break
+				}
+				logger.Infow("loaded all entities from persistent into full cache",
+					"count", len(rows), "bytes", loaded.bytes)
 				return
 			}
-			loaded.full = make(map[string]*cachedEntityBox, len(rows))
-			for _, row := range rows {
-				loaded.full[row.ID] = &cachedEntityBox{EntityBox: row.EntityBox, Version: row.Version}
-			}
-			logger.With("used", time.Since(start).String()).
-				Infow("loaded all entities from persistent into full cache", "count", len(rows))
-			return
 		}
 	}
 	if !ids {
@@ -560,8 +636,7 @@ func (c *ChainStore) SetEntities(
 	entityType *schema.Entity,
 	boxes []persistent.EntityBox,
 ) (int, error) {
-	dataSize := entityType.DataSize()
-	_, logger := log.FromContext(ctx, "entity", entityType.Name, "dataSize", dataSize, "chainID", c.chain)
+	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chainID", c.chain)
 	var knownExistingIDChecker func(id string) bool
 	var knownPreBoxGetter func(id string) (*cachedEntityBox, bool)
 
@@ -641,7 +716,6 @@ func (c *ChainStore) applyWriteToCaches(
 	entityType *schema.Entity,
 	boxes []persistent.EntityBox,
 ) {
-	dataSize := entityType.DataSize()
 	// a GetEntity that read the store before this write landed must not cache what it read
 	c.cacheGen[entityType.Name]++
 	// Build a map of the latest box per ID (later entries override earlier).
@@ -695,28 +769,36 @@ func (c *ChainStore) applyWriteToCaches(
 				initialVersion := uint64(0)
 				if existing, has := c.fullCache[entityType.Name][id]; has {
 					initialVersion = existing.Version
+					c.fullCacheBytes[entityType.Name] -= existing.memSize
 				}
-				c.fullCache[entityType.Name][id] = &cachedEntityBox{
-					EntityBox: *box,
-					Version:   initialVersion + uint64(idWriteCount[id]),
-				}
+				boxed := newCachedEntityBox(*box, initialVersion+uint64(idWriteCount[id]))
+				c.fullCache[entityType.Name][id] = boxed
+				c.fullCacheBytes[entityType.Name] += boxed.memSize
 			}
 		} else {
 			// full cache do not need deleted items and version is also useless
 			for id, box := range latest {
+				if existing, has := c.fullCache[entityType.Name][id]; has {
+					c.fullCacheBytes[entityType.Name] -= existing.memSize
+				}
 				if box.Data == nil {
 					delete(c.fullCache[entityType.Name], id)
 				} else {
-					c.fullCache[entityType.Name][id] = &cachedEntityBox{EntityBox: *box}
+					boxed := newCachedEntityBox(*box, 0)
+					c.fullCache[entityType.Name][id] = boxed
+					c.fullCacheBytes[entityType.Name] += boxed.memSize
 				}
 			}
 		}
 		count := len(c.fullCache[entityType.Name])
-		logger = logger.With("count", count)
-		if count > c.fullCacheDataLimit/dataSize {
-			logger.Warn("too many entities in persistent, refuse to use full cache")
+		bytes := c.fullCacheBytes[entityType.Name]
+		logger = logger.With("count", count, "bytes", bytes)
+		if bytes > c.fullCacheMaxBytes {
+			logger.Warnw("too much entity data in cache, refuse to use full cache",
+				"fullCacheMaxBytes", c.fullCacheMaxBytes)
 			delete(c.fullCache, entityType.Name)
 			delete(c.fullCacheLoaded, entityType.Name)
+			delete(c.fullCacheBytes, entityType.Name)
 			c.fullCacheRefused[entityType.Name] = true
 		} else {
 			logger.Info("will keep to use full cache")
@@ -784,12 +866,12 @@ func (c *ChainStore) Snapshot() any {
 	for entity, loaded := range c.fullCacheLoaded {
 		if loaded {
 			size := len(c.fullCache[entity])
-			dataSize := c.GetEntityType(entity).DataSize()
+			bytes := c.fullCacheBytes[entity]
 			fullCache[entity] = map[string]any{
 				"loaded":            true,
 				"size":              size,
-				"dataSize":          dataSize,
-				"sizeOverLimitRate": float64(dataSize*size) / float64(c.fullCacheDataLimit),
+				"bytes":             bytes,
+				"sizeOverLimitRate": float64(bytes) / float64(c.fullCacheMaxBytes),
 			}
 		}
 	}
@@ -807,8 +889,8 @@ func (c *ChainStore) Snapshot() any {
 	}
 	return map[string]any{
 		"config": map[string]any{
-			"fullCacheDataSizeLimit": c.fullCacheDataLimit,
-			"fullIDCacheMaxCount":    c.fullIDCacheMaxCount,
+			"fullCacheMaxBytes":   c.fullCacheMaxBytes,
+			"fullIDCacheMaxCount": c.fullIDCacheMaxCount,
 		},
 		"cacheEntity": cacheEntity,
 		"lruCache": map[string]any{
@@ -833,6 +915,7 @@ func (c *ChainStore) purgeCache() {
 	c.fullCache = make(map[string]map[string]*cachedEntityBox)
 	c.fullCacheLoaded = make(map[string]bool)
 	c.fullCacheRefused = make(map[string]bool)
+	c.fullCacheBytes = make(map[string]uint64)
 }
 
 // chainStoreCacheKey builds an LRU key from the entity name and id.

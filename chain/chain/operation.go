@@ -89,20 +89,26 @@ func Copy[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], interval rg.
 	return err
 }
 
+// doCopy copies the target ranges one at a time. Only the load and the save of the same range run
+// together; two saves never do. A destination store decides what its next truncate has to do from
+// what the last save left behind, and a second save finishing in the middle of that would answer
+// for work it never did.
 func doCopy[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], targetRanges rg.RangeSet) error {
-	g, ctx := errgroup.WithContext(ctx)
-	for _, x := range targetRanges.GetRanges() {
-		targetRange := x
+	for _, targetRange := range targetRanges.GetRanges() {
+		g, gctx := errgroup.WithContext(ctx)
 		slotChan := make(chan SLOT)
 		g.Go(func() error {
 			defer close(slotChan)
-			return src.Load(ctx, targetRange, slotChan)
+			return src.Load(gctx, targetRange, slotChan)
 		})
 		g.Go(func() error {
-			return dst.Save(ctx, targetRange, slotChan)
+			return dst.Save(gctx, targetRange, slotChan)
 		})
+		if err := g.Wait(); err != nil {
+			return err
+		}
 	}
-	return g.Wait()
+	return nil
 }
 
 type SyncConfig struct {

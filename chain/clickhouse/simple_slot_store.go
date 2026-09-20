@@ -39,13 +39,12 @@ type SimpleSlotStore[SLOT chain.Slot] struct {
 	// overwrite, which replaces rows that may be as new as the last save.
 	saved        bool
 	savedThrough uint64
-	// dirty holds the ranges where a save that did not finish may have left rows nothing accounts
-	// for, so a truncate reaching into one knows it may be clearing rows this store wrote moments
-	// ago. A range leaves it only when a save covering it waited for the replicas and then
-	// succeeded: a save of another range answers for its own rows and clears nothing, however its
-	// work interleaves with the failure. The zero value is the whole line, so a store built without
-	// NewSimpleSlotStore waits every time rather than skipping a wait it owes.
-	dirty rg.RangeSet
+	// saveFailed records that a save did not finish, so the truncate opening the next one knows it
+	// may be clearing rows this store wrote moments ago. Saves of one store run one at a time -
+	// Sync and Repair drive them in sequence and doCopy takes its target ranges one by one - so the
+	// next save is the one that has to deal with what the failed one left, and clearing the flag
+	// when it succeeds says exactly that.
+	saveFailed bool
 }
 
 func NewSimpleSlotStore[SLOT chain.Slot](
@@ -67,7 +66,6 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		flushBatchSize:     flushBatchSize,
 		flushConcurrency:   flushConcurrency,
 		slowFlushThreshold: slowFlushThreshold,
-		dirty:              rg.EmptyRangeSet,
 	}
 	if err := tablesMeta.Validate(); err != nil {
 		return nil, err
@@ -275,7 +273,7 @@ func (s *SimpleSlotStore[SLOT]) Save(
 		panic(errors.Errorf("interval is infinity"))
 	}
 	syncReplicas := s.truncateNeedsReplicaSync(interval)
-	defer func() { s.recordSave(interval, syncReplicas, err) }()
+	defer func() { s.recordSave(interval, err) }()
 	_, logger := log.FromContext(ctx, "interval", interval)
 	tm := timer.NewTimer()
 	tmTotal := tm.Start("T")
@@ -555,19 +553,16 @@ func (s *SimpleSlotStore[SLOT]) tableRangeWhere(
 }
 
 // recordSave takes down what a finished save leaves behind for the next one to reason about.
-func (s *SimpleSlotStore[SLOT]) recordSave(interval rg.Range, synced bool, err error) {
+func (s *SimpleSlotStore[SLOT]) recordSave(interval rg.Range, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err != nil {
-		s.dirty = s.dirty.Union(interval)
+		s.saveFailed = true
 		return
 	}
-	// A save answers for its own range only: it waited for the replicas, counted what was there
-	// and wrote the range again. What another save left elsewhere is still there, whether it
-	// failed before this one waited or after, so nothing outside this interval is cleared.
-	if synced {
-		s.dirty = s.dirty.Remove(interval)
-	}
+	// A save that follows a failed one always waits for the replicas, so reaching here means the
+	// rows that save left have been counted and written over.
+	s.saveFailed = false
 	if interval.End != nil && (!s.saved || *interval.End > s.savedThrough) {
 		s.saved, s.savedThrough = true, *interval.End
 	}
@@ -576,13 +571,13 @@ func (s *SimpleSlotStore[SLOT]) recordSave(interval rg.Range, synced bool, err e
 func (s *SimpleSlotStore[SLOT]) truncateNeedsReplicaSync(interval rg.Range) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return truncateNeedsReplicaSync(interval, s.saved, s.savedThrough, s.dirty)
+	return truncateNeedsReplicaSync(interval, s.saved, s.savedThrough, s.saveFailed)
 }
 
-func (s *SimpleSlotStore[SLOT]) dirtyRanges() rg.RangeSet {
+func (s *SimpleSlotStore[SLOT]) lastSaveFailed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.dirty
+	return s.saveFailed
 }
 
 // truncateNeedsReplicaSync says whether the truncate opening a save has to wait for the replicas to
@@ -593,12 +588,10 @@ func (s *SimpleSlotStore[SLOT]) dirtyRanges() rg.RangeSet {
 // It is safe to skip only for an append, an interval reaching above every slot the store has
 // written, where nothing of this store's can be in flight. Anything at or below that is an
 // overwrite - a repair filling a gap, or a copy asked to overwrite - replacing rows that may be as
-// new as the last save. A save that did not finish may have left rows anywhere in its own range,
-// which is why those ranges are kept rather than a single flag: a failed range can sit above
-// everything since saved, where the high-water mark alone would wave it through. And a store that
-// has saved nothing yet knows nothing about what is there.
-func truncateNeedsReplicaSync(interval rg.Range, saved bool, savedThrough uint64, dirty rg.RangeSet) bool {
-	if !saved || !dirty.Intersection(interval).IsEmpty() {
+// new as the last save. A save that did not finish may have left rows anywhere in its range, and a
+// store that has saved nothing yet knows nothing about what is there.
+func truncateNeedsReplicaSync(interval rg.Range, saved bool, savedThrough uint64, saveFailed bool) bool {
+	if saveFailed || !saved {
 		return true
 	}
 	return interval.Start <= savedThrough
@@ -611,13 +604,13 @@ func truncateNeedsReplicaSync(interval rg.Range, saved bool, savedThrough uint64
 // An interval with no end is different. It asks the store to take back everything above a point,
 // which at startup is whatever a killed process left behind and on a fork is the slots about to be
 // written again - rows that may be minutes old and a count that misses them leaves behind. So is a
-// delete reaching into a range a save left unfinished.
-func deleteNeedsReplicaSync(interval rg.Range, dirty rg.RangeSet) bool {
-	return interval.End == nil || !dirty.Intersection(interval).IsEmpty()
+// delete following a save that did not finish, wherever it reaches.
+func deleteNeedsReplicaSync(interval rg.Range, saveFailed bool) bool {
+	return interval.End == nil || saveFailed
 }
 
 func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
-	return s.deleteRange(ctx, interval, deleteNeedsReplicaSync(interval, s.dirtyRanges()))
+	return s.deleteRange(ctx, interval, deleteNeedsReplicaSync(interval, s.lastSaveFailed()))
 }
 
 func (s *SimpleSlotStore[SLOT]) deleteRange(ctx context.Context, interval rg.Range, syncReplicas bool) error {

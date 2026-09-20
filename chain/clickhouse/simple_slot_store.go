@@ -34,8 +34,15 @@ type SimpleSlotStore[SLOT chain.Slot] struct {
 	slowFlushThreshold time.Duration
 
 	mu sync.Mutex
-	// saveFailed records that a save did not finish, so the truncate that opens the next attempt at
-	// that range knows it may be clearing rows this store itself wrote moments ago.
+	// saved says whether any save has finished, and savedThrough is the highest slot one has
+	// written. Together they tell an append, which reaches above everything written so far, from an
+	// overwrite, which replaces rows that may be as new as the last save.
+	saved        bool
+	savedThrough uint64
+	// saveFailed records that a save did not finish, so the truncate opening the next attempt knows
+	// it may be clearing rows this store wrote moments ago. It is sticky on purpose: only a truncate
+	// that waited for the replicas and then saved successfully clears it, so a save running
+	// alongside the failed one cannot finish and erase what it never dealt with.
 	saveFailed bool
 }
 
@@ -264,18 +271,15 @@ func (s *SimpleSlotStore[SLOT]) Save(
 	if interval.End == nil {
 		panic(errors.Errorf("interval is infinity"))
 	}
-	// A save that does not finish may have left rows behind; remember that, so the truncate opening
-	// the next attempt waits for the replicas rather than trusting a count that may not see them.
-	// It is recorded after the truncate has read it, so the attempt that clears up after a failure
-	// is the one that waits.
-	defer func() { s.setSaveFailed(err != nil) }()
+	syncReplicas := s.truncateNeedsReplicaSync(interval)
+	defer func() { s.recordSave(interval, syncReplicas, err) }()
 	_, logger := log.FromContext(ctx, "interval", interval)
 	tm := timer.NewTimer()
 	tmTotal := tm.Start("T")
 
 	// clean up the scene
 	tmPrepare := tm.Start("P")
-	if err = s.Delete(ctx, interval); err != nil {
+	if err = s.deleteRange(ctx, interval, syncReplicas); err != nil {
 		logger.Errorfe(err, "truncate before save failed")
 		return errors.Wrapf(err, "truncate interval %s before save failed", interval)
 	}
@@ -547,10 +551,29 @@ func (s *SimpleSlotStore[SLOT]) tableRangeWhere(
 	return table.rangeWhere(whereTpl, whereExTpl), nil
 }
 
-func (s *SimpleSlotStore[SLOT]) setSaveFailed(failed bool) {
+// recordSave takes down what a finished save leaves behind for the next one to reason about.
+func (s *SimpleSlotStore[SLOT]) recordSave(interval rg.Range, synced bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.saveFailed = failed
+	if err != nil {
+		s.saveFailed = true
+		return
+	}
+	// Only a save whose truncate waited for the replicas has actually dealt with whatever an
+	// earlier failure left; one that skipped the wait may be running alongside it and knows nothing
+	// about it.
+	if synced {
+		s.saveFailed = false
+	}
+	if interval.End != nil && (!s.saved || *interval.End > s.savedThrough) {
+		s.saved, s.savedThrough = true, *interval.End
+	}
+}
+
+func (s *SimpleSlotStore[SLOT]) truncateNeedsReplicaSync(interval rg.Range) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return truncateNeedsReplicaSync(interval, s.saved, s.savedThrough, s.saveFailed)
 }
 
 func (s *SimpleSlotStore[SLOT]) lastSaveFailed() bool {
@@ -559,24 +582,40 @@ func (s *SimpleSlotStore[SLOT]) lastSaveFailed() bool {
 	return s.saveFailed
 }
 
-// replicaSyncNeeded says whether a delete has to wait for the replicas to hold the same data before
-// counting what it is about to remove, rather than trusting whichever replica answers.
+// truncateNeedsReplicaSync says whether the truncate opening a save has to wait for the replicas to
+// hold the same data before counting what it is about to remove. Rows are written back on top of
+// this one, so a count that cannot see a row yet does not merely delay reclaiming it: the row stays
+// and the save puts a second copy beside it.
 //
-// An interval with no end is the store being asked to take back everything above a point: at
-// startup, where what sits above the recorded range is whatever a killed process left behind, and
-// on a fork, where the slots being taken back are about to be written again. A truncate that opens
-// a retry of a save that did not finish is the same situation by another route. In all of them the
-// rows to remove may have been written moments ago, and a count that cannot see them yet skips the
-// delete and leaves the write that follows to add a second copy.
+// It is safe to skip only for an append, an interval reaching above every slot the store has
+// written, where nothing of this store's can be in flight. Anything at or below that is an
+// overwrite - a repair filling a gap, or a copy asked to overwrite - replacing rows that may be as
+// new as the last save. A save that did not finish may have left rows anywhere in its range, and a
+// store that has saved nothing yet knows nothing about what is there.
+func truncateNeedsReplicaSync(interval rg.Range, saved bool, savedThrough uint64, saveFailed bool) bool {
+	if saveFailed || !saved {
+		return true
+	}
+	return interval.Start <= savedThrough
+}
+
+// deleteNeedsReplicaSync says whether a delete that puts nothing back has to wait for the replicas
+// first. Normally it does not: a count that misses a row only delays reclaiming it, and that is the
+// retention cut, far below anything being written.
 //
-// What is left is the retention cut, a bounded interval far below anything being written, where
-// nothing can still be in flight on the other replica.
-func replicaSyncNeeded(interval rg.Range, lastSaveFailed bool) bool {
-	return interval.End == nil || lastSaveFailed
+// An interval with no end is different. It asks the store to take back everything above a point,
+// which at startup is whatever a killed process left behind and on a fork is the slots about to be
+// written again - rows that may be minutes old and a count that misses them leaves behind. So is a
+// delete following a save that did not finish, wherever it reaches.
+func deleteNeedsReplicaSync(interval rg.Range, saveFailed bool) bool {
+	return interval.End == nil || saveFailed
 }
 
 func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
-	syncReplicas := replicaSyncNeeded(interval, s.lastSaveFailed())
+	return s.deleteRange(ctx, interval, deleteNeedsReplicaSync(interval, s.lastSaveFailed()))
+}
+
+func (s *SimpleSlotStore[SLOT]) deleteRange(ctx context.Context, interval rg.Range, syncReplicas bool) error {
 	_, logger := log.FromContext(ctx, "interval", interval.String())
 	start := time.Now()
 

@@ -33,6 +33,12 @@ type SimpleSlotStore[SLOT chain.Slot] struct {
 	flushConcurrency   uint
 	slowFlushThreshold time.Duration
 
+	// saveMu admits one save at a time. The state below says what the last save left behind, which
+	// is only something the next save can act on if there is a last save: tasks are built over a
+	// shared destination and run together, so two saves can otherwise reach the same store at once
+	// and one of them answers for work the other did.
+	saveMu sync.Mutex
+
 	mu sync.Mutex
 	// saved says whether any save has finished, and savedThrough is the highest slot one has
 	// written. Together they tell an append, which reaches above everything written so far, from an
@@ -40,10 +46,9 @@ type SimpleSlotStore[SLOT chain.Slot] struct {
 	saved        bool
 	savedThrough uint64
 	// saveFailed records that a save did not finish, so the truncate opening the next one knows it
-	// may be clearing rows this store wrote moments ago. Saves of one store run one at a time -
-	// Sync and Repair drive them in sequence and doCopy takes its target ranges one by one - so the
-	// next save is the one that has to deal with what the failed one left, and clearing the flag
-	// when it succeeds says exactly that.
+	// may be clearing rows this store wrote moments ago. Since saves are serialized, the next save
+	// is the one that has to deal with what the failed one left - it waits for the replicas before
+	// counting - and clearing the flag when it succeeds says exactly that.
 	saveFailed bool
 }
 
@@ -272,6 +277,8 @@ func (s *SimpleSlotStore[SLOT]) Save(
 	if interval.End == nil {
 		panic(errors.Errorf("interval is infinity"))
 	}
+	s.saveMu.Lock()
+	defer s.saveMu.Unlock()
 	syncReplicas := s.truncateNeedsReplicaSync(interval)
 	defer func() { s.recordSave(interval, err) }()
 	_, logger := log.FromContext(ctx, "interval", interval)

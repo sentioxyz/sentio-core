@@ -89,10 +89,10 @@ func Copy[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], interval rg.
 	return err
 }
 
-// doCopy copies the target ranges one at a time. Only the load and the save of the same range run
-// together; two saves never do. A destination store decides what its next truncate has to do from
-// what the last save left behind, and a second save finishing in the middle of that would answer
-// for work it never did.
+// doCopy copies the target ranges one at a time: only the load and the save of the same range run
+// together. A destination admits one save at a time, since it reads what its last save left behind
+// to decide what the next truncate owes, so starting the ranges together would gain nothing and
+// leave the second load filling a channel nobody is reading yet.
 func doCopy[SLOT Slot](ctx context.Context, src, dst Dimension[SLOT], targetRanges rg.RangeSet) error {
 	for _, targetRange := range targetRanges.GetRanges() {
 		g, gctx := errgroup.WithContext(ctx)

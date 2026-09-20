@@ -140,6 +140,26 @@ func (c Controller) BatchInsert(
 	return nil
 }
 
+// syncReplicaTimeoutSeconds is how long a replica is given to catch up before a delete gives up and
+// leaves the caller to try again. A replica further behind than this has a problem of its own.
+const syncReplicaTimeoutSeconds = 60
+
+// syncReplicas waits for every replica of the table to hold what the others have written. It is
+// only the data-carrying entries that are waited for, not merges or mutations, which is what
+// LIGHTWEIGHT asks for, and it runs on the whole cluster because the reader that follows may be
+// answered by any replica. Measured against a production cluster it costs 65ms on one replica and
+// 103-291ms across both, on tables from a few thousand rows to thirty-three billion.
+//
+// A store whose tables are not replicated has nothing to wait for; that is the same condition the
+// engine is chosen by.
+func (c Controller) syncReplicas(ctx context.Context, table string) error {
+	if c.cluster == "" {
+		return nil
+	}
+	sql := fmt.Sprintf("SYSTEM SYNC REPLICA ON CLUSTER '%s' %s LIGHTWEIGHT", c.cluster, c.FullLogicName(table))
+	return c.Exec(SyncReplicaCtx(ctx), sql)
+}
+
 func (c Controller) Delete(ctx context.Context, table string, condition string, light bool) (uint64, error) {
 	if light {
 		// Lightweight deletes leave patch parts behind that background merges may never reclaim;
@@ -155,6 +175,15 @@ func (c Controller) Delete(ctx context.Context, table string, condition string, 
 		if err := c.waitDeleteMutations(ctx, table); err != nil {
 			return 0, errors.Wrapf(err, "wait for previous delete mutation on %s failed", table)
 		}
+	}
+	// Ask the replicas to catch up with each other before asking how many rows there are. An insert
+	// lands on whichever replica the connection pool picked and the count goes to whichever it picks
+	// next, so without this the count can come back zero while the rows sit on the other replica:
+	// the delete is skipped as a no-op, and whoever writes that range again ends up with a second
+	// copy of it. That is not hypothetical, it is how a chain table came to hold two copies of two
+	// stretches of a day.
+	if err := c.syncReplicas(ctx, table); err != nil {
+		return 0, errors.Wrapf(err, "sync replicas of %s before deleting failed", table)
 	}
 	sql := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s", c.FullLogicName(table), condition)
 	count, err := c.QueryCount(DisableProjectionCtx(ctx), sql)

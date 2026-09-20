@@ -63,6 +63,16 @@ func WithLightDeleteTableSettings(settings map[string]string) {
 	settings["enable_block_offset_column"] = "1"
 }
 
+// SyncReplicaCtx bounds how long a replica may be waited for. It is set here rather than inherited
+// because a caller's own read timeout says nothing about how long a replica should be given to
+// fetch what it is missing: the entity store, for one, asks for a five second one.
+func SyncReplicaCtx(ctx context.Context, otherSettings ...map[string]any) context.Context {
+	settings := mergeSettings(mergeSettings(otherSettings...), map[string]any{
+		"receive_timeout": syncReplicaTimeoutSeconds,
+	})
+	return ckhmanager.ContextMergeSettings(ctx, settings)
+}
+
 func WithProjectionTableSettings(settings map[string]string) {
 	settings["lightweight_mutation_projection_mode"] = "'rebuild'"
 	// A merge that deduplicates refuses to run on a table with projections unless it is told what

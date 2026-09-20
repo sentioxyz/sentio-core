@@ -3,8 +3,6 @@ package clickhouse
 import (
 	"testing"
 
-	"github.com/pkg/errors"
-
 	"github.com/stretchr/testify/assert"
 
 	"sentioxyz/sentio-core/common/chx"
@@ -120,57 +118,36 @@ func Test_duplicateCheckWindow(t *testing.T) {
 	assert.Equal(t, rg.NewRange(199, 199), duplicateCheckWindow(199, true, rg.NewRange(100, 199)))
 }
 
-func Test_deleteNeedsReplicaSync(t *testing.T) {
-	// taking back everything above a point: a killed process's leftovers at startup, and the slots
-	// a fork is about to have written again
-	assert.True(t, deleteNeedsReplicaSync(rg.Range{Start: 100}, false))
-
-	// the retention cut, far below anything being written, puts nothing back
-	assert.False(t, deleteNeedsReplicaSync(rg.NewRange(0, 99), false))
-
-	// unless a save that did not finish may have left rows the count cannot see
-	assert.True(t, deleteNeedsReplicaSync(rg.NewRange(0, 99), true))
-}
-
 func Test_truncateNeedsReplicaSync(t *testing.T) {
 	// an append above everything written so far: nothing of this store's is in flight there
-	assert.False(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), true, 199, false))
+	assert.False(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), true, 199))
 
 	// an overwrite, reaching back over rows that may be as new as the last save: a repair filling a
 	// gap, or a copy asked to overwrite. The last save having succeeded says nothing about those
 	// rows having reached the other replica yet
-	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(130, 170), true, 199, false))
-	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(199, 299), true, 199, false))
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(130, 170), true, 199))
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(199, 299), true, 199))
 
 	// a store that has saved nothing yet knows nothing about what is there
-	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), false, 0, false))
-
-	// and a save that did not finish may have left rows anywhere in its range
-	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), true, 199, true))
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), false, 0))
 }
 
 func Test_recordSave(t *testing.T) {
 	var store SimpleSlotStore[*testSlot]
 
-	// a finished save is what lets the next one tell an append from an overwrite
-	store.recordSave(rg.NewRange(100, 199), nil)
+	// a save is what lets the next one tell an append from an overwrite
+	store.recordSave(rg.NewRange(100, 199))
 	assert.False(t, store.truncateNeedsReplicaSync(rg.NewRange(200, 299)))
 	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(150, 299)))
 
-	// a save that did not finish leaves the next truncate to deal with what it wrote
-	store.recordSave(rg.NewRange(200, 299), errors.New("boom"))
-	assert.True(t, store.lastSaveFailed())
+	// a save that gave up partway counts the same: its retry reaches over rows it may have left
+	store.recordSave(rg.NewRange(200, 299))
 	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(200, 299)))
 
-	// which that truncate does, since saves of one store run one at a time: the next save waited
-	// for the replicas before counting, so finishing it settles the failure
-	store.recordSave(rg.NewRange(200, 299), nil)
-	assert.False(t, store.lastSaveFailed())
-
-	// and the high-water mark only ever moves up
-	store.recordSave(rg.NewRange(100, 150), nil)
-	assert.False(t, store.truncateNeedsReplicaSync(rg.NewRange(300, 399)))
+	// the mark only ever moves up, so a save of an earlier range does not take it back
+	store.recordSave(rg.NewRange(100, 150))
 	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(299, 399)))
+	assert.False(t, store.truncateNeedsReplicaSync(rg.NewRange(300, 399)))
 }
 
 // testSlot is the smallest thing that satisfies chain.Slot, for the store's type parameter.

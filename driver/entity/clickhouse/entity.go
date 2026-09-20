@@ -468,9 +468,11 @@ func (s *Store) reorgInTable(ctx context.Context, blockNumber int64, chain strin
 	condition := fmt.Sprintf("%s > %d AND %s = '%s'",
 		quote(genBlockNumberFieldName), blockNumber,
 		quote(genBlockChainFieldName), chain)
-	// SelectCtx keeps select_sequential_consistency on Delete's row-count probe: after a replica
-	// failover the probe could otherwise read a lagging replica, see 0 rows and skip the delete.
-	return s.ctrl.Delete(SelectCtx(ctx), table, condition, true)
+	// The rows being taken back were written moments ago, so wait for the replicas before counting
+	// them: a count that cannot see them yet would skip the delete and leave the reorged blocks in
+	// place. SelectCtx keeps select_sequential_consistency on that count as well, which covers the
+	// quorum writes this store makes.
+	return s.ctrl.DeleteAfterReplicaSync(SelectCtx(ctx), table, condition, true)
 }
 
 func (s *Store) reorgInVersionedLatestTable(

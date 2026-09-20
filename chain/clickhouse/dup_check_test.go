@@ -117,3 +117,44 @@ func Test_duplicateCheckWindow(t *testing.T) {
 	// the batch that filled it, so that batch is behind the window: it needs one look by hand
 	assert.Equal(t, rg.NewRange(199, 199), duplicateCheckWindow(199, true, rg.NewRange(100, 199)))
 }
+
+func Test_truncateNeedsReplicaSync(t *testing.T) {
+	// an append above everything written so far: nothing of this store's is in flight there
+	assert.False(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), true, 199))
+
+	// an overwrite, reaching back over rows that may be as new as the last save: a repair filling a
+	// gap, or a copy asked to overwrite. The last save having succeeded says nothing about those
+	// rows having reached the other replica yet
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(130, 170), true, 199))
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(199, 299), true, 199))
+
+	// a store that has saved nothing yet knows nothing about what is there
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), false, 0))
+}
+
+func Test_recordSave(t *testing.T) {
+	var store SimpleSlotStore[*testSlot]
+
+	// a save is what lets the next one tell an append from an overwrite
+	store.recordSave(rg.NewRange(100, 199))
+	assert.False(t, store.truncateNeedsReplicaSync(rg.NewRange(200, 299)))
+	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(150, 299)))
+
+	// a save that gave up partway counts the same: its retry reaches over rows it may have left
+	store.recordSave(rg.NewRange(200, 299))
+	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(200, 299)))
+
+	// the mark only ever moves up, so a save of an earlier range does not take it back
+	store.recordSave(rg.NewRange(100, 150))
+	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(299, 399)))
+	assert.False(t, store.truncateNeedsReplicaSync(rg.NewRange(300, 399)))
+}
+
+// testSlot is the smallest thing that satisfies chain.Slot, for the store's type parameter.
+type testSlot struct{}
+
+func (t *testSlot) GetNumber() uint64     { return 0 }
+func (t *testSlot) GetHash() string       { return "" }
+func (t *testSlot) GetParentHash() string { return "" }
+func (t *testSlot) Features() []string    { return nil }
+func (t *testSlot) Linked() bool          { return false }

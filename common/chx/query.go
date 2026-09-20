@@ -160,7 +160,40 @@ func (c Controller) syncReplicas(ctx context.Context, table string) error {
 	return c.Exec(SyncReplicaCtx(ctx), sql)
 }
 
+// Delete removes the rows matching condition, counting them first so that a range with nothing in
+// it costs nothing. That count is answered by whichever replica the connection pool picks, which
+// need not be the one a row was last written to, so a caller deleting a range it may itself have
+// written and failed on wants DeleteAfterReplicaSync instead.
 func (c Controller) Delete(ctx context.Context, table string, condition string, light bool) (uint64, error) {
+	return c.deleteRows(ctx, table, condition, light, false)
+}
+
+// DeleteAfterReplicaSync is Delete for a range this process may have written and not finished
+// writing: it waits for the replicas to hold the same data before counting, so a row that the
+// count cannot see yet does not read as an empty range, the delete is not skipped, and the write
+// that follows does not leave a second copy behind.
+//
+// It is not the default because the wait runs as a distributed DDL statement, which every replica
+// takes through the same serialised queue that real schema changes go through. Once a minute per
+// table across the fleet is enough to turn that queue over every few minutes, which is how a
+// replica that was offline for a while comes back having missed an ALTER that was cleaned up while
+// it was away. Ask for it where a stale count actually costs something.
+func (c Controller) DeleteAfterReplicaSync(
+	ctx context.Context,
+	table string,
+	condition string,
+	light bool,
+) (uint64, error) {
+	return c.deleteRows(ctx, table, condition, light, true)
+}
+
+func (c Controller) deleteRows(
+	ctx context.Context,
+	table string,
+	condition string,
+	light bool,
+	syncReplicas bool,
+) (uint64, error) {
 	if light {
 		// Lightweight deletes leave patch parts behind that background merges may never reclaim;
 		// materialize the backlog once it piles up past a threshold (see the function comment).
@@ -176,14 +209,10 @@ func (c Controller) Delete(ctx context.Context, table string, condition string, 
 			return 0, errors.Wrapf(err, "wait for previous delete mutation on %s failed", table)
 		}
 	}
-	// Ask the replicas to catch up with each other before asking how many rows there are. An insert
-	// lands on whichever replica the connection pool picked and the count goes to whichever it picks
-	// next, so without this the count can come back zero while the rows sit on the other replica:
-	// the delete is skipped as a no-op, and whoever writes that range again ends up with a second
-	// copy of it. That is not hypothetical, it is how a chain table came to hold two copies of two
-	// stretches of a day.
-	if err := c.syncReplicas(ctx, table); err != nil {
-		return 0, errors.Wrapf(err, "sync replicas of %s before deleting failed", table)
+	if syncReplicas {
+		if err := c.syncReplicas(ctx, table); err != nil {
+			return 0, errors.Wrapf(err, "sync replicas of %s before deleting failed", table)
+		}
 	}
 	sql := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s", c.FullLogicName(table), condition)
 	count, err := c.QueryCount(DisableProjectionCtx(ctx), sql)

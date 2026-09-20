@@ -32,6 +32,15 @@ type SimpleSlotStore[SLOT chain.Slot] struct {
 	flushBatchSize     int
 	flushConcurrency   uint
 	slowFlushThreshold time.Duration
+
+	mu sync.Mutex
+	// saved says whether any save has run, and savedThrough is the highest slot one has reached.
+	// Together they tell an append, which goes above everything this store has written, from an
+	// overwrite, which replaces rows that may be as new as the last save. A save that failed
+	// counts the same: it may have written anywhere in its range before giving up. The mark only
+	// moves up, so nothing has to be cleared and no save has to answer for another's rows.
+	saved        bool
+	savedThrough uint64
 }
 
 func NewSimpleSlotStore[SLOT chain.Slot](
@@ -259,13 +268,15 @@ func (s *SimpleSlotStore[SLOT]) Save(
 	if interval.End == nil {
 		panic(errors.Errorf("interval is infinity"))
 	}
+	syncReplicas := s.truncateNeedsReplicaSync(interval)
+	defer s.recordSave(interval)
 	_, logger := log.FromContext(ctx, "interval", interval)
 	tm := timer.NewTimer()
 	tmTotal := tm.Start("T")
 
 	// clean up the scene
 	tmPrepare := tm.Start("P")
-	if err := s.Delete(ctx, interval); err != nil {
+	if err := s.deleteRange(ctx, interval, syncReplicas); err != nil {
 		logger.Errorfe(err, "truncate before save failed")
 		return errors.Wrapf(err, "truncate interval %s before save failed", interval)
 	}
@@ -537,7 +548,49 @@ func (s *SimpleSlotStore[SLOT]) tableRangeWhere(
 	return table.rangeWhere(whereTpl, whereExTpl), nil
 }
 
+// recordSave marks how far a save reached, whether or not it got there: one that gave up partway
+// still leaves rows behind, and a truncate over them has the same waiting to do.
+func (s *SimpleSlotStore[SLOT]) recordSave(interval rg.Range) {
+	if interval.End == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.saved || *interval.End > s.savedThrough {
+		s.saved, s.savedThrough = true, *interval.End
+	}
+}
+
+func (s *SimpleSlotStore[SLOT]) truncateNeedsReplicaSync(interval rg.Range) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return truncateNeedsReplicaSync(interval, s.saved, s.savedThrough)
+}
+
+// truncateNeedsReplicaSync says whether the truncate opening a save has to wait for the replicas to
+// hold the same data before counting what it is about to remove. Rows are written back on top of
+// this one, so a count that cannot see a row yet does not merely delay reclaiming it: the row stays
+// and the save puts a second copy beside it.
+//
+// It is safe to skip only for an append, an interval reaching above every slot the store has
+// written, where nothing of this store's can be in flight. Anything at or below that is an
+// overwrite - a repair filling a gap, or a copy asked to overwrite - replacing rows that may be as
+// new as the last save. And a store that has saved nothing yet knows nothing about what is there:
+// whatever a killed process left above the mark is not accounted for by anything this one did.
+func truncateNeedsReplicaSync(interval rg.Range, saved bool, savedThrough uint64) bool {
+	return !saved || interval.Start <= savedThrough
+}
+
+// Delete waits for the replicas only for an interval with no end. Such an interval asks the store
+// to take back everything above a point, which at startup is whatever a killed process left behind
+// and on a fork is the slots about to be written again - rows that may be minutes old, which a
+// count that misses them leaves behind. A bounded delete is the retention cut, far below anything
+// being written, where a count that misses a row only delays reclaiming it.
 func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
+	return s.deleteRange(ctx, interval, interval.End == nil)
+}
+
+func (s *SimpleSlotStore[SLOT]) deleteRange(ctx context.Context, interval rg.Range, syncReplicas bool) error {
 	_, logger := log.FromContext(ctx, "interval", interval.String())
 	start := time.Now()
 
@@ -564,7 +617,13 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 		// every round, so a masking delete would keep piling mask/patch data onto those
 		// parts while the dead rows wait for background merges to be reclaimed. The
 		// heavyweight rewrite drops them physically and re-runs converge to a no-op.
-		count, err := s.ctrl.Delete(ctx, table.Table.Name, where, interval.Start > 0 && len(table.Table.Projections) == 0)
+		light := interval.Start > 0 && len(table.Table.Projections) == 0
+		var count uint64
+		if syncReplicas {
+			count, err = s.ctrl.DeleteAfterReplicaSync(ctx, table.Table.Name, where, light)
+		} else {
+			count, err = s.ctrl.Delete(ctx, table.Table.Name, where, light)
+		}
 		tableLogger := logger.With("table", table.Table.Name, "used", time.Since(startAt).String())
 		if err != nil {
 			tableLogger.Errorfe(err, "delete in range failed")

@@ -65,4 +65,13 @@ func WithLightDeleteTableSettings(settings map[string]string) {
 
 func WithProjectionTableSettings(settings map[string]string) {
 	settings["lightweight_mutation_projection_mode"] = "'rebuild'"
+	// A merge that deduplicates refuses to run on a table with projections unless it is told what
+	// to do with them, and the default is to refuse. That leaves OPTIMIZE ... FINAL DEDUPLICATE,
+	// which is how duplicate rows are cleaned out of one of these tables by hand, failing with
+	// SUPPORT_IS_DISABLED until someone sets this — and MODIFY SETTING does not replicate, so
+	// setting it in the moment means remembering ON CLUSTER or leaving the replicas disagreeing.
+	// Declaring it here has the table sync put it on every replica of every such table instead.
+	// These tables are all plain MergeTree, where nothing but an explicit DEDUPLICATE merges by
+	// key, so this changes no merge that runs on its own.
+	settings["deduplicate_merge_projection_mode"] = "'rebuild'"
 }

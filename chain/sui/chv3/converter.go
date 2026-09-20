@@ -253,6 +253,7 @@ func (m *SlotConverter) ConvertTxn(
 					txn.MoveCallsCount++
 					moveCalls = append(moveCalls, CHUMoveCall{
 						CHUTxnExtendBase: txnBase,
+						CommandIndex:     utils.WrapPointer(uint32(i)),
 						Package:          cmd.MoveCall.Package.String(),
 						Module:           cmd.MoveCall.Module,
 						Function:         cmd.MoveCall.Function,

@@ -57,11 +57,17 @@ func NewClickhouseSchemaMgr(
 		return clickhouse.BuildTable(name, tblObj, config, "")
 	}
 	tables := []clickhouse.TableSchema{
-		createTableSchema(tableNameCheckpoints, &Checkpoint{}, "checkpoint", "checkpoint_digest"),
-		createTableSchema(tableNameTransactions, &Transaction{}, "checkpoint", "tx_index", "tx_digest"),
-		createTableSchema(tableNameEvents, &Event{}, "checkpoint", "tx_index", "event_index"),
-		createTableSchema(tableNameObjects, &Object{}, "checkpoint", "tx_index", "object_id"),
-		createTableSchema(tableNameBalances, &Balance{}, "checkpoint", "tx_index", "address"),
+		createTableSchema(tableNameCheckpoints, &Checkpoint{}, "checkpoint", "checkpoint_digest").
+			WithUniqueKey("checkpoint"),
+		createTableSchema(tableNameTransactions, &Transaction{}, "checkpoint", "tx_index", "tx_digest").
+			WithUniqueKey("checkpoint", "tx_index"),
+		createTableSchema(tableNameEvents, &Event{}, "checkpoint", "tx_index", "event_index").
+			WithUniqueKey("checkpoint", "tx_index", "event_index"),
+		createTableSchema(tableNameObjects, &Object{}, "checkpoint", "tx_index", "object_id").
+			WithUniqueKey("checkpoint", "tx_index", "object_id"),
+		// the sorting key alone is not unique: one transaction changes several coin types of an address
+		createTableSchema(tableNameBalances, &Balance{}, "checkpoint", "tx_index", "address").
+			WithUniqueKey("checkpoint", "tx_index", "address", "coin_type"),
 	}
 	mgr := &ClickhouseSchemaMgr{
 		tablesMeta: clickhouse.TablesMeta{

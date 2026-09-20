@@ -54,6 +54,9 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		flushConcurrency:   flushConcurrency,
 		slowFlushThreshold: slowFlushThreshold,
 	}
+	if err := tablesMeta.Validate(); err != nil {
+		return nil, err
+	}
 	for _, table := range tablesMeta.Tables {
 		pre, has, err := s.ctrl.LoadOne(ctx, table.Table.Name, false)
 		if err != nil {
@@ -445,13 +448,16 @@ func (s *SimpleSlotStore[SLOT]) Load(ctx context.Context, interval rg.Range, slo
 	panic(errors.Errorf("not supported"))
 }
 
-func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
-	_, logger := log.FromContext(ctx, "interval", interval.String())
-	start := time.Now()
-
-	// build where tpl
-	whereTpl := fmt.Sprintf("%%bn#s >= %d AND %%bn#s <= %d", interval.Start, interval.EndOrMaxUInt64())
-	whereExTpl := whereTpl
+// buildRangeWhere returns the WHERE templates selecting the rows of interval: whereTpl uses the
+// number field only (placeholder bn), whereExTpl also bounds the sub-number field (placeholder
+// sbn) for the tables partitioned by it, converting the slot range through the block table.
+func (s *SimpleSlotStore[SLOT]) buildRangeWhere(ctx context.Context, interval rg.Range) (
+	whereTpl string,
+	whereExTpl string,
+	err error,
+) {
+	whereTpl = fmt.Sprintf("%%bn#s >= %d AND %%bn#s <= %d", interval.Start, interval.EndOrMaxUInt64())
+	whereExTpl = whereTpl
 	if s.tablesMeta.BlockTableIndex >= 0 {
 		// some table partition by sub-block number, but interval.L() and interval.R() is block number, so need to convert
 		// them to sub-block number range
@@ -481,7 +487,7 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 			MinSubBlockNumber uint64
 			MaxSubBlockNumber uint64
 		}
-		err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
 			var b block
 			if scanErr := rows.Scan(&b.BlockNumber, &b.MinSubBlockNumber, &b.MaxSubBlockNumber); scanErr != nil {
 				return scanErr
@@ -499,28 +505,51 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 			return nil
 		}, sql)
 		if err != nil {
-			return errors.Wrapf(err, "convert block range %s to sub block range in table %s failed",
+			return "", "", errors.Wrapf(err, "convert block range %s to sub block range in table %s failed",
 				interval, blockTable.Table.Name)
 		}
 	}
+	return whereTpl, whereExTpl, nil
+}
 
+func (t TableSchema) rangeWhere(whereTpl, whereExTpl string) string {
+	if t.SubNumberField != "" {
+		return format.Format(whereExTpl, map[string]any{
+			"bn":  t.NumberField,
+			"sbn": t.SubNumberField,
+		})
+	}
+	return format.Format(whereTpl, map[string]any{
+		"bn": t.NumberField,
+	})
+}
+
+// tableRangeWhere builds the condition selecting the rows of interval in one table.
+func (s *SimpleSlotStore[SLOT]) tableRangeWhere(
+	ctx context.Context,
+	table TableSchema,
+	interval rg.Range,
+) (string, error) {
+	whereTpl, whereExTpl, err := s.buildRangeWhere(ctx, interval)
+	if err != nil {
+		return "", err
+	}
+	return table.rangeWhere(whereTpl, whereExTpl), nil
+}
+
+func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
+	_, logger := log.FromContext(ctx, "interval", interval.String())
+	start := time.Now()
+
+	whereTpl, whereExTpl, err := s.buildRangeWhere(ctx, interval)
+	if err != nil {
+		return err
+	}
 	for _, table := range s.tablesMeta.Tables {
 		if table.NumberField == "" {
 			continue
 		}
-
-		// build where part
-		var where string
-		if table.SubNumberField != "" {
-			where = format.Format(whereExTpl, map[string]any{
-				"bn":  table.NumberField,
-				"sbn": table.SubNumberField,
-			})
-		} else {
-			where = format.Format(whereTpl, map[string]any{
-				"bn": table.NumberField,
-			})
-		}
+		where := table.rangeWhere(whereTpl, whereExTpl)
 		// execute delete sql
 		startAt := time.Now()
 		// Lightweight deletes (patch- or mask-based) never touch projection data:

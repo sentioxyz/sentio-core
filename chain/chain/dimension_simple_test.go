@@ -73,16 +73,26 @@ func (s *testSimpleSlotStore[SLOT]) CheckMissing(ctx context.Context, interval r
 	return nil
 }
 
+// Save reports what it saved the way the real store does: one notification once the whole save is
+// through, rather than one per slot. That is what decides how far back the recorded ranges reach,
+// so a double that notified per slot would invent history the destination never had.
 func (s *testSimpleSlotStore[SLOT]) Save(ctx context.Context, interval rg.Range, slotChan <-chan SLOT, doneChan chan<- rg.Range) error {
-	return concurrency.ForEach(ctx, slotChan, func(ctx context.Context, index int, st SLOT) error {
+	saved := rg.EmptyRangeSet
+	if err := concurrency.ForEach(ctx, slotChan, func(ctx context.Context, index int, st SLOT) error {
 		s.slots.Put(st.GetNumber(), st)
+		saved = saved.Union(rg.NewSingleRange(st.GetNumber()))
+		return nil
+	}); err != nil {
+		return err
+	}
+	for _, r := range saved.GetRanges() {
 		select {
-		case doneChan <- rg.NewSingleRange(st.GetNumber()):
+		case doneChan <- r:
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func (s *testSimpleSlotStore[SLOT]) Load(ctx context.Context, interval rg.Range, slotChan chan<- SLOT) error {
@@ -119,6 +129,15 @@ func (s *testSimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Rang
 type testRangeStore struct {
 	mu  sync.Mutex
 	cur rg.Range
+	// recorded is every end the range has been set to, the way the real store keeps a rolling
+	// history of them; a duplicate check scopes its window from that history.
+	recorded []uint64
+}
+
+func (s *testRangeStore) recordedEnds() []uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]uint64(nil), s.recorded...)
 }
 
 func (s *testRangeStore) Get(ctx context.Context) (rg.Range, error) {
@@ -131,6 +150,9 @@ func (s *testRangeStore) Update(ctx context.Context, operator rg.RangeOperator) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cur = operator(s.cur)
+	if !s.cur.IsEmpty() && s.cur.End != nil {
+		s.recorded = append(s.recorded, *s.cur.End)
+	}
 	return s.cur, nil
 }
 

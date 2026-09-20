@@ -364,7 +364,9 @@ func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int
 				quote(item.meta.GetSlotNumberField().Name),
 				slotNumberGt,
 			)
-			deleted, err = s.ctrl.Delete(ctx, item.meta.GetTableName(), where, true)
+			// Reorg only: the rows being taken back were written moments ago, so wait for the
+			// replicas rather than trust a count that may not see them yet.
+			deleted, err = s.ctrl.DeleteAfterReplicaSync(ctx, item.meta.GetTableName(), where, true)
 		}
 		metaLogger := logger.With("meta", item.meta.GetFullName(), "used", time.Since(startAt).String())
 		if err != nil {

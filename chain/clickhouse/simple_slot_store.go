@@ -32,6 +32,11 @@ type SimpleSlotStore[SLOT chain.Slot] struct {
 	flushBatchSize     int
 	flushConcurrency   uint
 	slowFlushThreshold time.Duration
+
+	mu sync.Mutex
+	// saveFailed records that a save did not finish, so the truncate that opens the next attempt at
+	// that range knows it may be clearing rows this store itself wrote moments ago.
+	saveFailed bool
 }
 
 func NewSimpleSlotStore[SLOT chain.Slot](
@@ -255,17 +260,22 @@ func (s *SimpleSlotStore[SLOT]) Save(
 	interval rg.Range,
 	slotChan <-chan SLOT,
 	doneChan chan<- rg.Range,
-) error {
+) (err error) {
 	if interval.End == nil {
 		panic(errors.Errorf("interval is infinity"))
 	}
+	// A save that does not finish may have left rows behind; remember that, so the truncate opening
+	// the next attempt waits for the replicas rather than trusting a count that may not see them.
+	// It is recorded after the truncate has read it, so the attempt that clears up after a failure
+	// is the one that waits.
+	defer func() { s.setSaveFailed(err != nil) }()
 	_, logger := log.FromContext(ctx, "interval", interval)
 	tm := timer.NewTimer()
 	tmTotal := tm.Start("T")
 
 	// clean up the scene
 	tmPrepare := tm.Start("P")
-	if err := s.Delete(ctx, interval); err != nil {
+	if err = s.Delete(ctx, interval); err != nil {
 		logger.Errorfe(err, "truncate before save failed")
 		return errors.Wrapf(err, "truncate interval %s before save failed", interval)
 	}
@@ -537,7 +547,36 @@ func (s *SimpleSlotStore[SLOT]) tableRangeWhere(
 	return table.rangeWhere(whereTpl, whereExTpl), nil
 }
 
+func (s *SimpleSlotStore[SLOT]) setSaveFailed(failed bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.saveFailed = failed
+}
+
+func (s *SimpleSlotStore[SLOT]) lastSaveFailed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.saveFailed
+}
+
+// replicaSyncNeeded says whether a delete has to wait for the replicas to hold the same data before
+// counting what it is about to remove, rather than trusting whichever replica answers.
+//
+// An interval with no end is the store being asked to take back everything above a point: at
+// startup, where what sits above the recorded range is whatever a killed process left behind, and
+// on a fork, where the slots being taken back are about to be written again. A truncate that opens
+// a retry of a save that did not finish is the same situation by another route. In all of them the
+// rows to remove may have been written moments ago, and a count that cannot see them yet skips the
+// delete and leaves the write that follows to add a second copy.
+//
+// What is left is the retention cut, a bounded interval far below anything being written, where
+// nothing can still be in flight on the other replica.
+func replicaSyncNeeded(interval rg.Range, lastSaveFailed bool) bool {
+	return interval.End == nil || lastSaveFailed
+}
+
 func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
+	syncReplicas := replicaSyncNeeded(interval, s.lastSaveFailed())
 	_, logger := log.FromContext(ctx, "interval", interval.String())
 	start := time.Now()
 
@@ -564,7 +603,13 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 		// every round, so a masking delete would keep piling mask/patch data onto those
 		// parts while the dead rows wait for background merges to be reclaimed. The
 		// heavyweight rewrite drops them physically and re-runs converge to a no-op.
-		count, err := s.ctrl.Delete(ctx, table.Table.Name, where, interval.Start > 0 && len(table.Table.Projections) == 0)
+		light := interval.Start > 0 && len(table.Table.Projections) == 0
+		var count uint64
+		if syncReplicas {
+			count, err = s.ctrl.DeleteAfterReplicaSync(ctx, table.Table.Name, where, light)
+		} else {
+			count, err = s.ctrl.Delete(ctx, table.Table.Name, where, light)
+		}
 		tableLogger := logger.With("table", table.Table.Name, "used", time.Since(startAt).String())
 		if err != nil {
 			tableLogger.Errorfe(err, "delete in range failed")

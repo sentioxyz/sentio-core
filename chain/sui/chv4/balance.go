@@ -585,7 +585,7 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 	// max_uncompressed_bytes_in_patches cap (code 755), deadlocking the rebuild. Controller.Delete
 	// skips the DELETE entirely when no rows match, so this stays a no-op for the common case of
 	// rebuilding an already-empty range.
-	if _, err = s.ctrl.Delete(ctx, tableNameBalances, where, false); err != nil {
+	if _, err = s.ctrl.DeleteAfterReplicaSync(ctx, tableNameBalances, where, false); err != nil {
 		return 0, false, errors.Wrapf(err, "delete balance records in [%d,%d] failed", from, to)
 	}
 

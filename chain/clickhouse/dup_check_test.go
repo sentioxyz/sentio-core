@@ -117,3 +117,36 @@ func Test_duplicateCheckWindow(t *testing.T) {
 	// the batch that filled it, so that batch is behind the window: it needs one look by hand
 	assert.Equal(t, rg.NewRange(199, 199), duplicateCheckWindow(199, true, rg.NewRange(100, 199)))
 }
+
+func Test_replicaSyncNeeded(t *testing.T) {
+	// taking back everything above a point: whatever a killed process left behind at startup, and
+	// the slots a fork is about to have written again
+	assert.True(t, replicaSyncNeeded(rg.Range{Start: 100}, false))
+
+	// the truncate that opens a retry of a save that did not finish
+	assert.True(t, replicaSyncNeeded(rg.NewRange(100, 199), true))
+
+	// a save following one that finished: nothing of ours is in flight in that range
+	assert.False(t, replicaSyncNeeded(rg.NewRange(100, 199), false))
+
+	// the retention cut, far below anything being written
+	assert.False(t, replicaSyncNeeded(rg.NewRange(0, 99), false))
+}
+
+func Test_saveFailedIsRemembered(t *testing.T) {
+	var store SimpleSlotStore[*testSlot]
+	assert.False(t, store.lastSaveFailed())
+	store.setSaveFailed(true)
+	assert.True(t, store.lastSaveFailed())
+	store.setSaveFailed(false)
+	assert.False(t, store.lastSaveFailed())
+}
+
+// testSlot is the smallest thing that satisfies chain.Slot, for the store's type parameter.
+type testSlot struct{}
+
+func (t *testSlot) GetNumber() uint64     { return 0 }
+func (t *testSlot) GetHash() string       { return "" }
+func (t *testSlot) GetParentHash() string { return "" }
+func (t *testSlot) Features() []string    { return nil }
+func (t *testSlot) Linked() bool          { return false }

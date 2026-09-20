@@ -39,11 +39,13 @@ type SimpleSlotStore[SLOT chain.Slot] struct {
 	// overwrite, which replaces rows that may be as new as the last save.
 	saved        bool
 	savedThrough uint64
-	// saveFailed records that a save did not finish, so the truncate opening the next attempt knows
-	// it may be clearing rows this store wrote moments ago. It is sticky on purpose: only a truncate
-	// that waited for the replicas and then saved successfully clears it, so a save running
-	// alongside the failed one cannot finish and erase what it never dealt with.
-	saveFailed bool
+	// dirty holds the ranges where a save that did not finish may have left rows nothing accounts
+	// for, so a truncate reaching into one knows it may be clearing rows this store wrote moments
+	// ago. A range leaves it only when a save covering it waited for the replicas and then
+	// succeeded: a save of another range answers for its own rows and clears nothing, however its
+	// work interleaves with the failure. The zero value is the whole line, so a store built without
+	// NewSimpleSlotStore waits every time rather than skipping a wait it owes.
+	dirty rg.RangeSet
 }
 
 func NewSimpleSlotStore[SLOT chain.Slot](
@@ -65,6 +67,7 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		flushBatchSize:     flushBatchSize,
 		flushConcurrency:   flushConcurrency,
 		slowFlushThreshold: slowFlushThreshold,
+		dirty:              rg.EmptyRangeSet,
 	}
 	if err := tablesMeta.Validate(); err != nil {
 		return nil, err
@@ -556,14 +559,14 @@ func (s *SimpleSlotStore[SLOT]) recordSave(interval rg.Range, synced bool, err e
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err != nil {
-		s.saveFailed = true
+		s.dirty = s.dirty.Union(interval)
 		return
 	}
-	// Only a save whose truncate waited for the replicas has actually dealt with whatever an
-	// earlier failure left; one that skipped the wait may be running alongside it and knows nothing
-	// about it.
+	// A save answers for its own range only: it waited for the replicas, counted what was there
+	// and wrote the range again. What another save left elsewhere is still there, whether it
+	// failed before this one waited or after, so nothing outside this interval is cleared.
 	if synced {
-		s.saveFailed = false
+		s.dirty = s.dirty.Remove(interval)
 	}
 	if interval.End != nil && (!s.saved || *interval.End > s.savedThrough) {
 		s.saved, s.savedThrough = true, *interval.End
@@ -573,13 +576,13 @@ func (s *SimpleSlotStore[SLOT]) recordSave(interval rg.Range, synced bool, err e
 func (s *SimpleSlotStore[SLOT]) truncateNeedsReplicaSync(interval rg.Range) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return truncateNeedsReplicaSync(interval, s.saved, s.savedThrough, s.saveFailed)
+	return truncateNeedsReplicaSync(interval, s.saved, s.savedThrough, s.dirty)
 }
 
-func (s *SimpleSlotStore[SLOT]) lastSaveFailed() bool {
+func (s *SimpleSlotStore[SLOT]) dirtyRanges() rg.RangeSet {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.saveFailed
+	return s.dirty
 }
 
 // truncateNeedsReplicaSync says whether the truncate opening a save has to wait for the replicas to
@@ -590,10 +593,12 @@ func (s *SimpleSlotStore[SLOT]) lastSaveFailed() bool {
 // It is safe to skip only for an append, an interval reaching above every slot the store has
 // written, where nothing of this store's can be in flight. Anything at or below that is an
 // overwrite - a repair filling a gap, or a copy asked to overwrite - replacing rows that may be as
-// new as the last save. A save that did not finish may have left rows anywhere in its range, and a
-// store that has saved nothing yet knows nothing about what is there.
-func truncateNeedsReplicaSync(interval rg.Range, saved bool, savedThrough uint64, saveFailed bool) bool {
-	if saveFailed || !saved {
+// new as the last save. A save that did not finish may have left rows anywhere in its own range,
+// which is why those ranges are kept rather than a single flag: a failed range can sit above
+// everything since saved, where the high-water mark alone would wave it through. And a store that
+// has saved nothing yet knows nothing about what is there.
+func truncateNeedsReplicaSync(interval rg.Range, saved bool, savedThrough uint64, dirty rg.RangeSet) bool {
+	if !saved || !dirty.Intersection(interval).IsEmpty() {
 		return true
 	}
 	return interval.Start <= savedThrough
@@ -606,13 +611,13 @@ func truncateNeedsReplicaSync(interval rg.Range, saved bool, savedThrough uint64
 // An interval with no end is different. It asks the store to take back everything above a point,
 // which at startup is whatever a killed process left behind and on a fork is the slots about to be
 // written again - rows that may be minutes old and a count that misses them leaves behind. So is a
-// delete following a save that did not finish, wherever it reaches.
-func deleteNeedsReplicaSync(interval rg.Range, saveFailed bool) bool {
-	return interval.End == nil || saveFailed
+// delete reaching into a range a save left unfinished.
+func deleteNeedsReplicaSync(interval rg.Range, dirty rg.RangeSet) bool {
+	return interval.End == nil || !dirty.Intersection(interval).IsEmpty()
 }
 
 func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) error {
-	return s.deleteRange(ctx, interval, deleteNeedsReplicaSync(interval, s.lastSaveFailed()))
+	return s.deleteRange(ctx, interval, deleteNeedsReplicaSync(interval, s.dirtyRanges()))
 }
 
 func (s *SimpleSlotStore[SLOT]) deleteRange(ctx context.Context, interval rg.Range, syncReplicas bool) error {

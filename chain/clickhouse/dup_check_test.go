@@ -121,57 +121,75 @@ func Test_duplicateCheckWindow(t *testing.T) {
 }
 
 func Test_deleteNeedsReplicaSync(t *testing.T) {
+	clean := rg.EmptyRangeSet
+	dirty := rg.EmptyRangeSet.Union(rg.NewRange(500, 599))
+
 	// taking back everything above a point: a killed process's leftovers at startup, and the slots
 	// a fork is about to have written again
-	assert.True(t, deleteNeedsReplicaSync(rg.Range{Start: 100}, false))
+	assert.True(t, deleteNeedsReplicaSync(rg.Range{Start: 100}, clean))
 
 	// the retention cut, far below anything being written, puts nothing back
-	assert.False(t, deleteNeedsReplicaSync(rg.NewRange(0, 99), false))
+	assert.False(t, deleteNeedsReplicaSync(rg.NewRange(0, 99), clean))
 
-	// unless a save that did not finish may have left rows the count cannot see
-	assert.True(t, deleteNeedsReplicaSync(rg.NewRange(0, 99), true))
+	// unless it reaches into a range a save left unfinished, where rows the count cannot see may
+	// still be landing
+	assert.True(t, deleteNeedsReplicaSync(rg.NewRange(0, 599), dirty))
+
+	// a cut clear of every such range is still free to go
+	assert.False(t, deleteNeedsReplicaSync(rg.NewRange(0, 99), dirty))
 }
 
 func Test_truncateNeedsReplicaSync(t *testing.T) {
+	clean := rg.EmptyRangeSet
+	dirty := rg.EmptyRangeSet.Union(rg.NewRange(500, 599))
+
 	// an append above everything written so far: nothing of this store's is in flight there
-	assert.False(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), true, 199, false))
+	assert.False(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), true, 199, clean))
 
 	// an overwrite, reaching back over rows that may be as new as the last save: a repair filling a
 	// gap, or a copy asked to overwrite
-	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(130, 170), true, 199, false))
-	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(199, 299), true, 199, false))
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(130, 170), true, 199, clean))
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(199, 299), true, 199, clean))
 
 	// a store that has saved nothing yet knows nothing about what is there
-	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), false, 0, false))
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), false, 0, clean))
 
-	// and a save that did not finish may have left rows anywhere in its range
-	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(200, 299), true, 199, true))
+	// a range a save left unfinished sits above the high-water mark, which would otherwise wave its
+	// retry through as an append
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(500, 599), true, 199, dirty))
+	assert.True(t, truncateNeedsReplicaSync(rg.NewRange(550, 650), true, 199, dirty))
+
+	// an append somewhere else is still an append
+	assert.False(t, truncateNeedsReplicaSync(rg.NewRange(600, 699), true, 199, dirty))
 }
 
 func Test_recordSave(t *testing.T) {
-	var store SimpleSlotStore[*testSlot]
+	store := SimpleSlotStore[*testSlot]{dirty: rg.EmptyRangeSet}
 
 	// a finished save is what lets the next one tell an append from an overwrite
 	store.recordSave(rg.NewRange(100, 199), true, nil)
 	assert.False(t, store.truncateNeedsReplicaSync(rg.NewRange(200, 299)))
 	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(150, 299)))
 
-	// a save that did not finish is remembered
-	store.recordSave(rg.NewRange(200, 299), false, errors.New("boom"))
-	assert.True(t, store.lastSaveFailed())
+	// a save that did not finish leaves its range behind, above everything saved so far
+	store.recordSave(rg.NewRange(500, 599), false, errors.New("boom"))
+	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(500, 599)))
 
-	// a save running alongside it finishes without having waited for the replicas, and must not
-	// clear what it never dealt with
+	// a save running alongside it finishes without having waited for the replicas
 	store.recordSave(rg.NewRange(300, 399), false, nil)
-	assert.True(t, store.lastSaveFailed())
+	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(500, 599)))
 
-	// only the one that waited and then succeeded clears it
-	store.recordSave(rg.NewRange(200, 299), true, nil)
-	assert.False(t, store.lastSaveFailed())
+	// and so does one that did wait, but for its own range: its wait ran before those rows were
+	// written and its truncate never touched them, so the range stays
+	store.recordSave(rg.NewRange(400, 499), true, nil)
+	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(500, 599)))
+
+	// only the save that covered the range itself, having waited, takes it out
+	store.recordSave(rg.NewRange(500, 599), true, nil)
+	assert.False(t, store.truncateNeedsReplicaSync(rg.NewRange(600, 699)))
 
 	// and the high-water mark only ever moves up
-	assert.False(t, store.truncateNeedsReplicaSync(rg.NewRange(400, 499)))
-	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(399, 499)))
+	assert.True(t, store.truncateNeedsReplicaSync(rg.NewRange(599, 699)))
 }
 
 // testSlot is the smallest thing that satisfies chain.Slot, for the store's type parameter.

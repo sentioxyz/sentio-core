@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/driver/controller"
 
@@ -322,4 +323,178 @@ func Test_Fetcher_LeakedCancelIsRetried(t *testing.T) {
 	// A real cancellation (our own context) still stops the fetch loop.
 	cancel()
 	g.Wait()
+}
+
+// A too-many-results error is the server asking for a narrower range, and the fetcher answers it
+// by halving. Where the filter matches densely that is the steady state, not an anomaly: the range
+// grows by querySizeMultiplier until it trips the cap, every time. Backing off queryRetryInterval
+// on each trip would cost far more than the queries themselves, so the interval must be skipped
+// whenever the range actually shrank. The interval here is far larger than the test's budget, so
+// the fetch can only finish if it was skipped.
+func Test_Fetcher_TooManyResultsShrinksWithoutBackoff(t *testing.T) {
+	log.ManuallySetLevel(zap.DebugLevel)
+	log.BindFlag()
+
+	const retryInterval = time.Second * 30
+	var trips atomic.Int64
+	fr := NewFetcher[testData](
+		"tooManyResultsFetcher",
+		nil,
+		controller.BlockRange{StartBlock: 10},
+		newTestBlockHeader(20),
+		1,    // minQuerySize: the fetcher can shrink to the cap-exempt single block
+		32,   // maxQuerySize
+		1000, // targetKeepDataSize: never full, so the fetch never pauses
+		0,    // maxReadyBlockCount: unlimited
+		1000, // targetQueryDataSize: never reached, so the range keeps growing into the cap
+		time.Second,
+		3,
+		retryInterval,
+		1.2,
+		func(ctx context.Context, start, end uint64, latest controller.BlockHeader) (map[uint64]testData, error) {
+			if end > start {
+				trips.Add(1)
+				return nil, chain.NewTooManyResultsError()
+			}
+			r := make(map[uint64]testData)
+			if br := buildTestData(start); len(br) > 0 {
+				r[start] = br
+			}
+			return r, nil
+		},
+	)
+	f := fr.(*fetcher[testData])
+
+	var g sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+		g.Wait()
+	}()
+	g.Add(1)
+	go func() {
+		defer g.Done()
+		f.KeepFetch(ctx)
+	}()
+
+	getCtx, getCancel := context.WithTimeout(ctx, time.Second*5)
+	defer getCancel()
+	r, has, _, err := f.Get(getCtx, 20)
+	assert.Nil(t, err)
+	assert.True(t, has)
+	assert.Equal(t, buildTestData(20), r)
+	assert.Greater(t, trips.Load(), int64(1), "the growing range must have tripped the cap repeatedly")
+}
+
+// An ordinary failure carries no instruction about the range, so it keeps backing off: the server
+// may simply be unwell, and retrying immediately would hammer it.
+func Test_Fetcher_OrdinaryErrorStillBacksOff(t *testing.T) {
+	log.ManuallySetLevel(zap.DebugLevel)
+	log.BindFlag()
+
+	const retryInterval = time.Millisecond * 500
+	var calls atomic.Int64
+	fr := NewFetcher[testData](
+		"ordinaryErrorFetcher",
+		nil,
+		controller.BlockRange{StartBlock: 10},
+		newTestBlockHeader(12),
+		3,
+		10,
+		20,
+		0, // maxReadyBlockCount: unlimited
+		20,
+		time.Second,
+		3,
+		retryInterval,
+		1.2,
+		func(ctx context.Context, start, end uint64, latest controller.BlockHeader) (map[uint64]testData, error) {
+			if calls.Add(1) == 1 {
+				return nil, errors.New("upstream is unwell")
+			}
+			r := make(map[uint64]testData)
+			for i := start; i <= end; i++ {
+				if br := buildTestData(i); len(br) > 0 {
+					r[i] = br
+				}
+			}
+			return r, nil
+		},
+	)
+	f := fr.(*fetcher[testData])
+
+	var g sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+		g.Wait()
+	}()
+	startAt := time.Now()
+	g.Add(1)
+	go func() {
+		defer g.Done()
+		f.KeepFetch(ctx)
+	}()
+
+	getCtx, getCancel := context.WithTimeout(ctx, time.Second*5)
+	defer getCancel()
+	r, has, _, err := f.Get(getCtx, 11)
+	elapsed := time.Since(startAt)
+	assert.Nil(t, err)
+	assert.True(t, has)
+	assert.Equal(t, buildTestData(11), r)
+	assert.GreaterOrEqual(t, elapsed, retryInterval, "an ordinary failure must still wait queryRetryInterval")
+}
+
+// Once the range is down to minQuerySize the retry repeats the identical query, so even a
+// too-many-results error has to back off — skipping the interval there would spin through the
+// whole retry budget instantly and turn a recoverable stall into an immediate fetch failure.
+func Test_Fetcher_TooManyResultsAtMinQuerySizeStillBacksOff(t *testing.T) {
+	log.ManuallySetLevel(zap.DebugLevel)
+	log.BindFlag()
+
+	const retryInterval = time.Millisecond * 200
+	const maxRetry = 2
+	var calls atomic.Int64
+	fr := NewFetcher[testData](
+		"tooManyResultsFloorFetcher",
+		nil,
+		controller.BlockRange{StartBlock: 10},
+		newTestBlockHeader(12),
+		3, // minQuerySize equals the first range, so the fetcher cannot shrink at all
+		10,
+		20,
+		0, // maxReadyBlockCount: unlimited
+		20,
+		time.Second,
+		maxRetry,
+		retryInterval,
+		1.2,
+		func(ctx context.Context, start, end uint64, latest controller.BlockHeader) (map[uint64]testData, error) {
+			calls.Add(1)
+			return nil, chain.NewTooManyResultsError()
+		},
+	)
+	f := fr.(*fetcher[testData])
+
+	var g sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+		g.Wait()
+	}()
+	startAt := time.Now()
+	g.Add(1)
+	go func() {
+		defer g.Done()
+		f.KeepFetch(ctx)
+	}()
+
+	getCtx, getCancel := context.WithTimeout(ctx, time.Second*5)
+	defer getCancel()
+	_, _, _, err := f.Get(getCtx, 11)
+	elapsed := time.Since(startAt)
+	assert.ErrorContains(t, err, "too many results")
+	assert.EqualValues(t, maxRetry+1, calls.Load(), "every attempt repeats the same unshrinkable query")
+	assert.GreaterOrEqual(t, elapsed, maxRetry*retryInterval, "each repeat must wait queryRetryInterval")
 }

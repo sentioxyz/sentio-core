@@ -30,7 +30,10 @@ func BuildObjectChangeFetcher(
 		10000,
 		100000,
 		0, // maxReadyBlockCount: unlimited, entries exist only for blocks with data
-		10000,
+		// the target is that each query got no more than 1000 object change records,
+		// half the super node's maxObjectChanges cap on sui_filterGrpcChangedObjects.
+		// Size() weights an object change 1, so this is a plain record count.
+		1000,
 		time.Minute,
 		20,
 		time.Second,

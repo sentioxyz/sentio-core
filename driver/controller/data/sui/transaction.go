@@ -76,8 +76,11 @@ func BuildTxnFetcher(
 		1,
 		10000,
 		10000, // size of transaction is 10, so will cache 1000 transactions
-		0, // maxReadyBlockCount: unlimited, entries exist only for blocks with data
-		5000,  // the target is that each query got no more than 500 transactions
+		0,     // maxReadyBlockCount: unlimited, entries exist only for blocks with data
+		// the target is that each query got no more than 500 transactions, half the super
+		// node's maxTransactions cap on sui_getTransactionsV2. Size() weights a transaction
+		// 10, so this is 500 transactions, not 5000 records.
+		5000,
 		time.Second*10,
 		20,
 		time.Second,

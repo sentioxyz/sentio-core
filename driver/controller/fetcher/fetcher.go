@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"sentioxyz/sentio-core/chain/chain"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/timewin"
 	"sentioxyz/sentio-core/common/utils"
@@ -203,8 +204,16 @@ func (f *fetcher[T]) growth(ctx context.Context) (pause bool, reject bool, chang
 
 	var result map[uint64]T
 	var err error
+	// A too-many-results error is not a failure to back off from: it is the server telling us
+	// deterministically that this range is too wide, and the loop below halves the range before
+	// retrying, so the next query is a different, cheaper one. Sleeping queryRetryInterval on it
+	// would dominate the fetch loop wherever the filter matches densely — the range grows by
+	// querySizeMultiplier until it trips the cap, so tripping it is the steady state, not an
+	// anomaly. Only skip the interval when the range really shrank: once at minQuerySize the
+	// retry repeats the identical query and must still back off.
+	shrankOnTooManyResults := false
 	for retry := f.maxRetry; retry >= 0; {
-		if f.queryRetryInterval > 0 && err != nil {
+		if f.queryRetryInterval > 0 && err != nil && !shrankOnTooManyResults {
 			select {
 			case <-ctx.Done():
 				f.mu.Lock()
@@ -212,6 +221,7 @@ func (f *fetcher[T]) growth(ctx context.Context) (pause bool, reject bool, chang
 			case <-time.After(f.queryRetryInterval):
 			}
 		}
+		shrankOnTooManyResults = false
 		startAt := time.Now()
 		if f.maxQueryTime > 0 {
 			queryCtx, cancel := context.WithTimeout(ctx, f.maxQueryTime)
@@ -254,6 +264,7 @@ func (f *fetcher[T]) growth(ctx context.Context) (pause bool, reject bool, chang
 			if fetchSize := end - start + 1; fetchSize > f.minQuerySize {
 				fetchSize = max(f.minQuerySize, fetchSize/2)
 				end = start + fetchSize - 1
+				shrankOnTooManyResults = chain.IsTooManyResultsError(err)
 			} else {
 				retry--
 			}

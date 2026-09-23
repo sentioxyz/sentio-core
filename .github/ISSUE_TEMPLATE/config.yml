@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or support request
+    url: https://docs.sentio.xyz/docs/getting-support
+    about: For usage questions, reach us on Telegram or at support@sentio.xyz.
+  - name: Security vulnerability
+    url: https://github.com/sentioxyz/sentio-core/security/advisories/new
+    about: Report vulnerabilities privately — never in a public issue.

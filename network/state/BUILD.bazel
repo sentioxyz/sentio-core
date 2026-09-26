@@ -25,6 +25,7 @@ go_test(
         "state_mirrored_test.go",
         "state_test.go",
         "store_postgres_test.go",
+        "table_created_block_test.go",
     ],
     embed = [":state"],
     deps = ["//common/statemirror"],

@@ -41,6 +41,12 @@ type TableInfo struct {
 	TableType     string `json:"tableType" yaml:"table_type"`
 	SchemaVersion uint32 `json:"schemaVersion,omitempty" yaml:"schema_version,omitempty"`
 	SchemaHash    string `json:"schemaHash,omitempty" yaml:"schema_hash,omitempty"`
+	// CreatedBlock is the L2 block of the TableCreated event that created this
+	// incarnation of the table; a recreation overwrites it. Zero means the
+	// table was created before the syncer recorded creation blocks, which the
+	// storage-integrity activation window treats as created before
+	// activation_block.
+	CreatedBlock uint64 `json:"createdBlock,omitempty" yaml:"created_block,omitempty"`
 }
 
 type TableSchemaInfo struct {

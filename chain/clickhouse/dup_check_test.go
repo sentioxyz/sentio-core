@@ -49,7 +49,7 @@ func Test_duplicateCheckSQL(t *testing.T) {
 	assert.Equal(t,
 		"SELECT count(), toUInt64(sum(c - 1)), toUInt64(min(n)), toUInt64(max(n)) FROM ("+
 			"SELECT count() AS c, min(`number`) AS n FROM `db`.`tbl` WHERE number >= 10 AND number <= 20 "+
-			"GROUP BY `number`, `index` HAVING c > 1)",
+			"GROUP BY `number`, `index` HAVING c > 1) SETTINGS optimize_aggregation_in_order = 0",
 		table.duplicateCheckSQL("`db`.`tbl`", "number >= 10 AND number <= 20"))
 
 	// a key column added to the table later is NULL on the rows written before it existed: their

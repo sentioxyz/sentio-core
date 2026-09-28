@@ -139,6 +139,12 @@ func (t TableSchema) nullableUniqueKeyColumns() []string {
 // the identity of the row is unknown, not that it is shared. Such rows are left out of the scan:
 // keeping them would turn one old range into a single enormous fake duplicate and hide the real
 // ones. They stay unchecked until their range is re-synced.
+//
+// Aggregation in order is turned off for the scan, since the connection enables it for every
+// query. A unique key that is not a prefix of the sorting key, like the sui balances one that adds
+// coin_type to (checkpoint, tx_index, address), makes the in-order aggregation crawl: measured on
+// a 10k checkpoint page of that table, 15s with it and 0.09s without, so a full page ran past the
+// read timeout of the connection.
 func (t TableSchema) duplicateCheckSQL(fullName, rangeWhere string) string {
 	where := rangeWhere
 	for _, column := range t.nullableUniqueKeyColumns() {
@@ -146,7 +152,8 @@ func (t TableSchema) duplicateCheckSQL(fullName, rangeWhere string) string {
 	}
 	return fmt.Sprintf(
 		"SELECT count(), toUInt64(sum(c - 1)), toUInt64(min(n)), toUInt64(max(n)) FROM ("+
-			"SELECT count() AS c, min(`%s`) AS n FROM %s WHERE %s GROUP BY `%s` HAVING c > 1)",
+			"SELECT count() AS c, min(`%s`) AS n FROM %s WHERE %s GROUP BY `%s` HAVING c > 1) "+
+			"SETTINGS optimize_aggregation_in_order = 0",
 		t.NumberField,
 		fullName,
 		where,

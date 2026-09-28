@@ -47,14 +47,16 @@ func NewClickhouseSchemaMgr(
 	tables := []clickhouse.TableSchema{
 		createTableSchema(tableNameTransactions, &CHUTransaction{}, "checkpoint", "checkpoint_timestamp_ms", "digest").
 			WithUniqueKey("checkpoint", "digest"),
-		createTableSchema(tableNameEvents, &CHUEvent{}, "checkpoint", "timestamp_ms", "digest").
+		createTableSchema(tableNameEvents, &CHUEvent{}, "checkpoint", "timestamp_ms", "digest", "event_seq").
 			WithUniqueKey("checkpoint", "digest", "event_seq"),
+		// command_index stays out of the sorting key: it is nullable, see checkUniqueKey
 		createTableSchema(tableNameMoveCalls, &CHUMoveCall{}, "checkpoint", "timestamp_ms", "digest").
 			WithUniqueKey("checkpoint", "digest", "command_index"),
 		// sui aggregates the balance changes of a transaction per owner and coin type
-		createTableSchema(tableNameBalanceChanges, &CHUBalanceChange{}, "checkpoint", "timestamp_ms", "digest").
+		createTableSchema(tableNameBalanceChanges, &CHUBalanceChange{}, "checkpoint", "timestamp_ms", "digest", "owner",
+			"coin_type").
 			WithUniqueKey("checkpoint", "digest", "owner", "coin_type"),
-		createTableSchema(tableNameObjectChanges, &CHUObjectChange{}, "checkpoint", "timestamp_ms", "digest").
+		createTableSchema(tableNameObjectChanges, &CHUObjectChange{}, "checkpoint", "timestamp_ms", "digest", "object_id").
 			WithUniqueKey("checkpoint", "digest", "object_id"),
 		createTableSchema(tableNameObjectPositions, &CHUObjectPosition{}, "object_id", "object_version", "checkpoint").
 			WithoutUniqueKey("append-only by design: a row states where one version of one object was " +

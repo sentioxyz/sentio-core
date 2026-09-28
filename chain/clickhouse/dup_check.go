@@ -170,6 +170,10 @@ func (m TablesMeta) Validate() error {
 // that declares neither an identity for its rows nor a reason to go without one, and one that
 // declares an identity the check could never scope a window for. A declared key has to mean the
 // table is really scanned, otherwise it reads as coverage that is not there.
+//
+// It also rejects a sorting key that leaves out a column of the unique key, since the scan groups
+// by the unique key and has to aggregate over rows that are not sorted by it otherwise. A nullable
+// column is let through: it cannot go into a sorting key without allow_nullable_key.
 func (t TableSchema) checkUniqueKey() error {
 	if len(t.UniqueKey) == 0 {
 		if t.UniqueKeyExemption == "" {
@@ -185,6 +189,12 @@ func (t TableSchema) checkUniqueKey() error {
 	for _, column := range t.UniqueKey {
 		if !slices.Contains(t.Table.Fields.Names(), column) {
 			return errors.Errorf("unique key column %q is not a column of table %s", column, t.Table.Name)
+		}
+	}
+	nullable := t.nullableUniqueKeyColumns()
+	for _, column := range t.UniqueKey {
+		if !slices.Contains(t.Table.Config.OrderBy, column) && !slices.Contains(nullable, column) {
+			return errors.Errorf("unique key column %q is not in the sorting key of table %s", column, t.Table.Name)
 		}
 	}
 	if t.NumberField == "" {
@@ -246,6 +256,12 @@ func (s *SimpleSlotStore[SLOT]) scanTableDuplicates(
 	if err != nil {
 		return report, err
 	}
+	// The root cause is a sorting key that leaves out columns of the unique key: the scan groups by
+	// the unique key, and aggregating in order crawls when that is not a prefix of the sorting key,
+	// to the point of a page running past the read timeout. New tables get a sorting key holding the
+	// whole unique key (checkUniqueKey insists on it), but the sorting key of a table already created
+	// cannot be changed, so the scan turns aggregation in order off to cope with those.
+	scanCtx := chx.DisableAggregationInOrderCtx(ctx)
 	for _, page := range pages {
 		where, whereErr := s.tableRangeWhere(ctx, table, page)
 		if whereErr != nil {
@@ -253,7 +269,7 @@ func (s *SimpleSlotStore[SLOT]) scanTableDuplicates(
 		}
 		var found DuplicateReport
 		sql := table.duplicateCheckSQL(s.ctrl.FullLogicName(table.Table.Name), where)
-		if err = s.ctrl.Query(ctx, func(rows driver.Rows) error {
+		if err = s.ctrl.Query(scanCtx, func(rows driver.Rows) error {
 			return rows.Scan(&found.Groups, &found.ExtraRows, &found.First, &found.Last)
 		}, sql); err != nil {
 			return report, errors.Wrapf(err, "check duplicates of table %s in %s failed", table.Table.Name, page)

@@ -293,9 +293,9 @@ func (c *EthVariationController[BLOCK, TXN]) BuildTablesMeta(blockPartitionSize 
 			WithUniqueKey("block_number", "transaction_index", "log_index"),
 		// reward traces carry no transaction position, so they land on transaction_index 0 and get their
 		// own trace_index sequence there; `type` keeps them apart from the traces of the first transaction
-		createTableSchema(tableNameTraces, &Trace{}, "block_number", "transaction_index", "trace_index").
+		createTableSchema(tableNameTraces, &Trace{}, "block_number", "transaction_index", "trace_index", "type").
 			WithUniqueKey("block_number", "transaction_index", "trace_index", "type"),
-		createTableSchema(tableNameWithdrawals, &Withdrawal{}, "block_number").
+		createTableSchema(tableNameWithdrawals, &Withdrawal{}, "block_number", "withdrawal_index").
 			WithUniqueKey("block_number", "withdrawal_index"),
 	}
 	const blockTableIndex = 0

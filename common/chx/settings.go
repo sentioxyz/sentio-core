@@ -58,6 +58,18 @@ func AsyncMutationCtx(ctx context.Context, otherSettings ...map[string]any) cont
 	return ckhmanager.ContextMergeSettings(ctx, settings)
 }
 
+// DisableAggregationInOrderCtx turns off optimize_aggregation_in_order, which the connection
+// enables for every query. Aggregating in order is only fast when the GROUP BY key is a prefix of
+// the sorting key; when it is not, the aggregation crawls instead: grouping sui v4 balances by
+// (checkpoint, tx_index, address, coin_type) against a sorting key of (checkpoint, tx_index,
+// address) took 15s over 10k checkpoints with it and 0.09s without.
+func DisableAggregationInOrderCtx(ctx context.Context, otherSettings ...map[string]any) context.Context {
+	settings := mergeSettings(mergeSettings(otherSettings...), map[string]any{
+		"optimize_aggregation_in_order": 0,
+	})
+	return ckhmanager.ContextMergeSettings(ctx, settings)
+}
+
 func WithLightDeleteTableSettings(settings map[string]string) {
 	settings["enable_block_number_column"] = "1"
 	settings["enable_block_offset_column"] = "1"

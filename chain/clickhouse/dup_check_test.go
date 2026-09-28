@@ -16,7 +16,7 @@ func Test_checkUniqueKey(t *testing.T) {
 		Data   string `clickhouse:"data"`
 	}
 	build := func() TableSchema {
-		return BuildTable("tbl", &row{}, chx.TableConfig{}, "")
+		return BuildTable("tbl", &row{}, chx.TableConfig{OrderBy: []string{"number", "index"}}, "")
 	}
 
 	assert.NoError(t, build().WithUniqueKey("number", "index").checkUniqueKey())
@@ -37,6 +37,18 @@ func Test_checkUniqueKey(t *testing.T) {
 	outside := build().WithUniqueKey("number", "index")
 	outside.NumberField = ""
 	assert.ErrorContains(t, outside.checkUniqueKey(), "no number field to scope a duplicate check window")
+
+	// the scan groups by the unique key, so the sorting key has to hold every column of it
+	assert.ErrorContains(t, build().WithUniqueKey("number", "index", "data").checkUniqueKey(),
+		`unique key column "data" is not in the sorting key of table tbl`)
+
+	// except a nullable one, which cannot go into a sorting key
+	type latecomer struct {
+		Number uint64  `clickhouse:"number" number_field:"true"`
+		Index  *uint64 `clickhouse:"index"`
+	}
+	late := BuildTable("tbl", &latecomer{}, chx.TableConfig{OrderBy: []string{"number"}}, "")
+	assert.NoError(t, late.WithUniqueKey("number", "index").checkUniqueKey())
 }
 
 func Test_duplicateCheckSQL(t *testing.T) {
@@ -49,7 +61,7 @@ func Test_duplicateCheckSQL(t *testing.T) {
 	assert.Equal(t,
 		"SELECT count(), toUInt64(sum(c - 1)), toUInt64(min(n)), toUInt64(max(n)) FROM ("+
 			"SELECT count() AS c, min(`number`) AS n FROM `db`.`tbl` WHERE number >= 10 AND number <= 20 "+
-			"GROUP BY `number`, `index` HAVING c > 1) SETTINGS optimize_aggregation_in_order = 0",
+			"GROUP BY `number`, `index` HAVING c > 1)",
 		table.duplicateCheckSQL("`db`.`tbl`", "number >= 10 AND number <= 20"))
 
 	// a key column added to the table later is NULL on the rows written before it existed: their

@@ -65,8 +65,8 @@ func NewClickhouseSchemaMgr(
 			WithUniqueKey("checkpoint", "tx_index", "event_index"),
 		createTableSchema(tableNameObjects, &Object{}, "checkpoint", "tx_index", "object_id").
 			WithUniqueKey("checkpoint", "tx_index", "object_id"),
-		// the sorting key alone is not unique: one transaction changes several coin types of an address
-		createTableSchema(tableNameBalances, &Balance{}, "checkpoint", "tx_index", "address").
+		// one transaction changes several coin types of an address
+		createTableSchema(tableNameBalances, &Balance{}, "checkpoint", "tx_index", "address", "coin_type").
 			WithUniqueKey("checkpoint", "tx_index", "address", "coin_type"),
 	}
 	mgr := &ClickhouseSchemaMgr{

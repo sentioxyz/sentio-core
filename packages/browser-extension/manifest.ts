@@ -23,7 +23,6 @@ export async function genManifest(browser: Browser = 'chrome') {
           'https://lineascan.build/*',
           'https://scrollscan.com/*',
           'https://arbiscan.io/*',
-          'https://blastscan.io/*',
           'https://basescan.org/*',
           'https://hoodi.etherscan.io/*',
           'https://optimistic.etherscan.io/*',

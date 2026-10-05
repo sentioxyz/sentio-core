@@ -55,7 +55,6 @@ async function main() {
       'lineascan.build': EthChainId.LINEA,
       'scrollscan.com': EthChainId.SCROLL,
       'arbiscan.io': EthChainId.ARBITRUM,
-      'blastscan.io': EthChainId.BLAST,
       'basescan.org': EthChainId.BASE,
       'hoodi.etherscan.io': EthChainId.HOODI,
       'optimistic.etherscan.io': EthChainId.OPTIMISM,

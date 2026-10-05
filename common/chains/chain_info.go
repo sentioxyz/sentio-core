@@ -3,7 +3,7 @@ package chains
 
 import "github.com/ethereum/go-ethereum/common"
 
-var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &ZksyncEraInfo, &CronosTestnetInfo, &DeriveInfo, &StableTestnetInfo, &StableMainnetInfo, &HyperEvmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MegaethInfo, &RobinhoodInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &MonadMainnetInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &BlastInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &SepoliaInfo, &EtherlinkInfo, &AuroraInfo, &BlastSepoliaInfo, &AbstractInfo, &GoatMainnetInfo, &ArcTestnetInfo, &SentioTestnetInfo, &SentioTestnetV2Info, &SentioDevnetInfo, &TronInfo, &CustomInfo}
+var EthChains = []*EthChainInfo{&EthereumInfo, &OptimismInfo, &CronosInfo, &BscInfo, &BscTestnetInfo, &UnichainInfo, &PolygonInfo, &MantaPacificInfo, &XlayerTestnetInfo, &XlayerMainnetInfo, &OpBnbMainnetInfo, &SonicMainnetInfo, &SonicTestnetInfo, &B2MainnetInfo, &FraxtalInfo, &KucoinInfo, &ZksyncEraInfo, &CronosTestnetInfo, &DeriveInfo, &StableTestnetInfo, &StableMainnetInfo, &HyperEvmInfo, &ConfluxInfo, &MetisInfo, &CoreMainnetInfo, &UnichainSepoliaInfo, &SeiInfo, &SoneiumTestnetInfo, &SoneiumMainnetInfo, &TacTestnetInfo, &KarakInfo, &BevmInfo, &MegaethInfo, &RobinhoodInfo, &MantleInfo, &BaseInfo, &BaseSepoliaInfo, &PlasmaMainnetInfo, &PlasmaTestnetInfo, &MonadTestnetInfo, &MonadMainnetInfo, &HoodiInfo, &ModeInfo, &ArbitrumInfo, &HemiInfo, &AvalancheInfo, &ZircuitMainnetInfo, &BobInfo, &LineaInfo, &BerachainInfo, &ChilizInfo, &TaikoInfo, &KatanaMainnetInfo, &BitlayerInfo, &ScrollInfo, &SepoliaInfo, &EtherlinkInfo, &AuroraInfo, &AbstractInfo, &GoatMainnetInfo, &ArcTestnetInfo, &SentioTestnetInfo, &SentioTestnetV2Info, &SentioDevnetInfo, &TronInfo, &CustomInfo}
 
 var Chains = []*ChainInfo{}
 
@@ -957,25 +957,6 @@ var BerachainInfo = EthChainInfo{
   ExplorerAPIType: ExplorerAPITypeEtherscanV2,
 }
 
-var BlastInfo = EthChainInfo{
-  ChainInfo: ChainInfo{
-    Name: "Blast Mainnet",
-    Slug: "blast-mainnet",
-    AdditionalSlugs: []string{},
-    MainnetChainID: ChainID(BlastID),
-    ChainID: ChainID(BlastID),
-    ExplorerURL: "https://blastscan.io",
-  },
-  Variation: EthVariationOptimism,
-  TokenSymbol: "ETH",
-  TokenDecimals: 18,
-  TokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
-  PriceTokenAddress: common.HexToAddress("0x4300000000000000000000000000000000000004"),
-  WrappedTokenAddress: common.HexToAddress("0x4300000000000000000000000000000000000004"),
-  ExplorerAPI: "https://api.etherscan.io/v2",
-  ExplorerAPIType: ExplorerAPITypeEtherscanV2,
-}
-
 var ChilizInfo = EthChainInfo{
   ChainInfo: ChainInfo{
     Name: "Chiliz",
@@ -1126,25 +1107,6 @@ var AuroraInfo = EthChainInfo{
   WrappedTokenAddress: common.HexToAddress("0xC9BdeEd33CD01541e1eeD10f90519d2C06Fe3feB"),
   ExplorerAPI: "https://explorer.aurora.dev",
   ExplorerAPIType: ExplorerAPITypeBlockscout,
-}
-
-var BlastSepoliaInfo = EthChainInfo{
-  ChainInfo: ChainInfo{
-    Name: "Blast Testnet",
-    Slug: "blast-testnet",
-    AdditionalSlugs: []string{},
-    MainnetChainID: ChainID(BlastID),
-    ChainID: ChainID(BlastSepoliaID),
-    ExplorerURL: "https://sepolia.blastscan.io",
-  },
-  Variation: EthVariationOptimism,
-  TokenSymbol: "ETH",
-  TokenDecimals: 18,
-  TokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
-  PriceTokenAddress: common.HexToAddress("0x4200000000000000000000000000000000000023"),
-  WrappedTokenAddress: common.HexToAddress("0x4200000000000000000000000000000000000023"),
-  ExplorerAPI: "https://api.etherscan.io/v2",
-  ExplorerAPIType: ExplorerAPITypeEtherscanV2,
 }
 
 var AbstractInfo = EthChainInfo{

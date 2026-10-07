@@ -44,6 +44,10 @@ var missDataErrorMatcher = []*regexp.Regexp{
 	// aggregator endpoints (e.g. dRPC) reporting a pruned state range with HTTP 400 and vendor
 	// code 27: {"error":{"message":"Unknown state. First available state is 1","code":27}}
 	regexp.MustCompile("unknown state"),
+	// Conflux eSpace endpoints with pruned logs (e.g. BlockPI) answering eth_getLogs below their
+	// retained range: {"code":-32016,"message":"Error processing request: Filter error: Epoch is
+	// smaller than the earliest epoch stored (epoch: 157822027, min: 158460000)"}
+	regexp.MustCompile("earliest epoch stored"),
 }
 
 var brokenMsgErrorMatcher = []*regexp.Regexp{

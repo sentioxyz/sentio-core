@@ -265,3 +265,10 @@ func Test_isMissDataError_drpcUnknownState_http400_missData(t *testing.T) {
 	assert.True(t, isMissDataError("eth_getBalance",
 		fakeRPCErr{code: 27, msg: "Unknown state. First available state is 1"}))
 }
+
+func Test_isMissDataError_confluxEarliestEpoch_missData(t *testing.T) {
+	// A Conflux eSpace endpoint with pruned logs rejects eth_getLogs below its retained range: the pool
+	// must retry the call on another endpoint holding the range instead of returning the error.
+	assert.True(t, isMissDataError("eth_getLogs", fakeRPCErr{code: -32016, msg: "Error processing request: " +
+		"Filter error: Epoch is smaller than the earliest epoch stored (epoch: 157822027, min: 158460000)"}))
+}

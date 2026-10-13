@@ -323,7 +323,10 @@ func (s *SimpleSlotStore[SLOT]) Save(
 					s.ctrl.FullLogicName(table.Name),
 					strings.Join(table.Fields.Names(), "`,`"),
 				)
-				insertErr := s.ctrl.BatchInsert(ctx, sql, math.MaxInt, chx.NewGetter(task.rows, func(row []any) []any {
+				// Tagged with the slots it writes, so that a truncate over them can end it first if it
+				// is still running when this save has given up on it, see deleteRange.
+				insertCtx := s.ctrl.RangeInsertCtx(ctx, table.Name, task.slotSet.Start, task.slotSet.EndOrMaxUInt64())
+				insertErr := s.ctrl.BatchInsert(insertCtx, sql, math.MaxInt, chx.NewGetter(task.rows, func(row []any) []any {
 					return row
 				}))
 				if insertErr != nil {
@@ -620,6 +623,13 @@ func (s *SimpleSlotStore[SLOT]) deleteRange(ctx context.Context, interval rg.Ran
 		light := interval.Start > 0 && len(table.Table.Projections) == 0
 		var count uint64
 		if syncReplicas {
+			// The interval may have been written by an INSERT that this process, or the one before it,
+			// gave up on while the server kept going. Left running, it can commit its rows after the
+			// delete has counted, and the save that follows then writes them a second time.
+			if err = s.ctrl.EndRangeInserts(ctx, table.Table.Name, interval.Start, interval.EndOrMaxUInt64()); err != nil {
+				logger.With("table", table.Table.Name).Errorfe(err, "end inserts in range failed")
+				return errors.Wrapf(err, "end inserts into %s in range %s failed", table.Table.Name, interval)
+			}
 			count, err = s.ctrl.DeleteAfterReplicaSync(ctx, table.Table.Name, where, light)
 		} else {
 			count, err = s.ctrl.Delete(ctx, table.Table.Name, where, light)

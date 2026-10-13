@@ -9,6 +9,7 @@ import (
 
 	"sentioxyz/sentio-core/common/log"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/pkg/errors"
 )
@@ -138,6 +139,49 @@ func (c Controller) BatchInsert(
 		return errors.Wrapf(err, "batch send failed")
 	}
 	return nil
+}
+
+// rangeInsertQueryIDPrefix starts the query id of every INSERT tagged by RangeInsertCtx. The id
+// goes on with the first and last number the INSERT writes, a random part and the table:
+// `rangeinsert:<first>:<last>:<random>:<database>.<table>`, which is what EndRangeInserts picks the
+// INSERTs out of system.processes by.
+const rangeInsertQueryIDPrefix = "rangeinsert:"
+
+func (c Controller) rangeInsertTableSuffix(table string) string {
+	return fmt.Sprintf(":%s.%s%s", c.database, c.tableNamePrefix, table)
+}
+
+// RangeInsertCtx tags the INSERT run with ctx as writing the numbers first to last of the table,
+// so that EndRangeInserts can find it on the server.
+func (c Controller) RangeInsertCtx(ctx context.Context, table string, first, last uint64) context.Context {
+	queryID := fmt.Sprintf("%s%d:%d:%x%s",
+		rangeInsertQueryIDPrefix, first, last, rand.Uint64(), c.rangeInsertTableSuffix(table))
+	return clickhouse.Context(ctx, clickhouse.WithQueryID(queryID))
+}
+
+// EndRangeInserts returns once no INSERT tagged by RangeInsertCtx as writing any number from first
+// to last of the table is running on any replica, cancelling the ones that still are and waiting
+// for them to stop.
+//
+// An INSERT the client has given up on is not necessarily over on the server. One whose response
+// timed out keeps going there and may commit its rows minutes later, after a delete meant to clear
+// the range has already counted and removed what it could see, and the rows written back on top
+// then sit beside a second copy. A process that was killed leaves its INSERTs behind in the same
+// way. So a delete of a range that may have been written has to see such INSERTs ended first, and
+// it has to ask the server rather than remember them: what a previous process left running is
+// known to the server only. Cancelling them is harmless, the rows they write are the ones about to
+// be deleted; an INSERT into another part of the table is left alone.
+//
+// The INSERT may have been taken by any replica, and a replica can only be asked about its own
+// queries, so this runs ON CLUSTER, which makes it a distributed DDL statement like the replica
+// sync of DeleteAfterReplicaSync, and it is meant for the same deletes.
+func (c Controller) EndRangeInserts(ctx context.Context, table string, first, last uint64) error {
+	sql := fmt.Sprintf("KILL QUERY%s WHERE query_kind = 'Insert' "+
+		"AND startsWith(query_id, '%s') AND endsWith(query_id, '%s') "+
+		"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= %d "+
+		"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= %d SYNC",
+		c.sqlOnClusterPart(), rangeInsertQueryIDPrefix, c.rangeInsertTableSuffix(table), last, first)
+	return c.Exec(ctx, sql)
 }
 
 // syncReplicaTimeoutSeconds is how long a replica is given to catch up before a delete gives up and

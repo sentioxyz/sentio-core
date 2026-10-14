@@ -32,6 +32,8 @@ func NewRPCGetBlockResponse(st *Slot, withFullTransactions bool) RPCGetBlockResp
 			TxHashes: utils.MapSliceNoError(st.Block.Transactions, func(tx RPCTransaction) common.Hash {
 				return tx.Hash
 			}),
+			Uncles:      st.Block.Uncles,
+			Withdrawals: st.Block.Withdrawals,
 		}
 	}
 	txs := st.Block.Transactions
@@ -41,6 +43,8 @@ func NewRPCGetBlockResponse(st *Slot, withFullTransactions bool) RPCGetBlockResp
 	return RPCGetBlockResponse{
 		ExtendedHeader: st.Header,
 		Transactions:   txs,
+		Uncles:         st.Block.Uncles,
+		Withdrawals:    st.Block.Withdrawals,
 	}
 }
 
@@ -100,8 +104,8 @@ func (r *RPCGetBlockResponse) UnmarshalJSON(data []byte) (err error) {
 	}{}
 	if err = json.Unmarshal(data, &payload); err == nil {
 		r.Transactions = payload.Transactions
-		r.Uncles = payloadSimple.Uncles
-		r.Withdrawals = payloadSimple.Withdrawals
+		r.Uncles = payload.Uncles
+		r.Withdrawals = payload.Withdrawals
 		return nil
 	}
 	return err

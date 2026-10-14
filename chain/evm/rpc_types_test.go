@@ -507,3 +507,78 @@ func TestUnmarshalTxNonce(t *testing.T) {
 		assert.Equal(t, `"0x123"`, string(b))
 	})
 }
+
+// Nodes put "withdrawals" after "transactions", so a full-transaction block first fails the hash-only decode
+// and must take its uncles and withdrawals from the full decode.
+func TestRPCGetBlockResponse_UnmarshalJSONFullTransactionsWithWithdrawals(t *testing.T) {
+	raw := `{
+        "parentHash": "0xed6d282357ed5baaac56b8256f15b8f1cb93c0249bdc47416f59a4835b841718",
+        "sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+        "miner": "0x0000000000000000000000000000000000000000",
+        "stateRoot": "0x618da2828be9d11aa6e7bdbed99f3b1c656716234364f8000f5089460dc0889e",
+        "transactionsRoot": "0x8a59f99f6129ac1558956e33dc7eab72c980bf39b18f5e9143238a9783e3dbc5",
+        "receiptsRoot": "0xd6c76504253021d37310e9bfb881824c697cad16a23d41ebfaf90e246df3905a",
+        "difficulty": "0x0",
+        "number": "0x97c056",
+        "gasLimit": "0x12a05f200",
+        "gasUsed": "0x14a923",
+        "timestamp": "0x67bd2531",
+        "extraData": "0x",
+        "mixHash": "0x708fc380f649357afb1d0b4479eabc4f4e0f1d417f47a0fc6a7280549e21a573",
+        "nonce": "0x0000000000000000",
+        "baseFeePerGas": "0xba43b7400",
+        "hash": "0xcca89e6995c4d74fdad8ef27e8a4cc7b151c64372e24da875a6ebb175b634276",
+        "withdrawalsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+        "transactions": [
+            {
+                "blockHash": "0xcca89e6995c4d74fdad8ef27e8a4cc7b151c64372e24da875a6ebb175b634276",
+                "blockNumber": "0x97c056",
+                "from": "0x451cfbe715cce467b201c68d411b75fe7032e308",
+                "gas": "0xfc9f",
+                "gasPrice": "0xd152f5b80",
+                "hash": "0x9692af282f298af1e0e9317417ec914fea194a487872c47e89eb37a73ae4e913",
+                "input": "0x2e1a7d4d00000000000000000000000000000000000000000000000cd7a5ded99a0a0000",
+                "nonce": "0xa",
+                "to": "0x039e2fb66102314ce7b64ce5ce3e5183bc94ad38",
+                "transactionIndex": "0x0",
+                "value": "0x0",
+                "type": "0x0",
+                "v": "0x148",
+                "r": "0xab4ac5da75086d5a97f10e0e39a2619c9bc8f2b27da7b5a50a81323663ff7b9a",
+                "s": "0x69d0343c85faa46506b475a6b4b6c15d4bf3cddddf238e3b561c5e530be5a0a"
+            }
+        ],
+        "uncles": ["0xed6d282357ed5baaac56b8256f15b8f1cb93c0249bdc47416f59a4835b841718"],
+        "withdrawals": [
+            {
+                "index": "0x10",
+                "validatorIndex": "0x20",
+                "address": "0x8c0e122960dc2e97dc0059c07d6901dce72818e1",
+                "amount": "0x30"
+            }
+        ]
+    }`
+	var r RPCGetBlockResponse
+	assert.NoError(t, json2.Unmarshal([]byte(raw), &r))
+	assert.Len(t, r.Transactions, 1)
+	assert.Equal(t, []common.Hash{common.HexToHash("0xed6d282357ed5baaac56b8256f15b8f1cb93c0249bdc47416f59a4835b841718")},
+		r.Uncles)
+	expected := []types.Withdrawal{{
+		Index:     0x10,
+		Validator: 0x20,
+		Address:   common.HexToAddress("0x8c0e122960dc2e97dc0059c07d6901dce72818e1"),
+		Amount:    0x30,
+	}}
+	assert.Equal(t, expected, r.Withdrawals)
+
+	// the response the super-node builds from a slot keeps them too
+	st := &Slot{Header: r.ExtendedHeader, Block: &RPCBlock{Transactions: r.Transactions, Uncles: r.Uncles, Withdrawals: r.Withdrawals}}
+	for _, full := range []bool{true, false} {
+		encoded, err := json2.Marshal(NewRPCGetBlockResponse(st, full))
+		assert.NoError(t, err)
+		var decoded RPCGetBlockResponse
+		assert.NoError(t, json2.Unmarshal(encoded, &decoded))
+		assert.Equal(t, r.Uncles, decoded.Uncles)
+		assert.Equal(t, expected, decoded.Withdrawals)
+	}
+}

@@ -594,9 +594,7 @@ func (f FunctionFilter) Check(tx types.TransactionResponseV1) bool {
 			return false
 		}
 		if !utils.HasAny(sig.PublicKey.PkMap, func(pkMap types.MultiSigPkMap) bool {
-			return bytes.HasPrefix(pkMap.PubKey.ED25519[:], prefix) ||
-				bytes.HasPrefix(pkMap.PubKey.Secp256k1[:], prefix) ||
-				bytes.HasPrefix(pkMap.PubKey.Secp256r1[:], prefix)
+			return bytes.HasPrefix(pkMap.PubKey.Bytes(), prefix)
 		}) {
 			return false
 		}

@@ -18,21 +18,72 @@ const (
 	SchemeSecp256r1
 )
 
+// CompressedSignature and PublicKey follow the variant order of the upstream sui-types enums
+// (crypto.rs). ZkLogin and Passkey carry a length-prefixed payload; MLDSA65 (protocol version 139)
+// is a raw fixed-size array like the classic schemes.
 type CompressedSignature struct {
 	ED25519   [64]byte
 	Secp256k1 [64]byte
 	Secp256r1 [64]byte
+	ZkLogin   []byte
+	Passkey   []byte
+	MLDSA65   [3309]byte
 }
 
 func (s CompressedSignature) IsBcsEnum() {}
+
+func (s CompressedSignature) variant() (string, []byte) {
+	switch {
+	case s.ED25519 != [64]byte{}:
+		return "ED25519", s.ED25519[:]
+	case s.Secp256k1 != [64]byte{}:
+		return "Secp256k1", s.Secp256k1[:]
+	case s.Secp256r1 != [64]byte{}:
+		return "Secp256r1", s.Secp256r1[:]
+	case s.ZkLogin != nil:
+		return "ZkLogin", s.ZkLogin
+	case s.Passkey != nil:
+		return "Passkey", s.Passkey
+	case s.MLDSA65 != [3309]byte{}:
+		return "MLDSA65", s.MLDSA65[:]
+	}
+	return "", nil
+}
 
 type PublicKey struct {
 	ED25519   [32]byte
 	Secp256k1 [33]byte
 	Secp256r1 [33]byte
+	ZkLogin   []byte
+	Passkey   [33]byte
+	MLDSA65   [1952]byte
 }
 
 func (s PublicKey) IsBcsEnum() {}
+
+func (s PublicKey) variant() (string, []byte) {
+	switch {
+	case s.ED25519 != [32]byte{}:
+		return "ED25519", s.ED25519[:]
+	case s.Secp256k1 != [33]byte{}:
+		return "Secp256k1", s.Secp256k1[:]
+	case s.Secp256r1 != [33]byte{}:
+		return "Secp256r1", s.Secp256r1[:]
+	case s.ZkLogin != nil:
+		return "ZkLogin", s.ZkLogin
+	case s.Passkey != [33]byte{}:
+		return "Passkey", s.Passkey[:]
+	case s.MLDSA65 != [1952]byte{}:
+		return "MLDSA65", s.MLDSA65[:]
+	}
+	return "", nil
+}
+
+// Bytes returns the raw key of whichever scheme is set, or nil if none is.
+func (s PublicKey) Bytes() []byte {
+	_, b := s.variant()
+	return b
+}
 
 type MultiSigPkMap struct {
 	PubKey PublicKey
@@ -55,19 +106,8 @@ func (s MultiSig) DebugString() string {
 	sb.WriteString("MultiSig {\n")
 	sb.WriteString("  Sigs: [\n")
 	for _, sig := range s.Sigs {
-		sb.WriteString("    ")
-		switch {
-		case sig.ED25519 != [64]byte{}:
-			sb.WriteString("ED25519(")
-			sb.WriteString(hexutil.Encode(sig.ED25519[:]))
-		case sig.Secp256k1 != [64]byte{}:
-			sb.WriteString("Secp256k1(")
-			sb.WriteString(hexutil.Encode(sig.Secp256k1[:]))
-		case sig.Secp256r1 != [64]byte{}:
-			sb.WriteString("Secp256r1(")
-			sb.WriteString(hexutil.Encode(sig.Secp256r1[:]))
-		}
-		sb.WriteString("),\n")
+		name, b := sig.variant()
+		sb.WriteString("    " + name + "(" + hexutil.Encode(b) + "),\n")
 	}
 	sb.WriteString("  ],\n")
 	sb.WriteString("  Bitmap: ")
@@ -77,19 +117,8 @@ func (s MultiSig) DebugString() string {
 	sb.WriteString("    PkMap: [\n")
 	for _, pkMap := range s.PublicKey.PkMap {
 		sb.WriteString("      {\n")
-		sb.WriteString("        PubKey: ")
-		switch {
-		case pkMap.PubKey.ED25519 != [32]byte{}:
-			sb.WriteString("ED25519(")
-			sb.WriteString(hexutil.Encode(pkMap.PubKey.ED25519[:]))
-		case pkMap.PubKey.Secp256k1 != [33]byte{}:
-			sb.WriteString("Secp256k1(")
-			sb.WriteString(hexutil.Encode(pkMap.PubKey.Secp256k1[:]))
-		case pkMap.PubKey.Secp256r1 != [33]byte{}:
-			sb.WriteString("Secp256r1(")
-			sb.WriteString(hexutil.Encode(pkMap.PubKey.Secp256r1[:]))
-		}
-		sb.WriteString("),\n")
+		name, b := pkMap.PubKey.variant()
+		sb.WriteString("        PubKey: " + name + "(" + hexutil.Encode(b) + "),\n")
 		sb.WriteString("        Weight: ")
 		sb.WriteString(fmt.Sprintf("%d", pkMap.Weight))
 		sb.WriteString(",\n")

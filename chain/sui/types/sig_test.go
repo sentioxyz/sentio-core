@@ -47,3 +47,61 @@ func TestDecodeMultiSig(t *testing.T) {
 	}
 	assert.True(t, found)
 }
+
+// multiSigWithNewSchemes hand-builds a multisig whose members use the schemes added after the
+// classic three, laid out from the sui-types staged snapshot (format__sui.yaml.snap):
+// CompressedSignature/PublicKey variants 3 ZkLogin (length-prefixed bytes), 4 Passkey (sig is
+// length-prefixed bytes, pk a raw 33-byte array) and 5 MLDSA65 (raw 3309-byte sig, 1952-byte pk).
+func multiSigWithNewSchemes(lastPkVariant byte) []byte {
+	b := []byte{0x03}                                    // multisig signature flag
+	b = append(b, 0x03)                                  // sigs: 3 entries
+	b = append(b, 0x05)                                  // sig 0: MLDSA65
+	b = append(b, bytes.Repeat([]byte{0xab}, 3309)...)   //   raw [u8; 3309], no length prefix
+	b = append(b, 0x03, 0x04, 0xde, 0xad, 0xbe, 0xef)    // sig 1: ZkLogin, len 4 + bytes
+	b = append(b, 0x04, 0x02, 0x11, 0x22)                // sig 2: Passkey, len 2 + bytes
+	b = append(b, 0x07, 0x00)                            // bitmap u16 LE = 7
+	b = append(b, 0x03)                                  // pk_map: 3 entries
+	b = append(b, 0x05)                                  // pk 0: MLDSA65
+	b = append(b, bytes.Repeat([]byte{0xcd}, 1952)...)   //   raw [u8; 1952]
+	b = append(b, 0x01)                                  //   weight
+	b = append(b, 0x04, 0x02)                            // pk 1: Passkey, raw [u8; 33]: 0x02 then 32 * 0x33
+	b = append(b, bytes.Repeat([]byte{0x33}, 32)...)     //
+	b = append(b, 0x01)                                  //   weight
+	b = append(b, lastPkVariant, 0x03, 0x0a, 0x0b, 0x0c) // pk 2: ZkLogin (3), len 3 + bytes
+	b = append(b, 0x01)                                  //   weight
+	b = append(b, 0x02, 0x00)                            // threshold u16 LE = 2
+	return b
+}
+
+func TestDecodeMultiSig_NewSchemes(t *testing.T) {
+	sig, err := DecodeMultiSigBytes(multiSigWithNewSchemes(0x03))
+	assert.NoError(t, err)
+
+	assert.Len(t, sig.Sigs, 3)
+	assert.Equal(t, bytes.Repeat([]byte{0xab}, 3309), sig.Sigs[0].MLDSA65[:])
+	assert.Equal(t, []byte{0xde, 0xad, 0xbe, 0xef}, sig.Sigs[1].ZkLogin)
+	assert.Equal(t, []byte{0x11, 0x22}, sig.Sigs[2].Passkey)
+	assert.Equal(t, uint16(7), sig.Bitmap)
+
+	pks := sig.PublicKey.PkMap
+	assert.Len(t, pks, 3)
+	assert.Equal(t, bytes.Repeat([]byte{0xcd}, 1952), pks[0].PubKey.Bytes())
+	assert.Equal(t, append([]byte{0x02}, bytes.Repeat([]byte{0x33}, 32)...), pks[1].PubKey.Bytes())
+	assert.Equal(t, []byte{0x0a, 0x0b, 0x0c}, pks[2].PubKey.Bytes())
+	for _, pk := range pks {
+		assert.Equal(t, uint8(1), pk.Weight)
+	}
+	assert.Equal(t, uint16(2), sig.PublicKey.Threshold)
+	assert.Contains(t, sig.DebugString(), "MLDSA65(0xabab")
+}
+
+func TestDecodeMultiSig_UnknownSchemeErrors(t *testing.T) {
+	_, err := DecodeMultiSigBytes(multiSigWithNewSchemes(0x06))
+	assert.Error(t, err)
+}
+
+func TestPublicKeyBytes(t *testing.T) {
+	assert.Nil(t, PublicKey{}.Bytes())
+	pk := PublicKey{Secp256k1: [33]byte{0x02, 0x01}}
+	assert.Equal(t, pk.Secp256k1[:], pk.Bytes())
+}

@@ -126,17 +126,7 @@ func (query TransactionQuery) CheckAndTrim(r *types.TransactionResponseV1) bool 
 		}
 		found := false
 		for _, pkMap := range sig.PublicKey.PkMap {
-			pk := pkMap.PubKey
-			var key []byte
-			switch {
-			case pk.ED25519 != [32]byte{}:
-				key = pk.ED25519[:]
-			case pk.Secp256r1 != [33]byte{}:
-				key = pk.Secp256r1[:]
-			case pk.Secp256k1 != [33]byte{}:
-				key = pk.Secp256k1[:]
-			}
-			if bytes.HasPrefix(key, b) {
+			if bytes.HasPrefix(pkMap.PubKey.Bytes(), b) {
 				found = true
 			}
 		}

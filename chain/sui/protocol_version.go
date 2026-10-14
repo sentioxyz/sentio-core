@@ -36,13 +36,19 @@ const (
 	// allowed_proposers) and the FundsWithdrawal SENDER_ALLOWANCE source. 138 adds no shape: it
 	// bumps the gas model to 15 and turns on check_object_funds_withdraw_in_execution off
 	// mainnet, and the BumpOnly exit it introduces is an execution fallback whose effects are
-	// ordinary version bumps of the inputs.
-	maxSupportedSuiProtocolVersion = 138
+	// ordinary version bumps of the inputs. 139 adds the ML-DSA-65 signature scheme (a new
+	// CompressedSignature/PublicKey variant inside multisig, and SignatureScheme MLDSA65 in grpc)
+	// and turns on forwarding addresses, whose ForwardingAddressRegistryCreate end-of-epoch kind
+	// is already modeled. 140 adds no shape: native vector bulk operations and a consensus block
+	// shuffle on devnet.
+	maxSupportedSuiProtocolVersion = 140
 	// maxSupportedIotaProtocolVersion is the same for IOTA, whose protocol versions are numbered
 	// independently of Sui's. 36 adds no shape either: it only tightens validation (input object
 	// versions are checked from the transaction bytes, `<SELF>` is rejected as an identifier) and
-	// makes the Move enum variant limit explicit in the config.
-	maxSupportedIotaProtocolVersion = 36
+	// makes the Move enum variant limit explicit in the config. 37 and 38 only tighten validation
+	// too (published module headers, MoveAuthenticator inputs, PTB indices at signing time); the
+	// two ExecutionError variants 38 adds live in effects, not in the transaction data.
+	maxSupportedIotaProtocolVersion = 38
 )
 
 // Overrides for the constants above; 0 disables the guard for that variation entirely.

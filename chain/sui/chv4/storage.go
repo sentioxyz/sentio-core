@@ -135,6 +135,8 @@ func (s *Storage) queryTransactions(
 // into the same json the full column would decode to after pruning. The dropped parts (changed
 // objects, dependencies, ...) are the bulk of the column, and are neither read nor decoded.
 // Keep the two field lists in sync.
+// The braces are written as \x7B / \x7D escapes: clickhouse-go switches a query that matches
+// {.+:.+} to server-side query parameters, which reject the positional args the query binds.
 var prunedEffectsColumn = func() string {
 	scalars := []string{"digest", "version", "epoch", "transactionDigest", "lamportVersion"}
 	messages := []string{"status", "gasUsed", "gasObject"}
@@ -145,9 +147,9 @@ var prunedEffectsColumn = func() string {
 	}
 	for _, f := range messages {
 		// an absent sub-object reads as {}, which would decode to an empty message instead of nil
-		parts = append(parts, fmt.Sprintf(`'"%s":', ifNull(nullIf(toJSONString(effects.^%s), '{}'), 'null')`, f, f))
+		parts = append(parts, fmt.Sprintf(`'"%s":', ifNull(nullIf(toJSONString(effects.^%s), '\x7B\x7D'), 'null')`, f, f))
 	}
-	return "concat('{', " + strings.Join(parts, ", ',', ") + ", '}')"
+	return `concat('\x7B', ` + strings.Join(parts, ", ',', ") + `, '\x7D')`
 }()
 
 func mergeCondition(parts []string, link string) string {

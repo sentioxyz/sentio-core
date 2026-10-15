@@ -20,11 +20,25 @@ import (
 )
 
 // proxyOnlyHeader set to "1" by the proxy in front of the super node marks a request that must not be
-// served from the storage, which is shared with internal callers: the standard middleware hands it to
-// the next middleware, which proxies it to the chain node.
+// served from the storage, which is shared with internal callers: for the standard Ethereum methods in
+// proxyOnlyMethods the standard middleware hands it to the next middleware, which proxies it to the
+// chain node. The Sentio-specific methods, which no chain node answers, keep being served here.
 const proxyOnlyHeader = "Proxy-Only"
 
-func isProxyOnlyRequest(ctx context.Context) bool {
+var proxyOnlyMethods = set.New(
+	"eth_chainId",
+	"eth_blockNumber",
+	"eth_getBlockByNumber",
+	"eth_getBlockByHash",
+	"eth_getBlockReceipts",
+	"eth_getLogs",
+	"trace_filter",
+)
+
+func isProxyOnlyRequest(ctx context.Context, method string) bool {
+	if !proxyOnlyMethods.Contains(method) {
+		return false
+	}
 	ctxData := jsonrpc.GetCtxData(ctx)
 	return ctxData != nil && ctxData.RawReq != nil && ctxData.RawReq.Header.Get(proxyOnlyHeader) == "1"
 }
@@ -48,7 +62,7 @@ func NewStandardMiddleware(
 	}
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (result any, err error) {
-			if isProxyOnlyRequest(ctx) {
+			if isProxyOnlyRequest(ctx, method) {
 				return next(ctx, method, params)
 			}
 			switch method {

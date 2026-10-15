@@ -17,11 +17,10 @@ type SolanaChainID string
 const (
   SolanaMainnetID SolanaChainID = "sol_mainnet"
   SolanaTestnetID SolanaChainID = "sol_testnet"
-  SolanaPythID SolanaChainID = "sol_pyth"
   ForgoTestnetID SolanaChainID = "forgo_testnet"
   ForgoMainnetID SolanaChainID = "forgo_mainnet"
 )
-var SolanaChainIDs = []SolanaChainID{SolanaMainnetID, SolanaTestnetID, SolanaPythID, ForgoTestnetID, ForgoMainnetID}
+var SolanaChainIDs = []SolanaChainID{SolanaMainnetID, SolanaTestnetID, ForgoTestnetID, ForgoMainnetID}
 
 type SuiChainID string
 const (
@@ -143,12 +142,11 @@ const (
 var FuelChainIDs = []FuelChainID{FuelMainnetID, FuelTestnetID}
 
 type ChainID string
-var ChainIDs = []ChainID{ChainID(EthereumID), ChainID(OptimismID), ChainID(CronosID), ChainID(BSCID), ChainID(BscTestnetID), ChainID(UnichainID), ChainID(PolygonID), ChainID(MantaPacificID), ChainID(XlayerTestnetID), ChainID(XlayerMainnetID), ChainID(OpBnbMainnetID), ChainID(SonicMainnetID), ChainID(SonicTestnetID), ChainID(B2MainnetID), ChainID(FraxtalID), ChainID(KucoinID), ChainID(ZksyncEraID), ChainID(CronosTestnetID), ChainID(DeriveID), ChainID(StableTestnetID), ChainID(StableMainnetID), ChainID(HyperEvmID), ChainID(ConfluxID), ChainID(MetisID), ChainID(CoreMainnetID), ChainID(UnichainSepoliaID), ChainID(SeiID), ChainID(SoneiumTestnetID), ChainID(SoneiumMainnetID), ChainID(TacTestnetID), ChainID(KarakID), ChainID(BevmID), ChainID(MegaethID), ChainID(RobinhoodID), ChainID(MantleID), ChainID(BaseID), ChainID(BaseSepoliaID), ChainID(PlasmaMainnetID), ChainID(PlasmaTestnetID), ChainID(MonadTestnetID), ChainID(MonadMainnetID), ChainID(HoodiID), ChainID(ModeID), ChainID(ArbitrumID), ChainID(HemiID), ChainID(AvalancheID), ChainID(ZircuitMainnetID), ChainID(BobID), ChainID(LineaID), ChainID(BerachainID), ChainID(ChilizID), ChainID(TaikoID), ChainID(KatanaMainnetID), ChainID(BitlayerID), ChainID(ScrollID), ChainID(SepoliaID), ChainID(EtherlinkID), ChainID(AuroraID), ChainID(AbstractID), ChainID(GoatMainnetID), ChainID(ArcTestnetID), ChainID(SentioTestnetID), ChainID(SentioTestnetV2ID), ChainID(SentioDevnetID), ChainID(TronID), ChainID(CustomID), ChainID(AptosMainnetID), ChainID(AptosTestnetID), ChainID(AptosMovementTestnetID), ChainID(AptosMovementMainnetID), ChainID(AptosMovementPreviewnetID), ChainID(InitiaEchelonID), ChainID(SuiMainnetID), ChainID(SuiTestnetID), ChainID(IotaMainnetID), ChainID(IotaTestnetID), ChainID(SolanaMainnetID), ChainID(SolanaTestnetID), ChainID(SolanaPythID), ChainID(ForgoTestnetID), ChainID(ForgoMainnetID), ChainID(FuelMainnetID), ChainID(FuelTestnetID), ChainID(InjectiveMainnetID), ChainID(InjectiveTestnetID), ChainID(StarknetMainnetID), ChainID(StarknetSepoliaID), ChainID(BTCMainnetID), ChainID(BTCTestnetID)}
+var ChainIDs = []ChainID{ChainID(EthereumID), ChainID(OptimismID), ChainID(CronosID), ChainID(BSCID), ChainID(BscTestnetID), ChainID(UnichainID), ChainID(PolygonID), ChainID(MantaPacificID), ChainID(XlayerTestnetID), ChainID(XlayerMainnetID), ChainID(OpBnbMainnetID), ChainID(SonicMainnetID), ChainID(SonicTestnetID), ChainID(B2MainnetID), ChainID(FraxtalID), ChainID(KucoinID), ChainID(ZksyncEraID), ChainID(CronosTestnetID), ChainID(DeriveID), ChainID(StableTestnetID), ChainID(StableMainnetID), ChainID(HyperEvmID), ChainID(ConfluxID), ChainID(MetisID), ChainID(CoreMainnetID), ChainID(UnichainSepoliaID), ChainID(SeiID), ChainID(SoneiumTestnetID), ChainID(SoneiumMainnetID), ChainID(TacTestnetID), ChainID(KarakID), ChainID(BevmID), ChainID(MegaethID), ChainID(RobinhoodID), ChainID(MantleID), ChainID(BaseID), ChainID(BaseSepoliaID), ChainID(PlasmaMainnetID), ChainID(PlasmaTestnetID), ChainID(MonadTestnetID), ChainID(MonadMainnetID), ChainID(HoodiID), ChainID(ModeID), ChainID(ArbitrumID), ChainID(HemiID), ChainID(AvalancheID), ChainID(ZircuitMainnetID), ChainID(BobID), ChainID(LineaID), ChainID(BerachainID), ChainID(ChilizID), ChainID(TaikoID), ChainID(KatanaMainnetID), ChainID(BitlayerID), ChainID(ScrollID), ChainID(SepoliaID), ChainID(EtherlinkID), ChainID(AuroraID), ChainID(AbstractID), ChainID(GoatMainnetID), ChainID(ArcTestnetID), ChainID(SentioTestnetID), ChainID(SentioTestnetV2ID), ChainID(SentioDevnetID), ChainID(TronID), ChainID(CustomID), ChainID(AptosMainnetID), ChainID(AptosTestnetID), ChainID(AptosMovementTestnetID), ChainID(AptosMovementMainnetID), ChainID(AptosMovementPreviewnetID), ChainID(InitiaEchelonID), ChainID(SuiMainnetID), ChainID(SuiTestnetID), ChainID(IotaMainnetID), ChainID(IotaTestnetID), ChainID(SolanaMainnetID), ChainID(SolanaTestnetID), ChainID(ForgoTestnetID), ChainID(ForgoMainnetID), ChainID(FuelMainnetID), ChainID(FuelTestnetID), ChainID(InjectiveMainnetID), ChainID(InjectiveTestnetID), ChainID(StarknetMainnetID), ChainID(StarknetSepoliaID), ChainID(BTCMainnetID), ChainID(BTCTestnetID)}
 
 var ChainIDToType = map[ChainID]ChainType{
   ChainID(SolanaMainnetID): SolanaChainType,
 	ChainID(SolanaTestnetID): SolanaChainType,
-	ChainID(SolanaPythID): SolanaChainType,
 	ChainID(ForgoTestnetID): SolanaChainType,
 	ChainID(ForgoMainnetID): SolanaChainType,
 	ChainID(SuiMainnetID): SuiChainType,

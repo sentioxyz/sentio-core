@@ -1373,16 +1373,6 @@ export const SolanaChainInfo: Record<
     suffix: '?cluster=testnet',
     lightIcon: 'https://assets.sentio.xyz/chains/solana.svg'
   },
-  [SolanaChainId.SOLANA_PYTH]: {
-    name: 'Pyth',
-    slug: 'pyth',
-    chainId: SolanaChainId.SOLANA_PYTH,
-    nativeChainId: 101,
-    explorerUrl: 'https://solscan.io/',
-    suffix: '?cluster=custom&customUrl=https://pythnet.rpcpool.com',
-    lightIcon: 'https://assets.sentio.xyz/chains/pyth.svg',
-    darkIcon: 'https://assets.sentio.xyz/chains/pyth-dark.svg'
-  },
   [SolanaChainId.FORGO_TESTNET]: {
     name: 'Fogo Testnet',
     slug: 'forgo-testnet',

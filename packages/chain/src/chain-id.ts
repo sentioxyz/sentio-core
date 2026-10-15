@@ -105,7 +105,6 @@ export enum SolanaChainId {
   SOLANA_MAINNET = 'sol_mainnet',
   // SOLANA_DEVNET = 'sol_devnet',
   SOLANA_TESTNET = 'sol_testnet',
-  SOLANA_PYTH = 'sol_pyth',
   FORGO_TESTNET = 'forgo_testnet',
   FORGO_MAINNET = 'forgo_mainnet'
 }

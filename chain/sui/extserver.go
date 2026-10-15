@@ -31,7 +31,12 @@ type ExtServerDimension struct {
 	enableJSONRPC bool
 	skipValidate  bool
 
-	enableGrpc             bool
+	enableGrpc bool
+	// loadObjectsJSON re-fetches every checkpoint object with BatchGetObjects to get its json
+	// (GetCheckpoint leaves it empty) and keeps the result in Slot.GrpcObjects. Only the chv4
+	// schema manager (the syncer) needs it; without it, owner / type enrichment of changed
+	// objects uses the checkpoint objects directly and Slot.GrpcObjects stays nil.
+	loadObjectsJSON        bool
 	loadObjectsBatchSize   int
 	loadObjectsConcurrency int
 
@@ -48,6 +53,7 @@ func NewExtServerDimension(
 	enableJSONRPC bool,
 	skipValidate bool,
 	enableGrpc bool,
+	loadObjectsJSON bool,
 	loadObjectsBatchSize int,
 	loadObjectsConcurrency int,
 	loadConcurrency uint,
@@ -67,6 +73,7 @@ func NewExtServerDimension(
 		enableJSONRPC:          enableJSONRPC,
 		skipValidate:           skipValidate,
 		enableGrpc:             enableGrpc,
+		loadObjectsJSON:        loadObjectsJSON,
 		loadObjectsBatchSize:   loadObjectsBatchSize,
 		loadObjectsConcurrency: loadObjectsConcurrency,
 	}
@@ -331,39 +338,45 @@ func (d *ExtServerDimension) getGrpcSlot(ctx context.Context, sn uint64) (*Slot,
 	}
 	s := &Slot{GrpcCheckpoint: ck}
 	s.loadCheckpointInfo()
-	// Although ck.GetObjects().GetObjects() have all related objects, but ck.GetObjects().GetObjects()[*].GetJson()
-	// will be empty, so have to use grpc_getObjects here to fetch all related objects.
-	// The fetch result will be saved in Slot.GrpcObjects
-	var objReqs []*rpcv2.GetObjectRequest
-	for _, obj := range ck.GetObjects().GetObjects() {
-		objReqs = append(objReqs, &rpcv2.GetObjectRequest{
-			ObjectId: obj.ObjectId,
-			Version:  obj.Version,
-		})
-	}
-	results, getObjErr := d.client.GetGrpcObjectsByPage(
-		ctx,
-		fmt.Sprintf("ext.GetSlot.ObjectsPart.grpc_BatchGetObjects/%d", sn),
-		"ext.GetSlot.ObjectsPart.grpc_BatchGetObjects",
-		// the slot loader needs the full object (owner/type enrich changed objects); bcs is
-		// dropped right after by Slot.removeBcs, so "*" here costs only the single ingest fetch.
-		&fieldmaskpb.FieldMask{Paths: []string{"*"}},
-		d.loadObjectsConcurrency,
-		d.loadObjectsBatchSize,
-		objReqs,
-	)
-	if getObjErr != nil {
-		return nil, getObjErr
-	}
 	objects := make(ObjectSet)
-	for i, res := range results {
-		if res.GetError() != nil {
-			return nil, errors.Errorf("load object %s/%d in checkpoint %d failed: %s",
-				objReqs[i].GetObjectId(), objReqs[i].GetVersion(), sn, utils.MustJSONMarshal(res.GetError()))
+	if d.loadObjectsJSON {
+		// Although ck.GetObjects().GetObjects() have all related objects, but ck.GetObjects().GetObjects()[*].GetJson()
+		// will be empty, so have to use grpc_getObjects here to fetch all related objects.
+		// The fetch result will be saved in Slot.GrpcObjects
+		var objReqs []*rpcv2.GetObjectRequest
+		for _, obj := range ck.GetObjects().GetObjects() {
+			objReqs = append(objReqs, &rpcv2.GetObjectRequest{
+				ObjectId: obj.ObjectId,
+				Version:  obj.Version,
+			})
 		}
-		objects.Put(res.GetObject())
+		results, getObjErr := d.client.GetGrpcObjectsByPage(
+			ctx,
+			fmt.Sprintf("ext.GetSlot.ObjectsPart.grpc_BatchGetObjects/%d", sn),
+			"ext.GetSlot.ObjectsPart.grpc_BatchGetObjects",
+			// the slot loader needs the full object (owner/type enrich changed objects); bcs is
+			// dropped right after by Slot.removeBcs, so "*" here costs only the single ingest fetch.
+			&fieldmaskpb.FieldMask{Paths: []string{"*"}},
+			d.loadObjectsConcurrency,
+			d.loadObjectsBatchSize,
+			objReqs,
+		)
+		if getObjErr != nil {
+			return nil, getObjErr
+		}
+		for i, res := range results {
+			if res.GetError() != nil {
+				return nil, errors.Errorf("load object %s/%d in checkpoint %d failed: %s",
+					objReqs[i].GetObjectId(), objReqs[i].GetVersion(), sn, utils.MustJSONMarshal(res.GetError()))
+			}
+			objects.Put(res.GetObject())
+		}
+		s.GrpcObjects = objects
+	} else {
+		// The checkpoint objects carry the owner and type the enrichment below needs, only the json
+		// is missing, so they are used directly instead of re-fetching every object.
+		objects.Put(ck.GetObjects().GetObjects()...)
 	}
-	s.GrpcObjects = objects
 	// fill changed object in tx effects
 	for _, tx := range ck.Transactions {
 		for i, co := range tx.GetEffects().GetChangedObjects() {

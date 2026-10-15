@@ -21,13 +21,12 @@ import (
 
 // proxyOnlyHeader set to "1" by the proxy in front of the super node marks a request that must not be
 // served from the storage, which is shared with internal callers: for the standard Ethereum methods in
-// proxyOnlyMethods the standard middleware hands it to the next middleware, which proxies it to the
-// chain node. The Sentio-specific methods, which no chain node answers, keep being served here.
+// proxyOnlyMethods, the ones that read the storage, the standard middleware hands it to the next
+// middleware, which proxies it to the chain node. The rest are served here as usual: eth_chainId and
+// eth_blockNumber need no storage, and the Sentio-specific methods have no chain node equivalent.
 const proxyOnlyHeader = "Proxy-Only"
 
 var proxyOnlyMethods = set.New(
-	"eth_chainId",
-	"eth_blockNumber",
 	"eth_getBlockByNumber",
 	"eth_getBlockByHash",
 	"eth_getBlockReceipts",

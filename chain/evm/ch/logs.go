@@ -19,14 +19,15 @@ type Log struct {
 
 func (l *Log) ToLog() types.Log {
 	return types.Log{
-		Address:     common.HexToAddress(l.Address),
-		Topics:      utils.MapSliceNoError(l.Topics, common.HexToHash),
-		Data:        hexutil.MustDecode(l.Data),
-		BlockNumber: l.BlockNumber,
-		TxHash:      common.HexToHash(l.TransactionHash),
-		TxIndex:     uint(l.TransactionIndex),
-		BlockHash:   common.HexToHash(l.BlockHash),
-		Index:       uint(l.LogIndex),
-		Removed:     l.Removed,
+		Address:        common.HexToAddress(l.Address),
+		Topics:         utils.MapSliceNoError(l.Topics, common.HexToHash),
+		Data:           hexutil.MustDecode(l.Data),
+		BlockNumber:    l.BlockNumber,
+		TxHash:         common.HexToHash(l.TransactionHash),
+		TxIndex:        uint(l.TransactionIndex),
+		BlockHash:      common.HexToHash(l.BlockHash),
+		BlockTimestamp: uint64(l.BlockTimestamp.Unix()),
+		Index:          uint(l.LogIndex),
+		Removed:        l.Removed,
 	}
 }

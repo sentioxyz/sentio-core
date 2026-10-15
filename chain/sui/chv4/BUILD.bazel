@@ -43,6 +43,7 @@ go_test(
     srcs = [
         "balance_test.go",
         "schema_mgr_test.go",
+        "storage_test.go",
     ],
     embed = [":chv4"],
     deps = [

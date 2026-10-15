@@ -167,6 +167,7 @@ func Test_suiRpc(t *testing.T) {
 		true,  // enableJSONRPC
 		true,  // skipValidate
 		false, // enableGrpc
+		false, // loadObjectsJSON
 		0,     // loadObjectsBatchSize
 		0,     // loadObjectsConcurrency
 		10,    // loadConcurrency

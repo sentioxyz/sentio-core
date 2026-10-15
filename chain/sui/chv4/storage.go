@@ -81,15 +81,23 @@ func (s *Storage) QuerySimpleCheckpoint(ctx context.Context, checkpoint uint64) 
 // are counted before the Go-side converter, so the check is conservative, but a returned result is
 // always complete. The super node passes its record cap + 1 (chain.StoreQueryLimit), so a query
 // matching exactly the cap still succeeds.
+// columnExprs replaces the select expression of the named columns, so a caller can skip reading a
+// column (or most of it) it is going to drop anyway; the expression must yield the column's type.
 func (s *Storage) queryTransactions(
 	ctx context.Context,
 	converter func(Transaction) (*sui.ExtendedGrpcTransaction, bool, error),
 	limit int,
+	columnExprs map[string]string,
 	where string,
 	args ...any,
 ) (result []*sui.ExtendedGrpcTransaction, err error) {
 	fieldFilter := objectx.HasTag("clickhouse").And(objectx.NoTag("required", "false"))
 	columns := objectx.CollectTagValue(&Transaction{}, "clickhouse", fieldFilter)
+	for i, column := range columns {
+		if expr, has := columnExprs[column]; has {
+			columns[i] = expr + " AS " + column
+		}
+	}
 	sql := fmt.Sprintf("SELECT %s FROM %s WHERE %s ORDER BY checkpoint, tx_index",
 		strings.Join(columns, ","),
 		s.ctrl.FullLogicName(tableNameTransactions),
@@ -121,6 +129,26 @@ func (s *Storage) queryTransactions(
 	s.recordQueryTx(ctx, time.Since(startAt), len(result))
 	return result, err
 }
+
+// prunedEffectsColumn reads from the effects column only the fields
+// sui.TransactionFetchConfig.PruneGrpcTransaction keeps when NeedEffects is off, and assembles them
+// into the same json the full column would decode to after pruning. The dropped parts (changed
+// objects, dependencies, ...) are the bulk of the column, and are neither read nor decoded.
+// Keep the two field lists in sync.
+var prunedEffectsColumn = func() string {
+	scalars := []string{"digest", "version", "epoch", "transactionDigest", "lamportVersion"}
+	messages := []string{"status", "gasUsed", "gasObject"}
+	var parts []string
+	for _, f := range scalars {
+		// an absent path reads as NULL, which would turn the whole concat into NULL; null is a missing field
+		parts = append(parts, fmt.Sprintf(`'"%s":', ifNull(toJSONString(effects.%s), 'null')`, f, f))
+	}
+	for _, f := range messages {
+		// an absent sub-object reads as {}, which would decode to an empty message instead of nil
+		parts = append(parts, fmt.Sprintf(`'"%s":', ifNull(nullIf(toJSONString(effects.^%s), '{}'), 'null')`, f, f))
+	}
+	return "concat('{', " + strings.Join(parts, ", ',', ") + ", '}')"
+}()
 
 func mergeCondition(parts []string, link string) string {
 	if len(parts) == 1 {
@@ -235,6 +263,15 @@ func (s *Storage) QueryTransactions(
 	if len(filters) > 0 {
 		conditions = append(conditions, mergeCondition(filters, " OR "))
 	}
+	// skip what the result is going to drop anyway: the effects beyond the summary PruneGrpcTransaction
+	// keeps, and the transaction itself unless a function filter has to inspect it
+	columnExprs := make(map[string]string)
+	if !fetchConfig.NeedEffects {
+		columnExprs["effects"] = prunedEffectsColumn
+	}
+	if !fetchConfig.NeedInputs && len(filter.FunctionFilters) == 0 {
+		columnExprs["transaction"] = "'null'"
+	}
 	// query data from clickhouse
 	return s.queryTransactions(ctx, func(tx Transaction) (*sui.ExtendedGrpcTransaction, bool, error) {
 		etx, parseErr := tx.ToExecutedTransaction()
@@ -245,7 +282,7 @@ func (s *Storage) QueryTransactions(
 			return nil, false, nil
 		}
 		return fetchConfig.PruneGrpcTransaction(etx, filter.EventFilters), true, nil
-	}, limit, strings.Join(conditions, " AND "), args...)
+	}, limit, columnExprs, strings.Join(conditions, " AND "), args...)
 }
 
 // queryObjectChanges applies limit like queryTransactions (a SQL LIMIT on the raw rows scanned;

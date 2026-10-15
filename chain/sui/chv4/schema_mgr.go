@@ -21,6 +21,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	rpcv2 "github.com/sentioxyz/sui-apis/sui/rpc/v2"
+	"google.golang.org/protobuf/encoding/protojson"
+	protov2 "google.golang.org/protobuf/proto"
 )
 
 type ClickhouseSchemaMgr struct {
@@ -111,14 +113,17 @@ func mustBuildJSONArray[T proto.Message](title string, d []T) []string {
 	return r
 }
 
-var jsonDecoder = jsonpb.Unmarshaler{}
+// jsonDecoder is protojson rather than the legacy jsonpb: jsonpb parses every message into a map of
+// json.RawMessage and re-parses each field with encoding/json, which made decoding the stored columns
+// the main super node cost of a transaction range query. Unknown fields stay an error, as with jsonpb.
+var jsonDecoder = protojson.UnmarshalOptions{}
 
-func decodeJSON[T proto.Message](d string, v T) (bool, error) {
+func decodeJSON[T protov2.Message](d string, v T) (bool, error) {
 	d = strings.TrimSpace(d)
 	if d == "" || d == "null" {
 		return false, nil
 	}
-	return true, jsonDecoder.Unmarshal(strings.NewReader(d), v)
+	return true, jsonDecoder.Unmarshal([]byte(d), v)
 }
 
 func (m *ClickhouseSchemaMgr) convert(ctx context.Context, ck *rpcv2.Checkpoint, objectDict sui.ObjectSet) (

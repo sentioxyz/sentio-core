@@ -897,6 +897,7 @@ func (f TransactionFetchConfig) PruneGrpcTransaction(
 		pruned.Transaction = nil
 	}
 	if !f.NeedEffects {
+		// chv4.prunedEffectsColumn reads only these fields from ClickHouse; keep the two lists in sync
 		eff := src.GetEffects()
 		pruned.Effects = &rpcv2.TransactionEffects{
 			Bcs:               eff.GetBcs(),

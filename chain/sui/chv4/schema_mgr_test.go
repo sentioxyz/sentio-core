@@ -150,7 +150,7 @@ func Test_decode(t *testing.T) {
 		r := &rpcv2.Transaction{}
 		has, err := decodeJSON(b, r)
 		assert.True(t, has)
-		assert.ErrorContains(t, err, "unknown value")
+		assert.ErrorContains(t, err, "invalid value for enum field")
 	}
 }
 

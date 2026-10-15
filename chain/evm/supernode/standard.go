@@ -19,6 +19,16 @@ import (
 	"strings"
 )
 
+// proxyOnlyHeader set to "1" by the proxy in front of the super node marks a request that must not be
+// served from the storage, which is shared with internal callers: the standard middleware hands it to
+// the next middleware, which proxies it to the chain node.
+const proxyOnlyHeader = "Proxy-Only"
+
+func isProxyOnlyRequest(ctx context.Context) bool {
+	ctxData := jsonrpc.GetCtxData(ctx)
+	return ctxData != nil && ctxData.RawReq != nil && ctxData.RawReq.Header.Get(proxyOnlyHeader) == "1"
+}
+
 type standardService struct {
 	slotCache  chain.LatestSlotCache[*evm.Slot]
 	rangeStore chain.RangeStore
@@ -38,6 +48,9 @@ func NewStandardMiddleware(
 	}
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (result any, err error) {
+			if isProxyOnlyRequest(ctx) {
+				return next(ctx, method, params)
+			}
 			switch method {
 			case "eth_chainId":
 				result, err = fmt.Sprintf("0x%x", chainID), nil

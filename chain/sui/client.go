@@ -38,6 +38,11 @@ type ClientConfig struct {
 	// only polls the latest checkpoint every KeepWatch, still over gRPC. For clients that watch
 	// the chain head at a coarse interval, such as observers.
 	DisableGRPCSubscribe bool `json:"sui_grpc_disable_subscribe" yaml:"sui_grpc_disable_subscribe"`
+	// GRPCOnly marks an endpoint that serves gRPC and no JSON-RPC, such as a Sui fullnode from
+	// v1.82 on. Endpoint is then the gRPC address and GrpcEndpoint is ignored. JSON-RPC calls
+	// are refused locally instead of being sent. Callers that would issue JSON-RPC are turned
+	// off per chain (see supernode.NewSuperNode). Sui only: IOTA has no gRPC path.
+	GRPCOnly bool `json:"sui_grpc_only" yaml:"sui_grpc_only"`
 
 	// ChainID decides the sui variation (sui vs iota), which in turn decides the
 	// json-rpc special method prefix and the MethodTimeout method names. For iota
@@ -58,12 +63,18 @@ func (c ClientConfig) Trim() ClientConfig {
 	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_getCheckpoint"), time.Second*3)
 	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_multiGetTransactionBlocks"), time.Second*30)
 	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_tryMultiGetPastObjects"), time.Second*30)
+	grpcEndpoint := strings.TrimSpace(c.GrpcEndpoint)
+	if c.GRPCOnly {
+		// a gRPC target is host:port, so drop the trailing slash a URL may carry
+		grpcEndpoint = strings.TrimSuffix(strings.TrimSpace(c.Endpoint), "/")
+	}
 	return ClientConfig{
 		JSONRPCConfig:        c.JSONRPCConfig.Trim(methodTimeout),
 		AdditionalEndpoints:  utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
-		GrpcEndpoint:         strings.TrimSpace(c.GrpcEndpoint),
+		GrpcEndpoint:         grpcEndpoint,
 		MaxCallRecvMsgSize:   utils.Select(c.MaxCallRecvMsgSize == 0, 1024*1024*100, c.MaxCallRecvMsgSize), // default 100M
 		DisableGRPCSubscribe: c.DisableGRPCSubscribe,
+		GRPCOnly:             c.GRPCOnly,
 		ChainID:              c.ChainID,
 	}
 }
@@ -86,6 +97,28 @@ func (c ClientConfig) SpecialMethodPrefix() string {
 
 func (c ClientConfig) SupportGRPC() bool {
 	return c.GrpcEndpoint != ""
+}
+
+// checkGRPCOnly validates a gRPC-only config, whose Endpoint doubles as the gRPC target.
+func (c ClientConfig) checkGRPCOnly() error {
+	if !c.GRPCOnly {
+		return nil
+	}
+	if c.Variation() != types.VariationSUI {
+		return errors.Errorf("sui_grpc_only is not supported for the %s variation", c.Variation())
+	}
+	u, err := url.Parse(c.Endpoint)
+	if err != nil {
+		return errors.Wrapf(err, "invalid endpoint %q", c.Endpoint)
+	}
+	if u.Path != "" && u.Path != "/" {
+		return errors.Errorf("gRPC-only endpoint %q must not carry a path", c.Endpoint)
+	}
+	if u.Scheme == "http" && u.Port() == "" {
+		// a gRPC target without a port defaults to 443
+		return errors.Errorf("gRPC-only http endpoint %q must carry an explicit port", c.Endpoint)
+	}
+	return nil
 }
 
 func (c ClientConfig) GetName() string {
@@ -113,6 +146,9 @@ type Client struct {
 // so all its errors are retryable. Neither dial performs I/O: the http(s) dial only validates
 // the URL, and grpc.NewClient connects lazily.
 func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) (*Client, error) {
+	if err := config.checkGRPCOnly(); err != nil {
+		return nil, errors.Wrapf(clientpool.ErrInvalidConfig, "%v", err)
+	}
 	dialCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	rpcClient, err := rpc.DialOptions(dialCtx, config.Endpoint, rpc.WithHTTPClient(httpClient))
@@ -305,6 +341,14 @@ func (c *Client) CallContext(
 	// the config ACL is matched against the variation's actual method name (for iota the
 	// leading "sui" becomes "iota", e.g. sui_* -> iota_*, suix_* -> iotax_*); tags stay keyed
 	// by the caller-facing name (see remapMethodTag)
+	if c.config.GRPCOnly {
+		// Refused locally: sent to a fullnode without JSON-RPC it would come back as an HTTP
+		// 404, which the pool counts as a broken client and bans for its gRPC callers too.
+		return clientpool.Result{
+			Err:           errors.Errorf("json-rpc method %s is not served by gRPC-only endpoint", method),
+			BrokenForTask: true,
+		}
+	}
 	rpcMethod := c.config.Variation().RPCMethod(method)
 	if r := clientpool.CheckMethod(rpcMethod, c.config.MethodBlackList, c.config.MethodWhiteList); r.Err != nil {
 		return remapMethodTag(r, rpcMethod, method)
@@ -358,6 +402,12 @@ func (c *Client) UseHTTPClient(
 	fn func(ctx context.Context, endpoint string, cli *http.Client) clientpool.Result,
 ) clientpool.Result {
 	endpoint := c.config.Endpoint
+	if svr == "" && c.config.GRPCOnly {
+		return clientpool.Result{
+			BrokenForTask: true,
+			Err:           errors.New("plain http is not served by gRPC-only endpoint"),
+		}
+	}
 	if svr != "" {
 		var has bool
 		endpoint, has = c.config.AdditionalEndpoints[svr]

@@ -34,6 +34,10 @@ type ClientConfig struct {
 
 	GrpcEndpoint       string `json:"sui_grpc_endpoint" yaml:"sui_grpc_endpoint"`
 	MaxCallRecvMsgSize int    `json:"sui_grpc_max_msg_size" yaml:"sui_grpc_max_msg_size"`
+	// DisableGRPCSubscribe keeps SubscribeLatest from holding a SubscribeCheckpoints stream: it
+	// only polls the latest checkpoint every KeepWatch, still over gRPC. For clients that watch
+	// the chain head at a coarse interval, such as observers.
+	DisableGRPCSubscribe bool `json:"sui_grpc_disable_subscribe" yaml:"sui_grpc_disable_subscribe"`
 
 	// ChainID decides the sui variation (sui vs iota), which in turn decides the
 	// json-rpc special method prefix and the MethodTimeout method names. For iota
@@ -55,11 +59,12 @@ func (c ClientConfig) Trim() ClientConfig {
 	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_multiGetTransactionBlocks"), time.Second*30)
 	utils.PutIfNotExist(methodTimeout, variation.RPCMethod("sui_tryMultiGetPastObjects"), time.Second*30)
 	return ClientConfig{
-		JSONRPCConfig:       c.JSONRPCConfig.Trim(methodTimeout),
-		AdditionalEndpoints: utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
-		GrpcEndpoint:        strings.TrimSpace(c.GrpcEndpoint),
-		MaxCallRecvMsgSize:  utils.Select(c.MaxCallRecvMsgSize == 0, 1024*1024*100, c.MaxCallRecvMsgSize), // default 100M
-		ChainID:             c.ChainID,
+		JSONRPCConfig:        c.JSONRPCConfig.Trim(methodTimeout),
+		AdditionalEndpoints:  utils.MapMapNoError(c.AdditionalEndpoints, strings.TrimSpace),
+		GrpcEndpoint:         strings.TrimSpace(c.GrpcEndpoint),
+		MaxCallRecvMsgSize:   utils.Select(c.MaxCallRecvMsgSize == 0, 1024*1024*100, c.MaxCallRecvMsgSize), // default 100M
+		DisableGRPCSubscribe: c.DisableGRPCSubscribe,
+		ChainID:              c.ChainID,
 	}
 }
 
@@ -197,7 +202,7 @@ func (c *Client) subscribeUsingGRPC(ctx context.Context, ch chan<- clientpool.Bl
 
 func (c *Client) SubscribeLatest(ctx context.Context, ch chan<- clientpool.Block) {
 	latestChan := make(chan clientpool.Block)
-	if c.grpcConn != nil {
+	if c.grpcConn != nil && !c.config.DisableGRPCSubscribe {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)

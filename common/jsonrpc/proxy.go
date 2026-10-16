@@ -25,15 +25,10 @@ func ProxyHTTP[CONFIG clientpool.EntryConfig[CONFIG], CLIENT clientpool.Client](
 	var resp *http.Response
 	var respBody []byte
 	src := utils.Select(svr == "", "proxy", svr+".proxy")
-	var opts []clientpool.Option[CONFIG]
-	if svr == "" {
-		// the request goes to the main endpoint, which a JSON-RPC-less config does not serve
-		opts = append(opts, clientpool.WithJSONRPCSupport[CONFIG]())
-	}
 	r := clientPool.UseClient(ctx, src+"#"+urlPath, func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
 		resp, respBody, r = fn(ctx, src, cli)
 		return r
-	}, opts...)
+	})
 	if errors.Is(r.Err, clientpool.ErrNoValidClient) {
 		http.Error(ctxData.RespWriter, r.Err.Error(), http.StatusInternalServerError)
 		return r.Err
@@ -140,7 +135,6 @@ func ProxyJSONRPCRequest[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCCl
 			return cli.CallContext(ctx, &data, src, method, args...)
 		},
 		clientpool.WithoutTags[CONFIG](clientpool.MethodNotSupportedTag(method)),
-		clientpool.WithJSONRPCSupport[CONFIG](),
 		// A method-authority endpoint rejecting the method means no other endpoint should be
 		// probed for it: give the caller a method-not-found response right away.
 		clientpool.InterruptWithTags[CONFIG](clientpool.MethodNotSupportedByAuthorityTag(method)),

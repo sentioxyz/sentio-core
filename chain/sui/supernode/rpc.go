@@ -21,10 +21,19 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 )
 
+// NewSuperNode serves the super node methods locally and proxies every other method to the
+// upstream nodes over JSON-RPC. On a gRPC-only chain (Sui fullnodes from v1.82 on serve no
+// JSON-RPC) nothing is proxied: an unknown method is answered as not found right away, instead
+// of being sent to nodes that would answer it with an HTTP 404 and get banned from the pool.
 func NewSuperNode(
 	superSvr *SuperService,
 	client *sui.ClientPool,
+	grpcOnly bool,
 ) []jsonrpc.Middleware {
+	proxy := rejectJSONRPCProxy
+	if !grpcOnly {
+		proxy = jsonrpc.NewJSONRPCProxyMiddleware(client.ClientPool)
+	}
 	return []jsonrpc.Middleware{
 		func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 			return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
@@ -68,7 +77,17 @@ func NewSuperNode(
 				}
 			}
 		},
-		jsonrpc.NewJSONRPCProxyMiddleware(client.ClientPool),
+		proxy,
+	}
+}
+
+func rejectJSONRPCProxy(jsonrpc.MethodHandler) jsonrpc.MethodHandler {
+	return func(_ context.Context, method string, _ json.RawMessage) (any, error) {
+		return nil, jsonrpc.NewJSONError(
+			jsonrpc.MethodNotFoundErrorCode,
+			"the method "+method+" is not available: this chain is served over gRPC only",
+			nil,
+		)
 	}
 }
 

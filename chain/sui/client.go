@@ -40,8 +40,8 @@ type ClientConfig struct {
 	DisableGRPCSubscribe bool `json:"sui_grpc_disable_subscribe" yaml:"sui_grpc_disable_subscribe"`
 	// GRPCOnly marks an endpoint that serves gRPC and no JSON-RPC, such as a Sui fullnode from
 	// v1.82 on. Endpoint is then the gRPC address and GrpcEndpoint is ignored. JSON-RPC calls
-	// are refused locally instead of being sent, and JSON-RPC callers in the pool skip it.
-	// Sui only: IOTA has no gRPC path.
+	// are refused locally instead of being sent. Callers that would issue JSON-RPC are turned
+	// off per chain (see supernode.NewSuperNode). Sui only: IOTA has no gRPC path.
 	GRPCOnly bool `json:"sui_grpc_only" yaml:"sui_grpc_only"`
 
 	// ChainID decides the sui variation (sui vs iota), which in turn decides the
@@ -97,11 +97,6 @@ func (c ClientConfig) SpecialMethodPrefix() string {
 
 func (c ClientConfig) SupportGRPC() bool {
 	return c.GrpcEndpoint != ""
-}
-
-// SupportJSONRPC implements clientpool.JSONRPCSupporter.
-func (c ClientConfig) SupportJSONRPC() bool {
-	return !c.GRPCOnly
 }
 
 // checkGRPCOnly validates a gRPC-only config, whose Endpoint doubles as the gRPC target.

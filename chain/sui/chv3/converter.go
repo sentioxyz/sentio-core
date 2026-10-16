@@ -450,7 +450,6 @@ func (m *SlotConverter) _fillFields(
 			return cli.CallContext(ctx, &pageResponse, "converter", "sui_tryMultiGetPastObjects", pageRequest, &getOpt)
 		},
 		clientpool.WithoutTags[sui.ClientConfig](clientpool.MethodNotSupportedTag("sui_tryMultiGetPastObjects")),
-		clientpool.WithJSONRPCSupport[sui.ClientConfig](),
 	)
 	if r.Err != nil {
 		pageLogger.Errorfe(r.Err, "multi get past objects failed (%s)", r.ConfigName)

@@ -31,14 +31,13 @@ func TestClientConfigTrim_GRPCOnlyUsesEndpointAsGRPC(t *testing.T) {
 	assert.Equal(t, "https://fullnode.testnet.sui.io", c.GrpcEndpoint)
 	assert.True(t, c.GRPCOnly)
 	assert.True(t, c.SupportGRPC())
-	assert.False(t, c.SupportJSONRPC())
 
 	plain := ClientConfig{
 		JSONRPCConfig: clientpool.JSONRPCConfig{Endpoint: "http://node:9000"},
 		GrpcEndpoint:  "http://node:9000",
 	}.Trim()
 	assert.Equal(t, "http://node:9000", plain.GrpcEndpoint)
-	assert.True(t, plain.SupportJSONRPC())
+	assert.False(t, plain.GRPCOnly)
 }
 
 func TestNewClient_GRPCOnlyValidation(t *testing.T) {

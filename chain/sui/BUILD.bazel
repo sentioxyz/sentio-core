@@ -44,6 +44,7 @@ go_library(
 go_test(
     name = "sui_test",
     srcs = [
+        "client_grpc_only_test.go",
         "client_subscribe_test.go",
         "client_test.go",
         "extgrpc_json_test.go",

@@ -30,7 +30,12 @@ type testClientConfig struct {
 	InitSuccessAt  time.Time
 	ReInitFails    bool // Init succeeds once, then always fails
 	SubscribeStops bool // SubscribeLatest returns immediately (a voluntary stop, like MaxBlockNumber)
+	NoJSONRPC      bool // SupportJSONRPC reports false
 	Version        int
+}
+
+func (c testClientConfig) SupportJSONRPC() bool {
+	return !c.NoJSONRPC
 }
 
 func (c testClientConfig) GetName() string {
@@ -1472,4 +1477,55 @@ func Test_UseClient_interruptTag_expires(t *testing.T) {
 	}, InterruptWithTags[testClientConfig](tag))
 	require.NoError(t, r.Err)
 	assert.True(t, called)
+}
+
+// ── UseClient: WithJSONRPCSupport ─────────────────────────────────────────────
+
+func noJSONRPCClientCfg(name string, priority uint32) ClientConfig[testClientConfig] {
+	cfg := quickClientCfg(name, priority)
+	cfg.Config.NoJSONRPC = true
+	return cfg
+}
+
+func Test_UseClient_withJSONRPCSupport_failsFastWithoutJSONRPCClients(t *testing.T) {
+	// c2 sits at a lower priority, i.e. a backup the call could wait a downgrade for.
+	p := startPoolWith(t, noJSONRPCClientCfg("c1", 0), noJSONRPCClientCfg("c2", 1))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	startAt := time.Now()
+	r := p.UseClient(ctx, "test", func(_ context.Context, _ *testClient) Result {
+		t.Fatal("no client should be tried")
+		return Result{}
+	}, WithJSONRPCSupport[testClientConfig]())
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.Less(t, time.Since(startAt), time.Second, "must not wait for the lower-priority client")
+}
+
+func Test_UseClient_rejectingWithoutFilter_waitsForBackup(t *testing.T) {
+	// The same pool without the filter: c1 rejects the call for the task, and the call then
+	// waits for c2 instead of failing. This is what WithJSONRPCSupport avoids.
+	p := startPoolWith(t, noJSONRPCClientCfg("c1", 0), noJSONRPCClientCfg("c2", 1))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	r := p.UseClient(ctx, "test", func(_ context.Context, _ *testClient) Result {
+		return Result{Err: errors.New("no json-rpc"), BrokenForTask: true}
+	})
+	assert.ErrorIs(t, r.Err, context.DeadlineExceeded)
+}
+
+func Test_UseClient_withJSONRPCSupport_keepsJSONRPCClients(t *testing.T) {
+	p := startPoolWith(t, noJSONRPCClientCfg("c1", 0), quickClientCfg("c2", 0))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	r := p.UseClient(ctx, "test", func(_ context.Context, _ *testClient) Result {
+		return Result{}
+	}, WithJSONRPCSupport[testClientConfig]())
+	require.NoError(t, r.Err)
+	assert.Equal(t, "c2", r.ConfigName)
 }

@@ -559,6 +559,22 @@ func WithConfigFilter[CONFIG any](f func(c CONFIG) bool) Option[CONFIG] {
 	}
 }
 
+// JSONRPCSupporter is implemented by client configs that can turn JSON-RPC off, such as a
+// gRPC-only Sui endpoint. Configs that do not implement it are taken to serve JSON-RPC.
+type JSONRPCSupporter interface {
+	SupportJSONRPC() bool
+}
+
+// WithJSONRPCSupport keeps a JSON-RPC call off entries whose config does not serve JSON-RPC.
+// They are filtered out instead of tried and rejected, so they do not count as backups the
+// call would wait for, and cannot trigger a priority downgrade.
+func WithJSONRPCSupport[CONFIG any]() Option[CONFIG] {
+	return WithConfigFilter(func(c CONFIG) bool {
+		s, ok := any(c).(JSONRPCSupporter)
+		return !ok || s.SupportJSONRPC()
+	})
+}
+
 func WithMaxPriority[CONFIG any](priority uint32) Option[CONFIG] {
 	return func(c *option[CONFIG]) {
 		c.maxPriority = &priority

@@ -115,6 +115,7 @@ func (d *ExtServerDimension) loadCheckpoint(
 			return result
 		},
 		clientpool.WithoutTags[ClientConfig](clientpool.MethodNotSupportedTag("sui_getCheckpoint")),
+		clientpool.WithJSONRPCSupport[ClientConfig](),
 	)
 	if r.Err != nil {
 		logger.Errorfe(r.Err, "load checkpoint failed")
@@ -142,6 +143,7 @@ func (d *ExtServerDimension) loadCheckpoint(
 					return result
 				},
 				clientpool.WithoutTags[ClientConfig](clientpool.MethodNotSupportedTag("sui_multiGetTransactionBlocks")),
+				clientpool.WithJSONRPCSupport[ClientConfig](),
 			)
 			if fetchResult.Err != nil {
 				pageLogger.Errorfe(fetchResult.Err, "load transactions failed")

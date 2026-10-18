@@ -674,9 +674,9 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     wrappedTokenAddress: '0xB5136FEba197f5fF4B765E5b50c74db717796dcD',
     tokenSymbol: 'BTC',
     tokenDecimals: 18,
-    explorerUrl: 'https://scan.bevm.io',
+    explorerUrl: 'https://scan.geb.network',
     explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerApi: 'https://scan.bevm.io',
+    explorerApi: 'https://scan-mainnet-api.geb.network',
     lightIcon: 'https://assets.sentio.xyz/chains/bevm.svg'
   },
 

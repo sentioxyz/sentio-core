@@ -11,6 +11,10 @@ type ClientConfig[CONFIG EntryConfig[CONFIG]] struct {
 	// Excluded from serialization; passed to Notifier so callers can identify which entry triggered the notification.
 	Index    uint32 `json:"-" yaml:"-"`
 	Priority uint32 `json:"priority" yaml:"priority"`
+	// Provider identifies the account behind an external endpoint, e.g. "drpc/<api key>", so usage can be
+	// attributed per vendor account even when several endpoints (or two accounts of one vendor) are in use.
+	// Empty when not configured.
+	Provider string `json:"provider,omitempty" yaml:"provider,omitempty"`
 	Config   CONFIG `json:",inline" yaml:",inline"`
 }
 
@@ -30,23 +34,30 @@ func (c ClientConfig[CONFIG]) MarshalJSON() ([]byte, error) {
 	if m["priority"], err = json.Marshal(c.Priority); err != nil {
 		return nil, err
 	}
+	if c.Provider != "" {
+		if m["provider"], err = json.Marshal(c.Provider); err != nil {
+			return nil, err
+		}
+	}
 	return json.Marshal(m)
 }
 
-// UnmarshalJSON reads Priority plus all Config fields from the same JSON object.
+// UnmarshalJSON reads Priority, Provider plus all Config fields from the same JSON object.
 func (c *ClientConfig[CONFIG]) UnmarshalJSON(data []byte) error {
 	var aux struct {
 		Priority uint32 `json:"priority"`
+		Provider string `json:"provider"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
 	c.Priority = aux.Priority
+	c.Provider = aux.Provider
 	return json.Unmarshal(data, &c.Config)
 }
 
 func (c ClientConfig[CONFIG]) Equal(a ClientConfig[CONFIG]) bool {
-	return c.Priority == a.Priority && c.Config.Equal(a.Config)
+	return c.Priority == a.Priority && c.Provider == a.Provider && c.Config.Equal(a.Config)
 }
 
 type BanConfig struct {
@@ -105,6 +116,7 @@ func (c PoolConfig[CONFIG]) Trim(configModifiers []ConfigModifier[CONFIG]) PoolC
 			return ClientConfig[CONFIG]{
 				Index:    uint32(index),
 				Priority: cc.Priority,
+				Provider: cc.Provider,
 				Config:   ccc,
 			}, true
 		}),

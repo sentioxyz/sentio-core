@@ -117,6 +117,55 @@ func Test_ClientConfig_YAMLRoundTrip(t *testing.T) {
 	assert.Equal(t, original.Config.Version, decoded.Config.Version)
 }
 
+// ── ClientConfig Provider ─────────────────────────────────────────────────────
+
+func Test_ClientConfig_Provider_JSON(t *testing.T) {
+	data, err := json.Marshal(ClientConfig[testClientConfig]{Config: testClientConfig{Name: "c1"}})
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(data, &m))
+	_, hasProvider := m["provider"]
+	assert.False(t, hasProvider, "empty provider must be omitted")
+
+	original := ClientConfig[testClientConfig]{Priority: 1, Provider: "drpc/k1", Config: testClientConfig{Name: "c1"}}
+	data, err = json.Marshal(original)
+	require.NoError(t, err)
+	var decoded ClientConfig[testClientConfig]
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	assert.Equal(t, "drpc/k1", decoded.Provider)
+	assert.Equal(t, "c1", decoded.Config.Name)
+}
+
+func Test_ClientConfig_Provider_YAML(t *testing.T) {
+	raw := "priority: 2\nprovider: drpc/k1\nname: c1\n"
+	var cc ClientConfig[testClientConfig]
+	require.NoError(t, yaml.Unmarshal([]byte(raw), &cc))
+	assert.Equal(t, uint32(2), cc.Priority)
+	assert.Equal(t, "drpc/k1", cc.Provider)
+	assert.Equal(t, "c1", cc.Config.Name)
+
+	data, err := yaml.Marshal(ClientConfig[testClientConfig]{Config: testClientConfig{Name: "c1"}})
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "provider", "empty provider must be omitted")
+}
+
+func Test_ClientConfig_Equal_comparesProvider(t *testing.T) {
+	a := ClientConfig[testClientConfig]{Priority: 1, Provider: "drpc/k1", Config: testClientConfig{Name: "c1"}}
+	b := a
+	assert.True(t, a.Equal(b))
+	b.Provider = "drpc/k2"
+	assert.False(t, a.Equal(b))
+}
+
+func Test_PoolConfig_Trim_keepsProvider(t *testing.T) {
+	c := PoolConfig[testClientConfig]{ClientConfigs: []ClientConfig[testClientConfig]{
+		{Priority: 1, Provider: "drpc/k1", Config: testClientConfig{Name: "c1"}},
+	}}
+	trimmed := c.Trim(nil)
+	require.Len(t, trimmed.ClientConfigs, 1)
+	assert.Equal(t, "drpc/k1", trimmed.ClientConfigs[0].Provider)
+}
+
 // ── PoolConfig.Trim defaults ──────────────────────────────────────────────────
 
 func Test_PoolConfig_Trim_defaultTagDuration(t *testing.T) {

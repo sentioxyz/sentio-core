@@ -603,7 +603,7 @@ var BevmInfo = EthChainInfo{
     AdditionalSlugs: []string{},
     MainnetChainID: ChainID(BevmID),
     ChainID: ChainID(BevmID),
-    ExplorerURL: "https://scan.bevm.io",
+    ExplorerURL: "https://scan.geb.network",
   },
   Variation: EthVariationSubstrate,
   TokenSymbol: "BTC",
@@ -611,7 +611,7 @@ var BevmInfo = EthChainInfo{
   TokenAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
   PriceTokenAddress: common.HexToAddress("0xB5136FEba197f5fF4B765E5b50c74db717796dcD"),
   WrappedTokenAddress: common.HexToAddress("0xB5136FEba197f5fF4B765E5b50c74db717796dcD"),
-  ExplorerAPI: "https://scan.bevm.io",
+  ExplorerAPI: "https://scan-mainnet-api.geb.network",
   ExplorerAPIType: ExplorerAPITypeBlockscout,
 }
 

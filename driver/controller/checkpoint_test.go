@@ -199,8 +199,24 @@ func (cs *slowCheckpointStore) Save(
 	return cs.testCheckpointStore.Save(ctx, checkpoints, templates, agentStat)
 }
 
-func Test_realtimeSaveSpacedBySaveCost(t *testing.T) {
-	defer func(m uint64) { RealtimeSaveCostMultiplier = m }(RealtimeSaveCostMultiplier)
+type cachedTooMuchTimeSeriesController struct {
+	EmptyTimeSeriesController
+	tooMuch bool
+}
+
+func (c *cachedTooMuchTimeSeriesController) CachedTooMuch(uint64) bool {
+	return c.tooMuch
+}
+
+// newRealtimeTestController builds a checkpoint controller in realtime mode whose store takes 50ms to save,
+// so with RealtimeSaveCostMultiplier 4 an immediate save is due 200ms after the last one finished.
+func newRealtimeTestController(
+	t *testing.T,
+	maxKeepCheckpointCount uint64,
+	timeSeriesCtrl TimeSeriesController,
+) (*slowCheckpointStore, func(bn uint64), func() uint64) {
+	old := RealtimeSaveCostMultiplier
+	t.Cleanup(func() { RealtimeSaveCostMultiplier = old })
 	RealtimeSaveCostMultiplier = 4
 
 	cs := &slowCheckpointStore{used: time.Millisecond * 50}
@@ -210,10 +226,10 @@ func Test_realtimeSaveSpacedBySaveCost(t *testing.T) {
 		"1",
 		0,
 		time.Hour,
-		10000,
+		maxKeepCheckpointCount,
 		cs,
 		EmptyQuotaService{},
-		EmptyTimeSeriesController{},
+		timeSeriesCtrl,
 		EmptyEntityController{},
 		EmptyWebhookController{},
 		nil,
@@ -231,6 +247,11 @@ func Test_realtimeSaveSpacedBySaveCost(t *testing.T) {
 	lastSaved := func() uint64 {
 		return cs.checkpoints[len(cs.checkpoints)-1].BlockNumber
 	}
+	return cs, makeCheckpoint, lastSaved
+}
+
+func Test_realtimeSaveSpacedBySaveCost(t *testing.T) {
+	cs, makeCheckpoint, lastSaved := newRealtimeTestController(t, 10000, EmptyTimeSeriesController{})
 
 	// the first batch with bindings is saved at once
 	makeCheckpoint(990)
@@ -247,4 +268,27 @@ func Test_realtimeSaveSpacedBySaveCost(t *testing.T) {
 	makeCheckpoint(993)
 	assert.Equal(t, 2, cs.saves)
 	assert.Equal(t, uint64(993), lastSaved())
+}
+
+func Test_realtimeSaveSpacingKeepsPressureSaves(t *testing.T) {
+	t.Run("too many checkpoints", func(t *testing.T) {
+		cs, makeCheckpoint, lastSaved := newRealtimeTestController(t, 2, EmptyTimeSeriesController{})
+		makeCheckpoint(990)
+		assert.Equal(t, 1, cs.saves)
+		// still in the spacing window, but the checkpoint count reaches the limit
+		makeCheckpoint(991)
+		assert.Equal(t, 2, cs.saves)
+		assert.Equal(t, uint64(991), lastSaved())
+	})
+	t.Run("too much uncommitted time series data", func(t *testing.T) {
+		ts := &cachedTooMuchTimeSeriesController{}
+		cs, makeCheckpoint, lastSaved := newRealtimeTestController(t, 10000, ts)
+		makeCheckpoint(990)
+		assert.Equal(t, 1, cs.saves)
+		// still in the spacing window, but the time series controller has cached too much
+		ts.tooMuch = true
+		makeCheckpoint(991)
+		assert.Equal(t, 2, cs.saves)
+		assert.Equal(t, uint64(991), lastSaved())
+	})
 }

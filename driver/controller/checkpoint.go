@@ -563,19 +563,19 @@ func (c *checkpointController) MakeCheckpoint(
 		logger.Info(c.processed.take())
 	}
 
-	if c.saveDelay == 0 && ck.InWatching() {
-		// Realtime mode. A batch that carries bindings is saved as soon as it is made, so what the
-		// handlers produced reaches the user without waiting out the save interval. A batch without a
-		// single binding has nothing to publish — saving it would only move the chain state forward —
-		// so it keeps the interval and is folded into the next save.
-		// A save also blocks the pipeline while it runs, and it can be slow when the checkpoint state is large, so
-		// after a save that took d the next immediate save waits until d*RealtimeSaveCostMultiplier has passed.
-		// Until then, the bindings are folded into the next save, which is made by a later batch or by KeepSave.
-		if !c.hasUnsavedBindings() {
-			extErr = c.save(ctx, false, true)
-		} else if time.Since(c.actuallyLastSavedAt) >= c.lastSaveUsed*time.Duration(RealtimeSaveCostMultiplier) {
-			extErr = c.save(ctx, false, false)
-		}
+	// Realtime mode. A batch that carries bindings is saved as soon as it is made, so what the
+	// handlers produced reaches the user without waiting out the save interval. A batch without a
+	// single binding has nothing to publish — saving it would only move the chain state forward —
+	// so it keeps the interval and is folded into the next save.
+	// A save also blocks the pipeline while it runs, and it can be slow when the checkpoint state is large, so
+	// after a save that took d the next immediate save waits until d*RealtimeSaveCostMultiplier has passed.
+	// Until then, the bindings are folded into the next save, which is made by a later batch or by KeepSave,
+	// unless one of the pressure checks below forces it earlier.
+	realtime := c.saveDelay == 0 && ck.InWatching()
+	if realtime && !c.hasUnsavedBindings() {
+		extErr = c.save(ctx, false, true)
+	} else if realtime && time.Since(c.actuallyLastSavedAt) >= c.lastSaveUsed*time.Duration(RealtimeSaveCostMultiplier) {
+		extErr = c.save(ctx, false, false)
 	} else if uint64(len(c.checkpoints)) >= c.maxKeepCheckpointCount {
 		logger.Info("will try to save checkpoint because there are too many checkpoints")
 		extErr = c.save(ctx, false, false)

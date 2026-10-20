@@ -20,7 +20,11 @@ var (
 	// PrintProcessedMaxBindingBlocks caps how many blocks with bindings one "Processed" log line lists.
 	PrintProcessedMaxBindingBlocks = envconf.LoadUInt64("SENTIO_PRINT_PROCESSED_MAX_BINDING_BLOCKS", 100,
 		envconf.WithMin(1))
-	SkipStartBlockValidation = envconf.LoadBool("SENTIO_SKIP_START_BLOCK_VALIDATION", false)
+	// RealtimeSaveCostMultiplier spaces out the saves that realtime mode makes as soon as a batch with bindings is
+	// made: after a save that took d, the next one waits until d times this value has passed since it finished, so
+	// saving keeps at most 1/(1+multiplier) of the time and a slow save cannot stall the pipeline back to back.
+	RealtimeSaveCostMultiplier = envconf.LoadUInt64("SENTIO_REALTIME_SAVE_COST_MULTIPLIER", 4)
+	SkipStartBlockValidation   = envconf.LoadBool("SENTIO_SKIP_START_BLOCK_VALIDATION", false)
 )
 
 const (

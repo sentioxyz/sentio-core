@@ -181,3 +181,70 @@ func Test_save(t *testing.T) {
 	}
 	assert.Equal(t, makeCheckpoints(0, 128, 160, 176, 192, 196, 198, 199, 200), cs.checkpoints)
 }
+
+type slowCheckpointStore struct {
+	testCheckpointStore
+	used  time.Duration
+	saves int
+}
+
+func (cs *slowCheckpointStore) Save(
+	ctx context.Context,
+	checkpoints []Checkpoint,
+	templates map[uint64][]TemplateInstance,
+	agentStat map[string]int,
+) error {
+	time.Sleep(cs.used)
+	cs.saves++
+	return cs.testCheckpointStore.Save(ctx, checkpoints, templates, agentStat)
+}
+
+func Test_realtimeSaveSpacedBySaveCost(t *testing.T) {
+	defer func(m uint64) { RealtimeSaveCostMultiplier = m }(RealtimeSaveCostMultiplier)
+	RealtimeSaveCostMultiplier = 4
+
+	cs := &slowCheckpointStore{used: time.Millisecond * 50}
+	ctx := context.Background()
+	cc, err := NewCheckpointController(
+		ctx,
+		"1",
+		0,
+		time.Hour,
+		10000,
+		cs,
+		EmptyQuotaService{},
+		EmptyTimeSeriesController{},
+		EmptyEntityController{},
+		EmptyWebhookController{},
+		nil,
+	)
+	assert.NoError(t, err)
+
+	// the latest block is close enough to the processed blocks, so the checkpoints are in watching
+	progressBar := ProgressBar{LatestBlock: newSimpleTestBlockData(1000)}
+	makeCheckpoint := func(bn uint64) {
+		summary := newSimpleTestBlockDataSummary(bn)
+		summary.TaskCount = 1
+		_, extErr := cc.MakeCheckpoint(ctx, summary, progressBar)
+		assert.Nil(t, extErr)
+	}
+	lastSaved := func() uint64 {
+		return cs.checkpoints[len(cs.checkpoints)-1].BlockNumber
+	}
+
+	// the first batch with bindings is saved at once
+	makeCheckpoint(990)
+	assert.Equal(t, 1, cs.saves)
+	assert.Equal(t, uint64(990), lastSaved())
+
+	// the last save took about 50ms, so the next batch is folded until 200ms has passed since it finished
+	makeCheckpoint(991)
+	makeCheckpoint(992)
+	assert.Equal(t, 1, cs.saves)
+	assert.Equal(t, uint64(990), lastSaved())
+
+	time.Sleep(time.Millisecond * 250)
+	makeCheckpoint(993)
+	assert.Equal(t, 2, cs.saves)
+	assert.Equal(t, uint64(993), lastSaved())
+}

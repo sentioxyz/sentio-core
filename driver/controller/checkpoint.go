@@ -275,6 +275,8 @@ type checkpointController struct {
 	lastSavedAt         time.Time
 	lastSavedCheckpoint *Checkpoint
 	actuallyLastSavedAt time.Time
+	// lastSaveUsed is how long the last successful save took, used to space out the saves in realtime mode
+	lastSaveUsed time.Duration
 
 	templates        map[uint64][]TemplateInstance // key is blockNumber
 	unsavedTemplates map[uint64][]TemplateInstance // key is blockNumber
@@ -566,7 +568,14 @@ func (c *checkpointController) MakeCheckpoint(
 		// handlers produced reaches the user without waiting out the save interval. A batch without a
 		// single binding has nothing to publish — saving it would only move the chain state forward —
 		// so it keeps the interval and is folded into the next save.
-		extErr = c.save(ctx, false, !c.hasUnsavedBindings())
+		// A save also blocks the pipeline while it runs, and it can be slow when the checkpoint state is large, so
+		// after a save that took d the next immediate save waits until d*RealtimeSaveCostMultiplier has passed.
+		// Until then, the bindings are folded into the next save, which is made by a later batch or by KeepSave.
+		if !c.hasUnsavedBindings() {
+			extErr = c.save(ctx, false, true)
+		} else if time.Since(c.actuallyLastSavedAt) >= c.lastSaveUsed*time.Duration(RealtimeSaveCostMultiplier) {
+			extErr = c.save(ctx, false, false)
+		}
 	} else if uint64(len(c.checkpoints)) >= c.maxKeepCheckpointCount {
 		logger.Info("will try to save checkpoint because there are too many checkpoints")
 		extErr = c.save(ctx, false, false)
@@ -721,6 +730,7 @@ func (c *checkpointController) save(ctx context.Context, saveAll bool, checkInte
 			// succeed
 			logger.Infof("Saved %s and %s", progress, usage.String())
 			c.actuallyLastSavedAt = time.Now()
+			c.lastSaveUsed = c.actuallyLastSavedAt.Sub(win.startAt)
 			if c.lastSavedCheckpoint == nil || time.Since(c.lastSavedAt) > time.Minute*5 {
 				c.lastSavedAt, c.lastSavedCheckpoint = c.actuallyLastSavedAt, &cur
 			}

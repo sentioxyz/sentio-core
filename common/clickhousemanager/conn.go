@@ -45,6 +45,16 @@ func ContextMergeSettings(ctx context.Context, settings clickhouse.Settings) con
 	return context.WithValue(ctx, connSettingsKey, merged)
 }
 
+// ContextSettings returns a copy of the settings ContextMergeSettings has put in ctx.
+func ContextSettings(ctx context.Context) clickhouse.Settings {
+	exists, _ := ctx.Value(connSettingsKey).(clickhouse.Settings)
+	settings := make(clickhouse.Settings, len(exists))
+	for k, v := range exists {
+		settings[k] = v
+	}
+	return settings
+}
+
 var (
 	rawConnections *utils.SafeMap[uint64, driver.Conn]
 	connections    *utils.SafeMap[string, Conn]

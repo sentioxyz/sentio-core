@@ -306,6 +306,27 @@ func (c Controller) LoadOne(ctx context.Context, name string, simple bool) (Tabl
 	return r[0], true, nil
 }
 
+// IsDistributedTable says whether name is a table of the Distributed engine. Load cannot read
+// such a table and leaves it out, so it reads as missing, and creating it then fails because it is
+// there; a store whose tables are Distributed facades kept by hand asks this first and leaves them
+// alone.
+func (c Controller) IsDistributedTable(ctx context.Context, name string) (bool, error) {
+	var distributed bool
+	err := c.Query(ctx, func(rows driver.Rows) error {
+		var engine string
+		if scanErr := rows.Scan(&engine); scanErr != nil {
+			return scanErr
+		}
+		distributed = engine == "Distributed"
+		return nil
+	}, "SELECT engine FROM system.tables WHERE database = ? AND name = ? AND is_temporary = 0",
+		c.database, c.tableNamePrefix+name)
+	if err != nil {
+		return false, errors.Wrapf(err, "load engine of table %s failed", name)
+	}
+	return distributed, nil
+}
+
 func (c Controller) buildCreateTableSQL(table Table) string {
 	var sql bytes.Buffer
 	sql.WriteString("CREATE ")

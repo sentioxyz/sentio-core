@@ -141,6 +141,7 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 		ctx,
 		fmt.Sprintf("ext.GetSlot.ReceiptPart/%d", blockNumber),
 		func(ctx context.Context, cli *Client) clientpool.Result {
+			receipts = nil // do not keep the result of a previous client
 			r := cli.CallContext(
 				ctx,
 				&receipts,
@@ -148,6 +149,11 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 				"eth_getBlockReceipts",
 				hexutil.Uint64(blockNumber),
 			)
+			if r.Err == nil {
+				// some nodes (e.g. behind a load balancer with lagging backends) answer null or an
+				// incomplete list without any error, which must be retried using other client
+				r.Err = checkBlockReceiptsComplete(receipts, st.Block.Transactions)
+			}
 			r.BrokenForTask = r.Err != nil // always retry using other client
 			return r
 		},
@@ -187,6 +193,7 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 			ctx,
 			fmt.Sprintf("ext.GetSlot.ReceiptPart/%d.%s", blockNumber, txHash),
 			func(ctx context.Context, cli *Client) clientpool.Result {
+				receipt = nil // do not keep the result of a previous client
 				r := cli.CallContext(
 					ctx,
 					&receipt,
@@ -194,6 +201,10 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 					"eth_getTransactionReceipt",
 					txHash,
 				)
+				if r.Err == nil {
+					// a null receipt without any error must be retried using other client
+					r.Err = checkTransactionReceipt(receipt, txHash)
+				}
 				r.BrokenForTask = r.Err != nil // always retry using other client
 				return r
 			},
@@ -207,6 +218,12 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 			return errors.Errorf("%s for block %d/%s got nil", method, blockNumber, blockHash)
 		}
 		receiptDict[txHash] = *receipt
+	}
+	// every transaction must have its receipt, never persist a block with a missing one
+	for i, tx := range st.Block.Transactions {
+		if _, has := receiptDict[tx.Hash]; !has {
+			return errors.Errorf("miss receipt for tx %d/%s in block %d/%s", i, tx.Hash, blockNumber, blockHash)
+		}
 	}
 
 	// now all receipts of the block are in receiptDict
@@ -229,6 +246,34 @@ func (d *ExtServerDimension) loadReceipts(ctx context.Context, st *Slot) error {
 		if lg.Index != uint(i) {
 			return errors.Errorf("#%d log in block %d/%s has unexpected logIndex %d", i, blockNumber, blockHash, lg.Index)
 		}
+	}
+	return nil
+}
+
+// checkBlockReceiptsComplete reports an error if the result of eth_getBlockReceipts does not contain
+// the receipt of every transaction. A block without transactions may legally get null or an empty list.
+func checkBlockReceiptsComplete(receipts []ExtendedReceipt, txs []RPCTransaction) error {
+	has := make(map[common.Hash]bool, len(receipts))
+	for _, receipt := range receipts {
+		has[receipt.TxHash] = true
+	}
+	for i, tx := range txs {
+		if !has[tx.Hash] {
+			return errors.Errorf("miss receipt for tx %d/%s, got %d receipts for %d transactions",
+				i, tx.Hash, len(receipts), len(txs))
+		}
+	}
+	return nil
+}
+
+// checkTransactionReceipt reports an error if the result of eth_getTransactionReceipt is null or
+// does not belong to the expected transaction.
+func checkTransactionReceipt(receipt *ExtendedReceipt, txHash common.Hash) error {
+	if receipt == nil {
+		return errors.Errorf("got nil receipt for tx %s", txHash)
+	}
+	if receipt.TxHash != txHash {
+		return errors.Errorf("got receipt of tx %s for tx %s", receipt.TxHash, txHash)
 	}
 	return nil
 }

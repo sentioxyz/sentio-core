@@ -44,6 +44,7 @@ go_test(
         "client_config_test.go",
         "client_reinit_test.go",
         "client_state_guard_test.go",
+        "extserver_receipt_test.go",
         "header_types_test.go",
         "receipt_types_test.go",
         "rpc_types_ex_test.go",

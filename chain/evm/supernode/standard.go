@@ -472,7 +472,7 @@ func (s *standardService) GetLogsPacked(
 				blockNumbers.Add(log.BlockNumber)
 			}
 			if blockNumbers.Size() > 1000 {
-				blockWhere = fmt.Sprintf("%s AND block_number IN (%s)", blockWhere, s.store.QueryLogsBlockSQL(where))
+				blockWhere = fmt.Sprintf("%s AND block_number GLOBAL IN (%s)", blockWhere, s.store.QueryLogsBlockSQL(where))
 			} else {
 				blockWhere = fmt.Sprintf("%s AND block_number IN (%s)",
 					blockWhere, strings.Join(utils.MapSliceNoError(blockNumbers.DumpValues(), utils.UIntFormatter(10)), ","))
@@ -612,7 +612,7 @@ func (s *standardService) TraceFilterPacked(
 				blockNumbers.Add(trace.BlockNumber)
 			}
 			if blockNumbers.Size() > 1000 {
-				blockWhere = fmt.Sprintf("%s AND block_number IN (%s)", blockWhere, s.store.QueryTracesBlockSQL(where))
+				blockWhere = fmt.Sprintf("%s AND block_number GLOBAL IN (%s)", blockWhere, s.store.QueryTracesBlockSQL(where))
 			} else {
 				blockWhere = fmt.Sprintf("%s AND block_number IN (%s)",
 					blockWhere, strings.Join(utils.MapSliceNoError(blockNumbers.DumpValues(), utils.UIntFormatter(10)), ","))

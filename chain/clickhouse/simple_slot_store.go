@@ -67,6 +67,13 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		return nil, err
 	}
 	for _, table := range tablesMeta.Tables {
+		skip, err := skipDistributed(ctx, s.ctrl, table.Table.Name)
+		if err != nil {
+			return nil, err
+		}
+		if skip {
+			continue
+		}
 		pre, has, err := s.ctrl.LoadOne(ctx, table.Table.Name, false)
 		if err != nil {
 			logger.Errorfe(err, "load table %s failed", table.Table.Name)
@@ -85,6 +92,15 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		}
 	}
 	for _, view := range tablesMeta.Views {
+		distributed, err := s.ctrl.IsDistributedTable(ctx, view.Name)
+		if err != nil {
+			logger.Errorfe(err, "check engine of view %s failed", view.Name)
+			return nil, errors.Wrapf(err, "check engine of view %s failed", view.Name)
+		}
+		if distributed {
+			logger.Warnf("skip syncing view %s: a Distributed table with the same name exists", view.Name)
+			continue
+		}
 		pre, has, err := s.ctrl.LoadOne(ctx, view.Name, false)
 		if err != nil {
 			logger.Errorfe(err, "load view %s failed", view.Name)
@@ -108,6 +124,28 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		}
 	}
 	return s, nil
+}
+
+// skipDistributed says whether the table is a Distributed facade, whose schema is kept by hand
+// along with the local tables behind it, so that Create and Sync have to leave it alone. A
+// controller with a maintenance route only makes sense over such facades: there a table that is
+// not one is a configuration mistake, reported instead of being created where the route does not
+// look.
+func skipDistributed(ctx context.Context, ctrl chx.Controller, name string) (bool, error) {
+	_, logger := log.FromContext(ctx, "table", name)
+	distributed, err := ctrl.IsDistributedTable(ctx, name)
+	if err != nil {
+		logger.Errorfe(err, "check engine of table failed")
+		return false, errors.Wrapf(err, "check engine of table %s failed", name)
+	}
+	if distributed {
+		logger.Infof("table %s is Distributed, skip creating or syncing it", name)
+		return true, nil
+	}
+	if ctrl.MaintenanceRoute() != nil {
+		return false, errors.Errorf("table %s is not Distributed, but a maintenance route is configured for it", name)
+	}
+	return false, nil
 }
 
 type slotHeader[SLOT chain.Slot] struct {

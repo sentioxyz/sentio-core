@@ -43,6 +43,7 @@ go_test(
         "ex_test.go",
         "proxy_only_test.go",
         "rpc_test.go",
+        "standard_packed_test.go",
     ],
     embed = [":supernode"],
     # Hits external public mainnet RPC endpoints; excluded from `bazel test //...`

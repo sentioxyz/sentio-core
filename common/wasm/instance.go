@@ -78,7 +78,12 @@ func (inst *Instance[DATA]) Init(logger *log.SentioLogger) error {
 	}
 
 	// get start function
-	start, err := inst.instance.Exports.GetWasiStartFunction()
+	// Do not use Exports.GetWasiStartFunction: it returns a wasm_func_t that holds a
+	// reference to the instance and is freed only by a Go finalizer, which never runs
+	// because Function.Native() stores a closure capturing the Function itself. That
+	// kept every reset instance (and its whole linear memory mapping) alive forever.
+	// GetFunction returns a function owned by Exports, released by instance.Close().
+	start, err := inst.instance.Exports.GetFunction("_start")
 	if err != nil {
 		return fmt.Errorf("get start function failed: %w", err)
 	}
@@ -138,18 +143,10 @@ func (inst *Instance[DATA]) Reset(logger *log.SentioLogger) error {
 
 func (inst *Instance[DATA]) reset(logger *log.SentioLogger) error {
 	// Only close the Instance — Store and Module are reused across resets.
+	// Closing the instance unmaps its linear memory, so no madvise is needed.
 	if inst.instance != nil {
-		// Capture the Wasm linear memory slice before tearing down the instance.
-		// After Close(), the instance no longer owns the memory, so we advise the
-		// OS to reclaim the physical pages immediately rather than waiting for
-		// memory pressure (relevant on macOS with MADV_FREE semantics).
-		var wasmMem []byte
-		if inst.memoryMgr != nil {
-			wasmMem = inst.memoryMgr.memory.Data()
-		}
 		inst.instance.Close()
 		inst.instance = nil
-		adviseRelease(wasmMem)
 	}
 	inst.memoryMgr = nil
 	inst.exportedFunc = nil

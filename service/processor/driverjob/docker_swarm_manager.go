@@ -13,17 +13,13 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
+	cerrdefs "github.com/containerd/errdefs"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
 
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/service/processor/models"
-
-	"github.com/docker/docker/api/types/mount"
 )
 
 const (
@@ -62,11 +58,9 @@ func (t *DockerSwarmTask) PodIP() string {
 	for _, na := range t.task.NetworksAttachments {
 		if len(na.Addresses) > 0 {
 			// Extract IP from CIDR notation
-			addr := na.Addresses[0]
-			if idx := strings.Index(addr, "/"); idx > 0 {
-				return addr[:idx]
+			if addr := na.Addresses[0]; addr.IsValid() {
+				return addr.Addr().String()
 			}
-			return addr
 		}
 	}
 	return ""
@@ -75,18 +69,18 @@ func (t *DockerSwarmTask) PodIP() string {
 // NewDockerSwarmManager creates a new Docker Swarm manager
 func NewDockerSwarmManager(ctx context.Context, config DriverConfig) (*DockerSwarmManager, error) {
 	// Create a new Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.New(client.FromEnv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Docker client: %w", err)
 	}
 
 	// Verify we're connected to a Swarm cluster
-	info, err := cli.Info(ctx)
+	infoResult, err := cli.Info(ctx, client.InfoOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Docker info: %w", err)
 	}
 
-	if !info.Swarm.ControlAvailable {
+	if !infoResult.Info.Swarm.ControlAvailable {
 		log.Warn("Docker is not running in Swarm mode - manager functionality may be limited")
 	}
 
@@ -334,19 +328,19 @@ func (d *DockerSwarmManager) createNetwork(ctx context.Context, processor *model
 	networkName := fmt.Sprintf("%s-network", d.makeDriverName(processor))
 
 	// Check if network exists
-	networks, err := d.dockerClient.NetworkList(ctx, network.ListOptions{
-		Filters: filters.NewArgs(filters.Arg("name", networkName)),
+	networks, err := d.dockerClient.NetworkList(ctx, client.NetworkListOptions{
+		Filters: make(client.Filters).Add("name", networkName),
 	})
 	if err != nil {
 		return "", err
 	}
 
-	if len(networks) > 0 {
-		return networks[0].ID, nil
+	if len(networks.Items) > 0 {
+		return networks.Items[0].ID, nil
 	}
 
 	// Create network
-	resp, err := d.dockerClient.NetworkCreate(ctx, networkName, network.CreateOptions{
+	resp, err := d.dockerClient.NetworkCreate(ctx, networkName, client.NetworkCreateOptions{
 		Driver: "overlay",
 		Labels: map[string]string{
 			labelProcessorID: processor.ID,
@@ -469,8 +463,7 @@ func (d *DockerSwarmManager) StartJob(ctx context.Context, processor *models.Pro
 		return err
 	}
 
-	createOptions := types.ServiceCreateOptions{}
-	procResp, err := d.dockerClient.ServiceCreate(ctx, procSpec, createOptions)
+	procResp, err := d.dockerClient.ServiceCreate(ctx, client.ServiceCreateOptions{Spec: procSpec})
 	if err != nil {
 		return fmt.Errorf("failed to create processor service for processor %s: %w", processor.ID, err)
 	}
@@ -481,7 +474,7 @@ func (d *DockerSwarmManager) StartJob(ctx context.Context, processor *models.Pro
 		return err
 	}
 
-	driverResp, err := d.dockerClient.ServiceCreate(ctx, driverSpec, createOptions)
+	driverResp, err := d.dockerClient.ServiceCreate(ctx, client.ServiceCreateOptions{Spec: driverSpec})
 	if err != nil {
 		return fmt.Errorf("failed to create driver service for processor %s: %w", processor.ID, err)
 	}
@@ -515,9 +508,9 @@ func (d *DockerSwarmManager) RestartJob(ctx context.Context, processor *models.P
 
 func (d *DockerSwarmManager) restartServiceByName(ctx context.Context, serviceName string, processor *models.Processor) error {
 	// Get the service
-	service, _, err := d.dockerClient.ServiceInspectWithRaw(ctx, serviceName, types.ServiceInspectOptions{})
+	inspectResult, err := d.dockerClient.ServiceInspect(ctx, serviceName, client.ServiceInspectOptions{})
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if cerrdefs.IsNotFound(err) {
 			// Service doesn't exist, create it
 			// Note: This falls back to StartJob which creates both services.
 			// This might be redundant if one exists and other doesn't, but acceptable.
@@ -525,6 +518,7 @@ func (d *DockerSwarmManager) restartServiceByName(ctx context.Context, serviceNa
 		}
 		return fmt.Errorf("failed to inspect service %s: %w", serviceName, err)
 	}
+	service := inspectResult.Service
 
 	// Save current ForceUpdate before rebuilding spec (rebuild overwrites it with zero)
 	currentForceUpdate := service.Spec.TaskTemplate.ForceUpdate
@@ -553,7 +547,7 @@ func (d *DockerSwarmManager) restartServiceByName(ctx context.Context, serviceNa
 	// Apply ForceUpdate after spec rebuild to trigger a restart
 	service.Spec.TaskTemplate.ForceUpdate = currentForceUpdate + 1
 
-	resp, err := d.dockerClient.ServiceUpdate(ctx, service.ID, service.Version, service.Spec, types.ServiceUpdateOptions{})
+	resp, err := d.dockerClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{Version: service.Version, Spec: service.Spec})
 	if err != nil {
 		return fmt.Errorf("failed to restart service %s: %w", serviceName, err)
 	}
@@ -584,8 +578,8 @@ func (d *DockerSwarmManager) DeleteJob(ctx context.Context, processor *models.Pr
 
 	// Delete Network
 	networkName := d.makeDriverName(processor) + "-network"
-	if err := d.dockerClient.NetworkRemove(ctx, networkName); err != nil {
-		if !client.IsErrNotFound(err) {
+	if _, err := d.dockerClient.NetworkRemove(ctx, networkName, client.NetworkRemoveOptions{}); err != nil {
+		if !cerrdefs.IsNotFound(err) {
 			log.Warnw("Failed to remove network", "network", networkName, "error", err)
 		}
 	}
@@ -594,9 +588,9 @@ func (d *DockerSwarmManager) DeleteJob(ctx context.Context, processor *models.Pr
 }
 
 func (d *DockerSwarmManager) deleteServiceByName(ctx context.Context, serviceName string, processorID string) error {
-	err := d.dockerClient.ServiceRemove(ctx, serviceName)
+	_, err := d.dockerClient.ServiceRemove(ctx, serviceName, client.ServiceRemoveOptions{})
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if cerrdefs.IsNotFound(err) {
 			log.Debugw("Service not found during deletion",
 				"processorID", processorID,
 				"serviceName", serviceName,
@@ -651,11 +645,11 @@ func (d *DockerSwarmManager) StartOrUpdateDriverJob(ctx context.Context, process
 }
 
 func (d *DockerSwarmManager) createOrUpdateService(ctx context.Context, serviceName string, spec swarm.ServiceSpec, processor *models.Processor) error {
-	service, _, err := d.dockerClient.ServiceInspectWithRaw(ctx, serviceName, types.ServiceInspectOptions{})
+	inspectResult, err := d.dockerClient.ServiceInspect(ctx, serviceName, client.ServiceInspectOptions{})
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if cerrdefs.IsNotFound(err) {
 			// Create
-			resp, err := d.dockerClient.ServiceCreate(ctx, spec, types.ServiceCreateOptions{})
+			resp, err := d.dockerClient.ServiceCreate(ctx, client.ServiceCreateOptions{Spec: spec})
 			if err != nil {
 				return fmt.Errorf("failed to create service %s: %w", serviceName, err)
 			}
@@ -664,9 +658,10 @@ func (d *DockerSwarmManager) createOrUpdateService(ctx context.Context, serviceN
 		}
 		return fmt.Errorf("failed to inspect service %s: %w", serviceName, err)
 	}
+	service := inspectResult.Service
 
 	// Update
-	resp, err := d.dockerClient.ServiceUpdate(ctx, service.ID, service.Version, spec, types.ServiceUpdateOptions{})
+	resp, err := d.dockerClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{Version: service.Version, Spec: spec})
 	if err != nil {
 		return fmt.Errorf("failed to update service %s: %w", serviceName, err)
 	}
@@ -677,10 +672,11 @@ func (d *DockerSwarmManager) createOrUpdateService(ctx context.Context, serviceN
 // StartManager starts the Docker Swarm manager
 func (d *DockerSwarmManager) StartManager(ctx context.Context) error {
 	// Verify Swarm is active
-	info, err := d.dockerClient.Info(ctx)
+	infoResult, err := d.dockerClient.Info(ctx, client.InfoOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get Docker info: %w", err)
 	}
+	info := infoResult.Info
 
 	if !info.Swarm.ControlAvailable {
 		return fmt.Errorf("docker Swarm is not initialized or this node is not a manager")
@@ -726,7 +722,7 @@ func (d *DockerSwarmManager) RestartProcessorByID(ctx context.Context, processor
 		// Force update to trigger restart
 		service.Spec.TaskTemplate.ForceUpdate++
 
-		_, err = d.dockerClient.ServiceUpdate(ctx, service.ID, service.Version, service.Spec, types.ServiceUpdateOptions{})
+		_, err = d.dockerClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{Version: service.Version, Spec: service.Spec})
 		if err != nil {
 			log.Warnw("Failed to restart service", "serviceID", service.ID, "error", err)
 			continue
@@ -744,20 +740,17 @@ func (d *DockerSwarmManager) RestartProcessorByID(ctx context.Context, processor
 // RestartWaitingProcessorsByOwner restarts waiting processors owned by the given owner
 func (d *DockerSwarmManager) RestartWaitingProcessorsByOwner(ctx context.Context, ownerID, ownerType string) error {
 	// List all services with the managed-by label
-	filterArgs := filters.NewArgs()
-	filterArgs.Add("label", fmt.Sprintf("%s=sentio-core", labelManagedBy))
-
-	services, err := d.dockerClient.ServiceList(ctx, types.ServiceListOptions{
-		Filters: filterArgs,
+	services, err := d.dockerClient.ServiceList(ctx, client.ServiceListOptions{
+		Filters: make(client.Filters).Add("label", fmt.Sprintf("%s=sentio-core", labelManagedBy)),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list services: %w", err)
 	}
 
 	// Restart each service
-	for _, service := range services {
+	for _, service := range services.Items {
 		service.Spec.TaskTemplate.ForceUpdate++
-		_, err := d.dockerClient.ServiceUpdate(ctx, service.ID, service.Version, service.Spec, types.ServiceUpdateOptions{})
+		_, err := d.dockerClient.ServiceUpdate(ctx, service.ID, client.ServiceUpdateOptions{Version: service.Version, Spec: service.Spec})
 		if err != nil {
 			log.Warnw("Failed to restart service",
 				"serviceID", service.ID,
@@ -770,7 +763,7 @@ func (d *DockerSwarmManager) RestartWaitingProcessorsByOwner(ctx context.Context
 	log.Infow("Restarted waiting processors by owner",
 		"ownerID", ownerID,
 		"ownerType", ownerType,
-		"count", len(services),
+		"count", len(services.Items),
 	)
 
 	return nil
@@ -796,11 +789,8 @@ func (d *DockerSwarmManager) ListDriverJobPodsByProcessor(ctx context.Context, p
 
 	for _, service := range services {
 		// List tasks for this service
-		filterArgs := filters.NewArgs()
-		filterArgs.Add("service", service.ID)
-
-		tasks, err := d.dockerClient.TaskList(ctx, types.TaskListOptions{
-			Filters: filterArgs,
+		tasks, err := d.dockerClient.TaskList(ctx, client.TaskListOptions{
+			Filters: make(client.Filters).Add("service", service.ID),
 		})
 		if err != nil {
 			log.Warnw("Failed to list tasks for service", "serviceID", service.ID, "error", err)
@@ -808,7 +798,7 @@ func (d *DockerSwarmManager) ListDriverJobPodsByProcessor(ctx context.Context, p
 		}
 
 		// Convert tasks to pods
-		for _, task := range tasks {
+		for _, task := range tasks.Items {
 			// Only include running tasks
 			if task.Status.State == swarm.TaskStateRunning {
 				pods = append(pods, &DockerSwarmTask{task: task})
@@ -839,21 +829,18 @@ func (d *DockerSwarmManager) Close() error {
 
 // findServicesByProcessorID finds services by processor ID using label filtering
 func (d *DockerSwarmManager) findServicesByProcessorID(ctx context.Context, processorID string) ([]swarm.Service, error) {
-	filterArgs := filters.NewArgs()
-	filterArgs.Add("label", fmt.Sprintf("%s=%s", labelProcessorID, processorID))
-
-	services, err := d.dockerClient.ServiceList(ctx, types.ServiceListOptions{
-		Filters: filterArgs,
+	services, err := d.dockerClient.ServiceList(ctx, client.ServiceListOptions{
+		Filters: make(client.Filters).Add("label", fmt.Sprintf("%s=%s", labelProcessorID, processorID)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
 
-	if len(services) == 0 {
+	if len(services.Items) == 0 {
 		return nil, fmt.Errorf("services not found for processor %s", processorID)
 	}
 
-	return services, nil
+	return services.Items, nil
 }
 
 func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Processor, limit int32, until, query string) ([]Log, string, error) {
@@ -864,7 +851,7 @@ func (d *DockerSwarmManager) GetLogs(ctx context.Context, processor *models.Proc
 
 	var allLogs []Log
 	for _, service := range services {
-		options := container.LogsOptions{
+		options := client.ServiceLogsOptions{
 			ShowStdout: true,
 			ShowStderr: true,
 			Timestamps: true,

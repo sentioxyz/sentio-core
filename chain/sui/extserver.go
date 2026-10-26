@@ -118,7 +118,8 @@ func (d *ExtServerDimension) loadCheckpoint(
 	)
 	if r.Err != nil {
 		logger.Errorfe(r.Err, "load checkpoint failed")
-		return
+		// return the error, or the caller builds a slot from the empty checkpoint
+		return ckpt, nil, errors.Wrapf(r.Err, "load checkpoint %d failed", checkpoint)
 	}
 
 	txns, err = concurrency.TraverseByPage(

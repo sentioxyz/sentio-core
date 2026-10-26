@@ -12,12 +12,9 @@ go_library(
     deps = [
         "//common/log",
         "//service/processor/models",
-        "@com_github_docker_docker//api/types",
-        "@com_github_docker_docker//api/types/container",
-        "@com_github_docker_docker//api/types/filters",
-        "@com_github_docker_docker//api/types/mount",
-        "@com_github_docker_docker//api/types/network",
-        "@com_github_docker_docker//api/types/swarm",
-        "@com_github_docker_docker//client",
+        "@com_github_containerd_errdefs//:errdefs",
+        "@com_github_moby_moby_api//types/mount",
+        "@com_github_moby_moby_api//types/swarm",
+        "@com_github_moby_moby_client//:client",
     ],
 )

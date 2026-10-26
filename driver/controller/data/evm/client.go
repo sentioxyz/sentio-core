@@ -181,7 +181,7 @@ func (c *client) callContext(ctx context.Context, result any, priority uint64, m
 	if err != nil {
 		if utils.MatchAny(strings.ToLower(err.Error()), invalidMethodErrorMatcher) {
 			c.unsupportedMethods.Add(method)
-			err = errors.Wrapf(errMethodNotSupported, err.Error())
+			err = errors.Wrap(errMethodNotSupported, err.Error())
 		} else {
 			err = errors.Wrapf(err, "call method %s with args %s failed", method, utils.MustJSONMarshal(args))
 		}
@@ -237,7 +237,7 @@ func (c *client) Subscribe(
 				if broken = resp.CheckAPIVersion(); broken == nil {
 					latest, err = c.GetHeaderIgnoreCache(ctx, resp.LatestBlockNumber-c.latestDelayBlockNumber)
 				} else {
-					broken = errors.Wrapf(controller.ErrInternalNeedUpgrade, broken.Error())
+					broken = errors.Wrap(controller.ErrInternalNeedUpgrade, broken.Error())
 				}
 			}
 			return

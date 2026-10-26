@@ -130,7 +130,7 @@ func TestDecodeV1TransactionFromBCSToJSON(t *testing.T) {
 			t.Fatal(err)
 		}
 		expectedJSON := unresolvePureValueTypes(string(rawTx.Transaction))
-		ja.Assertf(string(actualJSON), expectedJSON)
+		ja.Assertf(string(actualJSON), "%s", expectedJSON)
 	}
 }
 
@@ -194,7 +194,7 @@ func TestDecodeV1TransactionFromJSONToBCS(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ja.Assertf(string(j), inputJSON)
+			ja.Assertf(string(j), "%s", inputJSON)
 
 			inputTx.Intent = &IntentMessage{0, 0, 0}
 			encodedBCS, err := EncodeSenderSignedData(&SenderSignedData{

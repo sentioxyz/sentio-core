@@ -95,7 +95,7 @@ func (c *client) GetLatest(ctx context.Context) (latest controller.BlockHeader, 
 		return nil, 0, err
 	}
 	if err = resp.CheckAPIVersion(); err != nil {
-		return nil, 0, errors.Wrapf(controller.ErrInternalNeedUpgrade, err.Error())
+		return nil, 0, errors.Wrap(controller.ErrInternalNeedUpgrade, err.Error())
 	}
 	latest = Block{Header: resp.Header}
 	return latest, data.GetFirst(c.firstBlockNumber, latest.GetBlockNumber()), err
@@ -117,7 +117,7 @@ func (c *client) Subscribe(
 				latest, broken = Block{Header: resp.Header}, resp.CheckAPIVersion()
 			}
 			if broken != nil {
-				broken = errors.Wrapf(controller.ErrInternalNeedUpgrade, broken.Error())
+				broken = errors.Wrap(controller.ErrInternalNeedUpgrade, broken.Error())
 			}
 			return
 		},

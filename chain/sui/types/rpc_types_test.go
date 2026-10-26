@@ -55,6 +55,6 @@ func TestTransactionResponseV1JSON(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ja.Assertf(string(b), string(rawTx))
+		ja.Assertf(string(b), "%s", string(rawTx))
 	}
 }

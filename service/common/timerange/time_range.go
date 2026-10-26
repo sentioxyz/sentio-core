@@ -50,7 +50,7 @@ func (t *TimeRange) Copy() *TimeRange {
 
 func NewTimeRangeFromLite(ctx context.Context, timeRange *protos.TimeRangeLite) (*TimeRange, error) {
 	if timeRange == nil {
-		return nil, status.Errorf(codes.InvalidArgument, ErrTimeRangeNil.Error())
+		return nil, status.Error(codes.InvalidArgument, ErrTimeRangeNil.Error())
 	}
 	var err error
 	t := &TimeRange{
@@ -65,19 +65,19 @@ func NewTimeRangeFromLite(ctx context.Context, timeRange *protos.TimeRangeLite) 
 		}
 	}
 	if t.Start, err = ResolveTimeStrWithAlign(timeRange.GetStart(), true, t.Timezone); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument,
+		return nil, status.Error(codes.InvalidArgument,
 			errors.Wrapf(err, "failed to resolve start time, err: %v", err).Error())
 	}
 	if t.End, err = ResolveTimeStrWithAlign(timeRange.GetEnd(), false, t.Timezone); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument,
+		return nil, status.Error(codes.InvalidArgument,
 			errors.Wrapf(err, "failed to resolve end time, err: %v", err).Error())
 	}
 	if t.Start.After(t.End) || t.Start.Equal(t.End) {
-		return nil, status.Errorf(codes.InvalidArgument,
+		return nil, status.Error(codes.InvalidArgument,
 			ErrTimeStartAfterEnd.Error())
 	}
 	if timeRange.GetStep() < 0 {
-		return nil, status.Errorf(codes.InvalidArgument,
+		return nil, status.Error(codes.InvalidArgument,
 			errors.Errorf("step must be positive, got %d", timeRange.GetStep()).Error())
 	}
 	t.Step = time.Duration(timeRange.GetStep()) * time.Second
@@ -92,7 +92,7 @@ func NewTimeRangeFromLite(ctx context.Context, timeRange *protos.TimeRangeLite) 
 
 func NewTimeRangeFromProto(ctx context.Context, timeRange *protos.TimeRange) (*TimeRange, error) {
 	if timeRange == nil {
-		return nil, status.Errorf(codes.InvalidArgument, ErrTimeRangeNil.Error())
+		return nil, status.Error(codes.InvalidArgument, ErrTimeRangeNil.Error())
 	}
 	var err error
 	t := &TimeRange{
@@ -105,15 +105,15 @@ func NewTimeRangeFromProto(ctx context.Context, timeRange *protos.TimeRange) (*T
 		}
 	}
 	if t.Start, err = ResolveTimeLike(timeRange.GetStart(), true, t.Timezone); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument,
+		return nil, status.Error(codes.InvalidArgument,
 			errors.Wrapf(err, "failed to resolve start time, err: %v", err).Error())
 	}
 	if t.End, err = ResolveTimeLike(timeRange.GetEnd(), false, t.Timezone); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument,
+		return nil, status.Error(codes.InvalidArgument,
 			errors.Wrapf(err, "failed to resolve end time, err: %v", err).Error())
 	}
 	if t.Start.After(t.End) || t.Start.Equal(t.End) {
-		return nil, status.Errorf(codes.InvalidArgument,
+		return nil, status.Error(codes.InvalidArgument,
 			ErrTimeStartAfterEnd.Error())
 	}
 	if timeRange.GetStep() > 0 {

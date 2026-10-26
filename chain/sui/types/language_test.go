@@ -270,7 +270,7 @@ func TestPureValueWithNoType(t *testing.T) {
 	assert.NoError(t, err)
 
 	ja := jsonassert.New(t)
-	ja.Assertf(string(j), rawJSON)
+	ja.Assertf(string(j), "%s", rawJSON)
 }
 
 // TestPureValueJSONEscaping checks that a pure string value containing a U+2028

@@ -2,6 +2,7 @@ package adaptor_eventlogs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -36,7 +37,7 @@ func (b Base) Error() error {
 		errorMessage = append(errorMessage, err.Error())
 	}
 	if len(errorMessage) > 0 {
-		return fmt.Errorf(strings.Join(errorMessage, "\n"))
+		return errors.New(strings.Join(errorMessage, "\n"))
 	}
 	return nil
 }

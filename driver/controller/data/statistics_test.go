@@ -27,5 +27,5 @@ func Test_CallStatistics(t *testing.T) {
 	w.Wait()
 
 	b, _ := json.MarshalIndent(cs.Snapshot(), "", "  ")
-	t.Logf(string(b))
+	t.Log(string(b))
 }

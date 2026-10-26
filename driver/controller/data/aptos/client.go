@@ -190,7 +190,7 @@ func (c *client) GetLatest(ctx context.Context) (controller.BlockHeader, uint64,
 		return nil, 0, err
 	}
 	if err = resp.CheckAPIVersion(); err != nil {
-		return nil, 0, errors.Wrapf(controller.ErrInternalNeedUpgrade, err.Error())
+		return nil, 0, errors.Wrap(controller.ErrInternalNeedUpgrade, err.Error())
 	}
 	latest := MinimalistTransaction(resp.Transaction)
 	return latest, data.GetFirst(c.firstTxnVersion, latest.Version), err
@@ -212,7 +212,7 @@ func (c *client) Subscribe(
 				latest, broken = MinimalistTransaction(resp.Transaction), resp.CheckAPIVersion()
 			}
 			if broken != nil {
-				broken = errors.Wrapf(controller.ErrInternalNeedUpgrade, broken.Error())
+				broken = errors.Wrap(controller.ErrInternalNeedUpgrade, broken.Error())
 			}
 			return
 		},

@@ -67,6 +67,6 @@ func TestTransactionResponseV1Structpb(t *testing.T) {
 			t.Fatal(err)
 		}
 		ja.Assertf(changeAllNumberToStringJSON(string(j)),
-			changeAllNumberToStringJSON(string(rawTx)))
+			"%s", changeAllNumberToStringJSON(string(rawTx)))
 	}
 }

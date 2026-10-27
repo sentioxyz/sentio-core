@@ -256,7 +256,7 @@ func (c *supernodeClient) getLatestHeader(
 		return nil, 0, err
 	}
 	if err = resp.CheckAPIVersion(); err != nil {
-		return nil, 0, errors.Wrapf(controller.ErrInternalNeedUpgrade, err.Error())
+		return nil, 0, errors.Wrap(controller.ErrInternalNeedUpgrade, err.Error())
 	}
 	return resp.SimpleBlock, resp.FirstSlot, nil
 }

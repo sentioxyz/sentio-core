@@ -1903,7 +1903,7 @@ func Test_viewTable(t *testing.T) {
 }
 
 func Test_timeFormat(t *testing.T) {
-	assert.Equal(t, "20260107021606", time.Unix(1767752166, 0).Format(timeLayoutAllDigital))
+	assert.Equal(t, "20260107021606", time.Unix(1767752166, 0).UTC().Format(timeLayoutAllDigital))
 }
 
 // storeListEntities is a test helper that calls listEntities and maps entityRow results

@@ -119,10 +119,40 @@ func maintQueryCtx(ctx context.Context) context.Context {
 	})
 }
 
-// maintDDLCtx is for distributed DDL: the statement fails unless every host has run it.
+// maintDDLTaskTimeoutSeconds is how long a distributed DDL statement of a route waits for every
+// host to run it before failing. It has to be above zero: with 0 the statement returns as soon as
+// it is queued, in any output mode, so a SYNC REPLICA would pass for done before any replica has
+// synced and the count after it could read a stale zero. It is bounded, not infinite, so that a
+// host that is down fails the call, which its caller retries, rather than hanging it. It is above
+// syncReplicaTimeoutSeconds, which bounds the SYNC REPLICA each host runs.
+const maintDDLTaskTimeoutSeconds = 180
+
+// maintDDLCtx is for distributed DDL: the statement fails unless every host has run it within
+// maintDDLTaskTimeoutSeconds. The settings are those of maintQueryCtx as well, and all of them are
+// set here rather than left to the defaults, which the settings of the connection or of the server
+// may have changed.
 func maintDDLCtx(ctx context.Context) context.Context {
+	return ckhmanager.ContextMergeSettings(maintQueryCtx(ctx), map[string]any{
+		"distributed_ddl_output_mode":  "throw",
+		"distributed_ddl_task_timeout": maintDDLTaskTimeoutSeconds,
+	})
+}
+
+// FacadeInsertCtx is for an INSERT into a facade of a routed controller, and returns ctx as it is
+// on a controller without a route. It makes the INSERT return only once its rows are in the local
+// tables: by default a Distributed table queues the rows on the node taking the INSERT and returns,
+// and sends them on in the background later, so rows a store has reported saved, or a range it has
+// recorded, could become visible after what it went on to do, a range recorded before the rows it
+// covers, or rows deleted before the range shrunk over them is. Asynchronous inserts are turned
+// off as well, since they also return before the rows are written. The other settings of ctx, and
+// its query id and deadline, are kept.
+func (c Controller) FacadeInsertCtx(ctx context.Context) context.Context {
+	if c.route == nil {
+		return ctx
+	}
 	return ckhmanager.ContextMergeSettings(ctx, map[string]any{
-		"distributed_ddl_output_mode": "throw",
+		"distributed_foreground_insert": 1,
+		"async_insert":                  0,
 	})
 }
 
@@ -732,8 +762,9 @@ func (c Controller) DropPartitionForMaintenance(ctx context.Context, table strin
 //   - the table is a Distributed table, the facade, and the cluster, database and table it forwards
 //     to are DataCluster, LocalDatabase and the local table of the route, as read from its
 //     engine_full by distributedTarget;
-//   - that local table exists on every replica of DataCluster, with an engine of the MergeTree
-//     family, which is what the deletes and partition drops of the route can be run on.
+//   - that local table exists on every replica of DataCluster, with an engine of the
+//     Replicated*MergeTree family, which is what the replica syncs, deletes and partition drops of
+//     the route can be run on, see isReplicatedMergeTree.
 //
 // It only reads system tables: one query per facade on the connected server, two to reach every
 // replica of DataCluster and one per local table there. Nothing is created or changed.
@@ -795,7 +826,7 @@ func (c Controller) verifyFacade(ctx context.Context, table string) error {
 }
 
 // verifyLocalTable checks that the local table of table is on every one of hosts, the replicas of
-// the data cluster, with an engine of the MergeTree family.
+// the data cluster, with an engine of the Replicated*MergeTree family.
 func (c Controller) verifyLocalTable(ctx context.Context, table string, hosts []string) error {
 	local := c.maintLocalTable(table)
 	engines := make(map[string]string, len(hosts))
@@ -818,7 +849,7 @@ func (c Controller) verifyLocalTable(ctx context.Context, table string, hosts []
 		switch {
 		case !has:
 			missing = append(missing, h)
-		case !strings.HasSuffix(engine, "MergeTree"):
+		case !isReplicatedMergeTree(engine):
 			wrong = append(wrong, h+":"+engine)
 		}
 	}
@@ -827,10 +858,18 @@ func (c Controller) verifyLocalTable(ctx context.Context, table string, hosts []
 			c.maintLocalName(table), table, missing, c.route.DataCluster)
 	}
 	if len(wrong) > 0 {
-		return errors.Errorf("local table %s of %s is not of the MergeTree family on %v",
+		return errors.Errorf("local table %s of %s is not of the Replicated*MergeTree family on %v",
 			c.maintLocalName(table), table, wrong)
 	}
 	return nil
+}
+
+// isReplicatedMergeTree says whether engine is one of ReplicatedMergeTree, ReplicatedReplacingMergeTree
+// and the like. The route syncs the replicas of a local table with SYSTEM SYNC REPLICA before it
+// counts and deletes, which a table of any other engine refuses, and waits for each delete on every
+// replica, so a plain MergeTree local table is refused at startup rather than at its first delete.
+func isReplicatedMergeTree(engine string) bool {
+	return strings.HasPrefix(engine, "Replicated") && strings.HasSuffix(engine, "MergeTree")
 }
 
 // distributedTarget reads the cluster, database and table a Distributed table forwards to from its

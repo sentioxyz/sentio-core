@@ -172,7 +172,10 @@ func (s *RangeStore) get(ctx context.Context) (r rg.Range, err error) {
 
 func (s *RangeStore) set(ctx context.Context, r rg.Range) error {
 	sql := fmt.Sprintf("INSERT INTO %s (left, right, create_at) VALUES(%d, %d, NOW64())", s.ctrl.FullLogicName(s.name), r.Start, *r.End)
-	return s.ctrl.Exec(ctx, sql)
+	// Through a facade, the range is only recorded once it is in the local table, see
+	// chx.Controller.FacadeInsertCtx: the slots it covers are saved before it, and a range shrunk
+	// before a delete is in place before the rows go.
+	return s.ctrl.Exec(s.ctrl.FacadeInsertCtx(ctx), sql)
 }
 
 // OldestRecordedEnd implements chain.RangeHistory: it returns the lowest range end the table still

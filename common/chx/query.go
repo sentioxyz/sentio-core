@@ -93,8 +93,10 @@ func (c Controller) BatchInsert(
 	// and connection-scoped objects (e.g. temporary tables) are invisible from another connection.
 	// ClickHouse extends the user deduplication token with the source block number, so identical blocks within
 	// this INSERT are not deduplicated against each other.
+	// The settings of the INSERT are all sent with it when it is prepared, so the routed ones are
+	// set here; Flush and Send carry on the same INSERT and only end it once the server is done.
 	uniqToken := strconv.FormatUint(rand.Uint64(), 16)
-	batch, err := c.conn.PrepareBatch(InsertCtx(ctx, uniqToken), sql)
+	batch, err := c.conn.PrepareBatch(InsertCtx(c.FacadeInsertCtx(ctx), uniqToken), sql)
 	if err != nil {
 		return errors.Wrapf(err, "prepare batch failed")
 	}

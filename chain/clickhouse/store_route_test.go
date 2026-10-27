@@ -300,6 +300,31 @@ func TestLegacyStartupExisting(t *testing.T) {
 	assertLegacyOnly(t, s)
 }
 
+// TestLegacyStartupPlainMergeTree checks that stores without a route still start over tables that
+// are not replicated: only a route needs Replicated*MergeTree, and its check is not run without one.
+func TestLegacyStartupPlainMergeTree(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s := newFakeServer()
+	ctrl := testCtrl(t, s, nil)
+	meta := testMeta(ctrl)
+	for _, table := range meta.Tables {
+		s.addPhysical("zircuit."+table.Table.Name, table.Table.Fields)
+	}
+	s.addPhysical("zircuit.range", rangeFields(ctrl))
+	for name, table := range s.tables {
+		table.engine, table.engineFull = "MergeTree", "MergeTree ORDER BY number"
+		s.tables[name] = table
+	}
+
+	_, err := newTestSlotStore(ctx, ctrl, meta)
+	require.NoError(t, err)
+	_, err = newTestRangeStore(ctx, ctrl)
+	require.NoError(t, err)
+	assert.Empty(t, s.execs)
+	assertLegacyOnly(t, s)
+}
+
 // TestLegacyStartupMissing pins the startup of stores without a route over an empty database: the
 // tables and the view are created, with the statements they always were.
 func TestLegacyStartupMissing(t *testing.T) {
@@ -423,6 +448,17 @@ func TestRoutedStartupRefused(t *testing.T) {
 				"but a maintenance route is configured for it",
 			rng: "table `chain_db`.`zircuit.range` is ReplicatedMergeTree, not Distributed",
 		},
+		"local tables not replicated": {
+			setup: func(s *fakeServer, fields, rangeFields []chx.Field) {
+				s.addFacade("zircuit.blocks", "data", "chain_db", "zircuit.blocks_local", fields, "d1", "d2")
+				s.addFacade("zircuit.logs", "data", "chain_db", "zircuit.logs_local", fields, "d1", "d2")
+				s.locals["data"]["d1"]["zircuit.logs_local"] = "MergeTree"
+				s.addFacade("zircuit.range", "control", "chain_db", "zircuit.range_local", rangeFields, "r1")
+				s.locals["control"]["r1"]["zircuit.range_local"] = "MergeTree"
+			},
+			slot: "local table `chain_db`.`zircuit.logs_local` of logs is not of the Replicated*MergeTree family on [d1:MergeTree]",
+			rng:  "local table `chain_db`.`zircuit.range_local` of range is not of the Replicated*MergeTree family on [r1:MergeTree]",
+		},
 		"no tables": {
 			setup: func(*fakeServer, []chx.Field, []chx.Field) {},
 			slot:  "table `chain_db`.`zircuit.blocks` does not exist, but a maintenance route is configured for it",
@@ -436,7 +472,7 @@ func TestRoutedStartupRefused(t *testing.T) {
 				s.addFacade("zircuit.range", "control", "chain_db", "zircuit.range_local", rangeFields)
 				s.locals["control"]["r1"] = map[string]string{}
 			},
-			slot: "local table `chain_db`.`zircuit.blocks_local` of blocks is not of the MergeTree family on [d2:Distributed]",
+			slot: "local table `chain_db`.`zircuit.blocks_local` of blocks is not of the Replicated*MergeTree family on [d2:Distributed]",
 			rng:  "local table `chain_db`.`zircuit.range_local` of range is missing on replicas [r1] of cluster control",
 		},
 	} {

@@ -78,8 +78,25 @@ func (f *fakeConn) Query(ctx context.Context, sql string, args ...any) (driver.R
 
 func (f *fakeConn) QueryRow(context.Context, string, ...any) driver.Row { return nil }
 
-func (f *fakeConn) PrepareBatch(context.Context, string, ...driver.PrepareBatchOption) (driver.Batch, error) {
-	return nil, errors.New("not supported")
+// PrepareBatch records the INSERT with the settings it is prepared with, which is when
+// clickhouse-go sends them, and the batch records its Send after it.
+func (f *fakeConn) PrepareBatch(ctx context.Context, sql string, _ ...driver.PrepareBatchOption) (driver.Batch, error) {
+	f.record(ctx, sql, nil)
+	return &fakeBatch{f: f}, nil
+}
+
+// fakeBatch is the part of driver.Batch BatchInsert uses.
+type fakeBatch struct {
+	driver.Batch
+	f *fakeConn
+}
+
+func (b *fakeBatch) Append(...any) error { return nil }
+func (b *fakeBatch) Flush() error        { return nil }
+func (b *fakeBatch) Abort() error        { return nil }
+func (b *fakeBatch) Send() error {
+	b.f.record(context.Background(), "SEND", nil)
+	return nil
 }
 
 type fakeRows struct {
@@ -441,6 +458,9 @@ func assertRoutedSettings(t *testing.T, conn *fakeConn) {
 			assert.Equal(t, 0, s["use_query_cache"], sql)
 		} else if strings.Contains(sql, " ON CLUSTER ") {
 			assert.Equal(t, "throw", s["distributed_ddl_output_mode"], sql)
+			assert.Equal(t, maintDDLTaskTimeoutSeconds, s["distributed_ddl_task_timeout"], sql)
+			assert.Equal(t, 0, s["skip_unavailable_shards"], sql)
+			assert.Equal(t, 0, s["use_query_cache"], sql)
 		}
 	}
 }
@@ -927,7 +947,15 @@ func TestVerifyMaintenanceRoute(t *testing.T) {
 		},
 		"local table not MergeTree": {
 			mutate: func(s *routeSchema) { s.locals["d1"]["zircuit.blocks_local"] = "Distributed" },
-			msg:    "is not of the MergeTree family on [d1:Distributed]",
+			msg:    "is not of the Replicated*MergeTree family on [d1:Distributed]",
+		},
+		"local table plain MergeTree": {
+			mutate: func(s *routeSchema) { s.locals["d2"]["zircuit.logs_local"] = "MergeTree" },
+			msg:    "local table `chain_db`.`zircuit.logs_local` of logs is not of the Replicated*MergeTree family on [d2:MergeTree]",
+		},
+		"local table plain ReplacingMergeTree": {
+			mutate: func(s *routeSchema) { s.locals["d1"]["zircuit.logs_local"] = "ReplacingMergeTree" },
+			msg:    "is not of the Replicated*MergeTree family on [d1:ReplacingMergeTree]",
 		},
 		"data replica not answering": {
 			mutate: func(s *routeSchema) { s.answering = []string{"d1"} },
@@ -948,6 +976,132 @@ func TestVerifyMaintenanceRoute(t *testing.T) {
 			assert.ErrorContains(t, err, tc.msg)
 			assert.Empty(t, conn.statements("ALTER"))
 			assert.Empty(t, conn.statements("CREATE"))
+		})
+	}
+}
+
+// unsafeCallerCtx carries the settings a caller or a profile could hand a routed controller that
+// would each break one of its guarantees, along with ones it has to leave alone, a deadline and a
+// value of its own.
+func unsafeCallerCtx(t *testing.T) (context.Context, any) {
+	type key struct{}
+	ctx, cancel := context.WithTimeout(context.WithValue(context.Background(), key{}, "mine"), time.Hour)
+	t.Cleanup(cancel)
+	return ckhmanager.ContextMergeSettings(ctx, map[string]any{
+		"distributed_foreground_insert": 0,
+		"async_insert":                  1,
+		"distributed_ddl_task_timeout":  0,
+		"distributed_ddl_output_mode":   "none",
+		"skip_unavailable_shards":       1,
+		"use_query_cache":               1,
+		"max_threads":                   4,
+	}), key{}
+}
+
+// TestFacadeInsertCtx checks that the INSERT context of a routed controller is in the foreground
+// and not asynchronous whatever the caller asked for, keeps everything else of the caller, and
+// that a controller without a route returns the context of the caller as it is.
+func TestFacadeInsertCtx(t *testing.T) {
+	ctx, key := unsafeCallerCtx(t)
+	deadline, _ := ctx.Deadline()
+
+	legacy := newTestController(t, &fakeConn{}, nil).FacadeInsertCtx(ctx)
+	assert.True(t, legacy == ctx, "a controller without a route returns ctx itself")
+
+	routed := newTestController(t, &fakeConn{}, &testRoute).FacadeInsertCtx(ctx)
+	s := ckhmanager.ContextSettings(routed)
+	assert.Equal(t, 1, s["distributed_foreground_insert"])
+	assert.Equal(t, 0, s["async_insert"])
+	assert.Equal(t, 4, s["max_threads"])
+	assert.Equal(t, "none", s["distributed_ddl_output_mode"], "only the INSERT settings are touched")
+	assert.Equal(t, "mine", routed.Value(key))
+	got, _ := routed.Deadline()
+	assert.Equal(t, deadline, got)
+	assert.Equal(t, 0, ckhmanager.ContextSettings(ctx)["distributed_foreground_insert"], "ctx itself is not changed")
+}
+
+// TestBatchInsertSettings checks the settings a BatchInsert is prepared with: a routed controller
+// adds the foreground ones over the caller's, on the same INSERT that Send then ends; a controller
+// without a route sends what it always sent, the caller's settings and the deduplication token.
+func TestBatchInsertSettings(t *testing.T) {
+	ctx, _ := unsafeCallerCtx(t)
+	rows := [][]any{{uint64(1)}, {uint64(2)}, {uint64(3)}}
+	insert := func(route *MaintenanceRoute) (*fakeConn, clickhouse.Settings) {
+		conn := &fakeConn{}
+		c := newTestController(t, conn, route)
+		require.NoError(t, c.BatchInsert(ctx, "INSERT INTO `chain_db`.`zircuit.blocks` (`number`)", 2, NewGetter(rows,
+			func(row []any) []any { return row })))
+		require.Equal(t, []string{"INSERT INTO `chain_db`.`zircuit.blocks` (`number`)", "SEND"}, conn.log,
+			"one INSERT, through the facade, ended by Send")
+		return conn, conn.settings[0]
+	}
+
+	_, routed := insert(&testRoute)
+	assert.Equal(t, 1, routed["distributed_foreground_insert"])
+	assert.Equal(t, 0, routed["async_insert"])
+	assert.Equal(t, 4, routed["max_threads"])
+	assert.NotEmpty(t, routed["insert_deduplication_token"])
+
+	_, legacy := insert(nil)
+	want := ckhmanager.ContextSettings(ctx)
+	want["insert_deduplication_token"] = legacy["insert_deduplication_token"]
+	assert.Equal(t, want, legacy)
+}
+
+// TestRoutedDDLWaitsWhateverInherited checks that every distributed DDL of a routed controller
+// waits for all hosts, bounded, failing otherwise, even when the caller's settings say not to wait
+// or not to fail. The plain reads are held to their settings the same way.
+func TestRoutedDDLWaitsWhateverInherited(t *testing.T) {
+	ctx, _ := unsafeCallerCtx(t)
+	cl := newCluster()
+	cl.counts = []uint64{3, 0}
+	cl.onSubmit = deleteSucceeds
+	conn := cl.conn()
+	c := newTestController(t, conn, &testRoute)
+	require.NoError(t, c.EndRangeInserts(ctx, "blocks", 10, 20))
+	_, err := c.DeleteAfterReplicaSync(ctx, "blocks", "number >= 10", false)
+	require.NoError(t, err)
+	require.NoError(t, c.DropPartitionForMaintenance(ctx, "blocks", PartitionMeta{Partition: "20260101", PartitionID: "20260101"}))
+
+	var ddl []string
+	for i, sql := range conn.log {
+		if strings.Contains(sql, " ON CLUSTER ") {
+			ddl = append(ddl, sql)
+			assert.Equal(t, 4, conn.settings[i]["max_threads"], "the other settings of the caller are kept: %s", sql)
+		}
+	}
+	// 2 kills, the flush and the sync, the delete, the partition drop
+	assert.Len(t, ddl, 6)
+	assertRoutedSettings(t, conn)
+}
+
+// TestRoutedSyncFailureStopsDelete checks that a replica sync that does not finish, such as one
+// whose distributed DDL times out on a replica that is behind, fails the delete before it counts:
+// a count made then could read zero over rows the replica has not fetched yet, and the delete
+// would be skipped.
+func TestRoutedSyncFailureStopsDelete(t *testing.T) {
+	for name, failing := range map[string]string{
+		"flush": "SYSTEM FLUSH DISTRIBUTED",
+		"sync":  "SYSTEM SYNC REPLICA",
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx, _ := unsafeCallerCtx(t)
+			cl := newCluster()
+			cl.counts = []uint64{0}
+			conn := cl.conn()
+			onExec := conn.onExec
+			conn.onExec = func(sql string) error {
+				if strings.HasPrefix(sql, failing) {
+					return errors.New("code: 159, Distributed DDL task is not finished on 1 of 4 hosts")
+				}
+				return onExec(sql)
+			}
+			c := newTestController(t, conn, &testRoute)
+			n, err := c.DeleteAfterReplicaSync(ctx, "blocks", "number >= 10", false)
+			assert.ErrorContains(t, err, "is not finished on 1 of 4 hosts")
+			assert.Zero(t, n)
+			assert.Empty(t, conn.statements("SELECT COUNT(*)"), "nothing is counted")
+			assert.Empty(t, conn.statements("ALTER"))
 		})
 	}
 }

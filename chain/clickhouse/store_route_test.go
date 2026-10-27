@@ -121,6 +121,9 @@ func (s *fakeServer) query(sql string, args []any) ([][]any, error) {
 				rows = append(rows, []any{h, engine})
 			}
 		}
+	case strings.HasPrefix(sql, "SELECT left, right FROM "):
+	case strings.HasPrefix(sql, "SELECT min(right), count() FROM "):
+		rows = append(rows, []any{uint64(0), uint64(0)})
 	default:
 		return nil, errors.Errorf("unexpected query %s", sql)
 	}
@@ -465,4 +468,41 @@ func TestReadOnlyRangeStoreUnchecked(t *testing.T) {
 	assert.NotNil(t, NewReadOnlyRangeStore(testCtrl(t, s, nil), "range"))
 	assert.Empty(t, s.queries)
 	assert.Empty(t, s.execs)
+}
+
+// TestRangeStoreDataSQL checks that the range store reads and writes its rows the same way with a
+// route or without: through the logic name, which with a route is the facade, never the local
+// table, so the INSERT and SELECT of a routed store still go through the Distributed table.
+func TestRangeStoreDataSQL(t *testing.T) {
+	statements := func(route *chx.MaintenanceRoute, cluster string) []string {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		s := newFakeServer()
+		ctrl := testCtrl(t, s, route)
+		if route == nil {
+			s.addPhysical("zircuit.range", rangeFields(ctrl))
+		} else {
+			s.addFacade("zircuit.range", cluster, "chain_db", "zircuit.range_local", rangeFields(ctrl), "r1", "r2")
+		}
+		store, err := newTestRangeStore(ctx, ctrl)
+		require.NoError(t, err)
+		s.queries, s.execs = nil, nil
+
+		r, err := store.Update(ctx, rg.RangeSetter(rg.NewRange(10, 20)))
+		require.NoError(t, err)
+		assert.Equal(t, rg.NewRange(10, 20), r)
+		_, _, err = store.OldestRecordedEnd(ctx)
+		require.NoError(t, err)
+		return append(append([]string{}, s.queries...), s.execs...)
+	}
+	want := []string{
+		"SELECT left, right FROM `chain_db`.`zircuit.range` ORDER BY create_at DESC LIMIT 1",
+		"SELECT min(right), count() FROM `chain_db`.`zircuit.range`",
+		"INSERT INTO `chain_db`.`zircuit.range` (left, right, create_at) VALUES(10, 20, NOW64())",
+	}
+	rangeRoute := testRoute
+	rangeRoute.DataCluster = "control"
+	assert.Equal(t, want, statements(nil, ""))
+	assert.Equal(t, want, statements(&testRoute, "data"))
+	assert.Equal(t, want, statements(&rangeRoute, "control"))
 }

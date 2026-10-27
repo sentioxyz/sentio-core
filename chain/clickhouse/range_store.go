@@ -70,19 +70,24 @@ func NewRangeStore(
 			},
 			"",
 		)
-		skip, err := skipDistributed(ctx, s.ctrl, tableName)
-		if err != nil {
-			return nil, err
-		}
-		if !skip {
-			pre, has, loadErr := s.ctrl.LoadOne(ctx, tableName, false)
-			if loadErr != nil {
-				return nil, errors.Wrapf(loadErr, "load table %s failed", tableName)
+		if s.ctrl.MaintenanceRoute() != nil {
+			// A routed table is a Distributed facade kept by hand, which is checked, never created
+			// or synced, see verifyRoutedTables.
+			if err := verifyRoutedTables(ctx, s.ctrl, tableName); err != nil {
+				return nil, err
+			}
+		} else {
+			pre, has, err := s.ctrl.LoadOne(ctx, tableName, false)
+			if err != nil {
+				return nil, errors.Wrapf(err, "load table %s failed", tableName)
 			}
 			if has {
 				err = s.ctrl.Sync(ctx, pre, sch.Table)
 			} else {
 				err = s.ctrl.Create(ctx, sch.Table)
+				if err != nil {
+					err = explainCreateFailure(ctx, s.ctrl, tableName, err)
+				}
 			}
 			if err != nil {
 				return nil, err

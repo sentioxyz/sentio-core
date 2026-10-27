@@ -724,3 +724,249 @@ func (c Controller) DropPartitionForMaintenance(ctx context.Context, table strin
 		c.maintLocalName(table), quoteString(c.route.DataCluster), quoteString(p.PartitionID))
 	return c.Exec(maintDDLCtx(ctx), sql)
 }
+
+// VerifyMaintenanceRoute checks, once before a store writes through a routed controller, that the
+// route fits the tables it is for, so that a route naming the wrong place fails the store at
+// startup instead of sending its first delete there. For each of tables:
+//
+//   - the table is a Distributed table, the facade, and the cluster, database and table it forwards
+//     to are DataCluster, LocalDatabase and the local table of the route, as read from its
+//     engine_full by distributedTarget;
+//   - that local table exists on every replica of DataCluster, with an engine of the MergeTree
+//     family, which is what the deletes and partition drops of the route can be run on.
+//
+// It only reads system tables: one query per facade on the connected server, two to reach every
+// replica of DataCluster and one per local table there. Nothing is created or changed.
+func (c Controller) VerifyMaintenanceRoute(ctx context.Context, tables ...string) error {
+	if c.route == nil {
+		return errors.Errorf("no maintenance route to verify")
+	}
+	for _, table := range tables {
+		if err := c.verifyFacade(ctx, table); err != nil {
+			return err
+		}
+	}
+	if len(tables) == 0 {
+		return nil
+	}
+	hosts, err := c.clusterReplicas(ctx, c.route.DataCluster)
+	if err != nil {
+		return errors.Wrapf(err, "reach the local tables of the maintenance route failed")
+	}
+	for _, table := range tables {
+		if err = c.verifyLocalTable(ctx, table, hosts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// verifyFacade checks that table is a Distributed table forwarding to the local table of the route.
+func (c Controller) verifyFacade(ctx context.Context, table string) error {
+	var engine, engineFull string
+	var found bool
+	err := c.Query(ctx, func(rows driver.Rows) error {
+		found = true
+		return rows.Scan(&engine, &engineFull)
+	}, "SELECT engine, engine_full FROM system.tables WHERE database = ? AND name = ? AND is_temporary = 0",
+		c.database, c.tableNamePrefix+table)
+	if err != nil {
+		return errors.Wrapf(err, "load engine of table %s failed", table)
+	}
+	if !found {
+		return errors.Errorf("table %s does not exist, but a maintenance route is configured for it, "+
+			"which needs a Distributed table kept by hand", c.FullName(table))
+	}
+	if engine != "Distributed" {
+		return errors.Errorf("table %s is %s, not Distributed, but a maintenance route is configured for it",
+			c.FullName(table), engine)
+	}
+	got, err := distributedTarget(engineFull)
+	if err != nil {
+		return errors.Wrapf(err, "read where the Distributed table %s forwards to failed", c.FullName(table))
+	}
+	want := [3]string{c.route.DataCluster, c.route.LocalDatabase, c.maintLocalTable(table)}
+	if got != want {
+		return errors.Errorf("Distributed table %s forwards to cluster %q database %q table %q, "+
+			"but its maintenance route expects cluster %q database %q table %q",
+			c.FullName(table), got[0], got[1], got[2], want[0], want[1], want[2])
+	}
+	return nil
+}
+
+// verifyLocalTable checks that the local table of table is on every one of hosts, the replicas of
+// the data cluster, with an engine of the MergeTree family.
+func (c Controller) verifyLocalTable(ctx context.Context, table string, hosts []string) error {
+	local := c.maintLocalTable(table)
+	engines := make(map[string]string, len(hosts))
+	sql := fmt.Sprintf("SELECT hostName(), engine FROM clusterAllReplicas(%s, system.tables) "+
+		"WHERE database = ? AND name = ? AND is_temporary = 0", quoteString(c.route.DataCluster))
+	err := c.Query(maintQueryCtx(ctx), func(rows driver.Rows) error {
+		var host, engine string
+		if scanErr := rows.Scan(&host, &engine); scanErr != nil {
+			return scanErr
+		}
+		engines[host] = engine
+		return nil
+	}, sql, c.route.LocalDatabase, local)
+	if err != nil {
+		return errors.Wrapf(err, "load local table of %s failed", table)
+	}
+	var missing, wrong []string
+	for _, h := range hosts {
+		engine, has := engines[h]
+		switch {
+		case !has:
+			missing = append(missing, h)
+		case !strings.HasSuffix(engine, "MergeTree"):
+			wrong = append(wrong, h+":"+engine)
+		}
+	}
+	if len(missing) > 0 {
+		return errors.Errorf("local table %s of %s is missing on replicas %v of cluster %s",
+			c.maintLocalName(table), table, missing, c.route.DataCluster)
+	}
+	if len(wrong) > 0 {
+		return errors.Errorf("local table %s of %s is not of the MergeTree family on %v",
+			c.maintLocalName(table), table, wrong)
+	}
+	return nil
+}
+
+// distributedTarget reads the cluster, database and table a Distributed table forwards to from its
+// engine_full, `Distributed(cluster, database, table[, sharding_key[, policy]])[ SETTINGS ...]`.
+// ClickHouse gives no column of their own for them, and the arguments after the third may be any
+// expression, so the arguments are split by a scan that keeps to the top level of brackets and
+// steps over quoted strings and identifiers, escapes included. Each of the first three has to be a
+// single string literal or identifier; anything else, a macro left unexpanded aside, cannot be
+// compared without evaluating it, and is refused.
+func distributedTarget(engineFull string) (target [3]string, err error) {
+	const head = "Distributed"
+	if !strings.HasPrefix(engineFull, head+"(") {
+		return target, errors.Errorf("engine %q is not Distributed with arguments", engineFull)
+	}
+	args, err := splitEngineArgs(engineFull[len(head):])
+	if err != nil {
+		return target, errors.Wrapf(err, "parse engine %q failed", engineFull)
+	}
+	if len(args) < 3 {
+		return target, errors.Errorf("engine %q has %d arguments, at least 3 expected", engineFull, len(args))
+	}
+	for i := range target {
+		if target[i], err = engineArgName(args[i]); err != nil {
+			return target, errors.Wrapf(err, "argument %d of engine %q", i+1, engineFull)
+		}
+	}
+	return target, nil
+}
+
+// splitEngineArgs splits `(a, b, ...)` at the start of s into its top-level arguments, trimmed.
+func splitEngineArgs(s string) ([]string, error) {
+	if s == "" || s[0] != '(' {
+		return nil, errors.Errorf("no argument list")
+	}
+	closing := map[byte]byte{'(': ')', '[': ']', '{': '}'}
+	var stack []byte
+	var args []string
+	start := 1
+	for i := 0; i < len(s); i++ {
+		switch ch := s[i]; ch {
+		case '\'', '"', '`':
+			end, err := skipQuoted(s, i)
+			if err != nil {
+				return nil, err
+			}
+			i = end
+		case '(', '[', '{':
+			stack = append(stack, closing[ch])
+		case ')', ']', '}':
+			if len(stack) == 0 || stack[len(stack)-1] != ch {
+				return nil, errors.Errorf("unbalanced %q at %d", ch, i)
+			}
+			stack = stack[:len(stack)-1]
+			if len(stack) == 0 {
+				return append(args, strings.TrimSpace(s[start:i])), nil
+			}
+		case ',':
+			if len(stack) == 1 {
+				args = append(args, strings.TrimSpace(s[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	return nil, errors.Errorf("argument list not closed")
+}
+
+// skipQuoted returns the position of the quote closing the one at s[i], stepping over backslash
+// escapes and doubled quotes, the two ways ClickHouse escapes a quote inside quotes.
+func skipQuoted(s string, i int) (int, error) {
+	q := s[i]
+	for j := i + 1; j < len(s); j++ {
+		switch s[j] {
+		case '\\':
+			j++
+		case q:
+			if j+1 < len(s) && s[j+1] == q {
+				j++
+				continue
+			}
+			return j, nil
+		}
+	}
+	return 0, errors.Errorf("quote %q at %d not closed", q, i)
+}
+
+var bareIdentPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// engineArgName is the name an engine argument stands for, if it is a string literal, a quoted
+// identifier or a bare one.
+func engineArgName(arg string) (string, error) {
+	if arg == "" {
+		return "", errors.Errorf("empty argument")
+	}
+	switch q := arg[0]; q {
+	case '\'', '"', '`':
+		end, err := skipQuoted(arg, 0)
+		if err != nil {
+			return "", err
+		}
+		if end != len(arg)-1 {
+			return "", errors.Errorf("%s is an expression, not a single quoted name", arg)
+		}
+		return unquote(arg[1:end], q), nil
+	}
+	if !bareIdentPattern.MatchString(arg) {
+		return "", errors.Errorf("%s is an expression, not a name; write it as a string literal", arg)
+	}
+	return arg, nil
+}
+
+// unquote undoes the escapes of the inside of a quoted string or identifier.
+func unquote(s string, q byte) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		switch {
+		case ch == '\\' && i+1 < len(s):
+			i++
+			switch s[i] {
+			case 'n':
+				b.WriteByte('\n')
+			case 't':
+				b.WriteByte('\t')
+			case 'r':
+				b.WriteByte('\r')
+			case '0':
+				b.WriteByte(0)
+			default:
+				b.WriteByte(s[i])
+			}
+		case ch == q && i+1 < len(s) && s[i+1] == q:
+			i++
+			b.WriteByte(q)
+		default:
+			b.WriteByte(ch)
+		}
+	}
+	return b.String()
+}

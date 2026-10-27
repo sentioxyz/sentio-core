@@ -766,3 +766,188 @@ func TestQuote(t *testing.T) {
 	assert.Equal(t, "`a\\`b\\\\c`", quoteIdent("a`b\\c"))
 	assert.Equal(t, `'a\'b\\c'`, quoteString(`a'b\c`))
 }
+
+func TestDistributedTarget(t *testing.T) {
+	for engineFull, want := range map[string][3]string{
+		"Distributed('data', 'chain_db', 'zircuit.blocks_local', cityHash64(block_number))": {
+			"data", "chain_db", "zircuit.blocks_local"},
+		"Distributed(data, chain_db, `zircuit.blocks_local`)":                         {"data", "chain_db", "zircuit.blocks_local"},
+		"Distributed(\"data\",'chain_db','t',rand()) SETTINGS fsync_after_insert = 0": {"data", "chain_db", "t"},
+		// commas, brackets and quotes inside quotes and inside the sharding key are not arguments
+		"Distributed('a,b', 'db(', 't''x', sipHash64(tuple(a, b), [1, 2]), 'policy')": {"a,b", "db(", "t'x"},
+		"Distributed('a\\'b', `d\\`b`, 't\\\\x')":                                     {"a'b", "d`b", "t\\x"},
+		"Distributed('{cluster}', 'chain_db', 't')":                                   {"{cluster}", "chain_db", "t"},
+	} {
+		got, err := distributedTarget(engineFull)
+		if assert.NoError(t, err, engineFull) {
+			assert.Equal(t, want, got, engineFull)
+		}
+	}
+	for _, engineFull := range []string{
+		"ReplicatedMergeTree('/clickhouse/tables/{shard}/t', '{replica}')",
+		"Distributed",
+		"Distributed('data', 'chain_db')",
+		"Distributed('data', currentDatabase(), 't')",
+		"Distributed('data', 'chain_db', 't' || '_local')",
+		"Distributed('data', 'chain_db', db.t)",
+		"Distributed('data', 'chain_db', 't'",
+		"Distributed('data', 'chain_db, 't')",
+		"Distributed('data', 'chain_db', 't', f(x])",
+	} {
+		_, err := distributedTarget(engineFull)
+		assert.Error(t, err, engineFull)
+	}
+}
+
+// routeSchema is what the system tables say about the facades and the local tables behind them.
+type routeSchema struct {
+	// facades by table name on the connected server: engine and engine_full
+	facades map[string][2]string
+	// locals by host of the data cluster and table name: engine
+	locals map[string]map[string]string
+	// answering are the replicas of the data cluster, as system.clusters has them and as they answer
+	answering []string
+}
+
+func newRouteSchema() *routeSchema {
+	s := &routeSchema{
+		facades:   map[string][2]string{},
+		locals:    map[string]map[string]string{},
+		answering: []string{"d1", "d2"},
+	}
+	for _, table := range []string{"blocks", "logs"} {
+		s.facades["zircuit."+table] = [2]string{"Distributed",
+			"Distributed('data', 'chain_db', 'zircuit." + table + "_local', cityHash64(number))"}
+	}
+	for _, h := range s.answering {
+		s.locals[h] = map[string]string{
+			"zircuit.blocks_local": "ReplicatedMergeTree",
+			"zircuit.logs_local":   "ReplicatedReplacingMergeTree",
+		}
+	}
+	return s
+}
+
+func (s *routeSchema) conn() *fakeConn {
+	return &fakeConn{
+		onExec: func(sql string) error { return errors.Errorf("unexpected exec %s", sql) },
+		onQuery: func(sql string, args []any) ([][]any, error) {
+			switch {
+			case strings.HasPrefix(sql, "SELECT engine, engine_full FROM system.tables"):
+				if f, has := s.facades[args[1].(string)]; has {
+					return [][]any{{f[0], f[1]}}, nil
+				}
+				return nil, nil
+			case strings.HasPrefix(sql, "SELECT count() FROM system.clusters"):
+				return [][]any{{uint64(2)}}, nil
+			case strings.HasPrefix(sql, "SELECT hostName() FROM clusterAllReplicas('data', system.one)"):
+				var rows [][]any
+				for _, h := range s.answering {
+					rows = append(rows, []any{h})
+				}
+				return rows, nil
+			case strings.HasPrefix(sql, "SELECT hostName(), engine FROM clusterAllReplicas('data', system.tables)"):
+				var rows [][]any
+				for _, h := range s.answering {
+					if engine, has := s.locals[h][args[1].(string)]; has && args[0] == "chain_db" {
+						rows = append(rows, []any{h, engine})
+					}
+				}
+				return rows, nil
+			}
+			return nil, errors.Errorf("unexpected query %s", sql)
+		},
+	}
+}
+
+func TestVerifyMaintenanceRoute(t *testing.T) {
+	ctx := context.Background()
+	s := newRouteSchema()
+	conn := s.conn()
+	c := newTestController(t, conn, &testRoute)
+	require.NoError(t, c.VerifyMaintenanceRoute(ctx, "blocks", "logs"))
+	assert.Empty(t, conn.statements("ALTER"))
+	assert.Empty(t, conn.statements("CREATE"))
+	// 2 facades, 2 to reach the data cluster, 2 local tables
+	assert.Len(t, conn.log, 6)
+	for i, sql := range conn.log {
+		if strings.Contains(sql, "clusterAllReplicas") {
+			assert.Equal(t, 0, conn.settings[i]["skip_unavailable_shards"], sql)
+		}
+	}
+
+	err := newTestController(t, newRouteSchema().conn(), nil).VerifyMaintenanceRoute(ctx, "blocks")
+	assert.ErrorContains(t, err, "no maintenance route")
+
+	for name, tc := range map[string]struct {
+		mutate func(s *routeSchema)
+		route  func(r *MaintenanceRoute)
+		msg    string
+	}{
+		"facade forwards to another cluster": {
+			mutate: func(s *routeSchema) {
+				s.facades["zircuit.logs"] = [2]string{"Distributed", "Distributed('control', 'chain_db', 'zircuit.logs_local')"}
+			},
+			msg: `forwards to cluster "control" database "chain_db" table "zircuit.logs_local", ` +
+				`but its maintenance route expects cluster "data" database "chain_db" table "zircuit.logs_local"`,
+		},
+		"route names another data cluster": {
+			route: func(r *MaintenanceRoute) { r.DataCluster = "control" },
+			msg:   `forwards to cluster "data"`,
+		},
+		"route names another database": {
+			route: func(r *MaintenanceRoute) { r.LocalDatabase = "storage_db" },
+			msg:   `expects cluster "data" database "storage_db"`,
+		},
+		"route names another suffix": {
+			route: func(r *MaintenanceRoute) { r.LocalTableSuffix = "_shard" },
+			msg:   `table "zircuit.blocks_shard"`,
+		},
+		"old physical table": {
+			mutate: func(s *routeSchema) {
+				s.facades["zircuit.blocks"] = [2]string{"ReplicatedMergeTree",
+					"ReplicatedMergeTree('/clickhouse/tables/{shard}/blocks', '{replica}') ORDER BY number"}
+			},
+			msg: "table `chain_db`.`zircuit.blocks` is ReplicatedMergeTree, not Distributed, " +
+				"but a maintenance route is configured for it",
+		},
+		"facade missing": {
+			mutate: func(s *routeSchema) { delete(s.facades, "zircuit.logs") },
+			msg:    "table `chain_db`.`zircuit.logs` does not exist",
+		},
+		"facade argument an expression": {
+			mutate: func(s *routeSchema) {
+				s.facades["zircuit.logs"] = [2]string{"Distributed", "Distributed('data', currentDatabase(), 'zircuit.logs_local')"}
+			},
+			msg: "currentDatabase() is an expression",
+		},
+		"local table missing on a replica": {
+			mutate: func(s *routeSchema) { delete(s.locals["d2"], "zircuit.logs_local") },
+			msg:    "local table `chain_db`.`zircuit.logs_local` of logs is missing on replicas [d2] of cluster data",
+		},
+		"local table not MergeTree": {
+			mutate: func(s *routeSchema) { s.locals["d1"]["zircuit.blocks_local"] = "Distributed" },
+			msg:    "is not of the MergeTree family on [d1:Distributed]",
+		},
+		"data replica not answering": {
+			mutate: func(s *routeSchema) { s.answering = []string{"d1"} },
+			msg:    "cluster data has 2 replicas but 1 answered",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := newRouteSchema()
+			if tc.mutate != nil {
+				tc.mutate(s)
+			}
+			r := testRoute
+			if tc.route != nil {
+				tc.route(&r)
+			}
+			conn := s.conn()
+			err := newTestController(t, conn, &r).VerifyMaintenanceRoute(ctx, "blocks", "logs")
+			assert.ErrorContains(t, err, tc.msg)
+			assert.Empty(t, conn.statements("ALTER"))
+			assert.Empty(t, conn.statements("CREATE"))
+		})
+	}
+}

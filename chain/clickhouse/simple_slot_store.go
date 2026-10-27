@@ -66,12 +66,19 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 	if err := tablesMeta.Validate(); err != nil {
 		return nil, err
 	}
-	for _, table := range tablesMeta.Tables {
-		skip, err := skipDistributed(ctx, s.ctrl, table.Table.Name)
-		if err != nil {
+	routed := s.ctrl.MaintenanceRoute() != nil
+	if routed {
+		names := make([]string, 0, len(tablesMeta.Tables))
+		for _, table := range tablesMeta.Tables {
+			names = append(names, table.Table.Name)
+		}
+		if err := verifyRoutedTables(ctx, s.ctrl, names...); err != nil {
 			return nil, err
 		}
-		if skip {
+	}
+	for _, table := range tablesMeta.Tables {
+		if routed {
+			// Checked above: a Distributed facade kept by hand, never created or synced.
 			continue
 		}
 		pre, has, err := s.ctrl.LoadOne(ctx, table.Table.Name, false)
@@ -82,6 +89,7 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		if !has {
 			if err = s.ctrl.Create(ctx, table.Table); err != nil {
 				logger.Errorfe(err, "create table %s failed", table.Table.Name)
+				err = explainCreateFailure(ctx, s.ctrl, table.Table.Name, err)
 				return nil, errors.Wrapf(err, "create table %s failed", table.Table.Name)
 			}
 		} else {
@@ -92,14 +100,17 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		}
 	}
 	for _, view := range tablesMeta.Views {
-		distributed, err := s.ctrl.IsDistributedTable(ctx, view.Name)
-		if err != nil {
-			logger.Errorfe(err, "check engine of view %s failed", view.Name)
-			return nil, errors.Wrapf(err, "check engine of view %s failed", view.Name)
-		}
-		if distributed {
-			logger.Warnf("skip syncing view %s: a Distributed table with the same name exists", view.Name)
-			continue
+		if routed {
+			// Only a routed store expects Distributed facades, so only it asks before loading.
+			distributed, err := s.ctrl.IsDistributedTable(ctx, view.Name)
+			if err != nil {
+				logger.Errorfe(err, "check engine of view %s failed", view.Name)
+				return nil, errors.Wrapf(err, "check engine of view %s failed", view.Name)
+			}
+			if distributed {
+				logger.Warnf("skip syncing view %s: a Distributed table with the same name exists", view.Name)
+				continue
+			}
 		}
 		pre, has, err := s.ctrl.LoadOne(ctx, view.Name, false)
 		if err != nil {
@@ -109,6 +120,9 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		if !has {
 			if err = s.ctrl.Create(ctx, view); err != nil {
 				logger.Errorfe(err, "create view %s failed", view.Name)
+				if !routed {
+					err = explainCreateFailure(ctx, s.ctrl, view.Name, err)
+				}
 				return nil, errors.Wrapf(err, "create view %s failed", view.Name)
 			}
 			continue
@@ -126,26 +140,33 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 	return s, nil
 }
 
-// skipDistributed says whether the table is a Distributed facade, whose schema is kept by hand
-// along with the local tables behind it, so that Create and Sync have to leave it alone. A
-// controller with a maintenance route only makes sense over such facades: there a table that is
-// not one is a configuration mistake, reported instead of being created where the route does not
-// look.
-func skipDistributed(ctx context.Context, ctrl chx.Controller, name string) (bool, error) {
-	_, logger := log.FromContext(ctx, "table", name)
+// verifyRoutedTables is the startup check of a store writing through a controller with a
+// maintenance route. Its tables are Distributed facades whose schema is kept by hand along with
+// the local tables behind them, so they are never created or synced; instead each has to forward
+// to the local table the route maintains, see chx.Controller.VerifyMaintenanceRoute. A table that
+// is not such a facade, an old physical table say, is a configuration mistake and fails the store.
+func verifyRoutedTables(ctx context.Context, ctrl chx.Controller, names ...string) error {
+	_, logger := log.FromContext(ctx, "tables", names)
+	if err := ctrl.VerifyMaintenanceRoute(ctx, names...); err != nil {
+		logger.Errorfe(err, "verify maintenance route failed")
+		return errors.Wrapf(err, "verify maintenance route of tables %v failed", names)
+	}
+	logger.Infof("tables %v are Distributed facades matching the maintenance route, skip creating or syncing them", names)
+	return nil
+}
+
+// explainCreateFailure is for a store without a maintenance route whose CREATE of name has failed,
+// and only runs then, so that the statements of such a store stay the ones it always issued. Load
+// leaves a Distributed table out, so a Distributed facade with no route reads as missing and its
+// CREATE fails because it is there; that is said plainly instead of leaving only the CREATE error.
+// Anything else, the check failing included, returns createErr as it is.
+func explainCreateFailure(ctx context.Context, ctrl chx.Controller, name string, createErr error) error {
 	distributed, err := ctrl.IsDistributedTable(ctx, name)
-	if err != nil {
-		logger.Errorfe(err, "check engine of table failed")
-		return false, errors.Wrapf(err, "check engine of table %s failed", name)
+	if err != nil || !distributed {
+		return createErr
 	}
-	if distributed {
-		logger.Infof("table %s is Distributed, skip creating or syncing it", name)
-		return true, nil
-	}
-	if ctrl.MaintenanceRoute() != nil {
-		return false, errors.Errorf("table %s is not Distributed, but a maintenance route is configured for it", name)
-	}
-	return false, nil
+	return errors.Wrapf(createErr, "%s is a Distributed table but its store has no maintenance route, "+
+		"configure the route of the store instead of letting it create the table", ctrl.FullName(name))
 }
 
 type slotHeader[SLOT chain.Slot] struct {

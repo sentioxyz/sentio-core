@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"sentioxyz/sentio-core/chain/clientpool"
@@ -43,6 +44,11 @@ type ClientConfig struct {
 	// are refused locally instead of being sent. Callers that would issue JSON-RPC are turned
 	// off per chain (see supernode.NewSuperNode). Sui only: IOTA has no gRPC path.
 	GRPCOnly bool `json:"sui_grpc_only" yaml:"sui_grpc_only"`
+	// GRPCMetadata is attached to every gRPC call to the endpoint, overriding any value the
+	// call already carries under the same key (e.g. a header forwarded by the proxy). For
+	// providers that authenticate gRPC by metadata instead of the URL, such as dRPC
+	// (x-drpc-chain, x-drpc-key).
+	GRPCMetadata map[string]string `json:"sui_grpc_metadata" yaml:"sui_grpc_metadata"`
 
 	// ChainID decides the sui variation (sui vs iota), which in turn decides the
 	// json-rpc special method prefix and the MethodTimeout method names. For iota
@@ -75,8 +81,21 @@ func (c ClientConfig) Trim() ClientConfig {
 		MaxCallRecvMsgSize:   utils.Select(c.MaxCallRecvMsgSize == 0, 1024*1024*100, c.MaxCallRecvMsgSize), // default 100M
 		DisableGRPCSubscribe: c.DisableGRPCSubscribe,
 		GRPCOnly:             c.GRPCOnly,
+		GRPCMetadata:         trimGRPCMetadata(c.GRPCMetadata),
 		ChainID:              c.ChainID,
 	}
+}
+
+// trimGRPCMetadata lowercases the keys, as gRPC requires, and trims the values.
+func trimGRPCMetadata(md map[string]string) map[string]string {
+	if len(md) == 0 {
+		return nil
+	}
+	trimmed := make(map[string]string, len(md))
+	for k, v := range md {
+		trimmed[strings.ToLower(strings.TrimSpace(k))] = strings.TrimSpace(v)
+	}
+	return trimmed
 }
 
 func (c ClientConfig) SetChainID(chainID chains.SuiChainID) ClientConfig {
@@ -171,6 +190,9 @@ func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) (*Client, 
 			return nil, errors.Wrapf(clientpool.ErrInvalidConfig,
 				"invalid grpc endpoint %q", config.GrpcEndpoint)
 		}
+		if len(config.GRPCMetadata) > 0 {
+			opts = append(opts, grpcMetadataInterceptors(config.GRPCMetadata)...)
+		}
 		if grpcConn, err = grpc.NewClient(ep, opts...); err != nil {
 			return nil, errors.Wrapf(clientpool.ErrInvalidConfig,
 				"failed to dial grpc endpoint %q: %v", config.GrpcEndpoint, err)
@@ -185,6 +207,44 @@ func NewClient(config ClientConfig, notifier clientpool.UsedNotifier) (*Client, 
 		grpcConn:   grpcConn,
 		notifier:   notifier,
 	}, nil
+}
+
+// grpcMetadataInterceptors set md on the outgoing metadata of every unary and streaming call.
+func grpcMetadataInterceptors(md map[string]string) []grpc.DialOption {
+	withMetadata := func(ctx context.Context) context.Context {
+		out, has := metadata.FromOutgoingContext(ctx)
+		if has {
+			out = out.Copy()
+		} else {
+			out = metadata.MD{}
+		}
+		for k, v := range md {
+			out.Set(k, v)
+		}
+		return metadata.NewOutgoingContext(ctx, out)
+	}
+	return []grpc.DialOption{
+		grpc.WithChainUnaryInterceptor(func(
+			ctx context.Context,
+			method string,
+			req, reply any,
+			cc *grpc.ClientConn,
+			invoker grpc.UnaryInvoker,
+			opts ...grpc.CallOption,
+		) error {
+			return invoker(withMetadata(ctx), method, req, reply, cc, opts...)
+		}),
+		grpc.WithChainStreamInterceptor(func(
+			ctx context.Context,
+			desc *grpc.StreamDesc,
+			cc *grpc.ClientConn,
+			method string,
+			streamer grpc.Streamer,
+			opts ...grpc.CallOption,
+		) (grpc.ClientStream, error) {
+			return streamer(withMetadata(ctx), desc, cc, method, opts...)
+		}),
+	}
 }
 
 // Init is re-entrant: the client pool re-runs it periodically (PoolConfig.ReInitInterval) while

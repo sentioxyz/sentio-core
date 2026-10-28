@@ -40,15 +40,18 @@ const (
 	// CompressedSignature/PublicKey variant inside multisig, and SignatureScheme MLDSA65 in grpc)
 	// and turns on forwarding addresses, whose ForwardingAddressRegistryCreate end-of-epoch kind
 	// is already modeled. 140 adds no shape: native vector bulk operations and a consensus block
-	// shuffle on devnet.
-	maxSupportedSuiProtocolVersion = 140
+	// shuffle on devnet. 141 adds no shape either: a Groth16 verifying-key length check, the
+	// sui::clock::borrow and object::is_shared_input_impl natives, and their costs.
+	maxSupportedSuiProtocolVersion = 141
 	// maxSupportedIotaProtocolVersion is the same for IOTA, whose protocol versions are numbered
 	// independently of Sui's. 36 adds no shape either: it only tightens validation (input object
 	// versions are checked from the transaction bytes, `<SELF>` is rejected as an identifier) and
 	// makes the Move enum variant limit explicit in the config. 37 and 38 only tighten validation
 	// too (published module headers, MoveAuthenticator inputs, PTB indices at signing time); the
-	// two ExecutionError variants 38 adds live in effects, not in the transaction data.
-	maxSupportedIotaProtocolVersion = 38
+	// two ExecutionError variants 38 adds live in effects, not in the transaction data. 39 changes
+	// only validation, consensus and staking parameters (mixed-scheme multisig, Groth16 verifying
+	// key checks, deprecated global storage ops, validator stake thresholds, DKG timeout).
+	maxSupportedIotaProtocolVersion = 39
 )
 
 // Overrides for the constants above; 0 disables the guard for that variation entirely.

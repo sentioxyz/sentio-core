@@ -33,12 +33,17 @@ go_test(
     srcs = [
         "dup_check_test.go",
         "object_test.go",
+        "store_route_test.go",
     ],
     embed = [":clickhouse"],
     deps = [
         "//common/chx",
         "//common/range",
+        "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",
+        "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
+        "@com_github_pkg_errors//:errors",
         "@com_github_shopspring_decimal//:decimal",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -175,7 +175,13 @@ func (c Controller) RangeInsertCtx(ctx context.Context, table string, first, las
 // The INSERT may have been taken by any replica, and a replica can only be asked about its own
 // queries, so this runs ON CLUSTER, which makes it a distributed DDL statement like the replica
 // sync of DeleteAfterReplicaSync, and it is meant for the same deletes.
+//
+// On a controller with a MaintenanceRoute it runs on both clusters of the route, see
+// endRangeInsertsRouted.
 func (c Controller) EndRangeInserts(ctx context.Context, table string, first, last uint64) error {
+	if c.route != nil {
+		return c.endRangeInsertsRouted(ctx, table, first, last)
+	}
 	sql := fmt.Sprintf("KILL QUERY%s WHERE query_kind = 'Insert' "+
 		"AND startsWith(query_id, '%s') AND endsWith(query_id, '%s') "+
 		"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= %d "+
@@ -195,8 +201,11 @@ const syncReplicaTimeoutSeconds = 60
 // 103-291ms across both, on tables from a few thousand rows to thirty-three billion.
 //
 // A store whose tables are not replicated has nothing to wait for; that is the same condition the
-// engine is chosen by.
+// engine is chosen by. A routed controller syncs the local tables instead, see syncReplicasRouted.
 func (c Controller) syncReplicas(ctx context.Context, table string) error {
+	if c.route != nil {
+		return c.syncReplicasRouted(ctx, table)
+	}
 	if c.cluster == "" {
 		return nil
 	}
@@ -238,6 +247,10 @@ func (c Controller) deleteRows(
 	light bool,
 	syncReplicas bool,
 ) (uint64, error) {
+	if c.route != nil {
+		// light is not honoured: see deleteRowsRouted.
+		return c.deleteRowsRouted(ctx, table, condition, syncReplicas)
+	}
 	if light {
 		// Lightweight deletes leave patch parts behind that background merges may never reclaim;
 		// materialize the backlog once it piles up past a threshold (see the function comment).
@@ -465,6 +478,12 @@ type PartitionMeta struct {
 	BytesOnDisk           uint64
 	DataCompressedBytes   uint64
 	DataUncompressedBytes uint64
+
+	// PartitionID and Replicas are only filled by ListPartitionsForMaintenance on a routed
+	// controller: the id DropPartitionForMaintenance drops by, and how many replicas hold the
+	// partition.
+	PartitionID string
+	Replicas    uint64
 }
 
 func (c Controller) ListPartitions(ctx context.Context, table string) (partitions []PartitionMeta, err error) {

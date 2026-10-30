@@ -70,17 +70,28 @@ func NewRangeStore(
 			},
 			"",
 		)
-		pre, has, err := s.ctrl.LoadOne(ctx, tableName, false)
-		if err != nil {
-			return nil, errors.Wrapf(err, "load table %s failed", tableName)
-		}
-		if has {
-			err = s.ctrl.Sync(ctx, pre, sch.Table)
+		if s.ctrl.MaintenanceRoute() != nil {
+			// A routed table is a Distributed facade kept by hand, which is checked, never created
+			// or synced, see verifyRoutedTables.
+			if err := verifyRoutedTables(ctx, s.ctrl, tableName); err != nil {
+				return nil, err
+			}
 		} else {
-			err = s.ctrl.Create(ctx, sch.Table)
-		}
-		if err != nil {
-			return nil, err
+			pre, has, err := s.ctrl.LoadOne(ctx, tableName, false)
+			if err != nil {
+				return nil, errors.Wrapf(err, "load table %s failed", tableName)
+			}
+			if has {
+				err = s.ctrl.Sync(ctx, pre, sch.Table)
+			} else {
+				err = s.ctrl.Create(ctx, sch.Table)
+				if err != nil {
+					err = explainCreateFailure(ctx, s.ctrl, tableName, err)
+				}
+			}
+			if err != nil {
+				return nil, err
+			}
 		}
 		logger.Debugf("table for range store is ready")
 		go s.keepCleanExpiredPartitions(ctx, cleanInterval, maxKeepDays)
@@ -90,15 +101,17 @@ func NewRangeStore(
 
 func (s *RangeStore) cleanExpiredPartitions(ctx context.Context, maxKeepDays int) {
 	_, logger := log.FromContext(ctx, "table", s.name)
-	partitions, err := s.ctrl.ListPartitions(ctx, s.name)
+	partitions, err := s.ctrl.ListPartitionsForMaintenance(ctx, s.name)
 	if err != nil {
+		// A partial list would keep too few days, so nothing is dropped this round.
 		logger.Errorfe(err, "list partitions for clean expired failed")
+		return
 	}
 	if len(partitions) <= maxKeepDays {
 		return
 	}
 	for _, partition := range partitions[:len(partitions)-maxKeepDays] {
-		if err = s.ctrl.AlterTable(ctx, s.name, "DROP PARTITION ?", partition.Partition); err != nil {
+		if err = s.ctrl.DropPartitionForMaintenance(ctx, s.name, partition); err != nil {
 			logger.With("partition", partition.Partition).Errorfe(err, "drop expired partition")
 		} else {
 			logger.With("partition", partition.Partition).Infof("drop expired partition")

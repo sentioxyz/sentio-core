@@ -82,7 +82,7 @@ bazel run //service/launcher:launcher_push     # Push to registry
 
 **TypeScript/JavaScript:**
 - Uses `pnpm` as package manager (enforced by preinstall hook)
-- Node version: 22+ (specified in package.json engines)
+- Node version: 26+ (specified in package.json engines)
 - Format code: `pnpm format` (runs prettier)
 - Packages are in `packages/` directory (ui-core, ui-web3, chain, etc.)
 

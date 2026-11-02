@@ -1,0 +1,5 @@
+filegroup(
+    name = "testdata",
+    srcs = glob(["**/*.json"]),
+    visibility = ["//chain/sui/chv3:__pkg__"],
+)

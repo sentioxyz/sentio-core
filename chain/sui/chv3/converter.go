@@ -364,6 +364,11 @@ func (m *SlotConverter) ConvertTxn(
 	// ========================================
 	// objectChanges
 	for _, oc := range t.ObjectChanges {
+		// a deleted object has no object at the change version to fill the missing fields from, and json-rpc used to
+		// leave these out of objectChanges, so they are not stored (and have no object position either)
+		if oc.Type.IsDeleted() {
+			continue
+		}
 		ownerType, ownerID, ownerInitialSharedVersion := oc.Owner.GetTypeAndID()
 		objectChanges = append(objectChanges, CHUObjectChange{
 			CHUTxnExtendBase:          txnBase,

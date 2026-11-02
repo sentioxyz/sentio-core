@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "chv3",
@@ -29,5 +29,18 @@ go_library(
         "//common/utils",
         "@com_github_clickhouse_clickhouse_go_v2//lib/driver",
         "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "chv3_test",
+    srcs = ["converter_test.go"],
+    data = ["//chain/sui/chv3/testdata"],
+    embed = [":chv3"],
+    deps = [
+        "//chain/sui",
+        "//chain/sui/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -170,6 +170,19 @@ func TestRichValueToAny_ListValue(t *testing.T) {
 	assert.Len(t, resultList, 3)
 }
 
+func TestRichValueToAny_EmptyListValue(t *testing.T) {
+	rv := &commonProtos.RichValue{
+		Value: &commonProtos.RichValue_ListValue{ListValue: &commonProtos.RichValueList{}},
+	}
+
+	result, fieldType, err := richValueToAny(rv, time.Now())
+
+	require.NoError(t, err)
+	assert.Equal(t, FieldTypeArray, fieldType)
+	assert.NotNil(t, result.([]any))
+	assert.Empty(t, result)
+}
+
 func TestRichValueToAny_StructValue(t *testing.T) {
 	rv := &commonProtos.RichValue{
 		Value: &commonProtos.RichValue_StructValue{

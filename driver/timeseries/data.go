@@ -77,7 +77,8 @@ func richValueToAny(v *commonProtos.RichValue, defaultTimestamp time.Time) (any,
 		}
 		return decimal.NewFromBigInt(big.NewInt(0), 0), FieldTypeBigFloat, fmt.Errorf("failed to parse big decimal value %v", v)
 	case *commonProtos.RichValue_ListValue:
-		var list []any
+		// Keep an empty list non-nil: ClickHouse rejects nil for Array(Dynamic) columns.
+		list := make([]any, 0, len(v.GetListValue().GetValues()))
 		for _, v := range v.GetListValue().GetValues() {
 			v, _, err := richValueToAny(v, defaultTimestamp)
 			if err != nil {

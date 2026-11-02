@@ -433,6 +433,9 @@ func (s *SuperService) FilterObjectChanges(
 			var result []types.ObjectChangeExtend
 			for txIndex, tx := range slot.Transactions {
 				for _, oc := range tx.ObjectChanges {
+					if oc.Type.IsDeleted() {
+						continue // not stored by the chv3 converter
+					}
 					result = append(result, types.ObjectChangeExtend{
 						Checkpoint:       types.Uint64ToNumber(slot.SequenceNumber),
 						CheckpointDigest: types.StrToDigestMust(slot.Digest),
@@ -486,6 +489,9 @@ func (s *SuperService) FilterObjectChangesV2(
 			checkpointDigest := types.StrToDigestMust(slot.Digest)
 			for txIndex, tx := range slot.Transactions {
 				for _, oc := range tx.ObjectChanges {
+					if oc.Type.IsDeleted() {
+						continue // not stored by the chv3 converter
+					}
 					oce := types.ObjectChangeExtend{
 						Checkpoint:       checkpoint,
 						CheckpointDigest: checkpointDigest,
@@ -661,12 +667,15 @@ func (s *SuperService) GetLastObjectChangeV2(
 		ctx,
 		rg.NewRange(0, maxCheckpoint),
 		s.slotCache,
-		// mirrors the chv3 converter: every json-rpc object change row, as-is.
+		// mirrors the chv3 converter: every stored json-rpc object change row, as-is (deleted ones are not stored).
 		func(slot *sui.Slot) (out []sui.ObjectChangeRecord, _ error) {
 			for _, tx := range slot.Transactions {
 				for i := range tx.ObjectChanges {
 					oc := &tx.ObjectChanges[i]
-					if oc.GetObjectID() != objectID || (maxVersion > 0 && oc.Version.Uint64() > maxVersion) {
+					if oc.Type.IsDeleted() || oc.GetObjectID() != objectID {
+						continue
+					}
+					if maxVersion > 0 && oc.Version.Uint64() > maxVersion {
 						continue
 					}
 					out = append(out, sui.ObjectChangeRecord{
@@ -831,7 +840,8 @@ func (s *SuperService) GetObjectsStat(
 			} else {
 				for _, tx := range st.Transactions {
 					for _, oc := range tx.ObjectChanges {
-						if objID := oc.GetObjectID(); objectIDSet.Contains(objID) {
+						// object positions come from the stored chv3 object changes, which leave deleted ones out
+						if objID := oc.GetObjectID(); !oc.Type.IsDeleted() && objectIDSet.Contains(objID) {
 							merge(objID, oc.Version.Uint64())
 						}
 					}

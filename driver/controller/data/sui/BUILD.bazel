@@ -15,6 +15,7 @@ go_library(
         "//chain/sui",
         "//chain/sui/types",
         "//common/concurrency",
+        "//common/envconf",
         "//common/errgroup",
         "//common/https",
         "//common/log",

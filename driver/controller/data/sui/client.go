@@ -11,6 +11,7 @@ import (
 	"sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/chain/sui/types"
 	"sentioxyz/sentio-core/common/concurrency"
+	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/https"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/set"
@@ -129,10 +130,25 @@ func NewClient(
 	return cli, nil
 }
 
+// objectChangeScanWeight is how many concurrency tokens one object-change range scan takes, instead of 1.
+// These scans read the super node's object-change ClickHouse table by checkpoint range and are far heavier
+// than the other calls; every interval handler initializing its object dict scans [0, current] at the same
+// time, so weighting them caps how many run at once (ClientMaxConcurrency / weight) for the whole driver.
+var objectChangeScanWeight = int(envconf.LoadUInt64("SENTIO_SUI_OBJECT_CHANGE_SCAN_WEIGHT", 10, envconf.WithMin(1)))
+
+var methodWeight = map[string]int{
+	"sui_filterObjectChangesV2":    objectChangeScanWeight,
+	"sui_filterGrpcChangedObjects": objectChangeScanWeight,
+}
+
 func (c *client) callContext(ctx context.Context, result any, priority uint64, method string, args ...any) error {
 	startAt := time.Now()
 	// waiting concurrency control token
-	release, err := c.resMgr.Apply(ctx, int64(priority), 1, time.Minute, func(waited time.Duration) {
+	weight := 1
+	if w, has := methodWeight[method]; has {
+		weight = min(w, c.resMgr.Cap())
+	}
+	release, err := c.resMgr.Apply(ctx, int64(priority), weight, time.Minute, func(waited time.Duration) {
 		_, logger := log.FromContext(ctx, "priority", priority, "args", utils.MustJSONMarshal(args))
 		logger.Warnf("call method %s waited %s", method, waited.String())
 	})

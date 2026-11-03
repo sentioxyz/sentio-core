@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "subgraph",
@@ -40,5 +40,16 @@ go_library(
         "@com_github_ipfs_go_ipfs_api//:go-ipfs-api",
         "@com_github_mr_tron_base58//base58",
         "@com_github_pkg_errors//:errors",
+    ],
+)
+
+go_test(
+    name = "subgraph_test",
+    srcs = ["binding_data_test.go"],
+    embed = [":subgraph"],
+    deps = [
+        "//common/utils",
+        "//driver/controller",
+        "@com_github_stretchr_testify//assert",
     ],
 )

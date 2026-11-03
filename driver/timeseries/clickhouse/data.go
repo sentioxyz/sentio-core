@@ -220,11 +220,7 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 		if modifier != nil {
 			row = modifier(row)
 		}
-		columns := make([]any, len(fieldNames))
-		for i, fn := range fieldNames {
-			columns[i] = row[fn]
-		}
-		return columns
+		return buildColumns(row, fieldNames, ds.Meta.Fields)
 	})
 	err := s.ctrl.BatchInsert(ctx, sql, s.option.BatchInsertSizeLimit, getter)
 	logger = logger.With("used", time.Since(startAt).String())
@@ -234,6 +230,19 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 	}
 	logger.Infow("insert data succeed")
 	return nil
+}
+
+// buildColumns orders the row values by fieldNames. A row without a value for an Array field gets an empty array:
+// the columns are not Nullable, and ClickHouse refuses nil for Array(Dynamic) while it takes it for the other types.
+func buildColumns(row timeseries.Row, fieldNames []string, fields map[string]timeseries.Field) []any {
+	columns := make([]any, len(fieldNames))
+	for i, fn := range fieldNames {
+		columns[i] = row[fn]
+		if columns[i] == nil && fields[fn].Type == timeseries.FieldTypeArray {
+			columns[i] = []any{}
+		}
+	}
+	return columns
 }
 
 var aggFunctionMapping = map[string]string{

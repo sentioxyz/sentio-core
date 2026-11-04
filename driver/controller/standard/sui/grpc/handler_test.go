@@ -3,10 +3,12 @@ package grpc
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	chainsui "sentioxyz/sentio-core/chain/sui"
 	"sentioxyz/sentio-core/common/set"
+	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller/data"
 	suidata "sentioxyz/sentio-core/driver/controller/data/sui"
 	suigrpcdata "sentioxyz/sentio-core/driver/controller/data/sui/grpc"
@@ -298,4 +300,50 @@ func TestTimerOnlyIntervalBindsTickWithoutObjects(t *testing.T) {
 	assert.Equal(t, uint64(100), obj.GetSlot())
 	assert.Equal(t, int64(1700000000000), obj.GetTimestamp().AsTime().UnixMilli())
 	assert.Zero(t, result[0].DataSize)
+}
+
+// scanCountingClient serves empty grpc object-change pages and counts the scans per filter.
+type scanCountingClient struct {
+	suidata.Client
+	mu    sync.Mutex
+	scans map[string]int
+}
+
+func (c *scanCountingClient) GetGrpcObjectChanges(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	filter chainsui.ObjectChangeFilter,
+) (map[uint64][]*chainsui.ExtendedGrpcChangedObject, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.scans[utils.MustJSONMarshal(filter)]++
+	return nil, nil
+}
+
+func TestPushIntervalAgentPushesSharedFilterOnce(t *testing.T) {
+	interval := data.IntervalConfig{BlockInterval: &data.BlockInterval{Backfill: 10, Watching: 10}}
+	filterA := chainsui.ObjectChangeFilter{ObjectIDIn: set.New("0xa")}
+	filterB := chainsui.ObjectChangeFilter{ObjectIDIn: set.New("0xb")}
+	cli := &scanCountingClient{scans: make(map[string]int)}
+	newAgent := func(filter chainsui.ObjectChangeFilter) GrpcHandlerAgent {
+		return HandlerAgentInterval{suihandler.HandlerAgentInterval{Client: cli, IntervalConfig: interval, Filter: filter}}
+	}
+	base := &standard.BaseHandlerController[suidata.Client, *BlockData, GrpcHandlerAgent]{
+		Agents: []GrpcHandlerAgent{newAgent(filterA), newAgent(filterA), newAgent(filterB)},
+	}
+	c := &HandlerController{BaseHandlerController: base}
+	require.NoError(t, c.objMgr.Load(nil))
+	bd := &BlockData{
+		mainData:       suigrpcdata.BlockMainData{Intervals: []data.IntervalConfig{interval}},
+		checkpointData: make(map[string]string),
+	}
+
+	require.NoError(t, c.pushIntervalAgent(context.Background(), 9999, bd))
+	// [0,9999] is a single page, so each distinct filter is fetched exactly once
+	assert.Equal(t, map[string]int{utils.MustJSONMarshal(filterA): 1, utils.MustJSONMarshal(filterB): 1}, cli.scans)
+	for _, filter := range []chainsui.ObjectChangeFilter{filterA, filterB} {
+		dict := c.objMgr.Get(utils.MustJSONMarshal(filter))
+		require.NotNil(t, dict)
+		assert.Equal(t, uint64(9999), dict.BlockNumber)
+	}
 }

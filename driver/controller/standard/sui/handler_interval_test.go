@@ -4,12 +4,19 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"sentioxyz/sentio-core/chain/chain"
+	chainsui "sentioxyz/sentio-core/chain/sui"
+	"sentioxyz/sentio-core/chain/sui/types"
+	"sentioxyz/sentio-core/common/set"
+	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
 	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data"
@@ -101,7 +108,7 @@ func Test_PushObjectLatestVersionPaged(t *testing.T) {
 			},
 			extractPushTestChange)
 		require.NoError(t, err)
-		assert.Equal(t, *dict, result)
+		assert.Same(t, dict, result)
 	})
 
 	t.Run("adapts the page size to the observed change density", func(t *testing.T) {
@@ -167,6 +174,64 @@ func Test_PushObjectLatestVersionPaged(t *testing.T) {
 			extractPushTestChange)
 		require.Error(t, err)
 		assert.True(t, chain.IsTooManyResultsError(err))
+	})
+
+	t.Run("retries a failed page and keeps the pages already folded in", func(t *testing.T) {
+		defer func(b time.Duration) { objectChangePageRetryInterval = b }(objectChangePageRetryInterval)
+		objectChangePageRetryInterval = 0
+		var calls [][2]uint64
+		result, err := PushObjectLatestVersionPaged(ctx, agent, 19999, nil, "object",
+			func(ctx context.Context, from, to uint64) (map[uint64][]pushTestChange, error) {
+				calls = append(calls, [2]uint64{from, to})
+				if from == 10000 && len(calls) < 4 {
+					return nil, errors.New("i/o timeout")
+				}
+				return map[uint64][]pushTestChange{from: {{objectID: fmt.Sprintf("0x%x", from), version: 1}}}, nil
+			},
+			extractPushTestChange)
+		require.NoError(t, err)
+		// the second page failed twice and was retried in place, the first page was not fetched again
+		assert.Equal(t, [][2]uint64{{0, 9999}, {10000, 19999}, {10000, 19999}, {10000, 19999}}, calls)
+		want := &ObjectDict{BlockNumber: 19999, ObjectLatestVersion: map[string]uint64{"0x0": 1, "0x2710": 1}}
+		assert.Equal(t, want, result)
+	})
+
+	t.Run("returns the progress made so far when a page keeps failing", func(t *testing.T) {
+		defer func(b time.Duration) { objectChangePageRetryInterval = b }(objectChangePageRetryInterval)
+		objectChangePageRetryInterval = 0
+		failing := true
+		var calls int
+		fetch := func(ctx context.Context, from, to uint64) (map[uint64][]pushTestChange, error) {
+			calls++
+			if from >= 10000 && failing {
+				return nil, errors.New("i/o timeout")
+			}
+			return map[uint64][]pushTestChange{from: {{objectID: fmt.Sprintf("0x%x", from), version: 1}}}, nil
+		}
+		partial, err := PushObjectLatestVersionPaged(ctx, agent, 19999, nil, "object", fetch, extractPushTestChange)
+		require.Error(t, err)
+		assert.Equal(t, 1+objectChangePageMaxAttempts, calls)
+		assert.Equal(t, &ObjectDict{BlockNumber: 9999, ObjectLatestVersion: map[string]uint64{"0x0": 1}}, partial)
+
+		// resuming from the partial dict scans only what is left
+		failing, calls = false, 0
+		result, err := PushObjectLatestVersionPaged(ctx, agent, 19999, partial, "object", fetch, extractPushTestChange)
+		require.NoError(t, err)
+		assert.Equal(t, 1, calls)
+		want := &ObjectDict{BlockNumber: 19999, ObjectLatestVersion: map[string]uint64{"0x0": 1, "0x2710": 1}}
+		assert.Equal(t, want, result)
+	})
+
+	t.Run("returns a nil dict when no page was folded in", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		cancel()
+		result, err := PushObjectLatestVersionPaged(ctx, agent, 19999, nil, "object",
+			func(ctx context.Context, from, to uint64) (map[uint64][]pushTestChange, error) {
+				return nil, ctx.Err()
+			},
+			extractPushTestChange)
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Nil(t, result)
 	})
 
 	t.Run("rejects a dict over MaxObjectDictLen", func(t *testing.T) {
@@ -267,4 +332,50 @@ func TestTimerOnlyIntervalBindsTickWithoutObjects(t *testing.T) {
 	assert.Equal(t, uint64(100), obj.GetSlot())
 	assert.Equal(t, int64(1700000000000), obj.GetTimestamp().AsTime().UnixMilli())
 	assert.Zero(t, result[0].DataSize)
+}
+
+// scanCountingClient serves empty object-change pages and counts the scans per filter.
+type scanCountingClient struct {
+	sui.Client
+	mu    sync.Mutex
+	scans map[string]int
+}
+
+func (c *scanCountingClient) GetObjectChanges(
+	ctx context.Context,
+	fromBlock, toBlock uint64,
+	filter chainsui.ObjectChangeFilter,
+) (map[uint64][]types.ObjectChangeExtend, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.scans[utils.MustJSONMarshal(filter)]++
+	return nil, nil
+}
+
+func Test_pushIntervalAgent_pushesSharedFilterOnce(t *testing.T) {
+	interval := data.IntervalConfig{BlockInterval: &data.BlockInterval{Backfill: 10, Watching: 10}}
+	filterA := chainsui.ObjectChangeFilter{ObjectIDIn: set.New("0xa")}
+	filterB := chainsui.ObjectChangeFilter{ObjectIDIn: set.New("0xb")}
+	cli := &scanCountingClient{scans: make(map[string]int)}
+	newAgent := func(filter chainsui.ObjectChangeFilter) SuiHandlerAgent {
+		return HandlerAgentInterval{Client: cli, IntervalConfig: interval, Filter: filter}
+	}
+	base := &standard.BaseHandlerController[sui.Client, *BlockData, SuiHandlerAgent]{
+		Agents: []SuiHandlerAgent{newAgent(filterA), newAgent(filterA), newAgent(filterB)},
+	}
+	c := &HandlerController{BaseHandlerController: base}
+	require.NoError(t, c.objMgr.Load(nil))
+	bd := &BlockData{
+		mainData:       sui.BlockMainData{Intervals: []data.IntervalConfig{interval}},
+		checkpointData: make(map[string]string),
+	}
+
+	require.NoError(t, c.pushIntervalAgent(context.Background(), 9999, bd))
+	// [0,9999] is a single page, so each distinct filter is fetched exactly once
+	assert.Equal(t, map[string]int{utils.MustJSONMarshal(filterA): 1, utils.MustJSONMarshal(filterB): 1}, cli.scans)
+	for _, filter := range []chainsui.ObjectChangeFilter{filterA, filterB} {
+		dict := c.objMgr.Get(utils.MustJSONMarshal(filter))
+		require.NotNil(t, dict)
+		assert.Equal(t, uint64(9999), dict.BlockNumber)
+	}
 }

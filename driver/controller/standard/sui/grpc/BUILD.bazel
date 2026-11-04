@@ -19,6 +19,7 @@ go_library(
         "//common/errgroup",
         "//common/log",
         "//common/protojson",
+        "//common/set",
         "//common/utils",
         "//driver/controller",
         "//driver/controller/config",
@@ -45,6 +46,7 @@ go_test(
     deps = [
         "//chain/sui",
         "//common/set",
+        "//common/utils",
         "//driver/controller/data",
         "//driver/controller/data/sui",
         "//driver/controller/data/sui/grpc",

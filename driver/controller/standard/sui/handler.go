@@ -179,12 +179,12 @@ func (c *HandlerController) pushIntervalAgent(ctx context.Context, blockNumber u
 		}
 		key := ag.ObjMgrKey()
 		g.Go(func() error {
-			if newDict, err := ag.PushObjectLatestVersion(gctx, blockNumber, c.objMgr.Get(key)); err != nil {
-				return err
-			} else {
+			newDict, err := ag.PushObjectLatestVersion(gctx, blockNumber, c.objMgr.Get(key))
+			// on failure newDict may still carry the progress made so far, keep it so the retry resumes from there
+			if newDict.ObjectLatestVersion != nil {
 				c.objMgr.Put(key, newDict)
-				return nil
 			}
+			return err
 		})
 	}
 	if err := g.Wait(); err != nil {

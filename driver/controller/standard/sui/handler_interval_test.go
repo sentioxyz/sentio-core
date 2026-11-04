@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -167,6 +169,62 @@ func Test_PushObjectLatestVersionPaged(t *testing.T) {
 			extractPushTestChange)
 		require.Error(t, err)
 		assert.True(t, chain.IsTooManyResultsError(err))
+	})
+
+	t.Run("retries a failed page and keeps the pages already folded in", func(t *testing.T) {
+		defer func(b time.Duration) { objectChangePageRetryBackoff = b }(objectChangePageRetryBackoff)
+		objectChangePageRetryBackoff = 0
+		var calls [][2]uint64
+		result, err := PushObjectLatestVersionPaged(ctx, agent, 19999, nil, "object",
+			func(ctx context.Context, from, to uint64) (map[uint64][]pushTestChange, error) {
+				calls = append(calls, [2]uint64{from, to})
+				if from == 10000 && len(calls) < 4 {
+					return nil, errors.New("i/o timeout")
+				}
+				return map[uint64][]pushTestChange{from: {{objectID: fmt.Sprintf("0x%x", from), version: 1}}}, nil
+			},
+			extractPushTestChange)
+		require.NoError(t, err)
+		// the second page failed twice and was retried in place, the first page was not fetched again
+		assert.Equal(t, [][2]uint64{{0, 9999}, {10000, 19999}, {10000, 19999}, {10000, 19999}}, calls)
+		assert.Equal(t, ObjectDict{BlockNumber: 19999, ObjectLatestVersion: map[string]uint64{"0x0": 1, "0x2710": 1}}, result)
+	})
+
+	t.Run("returns the progress made so far when a page keeps failing", func(t *testing.T) {
+		defer func(b time.Duration) { objectChangePageRetryBackoff = b }(objectChangePageRetryBackoff)
+		objectChangePageRetryBackoff = 0
+		failing := true
+		var calls int
+		fetch := func(ctx context.Context, from, to uint64) (map[uint64][]pushTestChange, error) {
+			calls++
+			if from >= 10000 && failing {
+				return nil, errors.New("i/o timeout")
+			}
+			return map[uint64][]pushTestChange{from: {{objectID: fmt.Sprintf("0x%x", from), version: 1}}}, nil
+		}
+		partial, err := PushObjectLatestVersionPaged(ctx, agent, 19999, nil, "object", fetch, extractPushTestChange)
+		require.Error(t, err)
+		assert.Equal(t, 1+objectChangePageMaxAttempts, calls)
+		assert.Equal(t, ObjectDict{BlockNumber: 9999, ObjectLatestVersion: map[string]uint64{"0x0": 1}}, partial)
+
+		// resuming from the partial dict scans only what is left
+		failing, calls = false, 0
+		result, err := PushObjectLatestVersionPaged(ctx, agent, 19999, &partial, "object", fetch, extractPushTestChange)
+		require.NoError(t, err)
+		assert.Equal(t, 1, calls)
+		assert.Equal(t, ObjectDict{BlockNumber: 19999, ObjectLatestVersion: map[string]uint64{"0x0": 1, "0x2710": 1}}, result)
+	})
+
+	t.Run("returns a zero dict when no page was folded in", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		cancel()
+		result, err := PushObjectLatestVersionPaged(ctx, agent, 19999, nil, "object",
+			func(ctx context.Context, from, to uint64) (map[uint64][]pushTestChange, error) {
+				return nil, ctx.Err()
+			},
+			extractPushTestChange)
+		require.ErrorIs(t, err, context.Canceled)
+		assert.Nil(t, result.ObjectLatestVersion)
 	})
 
 	t.Run("rejects a dict over MaxObjectDictLen", func(t *testing.T) {

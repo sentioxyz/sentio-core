@@ -231,6 +231,12 @@ const MaxObjectDictLen = 100000
 // pager would fail instead of shrinking.
 var objectChangePaging = pager.Config{Target: 1000, Min: 100, Max: 500000, Step: 100, Initial: 10000}
 
+// objectChangePageMaxAttempts bounds how many times one object-change page is fetched before the push
+// gives up; the wait before each retry starts at objectChangePageRetryBackoff and doubles, up to a minute.
+const objectChangePageMaxAttempts = 5
+
+var objectChangePageRetryBackoff = time.Second * 5
+
 func (a HandlerAgentInterval) PushObjectLatestVersion(
 	ctx context.Context,
 	blockNumber uint64,
@@ -252,7 +258,13 @@ func (a HandlerAgentInterval) PushObjectLatestVersion(
 // change exposes its object id / version / deletion flag (extract); label names the change source in
 // logs. A page whose fetch fails with a too-many-results error (chain.IsTooManyResultsError) is
 // retried with a smaller span via pager.Walk's tooBig path — except a single-checkpoint page, whose
-// error is returned as is since it cannot be split further.
+// error is returned as is since it cannot be split further. Any other fetch error retries the same
+// page up to objectChangePageMaxAttempts times with backoff.
+//
+// If the push still fails after some pages were folded in, the dict as of the last completed page
+// (BlockNumber set to that page's end) is returned together with the error, so the caller can keep
+// it and resume from there on the next attempt instead of rescanning from the start. Otherwise the
+// returned dict is the zero value (nil ObjectLatestVersion).
 func PushObjectLatestVersionPaged[T any](
 	ctx context.Context,
 	a HandlerAgentInterval,
@@ -276,9 +288,27 @@ func PushObjectLatestVersionPaged[T any](
 		result.ObjectLatestVersion = utils.CopyMap(dict.ObjectLatestVersion)
 	}
 	logger.Infof("will push %s latest version dict in [%d,%d]", label, from, blockNumber)
+	// scanned is the end of the last page folded into result, valid only when scannedAny
+	var scanned uint64
+	var scannedAny bool
 	err := pager.Walk(from, blockNumber, objectChangePaging, func(start, end uint64) (uint64, bool, error) {
 		startAt := time.Now()
-		changes, err := fetch(ctx, start, end)
+		var changes map[uint64][]T
+		var err error
+		for attempt := 1; ; attempt++ {
+			changes, err = fetch(ctx, start, end)
+			if err == nil || chain.IsTooManyResultsError(err) || ctx.Err() != nil || attempt >= objectChangePageMaxAttempts {
+				break
+			}
+			backoff := min(objectChangePageRetryBackoff<<(attempt-1), time.Minute)
+			logger.Warnf("fetch %s changes in [%d,%d] failed (attempt %d/%d), will retry in %s: %v",
+				label, start, end, attempt, objectChangePageMaxAttempts, backoff, err)
+			select {
+			case <-ctx.Done():
+				return 0, false, ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
 		if err != nil {
 			if chain.IsTooManyResultsError(err) && start < end {
 				logger.Warnf("too many %s changes in [%d,%d], will retry with a smaller page: %v", label, start, end, err)
@@ -309,10 +339,16 @@ func PushObjectLatestVersionPaged[T any](
 		logger.With("used", time.Since(startAt).String()).
 			Infof("pushed %s latest version dict in [%d,%d], size %d => %d, created %d and updated %d and deleted %d",
 				label, start, end, beforeSize, len(result.ObjectLatestVersion), createCount, updateCount, deleteCount)
+		scanned, scannedAny = end, true
 		return records, false, nil
 	})
 	if err != nil {
-		return ObjectDict{}, err
+		if !scannedAny {
+			return ObjectDict{}, err
+		}
+		logger.Warnf("push %s latest version dict failed, keep the progress up to %d: %v", label, scanned, err)
+		result.BlockNumber = scanned
+		return result, err
 	}
 	if size := len(result.ObjectLatestVersion); size > MaxObjectDictLen {
 		err := errors.Errorf("object latest version dict size for handler %s with filter %s is too big: %d > %d",

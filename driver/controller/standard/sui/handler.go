@@ -7,6 +7,7 @@ import (
 
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/driver/controller"
 	"sentioxyz/sentio-core/driver/controller/config"
 	"sentioxyz/sentio-core/driver/controller/data"
@@ -167,6 +168,7 @@ func (c *HandlerController) BuildBlockDataFetcher(
 
 func (c *HandlerController) pushIntervalAgent(ctx context.Context, blockNumber uint64, blockData *BlockData) error {
 	g, gctx := errgroup.WithContext(ctx)
+	pushed := set.New[string]()
 	for _, agent := range c.Agents {
 		ag, is := agent.(HandlerAgentInterval)
 		if !is || !data.ContainsInterval(blockData.mainData.Intervals, ag.IntervalConfig) {
@@ -177,7 +179,13 @@ func (c *HandlerController) pushIntervalAgent(ctx context.Context, blockNumber u
 		if ag.TimerOnly {
 			continue
 		}
+		// ObjMgrKey is the filter alone, so agents sharing a filter share one dict: push it once, otherwise
+		// the scans repeat each other and a failing one could put an older partial dict over a finished one.
 		key := ag.ObjMgrKey()
+		if pushed.Contains(key) {
+			continue
+		}
+		pushed.Add(key)
 		g.Go(func() error {
 			newDict, err := ag.PushObjectLatestVersion(gctx, blockNumber, c.objMgr.Get(key))
 			// on failure newDict may still carry the progress made so far, keep it so the retry resumes from there

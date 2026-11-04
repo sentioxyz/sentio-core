@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -232,16 +233,16 @@ const MaxObjectDictLen = 100000
 var objectChangePaging = pager.Config{Target: 1000, Min: 100, Max: 500000, Step: 100, Initial: 10000}
 
 // objectChangePageMaxAttempts bounds how many times one object-change page is fetched before the push
-// gives up; the wait before each retry starts at objectChangePageRetryBackoff and doubles, up to a minute.
+// gives up; the wait between attempts backs off exponentially from objectChangePageRetryInterval, up to a minute.
 const objectChangePageMaxAttempts = 5
 
-var objectChangePageRetryBackoff = time.Second * 5
+var objectChangePageRetryInterval = time.Second * 5
 
 func (a HandlerAgentInterval) PushObjectLatestVersion(
 	ctx context.Context,
 	blockNumber uint64,
 	dict *ObjectDict,
-) (ObjectDict, error) {
+) (*ObjectDict, error) {
 	return PushObjectLatestVersionPaged(ctx, a, blockNumber, dict, "object",
 		func(ctx context.Context, fromBlock, toBlock uint64) (map[uint64][]types.ObjectChangeExtend, error) {
 			return a.Client.GetObjectChanges(ctx, fromBlock, toBlock, a.Filter)
@@ -263,8 +264,8 @@ func (a HandlerAgentInterval) PushObjectLatestVersion(
 //
 // If the push still fails after some pages were folded in, the dict as of the last completed page
 // (BlockNumber set to that page's end) is returned together with the error, so the caller can keep
-// it and resume from there on the next attempt instead of rescanning from the start. Otherwise the
-// returned dict is the zero value (nil ObjectLatestVersion).
+// it and resume from there on the next attempt instead of rescanning from the start. Otherwise a failed
+// push returns a nil dict.
 func PushObjectLatestVersionPaged[T any](
 	ctx context.Context,
 	a HandlerAgentInterval,
@@ -273,10 +274,10 @@ func PushObjectLatestVersionPaged[T any](
 	label string,
 	fetch func(ctx context.Context, fromBlock, toBlock uint64) (map[uint64][]T, error),
 	extract func(change T) (objectID string, version uint64, deleted bool),
-) (ObjectDict, error) {
+) (*ObjectDict, error) {
 	_, logger := log.FromContext(ctx, "handler", a.HandlerID.String(), "filter", utils.MustJSONMarshal(a.Filter))
 	if dict != nil && dict.BlockNumber == blockNumber { // may be retried, so dict.BlockNumber may be equal to blockNumber
-		return *dict, nil
+		return dict, nil
 	}
 	var from uint64
 	result := ObjectDict{
@@ -294,21 +295,20 @@ func PushObjectLatestVersionPaged[T any](
 	err := pager.Walk(from, blockNumber, objectChangePaging, func(start, end uint64) (uint64, bool, error) {
 		startAt := time.Now()
 		var changes map[uint64][]T
-		var err error
-		for attempt := 1; ; attempt++ {
-			changes, err = fetch(ctx, start, end)
-			if err == nil || chain.IsTooManyResultsError(err) || ctx.Err() != nil || attempt >= objectChangePageMaxAttempts {
-				break
+		bo := backoff.NewExponentialBackOff()
+		bo.InitialInterval = objectChangePageRetryInterval
+		bo.MaxInterval = time.Minute
+		bo.MaxElapsedTime = 0 // bounded by the attempt count only, a single slow page may take minutes
+		// WithMaxRetries(n) allows n retries after the initial attempt → objectChangePageMaxAttempts total.
+		retry := backoff.WithContext(backoff.WithMaxRetries(bo, objectChangePageMaxAttempts-1), ctx)
+		err := backoff.RetryNotify(func() (err error) {
+			if changes, err = fetch(ctx, start, end); chain.IsTooManyResultsError(err) {
+				return backoff.Permanent(err) // handled below by shrinking the page, not by retrying it as is
 			}
-			backoff := min(objectChangePageRetryBackoff<<(attempt-1), time.Minute)
-			logger.Warnf("fetch %s changes in [%d,%d] failed (attempt %d/%d), will retry in %s: %v",
-				label, start, end, attempt, objectChangePageMaxAttempts, backoff, err)
-			select {
-			case <-ctx.Done():
-				return 0, false, ctx.Err()
-			case <-time.After(backoff):
-			}
-		}
+			return err
+		}, retry, func(err error, wait time.Duration) {
+			logger.Warnf("fetch %s changes in [%d,%d] failed, will retry in %s: %v", label, start, end, wait, err)
+		})
 		if err != nil {
 			if chain.IsTooManyResultsError(err) && start < end {
 				logger.Warnf("too many %s changes in [%d,%d], will retry with a smaller page: %v", label, start, end, err)
@@ -344,18 +344,18 @@ func PushObjectLatestVersionPaged[T any](
 	})
 	if err != nil {
 		if !scannedAny {
-			return ObjectDict{}, err
+			return nil, err
 		}
 		logger.Warnf("push %s latest version dict failed, keep the progress up to %d: %v", label, scanned, err)
 		result.BlockNumber = scanned
-		return result, err
+		return &result, err
 	}
 	if size := len(result.ObjectLatestVersion); size > MaxObjectDictLen {
 		err := errors.Errorf("object latest version dict size for handler %s with filter %s is too big: %d > %d",
 			a.HandlerID.String(), utils.MustJSONMarshal(a.Filter), size, MaxObjectDictLen)
-		return ObjectDict{}, fetcher.Permanent(err)
+		return nil, fetcher.Permanent(err)
 	}
-	return result, nil
+	return &result, nil
 }
 
 type objectDetails struct {

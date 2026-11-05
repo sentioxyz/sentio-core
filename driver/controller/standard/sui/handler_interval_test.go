@@ -345,6 +345,7 @@ func (c *scanCountingClient) GetObjectChanges(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter chainsui.ObjectChangeFilter,
+	_ bool,
 ) (map[uint64][]types.ObjectChangeExtend, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

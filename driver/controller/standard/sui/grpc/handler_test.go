@@ -313,6 +313,7 @@ func (c *scanCountingClient) GetGrpcObjectChanges(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter chainsui.ObjectChangeFilter,
+	_ bool,
 ) (map[uint64][]*chainsui.ExtendedGrpcChangedObject, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

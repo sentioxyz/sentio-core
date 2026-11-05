@@ -35,12 +35,16 @@ type StorageJSONRPC interface {
 	) ([]types.TransactionResponseV1, error)
 
 	QueryObjectChanges(ctx context.Context, query *sui.ObjectChangeQuery) ([]types.ObjectChangeExtend, error)
-	// QueryObjectChangesV2 applies limit like QueryTransactionsV2.
+	// QueryObjectChangesV2 applies limit like QueryTransactionsV2. With latestOnly it returns, for
+	// every object, only its newest change in the range that passes the filter (older changes of the
+	// same object neither appear in the result nor count against limit); the result stays ordered by
+	// checkpoint.
 	QueryObjectChangesV2(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		filter sui.ObjectChangeFilter,
 		limit int,
+		latestOnly bool,
 	) ([]types.ObjectChangeExtend, error)
 
 	QueryObjectsStat(ctx context.Context, fromBlock, toBlock uint64, objectIDList []string) (map[string]sui.ObjectStat, error)
@@ -90,12 +94,13 @@ type StorageGRPC interface {
 	//  - SHARED
 	//  - IMMUTABLE
 	//  - CONSENSUS_ADDRESS
-	// It applies limit like QueryTransactions.
+	// It applies limit and latestOnly like StorageJSONRPC.QueryObjectChangesV2.
 	QueryObjectChanges(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		filter sui.ObjectChangeFilter,
 		limit int,
+		latestOnly bool,
 	) ([]*sui.ExtendedGrpcChangedObject, error)
 
 	QueryObjectsStat(

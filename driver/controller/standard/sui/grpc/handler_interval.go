@@ -65,7 +65,7 @@ func (a HandlerAgentInterval) PushObjectLatestVersion(
 ) (*suihandler.ObjectDict, error) {
 	return suihandler.PushObjectLatestVersionPaged(ctx, a.HandlerAgentInterval, blockNumber, dict, "grpc object",
 		func(ctx context.Context, fromBlock, toBlock uint64) (map[uint64][]*chainsui.ExtendedGrpcChangedObject, error) {
-			return a.Client.GetGrpcObjectChanges(ctx, fromBlock, toBlock, a.LatestVersionQueryFilter())
+			return a.Client.GetGrpcObjectChanges(ctx, fromBlock, toBlock, a.LatestVersionQueryFilter(), true)
 		},
 		func(oc *chainsui.ExtendedGrpcChangedObject) (objectID string, version uint64, deleted bool) {
 			return oc.GetObjectId(), oc.GetOutputVersion(), chainsui.GetChangeType(oc.ChangedObject).IsDeleted()

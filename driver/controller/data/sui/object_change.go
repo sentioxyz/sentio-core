@@ -78,7 +78,7 @@ func BuildObjectChangeFetcher(
 		time.Second,
 		1.5,
 		func(ctx context.Context, start, end uint64, latest controller.BlockHeader) (map[uint64]BlockMainData, error) {
-			changes, err := client.GetObjectChanges(ctx, start, end, req.Filter)
+			changes, err := client.GetObjectChanges(ctx, start, end, req.Filter, false)
 			if err != nil {
 				return nil, err
 			}

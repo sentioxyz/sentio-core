@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	chainsui "sentioxyz/sentio-core/chain/sui"
 )
 
 // fakeSimpleBlockClient implements just the one method attachSimpleBlocks needs. The embedded nil
@@ -45,4 +47,12 @@ func TestAttachSimpleBlocksEmpty(t *testing.T) {
 	client := &fakeSimpleBlockClient{}
 	require.NoError(t, attachSimpleBlocks(context.Background(), client, map[uint64]BlockMainData{}))
 	require.Zero(t, client.calls.Load(), "no fetch for an empty result set")
+}
+
+// latestOnly is only sent when set, so the object-change fetchers keep the three-argument form that a
+// super node predating the argument accepts.
+func TestObjectChangeArgs(t *testing.T) {
+	filter := chainsui.ObjectChangeFilter{}
+	require.Equal(t, []any{uint64(1), uint64(2), filter}, objectChangeArgs(1, 2, filter, false))
+	require.Equal(t, []any{uint64(1), uint64(2), filter, true}, objectChangeArgs(1, 2, filter, true))
 }

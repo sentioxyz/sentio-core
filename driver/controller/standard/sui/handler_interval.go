@@ -246,7 +246,7 @@ func (a HandlerAgentInterval) PushObjectLatestVersion(
 ) (*ObjectDict, error) {
 	return PushObjectLatestVersionPaged(ctx, a, blockNumber, dict, "object",
 		func(ctx context.Context, fromBlock, toBlock uint64) (map[uint64][]types.ObjectChangeExtend, error) {
-			return a.Client.GetObjectChanges(ctx, fromBlock, toBlock, a.LatestVersionQueryFilter())
+			return a.Client.GetObjectChanges(ctx, fromBlock, toBlock, a.LatestVersionQueryFilter(), true)
 		},
 		func(oc types.ObjectChangeExtend) (objectID string, version uint64, deleted bool) {
 			return oc.ObjectID.String(), oc.Version.Uint64(), oc.Type.IsDeleted()
@@ -277,11 +277,12 @@ func (a HandlerAgentInterval) LatestVersionQueryFilter() chainsui.ObjectChangeFi
 // them into a copy of dict. It is shared by the json-rpc handler (PushObjectLatestVersion above) and
 // the grpc handler's override, which differ only in how changes are fetched (fetch) and in how one
 // change exposes its object id / version / deletion flag (extract); label names the change source in
-// logs; fetch queries with a.LatestVersionQueryFilter(). A page whose fetch fails with a
-// too-many-results error (chain.IsTooManyResultsError) is retried with a smaller span via the pager's
-// tooBig path — except a single-checkpoint page, whose error is returned as is since it cannot be
-// split further. Any other fetch error retries the same page up to objectChangePageMaxAttempts times
-// with backoff.
+// logs; fetch queries with a.LatestVersionQueryFilter() and only the newest change of every object
+// in a page (latestOnly), so the pages are sized by the number of changed objects rather than of
+// changes. A page whose fetch fails with a too-many-results error (chain.IsTooManyResultsError) is
+// retried with a smaller span via the pager's tooBig path — except a single-checkpoint page, whose
+// error is returned as is since it cannot be split further. Any other fetch error retries the same
+// page up to objectChangePageMaxAttempts times with backoff.
 //
 // When that filter is an object id list only, the pages are walked backward from blockNumber, and the
 // walk ends as soon as the newest change of every listed object has been found: an object's latest

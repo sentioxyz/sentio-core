@@ -45,7 +45,6 @@ export enum EthChainId {
   SONEIUM_TESTNET = '1946',
   SONEIUM_MAINNET = '1868',
   TAC_TESTNET = '2390',
-  KARAK = '2410',
   BEVM = '11501',
   MEGAETH = '4326',
   ROBINHOOD = '4663',

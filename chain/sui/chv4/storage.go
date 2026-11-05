@@ -290,8 +290,7 @@ func (s *Storage) QueryTransactions(
 // queryObjectChanges applies limit like queryTransactions (a SQL LIMIT on the raw rows scanned;
 // hitting it fails with chain.NewTooManyResultsError). A non-empty latestBy keeps only the newest
 // change (by checkpoint and tx_index) of every group of rows with equal latestBy expressions, before the limit
-// is applied; the result is still ordered by checkpoint and tx_index. Its placeholders take the args
-// after those of where.
+// is applied; the result is still ordered by checkpoint and tx_index.
 func (s *Storage) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(*sui.ExtendedGrpcChangedObject) bool,
@@ -401,19 +400,15 @@ func (s *Storage) QueryObjectChanges(
 	}
 	var latestBy string
 	if latestOnly {
-		// The post filter (CheckerGrpc) of one change depends only on its object id, object type and
-		// whether its input or output owner matches the owner filter exactly; the SQL above is a
-		// superset of it. Keeping the newest change of every (object, type, exact owner match) group
-		// therefore always keeps the newest change of each object that passes the post filter.
+		// Group by the raw columns the post filter (CheckerGrpc) reads: the object id, the object type
+		// and, when owner types are given, the owners together with the change type (which decides
+		// whether the input / output owner exists at all, see Object.ToChangedObject). Every row of one
+		// group gets the same post-filter outcome, so keeping the newest row of each group always keeps
+		// the newest change of every object that passes the post filter, although the SQL condition is
+		// only a superset of it.
 		latestBy = "object_id, object_type"
 		if filter.OwnerFilter != nil && len(filter.OwnerFilter.OwnerID) > 0 && len(filter.OwnerFilter.OwnerType) > 0 {
-			latestBy += ", ((owner_address IN ? AND owner_kind IN ?) OR (pre_owner_address IN ? AND pre_owner_kind IN ?))"
-			args = append(args,
-				filter.OwnerFilter.OwnerID,
-				filter.OwnerFilter.OwnerType,
-				filter.OwnerFilter.OwnerID,
-				filter.OwnerFilter.OwnerType,
-			)
+			latestBy += ", change_type, owner_address, owner_kind, pre_owner_address, pre_owner_kind"
 		}
 	}
 	checker := filter.CheckerGrpc()

@@ -518,8 +518,10 @@ func (s *SuperService) FilterObjectChangesV2(
 		},
 	)
 	if latestOnly {
+		// stored json-rpc changes carry no transaction index (TxIndex -1), but never a deletion, so the
+		// version orders them
 		result = latestChangePerObject(result, func(oc types.ObjectChangeExtend) (string, uint64, uint64) {
-			return oc.GetObjectID(), oc.Checkpoint.Uint64(), uint64(oc.TxIndex)
+			return oc.GetObjectID(), oc.Version.Uint64(), 0
 		})
 	}
 	return chain.CheckTooManyResults(result, err, limit)
@@ -588,17 +590,16 @@ func (s *SuperService) FilterGrpcChangedObjects(
 }
 
 // latestChangePerObject keeps only the newest change of every object in changes, which come from both
-// the latest-slot cache and the storage, keeping their relative order. Changes are ordered by the
-// (checkpoint, tx index) that key returns rather than by version: a deleted change may carry no version.
-func latestChangePerObject[T any](changes []T, key func(T) (objectID string, checkpoint, txIndex uint64)) []T {
-	type position struct{ index, checkpoint, txIndex uint64 }
+// the latest-slot cache and the storage, keeping their relative order. key returns the object id and
+// the position of the change in the object's history as a (major, minor) pair; of equal positions the
+// last one is kept.
+func latestChangePerObject[T any](changes []T, key func(T) (objectID string, major, minor uint64)) []T {
+	type position struct{ index, major, minor uint64 }
 	newest := make(map[string]position, len(changes))
 	for i, change := range changes {
-		objectID, checkpoint, txIndex := key(change)
-		cur := position{index: uint64(i), checkpoint: checkpoint, txIndex: txIndex}
-		if pre, has := newest[objectID]; !has ||
-			checkpoint > pre.checkpoint || (checkpoint == pre.checkpoint && txIndex >= pre.txIndex) {
-			newest[objectID] = cur
+		objectID, major, minor := key(change)
+		if pre, has := newest[objectID]; !has || major > pre.major || (major == pre.major && minor >= pre.minor) {
+			newest[objectID] = position{index: uint64(i), major: major, minor: minor}
 		}
 	}
 	result := make([]T, 0, len(newest))

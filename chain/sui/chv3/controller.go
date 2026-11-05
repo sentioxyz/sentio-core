@@ -565,14 +565,15 @@ func (c *Controller) QueryObjectChangesV2(
 
 	var latestBy string
 	if latestOnly {
-		// The post filter (Checker) of one change depends only on its object id, object type and whether
-		// its owner matches the owner filter exactly; the SQL above is a superset of it. Keeping the
-		// newest change of every (object, type, exact owner match) group therefore always keeps the
-		// newest change of each object that passes the post filter.
+		// Group by the raw columns the post filter (Checker) reads: the object id, the object type and,
+		// when owner types are given, the raw owner (Checker rebuilds Owner from the owner column, not
+		// from the indexed owner_id / owner_type, which the converter fills from the object detail).
+		// Every row of one group gets the same post-filter outcome, so keeping the newest row of each
+		// group always keeps the newest change of every object that passes the post filter, although the
+		// SQL condition is only a superset of it.
 		latestBy = "object_id, object_type"
 		if filter.OwnerFilter != nil && len(filter.OwnerFilter.OwnerID) > 0 && len(filter.OwnerFilter.OwnerType) > 0 {
-			latestBy += ", (owner_id IN ? AND owner_type IN ?)"
-			args = append(args, filter.OwnerFilter.OwnerID, filter.OwnerFilter.OwnerType)
+			latestBy += ", owner"
 		}
 	}
 	return c.queryObjectChanges(ctx, filter.Checker(), limit, strings.Join(conditions, " AND "), latestBy, args...)
@@ -581,8 +582,7 @@ func (c *Controller) QueryObjectChangesV2(
 // queryObjectChanges applies limit like queryTransactions (a SQL LIMIT on the raw rows scanned;
 // hitting it fails with chain.NewTooManyResultsError). A non-empty latestBy keeps only the newest
 // change (by object_version) of every group of rows with equal latestBy expressions, before the limit
-// is applied; the result is still ordered by checkpoint. Its placeholders take the args after those
-// of where.
+// is applied; the result is still ordered by checkpoint.
 func (c *Controller) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(types.ObjectChangeExtend) bool,

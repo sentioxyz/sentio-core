@@ -261,6 +261,11 @@ func Test_latestChangePerObject(t *testing.T) {
 		[]change{{"0xc", 200, 0}, {"0xa", 200, 5}, {"0xb", 201, 0}},
 		latestChangePerObject(changes, key))
 	assert.Empty(t, latestChangePerObject[change](nil, key))
+
+	// stored json-rpc changes have no transaction index, so two of them in one checkpoint may come in
+	// any order; ordered by version, the newer one is kept whatever its position
+	byVersion := func(c change) (string, uint64, uint64) { return c.id, c.checkpoint, 0 }
+	assert.Equal(t, []change{{"0xa", 11, 0}}, latestChangePerObject([]change{{"0xa", 11, 0}, {"0xa", 10, 0}}, byVersion))
 }
 
 // latestOnly is an optional trailing argument: the existing three-argument calls keep working.

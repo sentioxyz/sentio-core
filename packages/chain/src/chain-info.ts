@@ -830,22 +830,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApi: 'https://unichain.blockscout.com',
     lightIcon: 'https://assets.sentio.xyz/chains/unichain.svg'
   },
-  [EthChainId.KARAK]: {
-    name: 'Karak Mainnet',
-    slug: 'karak-mainnet',
-    chainId: EthChainId.KARAK,
-    nativeChainId: 2410,
-    variation: EthVariation.DEFAULT,
-    priceTokenAddress: '0x4200000000000000000000000000000000000006',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x4200000000000000000000000000000000000006',
-    tokenSymbol: 'ETH',
-    tokenDecimals: 18,
-    explorerUrl: 'https://explorer.karak.network',
-    explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerApi: 'https://explorer.karak.network',
-    lightIcon: 'https://assets.sentio.xyz/chains/karak.svg'
-  },
   [EthChainId.SEI]: {
     name: 'Sei Mainnet',
     slug: 'sei',

@@ -22,6 +22,7 @@ import (
 	"sentioxyz/sentio-core/common/envconf"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/pager"
+	"sentioxyz/sentio-core/common/set"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/controller"
 	"sentioxyz/sentio-core/driver/controller/data"
@@ -245,11 +246,30 @@ func (a HandlerAgentInterval) PushObjectLatestVersion(
 ) (*ObjectDict, error) {
 	return PushObjectLatestVersionPaged(ctx, a, blockNumber, dict, "object",
 		func(ctx context.Context, fromBlock, toBlock uint64) (map[uint64][]types.ObjectChangeExtend, error) {
-			return a.Client.GetObjectChanges(ctx, fromBlock, toBlock, a.Filter)
+			return a.Client.GetObjectChanges(ctx, fromBlock, toBlock, a.LatestVersionQueryFilter())
 		},
 		func(oc types.ObjectChangeExtend) (objectID string, version uint64, deleted bool) {
 			return oc.ObjectID.String(), oc.Version.Uint64(), oc.Type.IsDeleted()
 		})
+}
+
+// LatestVersionQueryFilter is the filter the object changes are queried with to maintain the object
+// dictionary. It matches the same changes as Filter, which stays the dictionary key (ObjMgrKey, kept
+// in checkpoints) and is still used to recognize the self object. An owner filter without owner
+// types only matches the changes of the owner objects themselves (see ObjectChangeOwnerFilter), so
+// it becomes an object id condition, which lets PushObjectLatestVersionPaged look the latest versions
+// up from the end of the range instead of walking the whole history.
+func (a HandlerAgentInterval) LatestVersionQueryFilter() chainsui.ObjectChangeFilter {
+	f := a.Filter
+	if f.OwnerFilter == nil || len(f.OwnerFilter.OwnerType) > 0 {
+		return f
+	}
+	ids := set.New(f.OwnerFilter.OwnerID...)
+	if f.ObjectIDIn != nil {
+		ids.Add(f.ObjectIDIn.DumpValues()...)
+	}
+	f.OwnerFilter, f.ObjectIDIn = nil, ids
+	return f
 }
 
 // PushObjectLatestVersionPaged pushes dict forward to blockNumber for agent a, fetching the object
@@ -257,15 +277,21 @@ func (a HandlerAgentInterval) PushObjectLatestVersion(
 // them into a copy of dict. It is shared by the json-rpc handler (PushObjectLatestVersion above) and
 // the grpc handler's override, which differ only in how changes are fetched (fetch) and in how one
 // change exposes its object id / version / deletion flag (extract); label names the change source in
-// logs. A page whose fetch fails with a too-many-results error (chain.IsTooManyResultsError) is
-// retried with a smaller span via pager.Walk's tooBig path — except a single-checkpoint page, whose
-// error is returned as is since it cannot be split further. Any other fetch error retries the same
-// page up to objectChangePageMaxAttempts times with backoff.
+// logs; fetch queries with a.LatestVersionQueryFilter(). A page whose fetch fails with a
+// too-many-results error (chain.IsTooManyResultsError) is retried with a smaller span via the pager's
+// tooBig path — except a single-checkpoint page, whose error is returned as is since it cannot be
+// split further. Any other fetch error retries the same page up to objectChangePageMaxAttempts times
+// with backoff.
 //
-// If the push still fails after some pages were folded in, the dict as of the last completed page
-// (BlockNumber set to that page's end) is returned together with the error, so the caller can keep
-// it and resume from there on the next attempt instead of rescanning from the start. Otherwise a failed
-// push returns a nil dict.
+// When that filter is an object id list only, the pages are walked backward from blockNumber, and the
+// walk ends as soon as the newest change of every listed object has been found: an object's latest
+// version is decided by its newest change alone, so the history before it is irrelevant. Such a push
+// either completes or returns a nil dict.
+//
+// Otherwise the pages are walked forward. If the push still fails after some pages were folded in, the
+// dict as of the last completed page (BlockNumber set to that page's end) is returned together with
+// the error, so the caller can keep it and resume from there on the next attempt instead of rescanning
+// from the start. Otherwise a failed push returns a nil dict.
 func PushObjectLatestVersionPaged[T any](
 	ctx context.Context,
 	a HandlerAgentInterval,
@@ -288,33 +314,99 @@ func PushObjectLatestVersionPaged[T any](
 		from = dict.BlockNumber + 1
 		result.ObjectLatestVersion = utils.CopyMap(dict.ObjectLatestVersion)
 	}
-	logger.Infof("will push %s latest version dict in [%d,%d]", label, from, blockNumber)
-	// scanned is the end of the last page folded into result, valid only when scannedAny
-	var scanned uint64
-	var scannedAny bool
-	err := pager.Walk(from, blockNumber, objectChangePaging, func(start, end uint64) (uint64, bool, error) {
-		startAt := time.Now()
-		var changes map[uint64][]T
+	// fetchPage fetches the changes of one page, retrying it in place on a transient error. A
+	// too-many-results error is returned as is, for the caller to shrink the page.
+	fetchPage := func(start, end uint64) (changes map[uint64][]T, err error) {
 		bo := backoff.NewExponentialBackOff()
 		bo.InitialInterval = objectChangePageRetryInterval
 		bo.MaxInterval = time.Minute
 		bo.MaxElapsedTime = 0 // bounded by the attempt count only, a single slow page may take minutes
 		// WithMaxRetries(n) allows n retries after the initial attempt → objectChangePageMaxAttempts total.
 		retry := backoff.WithContext(backoff.WithMaxRetries(bo, objectChangePageMaxAttempts-1), ctx)
-		err := backoff.RetryNotify(func() (err error) {
+		err = backoff.RetryNotify(func() (err error) {
 			if changes, err = fetch(ctx, start, end); chain.IsTooManyResultsError(err) {
-				return backoff.Permanent(err) // handled below by shrinking the page, not by retrying it as is
+				return backoff.Permanent(err) // handled by the caller by shrinking the page, not by retrying it as is
 			}
 			return err
 		}, retry, func(err error, wait time.Duration) {
 			logger.Warnf("fetch %s changes in [%d,%d] failed, will retry in %s: %v", label, start, end, wait, err)
 		})
-		if err != nil {
-			if chain.IsTooManyResultsError(err) && start < end {
-				logger.Warnf("too many %s changes in [%d,%d], will retry with a smaller page: %v", label, start, end, err)
-				return 0, true, nil
+		return changes, err
+	}
+	// pageError reports whether a failed page should be retried with a smaller span (tooBig) instead
+	// of failing the push
+	pageError := func(start, end uint64, err error) (tooBig bool, _ error) {
+		if chain.IsTooManyResultsError(err) && start < end {
+			logger.Warnf("too many %s changes in [%d,%d], will retry with a smaller page: %v", label, start, end, err)
+			return true, nil
+		}
+		return false, err
+	}
+	// apply folds one change into result, returns false for a deletion
+	apply := func(change T) bool {
+		objectID, objectVersion, deleted := extract(change)
+		if deleted {
+			delete(result.ObjectLatestVersion, objectID)
+			return false
+		}
+		result.ObjectLatestVersion[objectID] = objectVersion
+		return true
+	}
+
+	queryFilter := a.LatestVersionQueryFilter()
+	if len(queryFilter.TypePattern) == 0 && queryFilter.OwnerFilter == nil &&
+		queryFilter.ObjectIDIn != nil && !queryFilter.ObjectIDIn.Empty() {
+		pending := set.New(queryFilter.ObjectIDIn.DumpValues()...)
+		logger.Infof("will push %s latest version dict of %d objects backward in [%d,%d]",
+			label, pending.Size(), from, blockNumber)
+		err := pager.WalkBackward(from, blockNumber, objectChangePaging, func(start, end uint64) (uint64, bool, error) {
+			startAt := time.Now()
+			changes, err := fetchPage(start, end)
+			if err != nil {
+				tooBig, err := pageError(start, end, err)
+				return 0, tooBig, err
 			}
-			return 0, false, err
+			var records uint64
+			var found, deleted int
+			// newest checkpoint first, and newest change first within one, so the first change seen of
+			// an object is its newest one
+			for _, bn := range utils.Reverse(utils.GetOrderedMapKeys(changes)) {
+				for i := len(changes[bn]) - 1; i >= 0; i-- {
+					oc := changes[bn][i]
+					records++
+					if objectID, _, _ := extract(oc); pending.Contains(objectID) {
+						pending.Remove(objectID)
+						found++
+						if !apply(oc) {
+							deleted++
+						}
+					}
+				}
+			}
+			logger.With("used", time.Since(startAt).String()).
+				Infof("pushed %s latest version dict backward in [%d,%d], found %d (deleted %d), %d objects left",
+					label, start, end, found, deleted, pending.Size())
+			if pending.Empty() {
+				return records, false, pager.ErrStop
+			}
+			return records, false, nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &result, nil
+	}
+
+	logger.Infof("will push %s latest version dict in [%d,%d]", label, from, blockNumber)
+	// scanned is the end of the last page folded into result, valid only when scannedAny
+	var scanned uint64
+	var scannedAny bool
+	err := pager.Walk(from, blockNumber, objectChangePaging, func(start, end uint64) (uint64, bool, error) {
+		startAt := time.Now()
+		changes, err := fetchPage(start, end)
+		if err != nil {
+			tooBig, err := pageError(start, end, err)
+			return 0, tooBig, err
 		}
 		var records uint64
 		beforeSize := len(result.ObjectLatestVersion)
@@ -322,17 +414,15 @@ func PushObjectLatestVersionPaged[T any](
 		for _, bn := range utils.GetOrderedMapKeys(changes) {
 			for _, oc := range changes[bn] {
 				records++
-				objectID, objectVersion, deleted := extract(oc)
-				if deleted {
-					delete(result.ObjectLatestVersion, objectID)
+				objectID, _, _ := extract(oc)
+				_, existed := result.ObjectLatestVersion[objectID]
+				switch {
+				case !apply(oc):
 					deleteCount++
-				} else {
-					if _, has := result.ObjectLatestVersion[objectID]; has {
-						updateCount++
-					} else {
-						createCount++
-					}
-					result.ObjectLatestVersion[objectID] = objectVersion
+				case existed:
+					updateCount++
+				default:
+					createCount++
 				}
 			}
 		}

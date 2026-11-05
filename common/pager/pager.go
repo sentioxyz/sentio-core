@@ -7,6 +7,10 @@ package pager
 
 import "github.com/pkg/errors"
 
+// ErrStop can be returned by the process callback of Walk / WalkBackward to end the walk early
+// without an error, e.g. once everything it looks for has been found.
+var ErrStop = errors.New("pager: stop")
+
 // Config controls adaptive page sizing over an integer range. Zero-valued fields are replaced with
 // sensible defaults by normalize (Step=1, Min=Step, Max=Min, Initial=Min), but callers normally set
 // all of them explicitly.
@@ -71,8 +75,8 @@ func (c Config) NextSize(span, records uint64) uint64 {
 // report tooBig for a single-unit span (start == end), since that cannot be split further; doing so
 // returns an error rather than looping forever.
 //
-// Walk stops and returns the first error from process. An empty range (from > to) invokes process
-// zero times and returns nil.
+// Walk stops and returns the first error from process, except ErrStop, which ends the walk early with
+// a nil error. An empty range (from > to) invokes process zero times and returns nil.
 func Walk(from, to uint64, cfg Config, process func(start, end uint64) (records uint64, tooBig bool, err error)) error {
 	cfg = cfg.normalize()
 	size := cfg.Initial
@@ -80,6 +84,9 @@ func Walk(from, to uint64, cfg Config, process func(start, end uint64) (records 
 		end := min(cur+size-1, to)
 		span := end - cur + 1
 		records, tooBig, err := process(cur, end)
+		if errors.Is(err, ErrStop) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -94,4 +101,45 @@ func Walk(from, to uint64, cfg Config, process func(start, end uint64) (records 
 		size = cfg.NextSize(span, records)
 	}
 	return nil
+}
+
+// WalkBackward is Walk in the opposite direction: it traverses [from, to] inclusive from to down to
+// from, so the page after [start, end] ends at start-1. Page sizing, the tooBig shrink (which retries
+// with the same end) and ErrStop work as in Walk.
+func WalkBackward(
+	from, to uint64,
+	cfg Config,
+	process func(start, end uint64) (records uint64, tooBig bool, err error),
+) error {
+	if from > to {
+		return nil
+	}
+	cfg = cfg.normalize()
+	size := cfg.Initial
+	for cur := to; ; {
+		start := from
+		if cur-from+1 > size {
+			start = cur - size + 1
+		}
+		span := cur - start + 1
+		records, tooBig, err := process(start, cur)
+		if errors.Is(err, ErrStop) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if tooBig {
+			if span <= 1 {
+				return errors.Errorf("pager: process reported tooBig for an unsplittable single-unit page at %d", cur)
+			}
+			size = max(1, span/2) // safety shrink: retry the same end with a smaller span
+			continue
+		}
+		if start == from {
+			return nil
+		}
+		cur = start - 1
+		size = cfg.NextSize(span, records)
+	}
 }

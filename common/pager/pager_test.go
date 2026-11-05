@@ -155,3 +155,58 @@ func Test_normalize_defaults(t *testing.T) {
 	assert.GreaterOrEqual(t, c.Max, c.Min)
 	assert.GreaterOrEqual(t, c.Initial, c.Min)
 }
+
+func Test_Walk_stopEndsEarlyWithoutError(t *testing.T) {
+	var pages int
+	err := Walk(0, 4999, cfg(), func(start, end uint64) (uint64, bool, error) {
+		pages++
+		return 0, false, ErrStop
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, pages)
+}
+
+func Test_WalkBackward_coversRangeExactlyOnceFromTheEnd(t *testing.T) {
+	var pages [][2]uint64
+	err := WalkBackward(50, 4999, cfg(), func(start, end uint64) (uint64, bool, error) {
+		pages = append(pages, [2]uint64{start, end})
+		return (end - start + 1) * 100, false, nil // 100 records per unit => page size 500
+	})
+	assert.NoError(t, err)
+	next := uint64(4999)
+	for _, page := range pages {
+		assert.Equal(t, next, page[1], "pages must be contiguous, walking down")
+		assert.LessOrEqual(t, page[0], page[1])
+		next = page[0] - 1
+	}
+	assert.Equal(t, uint64(50), pages[len(pages)-1][0])
+	assert.Equal(t, [2]uint64{4500, 4999}, pages[0]) // Initial page size 500
+}
+
+func Test_WalkBackward_shrinksOnTooBigAndStops(t *testing.T) {
+	var pages [][2]uint64
+	err := WalkBackward(0, 999, cfg(), func(start, end uint64) (uint64, bool, error) {
+		if end-start+1 > 200 {
+			return 0, true, nil
+		}
+		pages = append(pages, [2]uint64{start, end})
+		if start <= 600 {
+			return 1, false, ErrStop
+		}
+		return 1, false, nil
+	})
+	assert.NoError(t, err)
+	// every oversized page is halved and retried with the same end; a sparse page grows back toward
+	// Max; the walk ends at the page that reports ErrStop, before reaching from
+	assert.Equal(t, [][2]uint64{{875, 999}, {766, 874}, {575, 765}}, pages)
+}
+
+func Test_WalkBackward_emptyRangeAndSingleUnitTooBig(t *testing.T) {
+	assert.NoError(t, WalkBackward(10, 9, cfg(), func(start, end uint64) (uint64, bool, error) {
+		t.Fatal("process should not be called")
+		return 0, false, nil
+	}))
+	assert.Error(t, WalkBackward(0, 9, cfg(), func(start, end uint64) (uint64, bool, error) {
+		return 0, true, nil
+	}))
+}

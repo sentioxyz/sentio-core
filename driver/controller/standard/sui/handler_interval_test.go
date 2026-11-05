@@ -379,3 +379,89 @@ func Test_pushIntervalAgent_pushesSharedFilterOnce(t *testing.T) {
 		assert.Equal(t, uint64(9999), dict.BlockNumber)
 	}
 }
+
+func TestHandlerAgentInterval_LatestVersionQueryFilter(t *testing.T) {
+	owner := &chainsui.ObjectChangeOwnerFilter{OwnerID: []string{"0x6"}}
+	got := HandlerAgentInterval{Filter: chainsui.ObjectChangeFilter{OwnerFilter: owner}}.LatestVersionQueryFilter()
+	assert.Nil(t, got.OwnerFilter)
+	assert.ElementsMatch(t, []string{"0x6"}, got.ObjectIDIn.DumpValues())
+
+	withIDs := chainsui.ObjectChangeFilter{OwnerFilter: owner, ObjectIDIn: set.New("0x7")}
+	got = HandlerAgentInterval{Filter: withIDs}.LatestVersionQueryFilter()
+	assert.Nil(t, got.OwnerFilter)
+	assert.ElementsMatch(t, []string{"0x6", "0x7"}, got.ObjectIDIn.DumpValues())
+
+	// an owner filter with owner types also matches the owned objects, it stays as is
+	typed := chainsui.ObjectChangeFilter{OwnerFilter: &chainsui.ObjectChangeOwnerFilter{
+		OwnerID: []string{"0x6"}, OwnerType: []string{"OBJECT"}}}
+	assert.Equal(t, typed, HandlerAgentInterval{Filter: typed}.LatestVersionQueryFilter())
+}
+
+func Test_PushObjectLatestVersionPaged_backward(t *testing.T) {
+	ctx := context.Background()
+	agent := HandlerAgentInterval{Filter: chainsui.ObjectChangeFilter{
+		OwnerFilter: &chainsui.ObjectChangeOwnerFilter{OwnerID: []string{"0xa", "0xb"}}}}
+
+	t.Run("stops once every object is found", func(t *testing.T) {
+		var pages [][2]uint64
+		dict := &ObjectDict{BlockNumber: 99, ObjectLatestVersion: map[string]uint64{"0xa": 1, "0xb": 1}}
+		result, err := PushObjectLatestVersionPaged(ctx, agent, 999_999, dict, "object",
+			func(ctx context.Context, from, to uint64) (map[uint64][]pushTestChange, error) {
+				pages = append(pages, [2]uint64{from, to})
+				switch len(pages) {
+				case 1: // older changes of 0xa first in the page, the newest one wins
+					return map[uint64][]pushTestChange{
+						995_000: {{objectID: "0xa", version: 8}},
+						998_000: {{objectID: "0xa", version: 9}},
+					}, nil
+				case 2:
+					return map[uint64][]pushTestChange{
+						700_000: {{objectID: "0xb", version: 3}, {objectID: "0xb", deleted: true}},
+						600_000: {{objectID: "0xa", version: 2}}, // older than the found one, ignored
+					}, nil
+				default:
+					t.Fatal("should have stopped")
+					return nil, nil
+				}
+			},
+			extractPushTestChange)
+		require.NoError(t, err)
+		// Initial page size 10000 from the end; 2 records grow the next page to Max (500000)
+		assert.Equal(t, [][2]uint64{{990_000, 999_999}, {490_000, 989_999}}, pages)
+		assert.Equal(t, &ObjectDict{BlockNumber: 999_999, ObjectLatestVersion: map[string]uint64{"0xa": 9}}, result)
+		assert.Equal(t, map[string]uint64{"0xa": 1, "0xb": 1}, dict.ObjectLatestVersion)
+	})
+
+	t.Run("keeps the dict version of an object unchanged in the range", func(t *testing.T) {
+		var pages int
+		dict := &ObjectDict{BlockNumber: 99, ObjectLatestVersion: map[string]uint64{"0xb": 4}}
+		result, err := PushObjectLatestVersionPaged(ctx, agent, 20_099, dict, "object",
+			func(ctx context.Context, from, to uint64) (map[uint64][]pushTestChange, error) {
+				pages++
+				if from <= 15_000 && 15_000 <= to {
+					return map[uint64][]pushTestChange{15_000: {{objectID: "0xa", version: 5}}}, nil
+				}
+				return nil, nil
+			},
+			extractPushTestChange)
+		require.NoError(t, err)
+		assert.Equal(t, 2, pages) // [10100,20099] then the rest [100,10099], walked to the start
+		assert.Equal(t, map[string]uint64{"0xa": 5, "0xb": 4}, result.ObjectLatestVersion)
+		assert.Equal(t, uint64(20_099), result.BlockNumber)
+	})
+
+	t.Run("returns a nil dict on failure", func(t *testing.T) {
+		defer func(b time.Duration) { objectChangePageRetryInterval = b }(objectChangePageRetryInterval)
+		objectChangePageRetryInterval = 0
+		result, err := PushObjectLatestVersionPaged(ctx, agent, 20_099, nil, "object",
+			func(ctx context.Context, from, to uint64) (map[uint64][]pushTestChange, error) {
+				if from < 10_000 {
+					return nil, errors.New("i/o timeout")
+				}
+				return map[uint64][]pushTestChange{to: {{objectID: "0xa", version: 5}}}, nil
+			},
+			extractPushTestChange)
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}

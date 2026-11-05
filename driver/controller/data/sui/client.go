@@ -37,10 +37,14 @@ type Client interface {
 	GetSimpleBlock(ctx context.Context, blockNumber uint64) (SimpleBlock, error)
 	GetHeaderIgnoreCache(ctx context.Context, blockNumber uint64) (controller.BlockHeader, error)
 
+	// GetObjectChanges returns the object changes in [fromBlock, toBlock] that pass filter, grouped by
+	// checkpoint. With latestOnly only the newest change of every object is returned, and the older
+	// changes of the same object do not count against the super node's record cap.
 	GetObjectChanges(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		filter sui.ObjectChangeFilter,
+		latestOnly bool,
 	) (map[uint64][]types.ObjectChangeExtend, error)
 	GetTransactions(
 		ctx context.Context,
@@ -61,10 +65,12 @@ type Client interface {
 		filter sui.TransactionFilter,
 		fetchConfig sui.TransactionFetchConfig,
 	) (map[uint64][]*sui.ExtendedGrpcTransaction, error)
+	// GetGrpcObjectChanges is the grpc-format counterpart of GetObjectChanges.
 	GetGrpcObjectChanges(
 		ctx context.Context,
 		fromBlock, toBlock uint64,
 		filter sui.ObjectChangeFilter,
+		latestOnly bool,
 	) (map[uint64][]*sui.ExtendedGrpcChangedObject, error)
 	GetGrpcObjects(
 		ctx context.Context,
@@ -225,13 +231,25 @@ func (c *client) GetSimpleBlock(ctx context.Context, blockNumber uint64) (Simple
 	})
 }
 
+// objectChangeArgs builds the arguments of sui_filterObjectChangesV2 / sui_filterGrpcChangedObjects.
+// latestOnly is a trailing argument only sent when set: a super node predating it rejects any extra
+// argument, so the queries that do not need it keep working against one.
+func objectChangeArgs(fromBlock, toBlock uint64, filter sui.ObjectChangeFilter, latestOnly bool) []any {
+	if latestOnly {
+		return []any{fromBlock, toBlock, filter, true}
+	}
+	return []any{fromBlock, toBlock, filter}
+}
+
 func (c *client) GetObjectChanges(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
+	latestOnly bool,
 ) (map[uint64][]types.ObjectChangeExtend, error) {
 	var result []types.ObjectChangeExtend
-	err := c.callContext(ctx, &result, 0, "sui_filterObjectChangesV2", fromBlock, toBlock, filter)
+	args := objectChangeArgs(fromBlock, toBlock, filter, latestOnly)
+	err := c.callContext(ctx, &result, 0, "sui_filterObjectChangesV2", args...)
 	return utils.Group(result, func(oc types.ObjectChangeExtend) uint64 {
 		return oc.Checkpoint.Uint64()
 	}), err
@@ -267,9 +285,11 @@ func (c *client) GetGrpcObjectChanges(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
+	latestOnly bool,
 ) (map[uint64][]*sui.ExtendedGrpcChangedObject, error) {
 	var result []*sui.ExtendedGrpcChangedObject
-	err := c.callContext(ctx, &result, 0, "sui_filterGrpcChangedObjects", fromBlock, toBlock, filter)
+	args := objectChangeArgs(fromBlock, toBlock, filter, latestOnly)
+	err := c.callContext(ctx, &result, 0, "sui_filterGrpcChangedObjects", args...)
 	return utils.Group(result, func(oc *sui.ExtendedGrpcChangedObject) uint64 {
 		return oc.Checkpoint
 	}), err

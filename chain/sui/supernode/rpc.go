@@ -467,10 +467,16 @@ func (s *SuperService) FilterObjectChanges(
 	return result, nil
 }
 
+// FilterObjectChangesV2 returns the object changes in [fromBlock, toBlock] that pass filter. With
+// latestOnly (an optional trailing argument, false when omitted) only the newest change of every object
+// is returned, and the older changes of the same object do not count against the record cap, so a
+// caller that only wants the latest version of each object can page through dense history in large
+// strides.
 func (s *SuperService) FilterObjectChangesV2(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
+	latestOnly bool,
 ) ([]types.ObjectChangeExtend, error) {
 	if err := s.requireJSONRPC(); err != nil {
 		return nil, err
@@ -508,9 +514,14 @@ func (s *SuperService) FilterObjectChangesV2(
 		},
 		func(ctx context.Context, queryRange rg.Range) (objs []types.ObjectChangeExtend, err error) {
 			return s.storageJSONRPC.QueryObjectChangesV2(
-				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit))
+				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit), latestOnly)
 		},
 	)
+	if latestOnly {
+		result = latestChangePerObject(result, func(oc types.ObjectChangeExtend) (string, uint64, uint64) {
+			return oc.GetObjectID(), oc.Checkpoint.Uint64(), uint64(oc.TxIndex)
+		})
+	}
 	return chain.CheckTooManyResults(result, err, limit)
 }
 
@@ -521,10 +532,13 @@ func (s *SuperService) FilterObjectChangesV2(
 //   - SHARED
 //   - IMMUTABLE
 //   - CONSENSUS_ADDRESS
+//
+// latestOnly works like in FilterObjectChangesV2.
 func (s *SuperService) FilterGrpcChangedObjects(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
+	latestOnly bool,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
 	if err := s.requireGRPC(); err != nil {
 		return nil, err
@@ -562,10 +576,38 @@ func (s *SuperService) FilterGrpcChangedObjects(
 		},
 		func(ctx context.Context, queryRange rg.Range) (objs []*sui.ExtendedGrpcChangedObject, err error) {
 			return s.storageGRPC.QueryObjectChanges(
-				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit))
+				ctx, queryRange.Start, *queryRange.End, filter, chain.StoreQueryLimit(limit), latestOnly)
 		},
 	)
+	if latestOnly {
+		result = latestChangePerObject(result, func(oc *sui.ExtendedGrpcChangedObject) (string, uint64, uint64) {
+			return oc.GetObjectId(), oc.Checkpoint, oc.TxIndex
+		})
+	}
 	return chain.CheckTooManyResults(result, err, limit)
+}
+
+// latestChangePerObject keeps only the newest change of every object in changes, which come from both
+// the latest-slot cache and the storage, keeping their relative order. Changes are ordered by the
+// (checkpoint, tx index) that key returns rather than by version: a deleted change may carry no version.
+func latestChangePerObject[T any](changes []T, key func(T) (objectID string, checkpoint, txIndex uint64)) []T {
+	type position struct{ index, checkpoint, txIndex uint64 }
+	newest := make(map[string]position, len(changes))
+	for i, change := range changes {
+		objectID, checkpoint, txIndex := key(change)
+		cur := position{index: uint64(i), checkpoint: checkpoint, txIndex: txIndex}
+		if pre, has := newest[objectID]; !has ||
+			checkpoint > pre.checkpoint || (checkpoint == pre.checkpoint && txIndex >= pre.txIndex) {
+			newest[objectID] = cur
+		}
+	}
+	result := make([]T, 0, len(newest))
+	for i, change := range changes {
+		if objectID, _, _ := key(change); newest[objectID].index == uint64(i) {
+			result = append(result, change)
+		}
+	}
+	return result
 }
 
 // GetGrpcObjects forwards a single bounded batch to the upstream grpc node. It does

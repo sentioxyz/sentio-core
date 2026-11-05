@@ -60,7 +60,7 @@ func (m *mockStorageJSONRPC) QueryObjectChanges(_ context.Context, _ *sui.Object
 	return nil, nil
 }
 func (m *mockStorageJSONRPC) QueryObjectChangesV2(
-	_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter, _ int,
+	_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter, _ int, _ bool,
 ) ([]suitypes.ObjectChangeExtend, error) {
 	return nil, nil
 }
@@ -85,7 +85,7 @@ func (m *mockStorageGRPC) QueryTransactions(
 	return nil, nil
 }
 func (m *mockStorageGRPC) QueryObjectChanges(
-	_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter, _ int,
+	_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter, _ int, _ bool,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
 	return nil, nil
 }
@@ -243,4 +243,36 @@ func Test_suiRpc(t *testing.T) {
 
 	cancel()
 	_ = g.Wait()
+}
+
+func Test_latestChangePerObject(t *testing.T) {
+	type change struct {
+		id                  string
+		checkpoint, txIndex uint64
+	}
+	key := func(c change) (string, uint64, uint64) { return c.id, c.checkpoint, c.txIndex }
+	// storage rows (one per object and owner-match group, ordered by checkpoint) followed by the
+	// latest-slot cache rows
+	changes := []change{
+		{"0xa", 100, 3}, {"0xb", 120, 0}, {"0xa", 150, 1}, // storage
+		{"0xc", 200, 0}, {"0xa", 200, 2}, {"0xa", 200, 5}, {"0xb", 201, 0}, // cache
+	}
+	assert.Equal(t,
+		[]change{{"0xc", 200, 0}, {"0xa", 200, 5}, {"0xb", 201, 0}},
+		latestChangePerObject(changes, key))
+	assert.Empty(t, latestChangePerObject[change](nil, key))
+}
+
+// latestOnly is an optional trailing argument: the existing three-argument calls keep working.
+func Test_filterObjectChanges_latestOnlyArgumentIsOptional(t *testing.T) {
+	var got []bool
+	method := func(_ context.Context, _, _ uint64, _ sui.ObjectChangeFilter, latestOnly bool) ([]int, error) {
+		got = append(got, latestOnly)
+		return nil, nil
+	}
+	for _, params := range []string{`[1,2,{}]`, `[1,2,{},true]`} {
+		_, err := jsonrpc.CallMethod(method, context.Background(), json.RawMessage(params))
+		assert.NoError(t, err)
+	}
+	assert.Equal(t, []bool{false, true}, got)
 }

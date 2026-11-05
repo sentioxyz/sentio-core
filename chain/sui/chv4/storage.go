@@ -288,12 +288,16 @@ func (s *Storage) QueryTransactions(
 }
 
 // queryObjectChanges applies limit like queryTransactions (a SQL LIMIT on the raw rows scanned;
-// hitting it fails with chain.NewTooManyResultsError).
+// hitting it fails with chain.NewTooManyResultsError). A non-empty latestBy keeps only the newest
+// change (by checkpoint and tx_index) of every group of rows with equal latestBy expressions, before the limit
+// is applied; the result is still ordered by checkpoint and tx_index. Its placeholders take the args
+// after those of where.
 func (s *Storage) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(*sui.ExtendedGrpcChangedObject) bool,
 	limit int,
 	where string,
+	latestBy string,
 	args ...any,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
 	fieldFilter := objectx.HasTag("clickhouse").
@@ -304,6 +308,14 @@ func (s *Storage) queryObjectChanges(
 		strings.Join(columns, ","),
 		s.ctrl.FullLogicName(tableNameObjects),
 		where)
+	if latestBy != "" {
+		sql = fmt.Sprintf("SELECT * FROM (SELECT %s FROM %s WHERE %s ORDER BY object_id, checkpoint DESC, tx_index DESC "+
+			"LIMIT 1 BY %s) ORDER BY checkpoint, tx_index",
+			strings.Join(columns, ","),
+			s.ctrl.FullLogicName(tableNameObjects),
+			where,
+			latestBy)
+	}
 	if limit > 0 {
 		sql += fmt.Sprintf(" LIMIT %d", limit)
 	}
@@ -335,6 +347,7 @@ func (s *Storage) QueryObjectChanges(
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
 	limit int,
+	latestOnly bool,
 ) ([]*sui.ExtendedGrpcChangedObject, error) {
 	if err := s.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -386,10 +399,27 @@ func (s *Storage) QueryObjectChanges(
 	if len(filters) > 0 {
 		conditions = append(conditions, mergeCondition(filters, " OR "))
 	}
+	var latestBy string
+	if latestOnly {
+		// The post filter (CheckerGrpc) of one change depends only on its object id, object type and
+		// whether its input or output owner matches the owner filter exactly; the SQL above is a
+		// superset of it. Keeping the newest change of every (object, type, exact owner match) group
+		// therefore always keeps the newest change of each object that passes the post filter.
+		latestBy = "object_id, object_type"
+		if filter.OwnerFilter != nil && len(filter.OwnerFilter.OwnerID) > 0 && len(filter.OwnerFilter.OwnerType) > 0 {
+			latestBy += ", ((owner_address IN ? AND owner_kind IN ?) OR (pre_owner_address IN ? AND pre_owner_kind IN ?))"
+			args = append(args,
+				filter.OwnerFilter.OwnerID,
+				filter.OwnerFilter.OwnerType,
+				filter.OwnerFilter.OwnerID,
+				filter.OwnerFilter.OwnerType,
+			)
+		}
+	}
 	checker := filter.CheckerGrpc()
 	return s.queryObjectChanges(ctx, func(co *sui.ExtendedGrpcChangedObject) bool {
 		return checker(co.ChangedObject)
-	}, limit, strings.Join(conditions, " AND "), args...)
+	}, limit, strings.Join(conditions, " AND "), latestBy, args...)
 }
 
 // QueryLastObjectChange returns the object's newest recorded change with

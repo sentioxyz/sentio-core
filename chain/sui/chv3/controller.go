@@ -508,7 +508,7 @@ func (c *Controller) QueryObjectChanges(
 	}
 
 	// no record limit: this legacy query keeps its original behavior
-	return c.queryObjectChanges(ctx, query.Check, 0, where, args...)
+	return c.queryObjectChanges(ctx, query.Check, 0, where, "", args...)
 }
 
 func (c *Controller) QueryObjectChangesV2(
@@ -516,6 +516,7 @@ func (c *Controller) QueryObjectChangesV2(
 	fromBlock, toBlock uint64,
 	filter sui.ObjectChangeFilter,
 	limit int,
+	latestOnly bool,
 ) ([]types.ObjectChangeExtend, error) {
 	if err := c.checkRange(ctx, rg.NewRange(fromBlock, toBlock)); err != nil {
 		return nil, err
@@ -562,16 +563,32 @@ func (c *Controller) QueryObjectChangesV2(
 		conditions = append(conditions, mergeCondition(filters, " OR "))
 	}
 
-	return c.queryObjectChanges(ctx, filter.Checker(), limit, strings.Join(conditions, " AND "), args...)
+	var latestBy string
+	if latestOnly {
+		// The post filter (Checker) of one change depends only on its object id, object type and whether
+		// its owner matches the owner filter exactly; the SQL above is a superset of it. Keeping the
+		// newest change of every (object, type, exact owner match) group therefore always keeps the
+		// newest change of each object that passes the post filter.
+		latestBy = "object_id, object_type"
+		if filter.OwnerFilter != nil && len(filter.OwnerFilter.OwnerID) > 0 && len(filter.OwnerFilter.OwnerType) > 0 {
+			latestBy += ", (owner_id IN ? AND owner_type IN ?)"
+			args = append(args, filter.OwnerFilter.OwnerID, filter.OwnerFilter.OwnerType)
+		}
+	}
+	return c.queryObjectChanges(ctx, filter.Checker(), limit, strings.Join(conditions, " AND "), latestBy, args...)
 }
 
 // queryObjectChanges applies limit like queryTransactions (a SQL LIMIT on the raw rows scanned;
-// hitting it fails with chain.NewTooManyResultsError).
+// hitting it fails with chain.NewTooManyResultsError). A non-empty latestBy keeps only the newest
+// change (by object_version) of every group of rows with equal latestBy expressions, before the limit
+// is applied; the result is still ordered by checkpoint. Its placeholders take the args after those
+// of where.
 func (c *Controller) queryObjectChanges(
 	ctx context.Context,
 	postFilter func(types.ObjectChangeExtend) bool,
 	limit int,
 	where string,
+	latestBy string,
 	args ...any,
 ) ([]types.ObjectChangeExtend, error) {
 	fieldFilter := objectx.HasTag("clickhouse").And(objectx.AnyHasTagEqualTo("required", "true"))
@@ -580,6 +597,14 @@ func (c *Controller) queryObjectChanges(
 		strings.Join(columns, "`,`"),
 		c.ctrl.FullLogicName(tableNameObjectChanges),
 		where)
+	if latestBy != "" {
+		sql = fmt.Sprintf("SELECT * FROM (SELECT `%s` FROM %s WHERE %s ORDER BY object_id, object_version DESC "+
+			"LIMIT 1 BY %s) ORDER BY checkpoint",
+			strings.Join(columns, "`,`"),
+			c.ctrl.FullLogicName(tableNameObjectChanges),
+			where,
+			latestBy)
+	}
 	if limit > 0 {
 		sql += fmt.Sprintf(" LIMIT %d", limit)
 	}
@@ -637,7 +662,7 @@ func (c *Controller) QueryLastObjectChange(
 		return nil, nil
 	}
 	changes, err := c.queryObjectChanges(ctx, func(types.ObjectChangeExtend) bool { return true }, 0,
-		"checkpoint = ? AND object_id = ? AND object_version = ?", checkpoint, objectID, version)
+		"checkpoint = ? AND object_id = ? AND object_version = ?", "", checkpoint, objectID, version)
 	if err != nil {
 		return nil, err
 	}

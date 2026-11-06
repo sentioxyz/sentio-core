@@ -10,6 +10,7 @@ import (
 	"sentioxyz/sentio-core/common/concurrency"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/memsize"
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/timehist"
 	"sentioxyz/sentio-core/common/timer"
@@ -26,13 +27,18 @@ type StdLatestSlotCache[SLOT Slot] struct {
 
 	cacheBlockTimeLenMax time.Duration
 	cacheBlockTimeLenMin time.Duration
-	nodeClient           clientpool.Shell
-	persistent           Dimension[SLOT]
-	l2Cache              Dimension[SLOT]
-	l2CacheDumpInterval  time.Duration
+	// maxMemory caps the heap memory of the cached slots estimated by memsize.Of, 0 means no cap.
+	// The oldest slots are evicted to stay under it, but never below cacheBlockTimeLenMin.
+	maxMemory           uint64
+	nodeClient          clientpool.Shell
+	persistent          Dimension[SLOT]
+	l2Cache             Dimension[SLOT]
+	l2CacheDumpInterval time.Duration
 
 	lock     sync.RWMutex
 	memCache map[uint64]SLOT
+	memSize  map[uint64]uint64 // estimated memory of each slot in memCache, only tracked if maxMemory > 0
+	memBytes uint64            // sum of memSize
 	curRange rg.Range
 	ready    bool
 
@@ -60,6 +66,7 @@ func NewStdLatestSlotCache[SLOT Slot](
 	network string,
 	cacheBlockTimeLenMax time.Duration,
 	cacheBlockTimeLenMin time.Duration,
+	maxMemory uint64,
 	nodeClient clientpool.Shell,
 	persistent Dimension[SLOT],
 	l2Cache Dimension[SLOT],
@@ -75,11 +82,13 @@ func NewStdLatestSlotCache[SLOT Slot](
 		network:              network,
 		cacheBlockTimeLenMax: cacheBlockTimeLenMax,
 		cacheBlockTimeLenMin: cacheBlockTimeLenMin,
+		maxMemory:            maxMemory,
 		nodeClient:           nodeClient,
 		persistent:           persistent,
 		l2Cache:              l2Cache,
 		l2CacheDumpInterval:  l2CacheDumpInterval,
 		memCache:             make(map[uint64]SLOT),
+		memSize:              make(map[uint64]uint64),
 		curRange:             rg.EmptyRange,
 		blockWaiter:          concurrency.NewStatusWaiter[uint64](0),
 		growthUsed:           growthUsed,
@@ -201,15 +210,45 @@ func (c *StdLatestSlotCache[SLOT]) tryLoadL2Cache(
 		return curRange
 	}
 	logger.Infow("loaded slots to mem", "used", time.Since(startAt).String())
+	sizes := c.slotSizes(slots)
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	c.curRange = loadRange
 	c.memCache = make(map[uint64]SLOT)
-	for _, st := range slots {
-		c.memCache[st.GetNumber()] = st
+	c.memSize = make(map[uint64]uint64)
+	c.memBytes = 0
+	for i, st := range slots {
+		c.putSlot(st, sizes[i])
 	}
 	return c.curRange
+}
+
+// slotSizes estimates the memory of the slots, it is slow on big slots so call it without holding lock
+func (c *StdLatestSlotCache[SLOT]) slotSizes(slots []SLOT) []uint64 {
+	sizes := make([]uint64, len(slots))
+	if c.maxMemory == 0 {
+		return sizes
+	}
+	for i, st := range slots {
+		sizes[i] = memsize.Of(st)
+	}
+	return sizes
+}
+
+// putSlot must be called with the write lock held
+func (c *StdLatestSlotCache[SLOT]) putSlot(st SLOT, sz uint64) {
+	sn := st.GetNumber()
+	c.memBytes = c.memBytes - c.memSize[sn] + sz
+	c.memCache[sn] = st
+	c.memSize[sn] = sz
+}
+
+// deleteSlot must be called with the write lock held
+func (c *StdLatestSlotCache[SLOT]) deleteSlot(sn uint64) {
+	c.memBytes -= c.memSize[sn]
+	delete(c.memCache, sn)
+	delete(c.memSize, sn)
 }
 
 func (c *StdLatestSlotCache[SLOT]) loadFromPersistent(
@@ -317,18 +356,31 @@ func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context, bi time.Duration)
 		return err
 	}
 
+	sizeStart := t.Start("SZ")
+	sizes := c.slotSizes(loaded)
+	sizeStart.End()
+
 	// update cache
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	updateStart := t.Start("W")
 	// set new slots
-	for _, st := range loaded {
-		c.memCache[st.GetNumber()] = st
+	for i, st := range loaded {
+		c.putSlot(st, sizes[i])
 	}
 	// delete useless slots
 	toDelRange := curRange.Remove(newRange).First()
 	for sn := toDelRange.Start; sn <= *toDelRange.End; sn++ {
-		delete(c.memCache, sn)
+		c.deleteSlot(sn)
+	}
+	// evict the oldest slots until the memory fits in maxMemory, but keep at least minMemCacheSize slots
+	var evicted uint64
+	if c.maxMemory > 0 {
+		for c.memBytes > c.maxMemory && *newRange.End-newRange.Start+1 > minMemCacheSize {
+			c.deleteSlot(newRange.Start)
+			newRange.Start++
+			evicted++
+		}
 	}
 	// update range
 	c.curRange = newRange
@@ -353,12 +405,15 @@ func (c *StdLatestSlotCache[SLOT]) growth(ctx context.Context, bi time.Duration)
 	c.blockWaiter.NewStatus(*newRange.End)
 
 	logger = logger.With(
-		"used", t.ReportDistribution("A", "LS,LR,LC,LE,W"),
+		"used", t.ReportDistribution("A", "LS,LR,LC,LE,SZ,W"),
 		"extRange", extRange.String(),
 		"curRange", curRange.String(),
 		"newRange", newRange.String(),
 		"maxMemCacheSize", maxMemCacheSize,
-		"minMemCacheSize", minMemCacheSize)
+		"minMemCacheSize", minMemCacheSize,
+		"memBytes", c.memBytes,
+		"maxMemory", c.maxMemory,
+		"evictedByMemory", evicted)
 	if curRange.IsEmpty() {
 		logger.Infof("growth succeed")
 	} else {
@@ -488,11 +543,12 @@ func (c *StdLatestSlotCache[SLOT]) repairRound(ctx context.Context, repairer Slo
 		if !ok {
 			continue
 		}
+		fixedSize := c.slotSizes([]SLOT{fixed})[0]
 		// patch back under the write lock, guarding against eviction or reorg replacement
 		// that may have happened while the repair was running
 		c.lock.Lock()
 		if cur, has := c.memCache[fixed.GetNumber()]; has && cur.GetHash() == fixed.GetHash() {
-			c.memCache[fixed.GetNumber()] = fixed
+			c.putSlot(fixed, fixedSize)
 			repairedCount++
 		}
 		c.lock.Unlock()
@@ -568,10 +624,12 @@ func (c *StdLatestSlotCache[SLOT]) Snapshot() any {
 		"cacheBlockTimeLenMax": c.cacheBlockTimeLenMax.String(),
 		"cacheBlockTimeLenMin": c.cacheBlockTimeLenMin.String(),
 		"memCache": map[string]any{
-			"ready":    c.ready,
-			"len":      len(c.memCache),
-			"range":    c.curRange.String(),
-			"features": utils.MapMapNoError(featureRanges, rg.RangeSet.String),
+			"ready":     c.ready,
+			"len":       len(c.memCache),
+			"memBytes":  c.memBytes,
+			"maxMemory": c.maxMemory,
+			"range":     c.curRange.String(),
+			"features":  utils.MapMapNoError(featureRanges, rg.RangeSet.String),
 		},
 		"loadExternal": map[string]any{
 			"used":       c.loadExtUsed.String(),

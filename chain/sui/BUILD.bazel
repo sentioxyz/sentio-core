@@ -50,6 +50,7 @@ go_test(
         "client_test.go",
         "extgrpc_json_test.go",
         "extserver_test.go",
+        "memsize_test.go",
         "protocol_version_test.go",
         "query_test.go",
         "rpc_types_v2_test.go",
@@ -61,6 +62,7 @@ go_test(
         "//chain/sui/types",
         "//common/chains",
         "//common/log",
+        "//common/memsize",
         "//common/range",
         "//common/set",
         "//common/utils",
@@ -71,5 +73,6 @@ go_test(
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//metadata",
+        "@org_golang_google_protobuf//proto",
     ],
 )

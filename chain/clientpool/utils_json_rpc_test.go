@@ -2,7 +2,10 @@ package clientpool
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/rpc"
@@ -165,6 +168,64 @@ func Test_isMissDataError_noStateFound_notBroken(t *testing.T) {
 func Test_isMissDataError_noStateFoundInRevertReason_notMissData(t *testing.T) {
 	// A contract-controlled revert reason containing the keyword must not be miss-data.
 	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: 3, msg: "execution reverted: no state found"}))
+}
+
+// Real error from Polygon Bor archive nodes: every state method fails with this -32000 for an
+// account that exists at that block and that other archive endpoints in the pool can read. It was
+// not classified as miss-data, so the error was returned to the caller instead of being retried.
+const borMissingAccountMsg = "getStateObject (1111111111111111111111111111111111111111) error: " +
+	"account 0x1111111111111111111111111111111111111111 is not found"
+
+func Test_isMissDataError_borMissingAccount_missData(t *testing.T) {
+	for _, method := range []string{
+		"eth_call", "eth_getBalance", "eth_getCode", "eth_getStorageAt", "eth_getTransactionCount",
+	} {
+		assert.True(t, isMissDataError(method, fakeRPCErr{code: -32000, msg: borMissingAccountMsg}), method)
+	}
+}
+
+func Test_isMissDataError_borMissingAccount_notBroken(t *testing.T) {
+	// Miss-data must trigger a per-request retry on another endpoint (BrokenForTask),
+	// not a ban of the endpoint itself.
+	assert.False(t, isBrokenError(fakeRPCErr{code: -32000, msg: borMissingAccountMsg}))
+}
+
+func Test_isMissDataError_borMissingAccountInRevertReason_notMissData(t *testing.T) {
+	// A contract-controlled revert reason containing the keyword must not be miss-data.
+	assert.False(t, isMissDataError("eth_call", fakeRPCErr{code: 3, msg: "execution reverted: " + borMissingAccountMsg}))
+}
+
+func Test_isMissDataError_bareAccountNotFound_notMissData(t *testing.T) {
+	// Only the Bor state lookup is matched: without it, "account not found" can be a real answer.
+	assert.False(t, isMissDataError("eth_getBalance", fakeRPCErr{code: -32000, msg: "account 0x11 is not found"}))
+}
+
+func Test_CallContext_borMissingAccount_retriedOnAnotherEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID json.RawMessage `json:"id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      req.ID,
+			"error":   map[string]any{"code": -32000, "message": borMissingAccountMsg},
+		})
+	}))
+	defer server.Close()
+	client, err := rpc.DialHTTP(server.URL)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer client.Close()
+
+	var code string
+	r := CallContext(client, context.Background(), &code, "eth_getCode", "0x11", "0x1")
+
+	assert.EqualError(t, r.Err, borMissingAccountMsg)
+	assert.True(t, r.BrokenForTask)
+	assert.False(t, r.Broken)
 }
 
 func Test_isMissDataError_standardApplicationErrors_notMissData(t *testing.T) {

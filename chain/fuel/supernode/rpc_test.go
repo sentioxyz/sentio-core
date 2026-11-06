@@ -119,6 +119,7 @@ func Test_fuelRpc(t *testing.T) {
 		"fuel_mainnet",
 		time.Second,
 		time.Second,
+		0,
 		cli,
 		ext,
 		nil,

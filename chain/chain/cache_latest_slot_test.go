@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DmitriyVTitov/size"
 	"github.com/stretchr/testify/assert"
 
 	rg "sentioxyz/sentio-core/common/range"
@@ -34,7 +35,7 @@ func newCachePersistent(start, end uint64) (*SimpleDimension[*testSlot], *testRa
 func newStdLatestSlotCache(maxDur, minDur time.Duration, dim Dimension[*testSlot]) *StdLatestSlotCache[*testSlot] {
 	return NewStdLatestSlotCache[*testSlot](
 		"test", "testnet",
-		maxDur, minDur,
+		maxDur, minDur, 0,
 		nil, dim,
 		nil, 0,
 		nil, nil,
@@ -323,4 +324,74 @@ func TestStdLatestSlotCache_GetByHash(t *testing.T) {
 	// slot outside cached window
 	_, err = c.GetByHash(context.Background(), "hash-94")
 	assert.ErrorIs(t, err, ErrSlotNotFound)
+}
+
+func newFilledCacheTestSlot(number uint64, filler int) *testSlot {
+	st := newCacheTestSlot(number)
+	st.Filler = make([]byte, filler)
+	return st
+}
+
+func assertMemBytesConsistent(t *testing.T, c *StdLatestSlotCache[*testSlot]) {
+	var sum uint64
+	for sn := range c.memCache {
+		sum += c.memSize[sn]
+	}
+	assert.Equal(t, sum, c.memBytes)
+	assert.Equal(t, len(c.memCache), len(c.memSize))
+}
+
+func TestStdLatestSlotCache_evictByMaxMemory(t *testing.T) {
+	// bi=1s: minSize=6 (5s), maxSize=21 (20s)
+	dim, rs, store := newCachePersistent(1, 100)
+	for i := uint64(1); i <= 100; i++ {
+		store.slots.Put(i, newFilledCacheTestSlot(i, 1000))
+	}
+	slotSize := uint64(size.Of(newFilledCacheTestSlot(120, 1000)))
+	c := NewStdLatestSlotCache[*testSlot]("test", "testnet", 20*time.Second, 5*time.Second,
+		slotSize*10, nil, dim, nil, 0, nil, nil)
+	ctx := context.Background()
+
+	assert.NoError(t, c.growth(ctx, time.Second))
+	assert.Equal(t, rg.NewRange(95, 100), c.curRange)
+	assertMemBytesConsistent(t, c)
+
+	// the time window allows 21 slots, but only 10 fit in maxMemory: the oldest ones are evicted
+	for i := uint64(101); i <= 120; i++ {
+		store.slots.Put(i, newFilledCacheTestSlot(i, 1000))
+	}
+	rs.cur = rg.NewRange(1, 120)
+	assert.NoError(t, c.growth(ctx, time.Second))
+	assert.Equal(t, rg.NewRange(111, 120), c.curRange)
+	assert.LessOrEqual(t, c.memBytes, slotSize*10)
+	assertMemBytesConsistent(t, c)
+	_, err := c.GetByNumber(ctx, 110)
+	assert.ErrorIs(t, err, ErrSlotNotFound)
+
+	// much bigger slots: never fewer than the 6 slots of the min time window
+	for i := uint64(121); i <= 130; i++ {
+		store.slots.Put(i, newFilledCacheTestSlot(i, 100000))
+	}
+	rs.cur = rg.NewRange(1, 130)
+	assert.NoError(t, c.growth(ctx, time.Second))
+	assert.Equal(t, rg.NewRange(125, 130), c.curRange)
+	assertMemBytesConsistent(t, c)
+
+	// small slots again: the cache grows forward from its current start, up to the time window
+	for i := uint64(131); i <= 160; i++ {
+		store.slots.Put(i, newFilledCacheTestSlot(i, 10))
+	}
+	rs.cur = rg.NewRange(1, 160)
+	assert.NoError(t, c.growth(ctx, time.Second))
+	assert.Equal(t, rg.NewRange(140, 160), c.curRange)
+	assertMemBytesConsistent(t, c)
+}
+
+func TestStdLatestSlotCache_noMaxMemorySkipsSizing(t *testing.T) {
+	dim, _, _ := newCachePersistent(1, 100)
+	c := newStdLatestSlotCache(10*time.Second, 5*time.Second, dim)
+	assert.NoError(t, c.growth(context.Background(), time.Second))
+	assert.Equal(t, rg.NewRange(95, 100), c.curRange)
+	assert.Equal(t, uint64(0), c.memBytes)
+	assertMemBytesConsistent(t, c)
 }

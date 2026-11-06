@@ -12,6 +12,11 @@
 //     runtime serves from static memory (zero-length strings, single bytes, small integers)
 //
 // Every pointer, slice array, string data and map is counted once even if it is reachable many times.
+//
+// Runtime state shared by many values is not walked (see opaqueTypes): the state of protobuf messages,
+// which points to the per-type MessageInfo and descriptors that protobuf initializes lazily, so walking
+// it would both count the shared metadata for every message and race with protobuf operations on other
+// messages; and time.Location, which is shared by all times in that location.
 // On decoded Aptos blocks the estimate is within 2% of the real heap; plain deep-size walkers report
 // about half of it.
 //
@@ -32,7 +37,10 @@ import (
 	"runtime/metrics"
 	"sort"
 	"sync"
+	"time"
 	"unsafe"
+
+	"google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -162,7 +170,7 @@ func (w *walker) refs(v reflect.Value) uint64 {
 		}
 		return total
 	case reflect.Pointer:
-		if v.IsNil() || !w.visit(v.Pointer()) {
+		if v.IsNil() || opaqueTypes[v.Type().Elem()] || !w.visit(v.Pointer()) {
 			return 0
 		}
 		et := v.Type().Elem()
@@ -298,13 +306,27 @@ func alignUp(n, a uint64) uint64 {
 	return (n + a - 1) / a * a
 }
 
+// opaqueTypes hold runtime state shared by many values, their inline size is counted with the value
+// containing them but what they reference is neither walked nor counted
+var opaqueTypes = map[reflect.Type]bool{
+	reflect.TypeFor[protoimpl.MessageState](): true,
+	reflect.TypeFor[time.Location]():          true,
+}
+
 var pointerCache sync.Map // reflect.Type -> bool
 
-// hasPointers reports whether values of t may reference heap memory
+// hasPointers reports whether values of t may reference heap memory that should be walked
 func hasPointers(t reflect.Type) bool {
 	if cached, ok := pointerCache.Load(t); ok {
 		return cached.(bool)
 	}
+	// opaque types are reported pointer-free so that nothing walks into them
+	result := !opaqueTypes[t] && hasPointersByKind(t)
+	pointerCache.Store(t, result)
+	return result
+}
+
+func hasPointersByKind(t reflect.Type) bool {
 	var result bool
 	switch t.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Chan, reflect.Func, reflect.UnsafePointer,
@@ -321,6 +343,5 @@ func hasPointers(t reflect.Type) bool {
 		}
 	default:
 	}
-	pointerCache.Store(t, result)
 	return result
 }

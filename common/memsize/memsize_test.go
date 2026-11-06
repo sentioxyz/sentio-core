@@ -10,6 +10,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func heapAlloc() uint64 {
@@ -201,3 +205,80 @@ func TestAllocSize(t *testing.T) {
 }
 
 func reflectTypeOf[T any]() reflect.Type { return reflect.TypeOf((*T)(nil)).Elem() }
+
+func decodedStruct(i int) *structpb.Struct {
+	fields := map[string]any{"id": float64(i), "name": strings.Repeat("n", 20+i%7)}
+	for j := 0; j < 30; j++ {
+		fields[fmt.Sprintf("field-%04d", j)] = map[string]any{
+			"value": fmt.Sprintf("value-%d-%d-%s", i, j, strings.Repeat("v", j)),
+			"list":  []any{float64(j), "abcdefghijklmnopqrstuvwxyz", true},
+		}
+	}
+	src, err := structpb.NewStruct(fields)
+	if err != nil {
+		panic(err)
+	}
+	raw, err := proto.Marshal(src)
+	if err != nil {
+		panic(err)
+	}
+	var msg structpb.Struct
+	if err = proto.Unmarshal(raw, &msg); err != nil {
+		panic(err)
+	}
+	return &msg
+}
+
+func TestOfProtobufMessage(t *testing.T) {
+	// the shared message state (type info and descriptors) must not be counted for each message
+	real := measure(200, func(i int) any { return decodedStruct(i) })
+	var est float64
+	for i := 0; i < 200; i++ {
+		est += float64(Of(decodedStruct(i)))
+	}
+	est /= 200
+	t.Logf("real=%.0f estimate=%.0f estimate/real=%.3f", real, est, est/real)
+	assert.InDelta(t, 1, est/real, 0.1)
+}
+
+func TestOfProtobufMessageConcurrentWithMarshal(t *testing.T) {
+	// The shared type info of the messages in a proto file is initialized lazily, the first time each
+	// message type is used. Size a decoded message while other message types of the same file are used
+	// for the first time; run with -race to check Of never reads that shared state.
+	raw, err := proto.Marshal(protodesc.ToFileDescriptorProto(structpb.File_google_protobuf_struct_proto))
+	assert.NoError(t, err)
+	var msg descriptorpb.FileDescriptorProto
+	assert.NoError(t, proto.Unmarshal(raw, &msg))
+
+	others := []proto.Message{
+		&descriptorpb.ServiceOptions{Deprecated: proto.Bool(true)},
+		&descriptorpb.MethodOptions{Deprecated: proto.Bool(true)},
+		&descriptorpb.EnumValueOptions{Deprecated: proto.Bool(true)},
+		&descriptorpb.ExtensionRangeOptions{Verification: descriptorpb.ExtensionRangeOptions_DECLARATION.Enum()},
+		&descriptorpb.OneofOptions{},
+		&descriptorpb.SourceCodeInfo{Location: []*descriptorpb.SourceCodeInfo_Location{{Path: []int32{1}}}},
+		&descriptorpb.GeneratedCodeInfo{Annotation: []*descriptorpb.GeneratedCodeInfo_Annotation{{Begin: proto.Int32(1)}}},
+		&descriptorpb.FeatureSetDefaults{},
+		&descriptorpb.UninterpretedOption{IdentifierValue: proto.String("x")},
+	}
+	start := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		<-start
+		for _, m := range others {
+			_, _ = proto.Marshal(m)
+			_ = proto.Size(m)
+		}
+	}()
+	close(start)
+	for {
+		select {
+		case <-done:
+			assert.Positive(t, Of(&msg))
+			return
+		default:
+			assert.Positive(t, Of(&msg))
+		}
+	}
+}

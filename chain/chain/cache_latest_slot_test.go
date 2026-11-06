@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DmitriyVTitov/size"
 	"github.com/stretchr/testify/assert"
 
+	"sentioxyz/sentio-core/common/memsize"
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/utils"
 )
@@ -347,7 +347,7 @@ func TestStdLatestSlotCache_evictByMaxMemory(t *testing.T) {
 	for i := uint64(1); i <= 100; i++ {
 		store.slots.Put(i, newFilledCacheTestSlot(i, 1000))
 	}
-	slotSize := uint64(size.Of(newFilledCacheTestSlot(120, 1000)))
+	slotSize := memsize.Of(newFilledCacheTestSlot(120, 1000))
 	c := NewStdLatestSlotCache[*testSlot]("test", "testnet", 20*time.Second, 5*time.Second,
 		slotSize*10, nil, dim, nil, 0, nil, nil)
 	ctx := context.Background()

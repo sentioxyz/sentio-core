@@ -10,12 +10,12 @@ import (
 	"sentioxyz/sentio-core/common/concurrency"
 	"sentioxyz/sentio-core/common/errgroup"
 	"sentioxyz/sentio-core/common/log"
+	"sentioxyz/sentio-core/common/memsize"
 	rg "sentioxyz/sentio-core/common/range"
 	"sentioxyz/sentio-core/common/timehist"
 	"sentioxyz/sentio-core/common/timer"
 	"sentioxyz/sentio-core/common/utils"
 
-	"github.com/DmitriyVTitov/size"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -27,10 +27,8 @@ type StdLatestSlotCache[SLOT Slot] struct {
 
 	cacheBlockTimeLenMax time.Duration
 	cacheBlockTimeLenMin time.Duration
-	// maxMemory caps the memory of the cached slots estimated by size.Of, 0 means no cap. The oldest
-	// slots are evicted to stay under it, but never below cacheBlockTimeLenMin. The estimate leaves out
-	// allocator overhead (the real heap is about twice as much), but it is proportional to the real
-	// usage, which is what keeps the memory steady.
+	// maxMemory caps the heap memory of the cached slots estimated by memsize.Of, 0 means no cap.
+	// The oldest slots are evicted to stay under it, but never below cacheBlockTimeLenMin.
 	maxMemory           uint64
 	nodeClient          clientpool.Shell
 	persistent          Dimension[SLOT]
@@ -233,7 +231,7 @@ func (c *StdLatestSlotCache[SLOT]) slotSizes(slots []SLOT) []uint64 {
 		return sizes
 	}
 	for i, st := range slots {
-		sizes[i] = uint64(max(size.Of(st), 0))
+		sizes[i] = memsize.Of(st)
 	}
 	return sizes
 }

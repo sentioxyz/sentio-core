@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "memsize",
+    srcs = ["memsize.go"],
+    importpath = "sentioxyz/sentio-core/common/memsize",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "memsize_test",
+    srcs = ["memsize_test.go"],
+    embed = [":memsize"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -48,6 +48,10 @@ var missDataErrorMatcher = []*regexp.Regexp{
 	// retained range: {"code":-32016,"message":"Error processing request: Filter error: Epoch is
 	// smaller than the earliest epoch stored (epoch: 157822027, min: 158460000)"}
 	regexp.MustCompile("earliest epoch stored"),
+	// Polygon Bor archive nodes on an account that exists at that block and that other archive
+	// endpoints can read: {"code":-32000,"message":"getStateObject (<address>) error: account
+	// 0x<address> is not found"}. isOneOf lowercases the message, so this pattern must be lowercase.
+	regexp.MustCompile("getstateobject .* is not found"),
 }
 
 var brokenMsgErrorMatcher = []*regexp.Regexp{

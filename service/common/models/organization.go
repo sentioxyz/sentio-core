@@ -18,6 +18,7 @@ type Organization struct {
 	Projects    []*Project          `gorm:"polymorphic:Owner;"`
 	Members     []*UserOrganization `gorm:"foreignKey:OrganizationID"`
 	LogoURL     string
+	Banned      bool     `gorm:"not null;default:false"`
 	Tier        int32    `gorm:"-"`
 	Account     *Account `gorm:"polymorphic:Owner;"`
 }
@@ -77,6 +78,7 @@ func (o *Organization) ToPB() *protos.Organization {
 		Name:        o.Name,
 		DisplayName: o.DisplayName,
 		LogoUrl:     o.LogoURL,
+		Banned:      o.Banned,
 		CreatedAt:   o.CreatedAt.UnixMilli(),
 		UpdatedAt:   o.UpdatedAt.UnixMilli(),
 	}

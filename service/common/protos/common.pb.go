@@ -2688,6 +2688,7 @@ type Organization struct {
 	LogoUrl       string                 `protobuf:"bytes,8,opt,name=logo_url,json=logoUrl,proto3" json:"logo_url,omitempty"`
 	Projects      []*ProjectInfo         `protobuf:"bytes,9,rep,name=projects,proto3" json:"projects,omitempty"`
 	Tier          Tier                   `protobuf:"varint,10,opt,name=tier,proto3,enum=common.Tier" json:"tier,omitempty"`
+	Banned        bool                   `protobuf:"varint,11,opt,name=banned,proto3" json:"banned,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2790,6 +2791,13 @@ func (x *Organization) GetTier() Tier {
 		return x.Tier
 	}
 	return Tier_FREE
+}
+
+func (x *Organization) GetBanned() bool {
+	if x != nil {
+		return x.Banned
+	}
+	return false
 }
 
 type ApiKey struct {
@@ -9233,7 +9241,7 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12=\n" +
 	"\x06config\x18\x04 \x01(\v2%.common.ProjectView.ProjectViewConfigR\x06config\x1aH\n" +
 	"\x11ProjectViewConfig\x123\n" +
-	"\tevent_log\x18\x01 \x01(\v2\x16.common.EventLogConfigR\beventLog\"\xa8\x03\n" +
+	"\tevent_log\x18\x01 \x01(\v2\x16.common.EventLogConfigR\beventLog\"\xc0\x03\n" +
 	"\fOrganization\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
 	"\x03oid\x18\x02 \x01(\tR\x03oid\x12\x12\n" +
@@ -9247,7 +9255,8 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	"\blogo_url\x18\b \x01(\tR\alogoUrl\x12/\n" +
 	"\bprojects\x18\t \x03(\v2\x13.common.ProjectInfoR\bprojects\x12 \n" +
 	"\x04tier\x18\n" +
-	" \x01(\x0e2\f.common.TierR\x04tier\x1a\\\n" +
+	" \x01(\x0e2\f.common.TierR\x04tier\x12\x16\n" +
+	"\x06banned\x18\v \x01(\bR\x06banned\x1a\\\n" +
 	"\x06Member\x12$\n" +
 	"\x04user\x18\x01 \x01(\v2\x10.common.UserInfoR\x04user\x12,\n" +
 	"\x04role\x18\x02 \x01(\x0e2\x18.common.OrganizationRoleR\x04role\"\xb4\x03\n" +

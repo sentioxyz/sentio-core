@@ -233,6 +233,7 @@ message Organization {
   string logo_url = 8;
   repeated ProjectInfo projects = 9;
   Tier tier = 10;
+  bool banned = 11;
 }
 
 enum OrganizationRole {

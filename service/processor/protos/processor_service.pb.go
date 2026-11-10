@@ -187,9 +187,10 @@ func (ProcessorVersionState) EnumDescriptor() ([]byte, []int) {
 type ReasonKind int32
 
 const (
-	ReasonKind_UNSPECIFIED ReasonKind = 0
-	ReasonKind_BILLING     ReasonKind = 1
-	ReasonKind_SECURITY    ReasonKind = 2
+	ReasonKind_UNSPECIFIED       ReasonKind = 0
+	ReasonKind_BILLING           ReasonKind = 1
+	ReasonKind_SECURITY          ReasonKind = 2
+	ReasonKind_ACCOUNT_SUSPENDED ReasonKind = 3
 )
 
 // Enum value maps for ReasonKind.
@@ -198,11 +199,13 @@ var (
 		0: "UNSPECIFIED",
 		1: "BILLING",
 		2: "SECURITY",
+		3: "ACCOUNT_SUSPENDED",
 	}
 	ReasonKind_value = map[string]int32{
-		"UNSPECIFIED": 0,
-		"BILLING":     1,
-		"SECURITY":    2,
+		"UNSPECIFIED":       0,
+		"BILLING":           1,
+		"SECURITY":          2,
+		"ACCOUNT_SUSPENDED": 3,
 	}
 )
 
@@ -4608,12 +4611,13 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\aPENDING\x10\x01\x12\n" +
 	"\n" +
 	"\x06ACTIVE\x10\x02\x12\f\n" +
-	"\bOBSOLETE\x10\x03*8\n" +
+	"\bOBSOLETE\x10\x03*O\n" +
 	"\n" +
 	"ReasonKind\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\v\n" +
 	"\aBILLING\x10\x01\x12\f\n" +
-	"\bSECURITY\x10\x022\xeb\x1b\n" +
+	"\bSECURITY\x10\x02\x12\x15\n" +
+	"\x11ACCOUNT_SUSPENDED\x10\x032\xeb\x1b\n" +
 	"\x10ProcessorService\x12b\n" +
 	"\rGetProcessors\x12'.processor_service.GetProcessorsRequest\x1a(.processor_service.GetProcessorsResponse\x12_\n" +
 	"\fGetProcessor\x12&.processor_service.GetProcessorRequest\x1a'.processor_service.GetProcessorResponse\x12u\n" +

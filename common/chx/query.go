@@ -376,11 +376,12 @@ func (c Controller) applyPatchesIfPiledUp(ctx context.Context, table string) err
 	// Patch parts live in synthetic partitions whose id is prefixed `patch-` (followed by a hash
 	// of the patched columns and the source partition id), and a part's name starts with its
 	// partition id.
+	scope, args := c.metaTableScope("table", table)
 	sql := "SELECT count(), sum(data_uncompressed_bytes) FROM system.parts " +
-		"WHERE database = ? AND table = ? AND active AND startsWith(name, 'patch-')"
+		"WHERE " + scope + " AND active AND startsWith(name, 'patch-')"
 	err := c.Query(ctx, func(rows driver.Rows) error {
 		return rows.Scan(&parts, &bytes)
-	}, sql, c.database, c.tableNamePrefix+table)
+	}, sql, args...)
 	if err != nil {
 		return errors.Wrapf(err, "probe patch parts of %s failed", table)
 	}
@@ -388,8 +389,7 @@ func (c Controller) applyPatchesIfPiledUp(ctx context.Context, table string) err
 		return nil
 	}
 	projections, err := c.QueryCount(ctx,
-		"SELECT count() FROM system.projections WHERE database = ? AND table = ?",
-		c.database, c.tableNamePrefix+table)
+		"SELECT count() FROM system.projections WHERE "+scope, args...)
 	if err != nil {
 		return errors.Wrapf(err, "probe projections of %s failed", table)
 	}
@@ -417,6 +417,11 @@ func (c Controller) waitDeleteMutations(ctx context.Context, table string) error
 	return c.waitMutations(ctx, table, "delete", "%DELETE%WHERE%")
 }
 
+const defaultWaitMutationsPollInterval = time.Second * 5
+
+// waitMutationsPollInterval is how often waitMutations polls system.mutations; tests shorten it.
+var waitMutationsPollInterval = defaultWaitMutationsPollInterval
+
 // waitMutations blocks until the table has no unfinished mutation whose command matches
 // commandPattern, polling system.mutations. Transient poll failures are tolerated (the mutation
 // keeps running server-side regardless), so the wait survives network hiccups and is bounded only
@@ -425,19 +430,21 @@ func (c Controller) waitDeleteMutations(ctx context.Context, table string) error
 // surfaced as an error after persisting for several consecutive polls (a stuck mutation must be
 // reported rather than waited on forever).
 func (c Controller) waitMutations(ctx context.Context, table, kind, commandPattern string) error {
-	const pollInterval = time.Second * 5
+	pollInterval := waitMutationsPollInterval
 	// ~1 minute of a persisting failure reason before giving up on the mutation.
 	const failReportThreshold = 12
 	startAt := time.Now()
 	failStreak := 0
+	scope, args := c.metaTableScope("table", table)
 	sql := "SELECT count(), max(latest_fail_reason) FROM system.mutations " +
-		"WHERE database = ? AND table = ? AND NOT is_done AND command LIKE ?"
+		"WHERE " + scope + " AND NOT is_done AND command LIKE ?"
+	args = append(args, commandPattern)
 	for {
 		var pending uint64
 		var failReason string
 		err := c.Query(ctx, func(rows driver.Rows) error {
 			return rows.Scan(&pending, &failReason)
-		}, sql, c.database, c.tableNamePrefix+table, commandPattern)
+		}, sql, args...)
 		if err == nil {
 			if pending == 0 {
 				used := time.Since(startAt)
@@ -459,6 +466,10 @@ func (c Controller) waitMutations(ctx context.Context, table, kind, commandPatte
 			}
 		} else if ctx.Err() != nil {
 			return ctx.Err()
+		} else if isPermanentQueryError(err) {
+			// The poll itself is refused (HouseGate does not serve the system table, say): asking
+			// again cannot help, and would only hang the caller until ctx expires.
+			return errors.Wrapf(err, "poll %s mutation on %s failed", kind, table)
 		}
 		select {
 		case <-ctx.Done():
@@ -487,6 +498,7 @@ type PartitionMeta struct {
 }
 
 func (c Controller) ListPartitions(ctx context.Context, table string) (partitions []PartitionMeta, err error) {
+	scope, args := c.metaTableScope("table", table)
 	sql := "SELECT " +
 		"partition," +
 		"sum(rows)," +
@@ -494,7 +506,7 @@ func (c Controller) ListPartitions(ctx context.Context, table string) (partition
 		"sum(data_compressed_bytes)," +
 		"sum(data_uncompressed_bytes) " +
 		"FROM system.parts " +
-		"WHERE database = ? AND table = ? AND active = 1 " +
+		"WHERE " + scope + " AND active = 1 " +
 		"GROUP BY partition " +
 		"ORDER BY partition"
 	err = c.Query(ctx, func(rows driver.Rows) error {
@@ -505,6 +517,21 @@ func (c Controller) ListPartitions(ctx context.Context, table string) (partition
 		}
 		partitions = append(partitions, p)
 		return nil
-	}, sql, c.database, c.tableNamePrefix+table)
+	}, sql, args...)
 	return partitions, err
+}
+
+// permanentQueryErrorCodes are the exception codes of a query that fails the same way every time it
+// is sent: HouseGate's refusal of a statement (403) and ClickHouse's ACCESS_DENIED, UNKNOWN_TABLE,
+// UNKNOWN_DATABASE, SYNTAX_ERROR, UNKNOWN_IDENTIFIER and NOT_IMPLEMENTED.
+var permanentQueryErrorCodes = map[int32]bool{403: true, 497: true, 60: true, 81: true, 62: true, 47: true, 48: true}
+
+// isPermanentQueryError says whether err is the server's answer that the query is refused, as
+// opposed to a failure, of the network say, that retrying may get past.
+func isPermanentQueryError(err error) bool {
+	var exception *clickhouse.Exception
+	if errors.As(err, &exception) {
+		return permanentQueryErrorCodes[exception.Code]
+	}
+	return false
 }

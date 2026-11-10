@@ -195,6 +195,10 @@ type ProcessorReasonKind string
 const (
 	ProcessorReasonKindBilling  ProcessorReasonKind = "billing"
 	ProcessorReasonKindSecurity ProcessorReasonKind = "security"
+	// ProcessorReasonKindAccountSuspended marks a pause made because the
+	// project owner's account is suspended. Only the system resumes it, once it
+	// has confirmed the account is active again.
+	ProcessorReasonKindAccountSuspended ProcessorReasonKind = "account_suspended"
 )
 
 // ReasonKindFromPB converts the proto ReasonKind to its model representation;
@@ -205,6 +209,8 @@ func ReasonKindFromPB(kind protos.ReasonKind) ProcessorReasonKind {
 		return ProcessorReasonKindBilling
 	case protos.ReasonKind_SECURITY:
 		return ProcessorReasonKindSecurity
+	case protos.ReasonKind_ACCOUNT_SUSPENDED:
+		return ProcessorReasonKindAccountSuspended
 	default:
 		return ""
 	}
@@ -219,19 +225,30 @@ func (k ProcessorReasonKind) ToPB() protos.ReasonKind {
 		return protos.ReasonKind_BILLING
 	case ProcessorReasonKindSecurity:
 		return protos.ReasonKind_SECURITY
+	case ProcessorReasonKindAccountSuspended:
+		return protos.ReasonKind_ACCOUNT_SUSPENDED
 	default:
 		return protos.ReasonKind_UNSPECIFIED
 	}
 }
 
 // pauseResumableBy defines, per pause kind, which declared resume kinds may
-// resume it: a security pause only by a security resume; a billing pause also
-// by an unspecified resume; kindless pauses (user pauses and entries recorded
-// before kinds existed) by anything.
+// resume it: a security pause only by a security resume; an account-suspended
+// pause only by an account-suspended resume (the system, after it confirmed the
+// account is active again), so neither a user nor the over-quota check can lift
+// it; a billing pause also by an unspecified resume; kindless pauses (user
+// pauses and entries recorded before kinds existed) by anything. A pause kind
+// missing from the map (e.g. one written by newer code) is resumable by nothing.
 var pauseResumableBy = map[ProcessorReasonKind]map[ProcessorReasonKind]bool{
-	"":                          {"": true, ProcessorReasonKindBilling: true, ProcessorReasonKindSecurity: true},
-	ProcessorReasonKindBilling:  {"": true, ProcessorReasonKindBilling: true},
-	ProcessorReasonKindSecurity: {ProcessorReasonKindSecurity: true},
+	"": {
+		"":                                  true,
+		ProcessorReasonKindBilling:          true,
+		ProcessorReasonKindSecurity:         true,
+		ProcessorReasonKindAccountSuspended: true,
+	},
+	ProcessorReasonKindBilling:          {"": true, ProcessorReasonKindBilling: true},
+	ProcessorReasonKindSecurity:         {ProcessorReasonKindSecurity: true},
+	ProcessorReasonKindAccountSuspended: {ProcessorReasonKindAccountSuspended: true},
 }
 
 // CanResumePause reports whether a resume declaring resumeKind may resume a

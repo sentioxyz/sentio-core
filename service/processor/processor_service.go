@@ -657,7 +657,7 @@ func (s *Service) PauseProcessor(ctx context.Context, req *protos.PauseProcessor
 
 // ResumeProcessor is the user-facing resume. It declares no kind, so per the
 // resume matrix (models.CanResumePause) it can lift user and billing pauses
-// but not a security pause.
+// but not a security or account-suspended pause.
 func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorRequest) (*emptypb.Empty, error) {
 	return s.updateProcessorPause(ctx, req.ProcessorId, false, "", "", "")
 }
@@ -676,8 +676,9 @@ func (s *Service) ResumeProcessor(ctx context.Context, req *protos.GetProcessorR
 //
 // The declared kind must also be allowed to resume the latest pause entry's
 // kind (see models.CanResumePause): a security pause is only resumable by a
-// security resume, while a billing pause also accepts an unspecified resume,
-// and kindless pause entries accept anything.
+// security resume and an account-suspended pause only by an account-suspended
+// resume, while a billing pause also accepts an unspecified resume, and
+// kindless pause entries accept anything.
 func (s *Service) ResumeProcessorInternal(ctx context.Context, req *protos.ResumeProcessorInternalRequest) (*emptypb.Empty, error) {
 	return s.updateProcessorPause(ctx, req.ProcessorId, false, req.Reason, models.ReasonKindFromPB(req.ReasonKind), req.PrePauseStateId)
 }
@@ -786,6 +787,11 @@ func (s *Service) checkPauseFence(
 	return verifyPauseFence(histories, prePauseStateID, kind)
 }
 
+// accountSuspendedResumeRejection is returned to anyone but the system trying to
+// resume an account-suspended pause; users see it when they click resume.
+const accountSuspendedResumeRejection = "the processor was paused because the account is suspended; " +
+	"it will be resumed automatically once the account is active again"
+
 // verifyPauseFence checks a resume against the processor's state history
 // (ordered newest first). When the caller observed a pause entry
 // (prePauseStateID is set), that entry must still be the latest pause/resume
@@ -818,6 +824,9 @@ func verifyPauseFence(
 	}
 	if latest != nil && latest.Action == models.ProcessorStateActionPause &&
 		!models.CanResumePause(latest.ReasonKind, kind) {
+		if latest.ReasonKind == models.ProcessorReasonKindAccountSuspended {
+			return status.Error(codes.FailedPrecondition, accountSuspendedResumeRejection)
+		}
 		return status.Errorf(codes.FailedPrecondition,
 			"reason kind mismatch: a %q pause is not resumable by a %q resume", latest.ReasonKind, kind)
 	}

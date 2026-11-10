@@ -653,6 +653,10 @@ enum ReasonKind {
   BILLING = 1;
   // paused by the system for security reasons
   SECURITY = 2;
+  // paused by the system because the project owner's account is suspended;
+  // only the system may resume it, after it confirms the account is active
+  // again
+  ACCOUNT_SUSPENDED = 3;
 }
 
 message PauseProcessorRequest {

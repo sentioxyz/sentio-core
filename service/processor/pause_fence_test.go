@@ -107,6 +107,32 @@ func TestVerifyPauseFence(t *testing.T) {
 			wantErr:   "not resumable",
 		},
 		{
+			name:      "no fence id: user resume cannot lift an account-suspended pause",
+			histories: []models.ProcessorStateHistory{pause("p1", models.ProcessorReasonKindAccountSuspended)},
+			kind:      "",
+			wantErr:   "account is suspended",
+		},
+		{
+			name:      "billing resume cannot lift an account-suspended pause",
+			histories: []models.ProcessorStateHistory{pause("p1", models.ProcessorReasonKindAccountSuspended)},
+			fenceID:   "p1",
+			kind:      models.ProcessorReasonKindBilling,
+			wantErr:   "account is suspended",
+		},
+		{
+			name:      "account-suspended resume lifts an account-suspended pause",
+			histories: []models.ProcessorStateHistory{pause("p1", models.ProcessorReasonKindAccountSuspended)},
+			fenceID:   "p1",
+			kind:      models.ProcessorReasonKindAccountSuspended,
+		},
+		{
+			name:      "account-suspended resume cannot lift a security pause",
+			histories: []models.ProcessorStateHistory{pause("p1", models.ProcessorReasonKindSecurity)},
+			fenceID:   "p1",
+			kind:      models.ProcessorReasonKindAccountSuspended,
+			wantErr:   "not resumable",
+		},
+		{
 			name: "no fence id: no history at all is allowed",
 			kind: "",
 		},

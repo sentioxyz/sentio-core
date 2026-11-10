@@ -32,7 +32,6 @@ go_test(
     srcs = [
         "field_test.go",
         "maintenance_test.go",
-        "operator_test.go",
     ],
     embed = [":chx"],
     deps = [

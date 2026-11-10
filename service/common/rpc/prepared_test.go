@@ -202,3 +202,47 @@ func TestPreparedServerWaitIsNotHeldByAnIdleConnection(t *testing.T) {
 	}
 	requirePortReusable(t, addr)
 }
+
+func TestPreparedServerConcurrentShutdownHonorsEachDeadline(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	s, addr := newTestPreparedServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(entered)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer close(release)
+	require.NoError(t, s.Serve())
+	go func() {
+		client := &http.Client{Timeout: 10 * time.Second}
+		if resp, err := client.Get("http://" + addr + "/"); err == nil {
+			resp.Body.Close()
+		}
+	}()
+	<-entered
+
+	// A graceful shutdown with no deadline is stuck on the in-flight request.
+	first := make(chan error, 1)
+	go func() { first <- s.Shutdown(context.Background()) }()
+	select {
+	case <-first:
+		t.Fatal("graceful shutdown must wait for the in-flight request")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	begin := time.Now()
+	require.Error(t, s.Shutdown(ctx), "a deadline-bound caller forces the shutdown")
+	require.Less(t, time.Since(begin), 2*time.Second)
+	select {
+	case err := <-first:
+		require.Error(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("the forced shutdown must release every caller")
+	}
+	require.NoError(t, s.Wait())
+	requirePortReusable(t, addr)
+}

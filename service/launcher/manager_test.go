@@ -54,6 +54,7 @@ func (f *fakeFactory) instance(name string) *fakeInstance {
 
 type fakeInstance struct {
 	mu          sync.Mutex
+	httpPort    int
 	name        string
 	behavior    fakeBehavior
 	status      string
@@ -62,7 +63,10 @@ type fakeInstance struct {
 	stops       int
 }
 
-func (i *fakeInstance) Register(grpcServer *grpc.Server, mux *runtime.ServeMux, _ int) error {
+func (i *fakeInstance) Register(grpcServer *grpc.Server, mux *runtime.ServeMux, httpPort int) error {
+	i.mu.Lock()
+	i.httpPort = httpPort
+	i.mu.Unlock()
 	healthpb.RegisterHealthServer(grpcServer, health.NewServer())
 	handler := i.behavior.handler
 	if handler == nil {
@@ -198,7 +202,7 @@ func TestPrepareReturnsOccupiedPortErrorAndRollsBack(t *testing.T) {
 	require.Equal(t, map[string]string{"first": "stopped", "second": "stopped"}, sm.ListServers())
 	requireReusable(t, firstAddr)
 	require.Equal(t, 1, factory.instance("first-svc").stopCount())
-	require.Equal(t, 1, factory.instance("second-svc").stopCount())
+	require.Nil(t, factory.instance("second-svc"), "an occupied port fails before any service is created")
 	require.NoError(t, sm.Wait())
 }
 
@@ -378,4 +382,40 @@ func TestStartAllFailureLeavesNoListener(t *testing.T) {
 
 	require.ErrorContains(t, sm.StartAll(t.Context()), "start boom")
 	requireReusable(t, fmt.Sprintf("127.0.0.1:%d", port))
+}
+
+func TestServicesRegisterAgainstTheAdoptedListenerPort(t *testing.T) {
+	factory := newFakeFactory()
+	l, _ := localListener(t)
+	sm := newTestManager(t, factory, serverConfig("server", 9, "svc"))
+	require.NoError(t, sm.Prepare(t.Context(), WithListener("server", l)))
+	factory.instance("svc").mu.Lock()
+	defer factory.instance("svc").mu.Unlock()
+	require.Equal(t, l.Addr().(*net.TCPAddr).Port, factory.instance("svc").httpPort,
+		"gateways must dial the port actually listened on, not the configured one")
+}
+
+func TestStartHonorsItsOwnCancellation(t *testing.T) {
+	factory := newFakeFactory()
+	l, addr := localListener(t)
+	sm := newTestManager(t, factory, serverConfig("server", 0, "svc"))
+	require.NoError(t, sm.Prepare(t.Context(), WithListener("server", l)))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	require.ErrorIs(t, sm.Start(ctx), context.Canceled)
+	requireReusable(t, addr)
+	require.Equal(t, map[string]string{"server": "stopped"}, sm.ListServers())
+}
+
+func TestPrepareContextDoesNotOutliveItsStep(t *testing.T) {
+	factory := newFakeFactory()
+	l, addr := localListener(t)
+	sm := newTestManager(t, factory, serverConfig("server", 0, "svc"))
+
+	prepareCtx, cancel := context.WithCancel(t.Context())
+	require.NoError(t, sm.Prepare(prepareCtx, WithListener("server", l)))
+	cancel()
+	require.NoError(t, sm.Start(t.Context()), "a finished Prepare's context must not cancel Start")
+	require.Equal(t, "pong", ping(t, addr))
 }

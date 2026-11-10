@@ -65,6 +65,7 @@ type PreparedServer struct {
 	failed   atomic.Bool
 
 	shutdownOnce sync.Once
+	force        context.CancelFunc
 	shutdownDone chan struct{}
 	shutdownErr  error
 
@@ -157,63 +158,79 @@ func isShutdownServeError(err error) bool {
 		errors.Is(err, net.ErrClosed)
 }
 
-// Shutdown stops serving and closes the listener. It is idempotent; later
-// calls wait for the first one and return its result.
+// Shutdown stops serving and closes the listener. It drains gracefully until
+// ctx ends and then closes forcibly. It is idempotent and safe to call
+// concurrently: every caller waits for the one shutdown, and any caller whose
+// ctx ends forces it, so each call is bounded by its own ctx.
 func (s *PreparedServer) Shutdown(ctx context.Context) error {
 	s.shutdownOnce.Do(func() {
-		defer close(s.shutdownDone)
-		s.mu.Lock()
-		s.stopping.Store(true)
-		started := s.started
-		s.mu.Unlock()
-
-		if !started {
-			s.shutdownErr = s.closeListener()
-			s.mux.Close()
-			return
-		}
-
-		var wg sync.WaitGroup
-		var httpErr error
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			// The matched listeners share the root listener, so the gRPC
-			// side may already have closed it.
-			if err := s.httpServer.Shutdown(ctx); err != nil && !errors.Is(err, net.ErrClosed) {
-				httpErr = err
-				_ = s.httpServer.Close()
-			}
-		}()
-		go func() {
-			defer wg.Done()
-			stopped := make(chan struct{})
-			go func() {
-				s.grpcServer.GracefulStop()
-				close(stopped)
-			}()
-			select {
-			case <-stopped:
-			case <-ctx.Done():
-				s.grpcServer.Stop()
-				<-stopped
-			}
-		}()
-		wg.Wait()
-		_ = s.closeListener()
-		s.mux.Close()
-		// A connection still being sniffed by cmux (for example one that
-		// connected and sent nothing) would keep the mux loop from
-		// returning; the HTTP and gRPC servers are down, so close them all.
-		s.listener.(*trackingListener).closeConns()
-		if httpErr != nil {
-			s.shutdownErr = fmt.Errorf("http server shutdown: %w", httpErr)
-		} else if err := ctx.Err(); err != nil {
-			s.shutdownErr = fmt.Errorf("shutdown forced: %w", err)
-		}
+		force, cancel := context.WithCancel(context.Background())
+		s.force = cancel
+		go s.shutdown(force)
 	})
-	<-s.shutdownDone
+	select {
+	case <-s.shutdownDone:
+	case <-ctx.Done():
+		s.force()
+		<-s.shutdownDone
+	}
 	return s.shutdownErr
+}
+
+// shutdown runs once; force ends when some Shutdown caller's ctx ends.
+func (s *PreparedServer) shutdown(force context.Context) {
+	defer close(s.shutdownDone)
+	defer s.force()
+	s.mu.Lock()
+	s.stopping.Store(true)
+	started := s.started
+	s.mu.Unlock()
+
+	if !started {
+		s.shutdownErr = s.closeListener()
+		s.mux.Close()
+		return
+	}
+
+	var wg sync.WaitGroup
+	var httpErr error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		// The matched listeners share the root listener, so the gRPC side
+		// may already have closed it.
+		if err := s.httpServer.Shutdown(force); err != nil && !errors.Is(err, net.ErrClosed) {
+			httpErr = err
+			_ = s.httpServer.Close()
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		stopped := make(chan struct{})
+		go func() {
+			s.grpcServer.GracefulStop()
+			close(stopped)
+		}()
+		select {
+		case <-stopped:
+		case <-force.Done():
+			s.grpcServer.Stop()
+			<-stopped
+		}
+	}()
+	wg.Wait()
+	forced := force.Err() != nil
+	_ = s.closeListener()
+	s.mux.Close()
+	// A connection still being sniffed by cmux (for example one that
+	// connected and sent nothing) would keep the mux loop from returning;
+	// the HTTP and gRPC servers are down, so close them all.
+	s.listener.(*trackingListener).closeConns()
+	if httpErr != nil {
+		s.shutdownErr = fmt.Errorf("http server shutdown: %w", httpErr)
+	} else if forced {
+		s.shutdownErr = errors.New("shutdown forced before draining completed")
+	}
 }
 
 func (s *PreparedServer) closeListener() error {

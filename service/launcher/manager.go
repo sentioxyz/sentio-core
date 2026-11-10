@@ -174,6 +174,9 @@ func (sm *ServiceManager) prepareLocked(ctx context.Context, opts ...PrepareOpti
 			log.Infof("Server %s is disabled, skipping", serverConfig.Name)
 			continue
 		}
+		if err := ctx.Err(); err != nil {
+			return pkgerrors.Wrap(err, "prepare abandoned")
+		}
 		listener := o.listeners[serverConfig.Name]
 		adopted[serverConfig.Name] = true
 		server, err := sm.prepareServer(ctx, serverConfig, listener)
@@ -451,7 +454,9 @@ func (sm *ServiceManager) prepareServer(
 ) (_ *ServerInstance, err error) {
 	log.Infof("Preparing server %s on port: %d", cfg.Name, cfg.Port)
 
-	serverCtx, cancel := context.WithCancel(ctx)
+	// The server context lives until the server stops; Prepare's and Start's
+	// own contexts bound only their steps.
+	serverCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	server := &ServerInstance{
 		Name:       cfg.Name,
 		Config:     &cfg,
@@ -472,6 +477,24 @@ func (sm *ServiceManager) prepareServer(
 			}
 		}
 	}()
+
+	// Bind first: an occupied port fails before any service is initialized,
+	// and services register gateways against the port actually listened on.
+	if server.listener == nil {
+		port := cfg.Port
+		if port == 0 {
+			port = defaultServerPort
+		}
+		l, err := rpc.ListenTCP(port)
+		if err != nil {
+			return nil, err
+		}
+		server.listener = l
+	}
+	listenPort := cfg.Port
+	if addr, ok := server.listener.Addr().(*net.TCPAddr); ok {
+		listenPort = addr.Port
+	}
 
 	for _, serviceConfig := range cfg.Services {
 		if !serviceConfig.Enabled {
@@ -496,29 +519,18 @@ func (sm *ServiceManager) prepareServer(
 		server.Services[serviceConfig.Name] = instance
 		server.serviceOrder = append(server.serviceOrder, serviceConfig.Name)
 
-		initCtx, initCancel := context.WithTimeout(serverCtx, serviceStepTimeout)
+		initCtx, initCancel := context.WithTimeout(ctx, serviceStepTimeout)
 		err = instance.Initialize(initCtx)
 		initCancel()
 		if err != nil {
 			return nil, pkgerrors.Wrapf(err, "failed to initialize service %s", serviceConfig.Name)
 		}
 
-		if err := instance.Register(server.grpcServer, server.httpMux, cfg.Port); err != nil {
+		if err := instance.Register(server.grpcServer, server.httpMux, listenPort); err != nil {
 			return nil, pkgerrors.Wrapf(err, "failed to register service %s", serviceConfig.Name)
 		}
 	}
 
-	if server.listener == nil {
-		port := cfg.Port
-		if port == 0 {
-			port = defaultServerPort
-		}
-		l, err := rpc.ListenTCP(port)
-		if err != nil {
-			return nil, err
-		}
-		server.listener = l
-	}
 	server.endpoint = rpc.PrepareServeWithHTTP(server.listener, server.httpMux, server.grpcServer)
 	server.Status = serverStatusPrepared
 	log.Infof("Server %s prepared on %s with %d services", cfg.Name, server.listener.Addr(), len(server.Services))
@@ -526,13 +538,20 @@ func (sm *ServiceManager) prepareServer(
 }
 
 // startServer starts a prepared server's services and then serves traffic.
+// Each service start observes both ctx and the server's own context; a ctx
+// that ends before serving begins fails the start.
 func (sm *ServiceManager) startServer(ctx context.Context, server *ServerInstance) error {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 
+	stepCtx, stopStep := context.WithCancel(ctx)
+	defer stopStep()
+	stopOnServerCancel := context.AfterFunc(server.ctx, stopStep)
+	defer stopOnServerCancel()
+
 	for _, name := range server.serviceOrder {
 		instance := server.Services[name]
-		startCtx, startCancel := context.WithTimeout(server.ctx, serviceStepTimeout)
+		startCtx, startCancel := context.WithTimeout(stepCtx, serviceStepTimeout)
 		err := instance.Start(startCtx)
 		startCancel()
 		if err != nil {
@@ -541,6 +560,9 @@ func (sm *ServiceManager) startServer(ctx context.Context, server *ServerInstanc
 		log.Infof("Service %s started in server %s", name, server.Name)
 	}
 
+	if err := ctx.Err(); err != nil {
+		return pkgerrors.Wrapf(err, "start of server %s abandoned", server.Name)
+	}
 	if err := server.endpoint.Serve(); err != nil {
 		return pkgerrors.Wrapf(err, "failed to serve server %s", server.Name)
 	}

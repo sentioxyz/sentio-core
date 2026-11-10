@@ -43,14 +43,14 @@ func newFakeServer() *fakeServer {
 }
 
 const (
-	loadTablesSQL = "SELECT name, engine, engine_full, create_table_query, as_select, partition_key, sorting_key, comment " +
+	loadTablesSQL = "SELECT database, name, engine, engine_full, create_table_query, as_select, partition_key, sorting_key, comment " +
 		"FROM system.tables WHERE database = ? AND name = ? AND is_temporary = 0"
-	loadColumnsSQL = "SELECT table, name, type, default_expression, comment, compression_codec " +
-		"FROM system.columns WHERE database = ? AND table = ? ORDER BY table, position"
-	loadIndicesSQL = "SELECT table, name, type_full, expr, granularity " +
-		"FROM system.data_skipping_indices WHERE database = ? AND table = ? ORDER BY table, name"
-	loadProjectionsSQL = "SELECT table, name, query " +
-		"FROM system.projections WHERE database = ? AND table = ? ORDER BY table, name"
+	loadColumnsSQL = "SELECT database, table, name, type, default_expression, comment, compression_codec " +
+		"FROM system.columns WHERE database = ? AND table = ? ORDER BY database, table, position"
+	loadIndicesSQL = "SELECT database, table, name, type_full, expr, granularity " +
+		"FROM system.data_skipping_indices WHERE database = ? AND table = ? ORDER BY database, table, name"
+	loadProjectionsSQL = "SELECT database, table, name, query " +
+		"FROM system.projections WHERE database = ? AND table = ? ORDER BY database, table, name"
 )
 
 var loadSQLs = []string{loadTablesSQL, loadColumnsSQL, loadIndicesSQL, loadProjectionsSQL}
@@ -94,11 +94,11 @@ func (s *fakeServer) query(sql string, args []any) ([][]any, error) {
 	switch {
 	case sql == loadTablesSQL:
 		if t, has := s.tables[args[1].(string)]; has {
-			rows = append(rows, []any{args[1], t.engine, t.engineFull, "", "", "", "number", ""})
+			rows = append(rows, []any{args[0], args[1], t.engine, t.engineFull, "", "", "", "number", ""})
 		}
 	case sql == loadColumnsSQL:
 		for _, f := range s.tables[args[1].(string)].fields {
-			rows = append(rows, []any{args[1], f.Name, f.Type.String(), "", "", ""})
+			rows = append(rows, []any{args[0], args[1], f.Name, f.Type.String(), "", "", ""})
 		}
 	case sql == loadIndicesSQL, sql == loadProjectionsSQL:
 	case strings.HasPrefix(sql, "SELECT engine FROM system.tables"):

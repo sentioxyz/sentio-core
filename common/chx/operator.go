@@ -18,32 +18,102 @@ type EqualOrLike struct {
 	NameLike *string
 }
 
-func (c Controller) loadCondition(name EqualOrLike) (operator string, arg string) {
+func likePrefix(prefix string) string {
+	prefix = strings.ReplaceAll(prefix, "_", "\\_")
+	return strings.ReplaceAll(prefix, "%", "\\%")
+}
+
+func nameCondition(prefix string, name EqualOrLike) (operator string, arg string) {
 	if name.Name != nil {
-		return "=", c.tableNamePrefix + *name.Name
+		return "=", prefix + *name.Name
 	}
-	tableNamePrefix := strings.ReplaceAll(c.tableNamePrefix, "_", "\\_")
-	tableNamePrefix = strings.ReplaceAll(tableNamePrefix, "%", "\\%")
 	if name.NameLike != nil {
-		return "LIKE", tableNamePrefix + *name.NameLike
+		return "LIKE", likePrefix(prefix) + *name.NameLike
 	}
-	return "LIKE", tableNamePrefix + "%"
+	return "LIKE", likePrefix(prefix) + "%"
+}
+
+// dualMetaShape says whether the tables of the controller are named one way in ClickHouse and
+// another way in its statements, as they are behind HouseGate: there the tables are
+// `<physical>`.`<logic>.<name>` while the statements say `<logic>`.`<name>`.
+//
+// HouseGate used to hand system.tables, system.columns and the other per-database system tables
+// through as they are, which shows the physical names, and showed every tenant's tables with
+// them. It is moving to serve them filtered to the caller's own databases and under the logical
+// names instead. A controller whose names differ therefore reads these system tables in both
+// shapes, so that it works against a HouseGate of either kind and keeps working across the
+// upgrade.
+func (c Controller) dualMetaShape() bool {
+	return c.getLogicDatabase() != c.database || c.getLogicTableNamePrefix() != c.tableNamePrefix
+}
+
+// metaScope returns the condition, and its arguments, that picks the tables of the controller out
+// of a per-database system table whose table name column is column: the physical shape, and with
+// dualMetaShape also the logical one.
+func (c Controller) metaScope(column string, name EqualOrLike) (string, []any) {
+	operator, physical := nameCondition(c.tableNamePrefix, name)
+	cond := fmt.Sprintf("database = ? AND %s %s ?", column, operator)
+	if !c.dualMetaShape() {
+		return cond, []any{c.database, physical}
+	}
+	_, logic := nameCondition(c.getLogicTableNamePrefix(), name)
+	return "((" + cond + ") OR (" + cond + "))", []any{c.database, physical, c.getLogicDatabase(), logic}
+}
+
+// metaTableScope is metaScope for the one table name.
+func (c Controller) metaTableScope(column, table string) (string, []any) {
+	return c.metaScope(column, EqualOrLike{Name: &table})
+}
+
+// metaTableName is the name, without prefix, of the table a metaScope row of the given database
+// and table name is about.
+func (c Controller) metaTableName(database, raw string) string {
+	if c.dualMetaShape() && database == c.getLogicDatabase() && database != c.database {
+		return strings.TrimPrefix(raw, c.getLogicTableNamePrefix())
+	}
+	if database == c.database && strings.HasPrefix(raw, c.tableNamePrefix) {
+		return strings.TrimPrefix(raw, c.tableNamePrefix)
+	}
+	return strings.TrimPrefix(raw, c.getLogicTableNamePrefix())
+}
+
+// materializedViewTarget is the name, without prefix, of the TO table of a materialized view, read
+// from the `TO <database>.<table>` of its create_table_query in either shape (see dualMetaShape).
+func (c Controller) materializedViewTarget(view, raw string) (string, error) {
+	p := findNotIn(raw, '.', '`')
+	if p < 0 || p >= len(raw) {
+		return "", errors.Errorf("invalid To table %q for MaterializedView %s", raw, view)
+	}
+	db, table := strings.Trim(raw[:p], "`"), strings.Trim(raw[p+1:], "`")
+	logicDatabase, logicTableNamePrefix := c.getLogicDatabase(), c.getLogicTableNamePrefix()
+	if db == logicDatabase && strings.HasPrefix(table, logicTableNamePrefix) {
+		return strings.TrimPrefix(table, logicTableNamePrefix), nil
+	}
+	if c.dualMetaShape() && db == c.database && strings.HasPrefix(table, c.tableNamePrefix) {
+		return strings.TrimPrefix(table, c.tableNamePrefix), nil
+	}
+	if db != logicDatabase {
+		return "", errors.Errorf("invalid To database %s for MaterializedView %s, should be %s",
+			db, view, logicDatabase)
+	}
+	return "", errors.Errorf("invalid To table %q for MaterializedView %s, should start with %q",
+		table, view, logicTableNamePrefix)
 }
 
 // result only contains Name, Comment
 func (c Controller) loadSimple(ctx context.Context, name EqualOrLike) ([]TableOrView, error) {
 	var tableOrViews []TableOrView
-	operator, nameArg := c.loadCondition(name)
-	sql := fmt.Sprintf("SELECT name, engine, comment "+
-		"FROM system.tables "+
-		"WHERE database = ? AND name %s ? AND is_temporary = 0", operator)
+	scope, args := c.metaScope("name", name)
+	sql := "SELECT database, name, engine, comment " +
+		"FROM system.tables " +
+		"WHERE " + scope + " AND is_temporary = 0"
 	err := c.Query(ctx, func(rows driver.Rows) error {
-		var name, engine, comment string
-		scanErr := rows.Scan(&name, &engine, &comment)
+		var database, name, engine, comment string
+		scanErr := rows.Scan(&database, &name, &engine, &comment)
 		if scanErr != nil {
 			return scanErr
 		}
-		name = strings.TrimPrefix(name, c.tableNamePrefix)
+		name = c.metaTableName(database, name)
 		switch engine {
 		case "View":
 			tableOrViews = append(tableOrViews, View{
@@ -65,7 +135,7 @@ func (c Controller) loadSimple(ctx context.Context, name EqualOrLike) ([]TableOr
 			})
 		}
 		return nil
-	}, sql, c.database, nameArg)
+	}, sql, args...)
 	if err != nil {
 		return nil, errors.Wrapf(err, "list table failed")
 	}
@@ -74,7 +144,6 @@ func (c Controller) loadSimple(ctx context.Context, name EqualOrLike) ([]TableOr
 
 func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableOrView, err error) {
 	_, logger := log.FromContext(ctx)
-	operator, nameArg := c.loadCondition(name)
 	defer func() {
 		if err != nil {
 			logger.Errorfe(err, "load tables failed")
@@ -83,13 +152,14 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 	tables := make(map[string]TableOrView)
 
 	// show tables
-	sql := fmt.Sprintf(
-		"SELECT name, engine, engine_full, create_table_query, as_select, partition_key, sorting_key, comment "+
-			"FROM system.tables "+
-			"WHERE database = ? AND name %s ? AND is_temporary = 0", operator)
+	scope, args := c.metaScope("name", name)
+	sql := "SELECT database, name, engine, engine_full, create_table_query, as_select, partition_key, sorting_key, comment " +
+		"FROM system.tables " +
+		"WHERE " + scope + " AND is_temporary = 0"
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var rawName, engine, engineFull, createTableQuery, asSelect, partitionKey, sortingKey, comment string
+		var database, rawName, engine, engineFull, createTableQuery, asSelect, partitionKey, sortingKey, comment string
 		scanErr := rows.Scan(
+			&database,
 			&rawName,
 			&engine,
 			&engineFull,
@@ -102,7 +172,7 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 		if scanErr != nil {
 			return scanErr
 		}
-		name := strings.TrimPrefix(rawName, c.tableNamePrefix)
+		name := c.metaTableName(database, rawName)
 		switch engine {
 		case "View":
 			tables[name] = View{
@@ -123,20 +193,12 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 				sector, createTableQuery, _ = cutBySpace(createTableQuery)
 			}
 			if sector == "TO" {
-				// raw is FullLogicName, not FullName
 				raw, _, _ := cutBySpace(createTableQuery)
-				p := findNotIn(raw, '.', '`')
-				db, table := strings.Trim(raw[:p], "`"), strings.Trim(raw[p+1:], "`")
-				logicDatabase, logicTableNamePrefix := c.getLogicDatabase(), c.getLogicTableNamePrefix()
-				if db != logicDatabase {
-					return errors.Errorf("invalid To database %s for MaterializedView %s, should be %s",
-						db, view.Name, logicDatabase)
+				to, toErr := c.materializedViewTarget(view.Name, raw)
+				if toErr != nil {
+					return toErr
 				}
-				if !strings.HasPrefix(table, logicTableNamePrefix) {
-					return errors.Errorf("invalid To table %q for MaterializedView %s, should start with %q",
-						table, view.Name, logicTableNamePrefix)
-				}
-				view.To = strings.TrimPrefix(table, logicTableNamePrefix)
+				view.To = to
 			}
 			tables[name] = view
 		default:
@@ -175,21 +237,23 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 			tables[name] = table
 		}
 		return nil
-	}, sql, c.database, nameArg)
+	}, sql, args...)
 	if err != nil {
 		return nil, errors.Wrapf(err, "list table failed")
 	}
 
 	// get table fields
-	sql = fmt.Sprintf("SELECT table, name, type, default_expression, comment, compression_codec "+
-		"FROM system.columns "+
-		"WHERE database = ? AND table %s ? "+
-		"ORDER BY table, position", operator)
+	scope, args = c.metaScope("table", name)
+	sql = "SELECT database, table, name, type, default_expression, comment, compression_codec " +
+		"FROM system.columns " +
+		"WHERE " + scope + " " +
+		"ORDER BY database, table, position"
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var rawTableName string
+		var database, rawTableName string
 		var field Field
 		var rawFieldType string
 		scanErr := rows.Scan(
+			&database,
 			&rawTableName,
 			&field.Name,
 			&rawFieldType,
@@ -200,7 +264,7 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 		if scanErr != nil {
 			return scanErr
 		}
-		tableName := strings.TrimPrefix(rawTableName, c.tableNamePrefix)
+		tableName := c.metaTableName(database, rawTableName)
 		field.Type = BuildFieldType(rawFieldType)
 		tableOrView, has := tables[tableName]
 		if !has {
@@ -219,23 +283,24 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 			tables[tableName] = tv
 		}
 		return nil
-	}, sql, c.database, nameArg)
+	}, sql, args...)
 	if err != nil {
 		return nil, errors.Wrapf(err, "list table fields failed")
 	}
 
 	// get index
-	sql = fmt.Sprintf("SELECT table, name, type_full, expr, granularity "+
-		"FROM system.data_skipping_indices "+
-		"WHERE database = ? AND table %s ? "+
-		"ORDER BY table, name", operator)
+	scope, args = c.metaScope("table", name)
+	sql = "SELECT database, table, name, type_full, expr, granularity " +
+		"FROM system.data_skipping_indices " +
+		"WHERE " + scope + " " +
+		"ORDER BY database, table, name"
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var rawTableName string
+		var database, rawTableName string
 		var index Index
-		if scanErr := rows.Scan(&rawTableName, &index.Name, &index.Type, &index.Expr, &index.Granularity); scanErr != nil {
+		if scanErr := rows.Scan(&database, &rawTableName, &index.Name, &index.Type, &index.Expr, &index.Granularity); scanErr != nil {
 			return scanErr
 		}
-		tableName := strings.TrimPrefix(rawTableName, c.tableNamePrefix)
+		tableName := c.metaTableName(database, rawTableName)
 		tableOrView, has := tables[tableName]
 		if !has {
 			// this is a index of a ignored table, just ignore it
@@ -249,23 +314,24 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 		table.Indexes = append(table.Indexes, index)
 		tables[tableName] = table
 		return nil
-	}, sql, c.database, nameArg)
+	}, sql, args...)
 	if err != nil {
 		return nil, errors.Wrapf(err, "list indices failed")
 	}
 
 	// get projection
-	sql = fmt.Sprintf("SELECT table, name, query "+
-		"FROM system.projections "+
-		"WHERE database = ? AND table %s ? "+
-		"ORDER BY table, name", operator)
+	scope, args = c.metaScope("table", name)
+	sql = "SELECT database, table, name, query " +
+		"FROM system.projections " +
+		"WHERE " + scope + " " +
+		"ORDER BY database, table, name"
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var rawTableName string
+		var database, rawTableName string
 		var projection Projection
-		if scanErr := rows.Scan(&rawTableName, &projection.Name, &projection.Query); scanErr != nil {
+		if scanErr := rows.Scan(&database, &rawTableName, &projection.Name, &projection.Query); scanErr != nil {
 			return scanErr
 		}
-		tableName := strings.TrimPrefix(rawTableName, c.tableNamePrefix)
+		tableName := c.metaTableName(database, rawTableName)
 		tableOrView, has := tables[tableName]
 		if !has {
 			// this is a projection of a ignored table, just ignore it
@@ -279,7 +345,7 @@ func (c Controller) load(ctx context.Context, name EqualOrLike) (result []TableO
 		table.Projections = append(table.Projections, projection)
 		tables[tableName] = table
 		return nil
-	}, sql, c.database, nameArg)
+	}, sql, args...)
 
 	return utils.GetMapValuesOrderByKey(tables), nil
 }
@@ -312,6 +378,7 @@ func (c Controller) LoadOne(ctx context.Context, name string, simple bool) (Tabl
 // alone.
 func (c Controller) IsDistributedTable(ctx context.Context, name string) (bool, error) {
 	var distributed bool
+	scope, args := c.metaTableScope("name", name)
 	err := c.Query(ctx, func(rows driver.Rows) error {
 		var engine string
 		if scanErr := rows.Scan(&engine); scanErr != nil {
@@ -319,8 +386,7 @@ func (c Controller) IsDistributedTable(ctx context.Context, name string) (bool, 
 		}
 		distributed = engine == "Distributed"
 		return nil
-	}, "SELECT engine FROM system.tables WHERE database = ? AND name = ? AND is_temporary = 0",
-		c.database, c.tableNamePrefix+name)
+	}, "SELECT engine FROM system.tables WHERE "+scope+" AND is_temporary = 0", args...)
 	if err != nil {
 		return false, errors.Wrapf(err, "load engine of table %s failed", name)
 	}

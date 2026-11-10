@@ -183,6 +183,7 @@ func (s *PreparedServer) shutdown(force context.Context) {
 	defer s.force()
 	s.mu.Lock()
 	s.stopping.Store(true)
+	s.listener.(*trackingListener).draining.Store(true)
 	started := s.started
 	s.mu.Unlock()
 
@@ -214,8 +215,11 @@ func (s *PreparedServer) shutdown(force context.Context) {
 		select {
 		case <-stopped:
 		case <-force.Done():
-			s.grpcServer.Stop()
-			<-stopped
+			// Both Stop and GracefulStop wait for handlers to return, even
+			// ones that ignore cancellation. Stop is still started to cancel
+			// every RPC, but neither is awaited: closing the listener and
+			// every accepted connection below is what bounds the forced path.
+			go s.grpcServer.Stop()
 		}
 	}()
 	wg.Wait()
@@ -247,7 +251,10 @@ func (s *PreparedServer) Done() <-chan struct{} {
 }
 
 // Wait joins the serving goroutines and returns the errors that were not
-// caused by Shutdown. It returns immediately if Serve never ran.
+// caused by Shutdown. It returns immediately if Serve never ran. grpc-go keeps
+// its Serve loop alive until every RPC handler has returned, so after a forced
+// Shutdown a handler that ignores cancellation delays Wait (never Shutdown)
+// until it returns; callers that need a bound select on their own deadline.
 func (s *PreparedServer) Wait() error {
 	s.mu.Lock()
 	started := s.started
@@ -267,11 +274,23 @@ type trackingListener struct {
 	mu     sync.Mutex
 	conns  map[*trackedConn]struct{}
 	closed bool
+	// draining is set by Shutdown, which closes the remaining connections
+	// itself once the servers have drained.
+	draining atomic.Bool
 }
 
 func (l *trackingListener) Accept() (net.Conn, error) {
 	c, err := l.Listener.Accept()
 	if err != nil {
+		var netErr net.Error
+		temporary := errors.As(err, &netErr) && netErr.Temporary() //nolint:staticcheck // cmux retries exactly these
+		if !temporary && !l.draining.Load() {
+			// The root listener failed outside Shutdown. cmux waits for
+			// its sniffing goroutines before returning this error, and an
+			// idle connection would block that forever; the endpoint is
+			// going down, so close every connection now.
+			l.closeConns()
+		}
 		return nil, err
 	}
 	tc := &trackedConn{Conn: c, owner: l}

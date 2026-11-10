@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -26,6 +27,10 @@ type fakeBehavior struct {
 	startErr error
 	// handler, if set, serves GET /ping instead of the default reply.
 	handler func(w http.ResponseWriter, r *http.Request)
+	// grpcBlock, if set, backs a /blocked.Service/Block stream that waits on
+	// it and ignores cancellation.
+	grpcBlock <-chan struct{}
+	entered   chan<- struct{}
 }
 
 type fakeFactory struct {
@@ -68,6 +73,23 @@ func (i *fakeInstance) Register(grpcServer *grpc.Server, mux *runtime.ServeMux, 
 	i.httpPort = httpPort
 	i.mu.Unlock()
 	healthpb.RegisterHealthServer(grpcServer, health.NewServer())
+	if block := i.behavior.grpcBlock; block != nil {
+		entered := i.behavior.entered
+		grpcServer.RegisterService(&grpc.ServiceDesc{
+			ServiceName: "blocked.Service",
+			HandlerType: (*any)(nil),
+			Streams: []grpc.StreamDesc{{
+				StreamName:    "Block",
+				ClientStreams: true,
+				ServerStreams: true,
+				Handler: func(any, grpc.ServerStream) error {
+					close(entered)
+					<-block
+					return nil
+				},
+			}},
+		}, struct{}{})
+	}
 	handler := i.behavior.handler
 	if handler == nil {
 		handler = func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "pong") }
@@ -350,13 +372,25 @@ func TestWaitReportsUnexpectedServeError(t *testing.T) {
 	}
 }
 
-func TestStartAllStopAllAndRestartServerWrappers(t *testing.T) {
-	port := freePort(t)
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	factory := newFakeFactory()
-	sm := newTestManager(t, factory, serverConfig("server", port, "svc"))
+// startAllOnFreePort runs StartAll on a configured port. Another process may
+// take a probed free port before StartAll binds it, so retry on that error.
+func startAllOnFreePort(t *testing.T, factory *fakeFactory) (*ServiceManager, string, error) {
+	t.Helper()
+	for attempt := 0; ; attempt++ {
+		port := freePort(t)
+		sm := newTestManager(t, factory, serverConfig("server", port, "svc"))
+		err := sm.StartAll(t.Context())
+		if err != nil && strings.Contains(err.Error(), "address already in use") && attempt < 5 {
+			continue
+		}
+		return sm, fmt.Sprintf("127.0.0.1:%d", port), err
+	}
+}
 
-	require.NoError(t, sm.StartAll(t.Context()))
+func TestStartAllStopAllAndRestartServerWrappers(t *testing.T) {
+	factory := newFakeFactory()
+	sm, addr, err := startAllOnFreePort(t, factory)
+	require.NoError(t, err)
 	require.Equal(t, "pong", ping(t, addr))
 	grpcCheck(t, addr)
 
@@ -375,13 +409,11 @@ func TestStartAllStopAllAndRestartServerWrappers(t *testing.T) {
 }
 
 func TestStartAllFailureLeavesNoListener(t *testing.T) {
-	port := freePort(t)
 	factory := newFakeFactory()
 	factory.behaviors["svc"] = fakeBehavior{startErr: errors.New("start boom")}
-	sm := newTestManager(t, factory, serverConfig("server", port, "svc"))
-
-	require.ErrorContains(t, sm.StartAll(t.Context()), "start boom")
-	requireReusable(t, fmt.Sprintf("127.0.0.1:%d", port))
+	_, addr, err := startAllOnFreePort(t, factory)
+	require.ErrorContains(t, err, "start boom")
+	requireReusable(t, addr)
 }
 
 func TestServicesRegisterAgainstTheAdoptedListenerPort(t *testing.T) {
@@ -418,4 +450,38 @@ func TestPrepareContextDoesNotOutliveItsStep(t *testing.T) {
 	cancel()
 	require.NoError(t, sm.Start(t.Context()), "a finished Prepare's context must not cancel Start")
 	require.Equal(t, "pong", ping(t, addr))
+}
+
+func TestStopAllIsBoundedByAGRPCHandlerThatIgnoresCancellation(t *testing.T) {
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHandler := func() { releaseOnce.Do(func() { close(release) }) }
+	defer releaseHandler()
+	entered := make(chan struct{})
+	factory := newFakeFactory()
+	factory.behaviors["svc"] = fakeBehavior{grpcBlock: release, entered: entered}
+	l, addr := localListener(t)
+	sm := newTestManager(t, factory, serverConfig("server", 0, "svc"))
+	require.NoError(t, sm.Prepare(t.Context(), WithListener("server", l)))
+	require.NoError(t, sm.Start(t.Context()))
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+	stream, err := conn.NewStream(context.Background(),
+		&grpc.StreamDesc{ClientStreams: true, ServerStreams: true}, "/blocked.Service/Block")
+	require.NoError(t, err)
+	require.NoError(t, stream.SendMsg(&healthpb.HealthCheckRequest{}))
+	<-entered
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	begin := time.Now()
+	require.NoError(t, sm.StopAll(ctx))
+	require.Less(t, time.Since(begin), 3*time.Second, "StopAll must honor its deadline")
+	requireReusable(t, addr)
+	require.Equal(t, map[string]string{"server": "stopped"}, sm.ListServers())
+
+	releaseHandler()
+	require.NoError(t, sm.Wait())
 }

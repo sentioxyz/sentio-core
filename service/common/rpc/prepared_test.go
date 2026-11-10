@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,11 +18,11 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
-func newTestPreparedServer(t *testing.T, handler http.Handler) (*PreparedServer, string) {
+func newTestPreparedServer(t *testing.T, handler http.Handler, grpcOpts ...grpc.ServerOption) (*PreparedServer, string) {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpcOpts...)
 	healthpb.RegisterHealthServer(grpcServer, health.NewServer())
 	if handler == nil {
 		handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -245,4 +246,78 @@ func TestPreparedServerConcurrentShutdownHonorsEachDeadline(t *testing.T) {
 	}
 	require.NoError(t, s.Wait())
 	requirePortReusable(t, addr)
+}
+
+func TestPreparedServerForcedShutdownIgnoresAStuckGRPCHandler(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHandler := func() { releaseOnce.Do(func() { close(release) }) }
+	defer releaseHandler()
+	s, addr := newTestPreparedServer(t, nil, grpc.UnknownServiceHandler(func(any, grpc.ServerStream) error {
+		close(entered)
+		<-release // ignores cancellation
+		return nil
+	}))
+	require.NoError(t, s.Serve())
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+	go func() {
+		_ = conn.Invoke(context.Background(), "/blocked.Service/Block",
+			&healthpb.HealthCheckRequest{}, &healthpb.HealthCheckResponse{})
+	}()
+	<-entered
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	returned := make(chan error, 1)
+	go func() { returned <- s.Shutdown(ctx) }()
+	select {
+	case err := <-returned:
+		require.Error(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("a forced shutdown must not wait for a gRPC handler that ignores cancellation")
+	}
+	requirePortReusable(t, addr)
+
+	// grpc-go keeps its Serve loop until every handler returns, so Wait
+	// joins once the stuck handler finally does.
+	waited := make(chan error, 1)
+	go func() { waited <- s.Wait() }()
+	releaseHandler()
+	select {
+	case err := <-waited:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("serving goroutines must exit once the handler returns")
+	}
+}
+
+func TestPreparedServerWaitReportsListenerFailureWithAnIdleConnection(t *testing.T) {
+	s, addr := newTestPreparedServer(t, nil)
+	require.NoError(t, s.Serve())
+
+	idle, err := net.Dial("tcp", addr)
+	require.NoError(t, err)
+	defer idle.Close()
+	tracked := s.listener.(*trackingListener)
+	require.Eventually(t, func() bool {
+		tracked.mu.Lock()
+		defer tracked.mu.Unlock()
+		return len(tracked.conns) == 1
+	}, 2*time.Second, 10*time.Millisecond, "the idle connection must reach the cmux sniffer")
+
+	// The root listener fails outside Shutdown.
+	require.NoError(t, tracked.Listener.Close())
+	waited := make(chan error, 1)
+	go func() { waited <- s.Wait() }()
+	select {
+	case err := <-waited:
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "mux")
+	case <-time.After(2 * time.Second):
+		t.Fatal("an idle connection must not hide a listener failure from Wait")
+	}
 }

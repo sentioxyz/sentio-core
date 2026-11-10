@@ -278,7 +278,9 @@ func (sm *ServiceManager) rollbackLocked(ctx context.Context) {
 
 // Wait joins every serving goroutine of the servers prepared since the last
 // Prepare and returns the serve errors that Stop did not cause. While servers
-// are running it blocks until they stop or fail.
+// are running it blocks until they stop or fail. After a forced Stop, a gRPC
+// handler that ignores cancellation delays Wait until it returns (see
+// rpc.PreparedServer.Wait); StopAll bounds its own join by its context.
 func (sm *ServiceManager) Wait() error {
 	sm.mutex.RLock()
 	servers := make([]*ServerInstance, 0, len(sm.servers)+len(sm.retired))

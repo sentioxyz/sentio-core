@@ -485,3 +485,52 @@ func TestStopAllIsBoundedByAGRPCHandlerThatIgnoresCancellation(t *testing.T) {
 	releaseHandler()
 	require.NoError(t, sm.Wait())
 }
+
+func TestConcurrentStopHonorsEachCallersDeadline(t *testing.T) {
+	entered := make(chan struct{})
+	var once sync.Once
+	factory := newFakeFactory()
+	factory.behaviors["svc"] = fakeBehavior{handler: func(_ http.ResponseWriter, r *http.Request) {
+		once.Do(func() { close(entered) })
+		<-r.Context().Done() // drains only when the server is forced
+	}}
+	l, addr := localListener(t)
+	sm := newTestManager(t, factory, serverConfig("server", 0, "svc"))
+	require.NoError(t, sm.Prepare(t.Context(), WithListener("server", l)))
+	require.NoError(t, sm.Start(t.Context()))
+	go func() {
+		client := &http.Client{Timeout: 10 * time.Second}
+		if resp, err := client.Get("http://" + addr + "/ping"); err == nil {
+			resp.Body.Close()
+		}
+	}()
+	<-entered
+
+	// A graceful Stop with no deadline is stuck on the in-flight request.
+	first := make(chan error, 1)
+	go func() { first <- sm.Stop(context.Background()) }()
+	select {
+	case <-first:
+		t.Fatal("a graceful Stop must wait for the in-flight request")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	second := make(chan error, 1)
+	go func() { second <- sm.Stop(ctx) }()
+	select {
+	case <-second:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a second Stop must force the drain with its own deadline")
+	}
+	select {
+	case err := <-first:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("the forced drain must release the first Stop")
+	}
+	require.NoError(t, sm.Wait())
+	requireReusable(t, addr)
+	require.Equal(t, 1, factory.instance("svc").stopCount())
+}

@@ -76,6 +76,11 @@ type ServerInstance struct {
 	ctx          context.Context
 	cancelFunc   context.CancelFunc
 	mutex        sync.RWMutex
+
+	// stopStarted is guarded by mutex; stopDone closes when the first stop
+	// finishes.
+	stopStarted bool
+	stopDone    chan struct{}
 }
 
 // PrepareOption customizes Prepare.
@@ -225,40 +230,57 @@ func (sm *ServiceManager) startLocked(ctx context.Context) (err error) {
 
 // Stop stops every server's services and closes its listener, HTTP server,
 // gRPC server and mux. It is idempotent and bounded by ctx: graceful draining
-// gives way to a forced close when ctx ends.
+// gives way to a forced close when ctx ends. The drain runs outside the
+// manager lock, so concurrent Stop calls each force it with their own
+// deadline and wait for it, returning ctx's error if it outlasts them.
 func (sm *ServiceManager) Stop(ctx context.Context) error {
 	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-	return sm.stopAllLocked(ctx)
+	servers := sm.takeServersLocked()
+	sm.mutex.Unlock()
+	return sm.stopServers(ctx, servers)
 }
 
-func (sm *ServiceManager) stopAllLocked(ctx context.Context) error {
+// takeServersLocked retires every current server and returns them together
+// with retired servers whose stop is still in progress.
+func (sm *ServiceManager) takeServersLocked() []*ServerInstance {
+	servers := make([]*ServerInstance, 0, len(sm.servers)+len(sm.retired))
+	for _, server := range sm.retired {
+		select {
+		case <-server.stopDone:
+		default:
+			servers = append(servers, server)
+		}
+	}
+	for _, server := range sm.servers {
+		servers = append(servers, server)
+		sm.retired = append(sm.retired, server)
+	}
+	sm.servers = make(map[string]*ServerInstance)
+	return servers
+}
+
+func (sm *ServiceManager) stopServers(ctx context.Context, servers []*ServerInstance) error {
 	var wg sync.WaitGroup
 	var errMu sync.Mutex
 	var stopErrors []error
 
-	for name, server := range sm.servers {
+	for _, server := range servers {
 		wg.Add(1)
-		go func(serverName string, serverInstance *ServerInstance) {
+		go func(serverInstance *ServerInstance) {
 			defer wg.Done()
 
-			log.Infof("Stopping server %s...", serverName)
+			log.Infof("Stopping server %s...", serverInstance.Name)
 			if err := sm.stopServer(ctx, serverInstance); err != nil {
 				log.Errorf("Server stop error: %v", err)
 				errMu.Lock()
-				stopErrors = append(stopErrors, pkgerrors.Wrapf(err, "failed to stop server %s", serverName))
+				stopErrors = append(stopErrors, pkgerrors.Wrapf(err, "failed to stop server %s", serverInstance.Name))
 				errMu.Unlock()
 			} else {
-				log.Infof("Server %s stopped", serverName)
+				log.Infof("Server %s stopped", serverInstance.Name)
 			}
-		}(name, server)
+		}(server)
 	}
 	wg.Wait()
-
-	for _, server := range sm.servers {
-		sm.retired = append(sm.retired, server)
-	}
-	sm.servers = make(map[string]*ServerInstance)
 
 	if len(stopErrors) > 0 {
 		return fmt.Errorf("errors occurred while stopping servers: %v", stopErrors)
@@ -271,7 +293,7 @@ func (sm *ServiceManager) stopAllLocked(ctx context.Context) error {
 func (sm *ServiceManager) rollbackLocked(ctx context.Context) {
 	rbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
 	defer cancel()
-	if err := sm.stopAllLocked(rbCtx); err != nil {
+	if err := sm.stopServers(rbCtx, sm.takeServersLocked()); err != nil {
 		log.Errorf("rollback of servers failed: %v", err)
 	}
 }
@@ -469,6 +491,7 @@ func (sm *ServiceManager) prepareServer(
 		listener:   listener,
 		ctx:        serverCtx,
 		cancelFunc: cancel,
+		stopDone:   make(chan struct{}),
 	}
 	defer func() {
 		if err != nil {
@@ -574,21 +597,36 @@ func (sm *ServiceManager) startServer(ctx context.Context, server *ServerInstanc
 }
 
 // stopServer stops serving (draining in-flight requests until ctx ends),
-// stops the server's services, and closes the listener. It is idempotent.
+// stops the server's services, and closes the listener. The first call does
+// the work without holding the server lock across the drain; a concurrent or
+// later call forces the drain with its own ctx and waits for the first to
+// finish, returning ctx's error if it outlasts ctx.
 func (sm *ServiceManager) stopServer(ctx context.Context, server *ServerInstance) error {
 	server.mutex.Lock()
-	defer server.mutex.Unlock()
-
-	if server.Status == serverStatusStopped {
-		return nil
+	first := !server.stopStarted
+	server.stopStarted = true
+	if first {
+		server.Status = serverStatusStopping
 	}
-	server.Status = serverStatusStopping
+	endpoint := server.endpoint
+	server.mutex.Unlock()
 
-	var stopErrors []error
+	if !first {
+		if endpoint != nil {
+			_ = endpoint.Shutdown(ctx)
+		}
+		select {
+		case <-server.stopDone:
+			return nil
+		case <-ctx.Done():
+			return fmt.Errorf("stop of server %s still in progress: %w", server.Name, ctx.Err())
+		}
+	}
+	defer close(server.stopDone)
 
 	// Stop accepting and drain in-flight requests while services still run.
-	if server.endpoint != nil {
-		if err := server.endpoint.Shutdown(ctx); err != nil {
+	if endpoint != nil {
+		if err := endpoint.Shutdown(ctx); err != nil {
 			log.Warnf("Server %s shutdown: %v", server.Name, err)
 		} else {
 			log.Infof("HTTP and gRPC servers for %s stopped", server.Name)
@@ -602,9 +640,17 @@ func (sm *ServiceManager) stopServer(ctx context.Context, server *ServerInstance
 		}
 	}
 
+	server.mutex.RLock()
+	services := make(map[string]ServiceInstance, len(server.Services))
+	for name, instance := range server.Services {
+		services[name] = instance
+	}
+	server.mutex.RUnlock()
+
+	var stopErrors []error
 	var wg sync.WaitGroup
 	var errMu sync.Mutex
-	for name, instance := range server.Services {
+	for name, instance := range services {
 		wg.Add(1)
 		go func(serviceName string, serviceInstance ServiceInstance) {
 			defer wg.Done()
@@ -624,9 +670,11 @@ func (sm *ServiceManager) stopServer(ctx context.Context, server *ServerInstance
 	if server.cancelFunc != nil {
 		server.cancelFunc()
 	}
+	server.mutex.Lock()
 	server.Services = make(map[string]ServiceInstance)
 	server.serviceOrder = nil
 	server.Status = serverStatusStopped
+	server.mutex.Unlock()
 
 	if len(stopErrors) > 0 {
 		return fmt.Errorf("errors occurred while stopping services in server %s: %v", server.Name, stopErrors)

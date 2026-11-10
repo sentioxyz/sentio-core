@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("@rules_img//img:image.bzl", "image_manifest")
 load("@rules_img//img:layer.bzl", "image_layer")
 load("@rules_img//img:load.bzl", "image_load")
@@ -36,6 +36,20 @@ go_library(
         "@in_gopkg_yaml_v3//:yaml_v3",
         "@io_gorm_gorm//:gorm",
         "@org_golang_google_grpc//:grpc",
+    ],
+)
+
+go_test(
+    name = "launcher_test",
+    srcs = ["manager_test.go"],
+    embed = [":launcher_lib"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@grpc_ecosystem_grpc_gateway//runtime",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//health",
+        "@org_golang_google_grpc//health/grpc_health_v1",
     ],
 )
 

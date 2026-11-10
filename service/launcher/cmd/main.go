@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -40,13 +41,16 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	var wg sync.WaitGroup
+	var startFailed atomic.Bool
 
-	// Start services
+	// Start services. StartAll rolls back on failure, and the signal handling
+	// below is the only one: the manager installs no signal handler.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if err := serviceManager.StartAll(ctx); err != nil {
 			log.Errorfe(err, "Failed to start services")
+			startFailed.Store(true)
 			cancel()
 		}
 	}()
@@ -72,4 +76,7 @@ func main() {
 	// Wait for all goroutines to finish
 	wg.Wait()
 	log.Info("Service launcher stopped")
+	if startFailed.Load() {
+		os.Exit(1)
+	}
 }

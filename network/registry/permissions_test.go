@@ -176,7 +176,7 @@ func TestMergeAccountPermissions(t *testing.T) {
 			account: "0xabc",
 			expected: map[Database]DbAuth{
 				"db1": DbAuthRead,
-				"db2": DbAuthWrite | DbAuthRead, // Wildcard write
+				"db2": DbAuthRead, // a wildcard Write shares only the Read it implies
 			},
 		},
 		{
@@ -193,7 +193,61 @@ func TestMergeAccountPermissions(t *testing.T) {
 			},
 			account: "0xabc",
 			expected: map[Database]DbAuth{
-				"db1": DbAuthRead | DbAuthWrite, // 1 | 2 = 3, Write expands
+				"db1": DbAuthRead, // the wildcard's Write is not shared
+			},
+		},
+		{
+			// housegate/housegate#346: the Databases contract never unions
+			// address(0) into another account, so only the Read a wildcard
+			// grant implies is public.
+			name: "Wildcard Admin, Owner and Write grant other accounts only Read",
+			source: &mockPermissionSource{
+				permissions: map[string]map[string]string{
+					"0xabc": {
+						"own": "2", // Write of its own
+					},
+					string(WildcardAddress): {
+						"admin": "4",
+						"owner": "8",
+						"write": "2",
+						"read":  "1",
+						"all":   "15",
+						"own":   "4",
+					},
+				},
+			},
+			account: "0xabc",
+			expected: map[Database]DbAuth{
+				// "admin" is absent: Admin alone implies no Read.
+				"owner": DbAuthRead,
+				"write": DbAuthRead,
+				"read":  DbAuthRead,
+				"all":   DbAuthRead,
+				"own":   DbAuthWrite | DbAuthRead,
+			},
+		},
+		{
+			name: "Wildcard grants reach an account with no row",
+			source: &mockPermissionSource{
+				permissions: map[string]map[string]string{
+					string(WildcardAddress): {"db1": "8", "db2": "4"},
+				},
+			},
+			account: "0xnobody",
+			expected: map[Database]DbAuth{
+				"db1": DbAuthRead,
+			},
+		},
+		{
+			name: "Wildcard address keeps its own bits",
+			source: &mockPermissionSource{
+				permissions: map[string]map[string]string{
+					string(WildcardAddress): {"db1": "4"},
+				},
+			},
+			account: string(WildcardAddress),
+			expected: map[Database]DbAuth{
+				"db1": DbAuthAdmin,
 			},
 		},
 		{

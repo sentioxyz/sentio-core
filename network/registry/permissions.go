@@ -39,22 +39,40 @@ func parseAuth(s string) (DbAuth, error) {
 }
 
 // MergeAccountPermissions returns the effective per-database permission
-// bitmaps for account by ORing in WildcardAddress permissions and running
-// expandAuth on each entry. account must already be lowercase.
+// bitmaps for account: its own bits, ORed with the public reads of
+// WildcardAddress (PublicReadBits), and run through expandAuth. account must
+// already be lowercase.
 func MergeAccountPermissions(ctx context.Context, src PermissionSource, account string) (map[Database]DbAuth, error) {
 	result := make(map[Database]DbAuth)
 	if err := collectInto(ctx, src, account, result); err != nil {
 		return nil, err
 	}
 	if account != string(WildcardAddress) {
-		if err := collectInto(ctx, src, string(WildcardAddress), result); err != nil {
+		public := make(map[Database]DbAuth)
+		if err := collectInto(ctx, src, string(WildcardAddress), public); err != nil {
 			return nil, err
+		}
+		for db, auth := range public {
+			if read := PublicReadBits(auth); read != 0 {
+				result[db] |= read
+			}
 		}
 	}
 	for db, auth := range result {
 		result[db] = expandAuth(auth)
 	}
 	return result, nil
+}
+
+// PublicReadBits is what a grant held by WildcardAddress contributes to
+// every other account: only the Read bit it implies (Owner and Write imply
+// Read, Admin alone does not). The wildcard is the encoding for public
+// reads, and the Databases contract never unions address(0) into another
+// account (isDatabaseWriter says so explicitly; GRANT / REVOKE check the
+// caller's own bits), so a wildcard Write, Admin or Owner grant must not
+// reach other accounts (housegate/housegate#346).
+func PublicReadBits(auth DbAuth) DbAuth {
+	return expandAuth(auth) & DbAuthRead
 }
 
 func collectInto(ctx context.Context, src PermissionSource, account string, result map[Database]DbAuth) error {

@@ -362,6 +362,50 @@ func TestDbRegistry_AccountHasPermission(t *testing.T) {
 			expected: false,
 		},
 		{
+			// housegate/housegate#346: only the Read a wildcard grant implies
+			// is public.
+			name:     "Wildcard Write does not grant write",
+			address:  "0xABC",
+			database: "db_1",
+			action:   Write,
+			dbData: map[string]state.DatabaseInfo{
+				"db_1": activeDB,
+			},
+			permData: map[string]map[string]string{
+				"0xabc":                 {},
+				string(WildcardAddress): {"db_1": "2"},
+			},
+			expected: false,
+		},
+		{
+			name:     "Wildcard Owner does not grant admin",
+			address:  "0xABC",
+			database: "db_1",
+			action:   Action(DbAuthAdmin),
+			dbData: map[string]state.DatabaseInfo{
+				"db_1": activeDB,
+			},
+			permData: map[string]map[string]string{
+				"0xabc":                 {},
+				string(WildcardAddress): {"db_1": "8"},
+			},
+			expected: false,
+		},
+		{
+			name:     "Wildcard Owner still grants read",
+			address:  "0xABC",
+			database: "db_1",
+			action:   Read,
+			dbData: map[string]state.DatabaseInfo{
+				"db_1": activeDB,
+			},
+			permData: map[string]map[string]string{
+				"0xabc":                 {},
+				string(WildcardAddress): {"db_1": "8"},
+			},
+			expected: true,
+		},
+		{
 			name:    "Wildcard grants read permission",
 			address: "0xABC",
 			database: "db_1",
@@ -535,12 +579,12 @@ func TestDbRegistry_RetrievePermissionsByAccount(t *testing.T) {
 					"db_1": "1",
 				},
 				string(WildcardAddress): {
-					"db_2": "2", // Everyone gets write on db_2
+					"db_2": "2", // a public Write shares only the Read it implies
 				},
 			},
 			expected: map[Database]DbAuth{
 				"db_1": DbAuthRead,
-				"db_2": DbAuthWrite | DbAuthRead,
+				"db_2": DbAuthRead,
 			},
 		},
 	}

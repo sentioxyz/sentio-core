@@ -84,6 +84,7 @@ go_test(
     srcs = ["startup_test.go"],
     embed = [":startup"],
     deps = [
+        "//common/chx",
         "//common/log",
         "//driver/controller/config",
         "//service/common/errors",

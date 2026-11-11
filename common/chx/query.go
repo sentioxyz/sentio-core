@@ -178,7 +178,13 @@ func (c Controller) RangeInsertCtx(ctx context.Context, table string, first, las
 //
 // On a controller with a MaintenanceRoute it runs on both clusters of the route, see
 // endRangeInsertsRouted.
+//
+// A controller behind a tenant proxy (ForTenantProxy) returns an error without sending anything:
+// the proxy refuses KILL QUERY, which on its shared ClickHouse user would reach every tenant.
 func (c Controller) EndRangeInserts(ctx context.Context, table string, first, last uint64) error {
+	if c.tenantProxy {
+		return errTenantProxy("EndRangeInserts (KILL QUERY)")
+	}
 	if c.route != nil {
 		return c.endRangeInsertsRouted(ctx, table, first, last)
 	}
@@ -208,6 +214,11 @@ func (c Controller) syncReplicas(ctx context.Context, table string) error {
 	}
 	if c.cluster == "" {
 		return nil
+	}
+	if c.tenantProxy {
+		// Unreachable: ForTenantProxy refuses a controller with a cluster. Kept so that a cluster
+		// set some other way still fails here rather than at the proxy.
+		return errTenantProxy("SYSTEM SYNC REPLICA")
 	}
 	sql := fmt.Sprintf("SYSTEM SYNC REPLICA ON CLUSTER '%s' %s LIGHTWEIGHT", c.cluster, c.FullLogicName(table))
 	return c.Exec(SyncReplicaCtx(ctx), sql)

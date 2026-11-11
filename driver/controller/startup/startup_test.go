@@ -1,8 +1,10 @@
 package startup
 
 import (
+	"context"
 	"testing"
 
+	"sentioxyz/sentio-core/common/chx"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/driver/controller/config"
 	sentioerror "sentioxyz/sentio-core/service/common/errors"
@@ -57,4 +59,54 @@ func Test_splitSupportedChains(t *testing.T) {
 	supported, unsupported = splitSupportedChains([]string{"1"}, chainConfigs)
 	assert.Equal(t, []string{"1"}, supported)
 	assert.Empty(t, unsupported)
+}
+
+type fakeClickhouseConnector struct {
+	ts, entity *chx.Controller
+}
+
+func (f fakeClickhouseConnector) Connect(context.Context, *models.Processor) (*chx.Controller, *chx.Controller, error) {
+	return f.ts, f.entity, nil
+}
+
+func Test_connectClickhouseTenantProxy(t *testing.T) {
+	networkV1 := func(opts ...chx.Option) *chx.Controller {
+		ctrl := chx.New(nil, append([]chx.Option{
+			chx.WithDatabase("devnet2"),
+			chx.WithTableNamePrefix("proc_0."),
+			chx.WithLogicDatabase("proc_0"),
+			chx.WithLogicTableNamePrefix(""),
+		}, opts...)...)
+		return &ctrl
+	}
+	connect := func(pattern models.TablePattern, ts, entity *chx.Controller) (*baseStartupController, error) {
+		c := &baseStartupController{processor: &models.Processor{TablePattern: pattern}}
+		c.config.ClickhouseConnector = fakeClickhouseConnector{ts: ts, entity: entity}
+		return c, c.connectClickhouse(context.Background())
+	}
+
+	// network_v1 controllers, which go through HouseGate, are marked.
+	ctrl := networkV1()
+	c, err := connect(models.TablePatternNetworkV1, ctrl, ctrl)
+	assert.NoError(t, err)
+	assert.True(t, c.tsController.IsTenantProxy())
+	assert.True(t, c.entityController.IsTenantProxy())
+
+	// A HouseGate-fronted ClickHouse reporting a cluster fails the startup.
+	ctrl = networkV1(chx.WithCluster("node-a"))
+	_, err = connect(models.TablePatternNetworkV1, ctrl, ctrl)
+	assert.ErrorContains(t, err, `reports cluster "node-a"`)
+
+	// A missing store stays missing.
+	c, err = connect(models.TablePatternNetworkV1, nil, nil)
+	assert.NoError(t, err)
+	assert.Nil(t, c.tsController)
+	assert.Nil(t, c.entityController)
+
+	// Other patterns connect to ClickHouse directly and are left as they are, cluster included.
+	direct := chx.New(nil, chx.WithCluster("node-a"), chx.WithTableNamePrefix("proc_"))
+	c, err = connect(models.TablePatternPlatformV1, &direct, &direct)
+	assert.NoError(t, err)
+	assert.False(t, c.tsController.IsTenantProxy())
+	assert.Equal(t, "node-a", c.entityController.Cluster())
 }

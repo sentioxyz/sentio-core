@@ -228,9 +228,32 @@ func (c *baseStartupController) connectClickhouse(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "connect to clickhouse failed")
 	}
+	if c.processor.TablePattern == models.TablePatternNetworkV1 {
+		if ts, err = forTenantProxy(ts); err != nil {
+			return errors.Wrap(err, "connect to clickhouse failed")
+		}
+		if entity, err = forTenantProxy(entity); err != nil {
+			return errors.Wrap(err, "connect to clickhouse failed")
+		}
+	}
 	c.tsController = ts
 	c.entityController = entity
 	return nil
+}
+
+// forTenantProxy marks the controller of a network_v1 processor, which connects through HouseGate,
+// with chx.Controller.ForTenantProxy, so that it fails before sending what HouseGate refuses
+// (KILL QUERY, SYSTEM SYNC REPLICA, ON CLUSTER, the routed maintenance statements) and a
+// cluster-aware ClickHouse behind HouseGate fails the startup. nil stays nil.
+func forTenantProxy(ctrl *chx.Controller) (*chx.Controller, error) {
+	if ctrl == nil {
+		return nil, nil
+	}
+	marked, err := ctrl.ForTenantProxy()
+	if err != nil {
+		return nil, err
+	}
+	return &marked, nil
 }
 
 func (c *baseStartupController) newTimeSeriesProbe() (timeserieschs.Probe, error) {

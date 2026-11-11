@@ -31,6 +31,10 @@ type config struct {
 	// route sends the maintenance statements to the local tables behind a Distributed facade, see
 	// MaintenanceRoute. nil keeps every statement on the names above, as it always was.
 	route *MaintenanceRoute
+
+	// tenantProxy marks a controller whose connection goes through a tenant proxy (HouseGate), see
+	// ForTenantProxy.
+	tenantProxy bool
 }
 
 func (c config) getLogicDatabase() string {
@@ -109,6 +113,9 @@ func (c Controller) WithMaintenanceRoute(route *MaintenanceRoute) (Controller, e
 		c.route = nil
 		return c, nil
 	}
+	if c.tenantProxy {
+		return c, errTenantProxy("a maintenance route")
+	}
 	r := *route
 	if err := r.Validate(); err != nil {
 		return c, err
@@ -130,6 +137,52 @@ func (c Controller) WithMaintenanceRoute(route *MaintenanceRoute) (Controller, e
 	}
 	c.route = &r
 	return c, nil
+}
+
+// ForTenantProxy returns a copy of the controller marked as reaching ClickHouse through a tenant
+// proxy, HouseGate, which is how a network_v1 processor connects. Behind the proxy every tenant is
+// the same ClickHouse user, so the proxy refuses what would reach other tenants: KILL QUERY, SYSTEM
+// statements, ON CLUSTER, Replicated engines with arguments, clusterAllReplicas and the system
+// tables outside its allowlist (processes, distribution_queue, distributed_ddl_queue, ...). A
+// marked controller fails before sending any of these: EndRangeInserts and WithMaintenanceRoute
+// return an error, and so does the replica sync of DeleteAfterReplicaSync on a cluster.
+//
+// A controller with a cluster or a maintenance route is refused: either would have it issue
+// statements the proxy refuses (ON CLUSTER DDL, SYSTEM SYNC REPLICA, ReplicatedMergeTree with
+// arguments, the routed maintenance statements), so the store would start and fail later, at the
+// first DDL or delete. Failing here makes a cluster-aware ClickHouse behind the proxy a clear
+// startup error instead.
+//
+// The cluster is the one New read from system.clusters through the proxy, which allows that table.
+// A residual risk: if the proxy refused system.clusters, the probe would log an error and leave the
+// cluster empty (see helper.MustAutoGetCluster), and this check would pass even on a
+// cluster-aware ClickHouse. The proxy would still refuse the cluster-aware statements themselves,
+// at the first DDL or delete.
+func (c Controller) ForTenantProxy() (Controller, error) {
+	if c.cluster != "" {
+		return c, errors.Errorf("controller behind a tenant proxy reports cluster %q: "+
+			"cluster-aware stores (ON CLUSTER, SYSTEM SYNC REPLICA, Replicated engines) are refused by the proxy "+
+			"and are not supported", c.cluster)
+	}
+	if c.route != nil {
+		return c, errors.Errorf("controller behind a tenant proxy has a maintenance route, which is not supported")
+	}
+	c.tenantProxy = true
+	return c, nil
+}
+
+// IsTenantProxy reports whether the controller was marked by ForTenantProxy.
+func (c Controller) IsTenantProxy() bool {
+	return c.tenantProxy
+}
+
+// Cluster returns the cluster the controller runs ON CLUSTER statements on, empty if none.
+func (c Controller) Cluster() string {
+	return c.cluster
+}
+
+func errTenantProxy(what string) error {
+	return errors.Errorf("%s is not supported on a controller behind a tenant proxy (HouseGate)", what)
 }
 
 // MaintenanceRoute returns a copy of the route of the controller, nil if it has none.

@@ -20,10 +20,6 @@ var (
 	timeseriesMetaLogPrintEveryN = flag.Int("timeseries-meta-log-print-debug-every-n", 10, "")
 )
 
-// BigFloat column type used when Features.BigFloatUseDecimal512 is enabled,
-// mirroring the entity driver's Decimal512 support (precision 154, scale 60).
-const bigFloatDecimal512DBType = "Decimal(154, 60)"
-
 var (
 	dbTypeMapping = map[timeseries.FieldType]string{
 		timeseries.FieldTypeString:   "String",
@@ -42,17 +38,11 @@ var (
 		return strings.ReplaceAll(s, "'", "''")
 	}
 
-	// castDBType is the type used in query-side CASTs for a field type. BigFloat
-	// always casts to the widest variant Decimal(154, 60): casting a Decimal(76, 30)
-	// column to Decimal(154, 60) is lossless, so a single cast target works for
-	// tables created with either BigFloat feature setting.
+	// castDBType is the type used in query-side CASTs for a field type.
 	castDBType = func(t timeseries.FieldType) string {
 		clickhouseType, ok := dbTypeMapping[t]
 		if !ok {
 			panic(fmt.Errorf("unsupported field type %s", t))
-		}
-		if t == timeseries.FieldTypeBigFloat {
-			return bigFloatDecimal512DBType
 		}
 		return clickhouseType
 	}
@@ -155,9 +145,6 @@ func tableToMeta(
 				field.Type = ft
 			}
 		}
-		if fieldType == bigFloatDecimal512DBType {
-			field.Type = timeseries.FieldTypeBigFloat
-		}
 		if field.Type == "" {
 			return meta, errors.Errorf("invalid type %q for field %s.%s", fieldType, table.Name, tf.Name)
 		}
@@ -215,15 +202,6 @@ func tablesToMetes(
 	return newStoreMeta(items), nil
 }
 
-// createDBType is the column type used when creating tables for this store,
-// depending on its feature bits.
-func (s *Store) createDBType(t timeseries.FieldType) string {
-	if t == timeseries.FieldTypeBigFloat && s.option.Features.BigFloatUseDecimal512 {
-		return bigFloatDecimal512DBType
-	}
-	return dbTypeMapping[t]
-}
-
 func (s *Store) metaToTable(ctx context.Context, meta timeseries.Meta) chx.Table {
 	_, logger := log.FromContext(ctx)
 	table := chx.Table{
@@ -240,7 +218,7 @@ func (s *Store) metaToTable(ctx context.Context, meta timeseries.Meta) chx.Table
 	for _, field := range utils.GetMapValuesOrderByKey(meta.Fields) {
 		table.Fields = append(table.Fields, chx.Field{
 			Name:    field.Name,
-			Type:    chx.BuildFieldType(s.createDBType(field.Type)),
+			Type:    chx.BuildFieldType(dbTypeMapping[field.Type]),
 			Comment: string(field.Role),
 		})
 		if field.Index {

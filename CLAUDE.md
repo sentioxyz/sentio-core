@@ -108,7 +108,7 @@ The codebase is organized into several major components:
 - `webhook/` - Webhook delivery system
 
 **`driver/`** - Storage and data access drivers:
-- `entity/` - Entity storage with ClickHouse backend, handles complex data types including Decimal512
+- `entity/` - Entity storage with ClickHouse backend, handles complex data types such as BigDecimal and BigInt
 - `timeseries/` - Time-series data storage and querying in ClickHouse
 - `subgraph/` - Subgraph indexing support (Ethereum ABI utilities, manifest parsing)
 
@@ -217,7 +217,7 @@ When working with on-chain state that needs Redis caching, use the `statemirror`
 
 - Use `clickhousemanager` for connection pooling and query execution
 - Time-series data follows specific schema patterns (see `driver/timeseries/`)
-- Entity data supports complex types including Decimal512 (see `driver/entity/clickhouse/`)
+- Entity data supports complex types such as BigDecimal and BigInt (see `driver/entity/clickhouse/`)
 
 ## UI Dashboard Components
 

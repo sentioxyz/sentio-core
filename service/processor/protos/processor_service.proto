@@ -499,8 +499,7 @@ message Processor {
   string table_pattern = 32;
 
   // Feature bits for timeseries (metric/event) storage, see
-  // driver/timeseries BuildFeatures. Bit 0: BigFloat columns use
-  // Decimal512 instead of Decimal256.
+  // driver/timeseries BuildFeatures. No bit is defined yet, must be 0.
   int32 timeseries_schema_version = 33;
 }
 

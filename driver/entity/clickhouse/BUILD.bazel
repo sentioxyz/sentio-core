@@ -44,7 +44,6 @@ go_test(
         "chain_store_test.go",
         "check_value_test.go",
         "create_test.go",
-        "decimal512_integration_test.go",
         "decimal_flow_test.go",
         "entity_test.go",
         "id_set_test.go",

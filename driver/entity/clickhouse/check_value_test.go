@@ -333,31 +333,6 @@ type EntityX @entity {
 		"EntityX.val cannot be null")
 }
 
-// ===================== BigDecimal Decimal512 =====================
-
-func Test_checkBigDecimalDecimal512(t *testing.T) {
-	sch, err := schema.ParseAndVerifySchema(`
-type EntityX @entity {
-	id: String!
-	val: BigDecimal!
-}
-`)
-	assert.NoError(t, err)
-	s := &Store{feaOpt: Features{BigDecimalUseDecimal512: true}}
-	etype := sch.GetEntity("EntityX")
-
-	// within precision
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": decimal.NewFromInt(0)}))
-	assert.NoError(t, s.CheckValue(etype, map[string]any{"id": "a", "val": decimal.NewFromFloat(1.23)}))
-
-	// overflow: 95 integer digits → total digits after rounding to scale 60 exceeds 154
-	bigStr := strings.Repeat("9", 95)
-	overflowVal, _ := decimal.NewFromString(bigStr)
-	assert.ErrorContains(t,
-		s.CheckValue(etype, map[string]any{"id": "a", "val": overflowVal}),
-		"exceeding Decimal512 precision")
-}
-
 // ===================== BigDecimal String mode =====================
 
 func Test_checkBigDecimalStringMode(t *testing.T) {

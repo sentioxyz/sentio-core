@@ -17,7 +17,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"sentioxyz/sentio-core/chain/clientpool"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/queue"
 	"sentioxyz/sentio-core/common/timewin"
@@ -85,8 +84,8 @@ type RequestSource struct {
 	RemoteHost string
 	Name       string
 	Labels     map[string]any
-	// LowPriority asks the endpoint pools to serve the request with their top-priority endpoints only,
-	// without waiting for or triggering a priority downgrade (see clientpool.WithLowPriority).
+	// LowPriority makes the proxy serve the request with the pool's top-priority endpoints only, without
+	// waiting for or triggering a priority downgrade (see clientpool.NeverDowngrade).
 	// Set by an upstream proxy through RequestSourceHeader; it can only narrow what a request may use.
 	LowPriority bool `json:",omitempty"`
 }
@@ -155,9 +154,6 @@ func (s *Handler) callMethod(ctx context.Context, ctxData *CtxData, encoder Enco
 	startAt := time.Now()
 	cid := s.consumers.come(ctxData)
 	defer s.consumers.leave(cid)
-	if ctxData.ReqSrc.LowPriority {
-		ctx = clientpool.ContextWithLowPriority(ctx)
-	}
 	result, err := s.middleware.CallMethod(setCtxData(ctx, ctxData), ctxData.Method, ctxData.Params)
 	var ret any
 	var retLen int

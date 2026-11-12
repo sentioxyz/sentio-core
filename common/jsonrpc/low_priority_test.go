@@ -11,18 +11,16 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"sentioxyz/sentio-core/chain/clientpool"
 )
 
-// newLowPriorityProbeServer serves "probe", which returns whether its context is marked low priority.
+// newLowPriorityProbeServer serves "probe", which returns whether the request source is low priority.
 func newLowPriorityProbeServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	h := NewHandler("test", false, true, nil, nil, "")
 	h.RegisterMiddleware(func(next MethodHandler) MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
 			if method == "probe" {
-				return clientpool.IsLowPriority(ctx), nil
+				return GetCtxData(ctx).ReqSrc.LowPriority, nil
 			}
 			return next(ctx, method, params)
 		}

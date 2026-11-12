@@ -153,8 +153,6 @@ type consumer struct {
 	doing            string
 	waitingPSI       uint64
 	doingFrom        time.Time
-	// lowPriority consumers never count as waiting for the downgrade decision, see WithLowPriority.
-	lowPriority bool
 }
 
 func (c consumer) Snapshot() any {
@@ -167,7 +165,6 @@ func (c consumer) Snapshot() any {
 		"executedLastResult": c.executedLast.String(),
 		"waitIndex":          c.waitIndex,
 		"doing":              c.doing,
-		"lowPriority":        c.lowPriority,
 		"blackList": utils.MapMapNoError(c.blackList, func(err error) string {
 			return fmt.Sprintf("%v", err)
 		}),
@@ -504,12 +501,12 @@ func (p *ClientPool[CONFIG, CLIENT]) chooseOne(
 }
 
 type option[CONFIG any] struct {
-	noTags        []string
-	withTags      []string
-	interruptTags []string
-	maxPriority   *uint32
-	configFilter  func(c CONFIG) bool
-	lowPriority   bool
+	noTags         []string
+	withTags       []string
+	interruptTags  []string
+	maxPriority    *uint32
+	configFilter   func(c CONFIG) bool
+	neverDowngrade bool
 }
 
 type Option[CONFIG any] func(c *option[CONFIG])
@@ -569,29 +566,13 @@ func WithMaxPriority[CONFIG any](priority uint32) Option[CONFIG] {
 	}
 }
 
-// WithLowPriority marks the call as low priority: it only uses the entries of the pool's top priority
-// (the smallest configured one) and never counts as a waiting consumer when the pool decides whether to
-// downgrade. So it neither waits for nor triggers a downgrade; when none of the top-priority entries can
-// serve it, UseClient returns ErrNoValidClient. Whether those entries are free or paid does not matter.
-// Callers that cannot pass options can mark the context instead, see ContextWithLowPriority.
-func WithLowPriority[CONFIG any]() Option[CONFIG] {
+// NeverDowngrade makes the call only use the entries of the pool's top priority (the smallest configured
+// one) and never wait: when none of them can serve the call right now, UseClient returns ErrNoValidClient.
+// So the call neither waits for nor triggers a priority downgrade.
+func NeverDowngrade[CONFIG any]() Option[CONFIG] {
 	return func(c *option[CONFIG]) {
-		c.lowPriority = true
+		c.neverDowngrade = true
 	}
-}
-
-type lowPriorityCtxKey struct{}
-
-// ContextWithLowPriority makes every UseClient call made with the returned context behave as if
-// WithLowPriority was passed.
-func ContextWithLowPriority(ctx context.Context) context.Context {
-	return context.WithValue(ctx, lowPriorityCtxKey{}, true)
-}
-
-// IsLowPriority reports whether ctx was marked by ContextWithLowPriority.
-func IsLowPriority(ctx context.Context) bool {
-	low, _ := ctx.Value(lowPriorityCtxKey{}).(bool)
-	return low
 }
 
 type Result struct {
@@ -645,12 +626,12 @@ type Report struct {
 	ClientName string
 }
 
-func (p *ClientPool[CONFIG, CLIENT]) consumerCome(theme string, lowPriority bool) uint64 {
+func (p *ClientPool[CONFIG, CLIENT]) consumerCome(theme string) uint64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	id := p.consumerCounter
 	p.consumerCounter++
-	p.consumer[id] = consumer{theme: theme, enterAt: time.Now(), lowPriority: lowPriority}
+	p.consumer[id] = consumer{theme: theme, enterAt: time.Now()}
 	return id
 }
 
@@ -695,14 +676,11 @@ func (p *ClientPool[CONFIG, CLIENT]) consumerExecuted(id uint64, used time.Durat
 	p.consumer[id] = c
 }
 
-// consumerCollectDoing returns the themes of the consumers that are doing the given thing.
-// Low-priority consumers are skipped: they only ever use the top-priority entries, so they must
-// not drive the pool into a downgrade they cannot benefit from.
 func (p *ClientPool[CONFIG, CLIENT]) consumerCollectDoing(doing string) (themes []string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, c := range p.consumer {
-		if c.doing == doing && !c.lowPriority {
+		if c.doing == doing {
 			themes = append(themes, c.theme)
 		}
 	}
@@ -732,9 +710,20 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 	psi uint64,
 ) {
 	now := time.Now()
+	var topPriority uint32
+	if opt.neverDowngrade {
+		p.mu.Lock()
+		if len(p.configPriorities) > 0 {
+			topPriority = p.configPriorities[0]
+		}
+		p.mu.Unlock()
+	}
 	entries, _, psi = p.pool.Fetch(
 		func(name string, entry pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]], poolStatus poolStatus) bool {
 			if blackList.Contains(name) {
+				return false
+			}
+			if opt.neverDowngrade && entry.Config.Priority > topPriority {
 				return false
 			}
 			if opt.configFilter != nil && !opt.configFilter(entry.Config.Config) {
@@ -757,7 +746,9 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 					return false
 				}
 			}
-			backup++ // at least this is a backup client
+			if !opt.neverDowngrade {
+				backup++ // at least this is a backup client; not counted for NeverDowngrade so the caller never waits
+			}
 			if has && extra.ban != nil && extra.ban.enable(now) {
 				return false // can wait for this client to recover
 			}
@@ -802,24 +793,21 @@ func (p *ClientPool[CONFIG, CLIENT]) UseClient(
 	fn func(ctx context.Context, cli CLIENT) Result,
 	opts ...Option[CONFIG],
 ) Report {
-	var c option[CONFIG]
-	for _, opt := range opts {
-		opt(&c)
-	}
-	if IsLowPriority(ctx) {
-		c.lowPriority = true
-	}
-	cid := p.consumerCome(theme, c.lowPriority)
+	cid := p.consumerCome(theme)
 	curCtx, logger := log.FromContext(ctx, "pool", p.pool.Name(), "pcid", cid, "theme", theme)
 	defer func() {
 		p.consumerLeave(cid)
 	}()
+	var c option[CONFIG]
+	for _, opt := range opts {
+		opt(&c)
+	}
 	blackList := set.New[string]()
 	for {
 		if p.anyEntryHasTag(c.interruptTags) {
 			return Report{Err: ErrInterrupted}
 		}
-		entries, backup, psi := p.findEntries(blackList, p.applyLowPriority(c))
+		entries, backup, psi := p.findEntries(blackList, c)
 		if len(entries) == 0 {
 			if backup == 0 || p.consumerWaitTooLong(cid) {
 				return Report{Err: ErrNoValidClient}
@@ -1031,24 +1019,6 @@ func (p *ClientPool[CONFIG, CLIENT]) shouldDowngrade() string {
 		return "no valid entry"
 	}
 	return ""
-}
-
-// applyLowPriority caps the max priority of a low-priority call to the pool's top priority. It is evaluated
-// on every selection round because a config update may change the configured priorities.
-func (p *ClientPool[CONFIG, CLIENT]) applyLowPriority(c option[CONFIG]) option[CONFIG] {
-	if !c.lowPriority {
-		return c
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.configPriorities) == 0 {
-		return c
-	}
-	top := p.configPriorities[0]
-	if c.maxPriority == nil || *c.maxPriority > top {
-		c.maxPriority = &top
-	}
-	return c
 }
 
 func (p *ClientPool[CONFIG, CLIENT]) currentPriority() uint32 {

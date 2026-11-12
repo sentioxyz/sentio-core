@@ -14,6 +14,15 @@ import (
 
 const UpstreamHeaderKey = "X-Sentio-Proxy-Endpoint"
 
+// sourceOptions returns the client pool options the request source asks for: a low-priority request
+// never makes the pool downgrade, it is served by the top-priority endpoints or not at all.
+func sourceOptions[CONFIG any](ctxData *CtxData) []clientpool.Option[CONFIG] {
+	if ctxData != nil && ctxData.ReqSrc.LowPriority {
+		return []clientpool.Option[CONFIG]{clientpool.NeverDowngrade[CONFIG]()}
+	}
+	return nil
+}
+
 func ProxyHTTP[CONFIG clientpool.EntryConfig[CONFIG], CLIENT clientpool.Client](
 	ctx context.Context,
 	svr string,
@@ -28,7 +37,7 @@ func ProxyHTTP[CONFIG clientpool.EntryConfig[CONFIG], CLIENT clientpool.Client](
 	r := clientPool.UseClient(ctx, src+"#"+urlPath, func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
 		resp, respBody, r = fn(ctx, src, cli)
 		return r
-	})
+	}, sourceOptions[CONFIG](ctxData)...)
 	if errors.Is(r.Err, clientpool.ErrNoValidClient) {
 		http.Error(ctxData.RespWriter, r.Err.Error(), http.StatusInternalServerError)
 		return r.Err
@@ -128,16 +137,19 @@ func ProxyJSONRPCRequest[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCCl
 	ctxData := GetCtxData(ctx)
 	var data json.RawMessage
 	const src = "proxy"
+	opts := append([]clientpool.Option[CONFIG]{
+		clientpool.WithoutTags[CONFIG](clientpool.MethodNotSupportedTag(method)),
+		// A method-authority endpoint rejecting the method means no other endpoint should be
+		// probed for it: give the caller a method-not-found response right away.
+		clientpool.InterruptWithTags[CONFIG](clientpool.MethodNotSupportedByAuthorityTag(method)),
+	}, sourceOptions[CONFIG](ctxData)...)
 	r := clientPool.UseClient(
 		ctx,
 		src+"."+method,
 		func(ctx context.Context, cli CLIENT) (r clientpool.Result) {
 			return cli.CallContext(ctx, &data, src, method, args...)
 		},
-		clientpool.WithoutTags[CONFIG](clientpool.MethodNotSupportedTag(method)),
-		// A method-authority endpoint rejecting the method means no other endpoint should be
-		// probed for it: give the caller a method-not-found response right away.
-		clientpool.InterruptWithTags[CONFIG](clientpool.MethodNotSupportedByAuthorityTag(method)),
+		opts...,
 	)
 	if errors.Is(r.Err, clientpool.ErrInterrupted) {
 		// distinct wording from the ErrNoValidClient case so authority rejections are

@@ -501,11 +501,12 @@ func (p *ClientPool[CONFIG, CLIENT]) chooseOne(
 }
 
 type option[CONFIG any] struct {
-	noTags        []string
-	withTags      []string
-	interruptTags []string
-	maxPriority   *uint32
-	configFilter  func(c CONFIG) bool
+	noTags         []string
+	withTags       []string
+	interruptTags  []string
+	maxPriority    *uint32
+	configFilter   func(c CONFIG) bool
+	neverDowngrade bool
 }
 
 type Option[CONFIG any] func(c *option[CONFIG])
@@ -562,6 +563,15 @@ func WithConfigFilter[CONFIG any](f func(c CONFIG) bool) Option[CONFIG] {
 func WithMaxPriority[CONFIG any](priority uint32) Option[CONFIG] {
 	return func(c *option[CONFIG]) {
 		c.maxPriority = &priority
+	}
+}
+
+// NeverDowngrade makes the call only use the entries of the pool's top priority (the smallest configured
+// one) and never wait: when none of them can serve the call right now, UseClient returns ErrNoValidClient.
+// So the call neither waits for nor triggers a priority downgrade.
+func NeverDowngrade[CONFIG any]() Option[CONFIG] {
+	return func(c *option[CONFIG]) {
+		c.neverDowngrade = true
 	}
 }
 
@@ -700,9 +710,20 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 	psi uint64,
 ) {
 	now := time.Now()
+	var topPriority uint32
+	if opt.neverDowngrade {
+		p.mu.Lock()
+		if len(p.configPriorities) > 0 {
+			topPriority = p.configPriorities[0]
+		}
+		p.mu.Unlock()
+	}
 	entries, _, psi = p.pool.Fetch(
 		func(name string, entry pool.Entry[ClientConfig[CONFIG], entryStatus[CLIENT]], poolStatus poolStatus) bool {
 			if blackList.Contains(name) {
+				return false
+			}
+			if opt.neverDowngrade && entry.Config.Priority > topPriority {
 				return false
 			}
 			if opt.configFilter != nil && !opt.configFilter(entry.Config.Config) {
@@ -725,7 +746,9 @@ func (p *ClientPool[CONFIG, CLIENT]) findEntries(blackList set.Set[string], opt 
 					return false
 				}
 			}
-			backup++ // at least this is a backup client
+			if !opt.neverDowngrade {
+				backup++ // at least this is a backup client; not counted for NeverDowngrade so the caller never waits
+			}
 			if has && extra.ban != nil && extra.ban.enable(now) {
 				return false // can wait for this client to recover
 			}

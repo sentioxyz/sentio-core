@@ -1473,3 +1473,65 @@ func Test_UseClient_interruptTag_expires(t *testing.T) {
 	require.NoError(t, r.Err)
 	assert.True(t, called)
 }
+
+// ── UseClient: NeverDowngrade ────────────────────────────────────────────────
+
+func Test_UseClient_neverDowngrade_onlyUsesTopPriority(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 3))
+	// Downgrade so that both priorities are enabled.
+	p.mu.Lock()
+	p.priorityCursor = 1
+	p.mu.Unlock()
+	p.enablePriority()
+	maxPriority := uint32(3)
+	require.Eventually(t, func() bool {
+		entries, _, _ := p.findEntries(set.New[string](), option[testClientConfig]{maxPriority: &maxPriority})
+		return len(entries) == 2
+	}, 5*time.Second, 5*time.Millisecond)
+
+	brokenForTask := func(used *[]string) func(context.Context, *testClient) Result {
+		return func(_ context.Context, cli *testClient) Result {
+			*used = append(*used, cli.GetName())
+			return Result{Err: errors.New("cannot serve"), BrokenForTask: true}
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// A normal call falls through to the lower priority.
+	var normalUsed []string
+	r := p.UseClient(ctx, "normal", brokenForTask(&normalUsed))
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.ElementsMatch(t, []string{"c1", "c2"}, normalUsed)
+
+	// A NeverDowngrade call only uses the top priority, even with a looser max priority.
+	var lowUsed []string
+	r = p.UseClient(ctx, "low", brokenForTask(&lowUsed),
+		WithMaxPriority[testClientConfig](3), NeverDowngrade[testClientConfig]())
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.Equal(t, []string{"c1"}, lowUsed)
+}
+
+func Test_UseClient_neverDowngrade_doesNotWaitNorDowngrade(t *testing.T) {
+	// c1 never initializes: a normal call would wait for it and make the pool downgrade.
+	neverInit := ClientConfig[testClientConfig]{
+		Priority: 1,
+		Config: testClientConfig{
+			Name:          "c1",
+			Interval:      10 * time.Millisecond,
+			InitSuccessAt: time.Now().Add(time.Hour),
+		},
+	}
+	p := startPoolWith(t, neverInit, quickClientCfg("c2", 3))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	called := false
+	r := p.UseClient(ctx, "low", func(_ context.Context, _ *testClient) Result {
+		called = true
+		return Result{}
+	}, NeverDowngrade[testClientConfig]())
+	assert.ErrorIs(t, r.Err, ErrNoValidClient) // returned right away instead of waiting until ctx is done
+	assert.False(t, called)
+	assert.Empty(t, p.consumerCollectDoing(consumerWaiting))
+}

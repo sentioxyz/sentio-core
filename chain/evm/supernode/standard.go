@@ -19,11 +19,13 @@ import (
 	"strings"
 )
 
-// proxyOnlyHeader set to "1" by the proxy in front of the super node marks a request that must not be
-// served from the storage, which is shared with internal callers: for the standard Ethereum methods in
-// proxyOnlyMethods, the ones that read the storage, the standard middleware hands it to the next
-// middleware, which proxies it to the chain node. The rest are served here as usual: eth_chainId and
+// A request marked by the proxy in front of the super node with the jsonrpc.ProxyOnlyLabel source label
+// must not be served from the storage, which is shared with internal callers: for the standard Ethereum
+// methods in proxyOnlyMethods, the ones that read the storage, the standard middleware hands it to the
+// next middleware, which proxies it to the chain node. The rest are served here as usual: eth_chainId and
 // eth_blockNumber need no storage, and the Sentio-specific methods have no chain node equivalent.
+//
+// TODO: drop proxyOnlyHeader ("Proxy-Only: 1"), the former marker, once the proxy only sends the label.
 const proxyOnlyHeader = "Proxy-Only"
 
 var proxyOnlyMethods = set.New(
@@ -39,7 +41,11 @@ func isProxyOnlyRequest(ctx context.Context, method string) bool {
 		return false
 	}
 	ctxData := jsonrpc.GetCtxData(ctx)
-	return ctxData != nil && ctxData.RawReq != nil && ctxData.RawReq.Header.Get(proxyOnlyHeader) == "1"
+	if ctxData == nil {
+		return false
+	}
+	return ctxData.ReqSrc.BoolLabel(jsonrpc.ProxyOnlyLabel) ||
+		ctxData.RawReq != nil && ctxData.RawReq.Header.Get(proxyOnlyHeader) == "1"
 }
 
 // checkProxyOnlyRange gives a Proxy-Only range query the head check queryWithCache gives every other

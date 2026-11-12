@@ -1,0 +1,8 @@
+sentio-core
+Copyright 2026 Sentio XYZ
+
+This product includes software developed at Sentio (https://sentio.xyz).
+
+Portions of this software depend on third-party components distributed under
+their own licenses. See MODULE.bazel, go.mod, pnpm-lock.yaml and third_party/
+for the components involved and their respective licenses.

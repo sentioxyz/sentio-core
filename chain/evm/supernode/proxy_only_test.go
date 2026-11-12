@@ -46,7 +46,7 @@ func Test_standardMiddleware_proxyOnly(t *testing.T) {
 			}
 		},
 	)
-	call := func(method, params, header string) any {
+	callWithError := func(method, params, header string) (any, string) {
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(
 			`{"jsonrpc":"2.0","id":1,"method":"`+method+`","params":`+params+`}`))
 		req.Header.Set("Content-Type", "application/json")
@@ -56,9 +56,20 @@ func Test_standardMiddleware_proxyOnly(t *testing.T) {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		var resp struct{ Result any }
+		var resp struct {
+			Result any
+			Error  *struct{ Message string }
+		}
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-		return resp.Result
+		if resp.Error != nil {
+			return resp.Result, resp.Error.Message
+		}
+		return resp.Result, ""
+	}
+	call := func(method, params, header string) any {
+		result, errMsg := callWithError(method, params, header)
+		require.Empty(t, errMsg)
+		return result
 	}
 
 	// a storage-backed standard method: below the latest slot cache it reads the storage, unless the
@@ -76,4 +87,21 @@ func Test_standardMiddleware_proxyOnly(t *testing.T) {
 	latest := call("eth_getLatestBlockNumber", "[0]", "1")
 	require.IsType(t, map[string]any{}, latest)
 	assert.EqualValues(t, 105, latest.(map[string]any)["latest_block_number"])
+
+	// a Proxy-Only range query still gets the head check: a range beyond the latest slot (105) is
+	// rejected here instead of reaching chain nodes that have not seen those blocks yet
+	for _, method := range []string{"eth_getLogs", "trace_filter"} {
+		assert.Equal(t, "proxied", call(method, `[{"fromBlock":"0x64","toBlock":"0x69"}]`, "1"), method)
+		_, errMsg := callWithError(method, `[{"fromBlock":"0x64","toBlock":"0x6a"}]`, "1")
+		assert.Contains(t, errMsg, "block 106 is beyond the latest block 105", method)
+		// tag bounds are resolved by the node itself
+		assert.Equal(t, "proxied", call(method, `[{"fromBlock":"0x64","toBlock":"latest"}]`, "1"), method)
+		assert.Equal(t, "proxied", call(method, `[{"fromBlock":"0x64"}]`, "1"), method)
+	}
+	// a by-hash query has no range to check
+	assert.Equal(t, "proxied", call("eth_getLogs",
+		`[{"blockHash":"0x0000000000000000000000000000000000000000000000000000000000000001"}]`, "1"))
+	// single-block methods keep the node's null-for-future-block answer
+	assert.Equal(t, "proxied", call("eth_getBlockByNumber", `["0x6a",false]`, "1"))
+	assert.Equal(t, 2, storageCalls)
 }

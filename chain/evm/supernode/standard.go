@@ -42,6 +42,36 @@ func isProxyOnlyRequest(ctx context.Context, method string) bool {
 	return ctxData != nil && ctxData.RawReq != nil && ctxData.RawReq.Header.Get(proxyOnlyHeader) == "1"
 }
 
+// checkProxyOnlyRange gives a Proxy-Only range query the head check queryWithCache gives every other
+// one, since Proxy-Only only means "do not read the storage". A range reaching beyond the latest slot
+// reaches beyond the chain nodes as well, and a Bor/geth node answers it with -32000 "invalid block
+// range params", which the client pool takes for missing data: every node is then blacklisted for the
+// call, which goes on to the lower priority external endpoints and keeps the pool downgraded.
+// By-hash queries, tag bounds and params the node should judge itself pass through unchecked.
+func (s *standardService) checkProxyOnlyRange(ctx context.Context, method string, params json.RawMessage) error {
+	if method != "eth_getLogs" && method != "trace_filter" || s.slotCache == nil {
+		return nil
+	}
+	var args []struct {
+		BlockHash *common.Hash     `json:"blockHash"`
+		ToBlock   *rpc.BlockNumber `json:"toBlock"`
+	}
+	if json.Unmarshal(params, &args) != nil || len(args) == 0 {
+		return nil
+	}
+	if args[0].BlockHash != nil || args[0].ToBlock == nil || *args[0].ToBlock < 0 {
+		return nil
+	}
+	r, err := s.slotCache.GetRange(ctx)
+	if err != nil {
+		return err
+	}
+	if to := uint64(*args[0].ToBlock); r.End != nil && to > *r.End {
+		return beyondLatestBlockError(to, *r.End)
+	}
+	return nil
+}
+
 type standardService struct {
 	slotCache  chain.LatestSlotCache[*evm.Slot]
 	rangeStore chain.RangeStore
@@ -62,6 +92,9 @@ func NewStandardMiddleware(
 	return func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
 		return func(ctx context.Context, method string, params json.RawMessage) (result any, err error) {
 			if isProxyOnlyRequest(ctx, method) {
+				if err := s.checkProxyOnlyRange(ctx, method, params); err != nil {
+					return nil, err
+				}
 				return next(ctx, method, params)
 			}
 			switch method {

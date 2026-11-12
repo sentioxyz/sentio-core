@@ -134,18 +134,6 @@ func (s *Store) checkBigDecimalBounds(entityName, fieldName string, val any) err
 	default:
 		return nil
 	}
-	if s.feaOpt.BigDecimalUseDecimal512 {
-		scaled := v.Round(int32(decimal512Scale))
-		totalDigits := len(scaled.Coefficient().String())
-		if totalDigits > decimal512Precision {
-			return fmt.Errorf(
-				"field %s.%s has BigDecimal value %s exceeding Decimal512 precision:"+
-					" total digits %d > %d (scale %d)",
-				entityName, fieldName, v.String(), totalDigits, decimal512Precision, decimal512Scale)
-		}
-		return nil
-	}
-	// Default: Decimal256(30)
 	if v.Abs().GreaterThan(decimal256_30_max) {
 		return fmt.Errorf(
 			"field %s.%s has BigDecimal value %s out of Decimal256(30) range",

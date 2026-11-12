@@ -343,7 +343,7 @@ VersionedCollapsing entities additionally create:
 | `Timestamp` | `Int64` (µs) or `DateTime64(6)` | Controlled by `Features.TimestampUseDateTime64` |
 | `Float` | `Float64` | |
 | `BigInt` | `Tuple(Bool,Int8,UInt256)` or `Int256` | Controlled by `Features.BigIntUseInt256` |
-| `BigDecimal` | `Decimal256(30)` / `String` / `Decimal512(60)` | Controlled by `Features` flags |
+| `BigDecimal` | `Decimal256(30)` or `String` | Controlled by `Features.BigDecimalUseString` |
 | `Enum` | `Enum(...)` | |
 | `[T]` / `[T!]` | `String` (JSON) or `Array(T)` | Controlled by `Features.ArrayUseNativeType` |
 

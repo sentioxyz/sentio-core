@@ -55,10 +55,6 @@ type Features struct {
 	// true:  BigDecimal use String in clickhouse
 	BigDecimalUseString bool
 
-	// true:  BigDecimal columns use native Decimal512(60) in clickhouse.
-	// This flag takes precedence over BigDecimalUseString.
-	BigDecimalUseDecimal512 bool
-
 	// false: Timestamp use Int64 in clickhouse
 	// true:  Timestamp use DateTime64(6) in clickhouse
 	TimestampUseDateTime64 bool
@@ -77,15 +73,14 @@ type Features struct {
 
 func BuildFeatures(schemaVersion int32) Features {
 	feaOpt := Features{
-		BigDecimalUseString:     (schemaVersion & 1) > 0,
-		TimestampUseDateTime64:  (schemaVersion & 2) > 0,
-		VersionedCollapsing:     (schemaVersion & 2) > 0,
-		BigIntUseInt256:         (schemaVersion & 4) > 0,
-		ArrayUseArray:           (schemaVersion & 4) > 0,
-		BigDecimalUseDecimal512: (schemaVersion & 8) > 0,
+		BigDecimalUseString:    (schemaVersion & 1) > 0,
+		TimestampUseDateTime64: (schemaVersion & 2) > 0,
+		VersionedCollapsing:    (schemaVersion & 2) > 0,
+		BigIntUseInt256:        (schemaVersion & 4) > 0,
+		ArrayUseArray:          (schemaVersion & 4) > 0,
 	}
-	if schemaVersion > 15 {
-		panic(fmt.Errorf("schema version is %d, must be in [0,15]", schemaVersion))
+	if schemaVersion > 7 {
+		panic(fmt.Errorf("schema version is %d, must be in [0,7]", schemaVersion))
 	}
 	return feaOpt
 }

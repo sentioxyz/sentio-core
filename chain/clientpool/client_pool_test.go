@@ -1060,7 +1060,7 @@ func Test_clientAddTag_storesReason(t *testing.T) {
 
 func Test_consumerWaitTooLong_notExceeded_returnsFalse(t *testing.T) {
 	p := startPoolWith(t, quickClientCfg("c1", 1))
-	cid := p.consumerCome("test")
+	cid := p.consumerCome("test", false)
 	defer p.consumerLeave(cid)
 	assert.False(t, p.consumerWaitTooLong(cid))
 }
@@ -1071,7 +1071,7 @@ func Test_consumerWaitTooLong_exceeded_returnsTrue(t *testing.T) {
 	p.config.ConsumerMaxWait = time.Millisecond
 	p.mu.Unlock()
 
-	cid := p.consumerCome("test")
+	cid := p.consumerCome("test", false)
 	defer p.consumerLeave(cid)
 	time.Sleep(10 * time.Millisecond)
 	assert.True(t, p.consumerWaitTooLong(cid))
@@ -1083,7 +1083,7 @@ func Test_consumerWaitTooLong_zeroDisabled_alwaysFalse(t *testing.T) {
 	p.config.ConsumerMaxWait = 0
 	p.mu.Unlock()
 
-	cid := p.consumerCome("test")
+	cid := p.consumerCome("test", false)
 	defer p.consumerLeave(cid)
 	time.Sleep(10 * time.Millisecond)
 	assert.False(t, p.consumerWaitTooLong(cid))
@@ -1096,7 +1096,7 @@ func Test_consumerWaitTooLong_executedDurationSubtracted(t *testing.T) {
 	p.config.ConsumerMaxWait = 20 * time.Millisecond
 	p.mu.Unlock()
 
-	cid := p.consumerCome("test")
+	cid := p.consumerCome("test", false)
 	defer p.consumerLeave(cid)
 
 	// Simulate 15ms elapsed with 14ms execution time → net wait < ConsumerMaxWait
@@ -1138,7 +1138,7 @@ func Test_UseClient_consumerMaxWait_returnsErrNoValidClient(t *testing.T) {
 
 func Test_consumerWaiting_updatesState(t *testing.T) {
 	p := startPoolWith(t, quickClientCfg("c1", 1))
-	cid := p.consumerCome("test")
+	cid := p.consumerCome("test", false)
 	defer p.consumerLeave(cid)
 
 	p.consumerWaiting(cid, 42)
@@ -1153,7 +1153,7 @@ func Test_consumerWaiting_updatesState(t *testing.T) {
 
 func Test_consumerWaiting_incrementsWaitIndex(t *testing.T) {
 	p := startPoolWith(t, quickClientCfg("c1", 1))
-	cid := p.consumerCome("test")
+	cid := p.consumerCome("test", false)
 	defer p.consumerLeave(cid)
 
 	p.consumerWaiting(cid, 1)
@@ -1167,7 +1167,7 @@ func Test_consumerWaiting_incrementsWaitIndex(t *testing.T) {
 
 func Test_consumerExecuting_updatesState(t *testing.T) {
 	p := startPoolWith(t, quickClientCfg("c1", 1))
-	cid := p.consumerCome("test")
+	cid := p.consumerCome("test", false)
 	defer p.consumerLeave(cid)
 
 	p.consumerExecuting(cid, "c1")
@@ -1181,7 +1181,7 @@ func Test_consumerExecuting_updatesState(t *testing.T) {
 
 func Test_consumerExecuted_accumulatesStats(t *testing.T) {
 	p := startPoolWith(t, quickClientCfg("c1", 1))
-	cid := p.consumerCome("test")
+	cid := p.consumerCome("test", false)
 	defer p.consumerLeave(cid)
 
 	p.consumerExecuted(cid, 10*time.Millisecond, Result{})
@@ -1472,4 +1472,96 @@ func Test_UseClient_interruptTag_expires(t *testing.T) {
 	}, InterruptWithTags[testClientConfig](tag))
 	require.NoError(t, r.Err)
 	assert.True(t, called)
+}
+
+// ── UseClient: low priority ──────────────────────────────────────────────────
+
+func Test_UseClient_lowPriority_onlyUsesTopPriority(t *testing.T) {
+	p := startPoolWith(t, quickClientCfg("c1", 1), quickClientCfg("c2", 3))
+	// Downgrade so that both priorities are enabled.
+	p.mu.Lock()
+	p.priorityCursor = 1
+	p.mu.Unlock()
+	p.enablePriority()
+	maxPriority := uint32(3)
+	require.Eventually(t, func() bool {
+		entries, _, _ := p.findEntries(set.New[string](), option[testClientConfig]{maxPriority: &maxPriority})
+		return len(entries) == 2
+	}, 5*time.Second, 5*time.Millisecond)
+
+	brokenForTask := func(used *[]string) func(context.Context, *testClient) Result {
+		return func(_ context.Context, cli *testClient) Result {
+			*used = append(*used, cli.GetName())
+			return Result{Err: errors.New("cannot serve"), BrokenForTask: true}
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// A normal call falls through to the lower priority.
+	var normalUsed []string
+	r := p.UseClient(ctx, "normal", brokenForTask(&normalUsed))
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.ElementsMatch(t, []string{"c1", "c2"}, normalUsed)
+
+	// A low-priority call, marked by option or by context, only uses the top priority and fails right away.
+	var optUsed []string
+	r = p.UseClient(ctx, "low", brokenForTask(&optUsed), WithLowPriority[testClientConfig]())
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.Equal(t, []string{"c1"}, optUsed)
+
+	var ctxUsed []string
+	r = p.UseClient(ContextWithLowPriority(ctx), "low", brokenForTask(&ctxUsed),
+		WithMaxPriority[testClientConfig](3))
+	assert.ErrorIs(t, r.Err, ErrNoValidClient)
+	assert.Equal(t, []string{"c1"}, ctxUsed)
+}
+
+func Test_adjustPriority_lowPriorityWaiter_doesNotDowngrade(t *testing.T) {
+	// c1a serves the pool but rejects the waiter's task; c1b never initializes, so the waiter keeps
+	// waiting for it at the top priority.
+	neverInit := ClientConfig[testClientConfig]{
+		Priority: 1,
+		Config: testClientConfig{
+			Name:          "c1b",
+			Interval:      10 * time.Millisecond,
+			InitSuccessAt: time.Now().Add(time.Hour),
+		},
+	}
+	p := NewClientPool[testClientConfig, *testClient]("test", newTestClient, nil)
+	p.updateConfig(PoolConfig[testClientConfig]{
+		BrokenFallBehind:       time.Hour,
+		CheckSpeedInterval:     time.Hour,
+		BanConfig:              BanConfig{Min: 50 * time.Millisecond, ExtendMax: time.Second, ExtendRate: 1.5},
+		AdjustPriorityInterval: 0,
+		UpgradeSensitivity:     time.Hour,
+		ClientConfigs: []ClientConfig[testClientConfig]{
+			quickClientCfg("c1a", 1), neverInit, quickClientCfg("c2", 3),
+		},
+	})
+	require.NoError(t, p.WaitReady(context.Background()))
+
+	useCtx, useCancel := context.WithCancel(ContextWithLowPriority(context.Background()))
+	defer useCancel()
+	go func() {
+		p.UseClient(useCtx, "low-waiter", func(_ context.Context, _ *testClient) Result { //nolint
+			return Result{Err: errors.New("cannot serve"), BrokenForTask: true}
+		})
+	}()
+	require.Eventually(t, func() bool {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		for _, c := range p.consumer {
+			if c.doing == consumerWaiting && c.lowPriority {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 5*time.Millisecond)
+
+	p.adjustPriority() // the only waiter is low priority → no downgrade
+
+	p.mu.Lock()
+	assert.Equal(t, 0, p.priorityCursor)
+	p.mu.Unlock()
 }

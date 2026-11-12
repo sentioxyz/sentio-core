@@ -151,7 +151,7 @@ func ProxyJSONRPCRequest[CONFIG clientpool.EntryConfig[CONFIG], CLIENT jsonRPCCl
 	if errors.Is(r.Err, clientpool.ErrNoValidClient) {
 		return nil, NewJSONError(
 			MethodNotFoundErrorCode,
-			fmt.Sprintf("the method %s does not exist/is not available", method),
+			fmt.Sprintf("the method %s does not exist/is not available, or the request cannot be served", method),
 			nil,
 		)
 	}

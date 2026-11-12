@@ -46,8 +46,8 @@ func Test_standardMiddleware_proxyOnly(t *testing.T) {
 			}
 		},
 	)
-	// marker is "" for none, "0"/"1" for the legacy Proxy-Only header, or "label"/"label:false" for the
-	// jsonrpc.ProxyOnlyLabel source label
+	// marker is "" for none, "header" for the former "Proxy-Only: 1" header, or "label"/"label:false" for
+	// the jsonrpc.ProxyOnlyLabel source label
 	callWithError := func(method, params, marker string) (any, string) {
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(
 			`{"jsonrpc":"2.0","id":1,"method":"`+method+`","params":`+params+`}`))
@@ -58,8 +58,10 @@ func Test_standardMiddleware_proxyOnly(t *testing.T) {
 			req.Header.Set(jsonrpc.RequestSourceHeader, `{"Labels":{"`+jsonrpc.ProxyOnlyLabel+`":true}}`)
 		case "label:false":
 			req.Header.Set(jsonrpc.RequestSourceHeader, `{"Labels":{"`+jsonrpc.ProxyOnlyLabel+`":false}}`)
+		case "header":
+			req.Header.Set("Proxy-Only", "1")
 		default:
-			req.Header.Set(proxyOnlyHeader, marker)
+			t.Fatalf("unknown marker %q", marker)
 		}
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
@@ -81,40 +83,37 @@ func Test_standardMiddleware_proxyOnly(t *testing.T) {
 	}
 
 	// a storage-backed standard method: below the latest slot cache it reads the storage, unless the
-	// request carries "Proxy-Only: 1", which hands it to the next middleware instead
+	// request carries the proxy-only source label, which hands it to the next middleware instead
 	const getLogsParams = `[{"fromBlock":"0x62","toBlock":"0x63"}]`
 	assert.NotEqual(t, "proxied", call("eth_getLogs", getLogsParams, ""))
-	assert.NotEqual(t, "proxied", call("eth_getLogs", getLogsParams, "0"))
-	assert.Equal(t, 2, storageCalls)
-	assert.Equal(t, "proxied", call("eth_getLogs", getLogsParams, "1"))
-	assert.Equal(t, 2, storageCalls)
-	// the source label marks it the same way
 	assert.NotEqual(t, "proxied", call("eth_getLogs", getLogsParams, "label:false"))
+	// the former Proxy-Only header no longer marks it
+	assert.NotEqual(t, "proxied", call("eth_getLogs", getLogsParams, "header"))
 	assert.Equal(t, 3, storageCalls)
 	assert.Equal(t, "proxied", call("eth_getLogs", getLogsParams, "label"))
 	assert.Equal(t, 3, storageCalls)
 
 	// methods that need no storage, or have no chain node equivalent, are served here regardless
-	assert.Equal(t, "0x89", call("eth_chainId", "[]", "1"))
-	assert.Equal(t, "0x69", call("eth_blockNumber", "[]", "1"))
-	latest := call("eth_getLatestBlockNumber", "[0]", "1")
+	assert.Equal(t, "0x89", call("eth_chainId", "[]", "label"))
+	assert.Equal(t, "0x69", call("eth_blockNumber", "[]", "label"))
+	latest := call("eth_getLatestBlockNumber", "[0]", "label")
 	require.IsType(t, map[string]any{}, latest)
 	assert.EqualValues(t, 105, latest.(map[string]any)["latest_block_number"])
 
 	// a Proxy-Only range query still gets the head check: a range beyond the latest slot (105) is
 	// rejected here instead of reaching chain nodes that have not seen those blocks yet
 	for _, method := range []string{"eth_getLogs", "trace_filter"} {
-		assert.Equal(t, "proxied", call(method, `[{"fromBlock":"0x64","toBlock":"0x69"}]`, "1"), method)
-		_, errMsg := callWithError(method, `[{"fromBlock":"0x64","toBlock":"0x6a"}]`, "1")
+		assert.Equal(t, "proxied", call(method, `[{"fromBlock":"0x64","toBlock":"0x69"}]`, "label"), method)
+		_, errMsg := callWithError(method, `[{"fromBlock":"0x64","toBlock":"0x6a"}]`, "label")
 		assert.Contains(t, errMsg, "block 106 is beyond the latest block 105", method)
 		// tag bounds are resolved by the node itself
-		assert.Equal(t, "proxied", call(method, `[{"fromBlock":"0x64","toBlock":"latest"}]`, "1"), method)
-		assert.Equal(t, "proxied", call(method, `[{"fromBlock":"0x64"}]`, "1"), method)
+		assert.Equal(t, "proxied", call(method, `[{"fromBlock":"0x64","toBlock":"latest"}]`, "label"), method)
+		assert.Equal(t, "proxied", call(method, `[{"fromBlock":"0x64"}]`, "label"), method)
 	}
 	// a by-hash query has no range to check
 	assert.Equal(t, "proxied", call("eth_getLogs",
-		`[{"blockHash":"0x0000000000000000000000000000000000000000000000000000000000000001"}]`, "1"))
+		`[{"blockHash":"0x0000000000000000000000000000000000000000000000000000000000000001"}]`, "label"))
 	// single-block methods keep the node's null-for-future-block answer
-	assert.Equal(t, "proxied", call("eth_getBlockByNumber", `["0x6a",false]`, "1"))
+	assert.Equal(t, "proxied", call("eth_getBlockByNumber", `["0x6a",false]`, "label"))
 	assert.Equal(t, 3, storageCalls)
 }

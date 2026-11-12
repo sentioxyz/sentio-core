@@ -13,6 +13,10 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 )
 
+func beyondLatestBlockError(block, latest uint64) error {
+	return errors.Errorf("block %d is beyond the latest block %d of this node, retry later", block, latest)
+}
+
 func buildPackedBlocks(
 	headers []evm.ExtendedHeader,
 	txs []evm.ExtendedTransaction,
@@ -195,8 +199,7 @@ func queryWithCache[ELEM any](
 			return nil, err
 		}
 		if en > *r.End {
-			return nil, errors.Errorf("block %d is beyond the latest block %d of this node, retry later",
-				en, *r.End)
+			return nil, beyondLatestBlockError(en, *r.End)
 		}
 	}
 	// The span cap applies to the REQUESTED range — a caller-visible contract — not to the

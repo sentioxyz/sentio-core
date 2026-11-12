@@ -46,12 +46,20 @@ func Test_standardMiddleware_proxyOnly(t *testing.T) {
 			}
 		},
 	)
-	callWithError := func(method, params, header string) (any, string) {
+	// marker is "" for none, "0"/"1" for the legacy Proxy-Only header, or "label"/"label:false" for the
+	// jsonrpc.ProxyOnlyLabel source label
+	callWithError := func(method, params, marker string) (any, string) {
 		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(
 			`{"jsonrpc":"2.0","id":1,"method":"`+method+`","params":`+params+`}`))
 		req.Header.Set("Content-Type", "application/json")
-		if header != "" {
-			req.Header.Set(proxyOnlyHeader, header)
+		switch marker {
+		case "":
+		case "label":
+			req.Header.Set(jsonrpc.RequestSourceHeader, `{"Labels":{"`+jsonrpc.ProxyOnlyLabel+`":true}}`)
+		case "label:false":
+			req.Header.Set(jsonrpc.RequestSourceHeader, `{"Labels":{"`+jsonrpc.ProxyOnlyLabel+`":false}}`)
+		default:
+			req.Header.Set(proxyOnlyHeader, marker)
 		}
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
@@ -80,6 +88,11 @@ func Test_standardMiddleware_proxyOnly(t *testing.T) {
 	assert.Equal(t, 2, storageCalls)
 	assert.Equal(t, "proxied", call("eth_getLogs", getLogsParams, "1"))
 	assert.Equal(t, 2, storageCalls)
+	// the source label marks it the same way
+	assert.NotEqual(t, "proxied", call("eth_getLogs", getLogsParams, "label:false"))
+	assert.Equal(t, 3, storageCalls)
+	assert.Equal(t, "proxied", call("eth_getLogs", getLogsParams, "label"))
+	assert.Equal(t, 3, storageCalls)
 
 	// methods that need no storage, or have no chain node equivalent, are served here regardless
 	assert.Equal(t, "0x89", call("eth_chainId", "[]", "1"))
@@ -103,5 +116,5 @@ func Test_standardMiddleware_proxyOnly(t *testing.T) {
 		`[{"blockHash":"0x0000000000000000000000000000000000000000000000000000000000000001"}]`, "1"))
 	// single-block methods keep the node's null-for-future-block answer
 	assert.Equal(t, "proxied", call("eth_getBlockByNumber", `["0x6a",false]`, "1"))
-	assert.Equal(t, 2, storageCalls)
+	assert.Equal(t, 3, storageCalls)
 }

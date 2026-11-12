@@ -86,6 +86,12 @@ type RequestSource struct {
 	Labels     map[string]any
 }
 
+// BoolLabel reports whether the label key is set to true.
+func (s RequestSource) BoolLabel(key string) bool {
+	v, _ := s.Labels[key].(bool)
+	return v
+}
+
 func (s RequestSource) Summary() string {
 	return s.Name
 }
@@ -230,6 +236,16 @@ const HTTPRequestMethod = "methodHTTP"
 // RequestSourceHeader is set by upstream proxies to identify the request source.
 // Its value is a JSON-encoded RequestSource (Name + Labels fields only).
 const RequestSourceHeader = "X-Sentio-Source"
+
+// Labels an upstream proxy may set to true in RequestSourceHeader to control how the request is served.
+// A source recognized by its IP keeps its own labels, so they only apply to sources from the header.
+const (
+	// NeverDowngradeLabel: only serve the request with the pool's top-priority endpoints. The proxy passes
+	// clientpool.NeverDowngrade, so the request neither waits for nor triggers a priority downgrade.
+	NeverDowngradeLabel = "never_downgrade"
+	// ProxyOnlyLabel: never serve the request from the storage, always proxy it to the chain nodes.
+	ProxyOnlyLabel = "proxy_only"
+)
 
 func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	remoteHost, _, _ := strings.Cut(r.RemoteAddr, ":")

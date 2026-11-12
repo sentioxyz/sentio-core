@@ -38,12 +38,13 @@ func newNeverDowngradeProbeServer(t *testing.T, getter SourceGetter) *httptest.S
 }
 
 const (
-	probeRequest        = `{"jsonrpc":"2.0","id":1,"method":"probe","params":[]}`
-	anonymousSource     = `{"Name":"RPCNODE","Labels":{"kind":"rpcnode","remote":"1.2.3.4"}}`
-	authenticatedSource = `{"Name":"RPCNODE/p/n","Labels":{"kind":"rpcnode","project_id":"p","rpc_node_id":"n"}}`
+	probeRequest     = `{"jsonrpc":"2.0","id":1,"method":"probe","params":[]}`
+	normalSource     = `{"Name":"proxy","Labels":{"kind":"proxy"}}`
+	trueLabelSource  = `{"Name":"proxy","Labels":{"kind":"proxy","` + NeverDowngradeLabel + `":true}}`
+	falseLabelSource = `{"Name":"proxy","Labels":{"` + NeverDowngradeLabel + `":false}}`
 )
 
-func Test_Handler_neverDowngradeForAnonymous_http(t *testing.T) {
+func Test_Handler_neverDowngradeLabel_http(t *testing.T) {
 	for _, c := range []struct {
 		name   string
 		getter SourceGetter
@@ -51,9 +52,10 @@ func Test_Handler_neverDowngradeForAnonymous_http(t *testing.T) {
 		want   bool
 	}{
 		{name: "no header", want: false},
-		{name: "authenticated rpcnode request", source: authenticatedSource, want: false},
-		{name: "anonymous rpcnode request", source: anonymousSource, want: true},
-		{name: "caller recognized by ip", getter: knownCallerGetter{}, source: anonymousSource, want: false},
+		{name: "without the label", source: normalSource, want: false},
+		{name: "label set to false", source: falseLabelSource, want: false},
+		{name: "label set to true", source: trueLabelSource, want: true},
+		{name: "caller recognized by ip", getter: knownCallerGetter{}, source: trueLabelSource, want: false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			svr := newNeverDowngradeProbeServer(t, c.getter)
@@ -73,7 +75,7 @@ func Test_Handler_neverDowngradeForAnonymous_http(t *testing.T) {
 	}
 }
 
-func Test_Handler_neverDowngradeForAnonymous_websocket(t *testing.T) {
+func Test_Handler_neverDowngradeLabel_websocket(t *testing.T) {
 	for _, c := range []struct {
 		name   string
 		getter SourceGetter
@@ -81,9 +83,10 @@ func Test_Handler_neverDowngradeForAnonymous_websocket(t *testing.T) {
 		want   bool
 	}{
 		{name: "no header", want: false},
-		{name: "authenticated rpcnode request", source: authenticatedSource, want: false},
-		{name: "anonymous rpcnode request", source: anonymousSource, want: true},
-		{name: "caller recognized by ip", getter: knownCallerGetter{}, source: anonymousSource, want: false},
+		{name: "without the label", source: normalSource, want: false},
+		{name: "label set to false", source: falseLabelSource, want: false},
+		{name: "label set to true", source: trueLabelSource, want: true},
+		{name: "caller recognized by ip", getter: knownCallerGetter{}, source: trueLabelSource, want: false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			svr := newNeverDowngradeProbeServer(t, c.getter)

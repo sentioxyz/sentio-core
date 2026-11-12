@@ -40,9 +40,12 @@ const (
 	// CompressedSignature/PublicKey variant inside multisig, and SignatureScheme MLDSA65 in grpc)
 	// and turns on forwarding addresses, whose ForwardingAddressRegistryCreate end-of-epoch kind
 	// is already modeled. 140 adds no shape: native vector bulk operations and a consensus block
-	// shuffle on devnet. 141 adds no shape either: a Groth16 verifying-key length check, the
-	// sui::clock::borrow and object::is_shared_input_impl natives, and their costs.
-	maxSupportedSuiProtocolVersion = 141
+	// shuffle on devnet. 141 adds no shape either: a refined effects size estimate and a limit on
+	// accumulator events per transaction. 142 adds none: a Groth16 verifying-key length check, the
+	// sui::clock::borrow and object::is_shared_input_impl natives, a secp256r1 ecrecover x-range
+	// check, explicit Move binary format limits and defer_owned_object_double_spend everywhere.
+	// 143 adds none: it only moves execution to version 5 and sets the package arena size.
+	maxSupportedSuiProtocolVersion = 143
 	// maxSupportedIotaProtocolVersion is the same for IOTA, whose protocol versions are numbered
 	// independently of Sui's. 36 adds no shape either: it only tightens validation (input object
 	// versions are checked from the transaction bytes, `<SELF>` is rejected as an identifier) and
@@ -50,8 +53,11 @@ const (
 	// too (published module headers, MoveAuthenticator inputs, PTB indices at signing time); the
 	// two ExecutionError variants 38 adds live in effects, not in the transaction data. 39 changes
 	// only validation, consensus and staking parameters (mixed-scheme multisig, Groth16 verifying
-	// key checks, deprecated global storage ops, validator stake thresholds, DKG timeout).
-	maxSupportedIotaProtocolVersion = 39
+	// key checks, deprecated global storage ops, validator stake thresholds, DKG timeout). 40 adds
+	// no shape we read: it meters the instantiation-loop check, limits Move-call argument values,
+	// rejects `<SELF>` identifiers and bumps the gas model to 3. Its validator attestation (devnet
+	// only) lands in the checkpoint summary's opaque version_specific_data, not in transactions.
+	maxSupportedIotaProtocolVersion = 40
 )
 
 // Overrides for the constants above; 0 disables the guard for that variation entirely.

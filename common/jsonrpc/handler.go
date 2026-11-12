@@ -84,10 +84,6 @@ type RequestSource struct {
 	RemoteHost string
 	Name       string
 	Labels     map[string]any
-	// LowPriority makes the proxy serve the request with the pool's top-priority endpoints only, without
-	// waiting for or triggering a priority downgrade (see clientpool.NeverDowngrade).
-	// Set by an upstream proxy through RequestSourceHeader; it can only narrow what a request may use.
-	LowPriority bool `json:",omitempty"`
 }
 
 func (s RequestSource) Summary() string {
@@ -232,8 +228,7 @@ func (s *Handler) callMethod(ctx context.Context, ctxData *CtxData, encoder Enco
 const HTTPRequestMethod = "methodHTTP"
 
 // RequestSourceHeader is set by upstream proxies to identify the request source.
-// Its value is a JSON-encoded RequestSource (Name + Labels + LowPriority fields only).
-// It is read on the websocket upgrade request too, then applies to every request of that connection.
+// Its value is a JSON-encoded RequestSource (Name + Labels fields only).
 const RequestSourceHeader = "X-Sentio-Source"
 
 func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

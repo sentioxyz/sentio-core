@@ -14,10 +14,17 @@ import (
 
 const UpstreamHeaderKey = "X-Sentio-Proxy-Endpoint"
 
-// sourceOptions returns the client pool options the request source asks for: a low-priority request
-// never makes the pool downgrade, it is served by the top-priority endpoints or not at all.
+// isAnonymousRPCNodeRequest reports whether the request was proxied by rpcnode for an anonymous user:
+// rpcnode labels every proxied request with kind=rpcnode, and adds rpc_node_id only when the request
+// came through a user's RPC node. A source recognized by its IP keeps its own labels, so it never matches.
+func isAnonymousRPCNodeRequest(src RequestSource) bool {
+	return src.Labels["kind"] == "rpcnode" && src.Labels["rpc_node_id"] == nil
+}
+
+// sourceOptions returns the client pool options for the request source: an anonymous request from the
+// public RPC never makes the pool downgrade, it is served by the top-priority endpoints or not at all.
 func sourceOptions[CONFIG any](ctxData *CtxData) []clientpool.Option[CONFIG] {
-	if ctxData != nil && ctxData.ReqSrc.LowPriority {
+	if ctxData != nil && isAnonymousRPCNodeRequest(ctxData.ReqSrc) {
 		return []clientpool.Option[CONFIG]{clientpool.NeverDowngrade[CONFIG]()}
 	}
 	return nil

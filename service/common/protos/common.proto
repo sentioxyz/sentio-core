@@ -249,6 +249,7 @@ message ApiKey {
   repeated string scopes = 5;
   int64 created_at = 6;
   int64 updated_at = 7;
+  // Unix seconds. 0 means the key never expires.
   int64 expires_at = 8;
   string source = 9;
   string owner_type = 10;

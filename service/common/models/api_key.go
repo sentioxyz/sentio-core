@@ -30,9 +30,11 @@ type APIKey struct {
 	Salt        string
 	Scope       string
 	Hash        string
-	ExpiresAt   time.Time
-	Source      string
-	Key         string
+	// ExpiresAt is when the key stops authenticating. Nil means it never
+	// expires.
+	ExpiresAt *time.Time
+	Source    string
+	Key       string
 	// LastUsedAt is when the key last authenticated a request. It is refreshed
 	// at most about once an hour, so treat it as coarse. Nil means the key has
 	// not been used since tracking started.
@@ -51,7 +53,7 @@ func (k *APIKey) ToPB(db *gorm.DB) *protos.ApiKey {
 		Name:          k.Name,
 		CreatedAt:     k.CreatedAt.Unix(),
 		UpdatedAt:     k.UpdatedAt.Unix(),
-		ExpiresAt:     k.ExpiresAt.Unix(),
+		ExpiresAt:     unixOrZero(k.ExpiresAt),
 		LastUsedAt:    unixOrZero(k.LastUsedAt),
 		Source:        k.Source,
 		OwnerType:     k.OwnerType,

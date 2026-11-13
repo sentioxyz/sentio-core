@@ -249,11 +249,15 @@ message ApiKey {
   repeated string scopes = 5;
   int64 created_at = 6;
   int64 updated_at = 7;
+  // Unix seconds. 0 means the key never expires.
   int64 expires_at = 8;
   string source = 9;
   string owner_type = 10;
   bool revealable = 11;
   map<string, ProjectInfo> scope_projects = 12;
+  // Unix seconds of the last request authenticated by this key, refreshed at
+  // most about once an hour. 0 means not used since tracking started.
+  int64 last_used_at = 13;
 }
 
 // Time range

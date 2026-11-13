@@ -73,3 +73,21 @@ func SetupDBWithRedisCache(db *gorm.DB, redisClient *redis.Client) error {
 
 	return err
 }
+
+// InvalidateQueries clears cached queries associated with the supplied relations.
+// Call this after a bulk-write transaction commits: its update callbacks cannot
+// identify individual rows when the model has no populated primary keys.
+// It is a no-op when caching is disabled. Cache failures are returned so callers
+// do not report the maintenance operation as fully successful.
+func InvalidateQueries(ctx context.Context, db *gorm.DB, relations ...Relation) error {
+	plugin, ok := db.Config.Plugins["gorm_cache_plugin"].(*Plugin)
+	if !ok {
+		return nil
+	}
+	for _, relation := range relations {
+		if err := plugin.cache.InvalidateQuery(ctx, &relation); err != nil {
+			return err
+		}
+	}
+	return nil
+}

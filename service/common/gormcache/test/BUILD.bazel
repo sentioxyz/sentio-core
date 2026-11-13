@@ -3,8 +3,12 @@ load("@rules_go//go:def.bzl", "go_test")
 go_test(
     name = "test_test",
     srcs = [
+        "invalidation_test.go",
         "plugin_test.go",
         "util_test.go",
     ],
-    deps = ["//service/common/gormcache"],
+    deps = [
+        "//service/common/gormcache",
+        "@io_gorm_gorm//:gorm",
+    ],
 )

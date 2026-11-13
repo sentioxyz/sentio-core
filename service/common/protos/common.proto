@@ -254,6 +254,9 @@ message ApiKey {
   string owner_type = 10;
   bool revealable = 11;
   map<string, ProjectInfo> scope_projects = 12;
+  // Unix seconds of the last request authenticated by this key, refreshed at
+  // most about once an hour. 0 means not used since tracking started.
+  int64 last_used_at = 13;
 }
 
 // Time range

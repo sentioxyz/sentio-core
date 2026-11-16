@@ -163,6 +163,14 @@ func NewStore(
 	}
 }
 
+// inserts is the scope every INSERT of the store into the tables of chain is tagged with, so that
+// a reorg can end the ones a failed commit left running on the server, see chx.InsertScope. It is
+// per chain because the tables are shared by the chains of the processor while each chain commits
+// and reorgs on its own.
+func (s *Store) inserts(chain string) chx.InsertScope {
+	return chx.NewInsertScope(s.ctrl, "entity@"+chain)
+}
+
 // rowTable is the table that physically holds the rows of an entity or aggregation, which is where
 // a write lands and what a replica has to fetch. The plain entity name of a versioned-collapsing
 // entity is a view over it. A cache entity has none.

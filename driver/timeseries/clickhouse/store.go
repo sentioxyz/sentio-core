@@ -111,6 +111,14 @@ func NewStore(ctrl chx.Controller, option Option, probe Probe) *Store {
 	}
 }
 
+// inserts is the scope every INSERT of the store into the tables of a chain is tagged with, so that
+// DeleteData can end the ones a failed commit left running on the server, see chx.InsertScope. It
+// is per chain because the tables are shared by the chains of the processor while each chain
+// appends and deletes on its own.
+func (s *Store) inserts(chainID string) chx.InsertScope {
+	return chx.NewInsertScope(s.ctrl, "timeseries@"+chainID)
+}
+
 func (s *Store) Init(ctx context.Context) error {
 	s.metaLock.Lock()
 	defer s.metaLock.Unlock()

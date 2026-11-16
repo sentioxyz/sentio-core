@@ -187,6 +187,13 @@ func (s *Store) setEntities(
 		})
 	}
 
+	// the blocks this write covers, which is what its INSERTs are tagged with
+	var firstBlock, lastBlock uint64 = math.MaxUint64, 0
+	for i := range entities {
+		firstBlock, lastBlock = min(firstBlock, entities[i].GenBlockNumber), max(lastBlock, entities[i].GenBlockNumber)
+	}
+	inserts := s.inserts(chain)
+
 	var batchIndex int
 	queue := make([]persistent.EntityBox, 0, batchSize)
 	doneIds := make(map[string]bool)
@@ -305,7 +312,8 @@ func (s *Store) setEntities(
 				preBoxes[box.ID] = &cur
 			}
 		}
-		insertErr := s.ctrl.BatchInsert(batchCtx, sql, math.MaxInt, chx.NewGetter(rows, func(row []any) []any {
+		insertCtx := inserts.Ctx(batchCtx, firstBlock, lastBlock)
+		insertErr := s.ctrl.BatchInsert(insertCtx, sql, math.MaxInt, chx.NewGetter(rows, func(row []any) []any {
 			return row
 		}))
 		if insertErr != nil {
@@ -468,7 +476,10 @@ func (s *Store) growthAggregation(ctx context.Context, chain string, curBlockTim
 					"intervalText":    interval.String(),
 				})
 			start := time.Now()
-			err := s.ctrl.Exec(chx.InsertSelectCtx(chx.InsertCtx(ctx, uniqToken)), sql)
+			// tagged as writing any block: the rows carry the blocks of the source rows, which the
+			// statement only learns while it runs
+			insertCtx := s.inserts(chain).Ctx(ctx, 0, math.MaxUint64)
+			err := s.ctrl.Exec(chx.InsertSelectCtx(chx.InsertCtx(insertCtx, uniqToken)), sql)
 			s.gate.Written(s.dataTables(agg)...)
 			exeLogger := logger.With(
 				"agg", agg.Name,
@@ -584,7 +595,10 @@ func (s *Store) reorgInVersionedLatestTable(
 	}
 	sql = fmt.Sprintf("INSERT INTO %s SELECT * FROM %s WHERE %s = ? AND %s <= ?",
 		s.fullName(table), s.fullName(rawTable), genBlockChainFieldName, genBlockNumberFieldName)
-	if err = s.ctrl.Exec(chx.InsertSelectCtx(ctx), sql, chain, blockNumber); err != nil {
+	// tagged like every other INSERT of the store, so that the reorg retried after this one has
+	// timed out ends it before dropping the partition again
+	insertCtx := s.inserts(chain).Ctx(ctx, 0, math.MaxUint64)
+	if err = s.ctrl.Exec(chx.InsertSelectCtx(insertCtx), sql, chain, blockNumber); err != nil {
 		err = fmt.Errorf("rebuild all in %s from %s failed: %w", table, rawTable, err)
 		return
 	}
@@ -596,6 +610,13 @@ func (s *Store) reorgInVersionedLatestTable(
 // valid.
 func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) (changed bool, err error) {
 	_, logger := log.FromContext(ctx)
+	// A reorg follows a commit that failed or a process that died, and either may have left an
+	// INSERT running on the server. Ended here, before anything is counted or deleted, it cannot
+	// commit its rows on top of what the deletes below have cleared.
+	if err = s.inserts(chain).End(ctx, uint64(max(blockNumber+1, 0))); err != nil {
+		logger.Errorfe(err, "end the inserts left running failed")
+		return false, err
+	}
 	for _, entityType := range s.sch.ListEntities(false) {
 		failMsg := fmt.Sprintf("delete %q entities created after block %d in chain %q failed",
 			entityType.Name, blockNumber, chain)

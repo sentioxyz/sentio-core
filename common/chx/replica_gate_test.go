@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -111,19 +112,30 @@ func TestReplicaGateConcurrentReadersShareOneWait(t *testing.T) {
 	ctx := context.Background()
 	rec := &gateRecorder{}
 	g := newReplicaGate(rec.sync, rec.del)
-	release := make(chan struct{})
-	rec.onSync = func(string) { <-release }
+	entered, release := make(chan struct{}), make(chan struct{})
+	rec.onSync = func(string) {
+		close(entered) // a second wait would close it again and panic
+		<-release
+	}
 
 	const readers = 8
-	var wg sync.WaitGroup
+	var wg, started sync.WaitGroup
 	errs := make(chan error, readers)
-	for i := 0; i < readers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			errs <- g.WaitSynced(ctx, "a")
-		}()
+	read := func() {
+		defer wg.Done()
+		started.Done()
+		errs <- g.WaitSynced(ctx, "a")
 	}
+	wg.Add(readers)
+	started.Add(readers)
+	go read()
+	// the others arrive while the first one is waiting for the replicas, and have to queue behind it
+	<-entered
+	for i := 1; i < readers; i++ {
+		go read()
+	}
+	started.Wait()
+	time.Sleep(20 * time.Millisecond)
 	close(release)
 	wg.Wait()
 	close(errs)

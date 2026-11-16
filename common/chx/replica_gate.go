@@ -5,7 +5,14 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+
+	"sentioxyz/sentio-core/common/envconf"
 )
+
+// readAfterWriteReplicaSync turns the waits of ReplicaGate.WaitSynced off when set to false, which
+// brings back reads that may miss what was just written. It is there for the case the waits load
+// the distributed DDL queue of a cluster more than it can take.
+var readAfterWriteReplicaSync = envconf.LoadBool("SENTIO_READ_AFTER_WRITE_REPLICA_SYNC", true)
 
 // ReplicaGate makes the reads of a store wait for the replicas to hold what the store itself has
 // written. A write is acknowledged by one replica and reaches the others afterwards, while the
@@ -41,7 +48,11 @@ type replicaGateTable struct {
 }
 
 func NewReplicaGate(ctrl Controller) *ReplicaGate {
-	return newReplicaGate(ctrl.syncReplicas, ctrl.DeleteAfterReplicaSync)
+	wait := ctrl.syncReplicas
+	if !readAfterWriteReplicaSync {
+		wait = func(context.Context, string) error { return nil }
+	}
+	return newReplicaGate(wait, ctrl.DeleteAfterReplicaSync)
 }
 
 func newReplicaGate(

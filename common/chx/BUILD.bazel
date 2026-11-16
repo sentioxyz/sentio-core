@@ -19,6 +19,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common/clickhousemanager",
+        "//common/envconf",
         "//common/log",
         "//common/utils",
         "@com_github_clickhouse_clickhouse_go_v2//:clickhouse-go",

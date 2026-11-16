@@ -225,8 +225,10 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 		}
 		return buildColumns(row, fieldNames, ds.Meta.Fields)
 	})
+	// deferred so that a write cut short, by an error or by the getter panicking on a bad row after
+	// earlier blocks went out, is marked as well
+	defer s.gate.Written(ds.Meta.GetTableName())
 	err := s.ctrl.BatchInsert(ctx, sql, s.option.BatchInsertSizeLimit, getter)
-	s.gate.Written(ds.Meta.GetTableName())
 	logger = logger.With("used", time.Since(startAt).String())
 	if err != nil {
 		logger.Errorfe(err, "insert data failed")

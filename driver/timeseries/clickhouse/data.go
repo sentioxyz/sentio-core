@@ -136,6 +136,9 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 					"chainID":          chainID,
 				})
 			seriesLast = make(map[string]timeseries.Row)
+			if err := s.gate.WaitSynced(ctx, ds.Meta.GetTableName()); err != nil {
+				return err
+			}
 			startAt := time.Now()
 			scanFields := append(labelFields, valueFields...)
 			err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
@@ -223,6 +226,7 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 		return buildColumns(row, fieldNames, ds.Meta.Fields)
 	})
 	err := s.ctrl.BatchInsert(ctx, sql, s.option.BatchInsertSizeLimit, getter)
+	s.gate.Written(ds.Meta.GetTableName())
 	logger = logger.With("used", time.Since(startAt).String())
 	if err != nil {
 		logger.Errorfe(err, "insert data failed")
@@ -281,6 +285,13 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 		})
 	})
 
+	// The statements below read the source rows and the latest window of the aggregation on
+	// whichever replica runs them, and the source was written just before by the same AppendData:
+	// a window aggregated without them is never aggregated again. Waiting once covers every
+	// interval, each of them only reads back its own rows of the aggregation.
+	if err := s.gate.WaitSynced(ctx, srcMeta.GetTableName(), meta.GetTableName()); err != nil {
+		return err
+	}
 	for _, interval := range meta.Aggregation.Intervals {
 		// time window of the <target> for <interval> is:
 		//   toStartOfInterval(<target> - INTERVAL '1 ns', <interval>) + <interval>
@@ -332,6 +343,7 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 		start := time.Now()
 		uniqToken := strconv.FormatUint(rand.Uint64(), 16)
 		err := s.ctrl.Exec(chx.InsertSelectCtx(chx.InsertCtx(ctx, uniqToken)), sql)
+		s.gate.Written(meta.GetTableName())
 		exeLogger := logger.With(
 			"interval", interval.String(),
 			"sql", sql,
@@ -366,6 +378,7 @@ func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int
 		var err error
 		if slotNumberGt < 0 {
 			err = s.ctrl.AlterTable(ctx, item.meta.GetTableName(), "DROP PARTITION ?", chainID)
+			s.gate.Written(item.meta.GetTableName())
 		} else {
 			where := fmt.Sprintf("%s = '%s' AND %s > %d",
 				quote(item.meta.GetChainIDField().Name),
@@ -374,8 +387,10 @@ func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int
 				slotNumberGt,
 			)
 			// Reorg only: the rows being taken back were written moments ago, so wait for the
-			// replicas rather than trust a count that may not see them yet.
-			deleted, err = s.ctrl.DeleteAfterReplicaSync(ctx, item.meta.GetTableName(), where, true)
+			// replicas rather than trust a count that may not see them yet. It goes through the gate
+			// so that the cache loads after the reorg wait for the delete to reach the replicas as
+			// well, and do not wait when nothing was deleted.
+			deleted, err = s.gate.DeleteAfterReplicaSync(ctx, item.meta.GetTableName(), where, true)
 		}
 		metaLogger := logger.With("meta", item.meta.GetFullName(), "used", time.Since(startAt).String())
 		if err != nil {

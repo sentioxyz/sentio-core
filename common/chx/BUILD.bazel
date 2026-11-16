@@ -9,6 +9,7 @@ go_library(
         "maintenance.go",
         "operator.go",
         "query.go",
+        "replica_gate.go",
         "settings.go",
         "table.go",
         "table_engine.go",
@@ -32,6 +33,7 @@ go_test(
     srcs = [
         "field_test.go",
         "maintenance_test.go",
+        "replica_gate_test.go",
         "tenant_proxy_test.go",
     ],
     embed = [":chx"],

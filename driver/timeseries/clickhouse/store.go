@@ -41,6 +41,11 @@ func (p emptyProbe) PreCreateTable(_ context.Context, _ chx.TableOrView) error {
 type Store struct {
 	ctrl   chx.Controller
 	option Option
+	// gate holds the reads of the data tables back until the replicas have what this store wrote.
+	// Every one of them feeds a cache or an aggregation that is not corrected afterwards: a counter
+	// that loads its latest values from a replica still short of the last insert, or still holding
+	// rows a reorg deleted, goes on accumulating from the wrong base.
+	gate *chx.ReplicaGate
 
 	metaLock sync.Mutex
 	meta     storeMeta
@@ -97,6 +102,7 @@ func NewStore(ctrl chx.Controller, option Option, probe Probe) *Store {
 	return &Store{
 		ctrl:                      ctrl,
 		option:                    option,
+		gate:                      chx.NewReplicaGate(ctrl),
 		cachedCounterSeriesLatest: utils.NewSafeMap[string, *counterSeriesLatestCache](),
 		cachedGaugeSeriesIDs:      utils.NewSafeMap[string, *gaugeSeriesIDCache](),
 		seriesCount:               utils.NewSafeMap[string, int](),

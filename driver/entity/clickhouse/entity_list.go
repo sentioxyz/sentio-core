@@ -275,6 +275,9 @@ func (s *Store) listEntities(
 	if entityType.IsCache() {
 		return nil, nil
 	}
+	if err = s.waitSynced(ctx, entityType); err != nil {
+		return nil, err
+	}
 
 	start := time.Now()
 	kit := s.NewEntity(entityType)
@@ -468,6 +471,9 @@ func (s *Store) countEntity(
 	chain string,
 	excludeDeleted bool,
 ) (count uint64, err error) {
+	if err = s.waitAllSynced(ctx, entityType); err != nil {
+		return 0, err
+	}
 	queryCtx, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "excludeDeleted", excludeDeleted)
 	count, err = s._countEntity(queryCtx, entityType, chain, excludeDeleted, "")
 	if err == nil {
@@ -654,6 +660,9 @@ func isQueryMemoryLimitExceededError(err error) bool {
 }
 
 func (s *Store) getAllID(ctx context.Context, entityType *schema.Entity, chain string) (ids *idSet, err error) {
+	if err = s.waitAllSynced(ctx, entityType); err != nil {
+		return nil, err
+	}
 	queryCtx, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain)
 	ids, err = s._getAllID(queryCtx, entityType, chain, "")
 	if err == nil {
@@ -795,6 +804,9 @@ func (s *Store) _getAllID(
 func (s *Store) getMaxID(ctx context.Context, entityType *schema.Entity, chain string) (int64, error) {
 	if !entityType.IsTimeSeries() {
 		return 0, fmt.Errorf("%q is not timeseries entity", entityType.Name)
+	}
+	if err := s.waitSynced(ctx, entityType); err != nil {
+		return 0, err
 	}
 	start := time.Now()
 	sql := fmt.Sprintf("SELECT max(%s) FROM %s WHERE %s = ?",

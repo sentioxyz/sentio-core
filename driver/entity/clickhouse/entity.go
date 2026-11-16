@@ -32,6 +32,9 @@ func (s *Store) getEntity(
 	if entityType.IsCache() {
 		return nil, nil
 	}
+	if err = s.waitSynced(ctx, entityType); err != nil {
+		return nil, err
+	}
 
 	// prepare and build sql
 	start := time.Now()
@@ -87,11 +90,15 @@ func (s *Store) queryExistEntity(
 	ids ...string,
 ) (exists []string, err error) {
 	_, logger := log.FromContext(ctx, "entity", entityType.Name, "chain", chain, "ids", utils.ArrSummary(ids))
+	if len(ids) == 0 {
+		return
+	}
+	if err = s.waitSynced(ctx, entityType); err != nil {
+		return nil, err
+	}
 	var sql string
 	var args []any
 	switch len(ids) {
-	case 0:
-		return
 	case 1:
 		sql = format.Format("SELECT distinct %primaryField#s "+
 			"FROM %tableName#s "+
@@ -164,6 +171,10 @@ func (s *Store) setEntities(
 		"useVersionedCollapsingTable", useVersionedCollapsingTable)
 
 	kit := s.NewEntity(entityType)
+
+	// Marked once the whole write has returned, failed or not, rather than after every batch: the
+	// pre-value queries of the later batches only ask for ids the earlier ones did not write.
+	defer s.gate.Written(s.dataTables(entityType)...)
 
 	// trim entities
 	dict := make(map[string][]persistent.EntityBox)
@@ -372,7 +383,18 @@ func (s *Store) growthAggregation(ctx context.Context, chain string, curBlockTim
 				return fmt.Errorf("unknown agg fn %q for %s.%s", fn, agg.GetName(), f.Name)
 			}
 		}
-		srcTable := s.fullName(s.TableName(s.sch.GetEntity(agg.GetSource())))
+		srcEntity := s.sch.GetEntity(agg.GetSource())
+		srcTable := s.fullName(s.TableName(srcEntity))
+		// The statements below read the source rows and the latest window of the aggregation on
+		// whichever replica runs them, and the source was written just before in the same commit:
+		// a window aggregated without them is never aggregated again. Waiting once covers every
+		// interval, each of them only reads back its own rows of the aggregation.
+		if err := s.waitSynced(ctx, srcEntity); err != nil {
+			return err
+		}
+		if err := s.waitSynced(ctx, agg); err != nil {
+			return err
+		}
 		for _, interval := range agg.GetIntervals() {
 			uniqToken := strconv.FormatUint(rand.Uint64(), 16)
 			var twField string         // time window of the timestamp, type is equal to the timestamp field
@@ -447,6 +469,7 @@ func (s *Store) growthAggregation(ctx context.Context, chain string, curBlockTim
 				})
 			start := time.Now()
 			err := s.ctrl.Exec(chx.InsertSelectCtx(chx.InsertCtx(ctx, uniqToken)), sql)
+			s.gate.Written(s.dataTables(agg)...)
 			exeLogger := logger.With(
 				"agg", agg.Name,
 				"interval", interval.String(),
@@ -471,8 +494,9 @@ func (s *Store) reorgInTable(ctx context.Context, blockNumber int64, chain strin
 	// The rows being taken back were written moments ago, so wait for the replicas before counting
 	// them: a count that cannot see them yet would skip the delete and leave the reorged blocks in
 	// place. SelectCtx keeps select_sequential_consistency on that count as well, which covers the
-	// quorum writes this store makes.
-	return s.ctrl.DeleteAfterReplicaSync(SelectCtx(ctx), table, condition, true)
+	// quorum writes this store makes. It goes through the gate so that the reads after the reorg
+	// wait for the delete to reach the replicas as well, and do not wait when nothing was deleted.
+	return s.gate.DeleteAfterReplicaSync(SelectCtx(ctx), table, condition, true)
 }
 
 func (s *Store) reorgInVersionedLatestTable(
@@ -547,6 +571,12 @@ func (s *Store) reorgInVersionedLatestTable(
 	// To confirm what needs to be filled, we need to scan all data in the two tables and comparing,
 	// it will be very heavy. Considering that the probability is relatively low, we just rebuild them all.
 	rebuilt = true
+	// the rebuild reads the raw table on whichever replica runs it, and whatever happens from here
+	// on changes the table
+	defer s.gate.Written(table)
+	if err = s.gate.WaitSynced(ctx, rawTable); err != nil {
+		return
+	}
 	// always partition by chain, so use drop partition delete all data in the chain
 	if err = s.ctrl.AlterTable(ctx, table, "DROP PARTITION ?", chain); err != nil {
 		err = fmt.Errorf("delete all in %s failed: %w", table, err)

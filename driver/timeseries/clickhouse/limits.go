@@ -210,6 +210,9 @@ func (s *Store) countSeries(
 			"chainID":          chainID,
 			"limit":            s.option.SeriesLimitPerMetric + 1,
 		})
+	if err := s.gate.WaitSynced(ctx, meta.GetTableName()); err != nil {
+		return 0, err
+	}
 	var count uint64
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		return rows.Scan(&count)
@@ -252,6 +255,9 @@ func (s *Store) loadGaugeSeriesIDs(
 			"chainID":          chainID,
 			"limit":            s.option.SeriesLimitPerMetric + 1,
 		})
+	if err := s.gate.WaitSynced(ctx, meta.GetTableName()); err != nil {
+		return nil, err
+	}
 	ids := set.New[string]()
 	err := s.ctrl.Query(ctx, func(rows driver.Rows) error {
 		row, err := scanRow(rows, labelFields)

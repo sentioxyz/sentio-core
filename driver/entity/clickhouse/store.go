@@ -107,6 +107,9 @@ type Store struct {
 	schHash  string
 	tableOpt TableOption
 	probe    Probe
+
+	// gate holds the reads back until the replicas have what this store wrote, see waitSynced
+	gate *chx.ReplicaGate
 }
 
 func enableVersionedCollapsingInsertSettings() map[string]any {
@@ -156,7 +159,53 @@ func NewStore(
 		schHash:  fmt.Sprintf("%x", h.Sum(nil)),
 		tableOpt: tableOpt,
 		probe:    probe,
+		gate:     chx.NewReplicaGate(ctrl),
 	}
+}
+
+// rowTable is the table that physically holds the rows of an entity or aggregation, which is where
+// a write lands and what a replica has to fetch. The plain entity name of a versioned-collapsing
+// entity is a view over it. A cache entity has none.
+func (s *Store) rowTable(item schema.EntityOrInterface) (string, bool) {
+	if entityType, is := item.(*schema.Entity); is && entityType.IsCache() {
+		return "", false
+	}
+	if s.useVersionedCollapsingTable(item) {
+		return s.VersionedTableName(item), true
+	}
+	return s.TableName(item), true
+}
+
+// dataTables adds to rowTable the latest table of a versioned-collapsing entity, which a
+// materialized view feeds on every insert into the versioned one and which only the scans over
+// every id read (countEntity, getAllID).
+func (s *Store) dataTables(item schema.EntityOrInterface) []string {
+	table, has := s.rowTable(item)
+	if !has {
+		return nil
+	}
+	if s.useVersionedCollapsingTable(item) {
+		return []string{table, s.VersionedLatestTableName(item)}
+	}
+	return []string{table}
+}
+
+// waitSynced must precede every read of the rows of item. A commit prunes its changes from memory
+// as soon as its inserts return, which is before the other replicas have fetched them, and the
+// read may be answered by any replica: without the wait it can miss the rows of the commit that
+// just landed, read a pre-value that is one version behind, or load a cache that stays short of
+// them. It only costs something for a table written since the last wait.
+func (s *Store) waitSynced(ctx context.Context, item schema.EntityOrInterface) error {
+	table, has := s.rowTable(item)
+	if !has {
+		return nil
+	}
+	return s.gate.WaitSynced(ctx, table)
+}
+
+// waitAllSynced is waitSynced for the reads that also go to the latest table, see dataTables.
+func (s *Store) waitAllSynced(ctx context.Context, item schema.EntityOrInterface) error {
+	return s.gate.WaitSynced(ctx, s.dataTables(item)...)
 }
 
 func (s *Store) GetEntityType(entity string) *schema.Entity {

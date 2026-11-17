@@ -3,6 +3,11 @@
   "name": "@sentio/ui-dashboard",
   "version": "0.3.17",
   "description": "Dashboard UI components for the Sentio platform, decoupled from backend services.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sentioxyz/sentio-core.git",
+    "directory": "packages/ui-dashboard"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

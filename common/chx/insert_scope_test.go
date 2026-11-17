@@ -28,7 +28,9 @@ func TestInsertScopeTagsAndEnds(t *testing.T) {
 	kills := conn.statements("KILL QUERY")
 	require.Len(t, kills, 1)
 	assert.Contains(t, kills[0], "ON CLUSTER 'c1'")
-	assert.Contains(t, kills[0], "endsWith(query_id, ':db.p1_entity@1')")
+	assert.Contains(t, kills[0], "endsWith(query_id, ':db:p1_:entity@1')")
+	// an INSERT left running by a process from before the colons carries the old tag
+	assert.Contains(t, kills[0], "OR endsWith(query_id, ':db.p1_entity@1')")
 	// an INSERT is ended when its range reaches into [15, max]
 	assert.Contains(t, kills[0], fmt.Sprintf("[2]) <= %d ", uint64(math.MaxUint64)))
 	assert.Contains(t, kills[0], "[3]) >= 15 SYNC")
@@ -65,12 +67,22 @@ func TestInsertScopeTagsAndEnds(t *testing.T) {
 	perTable := NewInsertScope(New(conn4, WithDatabase("db"), WithTableNamePrefix("zircuit.")), "blocks")
 	require.NoError(t, perTable.End(ctx, 10, 20))
 	assert.Equal(t, []string{"KILL QUERY WHERE query_kind = 'Insert' " +
-		"AND startsWith(query_id, 'rangeinsert:') AND endsWith(query_id, ':db.zircuit.blocks') " +
+		"AND startsWith(query_id, 'rangeinsert:') AND (endsWith(query_id, ':db:zircuit.:blocks') " +
+		"OR endsWith(query_id, ':db.zircuit.blocks')) " +
 		"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= 20 " +
 		"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= 10 SYNC"}, conn4.log)
 
 	// the suffix of one chain does not match the INSERTs of another chain of the same store
 	assert.False(t, strings.HasSuffix(ctrl.rangeInsertSuffix("entity@11"), ctrl.rangeInsertSuffix("entity@1")))
+
+	// scopes that would read the same joined by a dot stay apart: a database `a` with tables
+	// prefixed `b.`, and a database `a.b` with no prefix
+	one := New(&fakeConn{}, WithDatabase("a"), WithTableNamePrefix("b.")).rangeInsertSuffix("t")
+	other := New(&fakeConn{}, WithDatabase("a.b")).rangeInsertSuffix("t")
+	assert.NotEqual(t, one, other)
+	// and so do a scope named after a table and one whose prefix and name spell that table
+	assert.NotEqual(t, New(&fakeConn{}, WithDatabase("a"), WithTableNamePrefix("p_")).rangeInsertSuffix("t"),
+		New(&fakeConn{}, WithDatabase("a")).rangeInsertSuffix("p_t"))
 }
 
 func TestInsertScopeEndReportsFailure(t *testing.T) {

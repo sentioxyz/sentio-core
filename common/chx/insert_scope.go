@@ -28,7 +28,8 @@ var endAbandonedInserts = envconf.LoadBool("SENTIO_END_ABANDONED_INSERTS", true)
 // The name tells the INSERTs of the scope from all others. A table name gives a scope per table; a
 // writer that deletes from several tables at once can use one name for all of them, and one
 // statement then ends the INSERTs into every one. It has to be unique among the writers sharing
-// the database and table name prefix of the controller, which are part of the tag.
+// the database and table name prefix of the controller, which are part of the tag, and it must not
+// hold a colon, which is what sets the parts of the tag apart.
 //
 // A scope on a controller behind a tenant proxy (ForTenantProxy) does nothing, neither tagging nor
 // ending: the proxy refuses KILL QUERY, which on its shared ClickHouse user would reach every
@@ -67,11 +68,23 @@ func (s InsertScope) End(ctx context.Context, first, last uint64) error {
 
 // rangeInsertQueryIDPrefix starts the query id of every INSERT tagged by an InsertScope. The id
 // goes on with the first and last number the INSERT writes, a random part and the scope:
-// `rangeinsert:<first>:<last>:<random>:<database>.<table name prefix><name>`, which is what
+// `rangeinsert:<first>:<last>:<random>:<database>:<table name prefix>:<name>`, which is what
 // endRangeInserts picks the INSERTs out of system.processes by.
+//
+// The parts of the scope are set apart by the colon because no database or table name holds one:
+// joined by anything a name may hold, two scopes could read the same, `a` + `b.t` like `a.b` + `t`,
+// and one writer would end the INSERTs of the other.
 const rangeInsertQueryIDPrefix = "rangeinsert:"
 
 func (c Controller) rangeInsertSuffix(name string) string {
+	return fmt.Sprintf(":%s:%s:%s", c.database, c.tableNamePrefix, name)
+}
+
+// legacyRangeInsertSuffix is the scope as it was written before the parts were set apart by
+// colons. An INSERT left running by a process of that time still carries it, and the reset of the
+// process replacing it has to end it all the same.
+// TODO stop matching it once no such process is left running anywhere.
+func (c Controller) legacyRangeInsertSuffix(name string) string {
 	return fmt.Sprintf(":%s.%s%s", c.database, c.tableNamePrefix, name)
 }
 
@@ -85,10 +98,12 @@ func (c Controller) rangeInsertCtx(ctx context.Context, name string, first, last
 // on: those run under a new query id and keep the tagged one as initial_query_id.
 func (c Controller) rangeInsertFilter(name string, first, last uint64, forwarded bool) string {
 	match := func(col string) string {
-		return fmt.Sprintf("startsWith(%s, %s) AND endsWith(%s, %s) "+
+		return fmt.Sprintf("startsWith(%s, %s) AND (endsWith(%s, %s) OR endsWith(%s, %s)) "+
 			"AND toUInt64OrZero(splitByChar(':', %s)[2]) <= %d "+
 			"AND toUInt64OrZero(splitByChar(':', %s)[3]) >= %d",
-			col, quoteString(rangeInsertQueryIDPrefix), col, quoteString(c.rangeInsertSuffix(name)), col, last, col, first)
+			col, quoteString(rangeInsertQueryIDPrefix),
+			col, quoteString(c.rangeInsertSuffix(name)), col, quoteString(c.legacyRangeInsertSuffix(name)),
+			col, last, col, first)
 	}
 	if forwarded {
 		return fmt.Sprintf("query_kind = 'Insert' AND ((%s) OR (%s))", match("query_id"), match("initial_query_id"))

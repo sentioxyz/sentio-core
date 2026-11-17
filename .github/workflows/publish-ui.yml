@@ -1,0 +1,62 @@
+name: Publish UI packages
+
+# @sentio/ui-core and @sentio/ui-dashboard carry their version in package.json and it is
+# bumped by hand in the pull request that changes the package. This workflow publishes
+# whatever version is on main and not on npm yet, so a merged bump always reaches consumers.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - packages/ui-core/**
+      - packages/ui-dashboard/**
+
+concurrency:
+  group: publish-ui
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC), no NPM_TOKEN needed
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      # Deliberately no `registry-url`: it writes `_authToken=${NODE_AUTH_TOKEN}` into
+      # .npmrc, and an unresolved placeholder makes the publisher skip OIDC. npmjs.org
+      # is the default registry anyway.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install
+      # ui-core goes first: ui-dashboard depends on it, and its `workspace:^` range is
+      # resolved to the ui-core version in this checkout when the tarball is packed.
+      # `pnpm pack` writes that resolved manifest; `npm publish` uploads the tarball,
+      # because the pinned pnpm 10.29.3 predates pnpm's OIDC fixes (pnpm#11495, pnpm#11526).
+      - name: Publish new versions
+        run: |
+          for pkg in ui-core ui-dashboard; do
+            name=$(node -p "require('./packages/$pkg/package.json').name")
+            version=$(node -p "require('./packages/$pkg/package.json').version")
+            # `npm view <name>@<version>` exits non-zero for a version that does not exist,
+            # so list the versions instead: this only fails when the registry cannot be read.
+            published=$(npm view "$name" versions --json)
+            if node -e 'process.exit([].concat(JSON.parse(process.argv[1])).includes(process.argv[2]) ? 0 : 1)' \
+              "$published" "$version"; then
+              echo "### $name@$version is already published" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            pnpm --filter "$name..." build
+            pnpm --filter "$name" pack --pack-destination "$RUNNER_TEMP/$pkg"
+            npm publish "$RUNNER_TEMP/$pkg"/*.tgz --access public
+            echo "### Published $name@$version" >> "$GITHUB_STEP_SUMMARY"
+          done

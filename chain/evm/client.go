@@ -526,12 +526,12 @@ func (c *Client) CallContext(
 	// for all state-related method, checking block number in args to detect missing state data
 	if from := c.hasStateDataFrom.Load(); from > 0 {
 		// not a archive node
-		if argIndex, has := stateMethodBlockNumberArgIndex[method]; has {
-			bp, err := stateBlockParameter(args, argIndex)
-			if err != nil {
-				// invalid request
-				return clientpool.Result{Err: errors.Wrapf(err, "in #%d arg for the method %s", argIndex, method)}
-			}
+		bp, isStateMethod, err := StateMethodBlockParameter(method, args)
+		if err != nil {
+			// invalid request
+			return clientpool.Result{Err: err}
+		}
+		if isStateMethod {
 			if c.isTronChain() && (bp.BlockHash != nil || *bp.BlockNumber != rpc.LatestBlockNumber) {
 				return clientpool.Result{
 					Err: errors.Errorf("method %s with block parameter %s is not supported, just support TAG as latest",
@@ -558,6 +558,17 @@ func (c *Client) CallContext(
 		}
 	}
 	return c.callContext(ctx, result, src, method, args...)
+}
+
+// StateMethodBlockParameter returns the block a state method reads its state at. isStateMethod is
+// false for any other method, whose arguments are not looked at.
+func StateMethodBlockParameter(method string, args []any) (bp rpc.BlockNumberOrHash, isStateMethod bool, err error) {
+	argIndex, has := stateMethodBlockNumberArgIndex[method]
+	if !has {
+		return bp, false, nil
+	}
+	bp, err = stateBlockParameter(args, argIndex)
+	return bp, true, errors.Wrapf(err, "in #%d arg for the method %s", argIndex, method)
 }
 
 // stateBlockParameter parses the block parameter of a state method. An omitted or null parameter

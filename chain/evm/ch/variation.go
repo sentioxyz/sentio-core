@@ -27,6 +27,8 @@ type EthVariationCtrl interface {
 
 	QueryBlocks(ctx context.Context, where string, args ...any) ([]evm.ExtendedHeader, error)
 	QueryBlockLinks(ctx context.Context, from, to uint64) ([]evm.BlockLink, error)
+	// QueryBlockNumberByHash returns nil if no stored block has the hash.
+	QueryBlockNumberByHash(ctx context.Context, hash common.Hash) (*uint64, error)
 	QueryBlockTxHashes(ctx context.Context, blockNumber uint64) ([]string, error)
 	QueryTxs(ctx context.Context, where string, args ...any) ([]evm.ExtendedTransaction, error)
 	QueryLogs(ctx context.Context, where string, limit int, args ...any) ([]types.Log, error)
@@ -388,6 +390,28 @@ func (c *EthVariationController[BLOCK, TXN]) QueryBlockLinks(
 		return nil
 	}, sql)
 	return result, err
+}
+
+func (c *EthVariationController[BLOCK, TXN]) blockNumberByHashSQL(hash common.Hash) string {
+	return fmt.Sprintf("SELECT block_number FROM %s WHERE block_hash = '%s' LIMIT 1",
+		c.ctrl.FullLogicName(tableNameBlocks), hash.Hex())
+}
+
+// QueryBlockNumberByHash returns the number of the stored block with the given hash, or nil if
+// there is none. It reads a single column through the bloom filter index of block_hash.
+func (c *EthVariationController[BLOCK, TXN]) QueryBlockNumberByHash(
+	ctx context.Context,
+	hash common.Hash,
+) (number *uint64, err error) {
+	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
+		var blockNumber uint64
+		if scanErr := rows.Scan(&blockNumber); scanErr != nil {
+			return scanErr
+		}
+		number = &blockNumber
+		return nil
+	}, c.blockNumberByHashSQL(hash))
+	return number, err
 }
 
 // blockTxHashesSQL selects transaction_index alongside the hash so the ORDER BY column is part

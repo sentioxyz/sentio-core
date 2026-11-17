@@ -6,6 +6,7 @@ go_library(
         "client_version.go",
         "custom_function_proxy.go",
         "extra.go",
+        "native_state.go",
         "proxy.go",
         "proxy_with_slot_cache.go",
         "rpc.go",
@@ -33,6 +34,7 @@ go_library(
         "@com_github_ethereum_go_ethereum//core/types",
         "@com_github_ethereum_go_ethereum//rpc",
         "@com_github_pkg_errors//:errors",
+        "@com_github_sentioxyz_golang_lru//:golang-lru",
     ],
 )
 
@@ -41,6 +43,7 @@ go_test(
     srcs = [
         "client_version_test.go",
         "ex_test.go",
+        "native_state_test.go",
         "proxy_only_test.go",
         "rpc_test.go",
         "standard_packed_test.go",

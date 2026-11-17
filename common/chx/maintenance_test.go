@@ -159,8 +159,9 @@ func TestLegacySQLUnchanged(t *testing.T) {
 
 	assert.Equal(t, []string{
 		"KILL QUERY ON CLUSTER 'compute' WHERE query_kind = 'Insert' " +
-			"AND startsWith(query_id, 'rangeinsert:') AND (endsWith(query_id, ':chain_db:zircuit.:blocks') " +
-			"OR endsWith(query_id, ':chain_db.zircuit.blocks')) " +
+			"AND startsWith(query_id, 'rangeinsert:') AND (" +
+			"(length(splitByChar(':', query_id)) = 7 AND endsWith(query_id, ':chain_db:zircuit.:blocks')) OR " +
+			"(length(splitByChar(':', query_id)) = 5 AND endsWith(query_id, ':chain_db.zircuit.blocks'))) " +
 			"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= 20 " +
 			"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= 10 SYNC",
 		"SELECT count(), max(latest_fail_reason) FROM system.mutations " +
@@ -372,13 +373,16 @@ func TestRoutedEndRangeInserts(t *testing.T) {
 	kills := conn.statements("KILL QUERY")
 	require.Len(t, kills, 2)
 	filter := "WHERE query_kind = 'Insert' AND (" +
-		"(startsWith(query_id, 'rangeinsert:') AND (endsWith(query_id, ':chain_db:zircuit.:blocks') " +
-		"OR endsWith(query_id, ':chain_db.zircuit.blocks')) " +
+		"(startsWith(query_id, 'rangeinsert:') AND (" +
+		"(length(splitByChar(':', query_id)) = 7 AND endsWith(query_id, ':chain_db:zircuit.:blocks')) OR " +
+		"(length(splitByChar(':', query_id)) = 5 AND endsWith(query_id, ':chain_db.zircuit.blocks'))) " +
 		"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= 20 " +
 		"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= 10) OR " +
-		"(startsWith(initial_query_id, 'rangeinsert:') " +
-		"AND (endsWith(initial_query_id, ':chain_db:zircuit.:blocks') " +
-		"OR endsWith(initial_query_id, ':chain_db.zircuit.blocks')) " +
+		"(startsWith(initial_query_id, 'rangeinsert:') AND (" +
+		"(length(splitByChar(':', initial_query_id)) = 7 " +
+		"AND endsWith(initial_query_id, ':chain_db:zircuit.:blocks')) OR " +
+		"(length(splitByChar(':', initial_query_id)) = 5 " +
+		"AND endsWith(initial_query_id, ':chain_db.zircuit.blocks'))) " +
 		"AND toUInt64OrZero(splitByChar(':', initial_query_id)[2]) <= 20 " +
 		"AND toUInt64OrZero(splitByChar(':', initial_query_id)[3]) >= 10)) SYNC"
 	assert.Equal(t, "KILL QUERY ON CLUSTER 'compute' "+filter, kills[0])

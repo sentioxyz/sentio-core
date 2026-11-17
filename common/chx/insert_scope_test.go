@@ -28,9 +28,10 @@ func TestInsertScopeTagsAndEnds(t *testing.T) {
 	kills := conn.statements("KILL QUERY")
 	require.Len(t, kills, 1)
 	assert.Contains(t, kills[0], "ON CLUSTER 'c1'")
-	assert.Contains(t, kills[0], "endsWith(query_id, ':db:p1_:entity@1')")
-	// an INSERT left running by a process from before the colons carries the old tag
-	assert.Contains(t, kills[0], "OR endsWith(query_id, ':db.p1_entity@1')")
+	assert.Contains(t, kills[0], "(length(splitByChar(':', query_id)) = 7 AND endsWith(query_id, ':db:p1_:entity@1'))")
+	// an INSERT left running by a process from before the colons carries the old tag, which is
+	// only looked for in an id of the old form
+	assert.Contains(t, kills[0], "OR (length(splitByChar(':', query_id)) = 5 AND endsWith(query_id, ':db.p1_entity@1'))")
 	// an INSERT is ended when its range reaches into [15, max]
 	assert.Contains(t, kills[0], fmt.Sprintf("[2]) <= %d ", uint64(math.MaxUint64)))
 	assert.Contains(t, kills[0], "[3]) >= 15 SYNC")
@@ -67,8 +68,9 @@ func TestInsertScopeTagsAndEnds(t *testing.T) {
 	perTable := NewInsertScope(New(conn4, WithDatabase("db"), WithTableNamePrefix("zircuit.")), "blocks")
 	require.NoError(t, perTable.End(ctx, 10, 20))
 	assert.Equal(t, []string{"KILL QUERY WHERE query_kind = 'Insert' " +
-		"AND startsWith(query_id, 'rangeinsert:') AND (endsWith(query_id, ':db:zircuit.:blocks') " +
-		"OR endsWith(query_id, ':db.zircuit.blocks')) " +
+		"AND startsWith(query_id, 'rangeinsert:') AND (" +
+		"(length(splitByChar(':', query_id)) = 7 AND endsWith(query_id, ':db:zircuit.:blocks')) OR " +
+		"(length(splitByChar(':', query_id)) = 5 AND endsWith(query_id, ':db.zircuit.blocks'))) " +
 		"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= 20 " +
 		"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= 10 SYNC"}, conn4.log)
 
@@ -104,4 +106,65 @@ func TestInsertScopeBehindTenantProxyDoesNothing(t *testing.T) {
 	assert.Equal(t, ctx, scope.Ctx(ctx, 10, 20))
 	require.NoError(t, scope.End(ctx, 0, math.MaxUint64))
 	assert.Empty(t, conn.log)
+}
+
+// endsRangeInsert says whether the filter of End for name on c picks the query id, which is the
+// scope half of rangeInsertFilter worked out in Go: an id of the form tagged now has to end with
+// the scope as it is written now, one of the form before with the scope as it was written then.
+func endsRangeInsert(c Controller, name string, queryID string) bool {
+	if !strings.HasPrefix(queryID, rangeInsertQueryIDPrefix) {
+		return false
+	}
+	switch len(strings.Split(queryID, ":")) {
+	case rangeInsertParts:
+		return strings.HasSuffix(queryID, c.rangeInsertSuffix(name))
+	case legacyRangeInsertParts:
+		return strings.HasSuffix(queryID, c.legacyRangeInsertSuffix(name))
+	}
+	return false
+}
+
+// TestInsertScopeFilterKeepsScopesApart runs the scope half of the filter against ids in both
+// forms. It is the filter as a whole that keeps two writers apart, not the suffixes alone: the old
+// suffix of one scope can be how the id of another ends.
+func TestInsertScopeFilterKeepsScopesApart(t *testing.T) {
+	newID := func(c Controller, name string) string {
+		return rangeInsertQueryID(10, 20, 0x1234, c.rangeInsertSuffix(name))
+	}
+	oldID := func(c Controller, name string) string {
+		return rangeInsertQueryID(10, 20, 0x1234, c.legacyRangeInsertSuffix(name))
+	}
+	ctrl := func(database, prefix string) Controller {
+		return New(&fakeConn{}, WithDatabase(database), WithTableNamePrefix(prefix))
+	}
+
+	// the forms have the number of parts the filter tells them apart by, with a prefix or without
+	for _, c := range []Controller{ctrl("a", ""), ctrl("chain_db", "zircuit."), ctrl("db", "p1_")} {
+		assert.Len(t, strings.Split(newID(c, "t"), ":"), rangeInsertParts)
+		assert.Len(t, strings.Split(oldID(c, "t"), ":"), legacyRangeInsertParts)
+		// a writer ends its own INSERTs, tagged now or before
+		assert.True(t, endsRangeInsert(c, "t", newID(c, "t")))
+		assert.True(t, endsRangeInsert(c, "t", oldID(c, "t")))
+	}
+
+	// database `a`, scope `x.t` against database `x`, scope `t`: the new id of the first ends with
+	// `:x.t`, the old suffix of the second
+	ax, x := ctrl("a", ""), ctrl("x", "")
+	assert.True(t, strings.HasSuffix(newID(ax, "x.t"), x.legacyRangeInsertSuffix("t")))
+	assert.False(t, endsRangeInsert(x, "t", newID(ax, "x.t")))
+	assert.False(t, endsRangeInsert(x, "t", oldID(ax, "x.t")))
+	assert.False(t, endsRangeInsert(ax, "x.t", newID(x, "t")))
+	assert.False(t, endsRangeInsert(ax, "x.t", oldID(x, "t")))
+
+	// database `a` with tables prefixed `b.` against database `a.b` with none: the same in the old
+	// form, which is the ambiguity the colons are there for, and apart in the new one
+	ab, adotb := ctrl("a", "b."), ctrl("a.b", "")
+	assert.Equal(t, oldID(ab, "t"), oldID(adotb, "t"))
+	assert.False(t, endsRangeInsert(ab, "t", newID(adotb, "t")))
+	assert.False(t, endsRangeInsert(adotb, "t", newID(ab, "t")))
+
+	// chains of one store
+	c := ctrl("db", "p1_")
+	assert.False(t, endsRangeInsert(c, "entity@1", newID(c, "entity@11")))
+	assert.False(t, endsRangeInsert(c, "entity@1", newID(c, "timeseries@1")))
 }

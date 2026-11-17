@@ -76,6 +76,15 @@ func (s InsertScope) End(ctx context.Context, first, last uint64) error {
 // and one writer would end the INSERTs of the other.
 const rangeInsertQueryIDPrefix = "rangeinsert:"
 
+// rangeInsertParts and legacyRangeInsertParts are how many parts the colons cut a query id into,
+// in the form it is tagged with now and in the one it had before. A suffix is only looked for in
+// an id of its own form: the old suffix `:x.t` is also how the id of another scope ends when that
+// scope is named `x.t`.
+const (
+	rangeInsertParts       = 7
+	legacyRangeInsertParts = 5
+)
+
 func (c Controller) rangeInsertSuffix(name string) string {
 	return fmt.Sprintf(":%s:%s:%s", c.database, c.tableNamePrefix, name)
 }
@@ -88,8 +97,12 @@ func (c Controller) legacyRangeInsertSuffix(name string) string {
 	return fmt.Sprintf(":%s.%s%s", c.database, c.tableNamePrefix, name)
 }
 
+func rangeInsertQueryID(first, last, random uint64, suffix string) string {
+	return fmt.Sprintf("%s%d:%d:%x%s", rangeInsertQueryIDPrefix, first, last, random, suffix)
+}
+
 func (c Controller) rangeInsertCtx(ctx context.Context, name string, first, last uint64) context.Context {
-	queryID := fmt.Sprintf("%s%d:%d:%x%s", rangeInsertQueryIDPrefix, first, last, rand.Uint64(), c.rangeInsertSuffix(name))
+	queryID := rangeInsertQueryID(first, last, rand.Uint64(), c.rangeInsertSuffix(name))
 	return clickhouse.Context(ctx, clickhouse.WithQueryID(queryID))
 }
 
@@ -98,11 +111,14 @@ func (c Controller) rangeInsertCtx(ctx context.Context, name string, first, last
 // on: those run under a new query id and keep the tagged one as initial_query_id.
 func (c Controller) rangeInsertFilter(name string, first, last uint64, forwarded bool) string {
 	match := func(col string) string {
-		return fmt.Sprintf("startsWith(%s, %s) AND (endsWith(%s, %s) OR endsWith(%s, %s)) "+
+		return fmt.Sprintf("startsWith(%s, %s) AND ("+
+			"(length(splitByChar(':', %s)) = %d AND endsWith(%s, %s)) OR "+
+			"(length(splitByChar(':', %s)) = %d AND endsWith(%s, %s))) "+
 			"AND toUInt64OrZero(splitByChar(':', %s)[2]) <= %d "+
 			"AND toUInt64OrZero(splitByChar(':', %s)[3]) >= %d",
 			col, quoteString(rangeInsertQueryIDPrefix),
-			col, quoteString(c.rangeInsertSuffix(name)), col, quoteString(c.legacyRangeInsertSuffix(name)),
+			col, rangeInsertParts, col, quoteString(c.rangeInsertSuffix(name)),
+			col, legacyRangeInsertParts, col, quoteString(c.legacyRangeInsertSuffix(name)),
 			col, last, col, first)
 	}
 	if forwarded {

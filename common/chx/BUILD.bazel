@@ -6,6 +6,7 @@ go_library(
         "controller.go",
         "external.go",
         "field.go",
+        "insert_scope.go",
         "maintenance.go",
         "operator.go",
         "query.go",
@@ -33,6 +34,7 @@ go_test(
     name = "chx_test",
     srcs = [
         "field_test.go",
+        "insert_scope_test.go",
         "maintenance_test.go",
         "replica_gate_test.go",
         "tenant_proxy_test.go",

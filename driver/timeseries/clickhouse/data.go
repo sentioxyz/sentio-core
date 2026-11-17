@@ -228,7 +228,9 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 	// deferred so that a write cut short, by an error or by the getter panicking on a bad row after
 	// earlier blocks went out, is marked as well
 	defer s.gate.Written(ds.Meta.GetTableName())
-	err := s.ctrl.BatchInsert(ctx, sql, s.option.BatchInsertSizeLimit, getter)
+	firstSlot, lastSlot := slotRange(ds)
+	insertCtx := s.inserts(chainID).Ctx(ctx, firstSlot, lastSlot)
+	err := s.ctrl.BatchInsert(insertCtx, sql, s.option.BatchInsertSizeLimit, getter)
 	logger = logger.With("used", time.Since(startAt).String())
 	if err != nil {
 		logger.Errorfe(err, "insert data failed")
@@ -236,6 +238,25 @@ func (s *Store) insertData(ctx context.Context, ds timeseries.Dataset, chainID s
 	}
 	logger.Infow("insert data succeed")
 	return nil
+}
+
+// slotRange returns the lowest and highest slot number of the rows, which is what the INSERT of the
+// dataset is tagged with. A dataset whose slot numbers cannot be read is taken to write any slot,
+// so that it is still ended by every delete.
+func slotRange(ds timeseries.Dataset) (first, last uint64) {
+	slotField := ds.Meta.GetSlotNumberField().Name
+	first, last = math.MaxUint64, 0
+	for _, row := range ds.Rows {
+		slot, is := row[slotField].(int64)
+		if !is || slot < 0 {
+			return 0, math.MaxUint64
+		}
+		first, last = min(first, uint64(slot)), max(last, uint64(slot))
+	}
+	if first > last {
+		return 0, math.MaxUint64
+	}
+	return first, last
 }
 
 // buildColumns orders the row values by fieldNames. A row without a value for an Array field gets an empty array:
@@ -344,7 +365,10 @@ func (s *Store) aggregationGrowth(ctx context.Context, meta timeseries.Meta, cha
 			})
 		start := time.Now()
 		uniqToken := strconv.FormatUint(rand.Uint64(), 16)
-		err := s.ctrl.Exec(chx.InsertSelectCtx(chx.InsertCtx(ctx, uniqToken)), sql)
+		// tagged as writing any slot: the rows carry the slots of the source rows, which the statement
+		// only learns while it runs
+		insertCtx := s.inserts(chainID).Ctx(ctx, 0, math.MaxUint64)
+		err := s.ctrl.Exec(chx.InsertSelectCtx(chx.InsertCtx(insertCtx, uniqToken)), sql)
 		s.gate.Written(meta.GetTableName())
 		exeLogger := logger.With(
 			"interval", interval.String(),
@@ -374,6 +398,13 @@ func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int
 	s.seriesCountLoadedChains = set.New[string]()
 	_, logger := log.FromContext(ctx, "chainID", chainID, "slotNumberGt", slotNumberGt)
 	logger.Debug("will delete")
+	// A delete follows a commit that failed or a process that died, and either may have left an
+	// INSERT running on the server. Ended here, before anything is counted or deleted, it cannot
+	// commit its rows on top of what the deletes below have cleared.
+	if err := s.inserts(chainID).End(ctx, uint64(max(slotNumberGt+1, 0))); err != nil {
+		logger.Errore(err, "end the inserts left running failed")
+		return err
+	}
 	for _, item := range s.meta {
 		startAt := time.Now()
 		var deleted uint64 = math.MaxUint64

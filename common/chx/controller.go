@@ -144,8 +144,9 @@ func (c Controller) WithMaintenanceRoute(route *MaintenanceRoute) (Controller, e
 // the same ClickHouse user, so the proxy refuses what would reach other tenants: KILL QUERY, SYSTEM
 // statements, ON CLUSTER, Replicated engines with arguments, clusterAllReplicas and the system
 // tables outside its allowlist (processes, distribution_queue, distributed_ddl_queue, ...). A
-// marked controller fails before sending any of these: EndRangeInserts and WithMaintenanceRoute
-// return an error, and so does the replica sync of DeleteAfterReplicaSync on a cluster.
+// marked controller fails before sending any of these: WithMaintenanceRoute returns an error, and
+// so does the replica sync of DeleteAfterReplicaSync on a cluster. An InsertScope on it neither
+// tags nor ends anything.
 //
 // A controller with a cluster or a maintenance route is refused: either would have it issue
 // statements the proxy refuses (ON CLUSTER DDL, SYSTEM SYNC REPLICA, ReplicatedMergeTree with

@@ -401,7 +401,7 @@ func (s *Store) DeleteData(ctx context.Context, chainID string, slotNumberGt int
 	// A delete follows a commit that failed or a process that died, and either may have left an
 	// INSERT running on the server. Ended here, before anything is counted or deleted, it cannot
 	// commit its rows on top of what the deletes below have cleared.
-	if err := s.inserts(chainID).End(ctx, uint64(max(slotNumberGt+1, 0))); err != nil {
+	if err := s.inserts(chainID).End(ctx, uint64(max(slotNumberGt+1, 0)), math.MaxUint64); err != nil {
 		logger.Errore(err, "end the inserts left running failed")
 		return err
 	}

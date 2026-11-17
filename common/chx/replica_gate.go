@@ -26,7 +26,7 @@ var readAfterWriteReplicaSync = envconf.LoadBool("SENTIO_READ_AFTER_WRITE_REPLIC
 // written, since an earlier run of the process may have been the writer.
 //
 // What it waits for is replication of data a replica already holds. An INSERT that is still
-// running on the server after its client gave up is not covered, see EndRangeInserts for that.
+// running on the server after its client gave up is not covered, see InsertScope for that.
 //
 // A gate belongs to one store, which must be the only writer of the tables it reads.
 type ReplicaGate struct {

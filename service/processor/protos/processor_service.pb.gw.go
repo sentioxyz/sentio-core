@@ -546,33 +546,6 @@ func local_request_ProcessorService_FinishBatchUpload_0(ctx context.Context, mar
 	return msg, metadata, err
 }
 
-func request_ProcessorRuntimeService_RunProcessor_0(ctx context.Context, marshaler runtime.Marshaler, client ProcessorRuntimeServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var (
-		protoReq RunProcessorRequest
-		metadata runtime.ServerMetadata
-	)
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	if req.Body != nil {
-		_, _ = io.Copy(io.Discard, req.Body)
-	}
-	msg, err := client.RunProcessor(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
-	return msg, metadata, err
-}
-
-func local_request_ProcessorRuntimeService_RunProcessor_0(ctx context.Context, marshaler runtime.Marshaler, server ProcessorRuntimeServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var (
-		protoReq RunProcessorRequest
-		metadata runtime.ServerMetadata
-	)
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	msg, err := server.RunProcessor(ctx, &protoReq)
-	return msg, metadata, err
-}
-
 func request_ProcessorRuntimeService_StopProcessor_0(ctx context.Context, marshaler runtime.Marshaler, client ProcessorRuntimeServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
 		protoReq StopProcessorRequest
@@ -597,41 +570,6 @@ func local_request_ProcessorRuntimeService_StopProcessor_0(ctx context.Context, 
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	msg, err := server.StopProcessor(ctx, &protoReq)
-	return msg, metadata, err
-}
-
-var filter_ProcessorRuntimeService_GetProcessorStatus_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
-
-func request_ProcessorRuntimeService_GetProcessorStatus_0(ctx context.Context, marshaler runtime.Marshaler, client ProcessorRuntimeServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var (
-		protoReq GetProcessorStatusRequest
-		metadata runtime.ServerMetadata
-	)
-	if req.Body != nil {
-		_, _ = io.Copy(io.Discard, req.Body)
-	}
-	if err := req.ParseForm(); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_ProcessorRuntimeService_GetProcessorStatus_0); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	msg, err := client.GetProcessorStatus(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
-	return msg, metadata, err
-}
-
-func local_request_ProcessorRuntimeService_GetProcessorStatus_0(ctx context.Context, marshaler runtime.Marshaler, server ProcessorRuntimeServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var (
-		protoReq GetProcessorStatusRequest
-		metadata runtime.ServerMetadata
-	)
-	if err := req.ParseForm(); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_ProcessorRuntimeService_GetProcessorStatus_0); err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	msg, err := server.GetProcessorStatus(ctx, &protoReq)
 	return msg, metadata, err
 }
 
@@ -677,51 +615,6 @@ func local_request_ProcessorRuntimeService_GetLogs_0(ctx context.Context, marsha
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "processor_id", err)
 	}
 	msg, err := server.GetLogs(ctx, &protoReq)
-	return msg, metadata, err
-}
-
-func request_ProcessorRuntimeService_ReconcileProcessor_0(ctx context.Context, marshaler runtime.Marshaler, client ProcessorRuntimeServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var (
-		protoReq ReconcileProcessorRequest
-		metadata runtime.ServerMetadata
-		err      error
-	)
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	if req.Body != nil {
-		_, _ = io.Copy(io.Discard, req.Body)
-	}
-	val, ok := pathParams["processor_id"]
-	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "processor_id")
-	}
-	protoReq.ProcessorId, err = runtime.String(val)
-	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "processor_id", err)
-	}
-	msg, err := client.ReconcileProcessor(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
-	return msg, metadata, err
-}
-
-func local_request_ProcessorRuntimeService_ReconcileProcessor_0(ctx context.Context, marshaler runtime.Marshaler, server ProcessorRuntimeServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var (
-		protoReq ReconcileProcessorRequest
-		metadata runtime.ServerMetadata
-		err      error
-	)
-	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-	}
-	val, ok := pathParams["processor_id"]
-	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "processor_id")
-	}
-	protoReq.ProcessorId, err = runtime.String(val)
-	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "processor_id", err)
-	}
-	msg, err := server.ReconcileProcessor(ctx, &protoReq)
 	return msg, metadata, err
 }
 
@@ -1001,26 +894,6 @@ func RegisterProcessorServiceHandlerServer(ctx context.Context, mux *runtime.Ser
 // Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterProcessorRuntimeServiceHandlerFromEndpoint instead.
 // GRPC interceptors will not work for this type of registration. To use interceptors, you must use the "runtime.WithMiddlewares" option in the "runtime.NewServeMux" call.
 func RegisterProcessorRuntimeServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux, server ProcessorRuntimeServiceServer) error {
-	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_RunProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		var stream runtime.ServerTransportStream
-		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/processor_service.ProcessorRuntimeService/RunProcessor", runtime.WithHTTPPathPattern("/api/v1/processors/run"))
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := local_request_ProcessorRuntimeService_RunProcessor_0(annotatedContext, inboundMarshaler, server, req, pathParams)
-		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
-		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
-		if err != nil {
-			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		forward_ProcessorRuntimeService_RunProcessor_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-	})
 	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_StopProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -1041,26 +914,6 @@ func RegisterProcessorRuntimeServiceHandlerServer(ctx context.Context, mux *runt
 		}
 		forward_ProcessorRuntimeService_StopProcessor_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
-	mux.Handle(http.MethodGet, pattern_ProcessorRuntimeService_GetProcessorStatus_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		var stream runtime.ServerTransportStream
-		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/processor_service.ProcessorRuntimeService/GetProcessorStatus", runtime.WithHTTPPathPattern("/api/v1/processors/status"))
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := local_request_ProcessorRuntimeService_GetProcessorStatus_0(annotatedContext, inboundMarshaler, server, req, pathParams)
-		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
-		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
-		if err != nil {
-			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		forward_ProcessorRuntimeService_GetProcessorStatus_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-	})
 	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_GetLogs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -1080,26 +933,6 @@ func RegisterProcessorRuntimeServiceHandlerServer(ctx context.Context, mux *runt
 			return
 		}
 		forward_ProcessorRuntimeService_GetLogs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-	})
-	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_ReconcileProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		var stream runtime.ServerTransportStream
-		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/processor_service.ProcessorRuntimeService/ReconcileProcessor", runtime.WithHTTPPathPattern("/api/v1/processors/{processor_id}/reconcile"))
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := local_request_ProcessorRuntimeService_ReconcileProcessor_0(annotatedContext, inboundMarshaler, server, req, pathParams)
-		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
-		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
-		if err != nil {
-			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		forward_ProcessorRuntimeService_ReconcileProcessor_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 
 	return nil
@@ -1433,23 +1266,6 @@ func RegisterProcessorRuntimeServiceHandler(ctx context.Context, mux *runtime.Se
 // doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
 // "ProcessorRuntimeServiceClient" to call the correct interceptors. This client ignores the HTTP middlewares.
 func RegisterProcessorRuntimeServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux, client ProcessorRuntimeServiceClient) error {
-	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_RunProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/processor_service.ProcessorRuntimeService/RunProcessor", runtime.WithHTTPPathPattern("/api/v1/processors/run"))
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := request_ProcessorRuntimeService_RunProcessor_0(annotatedContext, inboundMarshaler, client, req, pathParams)
-		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
-		if err != nil {
-			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		forward_ProcessorRuntimeService_RunProcessor_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-	})
 	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_StopProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -1466,23 +1282,6 @@ func RegisterProcessorRuntimeServiceHandlerClient(ctx context.Context, mux *runt
 			return
 		}
 		forward_ProcessorRuntimeService_StopProcessor_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-	})
-	mux.Handle(http.MethodGet, pattern_ProcessorRuntimeService_GetProcessorStatus_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/processor_service.ProcessorRuntimeService/GetProcessorStatus", runtime.WithHTTPPathPattern("/api/v1/processors/status"))
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := request_ProcessorRuntimeService_GetProcessorStatus_0(annotatedContext, inboundMarshaler, client, req, pathParams)
-		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
-		if err != nil {
-			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		forward_ProcessorRuntimeService_GetProcessorStatus_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_GetLogs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
@@ -1501,38 +1300,15 @@ func RegisterProcessorRuntimeServiceHandlerClient(ctx context.Context, mux *runt
 		}
 		forward_ProcessorRuntimeService_GetLogs_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
-	mux.Handle(http.MethodPost, pattern_ProcessorRuntimeService_ReconcileProcessor_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		ctx, cancel := context.WithCancel(req.Context())
-		defer cancel()
-		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/processor_service.ProcessorRuntimeService/ReconcileProcessor", runtime.WithHTTPPathPattern("/api/v1/processors/{processor_id}/reconcile"))
-		if err != nil {
-			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		resp, md, err := request_ProcessorRuntimeService_ReconcileProcessor_0(annotatedContext, inboundMarshaler, client, req, pathParams)
-		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
-		if err != nil {
-			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
-			return
-		}
-		forward_ProcessorRuntimeService_ReconcileProcessor_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-	})
 	return nil
 }
 
 var (
-	pattern_ProcessorRuntimeService_RunProcessor_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "processors", "run"}, ""))
-	pattern_ProcessorRuntimeService_StopProcessor_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "processors", "stop"}, ""))
-	pattern_ProcessorRuntimeService_GetProcessorStatus_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "processors", "status"}, ""))
-	pattern_ProcessorRuntimeService_GetLogs_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "logs"}, ""))
-	pattern_ProcessorRuntimeService_ReconcileProcessor_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "reconcile"}, ""))
+	pattern_ProcessorRuntimeService_StopProcessor_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "processors", "stop"}, ""))
+	pattern_ProcessorRuntimeService_GetLogs_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"api", "v1", "processors", "processor_id", "logs"}, ""))
 )
 
 var (
-	forward_ProcessorRuntimeService_RunProcessor_0       = runtime.ForwardResponseMessage
-	forward_ProcessorRuntimeService_StopProcessor_0      = runtime.ForwardResponseMessage
-	forward_ProcessorRuntimeService_GetProcessorStatus_0 = runtime.ForwardResponseMessage
-	forward_ProcessorRuntimeService_GetLogs_0            = runtime.ForwardResponseMessage
-	forward_ProcessorRuntimeService_ReconcileProcessor_0 = runtime.ForwardResponseMessage
+	forward_ProcessorRuntimeService_StopProcessor_0 = runtime.ForwardResponseMessage
+	forward_ProcessorRuntimeService_GetLogs_0       = runtime.ForwardResponseMessage
 )

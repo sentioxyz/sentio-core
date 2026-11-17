@@ -4667,18 +4667,18 @@ const file_service_processor_protos_processor_service_proto_rawDesc = "" +
 	"\x11FinishBatchUpload\x12+.processor_service.FinishBatchUploadRequest\x1a,.processor_service.FinishBatchUploadResponse\"T\x92\xb5\x18\x0f\n" +
 	"\rproject:write\xfa\xd2\xe4\x93\x02\n" +
 	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02+:\x01*\"&/api/v1/processors/finish_batch_upload\x1a\x0e\x92A\v\n" +
-	"\tProcessor2\xa3\x06\n" +
-	"\x17ProcessorRuntimeService\x12\x87\x01\n" +
-	"\fRunProcessor\x12&.processor_service.RunProcessorRequest\x1a\x1c.processor_service.Processor\"1\xfa\xd2\xe4\x93\x02\n" +
-	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/api/v1/processors/run\x12\x84\x01\n" +
+	"\tProcessor2\xaa\x05\n" +
+	"\x17ProcessorRuntimeService\x12f\n" +
+	"\fRunProcessor\x12&.processor_service.RunProcessorRequest\x1a\x1c.processor_service.Processor\"\x10\xfa\xd2\xe4\x93\x02\n" +
+	"\x12\bINTERNAL\x12\x84\x01\n" +
 	"\rStopProcessor\x12'.processor_service.StopProcessorRequest\x1a\x16.google.protobuf.Empty\"2\xfa\xd2\xe4\x93\x02\n" +
-	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/api/v1/processors/stop\x12\xa4\x01\n" +
-	"\x12GetProcessorStatus\x12,.processor_service.GetProcessorStatusRequest\x1a-.processor_service.GetProcessorStatusResponse\"1\xfa\xd2\xe4\x93\x02\n" +
-	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/processors/status\x12\x93\x01\n" +
+	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/api/v1/processors/stop\x12\x83\x01\n" +
+	"\x12GetProcessorStatus\x12,.processor_service.GetProcessorStatusRequest\x1a-.processor_service.GetProcessorStatusResponse\"\x10\xfa\xd2\xe4\x93\x02\n" +
+	"\x12\bINTERNAL\x12\x93\x01\n" +
 	"\aGetLogs\x12!.processor_service.GetLogsRequest\x1a\".processor_service.GetLogsResponse\"A\xfa\xd2\xe4\x93\x02\n" +
-	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02+:\x01*\"&/api/v1/processors/{processor_id}/logs\x12\xb9\x01\n" +
-	"\x12ReconcileProcessor\x12,.processor_service.ReconcileProcessorRequest\x1a-.processor_service.ReconcileProcessorResponse\"F\xfa\xd2\xe4\x93\x02\n" +
-	"\x12\bINTERNAL\x82\xd3\xe4\x93\x020:\x01*\"+/api/v1/processors/{processor_id}/reconcileB0Z.sentioxyz/sentio-core/service/processor/protosb\x06proto3"
+	"\x12\bINTERNAL\x82\xd3\xe4\x93\x02+:\x01*\"&/api/v1/processors/{processor_id}/logs\x12\x83\x01\n" +
+	"\x12ReconcileProcessor\x12,.processor_service.ReconcileProcessorRequest\x1a-.processor_service.ReconcileProcessorResponse\"\x10\xfa\xd2\xe4\x93\x02\n" +
+	"\x12\bINTERNALB0Z.sentioxyz/sentio-core/service/processor/protosb\x06proto3"
 
 var (
 	file_service_processor_protos_processor_service_proto_rawDescOnce sync.Once

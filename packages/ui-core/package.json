@@ -2,6 +2,11 @@
   "private": false,
   "name": "@sentio/ui-core",
   "version": "0.3.7",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sentioxyz/sentio-core.git",
+    "directory": "packages/ui-core"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

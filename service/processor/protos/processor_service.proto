@@ -714,14 +714,13 @@ message RunProcessorRequest {
 message StopProcessorRequest { string processor_id = 1; }
 
 // Processor runtime service(needed by sentio-node)
+//
+// RunProcessor, GetProcessorStatus and ReconcileProcessor are gRPC-only on
+// purpose: their only callers are other services, over gRPC. Do not give them a
+// google.api.http route. Only the methods a browser or CLI calls keep one.
 service ProcessorRuntimeService {
   rpc RunProcessor(RunProcessorRequest) returns (Processor) {
     option (google.api.method_visibility).restriction = "INTERNAL";
-
-    option (google.api.http) = {
-      post : "/api/v1/processors/run",
-      body : "*"
-    };
   };
   rpc StopProcessor(StopProcessorRequest) returns (google.protobuf.Empty) {
     option (google.api.method_visibility).restriction = "INTERNAL";
@@ -735,10 +734,6 @@ service ProcessorRuntimeService {
   rpc GetProcessorStatus(GetProcessorStatusRequest)
       returns (GetProcessorStatusResponse) {
     option (google.api.method_visibility).restriction = "INTERNAL";
-
-    option (google.api.http) = {
-      get : "/api/v1/processors/status"
-    };
   };
 
   rpc GetLogs(GetLogsRequest) returns (GetLogsResponse) {
@@ -753,11 +748,6 @@ service ProcessorRuntimeService {
   rpc ReconcileProcessor(ReconcileProcessorRequest)
       returns (ReconcileProcessorResponse) {
     option (google.api.method_visibility).restriction = "INTERNAL";
-
-    option (google.api.http) = {
-      post : "/api/v1/processors/{processor_id}/reconcile",
-      body : "*"
-    };
   }
 }
 

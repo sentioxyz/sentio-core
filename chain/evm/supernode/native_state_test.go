@@ -189,3 +189,57 @@ func Test_nativeStateOnlyMiddleware_customFunctionProxy(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), "the method "+method+" is not available at block 49", method)
 	}
 }
+
+// A request the handler cannot read as JSON-RPC is forwarded to the chain nodes untouched, which
+// may still execute it. Here the envelope carries a number no JSON decoder takes as a float64.
+func Test_nativeStateOnlyMiddleware_rawHTTPFallback(t *testing.T) {
+	newHandler := func(nativeFrom uint64) (*jsonrpc.Handler, *int) {
+		var forwarded int
+		h := jsonrpc.NewHandler("test", false, false, nil, nil, "")
+		h.RegisterMiddleware(
+			NewNativeStateOnlyMiddleware(nativeFrom, nil, nil),
+			// stands in for jsonrpc.NewHTTPProxyMiddleware
+			func(next jsonrpc.MethodHandler) jsonrpc.MethodHandler {
+				return func(ctx context.Context, method string, params json.RawMessage) (any, error) {
+					if method == jsonrpc.HTTPRequestMethod {
+						forwarded++
+						_, _ = jsonrpc.GetCtxData(ctx).RespWriter.Write([]byte("forwarded"))
+						return nil, nil
+					}
+					return "proxied", nil
+				}
+			},
+		)
+		return h, &forwarded
+	}
+	send := func(h *jsonrpc.Handler, body, contentType string, labeled bool) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", contentType)
+		if labeled {
+			req.Header.Set(jsonrpc.RequestSourceHeader, `{"Labels":{"`+jsonrpc.NativeStateOnlyLabel+`":true}}`)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	const malformed = `{"jsonrpc":"2.0","id":1,"method":"eth_getBalance",` +
+		`"params":["0x0000000000000000000000000000000000000001","0x1"],"result":1e1000}`
+	const wellFormed = `{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}`
+
+	h, forwarded := newHandler(50)
+	for _, contentType := range []string{"application/json", "text/plain"} {
+		rec := send(h, malformed, contentType, true)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, contentType)
+		assert.Contains(t, rec.Body.String(), "not a valid JSON-RPC request", contentType)
+	}
+	assert.Zero(t, *forwarded)
+	// an unlabelled source keeps the raw forwarding
+	assert.Equal(t, "forwarded", send(h, malformed, "application/json", false).Body.String())
+	assert.Equal(t, 1, *forwarded)
+
+	// and so does every source on a chain without a native range boundary
+	h, forwarded = newHandler(0)
+	assert.Equal(t, "forwarded", send(h, malformed, "application/json", true).Body.String())
+	assert.Equal(t, 1, *forwarded)
+	assert.Contains(t, send(h, wellFormed, "application/json", true).Body.String(), "proxied")
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -44,7 +45,9 @@ type nativeStateService struct {
 // NewNativeStateOnlyMiddleware rejects the state queries (eth_call, eth_getBalance, ...) of a request
 // carrying the jsonrpc.NativeStateOnlyLabel source label when they read the state at a block outside
 // the native range [nativeFrom, +inf) of the chain (see evm.NetworkOptions.NativeFrom). It must stand
-// in front of every middleware that proxies requests to the chain nodes.
+// in front of every middleware that proxies requests to the chain nodes, the one forwarding the
+// requests that are not JSON-RPC (jsonrpc.NewHTTPProxyMiddleware) included: such a request of a
+// labelled source is answered with 400 Bad Request, since nothing can tell what a node makes of it.
 //
 // A block given by its hash is resolved with the latest slot cache and then the store, both of which
 // may be nil. A hash neither of them knows is rejected as well: the chain node cannot tell it from an
@@ -76,6 +79,14 @@ func (s *nativeStateService) check(ctx context.Context, method string, params js
 	ctxData := jsonrpc.GetCtxData(ctx)
 	if ctxData == nil || !ctxData.ReqSrc.BoolLabel(jsonrpc.NativeStateOnlyLabel) {
 		return nil
+	}
+	if method == jsonrpc.HTTPRequestMethod {
+		// The request could not be read as JSON-RPC and would be forwarded to a chain node as it
+		// is. The node may read it differently and find a state query in it, so it is not let
+		// through unjudged.
+		const msg = "the request is not a valid JSON-RPC request"
+		http.Error(ctxData.RespWriter, msg, http.StatusBadRequest)
+		return errors.New(msg)
 	}
 	args, err := jsonrpc.ParseParams(params)
 	if err != nil {

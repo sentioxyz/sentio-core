@@ -390,6 +390,28 @@ func (c *EthVariationController[BLOCK, TXN]) QueryBlockLinks(
 	return result, err
 }
 
+func (c *EthVariationController[BLOCK, TXN]) blockNumberByHashSQL(hash common.Hash) string {
+	return fmt.Sprintf("SELECT block_number FROM %s WHERE block_hash = '%s' LIMIT 1",
+		c.ctrl.FullLogicName(tableNameBlocks), hash.Hex())
+}
+
+// QueryBlockNumberByHash returns the number of the stored block with the given hash, or nil if
+// there is none. It reads a single column through the bloom filter index of block_hash.
+func (c *EthVariationController[BLOCK, TXN]) QueryBlockNumberByHash(
+	ctx context.Context,
+	hash common.Hash,
+) (number *uint64, err error) {
+	err = c.ctrl.Query(ctx, func(rows driver.Rows) error {
+		var blockNumber uint64
+		if scanErr := rows.Scan(&blockNumber); scanErr != nil {
+			return scanErr
+		}
+		number = &blockNumber
+		return nil
+	}, c.blockNumberByHashSQL(hash))
+	return number, err
+}
+
 // blockTxHashesSQL selects transaction_index alongside the hash so the ORDER BY column is part
 // of the DISTINCT tuple, which also makes the dedup key the transaction's identity within the
 // block rather than the bare hash. See blocksSQL.

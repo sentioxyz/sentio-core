@@ -245,6 +245,10 @@ const (
 	NeverDowngradeLabel = "never_downgrade"
 	// ProxyOnlyLabel: never serve the request from the storage, always proxy it to the chain nodes.
 	ProxyOnlyLabel = "proxy_only"
+	// NativeStateOnlyLabel: only serve a state query at a block whose state the chain nodes hold natively.
+	// It matters for a chain whose nodes answer the older blocks by other, far more expensive means; such a
+	// chain declares where its native range starts, and a query below it is rejected instead of proxied.
+	NativeStateOnlyLabel = "native_state_only"
 )
 
 func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

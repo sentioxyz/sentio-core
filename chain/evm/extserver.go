@@ -32,6 +32,12 @@ type NetworkOptions struct {
 	// loading and get the MissTrace feature, for chains with a regenesis/migration boundary before
 	// which traces are unavailable (e.g. Optimism mainnet pre-bedrock, before block 105235063).
 	TraceStartBlock uint64
+	// NativeFrom is the first block whose state the chain nodes hold natively, so the native range
+	// is [NativeFrom, +inf). 0 means the whole chain is native. Below it a node still answers state
+	// queries, but by far more expensive means (e.g. an Arbitrum nitro node forwards the blocks
+	// before the nitro genesis to a classic node, which replays the chain to answer), so requests
+	// carrying jsonrpc.NativeStateOnlyLabel are not served there.
+	NativeFrom uint64
 }
 
 type ExtServerDimension struct {

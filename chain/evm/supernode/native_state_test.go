@@ -233,6 +233,13 @@ func Test_nativeStateOnlyMiddleware_rawHTTPFallback(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), "not a valid JSON-RPC request", contentType)
 	}
 	assert.Zero(t, *forwarded)
+	// a JSON-RPC call naming the internal method of that path has no response writer to answer on
+	const sentinel = `{"jsonrpc":"2.0","id":1,"method":"` + jsonrpc.HTTPRequestMethod + `","params":[]}`
+	rec := send(h, sentinel, "application/json", true)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"code":-32601`)
+	assert.Contains(t, rec.Body.String(), "not a valid JSON-RPC request")
+	assert.Zero(t, *forwarded)
 	// an unlabelled source keeps the raw forwarding
 	assert.Equal(t, "forwarded", send(h, malformed, "application/json", false).Body.String())
 	assert.Equal(t, 1, *forwarded)

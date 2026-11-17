@@ -85,6 +85,10 @@ func (s *nativeStateService) check(ctx context.Context, method string, params js
 		// is. The node may read it differently and find a state query in it, so it is not let
 		// through unjudged.
 		const msg = "the request is not a valid JSON-RPC request"
+		if ctxData.RespWriter == nil {
+			// not that path, but a JSON-RPC call naming the internal method itself
+			return jsonrpc.NewJSONError(jsonrpc.MethodNotFoundErrorCode, msg, nil)
+		}
 		http.Error(ctxData.RespWriter, msg, http.StatusBadRequest)
 		return errors.New(msg)
 	}

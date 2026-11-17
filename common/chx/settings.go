@@ -85,6 +85,25 @@ func SyncReplicaCtx(ctx context.Context, otherSettings ...map[string]any) contex
 	return ckhmanager.ContextMergeSettings(ctx, settings)
 }
 
+// onClusterDDLTimeoutSeconds is how long the hosts of a cluster are given to run a distributed
+// statement before it fails. It is the default of ClickHouse, stated so that it holds whatever the
+// connection is set to.
+const onClusterDDLTimeoutSeconds = 180
+
+// onClusterCtx is for every ON CLUSTER statement whose effect the caller goes on to rely on: it
+// makes the statement return only once every host has run it, and fail otherwise. Both settings
+// are put on the statement rather than left to the connection, whose settings may say otherwise.
+// With a task timeout of zero the statement returns as soon as it is queued, and an output mode
+// that does not throw reports a host that has not run it as a success; either way the caller
+// carries on as if a replica had caught up, or an INSERT had been ended, when it has not, and the
+// statement then runs later, on whatever is there by then.
+func onClusterCtx(ctx context.Context) context.Context {
+	return ckhmanager.ContextMergeSettings(ctx, map[string]any{
+		"distributed_ddl_output_mode":  "throw",
+		"distributed_ddl_task_timeout": onClusterDDLTimeoutSeconds,
+	})
+}
+
 func WithProjectionTableSettings(settings map[string]string) {
 	settings["lightweight_mutation_projection_mode"] = "'rebuild'"
 	// A merge that deduplicates refuses to run on a table with projections unless it is told what

@@ -384,7 +384,7 @@ func (s *SimpleSlotStore[SLOT]) Save(
 				)
 				// Tagged with the slots it writes, so that a truncate over them can end it first if it
 				// is still running when this save has given up on it, see deleteRange.
-				insertCtx := s.ctrl.RangeInsertCtx(ctx, table.Name, task.slotSet.Start, task.slotSet.EndOrMaxUInt64())
+				insertCtx := s.inserts(table.Name).Ctx(ctx, task.slotSet.Start, task.slotSet.EndOrMaxUInt64())
 				insertErr := s.ctrl.BatchInsert(insertCtx, sql, math.MaxInt, chx.NewGetter(task.rows, func(row []any) []any {
 					return row
 				}))
@@ -652,6 +652,12 @@ func (s *SimpleSlotStore[SLOT]) Delete(ctx context.Context, interval rg.Range) e
 	return s.deleteRange(ctx, interval, interval.End == nil)
 }
 
+// inserts is the scope the INSERTs into a table are tagged with, one per table: a truncate ends the
+// ones still running over its interval table by table, see chx.InsertScope.
+func (s *SimpleSlotStore[SLOT]) inserts(table string) chx.InsertScope {
+	return chx.NewInsertScope(s.ctrl, table)
+}
+
 func (s *SimpleSlotStore[SLOT]) deleteRange(ctx context.Context, interval rg.Range, syncReplicas bool) error {
 	_, logger := log.FromContext(ctx, "interval", interval.String())
 	start := time.Now()
@@ -685,7 +691,8 @@ func (s *SimpleSlotStore[SLOT]) deleteRange(ctx context.Context, interval rg.Ran
 			// The interval may have been written by an INSERT that this process, or the one before it,
 			// gave up on while the server kept going. Left running, it can commit its rows after the
 			// delete has counted, and the save that follows then writes them a second time.
-			if err = s.ctrl.EndRangeInserts(ctx, table.Table.Name, interval.Start, interval.EndOrMaxUInt64()); err != nil {
+			inserts := s.inserts(table.Table.Name)
+			if err = inserts.End(ctx, interval.Start, interval.EndOrMaxUInt64()); err != nil {
 				logger.With("table", table.Table.Name).Errorfe(err, "end inserts in range failed")
 				return errors.Wrapf(err, "end inserts into %s in range %s failed", table.Table.Name, interval)
 			}

@@ -24,7 +24,7 @@ func TestInsertScopeTagsAndEnds(t *testing.T) {
 	assert.NotEqual(t, ctx, scope.Ctx(ctx, 10, 20))
 
 	// one statement ends every INSERT of the scope from the number on, on every replica
-	require.NoError(t, scope.End(ctx, 15))
+	require.NoError(t, scope.End(ctx, 15, math.MaxUint64))
 	kills := conn.statements("KILL QUERY")
 	require.Len(t, kills, 1)
 	assert.Contains(t, kills[0], "ON CLUSTER 'c1'")
@@ -40,7 +40,7 @@ func TestInsertScopeTagsAndEnds(t *testing.T) {
 	settings := conn.settings[len(conn.settings)-1]
 	conn.mu.Unlock()
 	assert.Equal(t, "throw", settings["distributed_ddl_output_mode"])
-	assert.EqualValues(t, endInsertsDDLTimeoutSeconds, settings["distributed_ddl_task_timeout"])
+	assert.EqualValues(t, onClusterDDLTimeoutSeconds, settings["distributed_ddl_task_timeout"])
 
 	// the settings a caller put on the context do not get past them
 	conn2 := &fakeConn{}
@@ -49,24 +49,24 @@ func TestInsertScopeTagsAndEnds(t *testing.T) {
 		"distributed_ddl_task_timeout": 0,
 		"distributed_ddl_output_mode":  "never_throw",
 	})
-	require.NoError(t, scope2.End(lax, 0))
+	require.NoError(t, scope2.End(lax, 0, math.MaxUint64))
 	assert.Equal(t, "throw", conn2.settings[0]["distributed_ddl_output_mode"])
-	assert.EqualValues(t, endInsertsDDLTimeoutSeconds, conn2.settings[0]["distributed_ddl_task_timeout"])
+	assert.EqualValues(t, onClusterDDLTimeoutSeconds, conn2.settings[0]["distributed_ddl_task_timeout"])
 
 	// a store that is not on a cluster sends a plain statement, with nothing distributed to set
 	conn3 := &fakeConn{}
-	require.NoError(t, NewInsertScope(New(conn3, WithDatabase("db")), "entity@1").End(ctx, 0))
+	require.NoError(t, NewInsertScope(New(conn3, WithDatabase("db")), "entity@1").End(ctx, 0, math.MaxUint64))
 	require.Len(t, conn3.statements("KILL QUERY WHERE"), 1)
 	assert.NotContains(t, conn3.settings[0], "distributed_ddl_task_timeout")
 
 	// the suffix of one chain does not match the INSERTs of another chain of the same store
-	assert.False(t, strings.HasSuffix(ctrl.rangeInsertTableSuffix("entity@11"), ctrl.rangeInsertTableSuffix("entity@1")))
+	assert.False(t, strings.HasSuffix(ctrl.rangeInsertSuffix("entity@11"), ctrl.rangeInsertSuffix("entity@1")))
 }
 
 func TestInsertScopeEndReportsFailure(t *testing.T) {
 	conn := &fakeConn{onExec: func(string) error { return errors.New("not allowed") }}
 	scope := NewInsertScope(New(conn, WithDatabase("db")), "timeseries@1")
-	err := scope.End(context.Background(), 0)
+	err := scope.End(context.Background(), 0, math.MaxUint64)
 	assert.ErrorContains(t, err, "not allowed")
 	assert.ErrorContains(t, err, "timeseries@1")
 }
@@ -80,6 +80,6 @@ func TestInsertScopeBehindTenantProxyDoesNothing(t *testing.T) {
 	scope := NewInsertScope(ctrl, "entity@1")
 
 	assert.Equal(t, ctx, scope.Ctx(ctx, 10, 20))
-	require.NoError(t, scope.End(ctx, 0))
+	require.NoError(t, scope.End(ctx, 0, math.MaxUint64))
 	assert.Empty(t, conn.log)
 }

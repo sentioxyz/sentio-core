@@ -64,7 +64,7 @@ func TestTenantProxyNeverSendsRefusedStatements(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	assert.ErrorContains(t, c.EndRangeInserts(ctx, "blocks", 10, 20), "tenant proxy")
+	assert.ErrorContains(t, c.endRangeInserts(ctx, "blocks", 10, 20), "tenant proxy")
 	_, err = c.WithMaintenanceRoute(&testRoute)
 	assert.ErrorContains(t, err, "tenant proxy")
 	assert.Empty(t, conn.log, "a refused path must fail before sending anything")

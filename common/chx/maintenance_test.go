@@ -147,7 +147,7 @@ func TestLegacySQLUnchanged(t *testing.T) {
 	c := newTestController(t, conn, nil)
 	ctx := context.Background()
 
-	require.NoError(t, c.EndRangeInserts(ctx, "blocks", 10, 20))
+	require.NoError(t, c.endRangeInserts(ctx, "blocks", 10, 20))
 	_, err := c.DeleteAfterReplicaSync(ctx, "blocks", "number >= 10", false)
 	require.NoError(t, err)
 	_, err = c.Delete(ctx, "logs", "number >= 10", true)
@@ -365,7 +365,7 @@ func TestRoutedEndRangeInserts(t *testing.T) {
 	cl := newCluster()
 	conn := cl.conn()
 	c := newTestController(t, conn, &testRoute)
-	require.NoError(t, c.EndRangeInserts(context.Background(), "blocks", 10, 20))
+	require.NoError(t, c.endRangeInserts(context.Background(), "blocks", 10, 20))
 
 	kills := conn.statements("KILL QUERY")
 	require.Len(t, kills, 2)
@@ -381,17 +381,17 @@ func TestRoutedEndRangeInserts(t *testing.T) {
 
 	// An insert still listed after the kill is an error, not a drained range.
 	cl.processes = 1
-	assert.ErrorContains(t, c.EndRangeInserts(context.Background(), "blocks", 10, 20), "still running")
+	assert.ErrorContains(t, c.endRangeInserts(context.Background(), "blocks", 10, 20), "still running")
 
 	// So is a cluster whose replicas do not all answer.
 	cl.processes = 0
 	cl.answering["data"] = []string{"d1", "d2", "d3"}
-	assert.Error(t, c.EndRangeInserts(context.Background(), "blocks", 10, 20))
+	assert.Error(t, c.endRangeInserts(context.Background(), "blocks", 10, 20))
 
 	// And a kill that fails.
 	cl.answering["data"] = cl.hosts["data"]
 	conn.onExec = func(string) error { return errors.New("timeout") }
-	assert.ErrorContains(t, c.EndRangeInserts(context.Background(), "blocks", 10, 20), "timeout")
+	assert.ErrorContains(t, c.endRangeInserts(context.Background(), "blocks", 10, 20), "timeout")
 	assertRoutedSettings(t, conn)
 }
 

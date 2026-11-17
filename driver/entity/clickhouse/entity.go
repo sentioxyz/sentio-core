@@ -613,7 +613,7 @@ func (s *Store) reorg(ctx context.Context, blockNumber int64, chain string) (cha
 	// A reorg follows a commit that failed or a process that died, and either may have left an
 	// INSERT running on the server. Ended here, before anything is counted or deleted, it cannot
 	// commit its rows on top of what the deletes below have cleared.
-	if err = s.inserts(chain).End(ctx, uint64(max(blockNumber+1, 0))); err != nil {
+	if err = s.inserts(chain).End(ctx, uint64(max(blockNumber+1, 0)), math.MaxUint64); err != nil {
 		logger.Errorfe(err, "end the inserts left running failed")
 		return false, err
 	}

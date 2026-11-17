@@ -23,7 +23,7 @@ import (
 //
 //   - replica sync, which runs on the local tables of DataCluster, after the facade's pending
 //     asynchronous inserts have been pushed out of every node of ComputeCluster;
-//   - the cancelling of range inserts (EndRangeInserts), which runs on both clusters, the facade
+//   - the cancelling of range inserts (InsertScope.End), which runs on both clusters, the facade
 //     taking the initial INSERT and the local tables the ones it forwards;
 //   - deletes, which become heavyweight `ALTER TABLE <local> ON CLUSTER <DataCluster> DELETE`, waited
 //     for on every replica of DataCluster before the delete is reported done;
@@ -119,13 +119,6 @@ func maintQueryCtx(ctx context.Context) context.Context {
 	})
 }
 
-// maintDDLCtx is for distributed DDL: the statement fails unless every host has run it.
-func maintDDLCtx(ctx context.Context) context.Context {
-	return ckhmanager.ContextMergeSettings(ctx, map[string]any{
-		"distributed_ddl_output_mode": "throw",
-	})
-}
-
 // maintQueryIDPrefix starts the query id of every mutation submitted through a route. The id goes
 // on with a random part and the local table, `sentiomaint:<random>:<database>.<table>`, so that a
 // later call, of this process or another, can tell from system.processes that a submit for the
@@ -206,30 +199,16 @@ func (c Controller) countOnCluster(ctx context.Context, cluster, table, where st
 	return c.QueryCount(maintQueryCtx(ctx), sql, args...)
 }
 
-// routedRangeInsertFilter picks the INSERTs of the table writing any number from first to last,
-// whether the INSERT is the one tagged by RangeInsertCtx or one forwarded from it: a Distributed
-// table forwards the rows under a new query id and keeps the tagged one as initial_query_id.
-func (c Controller) routedRangeInsertFilter(table string, first, last uint64) string {
-	suffix := quoteString(c.rangeInsertTableSuffix(table))
-	match := func(col string) string {
-		return fmt.Sprintf("(startsWith(%s, %s) AND endsWith(%s, %s) "+
-			"AND toUInt64OrZero(splitByChar(':', %s)[2]) <= %d "+
-			"AND toUInt64OrZero(splitByChar(':', %s)[3]) >= %d)",
-			col, quoteString(rangeInsertQueryIDPrefix), col, suffix, col, last, col, first)
-	}
-	return fmt.Sprintf("query_kind = 'Insert' AND (%s OR %s)", match("query_id"), match("initial_query_id"))
-}
-
-// endRangeInsertsRouted is EndRangeInserts for a routed controller. The INSERT tagged by
-// RangeInsertCtx runs on a node of the compute cluster, and the ones it forwards on the replicas of
+// endRangeInsertsRouted is endRangeInserts for a routed controller. The INSERT tagged by an
+// InsertScope runs on a node of the compute cluster, and the ones it forwards on the replicas of
 // the data cluster; killing the first is not known to stop the others, so both are killed, and
 // then it is checked that neither cluster still runs any. A query still listed after that is not
 // taken as gone.
 func (c Controller) endRangeInsertsRouted(ctx context.Context, table string, first, last uint64) error {
-	filter := c.routedRangeInsertFilter(table, first, last)
+	filter := c.rangeInsertFilter(table, first, last, true)
 	for _, cluster := range c.maintClusters() {
 		sql := fmt.Sprintf("KILL QUERY ON CLUSTER %s WHERE %s SYNC", quoteString(cluster), filter)
-		if err := c.Exec(maintDDLCtx(ctx), sql); err != nil {
+		if err := c.Exec(onClusterCtx(ctx), sql); err != nil {
 			return errors.Wrapf(err, "kill range inserts into %s on cluster %s failed", table, cluster)
 		}
 	}
@@ -268,7 +247,7 @@ func (c Controller) endRangeInsertsRouted(ctx context.Context, table string, fir
 func (c Controller) syncReplicasRouted(ctx context.Context, table string) error {
 	flush := fmt.Sprintf("SYSTEM FLUSH DISTRIBUTED %s ON CLUSTER %s",
 		c.FullLogicName(table), quoteString(c.route.ComputeCluster))
-	if err := c.Exec(maintDDLCtx(SyncReplicaCtx(ctx)), flush); err != nil {
+	if err := c.Exec(onClusterCtx(SyncReplicaCtx(ctx)), flush); err != nil {
 		return errors.Wrapf(err, "flush the distributed queue of %s failed", table)
 	}
 	queued, err := c.countOnCluster(ctx, c.route.ComputeCluster, "system.distribution_queue",
@@ -281,7 +260,7 @@ func (c Controller) syncReplicasRouted(ctx context.Context, table string) error 
 	}
 	sync := fmt.Sprintf("SYSTEM SYNC REPLICA ON CLUSTER %s %s LIGHTWEIGHT",
 		quoteString(c.route.DataCluster), c.maintLocalName(table))
-	return c.Exec(maintDDLCtx(SyncReplicaCtx(ctx)), sync)
+	return c.Exec(onClusterCtx(SyncReplicaCtx(ctx)), sync)
 }
 
 // mutationRow is one mutation of the local table as one replica reports it.
@@ -582,7 +561,7 @@ func (c Controller) deleteRowsRouted(
 	snapshot := newMutationSnapshot(before)
 	sql := fmt.Sprintf("ALTER TABLE %s ON CLUSTER %s DELETE WHERE %s",
 		c.maintLocalName(table), quoteString(c.route.DataCluster), condition)
-	submitCtx := clickhouse.Context(maintDDLCtx(AsyncMutationCtx(ctx)), clickhouse.WithQueryID(c.maintQueryID(table)))
+	submitCtx := clickhouse.Context(onClusterCtx(AsyncMutationCtx(ctx)), clickhouse.WithQueryID(c.maintQueryID(table)))
 	submitErr := c.Exec(submitCtx, sql)
 	if submitErr != nil {
 		_, logger := log.FromContext(ctx, "table", table)
@@ -715,6 +694,9 @@ func mergeReplicaPartitions(hosts []string, parts []replicaPart) ([]PartitionMet
 // partition by id from the local table on the data cluster.
 func (c Controller) DropPartitionForMaintenance(ctx context.Context, table string, p PartitionMeta) error {
 	if c.route == nil {
+		if c.cluster != "" {
+			ctx = onClusterCtx(ctx)
+		}
 		return c.AlterTable(ctx, table, "DROP PARTITION ?", p.Partition)
 	}
 	if !partitionIDPattern.MatchString(p.PartitionID) {
@@ -722,7 +704,7 @@ func (c Controller) DropPartitionForMaintenance(ctx context.Context, table strin
 	}
 	sql := fmt.Sprintf("ALTER TABLE %s ON CLUSTER %s DROP PARTITION ID %s",
 		c.maintLocalName(table), quoteString(c.route.DataCluster), quoteString(p.PartitionID))
-	return c.Exec(maintDDLCtx(ctx), sql)
+	return c.Exec(onClusterCtx(ctx), sql)
 }
 
 // VerifyMaintenanceRoute checks, once before a store writes through a routed controller, that the

@@ -131,7 +131,8 @@ func newTestController(t *testing.T, conn *fakeConn, route *MaintenanceRoute) Co
 }
 
 // TestLegacySQLUnchanged pins the statements of a controller without a route to the ones it has
-// always issued.
+// always issued. The one exception is the scope the KILL QUERY looks for, which is matched in both
+// the form it is tagged with now and the one it had before, see rangeInsertTag.
 func TestLegacySQLUnchanged(t *testing.T) {
 	conn := &fakeConn{onQuery: func(sql string, args []any) ([][]any, error) {
 		switch {
@@ -147,7 +148,7 @@ func TestLegacySQLUnchanged(t *testing.T) {
 	c := newTestController(t, conn, nil)
 	ctx := context.Background()
 
-	require.NoError(t, c.EndRangeInserts(ctx, "blocks", 10, 20))
+	require.NoError(t, c.endRangeInserts(ctx, "blocks", 10, 20))
 	_, err := c.DeleteAfterReplicaSync(ctx, "blocks", "number >= 10", false)
 	require.NoError(t, err)
 	_, err = c.Delete(ctx, "logs", "number >= 10", true)
@@ -157,10 +158,8 @@ func TestLegacySQLUnchanged(t *testing.T) {
 	require.NoError(t, c.DropPartitionForMaintenance(ctx, "range", PartitionMeta{Partition: "20261018"}))
 
 	assert.Equal(t, []string{
-		"KILL QUERY ON CLUSTER 'compute' WHERE query_kind = 'Insert' " +
-			"AND startsWith(query_id, 'rangeinsert:') AND endsWith(query_id, ':chain_db.zircuit.blocks') " +
-			"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= 20 " +
-			"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= 10 SYNC",
+		"KILL QUERY ON CLUSTER 'compute' WHERE query_kind = 'Insert' AND " +
+			wantRangeInsertMatch("query_id", "chain_db", "zircuit.", "blocks", 10, 20) + " SYNC",
 		"SELECT count(), max(latest_fail_reason) FROM system.mutations " +
 			"WHERE database = ? AND table = ? AND NOT is_done AND command LIKE ?",
 		"SYSTEM SYNC REPLICA ON CLUSTER 'compute' `chain_db`.`zircuit.blocks` LIGHTWEIGHT",
@@ -365,33 +364,29 @@ func TestRoutedEndRangeInserts(t *testing.T) {
 	cl := newCluster()
 	conn := cl.conn()
 	c := newTestController(t, conn, &testRoute)
-	require.NoError(t, c.EndRangeInserts(context.Background(), "blocks", 10, 20))
+	require.NoError(t, c.endRangeInserts(context.Background(), "blocks", 10, 20))
 
 	kills := conn.statements("KILL QUERY")
 	require.Len(t, kills, 2)
-	filter := "WHERE query_kind = 'Insert' AND (" +
-		"(startsWith(query_id, 'rangeinsert:') AND endsWith(query_id, ':chain_db.zircuit.blocks') " +
-		"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= 20 " +
-		"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= 10) OR " +
-		"(startsWith(initial_query_id, 'rangeinsert:') AND endsWith(initial_query_id, ':chain_db.zircuit.blocks') " +
-		"AND toUInt64OrZero(splitByChar(':', initial_query_id)[2]) <= 20 " +
-		"AND toUInt64OrZero(splitByChar(':', initial_query_id)[3]) >= 10)) SYNC"
+	filter := "WHERE query_kind = 'Insert' AND ((" +
+		wantRangeInsertMatch("query_id", "chain_db", "zircuit.", "blocks", 10, 20) + ") OR (" +
+		wantRangeInsertMatch("initial_query_id", "chain_db", "zircuit.", "blocks", 10, 20) + ")) SYNC"
 	assert.Equal(t, "KILL QUERY ON CLUSTER 'compute' "+filter, kills[0])
 	assert.Equal(t, "KILL QUERY ON CLUSTER 'data' "+filter, kills[1])
 
 	// An insert still listed after the kill is an error, not a drained range.
 	cl.processes = 1
-	assert.ErrorContains(t, c.EndRangeInserts(context.Background(), "blocks", 10, 20), "still running")
+	assert.ErrorContains(t, c.endRangeInserts(context.Background(), "blocks", 10, 20), "still running")
 
 	// So is a cluster whose replicas do not all answer.
 	cl.processes = 0
 	cl.answering["data"] = []string{"d1", "d2", "d3"}
-	assert.Error(t, c.EndRangeInserts(context.Background(), "blocks", 10, 20))
+	assert.Error(t, c.endRangeInserts(context.Background(), "blocks", 10, 20))
 
 	// And a kill that fails.
 	cl.answering["data"] = cl.hosts["data"]
 	conn.onExec = func(string) error { return errors.New("timeout") }
-	assert.ErrorContains(t, c.EndRangeInserts(context.Background(), "blocks", 10, 20), "timeout")
+	assert.ErrorContains(t, c.endRangeInserts(context.Background(), "blocks", 10, 20), "timeout")
 	assertRoutedSettings(t, conn)
 }
 
@@ -441,6 +436,7 @@ func assertRoutedSettings(t *testing.T, conn *fakeConn) {
 			assert.Equal(t, 0, s["use_query_cache"], sql)
 		} else if strings.Contains(sql, " ON CLUSTER ") {
 			assert.Equal(t, "throw", s["distributed_ddl_output_mode"], sql)
+			assert.EqualValues(t, onClusterDDLTimeoutSeconds, s["distributed_ddl_task_timeout"], sql)
 		}
 	}
 }

@@ -204,6 +204,10 @@ func TestReplicaGateUsesControllerSync(t *testing.T) {
 	require.NoError(t, g.WaitSynced(ctx, "entity_X"))
 	syncs := conn.statements("SYSTEM SYNC REPLICA")
 	require.Len(t, syncs, 1)
+	// the wait is only one once every host has run it: a statement that returns while it is merely
+	// queued, or reports a host that has not run it as done, would leave the table marked as synced
+	assert.Equal(t, "throw", conn.settings[0]["distributed_ddl_output_mode"])
+	assert.EqualValues(t, onClusterDDLTimeoutSeconds, conn.settings[0]["distributed_ddl_task_timeout"])
 	assert.True(t, strings.Contains(syncs[0], "ON CLUSTER 'c1'") && strings.Contains(syncs[0], "entity_X"), syncs[0])
 
 	conn = &fakeConn{}

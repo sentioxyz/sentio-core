@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 	lru "github.com/sentioxyz/golang-lru"
@@ -80,7 +81,7 @@ func (s *nativeStateService) check(ctx context.Context, method string, params js
 	if err != nil {
 		return nil // not ours to judge, the handler of the method reports it
 	}
-	bp, isStateMethod, err := evm.StateMethodBlockParameter(method, args)
+	bp, isStateMethod, err := stateBlockOf(method, args)
 	if !isStateMethod {
 		return nil
 	}
@@ -97,6 +98,34 @@ func (s *nativeStateService) check(ctx context.Context, method string, params js
 		return s.reject(method, fmt.Sprintf("block %d", uint64(bn)))
 	}
 	return nil // a native block number, or a tag that follows the head of the chain
+}
+
+// multipleStorageAtBlockArgIndex is where the batched storage methods of the custom function proxy
+// take their block number. They expand into eth_getStorageAt calls sent straight to the chain
+// nodes, which do not come back through the middlewares, so they are checked as a whole here.
+var multipleStorageAtBlockArgIndex = map[string]int{
+	"custom_multipleStorageAt": 1,
+	"sentio_multipleStorageAt": 1,
+}
+
+// stateBlockOf returns the block a state query reads its state at, for the state methods of the
+// chain nodes as well as the ones the super node builds on top of them.
+func stateBlockOf(method string, args []any) (bp rpc.BlockNumberOrHash, isStateMethod bool, err error) {
+	argIndex, has := multipleStorageAtBlockArgIndex[method]
+	if !has {
+		return evm.StateMethodBlockParameter(method, args)
+	}
+	var number hexutil.Uint64
+	if argIndex < len(args) {
+		raw, _ := json.Marshal(args[argIndex])
+		err = json.Unmarshal(raw, &number)
+	} else {
+		err = errors.New("missing")
+	}
+	if err != nil {
+		return bp, true, errors.Wrapf(err, "invalid block number in #%d arg for the method %s", argIndex, method)
+	}
+	return rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(number)), true, nil
 }
 
 func (s *nativeStateService) checkBlockHash(ctx context.Context, method string, hash common.Hash) error {

@@ -113,6 +113,15 @@ func Test_nativeStateOnlyMiddleware(t *testing.T) {
 	rejected("eth_getBalance", `["0x0000000000000000000000000000000000000001","0x31"]`, "block 49")
 	rejected("eth_getStorageAt", `["0x0000000000000000000000000000000000000001","0x0","0x31"]`, "block 49")
 	served("eth_getStorageAt", `["0x0000000000000000000000000000000000000001","0x0","0x32"]`, true)
+	// the batched storage methods of the custom function proxy read the state at their block number
+	const storageKeys = `[{"address":"0x0000000000000000000000000000000000000001","key":"0x0"}]`
+	for _, method := range []string{"custom_multipleStorageAt", "sentio_multipleStorageAt"} {
+		rejected(method, `["0x1","0x31",`+storageKeys+`]`, "block 49")
+		served(method, `["0x1","0x32",`+storageKeys+`]`, true)
+		served(method, `["0x1","0x31",`+storageKeys+`]`, false)
+		_, errMsg := call(method, `["0x1"]`, true)
+		assert.Contains(t, errMsg, "invalid block number in #1 arg")
+	}
 	// other methods are not looked at
 	served("eth_getBlockByNumber", `["0x1",false]`, true)
 	served("eth_getLogs", `[{"blockHash":"`+hashOf(1).Hex()+`"}]`, true)
@@ -158,3 +167,25 @@ func Test_nativeStateOnlyMiddleware(t *testing.T) {
 
 // hashOfUnknown is a block parameter holding a hash no slot cache or store of the tests knows.
 const hashOfUnknown = `{"blockHash":"0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}`
+
+// The batched storage methods expand into eth_getStorageAt calls that go straight to the chain
+// nodes, so the middleware in front of the real custom function proxy has to stop them itself.
+func Test_nativeStateOnlyMiddleware_customFunctionProxy(t *testing.T) {
+	h := jsonrpc.NewHandler("test", false, false, nil, nil, "")
+	h.RegisterMiddleware(
+		NewNativeStateOnlyMiddleware(50, nil, nil),
+		// no client pool: a request getting this far would crash on it
+		NewCustomFunctionProxyMiddleware(nil),
+	)
+	for _, method := range []string{"custom_multipleStorageAt", "sentio_multipleStorageAt"} {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(
+			`{"jsonrpc":"2.0","id":1,"method":"`+method+`","params":["0x1","0x31",`+
+				`[{"address":"0x0000000000000000000000000000000000000001","key":"0x0"}]]}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(jsonrpc.RequestSourceHeader, `{"Labels":{"`+jsonrpc.NativeStateOnlyLabel+`":true}}`)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), "the method "+method+" is not available at block 49", method)
+	}
+}

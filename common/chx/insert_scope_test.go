@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 )
 
 func TestInsertScopeTagsAndEnds(t *testing.T) {
@@ -30,6 +32,32 @@ func TestInsertScopeTagsAndEnds(t *testing.T) {
 	// an INSERT is ended when its range reaches into [15, max]
 	assert.Contains(t, kills[0], fmt.Sprintf("[2]) <= %d ", uint64(math.MaxUint64)))
 	assert.Contains(t, kills[0], "[3]) >= 15 SYNC")
+
+	// the statement waits for every host and fails unless all of them have run it, whatever the
+	// connection is set to: returning while it is only queued would let the INSERT outlive the
+	// delete, and let the statement run later against the INSERTs of the retry
+	conn.mu.Lock()
+	settings := conn.settings[len(conn.settings)-1]
+	conn.mu.Unlock()
+	assert.Equal(t, "throw", settings["distributed_ddl_output_mode"])
+	assert.EqualValues(t, endInsertsDDLTimeoutSeconds, settings["distributed_ddl_task_timeout"])
+
+	// the settings a caller put on the context do not get past them
+	conn2 := &fakeConn{}
+	scope2 := NewInsertScope(New(conn2, WithCluster("c1"), WithDatabase("db")), "entity@1")
+	lax := ckhmanager.ContextMergeSettings(ctx, map[string]any{
+		"distributed_ddl_task_timeout": 0,
+		"distributed_ddl_output_mode":  "never_throw",
+	})
+	require.NoError(t, scope2.End(lax, 0))
+	assert.Equal(t, "throw", conn2.settings[0]["distributed_ddl_output_mode"])
+	assert.EqualValues(t, endInsertsDDLTimeoutSeconds, conn2.settings[0]["distributed_ddl_task_timeout"])
+
+	// a store that is not on a cluster sends a plain statement, with nothing distributed to set
+	conn3 := &fakeConn{}
+	require.NoError(t, NewInsertScope(New(conn3, WithDatabase("db")), "entity@1").End(ctx, 0))
+	require.Len(t, conn3.statements("KILL QUERY WHERE"), 1)
+	assert.NotContains(t, conn3.settings[0], "distributed_ddl_task_timeout")
 
 	// the suffix of one chain does not match the INSERTs of another chain of the same store
 	assert.False(t, strings.HasSuffix(ctrl.rangeInsertTableSuffix("entity@11"), ctrl.rangeInsertTableSuffix("entity@1")))

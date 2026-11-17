@@ -6,8 +6,25 @@ import (
 
 	"github.com/pkg/errors"
 
+	ckhmanager "sentioxyz/sentio-core/common/clickhousemanager"
 	"sentioxyz/sentio-core/common/envconf"
 )
+
+// endInsertsDDLTimeoutSeconds is how long the hosts of the cluster are given to run the statement
+// of InsertScope.End before it fails.
+const endInsertsDDLTimeoutSeconds = 180
+
+// endInsertsCtx makes the distributed statement of InsertScope.End return only once every host has
+// run it, and fail otherwise. Both are set here rather than left to the connection, whose settings
+// may say otherwise: with a task timeout of zero the statement returns as soon as it is queued,
+// and an output mode that does not throw reports a host that has not run it as a success. Either
+// way End would return while the INSERT it is meant to end is still running, and the statement
+// would then run later, against the INSERTs of the retry.
+func endInsertsCtx(ctx context.Context) context.Context {
+	return ckhmanager.ContextMergeSettings(maintDDLCtx(ctx), map[string]any{
+		"distributed_ddl_task_timeout": endInsertsDDLTimeoutSeconds,
+	})
+}
 
 // endAbandonedInserts turns InsertScope.End off when set to false. It is there for a cluster on
 // which the statement cannot be run, a user without the right to KILL QUERY ON CLUSTER for one.
@@ -48,6 +65,9 @@ func (s InsertScope) Ctx(ctx context.Context, first, last uint64) context.Contex
 func (s InsertScope) End(ctx context.Context, first uint64) error {
 	if s.ctrl.tenantProxy || !endAbandonedInserts {
 		return nil
+	}
+	if s.ctrl.cluster != "" || s.ctrl.route != nil {
+		ctx = endInsertsCtx(ctx)
 	}
 	if err := s.ctrl.EndRangeInserts(ctx, s.name, first, math.MaxUint64); err != nil {
 		return errors.Wrapf(err, "end the inserts of %s from %d on failed", s.name, first)

@@ -1,4 +1,5 @@
 import { CSSProperties, forwardRef, useEffect, useState } from 'react'
+import { escape } from 'lodash'
 import type { ECharts } from 'echarts/core'
 import { useResizeDetector } from 'react-resize-detector'
 import { EChartsHandle, EChartsOption, ReactEChartsBase } from './EchartsBase'
@@ -155,9 +156,10 @@ export const PieChart = forwardRef<EChartsHandle, PieChartProps>(
                 formatter: function (params: any) {
                   const name = params.name
                   const item = d.find((i) => i.name === name)
-                  let ret = name
+                  // the result is rendered as HTML, while the name and the value prefix/suffix are user supplied
+                  let ret = escape(name)
                   if (config?.pieConfig?.showValue && item) {
-                    ret += '<br/>' + valueFormatter(item.value)
+                    ret += '<br/>' + escape(valueFormatter(item.value))
                   }
                   if (config?.pieConfig?.showPercent && item) {
                     const percent = (
@@ -189,9 +191,10 @@ export const PieChart = forwardRef<EChartsHandle, PieChartProps>(
                 formatter: function (params: any) {
                   const name = params.name
                   const item = d.find((i) => i.name === name)
-                  let ret = name
+                  // the result is rendered as HTML, while the name and the value prefix/suffix are user supplied
+                  let ret = escape(name)
                   if (config?.pieConfig?.showValue && item) {
-                    ret += '<br/>' + valueFormatter(item.value)
+                    ret += '<br/>' + escape(valueFormatter(item.value))
                   }
                   if (config?.pieConfig?.showPercent && item) {
                     const percent = (
@@ -247,9 +250,10 @@ export const PieChart = forwardRef<EChartsHandle, PieChartProps>(
           extraCssText: tooltipExtraCss,
           position: tooltipPosition,
           formatter: ({ name, data, percent }: any) => {
-            let ret = `${name}`
+            // the result is rendered as HTML, while the name and the value prefix/suffix are user supplied
+            let ret = escape(name)
             if (config?.pieConfig?.showValue) {
-              ret += '<br/>' + valueFormatter(data.value)
+              ret += '<br/>' + escape(valueFormatter(data.value))
             }
             if (config?.pieConfig?.showPercent) {
               ret += config.pieConfig.showValue

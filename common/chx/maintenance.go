@@ -694,6 +694,9 @@ func mergeReplicaPartitions(hosts []string, parts []replicaPart) ([]PartitionMet
 // partition by id from the local table on the data cluster.
 func (c Controller) DropPartitionForMaintenance(ctx context.Context, table string, p PartitionMeta) error {
 	if c.route == nil {
+		if c.cluster != "" {
+			ctx = onClusterCtx(ctx)
+		}
 		return c.AlterTable(ctx, table, "DROP PARTITION ?", p.Partition)
 	}
 	if !partitionIDPattern.MatchString(p.PartitionID) {

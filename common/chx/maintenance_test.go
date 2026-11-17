@@ -441,6 +441,7 @@ func assertRoutedSettings(t *testing.T, conn *fakeConn) {
 			assert.Equal(t, 0, s["use_query_cache"], sql)
 		} else if strings.Contains(sql, " ON CLUSTER ") {
 			assert.Equal(t, "throw", s["distributed_ddl_output_mode"], sql)
+			assert.EqualValues(t, onClusterDDLTimeoutSeconds, s["distributed_ddl_task_timeout"], sql)
 		}
 	}
 }

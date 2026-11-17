@@ -694,7 +694,7 @@ func (s *SimpleSlotStore[SLOT]) deleteRange(ctx context.Context, interval rg.Ran
 			inserts := s.inserts(table.Table.Name)
 			if err = inserts.End(ctx, interval.Start, interval.EndOrMaxUInt64()); err != nil {
 				logger.With("table", table.Table.Name).Errorfe(err, "end inserts in range failed")
-				return errors.Wrapf(err, "end inserts into %s in range %s failed", table.Table.Name, interval)
+				return err
 			}
 			count, err = s.ctrl.DeleteAfterReplicaSync(ctx, table.Table.Name, where, light)
 		} else {

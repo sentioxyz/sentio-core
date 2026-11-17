@@ -59,6 +59,15 @@ func TestInsertScopeTagsAndEnds(t *testing.T) {
 	require.Len(t, conn3.statements("KILL QUERY WHERE"), 1)
 	assert.NotContains(t, conn3.settings[0], "distributed_ddl_task_timeout")
 
+	// a bounded range, as a writer with a scope per table asks for: an INSERT is ended when its
+	// range reaches into [10, 20]
+	conn4 := &fakeConn{}
+	require.NoError(t, NewInsertScope(New(conn4, WithDatabase("db"), WithTableNamePrefix("zircuit.")), "blocks").End(ctx, 10, 20))
+	assert.Equal(t, []string{"KILL QUERY WHERE query_kind = 'Insert' " +
+		"AND startsWith(query_id, 'rangeinsert:') AND endsWith(query_id, ':db.zircuit.blocks') " +
+		"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= 20 " +
+		"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= 10 SYNC"}, conn4.log)
+
 	// the suffix of one chain does not match the INSERTs of another chain of the same store
 	assert.False(t, strings.HasSuffix(ctrl.rangeInsertSuffix("entity@11"), ctrl.rangeInsertSuffix("entity@1")))
 }

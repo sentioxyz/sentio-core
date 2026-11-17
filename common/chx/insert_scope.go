@@ -100,12 +100,9 @@ func (c Controller) rangeInsertFilter(name string, first, last uint64, forwarded
 // a replica can only be asked about its own queries, so on a cluster the statement runs ON CLUSTER,
 // which makes it a distributed DDL statement like the replica sync of DeleteAfterReplicaSync, and
 // it is meant for the same deletes. On a controller with a MaintenanceRoute it runs on both
-// clusters of the route, see endRangeInsertsRouted. A controller behind a tenant proxy returns an
-// error without sending anything.
+// clusters of the route, see endRangeInsertsRouted. It is not for a controller behind a tenant
+// proxy, which InsertScope.End keeps away from it.
 func (c Controller) endRangeInserts(ctx context.Context, name string, first, last uint64) error {
-	if c.tenantProxy {
-		return errTenantProxy("ending range inserts (KILL QUERY)")
-	}
 	if c.route != nil {
 		return c.endRangeInsertsRouted(ctx, name, first, last)
 	}

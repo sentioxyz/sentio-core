@@ -27,6 +27,8 @@ type EthVariationCtrl interface {
 
 	QueryBlocks(ctx context.Context, where string, args ...any) ([]evm.ExtendedHeader, error)
 	QueryBlockLinks(ctx context.Context, from, to uint64) ([]evm.BlockLink, error)
+	// QueryBlockNumberByHash returns nil if no stored block has the hash.
+	QueryBlockNumberByHash(ctx context.Context, hash common.Hash) (*uint64, error)
 	QueryBlockTxHashes(ctx context.Context, blockNumber uint64) ([]string, error)
 	QueryTxs(ctx context.Context, where string, args ...any) ([]evm.ExtendedTransaction, error)
 	QueryLogs(ctx context.Context, where string, limit int, args ...any) ([]types.Log, error)

@@ -132,7 +132,7 @@ func newTestController(t *testing.T, conn *fakeConn, route *MaintenanceRoute) Co
 
 // TestLegacySQLUnchanged pins the statements of a controller without a route to the ones it has
 // always issued. The one exception is the scope the KILL QUERY looks for, which is matched in both
-// the form it is tagged with now and the one it had before, see legacyRangeInsertSuffix.
+// the form it is tagged with now and the one it had before, see rangeInsertTag.
 func TestLegacySQLUnchanged(t *testing.T) {
 	conn := &fakeConn{onQuery: func(sql string, args []any) ([][]any, error) {
 		switch {
@@ -158,12 +158,8 @@ func TestLegacySQLUnchanged(t *testing.T) {
 	require.NoError(t, c.DropPartitionForMaintenance(ctx, "range", PartitionMeta{Partition: "20261018"}))
 
 	assert.Equal(t, []string{
-		"KILL QUERY ON CLUSTER 'compute' WHERE query_kind = 'Insert' " +
-			"AND startsWith(query_id, 'rangeinsert:') AND (" +
-			"(length(splitByChar(':', query_id)) = 7 AND endsWith(query_id, ':chain_db:zircuit.:blocks')) OR " +
-			"(length(splitByChar(':', query_id)) = 5 AND endsWith(query_id, ':chain_db.zircuit.blocks'))) " +
-			"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= 20 " +
-			"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= 10 SYNC",
+		"KILL QUERY ON CLUSTER 'compute' WHERE query_kind = 'Insert' AND " +
+			wantRangeInsertMatch("query_id", "chain_db", "zircuit.", "blocks", 10, 20) + " SYNC",
 		"SELECT count(), max(latest_fail_reason) FROM system.mutations " +
 			"WHERE database = ? AND table = ? AND NOT is_done AND command LIKE ?",
 		"SYSTEM SYNC REPLICA ON CLUSTER 'compute' `chain_db`.`zircuit.blocks` LIGHTWEIGHT",
@@ -372,19 +368,9 @@ func TestRoutedEndRangeInserts(t *testing.T) {
 
 	kills := conn.statements("KILL QUERY")
 	require.Len(t, kills, 2)
-	filter := "WHERE query_kind = 'Insert' AND (" +
-		"(startsWith(query_id, 'rangeinsert:') AND (" +
-		"(length(splitByChar(':', query_id)) = 7 AND endsWith(query_id, ':chain_db:zircuit.:blocks')) OR " +
-		"(length(splitByChar(':', query_id)) = 5 AND endsWith(query_id, ':chain_db.zircuit.blocks'))) " +
-		"AND toUInt64OrZero(splitByChar(':', query_id)[2]) <= 20 " +
-		"AND toUInt64OrZero(splitByChar(':', query_id)[3]) >= 10) OR " +
-		"(startsWith(initial_query_id, 'rangeinsert:') AND (" +
-		"(length(splitByChar(':', initial_query_id)) = 7 " +
-		"AND endsWith(initial_query_id, ':chain_db:zircuit.:blocks')) OR " +
-		"(length(splitByChar(':', initial_query_id)) = 5 " +
-		"AND endsWith(initial_query_id, ':chain_db.zircuit.blocks'))) " +
-		"AND toUInt64OrZero(splitByChar(':', initial_query_id)[2]) <= 20 " +
-		"AND toUInt64OrZero(splitByChar(':', initial_query_id)[3]) >= 10)) SYNC"
+	filter := "WHERE query_kind = 'Insert' AND ((" +
+		wantRangeInsertMatch("query_id", "chain_db", "zircuit.", "blocks", 10, 20) + ") OR (" +
+		wantRangeInsertMatch("initial_query_id", "chain_db", "zircuit.", "blocks", 10, 20) + ")) SYNC"
 	assert.Equal(t, "KILL QUERY ON CLUSTER 'compute' "+filter, kills[0])
 	assert.Equal(t, "KILL QUERY ON CLUSTER 'data' "+filter, kills[1])
 

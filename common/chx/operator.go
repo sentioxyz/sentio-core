@@ -479,7 +479,7 @@ func (c Controller) Create(ctx context.Context, tableOrView TableOrView) (err er
 // ensureReplicatedEverywhere.
 func (c Controller) SyncTable(ctx context.Context, pre, cur Table) error {
 	if pre.Name == cur.Name {
-		replaced, err := c.ensureReplicatedEverywhere(ctx, cur)
+		replaced, err := c.ensureReplicatedEverywhere(ctx, pre, cur)
 		if err != nil || replaced {
 			return err
 		}

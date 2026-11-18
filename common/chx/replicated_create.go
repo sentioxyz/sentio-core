@@ -3,6 +3,7 @@ package chx
 import (
 	"context"
 	"fmt"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -68,9 +69,7 @@ type replicatedTableIncarnation struct {
 type replicatedLookup struct {
 	// usable is false if the lookup cannot tell what an ON CLUSTER statement would do, see
 	// lookupReplicated, and the table is then left to the plain statements
-	usable bool
-	// replicas is the number of replicas of the cluster, which has a single shard if usable
-	replicas     uint64
+	usable       bool
 	incarnations []replicatedTableIncarnation
 }
 
@@ -84,7 +83,7 @@ func (c Controller) lookupReplicated(ctx context.Context, table Table) (replicat
 	// The lookup sees the replication path of the shard of the connected server only, through its
 	// {shard} macro, while ON CLUSTER statements reach every shard of the cluster. On a cluster of
 	// several shards it could not tell what the statements would do on the other shards.
-	shards, replicas, err := c.clusterLayout(ctx)
+	shards, _, err := c.clusterLayout(ctx)
 	var base string
 	var ok bool
 	if err == nil && shards == 1 {
@@ -103,7 +102,6 @@ func (c Controller) lookupReplicated(ctx context.Context, table Table) (replicat
 	// Without {uuid} at the end, the replication path does not depend on the UUID, so every table
 	// created under the name shares one replication log whatever its UUID: it cannot split.
 	lookup.usable = shards == 1 && ok
-	lookup.replicas = replicas
 	return lookup, nil
 }
 
@@ -155,49 +153,99 @@ func (c Controller) repairSplit(ctx context.Context, table Table, incarnations [
 // from the replica it is connected to, and once that one holds the table it syncs the table rather
 // than creating it. That is how a replica whose DDL worker was stuck while the table was created
 // stays without it, and the store keeps writing to the others, or creates a table of its own on
-// the replica the day it connects to it. SyncTable therefore checks first that every replica of the
-// cluster is registered under the table in ZooKeeper, and creates the table on those that are not,
-// with its UUID, the way Create joins a table found on some replicas.
+// the replica the day it connects to it. SyncTable therefore first checks the table as the
+// connected replica runs it, and creates it on the replicas that miss it, with its UUID, the way
+// Create joins a table found on some replicas.
+//
+// The check goes by what the connected replica reports for the table itself, its replication path
+// and the replicas active on it in system.replicas, rather than by the definition requested, whose
+// replication path an existing table need not have: a split is only looked for, and a table only
+// dropped, among the tables under the path of the very table the store holds. Replicas are counted
+// by whether they are active, since the registration of a replica that is gone may stay behind.
 
-// ensureReplicatedEverywhere makes sure every replica of the cluster holds table, which exists on
-// the connected replica. replaced is set if the table was split without data and has been dropped
-// and created again with the structure of table, so that there is nothing left to sync.
-func (c Controller) ensureReplicatedEverywhere(ctx context.Context, table Table) (replaced bool, err error) {
-	if !c.createsReplicatedOnCluster(table) {
+// syncedReplicatedTable is what the connected replica reports for a replicated table it holds.
+type syncedReplicatedTable struct {
+	uuid           string
+	createQuery    string
+	zookeeperPath  string
+	activeReplicas uint64
+}
+
+func (c Controller) loadSyncedReplicatedTable(ctx context.Context, name string) (syncedReplicatedTable, bool, error) {
+	var t syncedReplicatedTable
+	var found bool
+	err := c.Query(ctx, func(rows driver.Rows) error {
+		found = true
+		return rows.Scan(&t.uuid, &t.createQuery)
+	}, "SELECT toString(uuid), create_table_query FROM system.tables WHERE database = ? AND name = ?",
+		c.database, c.tableNamePrefix+name)
+	if err != nil || !found {
+		return t, false, err
+	}
+	found = false
+	err = c.Query(ctx, func(rows driver.Rows) error {
+		found = true
+		return rows.Scan(&t.zookeeperPath, &t.activeReplicas)
+	}, "SELECT zookeeper_path, toUInt64(active_replicas) FROM system.replicas WHERE database = ? AND table = ?",
+		c.database, c.tableNamePrefix+name)
+	return t, found, err
+}
+
+// ensureReplicatedEverywhere makes sure every replica of the cluster holds the table pre, which
+// exists on the connected replica and is synced to cur. replaced is set if the table was split
+// without data and has been dropped and created again as cur, so that there is nothing left to
+// sync.
+func (c Controller) ensureReplicatedEverywhere(ctx context.Context, pre, cur Table) (replaced bool, err error) {
+	if pre.Config.Engine == nil || !pre.Config.Engine.Replicated() || !c.createsReplicatedOnCluster(cur) {
 		return false, nil
 	}
-	_, logger := log.FromContext(ctx, "name", table.Name)
-	lookup, err := c.lookupReplicated(ctx, table)
-	if err != nil {
-		return false, errors.Wrapf(err, "check the replicas of table %s failed", table.Name)
-	}
-	if !lookup.usable {
-		return false, nil
-	}
-	incarnations := lookup.incarnations
-	switch len(incarnations) {
-	case 0:
-		// The table exists here but nothing is registered under its replication path, which the
-		// lookup worked out from the requested engine: the table was likely created with another
-		// path, and is left as it is.
-		logger.Warnf("table is not found in ZooKeeper, will not check its replicas")
-		return false, nil
-	case 1:
-		inc := incarnations[0]
-		if uint64(len(inc.Replicas)) >= lookup.replicas {
-			return false, nil
+	_, logger := log.FromContext(ctx, "name", cur.Name)
+	defer func() {
+		if err != nil && isAccessDenied(err) {
+			logger.Warnfe(err, "cannot check the replicas of the table")
+			replaced, err = false, nil
 		}
-		logger.Warnf("table with UUID %s is only on replicas %v of the %d of the cluster, will create it on the others",
-			inc.UUID, inc.Replicas, lookup.replicas)
-		if err = c.joinReplicatedAsIs(ctx, table.Name, inc.UUID); err != nil {
-			return false, err
-		}
-		return false, nil
-	}
-	if err = c.repairSplit(ctx, table, incarnations); err != nil {
+	}()
+	// on a cluster of several shards the replicas of the table are those of one shard only
+	shards, replicas, err := c.clusterLayout(ctx)
+	if err != nil || shards != 1 {
 		return false, err
 	}
-	return true, nil
+	table, found, err := c.loadSyncedReplicatedTable(ctx, cur.Name)
+	if err != nil {
+		return false, errors.Wrapf(err, "load the replication of table %s failed", cur.Name)
+	}
+	if !found {
+		return false, nil
+	}
+	// With the UUID at the end of the replication path, the tables created under the name are the
+	// children of its parent, and there may be several of them.
+	if base, last := path.Split(table.zookeeperPath); last == table.uuid {
+		incarnations, loadErr := c.loadReplicatedTableIncarnations(ctx, strings.TrimSuffix(base, "/"))
+		if loadErr != nil {
+			return false, loadErr
+		}
+		if len(incarnations) > 1 {
+			if err = c.repairSplit(ctx, cur, incarnations); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+	}
+	if table.activeReplicas >= replicas {
+		return false, nil
+	}
+	logger.Warnf("table with UUID %s is active on %d of the %d replicas of the cluster, "+
+		"will create it on those that miss it", table.uuid, table.activeReplicas, replicas)
+	err = c.joinReplicatedAsIs(ctx, cur.Name, table.uuid, table.createQuery)
+	if err != nil && isDDLTimeout(err) {
+		// A replica that is down, rather than missing the table, does not answer either. The
+		// statement stays in the distributed DDL queue and runs once the replica is back, and the
+		// replicas holding the table skip it, so it is no reason to fail the sync.
+		logger.Warnfe(err, "not every replica answered, will go on")
+		return false, nil
+	}
+	return false, err
 }
 
 func (c Controller) createReplicatedFresh(ctx context.Context, table Table) error {
@@ -233,25 +281,14 @@ func (c Controller) joinReplicated(ctx context.Context, table Table, uuid string
 // definition requested may differ from the one the table has, which the replicas joining it must
 // match, and it is SyncTable that brings the table to it once every replica has the table: its
 // ALTER ... ON CLUSTER would fail on a replica without the table.
-func (c Controller) joinReplicatedAsIs(ctx context.Context, name string, uuid string) error {
-	var query string
-	err := c.Query(ctx, func(rows driver.Rows) error {
-		return rows.Scan(&query)
-	}, "SELECT create_table_query FROM system.tables WHERE database = ? AND name = ?",
-		c.database, c.tableNamePrefix+name)
-	if err != nil {
-		return errors.Wrapf(err, "load the definition of table %s failed", name)
-	}
+func (c Controller) joinReplicatedAsIs(ctx context.Context, name, uuid, query string) error {
 	body, ok := createTableBody(query)
 	if !ok {
 		return errors.Errorf("cannot make out the definition of table %s: %q", name, query)
 	}
 	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s UUID '%s'%s %s",
 		c.FullLogicName(name), uuid, c.sqlOnClusterPart(), body)
-	if err = c.Exec(onClusterCtx(ctx), sql); err != nil {
-		return errors.Wrapf(err, "create table %s on the replicas missing it failed", name)
-	}
-	return nil
+	return errors.Wrapf(c.Exec(onClusterCtx(ctx), sql), "create table %s on the replicas missing it failed", name)
 }
 
 // createTableBody returns what follows the name in the create_table_query of a table, that is its
@@ -301,6 +338,7 @@ const (
 	codeIncompatibleColumns = 122
 	codeMetadataMismatch    = 342
 	codeAccessDenied        = 497
+	codeTimeoutExceeded     = 159
 )
 
 // hasClickHouseError says whether err is one of the ClickHouse errors of the codes, or names one of
@@ -325,6 +363,10 @@ func hasClickHouseError(err error, codes map[int32]string) bool {
 
 func isAccessDenied(err error) bool {
 	return hasClickHouseError(err, map[int32]string{codeAccessDenied: "ACCESS_DENIED"})
+}
+
+func isDDLTimeout(err error) bool {
+	return hasClickHouseError(err, map[int32]string{codeTimeoutExceeded: "TIMEOUT_EXCEEDED"})
 }
 
 func isStructureMismatch(err error) bool {

@@ -3,7 +3,6 @@ package clickhouse
 import (
 	"context"
 	"fmt"
-	"path"
 	"reflect"
 	"strings"
 	"sync"
@@ -130,15 +129,15 @@ func (s *fakeServer) query(sql string, args []any) ([][]any, error) {
 	case sql == "SELECT macro, substitution FROM system.macros":
 		rows = append(rows, []any{"cluster", "compute"}, []any{"shard", "0"})
 	case strings.HasPrefix(sql, "SELECT name FROM system.zookeeper"):
-		// a table of the connected server is registered under one UUID, by both replicas of the
-		// cluster; no other table exists under any name, so a CREATE starts a new one
-		// the path is /clickhouse/tables/{cluster}/{database}/{table}/{shard}
-		if _, has := s.tables[path.Base(path.Dir(args[0].(string)))]; has {
-			rows = append(rows, []any{"00000000-0000-0000-0000-00000000000a"})
+		// no replicated table exists under any name, so a CREATE starts a new one
+	case strings.HasPrefix(sql, "SELECT toString(uuid), create_table_query FROM system.tables"):
+		if _, has := s.tables[args[1].(string)]; has {
+			rows = append(rows, []any{"00000000-0000-0000-0000-00000000000a", ""})
 		}
-	case strings.HasPrefix(sql, "SELECT path, name FROM system.zookeeper"):
-		for _, p := range args[0].([]string) {
-			rows = append(rows, []any{p, "replica-0"}, []any{p, "replica-1"})
+	case strings.HasPrefix(sql, "SELECT zookeeper_path, toUInt64(active_replicas) FROM system.replicas"):
+		// the old tables replicate under a path of their name, active on both replicas
+		if _, has := s.tables[args[1].(string)]; has {
+			rows = append(rows, []any{"/clickhouse/tables/0/" + args[1].(string), uint64(2)})
 		}
 	case sql == "SELECT toString(generateUUIDv4())":
 		s.uuids++
@@ -303,9 +302,8 @@ func assertLegacyOnly(t *testing.T, s *fakeServer) {
 // table, see chx.Controller.SyncTable.
 var replicaCheckSQLs = []string{
 	"SELECT uniqExact(shard_num), count() FROM system.clusters WHERE cluster = ?",
-	"SELECT macro, substitution FROM system.macros",
-	"SELECT name FROM system.zookeeper WHERE path = ?",
-	"SELECT path, name FROM system.zookeeper WHERE path IN ?",
+	"SELECT toString(uuid), create_table_query FROM system.tables WHERE database = ? AND name = ?",
+	"SELECT zookeeper_path, toUInt64(active_replicas) FROM system.replicas WHERE database = ? AND table = ?",
 }
 
 // TestLegacyStartupExisting pins the startup of stores without a route over the old

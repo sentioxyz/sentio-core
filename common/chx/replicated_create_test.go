@@ -61,6 +61,16 @@ type replicatedZK struct {
 	// owners are the tables the replicas of each UUID register, t if not set, and nothing if set
 	// to the empty string, as before the replicas of a table being created register
 	owners map[string]string
+	// orphans are the UUIDs no server runs any more, whose replicas are registered but not active
+	orphans map[string]bool
+}
+
+// local is the replication path of t on the connected replica.
+func (z replicatedZK) local() string {
+	if z.localPath == "" {
+		return testReplicatedBase + "/" + testUUIDA
+	}
+	return z.localPath
 }
 
 func (z replicatedZK) clusterMembers() []string {
@@ -81,12 +91,12 @@ func (z replicatedZK) tablesUnder(base string) map[string][]string {
 
 func (z replicatedZK) onQuery(sql string, args []any) ([][]any, error) {
 	switch {
-	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num), count() FROM system.clusters"):
+	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num) FROM system.clusters"):
 		shards := z.shards
 		if shards == 0 {
 			shards = 1
 		}
-		return [][]any{{shards, uint64(len(z.clusterMembers()))}}, nil
+		return [][]any{{shards}}, nil
 	case strings.HasPrefix(sql, "SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) "):
 		var rows [][]any
 		for i, m := range z.clusterMembers() {
@@ -101,27 +111,23 @@ func (z replicatedZK) onQuery(sql string, args []any) ([][]any, error) {
 			rows = append(rows, []any{shard, m, fmt.Sprintf("10.0.0.%d", i+1), uint64(9000), isLocal})
 		}
 		return rows, nil
-	case strings.HasPrefix(sql, "SELECT toString(uuid), create_table_query FROM system.tables"):
-		local := z.localPath
-		if local == "" {
-			local = testReplicatedBase + "/" + testUUIDA
-		}
-		return [][]any{{path.Base(local), z.createQuery}}, nil
-	case strings.HasPrefix(sql, "SELECT zookeeper_path, arrayFilter("):
+	case strings.HasPrefix(sql, "SELECT name, toString(uuid), create_table_query FROM system.tables"):
+		return [][]any{{"t", path.Base(z.local()), z.createQuery}}, nil
+	case strings.HasPrefix(sql, "SELECT table, zookeeper_path, arrayFilter("):
 		if z.notReplicated {
 			return nil, nil
 		}
-		local, active := z.localPath, z.active
-		if local == "" {
-			local = testReplicatedBase + "/" + testUUIDA
-		}
+		active := z.active
 		if active == nil {
 			active = z.clusterMembers()
 		}
-		return [][]any{{local, active}}, nil
-	case strings.HasPrefix(sql, "SELECT path, value FROM system.zookeeper WHERE path IN ? AND name = 'host'"):
+		return [][]any{{"t", z.local(), active}}, nil
+	case strings.HasPrefix(sql, "SELECT path, name, value FROM system.zookeeper WHERE path IN ? AND name IN ('host', 'is_active')"):
 		var rows [][]any
 		for _, p := range args[0].([]string) {
+			if !z.orphans[path.Base(path.Dir(path.Dir(p)))] {
+				rows = append(rows, []any{p, "is_active", "UUID_'00000000-0000-0000-0000-000000000000'"})
+			}
 			host := path.Base(p)
 			if h, has := z.hosts[host]; has {
 				host = h
@@ -131,31 +137,32 @@ func (z replicatedZK) onQuery(sql string, args []any) ([][]any, error) {
 				table = owner
 			}
 			if table == "" {
-				rows = append(rows, []any{p, ""})
+				rows = append(rows, []any{p, "host", ""})
 				continue
 			}
-			rows = append(rows, []any{p, "host: " + host + "\nport: 9009\ntcp_port: 9000\ndatabase: chain_db\ntable: " +
+			rows = append(rows, []any{p, "host", "host: " + host + "\nport: 9009\ntcp_port: 9000\ndatabase: chain_db\ntable: " +
 				table + "\nscheme: http\n"})
 		}
 		return rows, nil
 	case strings.HasPrefix(sql, "SELECT macro, substitution FROM system.macros"):
 		return [][]any{{"cluster", testReplicatedCluster}, {"shard", "0"}, {"replica", "r0"}}, nil
-	case sql == "SELECT name FROM system.zookeeper WHERE path = ?":
-		if args[0] != testReplicatedBase && args[0] != testLegacyBase {
-			return nil, errors.Errorf("unexpected base path %v", args[0])
-		}
-		var rows [][]any
-		for uuid := range z.tablesUnder(args[0].(string)) {
-			rows = append(rows, []any{uuid})
-		}
-		rows = append(rows, []any{"not-a-uuid"})
-		return rows, nil
 	case strings.HasPrefix(sql, "SELECT path, name FROM system.zookeeper WHERE path IN ?"):
+		// the children of the base paths, or of the replicas paths under them
 		var rows [][]any
 		for _, p := range args[0].([]string) {
-			for _, r := range z.tablesUnder(path.Dir(path.Dir(p)))[path.Base(path.Dir(p))] {
-				rows = append(rows, []any{p, r})
+			if path.Base(p) == "replicas" {
+				for _, r := range z.tablesUnder(path.Dir(path.Dir(p)))[path.Base(path.Dir(p))] {
+					rows = append(rows, []any{p, r})
+				}
+				continue
 			}
+			if p != testReplicatedBase && p != testLegacyBase {
+				return nil, errors.Errorf("unexpected base path %v", p)
+			}
+			for uuid := range z.tablesUnder(p) {
+				rows = append(rows, []any{p, uuid})
+			}
+			rows = append(rows, []any{p, "not-a-uuid"})
 		}
 		return rows, nil
 	case strings.HasPrefix(sql, "SELECT path, toInt64(numChildren) FROM system.zookeeper"):
@@ -399,275 +406,6 @@ func TestReplicatedTableBasePath(t *testing.T) {
 const testCreateTableQuery = "CREATE TABLE chain_db.t (`a` UInt8) ENGINE = ReplicatedMergeTree(" +
 	"'/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}', '{replica}') ORDER BY a " +
 	"SETTINGS index_granularity = 8192"
-
-// A table the connected replica holds and another replica of the cluster misses is created there
-// with its UUID and the definition it has here, before it is brought to the requested structure.
-func TestSyncTableJoinsMissingReplica(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{
-		replicas:    map[string][]string{testUUIDA: {"replica-0"}},
-		existing:    []string{"a"},
-		createQuery: testCreateTableQuery,
-		active:      []string{"replica-0"},
-	})
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
-
-	creates := conn.statements("CREATE")
-	require.Len(t, creates, 1)
-	assert.Equal(t, "CREATE TABLE IF NOT EXISTS `chain_db`.`t` UUID '"+testUUIDA+"' ON CLUSTER 'users' "+
-		"(`a` UInt8) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}', "+
-		"'{replica}') ORDER BY a SETTINGS index_granularity = 8192", creates[0])
-	alters := conn.statements("ALTER")
-	require.Len(t, alters, 1)
-	assert.Contains(t, alters[0], "`b`")
-	// the join comes first: the ALTER ... ON CLUSTER would fail on a replica without the table
-	var createAt, alterAt int
-	for i, s := range conn.log {
-		switch {
-		case strings.HasPrefix(s, "CREATE"):
-			createAt = i
-			assert.Equal(t, "throw", conn.settings[i]["distributed_ddl_output_mode"])
-		case strings.HasPrefix(s, "ALTER"):
-			alterAt = i
-		}
-	}
-	assert.Less(t, createAt, alterAt)
-}
-
-// The registration of a replica that left the cluster may stay behind, inactive, or even active
-// while the replica is drained, so that as many replicas are active as the cluster has while one
-// of its members misses the table: the replicas are told by the hosts they register.
-func TestSyncTableReplicaNotMember(t *testing.T) {
-	for name, active := range map[string][]string{
-		"inactive": {"replica-0"},
-		"active":   {"replica-0", "retired"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			c, conn := newReplicatedTestController(replicatedZK{
-				replicas:    map[string][]string{testUUIDA: {"replica-0", "retired"}},
-				createQuery: testCreateTableQuery,
-				active:      active,
-			})
-			require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
-			creates := conn.statements("CREATE")
-			require.Len(t, creates, 1)
-			assert.Contains(t, creates[0], "UUID '"+testUUIDA+"'")
-		})
-	}
-}
-
-// Hosts are registered either under the names the cluster gives its members or under their
-// addresses. When the connected replica is found under neither, which members hold the table
-// cannot be told, and nothing is repaired: counting the active replicas would not do, as one that
-// left the cluster may still be active.
-func TestSyncTableHostsNamedOtherwise(t *testing.T) {
-	byAddress := map[string]string{"replica-0": "10.0.0.1", "replica-1": "10.0.0.2"}
-	c, conn := newReplicatedTestController(replicatedZK{
-		hosts: byAddress, createQuery: testCreateTableQuery, active: []string{"replica-0"},
-	})
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
-	assert.Len(t, conn.statements("CREATE"), 1, "replica-1 is told by its address and misses the table")
-
-	unknown := map[string]string{"replica-0": "a.example", "retired": "b.example"}
-	c, conn = newReplicatedTestController(replicatedZK{
-		replicas:    map[string][]string{testUUIDA: {"replica-0", "retired"}},
-		members:     []string{"replica-0", "replica-2"},
-		hosts:       unknown,
-		createQuery: testCreateTableQuery,
-		active:      []string{"replica-0", "retired"},
-	})
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
-	assert.Empty(t, conn.statements("CREATE"))
-}
-
-// A replication path need not name the table, and the parent of one that ends in {uuid} may then
-// hold the tables of other names too, which the replicas tell by the table they register: those
-// are no split of the table, and no table to join either.
-func TestSharedParentNotSplit(t *testing.T) {
-	z := replicatedZK{
-		replicas: map[string][]string{testUUIDA: {"replica-0", "replica-1"}, testUUIDB: {"replica-0", "replica-1"}},
-		owners:   map[string]string{testUUIDB: "u"},
-		parts:    map[string]int64{testReplicatedBase + "/" + testUUIDB + "/replicas/replica-0": 2},
-	}
-	c, conn := newReplicatedTestController(z)
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
-	assert.Empty(t, conn.statements("DROP"))
-	assert.Empty(t, conn.statements("CREATE"))
-
-	z.replicas = map[string][]string{testUUIDB: {"replica-0", "replica-1"}}
-	c, conn = newReplicatedTestController(z)
-	require.NoError(t, c.Create(t.Context(), testReplicatedTable("a")))
-	creates := conn.statements("CREATE")
-	require.Len(t, creates, 1)
-	assert.Contains(t, creates[0], "UUID '"+testUUIDNew+"'")
-}
-
-// A table under the path whose replicas have not registered yet may be of another name, so its UUID
-// is not reused, and may be of this name, so it is not ignored either: Create fails, to be retried,
-// and SyncTable leaves the split check for the next sync.
-func TestOwnerUnknown(t *testing.T) {
-	z := replicatedZK{
-		replicas:    map[string][]string{testUUIDA: {"replica-0", "replica-1"}, testUUIDB: {"replica-0"}},
-		owners:      map[string]string{testUUIDB: ""},
-		parts:       map[string]int64{testReplicatedBase + "/" + testUUIDA + "/replicas/replica-0": 1},
-		createQuery: testCreateTableQuery,
-	}
-	c, conn := newReplicatedTestController(z)
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
-	assert.Empty(t, conn.statements("DROP"))
-	assert.Empty(t, conn.statements("CREATE"))
-	assert.Len(t, conn.statements("ALTER"), 1)
-
-	z.replicas = map[string][]string{testUUIDB: {"replica-0"}}
-	c, conn = newReplicatedTestController(z)
-	err := c.Create(t.Context(), testReplicatedTable("a"))
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, errReplicatedTableOwnerUnknown), err.Error())
-	assert.Empty(t, conn.statements("CREATE"))
-}
-
-// The checks fall back to the old behaviour for a user that may not read what they need, but a
-// statement the repair runs and that is refused is an error.
-func TestSyncTableAccessDenied(t *testing.T) {
-	denied := &clickhouse.Exception{Code: codeAccessDenied, Message: "Not enough privileges"}
-	z := replicatedZK{active: []string{"replica-0"}, createQuery: testCreateTableQuery}
-	c, conn := newReplicatedTestController(z)
-	conn.onQuery = func(sql string, args []any) ([][]any, error) {
-		if strings.Contains(sql, "system.zookeeper") {
-			return nil, denied
-		}
-		return z.onQuery(sql, args)
-	}
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
-	assert.Empty(t, conn.statements("CREATE"))
-	assert.Len(t, conn.statements("ALTER"), 1)
-
-	c, conn = newReplicatedTestController(replicatedZK{
-		replicas: map[string][]string{testUUIDA: {"replica-0"}, testUUIDB: {"replica-1"}},
-	})
-	conn.onExec = func(sql string) error {
-		if strings.HasPrefix(sql, "CREATE") {
-			return denied
-		}
-		return nil
-	}
-	err := c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a"))
-	require.Error(t, err)
-	assert.Len(t, conn.statements("DROP"), 1)
-}
-
-func TestSyncTableAllReplicasPresent(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{
-		replicas: map[string][]string{testUUIDA: {"replica-0", "replica-1"}},
-	})
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
-	assert.Empty(t, conn.statements("CREATE"))
-	assert.Len(t, conn.statements("ALTER"), 1)
-}
-
-// A replica that is down does not answer the CREATE either; the statement runs once it is back,
-// and the sync goes on.
-func TestSyncTableReplicaDown(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{
-		replicas:    map[string][]string{testUUIDA: {"replica-0", "replica-1"}},
-		createQuery: testCreateTableQuery,
-		active:      []string{"replica-0"},
-	})
-	conn.onExec = func(sql string) error {
-		if strings.HasPrefix(sql, "CREATE") {
-			return &clickhouse.Exception{Code: codeTimeoutExceeded, Message: "Distributed DDL task is not finished"}
-		}
-		return nil
-	}
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
-	assert.Len(t, conn.statements("CREATE"), 1)
-	assert.Len(t, conn.statements("ALTER"), 1)
-}
-
-func TestSyncTableNotInReplicas(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{notReplicated: true})
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
-	assert.Empty(t, conn.statements("CREATE"))
-	assert.Len(t, conn.statements("ALTER"), 1)
-	assert.NotContains(t, strings.Join(conn.log, "\n"), "system.zookeeper")
-}
-
-// A split is looked for under the replication path of the table the connected replica holds, not
-// under the one requested: tables found under the latter are not that table and may not be
-// dropped for it.
-func TestSyncTableChecksActualReplicationPath(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{
-		replicas: map[string][]string{
-			testUUIDB:   {"replica-0"},
-			testUUIDNew: {"replica-1"},
-		},
-		localPath: testLegacyBase + "/" + testUUIDA,
-		legacy:    map[string][]string{testUUIDA: {"replica-0", "replica-1"}},
-	})
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
-	assert.Empty(t, conn.statements("DROP"))
-	assert.Empty(t, conn.statements("CREATE"))
-}
-
-func TestSyncTableSplitWithoutData(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{
-		replicas: map[string][]string{
-			testUUIDA: {"replica-0"},
-			testUUIDB: {"replica-1"},
-		},
-	})
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
-	assert.Equal(t, []string{"DROP TABLE IF EXISTS `chain_db`.`t` ON CLUSTER 'users' SYNC"}, conn.statements("DROP"))
-	creates := conn.statements("CREATE")
-	require.Len(t, creates, 1)
-	assert.Contains(t, creates[0], "UUID '"+testUUIDNew+"'")
-	assert.Contains(t, creates[0], "`b` UInt8")
-	// the table was created with the requested structure, there is nothing left to sync
-	assert.Empty(t, conn.statements("ALTER"))
-}
-
-func TestSyncTableSplitWithData(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{
-		replicas: map[string][]string{
-			testUUIDA: {"replica-0"},
-			testUUIDB: {"replica-1"},
-		},
-		parts: map[string]int64{testReplicatedBase + "/" + testUUIDB + "/replicas/replica-1": 1},
-	})
-	err := c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b"))
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrReplicatedTableSplit), err.Error())
-	assert.Empty(t, conn.statements("DROP"))
-	assert.Empty(t, conn.statements("CREATE"))
-	assert.Empty(t, conn.statements("ALTER"))
-}
-
-func TestSyncTableUnreadableDefinition(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{
-		replicas:    map[string][]string{testUUIDA: {"replica-0"}},
-		createQuery: "something else",
-		active:      []string{"replica-0"},
-	})
-	err := c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot make out the definition")
-	assert.Empty(t, conn.statements("CREATE"))
-}
-
-func TestSyncTableSeveralShards(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{shards: 2, active: []string{"replica-0"}})
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
-	assert.Empty(t, conn.statements("CREATE"))
-	assert.NotContains(t, strings.Join(conn.log, "\n"), "system.replicas")
-}
-
-func TestSyncTableNotReplicatedUnchecked(t *testing.T) {
-	conn := &fakeConn{}
-	c := New(conn, WithCluster(testReplicatedCluster))
-	table := testReplicatedTable("a")
-	table.Config.Engine = NewDefaultMergeTreeEngine(false)
-	require.NoError(t, c.SyncTable(t.Context(), table, table))
-	assert.Empty(t, conn.log)
-}
 
 func TestCreateTableBody(t *testing.T) {
 	body, ok := createTableBody("CREATE TABLE db.`a(b` (`x` UInt8) ENGINE = Memory")

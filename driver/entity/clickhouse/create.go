@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/graph-gophers/graphql-go/types"
+	"github.com/pkg/errors"
 )
 
 // type mapping table
@@ -160,7 +161,13 @@ func (s *Store) syncTablesAndViews(ctx context.Context, viewOnly bool) (err erro
 	})
 }
 
+// InitEntitySchema creates and syncs the tables and views of the schema. It is for the store that
+// writes them, and first checks that every replica holds the tables the connected one holds, see
+// chx.Controller.EnsureReplicated; CreateViews is for the stores that only read.
 func (s *Store) InitEntitySchema(ctx context.Context) error {
+	if err := s.ctrl.EnsureReplicated(ctx); err != nil {
+		return errors.Wrapf(err, "check the replicas of the entity tables failed")
+	}
 	return s.syncTablesAndViews(ctx, false)
 }
 

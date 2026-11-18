@@ -124,27 +124,30 @@ func (s *fakeServer) query(sql string, args []any) ([][]any, error) {
 				rows = append(rows, []any{h, engine})
 			}
 		}
-	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num), count() FROM system.clusters"):
-		rows = append(rows, []any{uint64(1), uint64(2)})
+	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num) FROM system.clusters"):
+		rows = append(rows, []any{uint64(1)})
 	case sql == "SELECT macro, substitution FROM system.macros":
 		rows = append(rows, []any{"cluster", "compute"}, []any{"shard", "0"})
-	case strings.HasPrefix(sql, "SELECT name FROM system.zookeeper"):
+	case strings.HasPrefix(sql, "SELECT path, name FROM system.zookeeper WHERE path IN ?"):
 		// no replicated table exists under any name, so a CREATE starts a new one
-	case strings.HasPrefix(sql, "SELECT toString(uuid), create_table_query FROM system.tables"):
-		if _, has := s.tables[args[1].(string)]; has {
-			rows = append(rows, []any{"00000000-0000-0000-0000-00000000000a", ""})
-		}
-	case strings.HasPrefix(sql, "SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) "):
+	case sql == ensureSQLs[0]:
 		rows = append(rows, []any{uint64(1), "replica-0", "127.0.0.1", uint64(9000), uint8(1)},
 			[]any{uint64(1), "replica-1", "10.0.0.2", uint64(9000), uint8(0)})
-	case strings.HasPrefix(sql, "SELECT zookeeper_path, arrayFilter("):
+	case sql == ensureSQLs[1]:
 		// the old tables replicate under a path of their name, active on both replicas
-		if _, has := s.tables[args[1].(string)]; has {
-			rows = append(rows, []any{"/clickhouse/tables/0/" + args[1].(string), []string{"replica-0", "replica-1"}})
+		for _, name := range args[1].([]string) {
+			if t, has := s.tables[name]; has && strings.HasPrefix(t.engine, "Replicated") {
+				rows = append(rows, []any{name, "/clickhouse/tables/0/" + name, []string{"replica-0", "replica-1"}})
+			}
 		}
-	case strings.HasPrefix(sql, "SELECT path, value FROM system.zookeeper WHERE path IN ? AND name = 'host'"):
+	case sql == ensureSQLs[2]:
+		for _, name := range args[1].([]string) {
+			rows = append(rows, []any{name, "00000000-0000-0000-0000-00000000000a", ""})
+		}
+	case sql == ensureSQLs[3]:
 		for _, p := range args[0].([]string) {
-			rows = append(rows, []any{p, "host: " + p[strings.LastIndex(p, "/")+1:] + "\ntcp_port: 9000\n"})
+			rows = append(rows, []any{p, "is_active", ""},
+				[]any{p, "host", "host: " + p[strings.LastIndex(p, "/")+1:] + "\ntcp_port: 9000\n"})
 		}
 	case sql == "SELECT toString(generateUUIDv4())":
 		s.uuids++
@@ -294,6 +297,18 @@ func rangeFields(ctrl chx.Controller) []chx.Field {
 	return BuildTable("range", &rangeObject{}, chx.TableConfig{Engine: ctrl.NewDefaultMergeTreeEngine()}, "").Table.Fields
 }
 
+// ensureSQLs are the queries chx.Controller.EnsureReplicated runs to check the replicas of tables
+// that every replica holds, the first two when no table is there yet.
+var ensureSQLs = []string{
+	"SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) FROM system.clusters " +
+		"WHERE cluster = ?",
+	"SELECT table, zookeeper_path, " +
+		"arrayFilter((r, a) -> a != 0, mapKeys(replica_is_active), mapValues(replica_is_active)) " +
+		"FROM system.replicas WHERE database = ? AND table IN ?",
+	"SELECT name, toString(uuid), create_table_query FROM system.tables WHERE database = ? AND name IN ?",
+	"SELECT path, name, value FROM system.zookeeper WHERE path IN ? AND name IN ('host', 'is_active')",
+}
+
 // newStatements are the statements only the routed startup issues, which a store without a route
 // must never issue before something has failed.
 var newStatements = []string{"SELECT engine FROM", "SELECT engine, engine_full FROM", "clusterAllReplicas",
@@ -305,20 +320,9 @@ func assertLegacyOnly(t *testing.T, s *fakeServer) {
 	}
 }
 
-// replicaCheckSQLs are the queries SyncTable runs to check that every replica holds a replicated
-// table, see chx.Controller.SyncTable.
-var replicaCheckSQLs = []string{
-	"SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) FROM system.clusters " +
-		"WHERE cluster = ?",
-	"SELECT toString(uuid), create_table_query FROM system.tables WHERE database = ? AND name = ?",
-	"SELECT zookeeper_path, arrayFilter((r, a) -> a != 0, mapKeys(replica_is_active), mapValues(replica_is_active)) " +
-		"FROM system.replicas WHERE database = ? AND table = ?",
-	"SELECT path, value FROM system.zookeeper WHERE path IN ? AND name = 'host'",
-}
-
 // TestLegacyStartupExisting pins the startup of stores without a route over the old
-// ReplicatedMergeTree tables: the tables are loaded, checked to be on every replica and found in
-// sync, as they always were, and nothing else is asked or done.
+// ReplicatedMergeTree tables: the tables are loaded and found in sync, as they always were, and
+// nothing else is asked or done.
 func TestLegacyStartupExisting(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -336,9 +340,8 @@ func TestLegacyStartupExisting(t *testing.T) {
 	require.NoError(t, err)
 
 	var expected []string
-	for range 3 {
-		expected = append(append(expected, loadSQLs...), replicaCheckSQLs...)
-	}
+	expected = append(append(append(expected, ensureSQLs...), loadSQLs...), loadSQLs...)
+	expected = append(append(expected, ensureSQLs...), loadSQLs...)
 	assert.Equal(t, expected, s.queries)
 	assert.Empty(t, s.execs)
 	assertLegacyOnly(t, s)
@@ -375,7 +378,8 @@ func TestLegacyStartupMissing(t *testing.T) {
 	}, s.execs)
 	// each of the three tables is looked for in ZooKeeper (shards, macros, UUIDs) and given a UUID
 	assert.Len(t, s.all("FROM system.zookeeper"), 3)
-	assert.Len(t, s.queries, 4*len(loadSQLs)+3*4)
+	// and each store first checks the replicas of its tables, finding none
+	assert.Len(t, s.queries, 4*len(loadSQLs)+3*4+2*2)
 	assertLegacyOnly(t, s)
 }
 

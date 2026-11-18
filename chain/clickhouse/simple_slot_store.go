@@ -67,14 +67,17 @@ func NewSimpleSlotStore[SLOT chain.Slot](
 		return nil, err
 	}
 	routed := s.ctrl.MaintenanceRoute() != nil
+	names := make([]string, 0, len(tablesMeta.Tables))
+	for _, table := range tablesMeta.Tables {
+		names = append(names, table.Table.Name)
+	}
 	if routed {
-		names := make([]string, 0, len(tablesMeta.Tables))
-		for _, table := range tablesMeta.Tables {
-			names = append(names, table.Table.Name)
-		}
 		if err := verifyRoutedTables(ctx, s.ctrl, names...); err != nil {
 			return nil, err
 		}
+	} else if err := s.ctrl.EnsureReplicated(ctx, names...); err != nil {
+		// the replicas may miss tables the connected one holds, see chx.Controller.EnsureReplicated
+		return nil, errors.Wrapf(err, "check the replicas of tables %v failed", names)
 	}
 	for _, table := range tablesMeta.Tables {
 		if routed {

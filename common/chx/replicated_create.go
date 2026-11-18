@@ -40,6 +40,12 @@ import (
 // good, some minutes later, and creating it again fails until then. It keeps failing if that
 // removal left the replication path behind in ZooKeeper, which is then for an operator to remove.
 
+// A table created before this scheme has a UUID the server drew. Should a replica miss such a table
+// and be the one that answers, the statement gives it a table of the UUID of the name next to the
+// one the other replicas hold, which the check that follows reports as a split. Nothing here can
+// see the table of another replica, so the tables that exist are to be checked on every replica
+// once, before this is rolled out.
+
 // createsReplicatedOnCluster says whether Create builds table through createReplicated: a
 // replicated table created ON CLUSTER, on a controller whose logic names are its physical ones.
 func (c Controller) createsReplicatedOnCluster(table Table) bool {

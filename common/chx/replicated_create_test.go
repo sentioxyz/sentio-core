@@ -149,6 +149,9 @@ func TestSyncTableWaitsForReplicas(t *testing.T) {
 		if strings.HasPrefix(s, "ALTER") {
 			alters++
 			assert.EqualValues(t, 2, conn.settings[i]["alter_sync"])
+			// and for every host to run the statement, whatever the connection is set to
+			assert.Equal(t, "throw", conn.settings[i]["distributed_ddl_output_mode"])
+			assert.EqualValues(t, onClusterDDLTimeoutSeconds, conn.settings[i]["distributed_ddl_task_timeout"])
 		}
 	}
 	assert.Equal(t, 1, alters)

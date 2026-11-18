@@ -146,6 +146,14 @@ type balanceController struct {
 	doneFlushTotalUsed time.Duration
 }
 
+// inserts is the scope the INSERTs of the controller into the balances table are tagged with. It
+// is the one the slot store tags its own INSERTs into that table with (a scope named after the
+// table, on the same controller), so that each of the two ends what the other left running over the
+// checkpoints it is about to delete.
+func (s *balanceController) inserts() chx.InsertScope {
+	return chx.NewInsertScope(s.ctrl, tableNameBalances)
+}
+
 func (s *balanceController) resetCurrent(storePath string) error {
 	file := path.Join(storePath, "RESET_CURRENT")
 	defer func() {
@@ -585,6 +593,15 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 	// max_uncompressed_bytes_in_patches cap (code 755), deadlocking the rebuild. Controller.Delete
 	// skips the DELETE entirely when no rows match, so this stays a no-op for the common case of
 	// rebuilding an already-empty range.
+	//
+	// An INSERT of an earlier attempt at this page, or of a save of the store over these
+	// checkpoints, may still be running on the server after its client gave up on it. Left running,
+	// it commits its rows after the delete has counted, and the records inserted below then sit
+	// beside a second copy. So such INSERTs are ended first, see chx.InsertScope.
+	inserts := s.inserts()
+	if err = inserts.End(ctx, from, to); err != nil {
+		return 0, false, errors.Wrapf(err, "end the inserts of balance records in [%d,%d] failed", from, to)
+	}
 	if _, err = s.ctrl.DeleteAfterReplicaSync(ctx, tableNameBalances, where, false); err != nil {
 		return 0, false, errors.Wrapf(err, "delete balance records in [%d,%d] failed", from, to)
 	}
@@ -597,7 +614,10 @@ func (s *balanceController) rebuildBalancePage(ctx context.Context, from, to uin
 	)
 	fieldFilter := objectx.HasTag("clickhouse")
 	const insertBatchSize = 100000
-	err = s.ctrl.BatchInsert(ctx, sql, insertBatchSize, chx.NewGetter(records, func(record Balance) []any {
+	// Tagged with the checkpoints it writes, so that the next attempt at them, or a truncate of the
+	// store over them, can end it first if it is still running by then.
+	insertCtx := inserts.Ctx(ctx, from, to)
+	err = s.ctrl.BatchInsert(insertCtx, sql, insertBatchSize, chx.NewGetter(records, func(record Balance) []any {
 		return objectx.CollectFieldValues(&record, fieldFilter)
 	}))
 	if err != nil {

@@ -50,6 +50,8 @@ type replicaFake struct {
 	registered []string
 	inactive   map[string]bool
 	hosts      map[string]string
+	// createQuery is the definition of t on the answering replica, testCreateTableQuery if not set
+	createQuery string
 	// columns are the columns of t on the answering replica
 	columns []string
 	// onCreate is called on a CREATE, and may change the cluster
@@ -85,7 +87,11 @@ func (f *replicaFake) onQuery(sql string, args []any) ([][]any, error) {
 		}
 	case strings.HasPrefix(sql, "SELECT r.table, r.zookeeper_path, toString(t.uuid), t.create_table_query FROM system.replicas"):
 		if f.held {
-			rows = append(rows, []any{"t", f.path(), testTableUUID, testCreateTableQuery})
+			query := f.createQuery
+			if query == "" {
+				query = testCreateTableQuery
+			}
+			rows = append(rows, []any{"t", f.path(), testTableUUID, query})
 		}
 	case strings.HasPrefix(sql, "SELECT path, name FROM system.zookeeper WHERE path IN ?"):
 		if f.denied != nil {
@@ -197,14 +203,55 @@ func TestEnsureReplicatedCreateFails(t *testing.T) {
 	assert.False(t, errors.Is(err, ErrReplicatedTableSplit))
 }
 
-// A member registered under the path holds the table, active or not.
+// A registration alone does not say a member holds the table: it may be what a table that is gone
+// left behind. A member that is not active gets the statement like one that is not registered.
 func TestEnsureReplicatedInactiveMember(t *testing.T) {
+	inactive := map[string]bool{"replica-1": true}
+	// it was only its session: the statement is skipped there and it is active again
 	c, conn := newReplicaTestController(&replicaFake{
 		held:       true,
 		registered: []string{"replica-0", "replica-1"},
-		inactive:   map[string]bool{"replica-1": true},
+		inactive:   inactive,
+		onCreate: func(f *replicaFake) error {
+			f.inactive = nil
+			return nil
+		},
 	})
 	require.NoError(t, c.EnsureReplicated(t.Context()))
+	assert.Len(t, conn.statements("CREATE"), 1)
+
+	// it is up and ran the statement, yet does not run this table: it runs another under the name
+	c, _ = newReplicaTestController(&replicaFake{
+		held: true, registered: []string{"replica-0", "replica-1"}, inactive: inactive,
+	})
+	err := c.EnsureReplicated(t.Context())
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrReplicatedTableSplit), err.Error())
+
+	// it is down: the statement fails, and so does the check
+	c, _ = newReplicaTestController(&replicaFake{
+		held: true, registered: []string{"replica-0", "replica-1"}, inactive: inactive,
+		onCreate: func(*replicaFake) error {
+			return &clickhouse.Exception{Code: 159, Message: "Distributed DDL task is not finished"}
+		},
+	})
+	err = c.EnsureReplicated(t.Context())
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, ErrReplicatedTableSplit))
+}
+
+// A table created by hand for one replica names that replica literally; it is not created on
+// another replica from that definition.
+func TestEnsureReplicatedLiteralReplica(t *testing.T) {
+	c, conn := newReplicaTestController(&replicaFake{
+		held:       true,
+		registered: []string{"replica-0"},
+		createQuery: "CREATE TABLE chain_db.t (`a` UInt8) ENGINE = ReplicatedMergeTree(" +
+			"'/clickhouse/tables/users/chain_db/t/0/" + testTableUUID + "', 'replica-0') ORDER BY a",
+	})
+	err := c.EnsureReplicated(t.Context())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "names its replica literally")
 	assert.Empty(t, conn.statements("CREATE"))
 }
 

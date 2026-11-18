@@ -30,12 +30,18 @@ var ErrReplicatedTableSplit = errors.New("replicated table is split across repli
 //
 // The check goes by the table itself and nothing else: its replication path, as the answering
 // replica reports it in system.replicas, and the replicas registered under that very path in
-// ZooKeeper, each of which registers the host it runs on. A server registers under the path only
-// while it holds a table that replicates there, so a member of the cluster found there holds the
-// same table, whatever the path looks like. A member not found there either misses the table or
-// holds another table under the name. The first is repaired by creating the table there, with the
-// UUID and the definition it has here. The second shows as the member still not being registered
-// once that statement has run, since it skips a name that is taken, and is a split.
+// ZooKeeper, each of which registers the host it runs on and is active while its server runs the
+// table. A member of the cluster active there runs the same table, whatever the path looks like. A
+// member that is not, whether it is not registered or registered but not active, is down, misses the
+// table, or runs another table under the name; a registration alone does not tell, as it may be what
+// a table that is gone left behind. So the table is created there, with the UUID and the definition
+// it has here, a statement every server that is up runs and that skips a name that is taken. A
+// member that was down fails it, and with it the check: a store cannot work while a replica is
+// down anyway, as its statements wait for every replica. A member that is still not active once
+// the statement has run is up and runs something else under the name, which is a split.
+
+// replicaMacro is what the replica of a table is named by in a definition any replica can run.
+const replicaMacro = "{replica}"
 
 // clusterMember is a server of the cluster, by its host and native port.
 type clusterMember struct {
@@ -124,7 +130,7 @@ func (c Controller) createOnMissingMembers(
 			continue
 		}
 		_, logger := log.FromContext(ctx, "table", t.name)
-		logger.Warnf("table with UUID %s is not on %v, will create it there", t.uuid, missing[t.name])
+		logger.Warnf("table with UUID %s is not active on %v, will create it there", t.uuid, missing[t.name])
 		if err := c.joinReplicatedAsIs(ctx, t); err != nil {
 			return err
 		}
@@ -133,8 +139,9 @@ func (c Controller) createOnMissingMembers(
 	if len(created) == 0 {
 		return nil
 	}
-	// The statement skips a member that holds something under the name. A member that still is not
-	// registered under the path of the table therefore holds another table.
+	// Every member has run the statement, so every member is up, and it skips a member that holds
+	// something under the name. A member that still is not active under the path of the table
+	// therefore runs something else under the name.
 	missing, err := c.findMissingMembers(ctx, members, created)
 	if err != nil {
 		return err
@@ -143,8 +150,10 @@ func (c Controller) createOnMissingMembers(
 	for _, t := range created {
 		if len(missing[t.name]) > 0 {
 			_, logger := log.FromContext(ctx, "table", t.name)
-			logger.Errorf("table with UUID %s is another table on %v, needs an operator", t.uuid, missing[t.name])
-			splits = append(splits, fmt.Sprintf("%s (UUID %s here) is another table on %v", t.name, t.uuid, missing[t.name]))
+			logger.Errorf("table with UUID %s is not the table %v run under the name, needs an operator",
+				t.uuid, missing[t.name])
+			splits = append(splits, fmt.Sprintf("%s (UUID %s here) is not the table %v run under the name",
+				t.name, t.uuid, missing[t.name]))
 		}
 	}
 	if len(splits) > 0 {
@@ -205,11 +214,10 @@ func (c Controller) loadHeldReplicatedTables(ctx context.Context, names []string
 	return held, nil
 }
 
-// findMissingMembers returns, by table, the members of the cluster not registered under the
-// replication path of the table. A member registered there but not active is down rather than
-// missing the table, and is only reported. A table none of whose replicas can be matched to a
-// member is left out: its replicas do not register the way the cluster names its members, and
-// which of them hold the table cannot be told.
+// findMissingMembers returns, by table, the members of the cluster that are not active under the
+// replication path of the table. A table none of whose replicas can be matched to a member is left
+// out: its replicas do not register the way the cluster names its members, and which of them hold
+// the table cannot be told.
 func (c Controller) findMissingMembers(
 	ctx context.Context,
 	members []clusterMember,
@@ -257,14 +265,11 @@ func (c Controller) findMissingMembers(
 					registered, active = true, active || r.active
 				}
 			}
-			switch {
-			case !registered:
+			if registered {
+				matched++
+			}
+			if !active {
 				absent = append(absent, m)
-			case !active:
-				matched++
-				logger.Warnf("replica of the table on %s is not active", m)
-			default:
-				matched++
 			}
 		}
 		if matched == 0 {
@@ -334,6 +339,12 @@ func (c Controller) joinReplicatedAsIs(ctx context.Context, t heldReplicatedTabl
 	body, ok := createTableBody(t.createQuery)
 	if !ok {
 		return errors.Errorf("cannot make out the definition of table %s: %q", t.name, t.createQuery)
+	}
+	if !strings.Contains(body, "'"+replicaMacro+"'") {
+		// A table created by hand for one replica names that replica, and often the path, literally.
+		// Another replica running the statement would register under the name of this one.
+		return errors.Errorf("table %s is missing on some replicas and its definition here names its replica "+
+			"literally, so it cannot be created there from it: %q", t.name, t.createQuery)
 	}
 	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s`.`%s` UUID '%s'%s %s",
 		c.database, t.name, t.uuid, c.sqlOnClusterPart(), body)

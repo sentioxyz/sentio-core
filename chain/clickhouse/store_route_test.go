@@ -2,8 +2,8 @@ package clickhouse
 
 import (
 	"context"
-	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -37,12 +37,16 @@ type fakeServer struct {
 	// queries and execs are every statement in the order issued
 	queries []string
 	execs   []string
-	// uuids counts the UUIDs handed out to the CREATE of a replicated table
-	uuids int
+	// schemas are the fields a table gets when it is created, by name, prefix included
+	schemas map[string][]chx.Field
 }
 
 func newFakeServer() *fakeServer {
-	return &fakeServer{tables: map[string]serverTable{}, locals: map[string]map[string]map[string]string{}}
+	return &fakeServer{
+		tables:  map[string]serverTable{},
+		locals:  map[string]map[string]map[string]string{},
+		schemas: map[string][]chx.Field{},
+	}
 }
 
 const (
@@ -124,34 +128,26 @@ func (s *fakeServer) query(sql string, args []any) ([][]any, error) {
 				rows = append(rows, []any{h, engine})
 			}
 		}
-	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num) FROM system.clusters"):
-		rows = append(rows, []any{uint64(1)})
-	case sql == "SELECT macro, substitution FROM system.macros":
-		rows = append(rows, []any{"cluster", "compute"}, []any{"shard", "0"})
-	case strings.HasPrefix(sql, "SELECT path, name FROM system.zookeeper WHERE path IN ?"):
-		// no replicated table exists under any name, so a CREATE starts a new one
 	case sql == ensureSQLs[0]:
-		rows = append(rows, []any{uint64(1), "replica-0", "127.0.0.1", uint64(9000), uint8(1)},
-			[]any{uint64(1), "replica-1", "10.0.0.2", uint64(9000), uint8(0)})
+		rows = append(rows, []any{uint64(1), "replica-0", "10.0.0.1", uint64(9000)},
+			[]any{uint64(1), "replica-1", "10.0.0.2", uint64(9000)})
 	case sql == ensureSQLs[1]:
-		// the old tables replicate under a path of their name, active on both replicas
+		// the tables replicate under a path of their name
 		for _, name := range args[1].([]string) {
 			if t, has := s.tables[name]; has && strings.HasPrefix(t.engine, "Replicated") {
-				rows = append(rows, []any{name, "/clickhouse/tables/0/" + name, []string{"replica-0", "replica-1"}})
+				rows = append(rows, []any{name, "/clickhouse/tables/0/" + name, "00000000-0000-0000-0000-00000000000a", ""})
 			}
 		}
 	case sql == ensureSQLs[2]:
-		for _, name := range args[1].([]string) {
-			rows = append(rows, []any{name, "00000000-0000-0000-0000-00000000000a", ""})
+		// both replicas of the cluster are registered under the path of every table
+		for _, p := range args[0].([]string) {
+			rows = append(rows, []any{p, "replica-0"}, []any{p, "replica-1"})
 		}
 	case sql == ensureSQLs[3]:
 		for _, p := range args[0].([]string) {
 			rows = append(rows, []any{p, "is_active", ""},
 				[]any{p, "host", "host: " + p[strings.LastIndex(p, "/")+1:] + "\ntcp_port: 9000\n"})
 		}
-	case sql == "SELECT toString(generateUUIDv4())":
-		s.uuids++
-		rows = append(rows, []any{fmt.Sprintf("00000000-0000-0000-0000-%012d", s.uuids)})
 	case strings.HasPrefix(sql, "SELECT left, right FROM "):
 	case strings.HasPrefix(sql, "SELECT min(right), count() FROM "):
 		rows = append(rows, []any{uint64(0), uint64(0)})
@@ -172,9 +168,17 @@ func (s *fakeServer) exec(sql string) error {
 		_, rest, _ := strings.Cut(sql, "`chain_db`.`")
 		name, _, _ := strings.Cut(rest, "`")
 		if _, has := s.tables[name]; has {
+			if strings.Contains(sql, " IF NOT EXISTS ") {
+				// whatever holds the name, the statement is skipped
+				continue
+			}
 			return errors.Errorf("code: 57, message: Table chain_db.%s already exists", name)
 		}
-		s.tables[name] = serverTable{engine: "ReplicatedMergeTree"}
+		s.tables[name] = serverTable{
+			engine:     "ReplicatedMergeTree",
+			engineFull: "ReplicatedMergeTree('/clickhouse/tables/{shard}/" + name + "', '{replica}') ORDER BY number",
+			fields:     s.schemas[name],
+		}
 	}
 	return nil
 }
@@ -300,12 +304,11 @@ func rangeFields(ctrl chx.Controller) []chx.Field {
 // ensureSQLs are the queries chx.Controller.EnsureReplicated runs to check the replicas of tables
 // that every replica holds, the first two when no table is there yet.
 var ensureSQLs = []string{
-	"SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) FROM system.clusters " +
-		"WHERE cluster = ?",
-	"SELECT table, zookeeper_path, " +
-		"arrayFilter((r, a) -> a != 0, mapKeys(replica_is_active), mapValues(replica_is_active)) " +
-		"FROM system.replicas WHERE database = ? AND table IN ?",
-	"SELECT name, toString(uuid), create_table_query FROM system.tables WHERE database = ? AND name IN ?",
+	"SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port) FROM system.clusters WHERE cluster = ?",
+	"SELECT r.table, r.zookeeper_path, toString(t.uuid), t.create_table_query " +
+		"FROM system.replicas AS r INNER JOIN system.tables AS t ON t.database = r.database AND t.name = r.table " +
+		"WHERE r.database = ? AND r.table IN ? ORDER BY r.table",
+	"SELECT path, name FROM system.zookeeper WHERE path IN ?",
 	"SELECT path, name, value FROM system.zookeeper WHERE path IN ? AND name IN ('host', 'is_active')",
 }
 
@@ -347,9 +350,12 @@ func TestLegacyStartupExisting(t *testing.T) {
 	assertLegacyOnly(t, s)
 }
 
+// uuidPattern is the UUID a CREATE gives a replicated table, see chx.Controller.Create.
+var uuidPattern = regexp.MustCompile(`UUID '[0-9a-f-]{36}'`)
+
 // TestLegacyStartupMissing pins the startup of stores without a route over an empty database: the
 // tables and the view are created, with the statements they always were, except that a replicated
-// table is given a UUID once ZooKeeper shows no table of its name, see chx.Controller.Create.
+// table is created with IF NOT EXISTS and the UUID of its name, see chx.Controller.Create.
 func TestLegacyStartupMissing(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -357,34 +363,46 @@ func TestLegacyStartupMissing(t *testing.T) {
 	ctrl := testCtrl(t, s, nil)
 	view := chx.View{Name: "recent", Select: "SELECT 1"}
 	meta := testMeta(ctrl, view)
+	for _, table := range meta.Tables {
+		s.schemas["zircuit."+table.Table.Name] = table.Table.Fields
+	}
+	s.schemas["zircuit.range"] = rangeFields(ctrl)
 
 	_, err := newTestSlotStore(ctx, ctrl, meta)
 	require.NoError(t, err)
 	_, err = newTestRangeStore(ctx, ctrl)
 	require.NoError(t, err)
 
+	uuids := map[string]bool{}
+	execs := make([]string, len(s.execs))
+	for i, sql := range s.execs {
+		uuids[uuidPattern.FindString(sql)] = true
+		execs[i] = uuidPattern.ReplaceAllString(sql, "UUID '?'")
+	}
 	assert.Equal(t, []string{
-		"CREATE TABLE `chain_db`.`zircuit.blocks` UUID '00000000-0000-0000-0000-000000000001' ON CLUSTER 'compute' " +
+		"CREATE TABLE IF NOT EXISTS `chain_db`.`zircuit.blocks` UUID '?' ON CLUSTER 'compute' " +
 			"(`number` UInt64, `hash` String) " +
 			"ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}','{replica}') ORDER BY (`number`)",
-		"CREATE TABLE `chain_db`.`zircuit.logs` UUID '00000000-0000-0000-0000-000000000002' ON CLUSTER 'compute' " +
+		"CREATE TABLE IF NOT EXISTS `chain_db`.`zircuit.logs` UUID '?' ON CLUSTER 'compute' " +
 			"(`number` UInt64, `hash` String) " +
 			"ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}','{replica}') ORDER BY (`number`)",
 		"CREATE OR REPLACE VIEW `chain_db`.`zircuit.recent` ON CLUSTER 'compute' AS (SELECT 1) COMMENT ''",
-		"CREATE TABLE `chain_db`.`zircuit.range` UUID '00000000-0000-0000-0000-000000000003' ON CLUSTER 'compute' " +
+		"CREATE TABLE IF NOT EXISTS `chain_db`.`zircuit.range` UUID '?' ON CLUSTER 'compute' " +
 			"(`left` UInt64, `right` UInt64, `create_at` DateTime64(3, 'UTC')) " +
 			"ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}','{replica}') " +
 			"PARTITION BY toYYYYMMDD(create_at) ORDER BY (`create_at`)",
-	}, s.execs)
-	// each of the three tables is looked for in ZooKeeper (shards, macros, UUIDs) and given a UUID
-	assert.Len(t, s.all("FROM system.zookeeper"), 3)
-	// and each store first checks the replicas of its tables, finding none
-	assert.Len(t, s.queries, 4*len(loadSQLs)+3*4+2*2)
+	}, execs)
+	// each table has a UUID of its own (the view has none)
+	assert.Len(t, uuids, 4)
+	// Each store first checks the replicas of its tables, finding none (2 queries). Each table is
+	// then looked for, created, loaded back and checked on the replicas; the view is only looked for.
+	assert.Len(t, s.queries, 2*2+3*(len(loadSQLs)+len(loadSQLs)+len(ensureSQLs))+len(loadSQLs))
 	assertLegacyOnly(t, s)
 }
 
 // TestLegacyStartupDistributed checks that a store without a route over a Distributed facade
-// fails as it always did, the CREATE finding the facade there, and now says why.
+// fails as it always did, and says why. The CREATE, which has IF NOT EXISTS, is skipped over the
+// facade, and the table then not being found is what fails.
 func TestLegacyStartupDistributed(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -398,7 +416,7 @@ func TestLegacyStartupDistributed(t *testing.T) {
 	_, err := newTestSlotStore(ctx, ctrl, meta)
 	assert.ErrorContains(t, err, "create table logs failed: "+
 		"`chain_db`.`zircuit.logs` is a Distributed table but its store has no maintenance route")
-	assert.ErrorContains(t, err, "already exists")
+	assert.ErrorContains(t, err, "something else holds the name")
 	_, err = newTestRangeStore(ctx, ctrl)
 	assert.ErrorContains(t, err, "`chain_db`.`zircuit.range` is a Distributed table but its store has no maintenance route")
 

@@ -3,7 +3,6 @@ package chx
 import (
 	"context"
 	"fmt"
-	"path"
 	"sort"
 	"strings"
 
@@ -13,27 +12,30 @@ import (
 	"sentioxyz/sentio-core/common/log"
 )
 
-// A replica can miss a table that exists, which Create does not see: a store loads its tables from
-// the replica it is connected to, and once that one holds a table the store never creates it
-// again. That is how a replica stays without a table when the CREATE ... ON CLUSTER that made it
-// failed there, or was dropped from the distributed DDL queue before a stuck DDL worker ran it,
-// while the store, restarted meanwhile, connects to a replica that ran it. The store then writes to
-// the replicas that hold the table only, and the one that misses it fails every read it serves.
+// ErrReplicatedTableSplit is returned when the replicas of a cluster hold different tables under
+// the same name, that is tables that do not share a replication path and therefore replicate
+// nothing to each other. Which of them is right cannot be told from here, so nothing is changed
+// and the table is left for an operator.
+var ErrReplicatedTableSplit = errors.New("replicated table is split across replicas")
+
+// A store that writes its tables starts in three steps: it checks the replicas (EnsureReplicated),
+// loads the tables (Load) and brings them to the structure it wants (Sync, which creates the ones
+// that are missing). A store that only reads its tables only loads them.
 //
-// EnsureReplicated is the check a store runs for that when it starts, before it loads its tables:
-// it goes over the replicated tables the connected replica holds and creates each on the members
-// of the cluster that miss it, with its UUID, the way Create joins a table found on some replicas.
-// It also finds the tables split across the replicas, created under one name with several UUIDs
-// that replicate nothing to each other. It is for the processes that create and sync the tables,
-// not for those that only read them, which load the tables far more often.
+// EnsureReplicated is about the tables as they are, not as the store wants them: it makes sure
+// every table the answering replica holds is the same table on every replica of the cluster. A
+// replica can miss a table when the CREATE ... ON CLUSTER that made it failed there, or was dropped
+// from the distributed DDL queue before a stuck DDL worker ran it; the store then writes to the
+// replicas that hold the table only, and the one that misses it fails every statement it serves.
 //
-// The check goes by what the connected replica reports for each table itself: its replication path
-// and the replicas active on it in system.replicas, and its UUID and definition in system.tables. A
-// split is only looked for, and a table only dropped, among the tables under the path of the very
-// table the connected replica holds. The replicas holding a table are told by the host each of them
-// registers in ZooKeeper, compared with the members of the cluster, since the registration of a
-// replica that left the cluster may stay behind, active or not; when they cannot be told, nothing
-// is repaired.
+// The check goes by the table itself and nothing else: its replication path, as the answering
+// replica reports it in system.replicas, and the replicas registered under that very path in
+// ZooKeeper, each of which registers the host it runs on. A server registers under the path only
+// while it holds a table that replicates there, so a member of the cluster found there holds the
+// same table, whatever the path looks like. A member not found there either misses the table or
+// holds another table under the name. The first is repaired by creating the table there, with the
+// UUID and the definition it has here. The second shows as the member still not being registered
+// once that statement has run, since it skips a name that is taken, and is a split.
 
 // clusterMember is a server of the cluster, by its host and native port.
 type clusterMember struct {
@@ -49,101 +51,100 @@ func (m clusterMember) String() string {
 
 // replicaRegistration is what a replica of a table registers in ZooKeeper about itself.
 type replicaRegistration struct {
-	// known is set if the host node of the replica could be read
-	known    bool
-	host     string
-	port     uint64
-	database string
-	table    string
-	// active is set while a server runs the replica, which holds an ephemeral is_active node for it
+	host string
+	port uint64
+	// active is set while a server runs the replica, which holds an ephemeral node for it
 	active bool
 }
 
 func (r replicaRegistration) is(m clusterMember) bool {
-	return r.known && r.port == m.port && (r.host == m.host || (m.address != "" && r.host == m.address))
+	return r.host != "" && r.port == m.port && (r.host == m.host || (m.address != "" && r.host == m.address))
 }
 
-// heldReplicatedTable is what the connected replica reports for a replicated table it holds.
+// heldReplicatedTable is what the answering replica reports for a replicated table it holds.
 type heldReplicatedTable struct {
 	// name is the physical name of the table
 	name          string
 	uuid          string
 	createQuery   string
 	zookeeperPath string
-	// activeReplicas are the names of the replicas active on the table
-	activeReplicas []string
 }
 
-// checkedReplicatedTable is what the check finds out about a table before it changes anything.
-type checkedReplicatedTable struct {
-	heldReplicatedTable
-	// incarnations are the tables of the name under the parent of the replication path, if it ends
-	// in the UUID; several of them are a split
-	incarnations []replicatedTableIncarnation
-	// missing are the members of the cluster the table is not active on
-	missing []clusterMember
+// checksReplicas says whether the tables of the controller are checked by EnsureReplicated and
+// created with a UUID worked out from their name, see createReplicated: those created ON CLUSTER,
+// on a controller whose logic names are its physical ones.
+func (c Controller) checksReplicas() bool {
+	return c.cluster != "" &&
+		!c.tenantProxy &&
+		c.getLogicDatabase() == c.database &&
+		c.getLogicTableNamePrefix() == c.tableNamePrefix
 }
 
-// EnsureReplicated checks the replicated tables of the controller the connected replica holds, all
-// of them or those of the names, and repairs what it can, see above:
-//   - a table missing on members of the cluster is created there, with its UUID and the definition
-//     it has on the connected replica, which the replicas joining it must match; a store then
-//     brings it to the structure it wants as it does for any table it finds;
-//   - a table split across the replicas is dropped if none of its incarnations holds data, for its
-//     store to create it again as it does for any table it does not find, and is returned as
-//     ErrReplicatedTableSplit otherwise, for an operator to tell which of them is right.
+// EnsureReplicated makes sure the replicated tables of the controller the answering replica holds,
+// all of them or those of the names, are the same tables on every replica of the cluster, see
+// above. It returns ErrReplicatedTableSplit for a table another replica holds a different table
+// for, and the error of the statement if a table missing on a replica cannot be created there.
 //
 // It does nothing on a controller that does not create its tables ON CLUSTER, nor on a cluster of
-// several shards. A user that may not read what the check needs is not checked.
+// several shards, where the answering replica only sees the replicas of its own shard. A user that
+// may not read what the check needs is not checked.
 func (c Controller) EnsureReplicated(ctx context.Context, names ...string) error {
-	if c.cluster == "" || c.tenantProxy || c.getLogicDatabase() != c.database ||
-		c.getLogicTableNamePrefix() != c.tableNamePrefix {
+	if !c.checksReplicas() {
 		return nil
 	}
 	_, logger := log.FromContext(ctx, "cluster", c.cluster)
-	tables, err := c.checkReplicatedTables(ctx, names)
+	members, singleShard, err := c.loadClusterMembers(ctx)
+	if err == nil && singleShard {
+		var held []heldReplicatedTable
+		if held, err = c.loadHeldReplicatedTables(ctx, names); err == nil {
+			var missing map[string][]clusterMember
+			if missing, err = c.findMissingMembers(ctx, members, held); err == nil {
+				return c.createOnMissingMembers(ctx, members, held, missing)
+			}
+		}
+	}
 	if err != nil && isAccessDenied(err) {
 		logger.Warnfe(err, "cannot check the replicas of the tables")
 		return nil
 	}
+	return err
+}
+
+// createOnMissingMembers creates each table on the members that miss it, and checks that they hold
+// it afterwards.
+func (c Controller) createOnMissingMembers(
+	ctx context.Context,
+	members []clusterMember,
+	held []heldReplicatedTable,
+	missing map[string][]clusterMember,
+) error {
+	var created []heldReplicatedTable
+	for _, t := range held {
+		if len(missing[t.name]) == 0 {
+			continue
+		}
+		_, logger := log.FromContext(ctx, "table", t.name)
+		logger.Warnf("table with UUID %s is not on %v, will create it there", t.uuid, missing[t.name])
+		if err := c.joinReplicatedAsIs(ctx, t); err != nil {
+			return err
+		}
+		created = append(created, t)
+	}
+	if len(created) == 0 {
+		return nil
+	}
+	// The statement skips a member that holds something under the name. A member that still is not
+	// registered under the path of the table therefore holds another table.
+	missing, err := c.findMissingMembers(ctx, members, created)
 	if err != nil {
 		return err
 	}
 	var splits []string
-	for _, t := range tables {
-		_, logger := log.FromContext(ctx, "table", t.name)
-		if len(t.incarnations) > 1 && len(activeIncarnations(t.incarnations)) < 2 {
-			// Only the table held here is run by a server; the others are what dropped tables leave
-			// behind, or tables whose servers are down, which nothing tells apart, so they are left as
-			// they are.
-			logger.Warnf("table has incarnations no server runs, left as they are: %s",
-				describeIncarnations(t.incarnations))
-		} else if len(t.incarnations) > 1 {
-			desc := describeIncarnations(t.incarnations)
-			if err = c.dropEmptySplit(ctx, t.name, t.incarnations); err != nil {
-				if !errors.Is(err, ErrReplicatedTableSplit) {
-					return err
-				}
-				logger.Errorf("table is split across replicas and holds data, needs an operator: %s", desc)
-				splits = append(splits, fmt.Sprintf("%s: %s", t.name, desc))
-			}
-			continue
-		}
-		if len(t.missing) == 0 {
-			continue
-		}
-		logger.Warnf("table with UUID %s is not active on %v, will create it on the replicas that miss it",
-			t.uuid, t.missing)
-		err = c.joinReplicatedAsIs(ctx, t.name, t.uuid, t.createQuery)
-		if err != nil && isDDLTimeout(err) {
-			// A replica that is down, rather than missing the table, does not answer either. The
-			// statement stays in the distributed DDL queue and runs once the replica is back, and the
-			// replicas holding the table skip it, so it is no reason to fail.
-			logger.Warnfe(err, "not every replica answered, will go on")
-			err = nil
-		}
-		if err != nil {
-			return err
+	for _, t := range created {
+		if len(missing[t.name]) > 0 {
+			_, logger := log.FromContext(ctx, "table", t.name)
+			logger.Errorf("table with UUID %s is another table on %v, needs an operator", t.uuid, missing[t.name])
+			splits = append(splits, fmt.Sprintf("%s (UUID %s here) is another table on %v", t.name, t.uuid, missing[t.name]))
 		}
 	}
 	if len(splits) > 0 {
@@ -152,122 +153,30 @@ func (c Controller) EnsureReplicated(ctx context.Context, names ...string) error
 	return nil
 }
 
-// dropEmptySplit drops the table of the physical name, split into the incarnations, if none of them
-// holds data, and returns ErrReplicatedTableSplit otherwise.
-func (c Controller) dropEmptySplit(ctx context.Context, name string, incarnations []replicatedTableIncarnation) error {
-	for _, inc := range incarnations {
-		if inc.HasParts {
-			return ErrReplicatedTableSplit
-		}
-	}
-	_, logger := log.FromContext(ctx, "table", name)
-	logger.Warnf("table is split across replicas but holds no data, will drop it for its store to create it again: %s",
-		describeIncarnations(incarnations))
-	sql := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`%s SYNC", c.database, name, c.sqlOnClusterPart())
-	return errors.Wrapf(c.Exec(onClusterCtx(ctx), sql), "drop the split table %s failed", name)
-}
-
-// checkReplicatedTables finds out how the tables are replicated, all with the same few queries.
-func (c Controller) checkReplicatedTables(ctx context.Context, names []string) ([]checkedReplicatedTable, error) {
-	_, logger := log.FromContext(ctx, "cluster", c.cluster)
-	members, local, singleShard, err := c.loadClusterMembers(ctx)
-	if err != nil || !singleShard {
-		return nil, err
-	}
-	held, err := c.loadHeldReplicatedTables(ctx, names)
-	if err != nil || len(held) == 0 {
-		return nil, err
-	}
-	// With the UUID at the end of the path, the other tables created under the name are among the
-	// children of its parent, and loadIncarnations tells which ones they are.
-	var keys []incarnationKey
-	var activePaths []string
-	for _, t := range held {
-		if base, last := path.Split(t.zookeeperPath); last == t.uuid {
-			keys = append(keys, incarnationKey{base: strings.TrimSuffix(base, "/"), table: t.name})
-		}
-		for _, replica := range t.activeReplicas {
-			activePaths = append(activePaths, t.zookeeperPath+"/replicas/"+replica)
-		}
-	}
-	incarnations := make(map[incarnationKey]baseIncarnations)
-	if len(keys) > 0 {
-		if incarnations, err = c.loadIncarnations(ctx, keys); err != nil {
-			return nil, err
-		}
-	}
-	registrations, err := c.loadReplicaRegistrations(ctx, activePaths)
-	if err != nil {
-		return nil, err
-	}
-	checked := make([]checkedReplicatedTable, 0, len(held))
-	for _, t := range held {
-		ct := checkedReplicatedTable{heldReplicatedTable: t}
-		if base, last := path.Split(t.zookeeperPath); last == t.uuid {
-			found := incarnations[incarnationKey{base: strings.TrimSuffix(base, "/"), table: t.name}]
-			if found.ownerUnknown != nil {
-				// the split is looked for again the next time, the replicas can be checked meanwhile
-				logger.Warnfe(found.ownerUnknown, "will not look for a split of table %s this time", t.name)
-			} else {
-				ct.incarnations = found.incarnations
-			}
-		}
-		covered := func(m clusterMember) bool {
-			for _, replica := range t.activeReplicas {
-				if r, has := registrations[t.zookeeperPath+"/replicas/"+replica]; has && r.is(m) {
-					return true
-				}
-			}
-			return false
-		}
-		if local < 0 || !covered(members[local]) {
-			// The connected replica holds the table, so it should be among the hosts found. As it is
-			// not, the hosts are not registered the way the cluster names its members, and which
-			// members hold the table cannot be told: counting the replicas would not do, as one that
-			// left the cluster may still be active.
-			logger.Warnf("cannot tell the replicas of table %s from the members of the cluster, will not check them",
-				t.name)
-		} else {
-			for _, m := range members {
-				if !covered(m) {
-					ct.missing = append(ct.missing, m)
-				}
-			}
-		}
-		checked = append(checked, ct)
-	}
-	return checked, nil
-}
-
-// loadClusterMembers returns the members of the cluster and which of them is the connected server,
-// -1 if none is, and whether the cluster has a single shard.
-func (c Controller) loadClusterMembers(ctx context.Context) ([]clusterMember, int, bool, error) {
+// loadClusterMembers returns the members of the cluster and whether it has a single shard.
+func (c Controller) loadClusterMembers(ctx context.Context) ([]clusterMember, bool, error) {
 	shards := make(map[uint64]bool)
 	var members []clusterMember
-	local := -1
 	err := c.Query(ctx, func(rows driver.Rows) error {
 		var shard uint64
 		var m clusterMember
-		var isLocal uint8
-		if scanErr := rows.Scan(&shard, &m.host, &m.address, &m.port, &isLocal); scanErr != nil {
+		if scanErr := rows.Scan(&shard, &m.host, &m.address, &m.port); scanErr != nil {
 			return scanErr
 		}
 		shards[shard] = true
-		if isLocal != 0 {
-			local = len(members)
-		}
 		members = append(members, m)
 		return nil
-	}, "SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) "+
-		"FROM system.clusters WHERE cluster = ?", c.cluster)
+	}, "SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port) FROM system.clusters WHERE cluster = ?",
+		c.cluster)
 	if err != nil {
-		return nil, -1, false, errors.Wrapf(err, "load the members of cluster %s failed", c.cluster)
+		return nil, false, errors.Wrapf(err, "load the members of cluster %s failed", c.cluster)
 	}
-	return members, local, len(shards) == 1, nil
+	return members, len(shards) == 1, nil
 }
 
-// loadHeldReplicatedTables returns the replicated tables of the controller the connected replica
-// holds, all of them or those of the names, ordered by name.
+// loadHeldReplicatedTables returns the replicated tables of the controller the answering replica
+// holds, all of them or those of the names, ordered by name. It is one query, as the next one may
+// be answered by another replica.
 func (c Controller) loadHeldReplicatedTables(ctx context.Context, names []string) ([]heldReplicatedTable, error) {
 	condition, arg := "LIKE ?", any(nil)
 	if len(names) > 0 {
@@ -277,56 +186,99 @@ func (c Controller) loadHeldReplicatedTables(ctx context.Context, names []string
 		}
 		condition, arg = "IN ?", physical
 	} else {
-		_, like := c.loadCondition(EqualOrLike{})
-		arg = like
+		_, arg = c.loadCondition(EqualOrLike{})
 	}
-	byName := make(map[string]*heldReplicatedTable)
+	var held []heldReplicatedTable
 	err := c.Query(ctx, func(rows driver.Rows) error {
 		var t heldReplicatedTable
-		if scanErr := rows.Scan(&t.name, &t.zookeeperPath, &t.activeReplicas); scanErr != nil {
+		if scanErr := rows.Scan(&t.name, &t.zookeeperPath, &t.uuid, &t.createQuery); scanErr != nil {
 			return scanErr
 		}
-		byName[t.name] = &t
+		held = append(held, t)
 		return nil
-	}, "SELECT table, zookeeper_path, "+
-		"arrayFilter((r, a) -> a != 0, mapKeys(replica_is_active), mapValues(replica_is_active)) "+
-		"FROM system.replicas WHERE database = ? AND table "+condition, c.database, arg)
+	}, "SELECT r.table, r.zookeeper_path, toString(t.uuid), t.create_table_query "+
+		"FROM system.replicas AS r INNER JOIN system.tables AS t ON t.database = r.database AND t.name = r.table "+
+		"WHERE r.database = ? AND r.table "+condition+" ORDER BY r.table", c.database, arg)
 	if err != nil {
 		return nil, errors.Wrapf(err, "load the replicated tables of database %s failed", c.database)
-	}
-	if len(byName) == 0 {
-		return nil, nil
-	}
-	tableNames := make([]string, 0, len(byName))
-	for name := range byName {
-		tableNames = append(tableNames, name)
-	}
-	sort.Strings(tableNames)
-	err = c.Query(ctx, func(rows driver.Rows) error {
-		var name, uuid, query string
-		if scanErr := rows.Scan(&name, &uuid, &query); scanErr != nil {
-			return scanErr
-		}
-		if t, has := byName[name]; has {
-			t.uuid, t.createQuery = uuid, query
-		}
-		return nil
-	}, "SELECT name, toString(uuid), create_table_query FROM system.tables WHERE database = ? AND name IN ?",
-		c.database, tableNames)
-	if err != nil {
-		return nil, errors.Wrapf(err, "load the definitions of %d tables failed", len(tableNames))
-	}
-	held := make([]heldReplicatedTable, 0, len(tableNames))
-	for _, name := range tableNames {
-		if t := byName[name]; t.uuid != "" {
-			held = append(held, *t)
-		}
 	}
 	return held, nil
 }
 
-// loadReplicaRegistrations returns what the replicas of the paths registered about themselves, and
-// whether they are active, by path.
+// findMissingMembers returns, by table, the members of the cluster not registered under the
+// replication path of the table. A member registered there but not active is down rather than
+// missing the table, and is only reported. A table none of whose replicas can be matched to a
+// member is left out: its replicas do not register the way the cluster names its members, and
+// which of them hold the table cannot be told.
+func (c Controller) findMissingMembers(
+	ctx context.Context,
+	members []clusterMember,
+	tables []heldReplicatedTable,
+) (map[string][]clusterMember, error) {
+	missing := make(map[string][]clusterMember)
+	if len(tables) == 0 {
+		return missing, nil
+	}
+	parents := make([]string, len(tables))
+	for i, t := range tables {
+		parents[i] = t.zookeeperPath + "/replicas"
+	}
+	replicas := make(map[string][]string)
+	err := c.Query(ctx, func(rows driver.Rows) error {
+		var parent, replica string
+		if scanErr := rows.Scan(&parent, &replica); scanErr != nil {
+			return scanErr
+		}
+		replicas[parent] = append(replicas[parent], replica)
+		return nil
+	}, "SELECT path, name FROM system.zookeeper WHERE path IN ?", parents)
+	if err != nil {
+		return nil, errors.Wrapf(err, "list the replicas of %d tables failed", len(tables))
+	}
+	var paths []string
+	for _, parent := range parents {
+		sort.Strings(replicas[parent])
+		for _, replica := range replicas[parent] {
+			paths = append(paths, parent+"/"+replica)
+		}
+	}
+	registrations, err := c.loadReplicaRegistrations(ctx, paths)
+	if err != nil {
+		return nil, err
+	}
+	for i, t := range tables {
+		_, logger := log.FromContext(ctx, "table", t.name)
+		var matched int
+		var absent []clusterMember
+		for _, m := range members {
+			var registered, active bool
+			for _, replica := range replicas[parents[i]] {
+				if r := registrations[parents[i]+"/"+replica]; r.is(m) {
+					registered, active = true, active || r.active
+				}
+			}
+			switch {
+			case !registered:
+				absent = append(absent, m)
+			case !active:
+				matched++
+				logger.Warnf("replica of the table on %s is not active", m)
+			default:
+				matched++
+			}
+		}
+		if matched == 0 {
+			logger.Warnf("cannot tell the replicas of the table from the members of cluster %s, will not check them",
+				c.cluster)
+			continue
+		}
+		missing[t.name] = absent
+	}
+	return missing, nil
+}
+
+// loadReplicaRegistrations returns what the replicas of the paths registered about themselves, by
+// path.
 func (c Controller) loadReplicaRegistrations(ctx context.Context, paths []string) (map[string]replicaRegistration, error) {
 	registrations := make(map[string]replicaRegistration)
 	if len(paths) == 0 {
@@ -340,9 +292,8 @@ func (c Controller) loadReplicaRegistrations(ctx context.Context, paths []string
 		r := registrations[p]
 		if name == "is_active" {
 			r.active = true
-		} else if parsed, ok := parseReplicaRegistration(value); ok {
-			parsed.active = r.active
-			r = parsed
+		} else {
+			r.host, r.port = parseReplicaHost(value)
 		}
 		registrations[p] = r
 		return nil
@@ -353,43 +304,40 @@ func (c Controller) loadReplicaRegistrations(ctx context.Context, paths []string
 	return registrations, nil
 }
 
-// parseReplicaRegistration reads the host node a replica registers, lines such as "host: server-0",
-// "tcp_port: 9000", "database: db" and "table: t".
-func parseReplicaRegistration(value string) (replicaRegistration, bool) {
-	var r replicaRegistration
+// parseReplicaHost reads the host and native port out of the host node a replica registers, lines
+// such as "host: server-0" and "tcp_port: 9000". It returns no host if it cannot.
+func parseReplicaHost(value string) (host string, port uint64) {
 	for _, line := range strings.Split(value, "\n") {
 		k, v, _ := strings.Cut(line, ":")
 		v = strings.TrimSpace(v)
 		switch strings.TrimSpace(k) {
 		case "host":
-			r.host = v
+			host = v
 		case "tcp_port":
-			if _, err := fmt.Sscan(v, &r.port); err != nil {
-				return r, false
+			if _, err := fmt.Sscan(v, &port); err != nil {
+				return "", 0
 			}
-		case "database":
-			r.database = v
-		case "table":
-			r.table = v
 		}
 	}
-	r.known = r.host != "" && r.port != 0
-	return r, r.known
+	if port == 0 {
+		return "", 0
+	}
+	return host, port
 }
 
-// joinReplicatedAsIs creates the table of the physical name, which the connected replica holds, on
-// the replicas that do not hold it yet, with its UUID and with the definition it has here. A
-// definition its store requests may differ, but the replicas joining the table must match the one
-// it has, which ClickHouse keeps in ZooKeeper and checks, and the store brings the table to the one
-// it requests once every replica has it, as an ALTER ... ON CLUSTER fails on a replica without it.
-func (c Controller) joinReplicatedAsIs(ctx context.Context, name, uuid, query string) error {
-	body, ok := createTableBody(query)
+// joinReplicatedAsIs creates the table on the replicas that do not hold it yet, with its UUID and
+// with the definition it has on the answering replica. A replica joining a table must match the
+// structure the table has, which ClickHouse keeps in ZooKeeper and checks, so the definition a
+// store wants, which may be a newer one, would not do: the store brings the table to it afterwards,
+// once every replica has the table, as an ALTER ... ON CLUSTER fails on a replica without it.
+func (c Controller) joinReplicatedAsIs(ctx context.Context, t heldReplicatedTable) error {
+	body, ok := createTableBody(t.createQuery)
 	if !ok {
-		return errors.Errorf("cannot make out the definition of table %s: %q", name, query)
+		return errors.Errorf("cannot make out the definition of table %s: %q", t.name, t.createQuery)
 	}
 	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s`.`%s` UUID '%s'%s %s",
-		c.database, name, uuid, c.sqlOnClusterPart(), body)
-	return errors.Wrapf(c.Exec(onClusterCtx(ctx), sql), "create table %s on the replicas missing it failed", name)
+		c.database, t.name, t.uuid, c.sqlOnClusterPart(), body)
+	return errors.Wrapf(c.Exec(onClusterCtx(ctx), sql), "create table %s on the replicas missing it failed", t.name)
 }
 
 // createTableBody returns what follows the name in the create_table_query of a table, that is its

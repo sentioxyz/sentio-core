@@ -474,7 +474,10 @@ func (c Controller) Create(ctx context.Context, tableOrView TableOrView) (err er
 	return nil
 }
 
+// SyncTable brings the existing table pre to the structure of cur. Its statements return once
+// every replica has taken the change, see alterSyncCtx.
 func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
+	ctx = alterSyncCtx(ctx)
 	// === check diff
 	if pre.Name != cur.Name {
 		return errors.Errorf("try to change table name from %q to %q", pre.Name, cur.Name)

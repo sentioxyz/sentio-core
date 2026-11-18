@@ -77,6 +77,10 @@ func NewRangeStore(
 				return nil, err
 			}
 		} else {
+			// the replicas may miss the table the connected one holds, see chx.Controller.EnsureReplicated
+			if err := s.ctrl.EnsureReplicated(ctx, tableName); err != nil {
+				return nil, errors.Wrapf(err, "check the replicas of table %s failed", tableName)
+			}
 			pre, has, err := s.ctrl.LoadOne(ctx, tableName, false)
 			if err != nil {
 				return nil, errors.Wrapf(err, "load table %s failed", tableName)

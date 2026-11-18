@@ -104,6 +104,16 @@ func onClusterCtx(ctx context.Context) context.Context {
 	})
 }
 
+// alterSyncCtx makes an ALTER of a replicated table return only once every replica has taken the
+// change, where it otherwise waits for the replica that runs it only. A change of the structure
+// reaches the other replicas through the replication of the table, moments later, and a statement
+// one of them answers meanwhile does not find a column that was just added. It builds on
+// onClusterCtx, without which an ALTER ... ON CLUSTER may return before any host has run it. The
+// price is that the ALTER fails, on a timeout, while a replica is down.
+func alterSyncCtx(ctx context.Context) context.Context {
+	return ckhmanager.ContextMergeSettings(onClusterCtx(ctx), map[string]any{"alter_sync": 2})
+}
+
 func WithProjectionTableSettings(settings map[string]string) {
 	settings["lightweight_mutation_projection_mode"] = "'rebuild'"
 	// A merge that deduplicates refuses to run on a table with projections unless it is told what

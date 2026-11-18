@@ -8,6 +8,8 @@ import (
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/timeseries"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 type Option struct {
@@ -119,9 +121,15 @@ func (s *Store) inserts(chainID string) chx.InsertScope {
 	return chx.NewInsertScope(s.ctrl, "timeseries@"+chainID)
 }
 
+// Init loads the metas from the tables and syncs the tables to them. It is for the store that
+// writes the tables, and first checks that every replica holds the tables the connected one holds,
+// see chx.Controller.EnsureReplicated; the stores that only read use ReloadMeta.
 func (s *Store) Init(ctx context.Context) error {
 	s.metaLock.Lock()
 	defer s.metaLock.Unlock()
+	if err := s.ctrl.EnsureReplicated(ctx); err != nil {
+		return errors.Wrapf(err, "check the replicas of the time series tables failed")
+	}
 	if err := s.fetchMetas(ctx, false); err != nil {
 		return err
 	}

@@ -1,0 +1,366 @@
+package chx
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/pkg/errors"
+
+	"sentioxyz/sentio-core/common/log"
+)
+
+// ErrReplicatedTableSplit is returned by Create when the replicas of a cluster hold different
+// tables under the same name, that is tables with different UUIDs, which therefore replicate
+// nothing to each other, and at least one of them holds data. Which of them is right cannot be
+// told from here, so nothing is changed and the table is left for an operator.
+var ErrReplicatedTableSplit = errors.New("replicated table is split across replicas")
+
+// A plain CREATE TABLE ... ON CLUSTER of a replicated table cannot be retried safely. Each run gets
+// a UUID of its own from the server that runs it, and with the default replication path, which ends
+// in {uuid}, a table of another UUID is another replication log. When the statement times out on a
+// replica whose DDL worker is stuck, the replicas that ran it hold the table while the stuck one
+// does not, and the retry then fails on the first ones as the table exists and creates a second,
+// unrelated table on the stuck one: the replicas no longer replicate to each other, and nothing
+// says so. The longer the replica is stuck, the likelier it is that the first statement is even
+// dropped from the distributed DDL queue, which keeps only the latest entries, before it runs.
+//
+// createReplicated makes the retry converge instead. It finds the tables that already exist under
+// the name in ZooKeeper, which every replica shares, and reuses the UUID of the one it finds, with
+// IF NOT EXISTS: the replicas holding the table skip it, the others create the same table and join
+// its replication. When there is no table yet it draws a UUID and creates the table with it, so
+// that a retry of that CREATE finds the table and joins it. Several tables under the name are a
+// split: dropped and created again if none of them holds data, left for an operator otherwise.
+//
+// A replica joining the table does so with the structure the caller asks for, not with the one
+// the table has, which ClickHouse stores in ZooKeeper and checks: a replica whose columns or
+// metadata differ is refused (INCOMPATIBLE_COLUMNS or METADATA_MISMATCH) rather than created with
+// another structure, so the replicas cannot end up with different ones. Once every replica has the
+// table, the table is loaded back and brought to the requested structure with SyncTable, the way
+// an existing table is, since the table found may have been created with another one.
+
+// createsReplicatedOnCluster says whether Create builds table through createReplicated. That
+// takes a replicated table created ON CLUSTER, on a controller whose logic names are its physical
+// ones, since the table is looked for under the latter and created under the former.
+func (c Controller) createsReplicatedOnCluster(table Table) bool {
+	return !table.IsTemporary &&
+		c.cluster != "" &&
+		!c.tenantProxy &&
+		table.Config.Engine != nil &&
+		table.Config.Engine.Replicated() &&
+		c.getLogicDatabase() == c.database &&
+		c.getLogicTableNamePrefix() == c.tableNamePrefix
+}
+
+// replicatedTableIncarnation is one table, of one UUID, found under the replication path of a name.
+type replicatedTableIncarnation struct {
+	UUID     string
+	Replicas []string
+	// HasParts is set if any replica of the table holds a data part
+	HasParts bool
+}
+
+func (c Controller) createReplicated(ctx context.Context, table Table) error {
+	_, logger := log.FromContext(ctx, "name", table.Name)
+	// The lookup sees the replication path of the shard of the connected server only, through its
+	// {shard} macro, while the CREATE and the DROP reach every shard of the cluster. On a cluster of
+	// several shards it could not tell what the statements would do on the other shards, so the
+	// table is created there the way it always was.
+	singleShard, err := c.clusterHasSingleShard(ctx)
+	var base string
+	var ok bool
+	if err == nil && singleShard {
+		base, ok, err = c.replicatedTableBasePath(ctx, table)
+	}
+	var incarnations []replicatedTableIncarnation
+	if err == nil && singleShard && ok {
+		incarnations, err = c.loadReplicatedTableIncarnations(ctx, base)
+	}
+	if err != nil && isAccessDenied(err) {
+		// A user that may not read system.macros or system.zookeeper gets the table created the way
+		// it always was rather than no table at all. Any other error is returned: the lookup failing
+		// for a while is no reason to create a table that may split.
+		logger.Warnfe(err, "cannot look for the table in ZooKeeper, will create it the old way")
+		return c.Exec(ctx, c.buildCreateTableSQL(table))
+	}
+	if err != nil {
+		return err
+	}
+	if !singleShard {
+		return c.Exec(ctx, c.buildCreateTableSQL(table))
+	}
+	if !ok {
+		// The replication path does not depend on the UUID, so every table created under the name
+		// shares one replication log whatever its UUID and a retry joins it: it cannot split.
+		return c.Exec(ctx, c.buildCreateTableSQL(table))
+	}
+	switch len(incarnations) {
+	case 0:
+		return c.createReplicatedFresh(ctx, table)
+	case 1:
+		logger.Infof("table already exists on replicas %v with UUID %s, will join it",
+			incarnations[0].Replicas, incarnations[0].UUID)
+		if err = c.joinReplicated(ctx, table, incarnations[0].UUID); err != nil {
+			return err
+		}
+		return c.syncJoinedTable(ctx, table)
+	}
+	desc := describeIncarnations(incarnations)
+	for _, inc := range incarnations {
+		if inc.HasParts {
+			logger.Errorf("table is split across replicas and holds data, needs an operator: %s", desc)
+			return errors.Wrapf(ErrReplicatedTableSplit, "%s: %s", table.Name, desc)
+		}
+	}
+	// None of the tables holds a part, so nothing is lost by dropping them all and starting over.
+	logger.Warnf("table is split across replicas but holds no data, will drop and recreate it: %s", desc)
+	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s SYNC", c.FullLogicNameWithOnCluster(table.Name))
+	if err = c.Exec(onClusterCtx(ctx), sql); err != nil {
+		return errors.Wrapf(err, "drop the split table %s failed", table.Name)
+	}
+	return c.createReplicatedFresh(ctx, table)
+}
+
+func (c Controller) createReplicatedFresh(ctx context.Context, table Table) error {
+	var uuid string
+	err := c.Query(ctx, func(rows driver.Rows) error {
+		return rows.Scan(&uuid)
+	}, "SELECT toString(generateUUIDv4())")
+	if err != nil {
+		return errors.Wrapf(err, "generate UUID for table %s failed", table.Name)
+	}
+	if uuid == "" {
+		return errors.Errorf("generate UUID for table %s returned nothing", table.Name)
+	}
+	// No IF NOT EXISTS here: with no replicated table of the name anywhere, whatever holds the name
+	// is something else, a Distributed facade for one, and the CREATE has to fail on it as it always
+	// did. A retry finds the table this one leaves behind and joins it.
+	return c.Exec(onClusterCtx(ctx), c.buildCreateTableSQLWith(table, false, uuid))
+}
+
+// joinReplicated creates table with the UUID of the table some replicas already hold, on the
+// replicas that do not hold it yet.
+func (c Controller) joinReplicated(ctx context.Context, table Table, uuid string) error {
+	err := c.Exec(onClusterCtx(ctx), c.buildCreateTableSQLWith(table, true, uuid))
+	if err != nil && isStructureMismatch(err) {
+		return errors.Wrapf(err, "table %s exists on some replicas with another structure "+
+			"than the one requested, so the others cannot join it", table.Name)
+	}
+	return err
+}
+
+// syncJoinedTable brings a table that was found rather than created to the requested structure.
+func (c Controller) syncJoinedTable(ctx context.Context, table Table) error {
+	tv, has, err := c.LoadOne(ctx, table.Name, false)
+	if err != nil {
+		return errors.Wrapf(err, "load table %s after joining it failed", table.Name)
+	}
+	if !has {
+		return errors.Errorf("table %s is missing after joining it", table.Name)
+	}
+	existing, is := tv.(Table)
+	if !is {
+		return errors.Errorf("%s is a %s, not a table", table.Name, tv.GetKind())
+	}
+	return c.SyncTable(ctx, existing, table)
+}
+
+// clusterHasSingleShard says whether the cluster of the controller has exactly one shard, as the
+// connected server defines it.
+func (c Controller) clusterHasSingleShard(ctx context.Context) (bool, error) {
+	shards, err := c.QueryCount(ctx, "SELECT uniqExact(shard_num) FROM system.clusters WHERE cluster = ?", c.cluster)
+	if err != nil {
+		return false, errors.Wrapf(err, "count shards of cluster %s failed", c.cluster)
+	}
+	return shards == 1, nil
+}
+
+const (
+	codeIncompatibleColumns = 122
+	codeMetadataMismatch    = 342
+	codeAccessDenied        = 497
+)
+
+// hasClickHouseError says whether err is one of the ClickHouse errors of the codes, or names one of
+// them. The native protocol sends the code apart from the message, which then need not carry the
+// name, so a driver exception is matched by its code; the name is for the errors that only have
+// text, the one a host reports to the initiator of an ON CLUSTER statement among them.
+func hasClickHouseError(err error, codes map[int32]string) bool {
+	var exception *clickhouse.Exception
+	if errors.As(err, &exception) {
+		if _, has := codes[exception.Code]; has {
+			return true
+		}
+	}
+	msg := err.Error()
+	for _, name := range codes {
+		if strings.Contains(msg, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func isAccessDenied(err error) bool {
+	return hasClickHouseError(err, map[int32]string{codeAccessDenied: "ACCESS_DENIED"})
+}
+
+func isStructureMismatch(err error) bool {
+	return hasClickHouseError(err, map[int32]string{
+		codeIncompatibleColumns: "INCOMPATIBLE_COLUMNS",
+		codeMetadataMismatch:    "METADATA_MISMATCH",
+	})
+}
+
+const uuidMacro = "{uuid}"
+
+var macroPattern = regexp.MustCompile(`\{[^{}]*\}`)
+
+// replicatedTableBasePath returns the ZooKeeper path whose children are the UUIDs of the tables
+// created under the name of table, that is its replication path without the trailing {uuid}. ok is
+// false if the path does not end in {uuid}, or uses a macro that cannot be worked out here.
+func (c Controller) replicatedTableBasePath(ctx context.Context, table Table) (string, bool, error) {
+	args := replicatedEngineArgs(table.Config.Engine)
+	if len(args) == 0 {
+		return "", false, nil
+	}
+	path := args[0]
+	if !strings.HasSuffix(path, "/"+uuidMacro) {
+		return "", false, nil
+	}
+	path = strings.TrimSuffix(path, "/"+uuidMacro)
+	macros := map[string]string{
+		"database": c.database,
+		"table":    c.tableNamePrefix + table.Name,
+	}
+	if macroPattern.MatchString(strings.NewReplacer("{database}", "", "{table}", "").Replace(path)) {
+		err := c.Query(ctx, func(rows driver.Rows) error {
+			var macro, substitution string
+			if scanErr := rows.Scan(&macro, &substitution); scanErr != nil {
+				return scanErr
+			}
+			if _, builtin := macros[macro]; !builtin {
+				macros[macro] = substitution
+			}
+			return nil
+		}, "SELECT macro, substitution FROM system.macros")
+		if err != nil {
+			return "", false, errors.Wrapf(err, "load macros failed")
+		}
+	}
+	unknown := false
+	path = macroPattern.ReplaceAllStringFunc(path, func(m string) string {
+		value, has := macros[strings.Trim(m, "{}")]
+		if !has {
+			unknown = true
+			return m
+		}
+		return value
+	})
+	if unknown {
+		return "", false, nil
+	}
+	return path, true, nil
+}
+
+func replicatedEngineArgs(engine Engine) []string {
+	switch e := engine.(type) {
+	case engineMergeTree:
+		return e.ReplicatedArgs
+	case engineVersionedCollapsingMergeTree:
+		return e.ReplicatedArgs
+	}
+	return nil
+}
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+// loadReplicatedTableIncarnations returns the tables found under base, each with the replicas that
+// hold it, ordered by UUID. A UUID under which no replica is registered any more is what a dropped
+// table may leave behind for a while, and is left out.
+func (c Controller) loadReplicatedTableIncarnations(
+	ctx context.Context,
+	base string,
+) ([]replicatedTableIncarnation, error) {
+	var uuids []string
+	err := c.Query(ctx, func(rows driver.Rows) error {
+		var name string
+		if scanErr := rows.Scan(&name); scanErr != nil {
+			return scanErr
+		}
+		if uuidPattern.MatchString(name) {
+			uuids = append(uuids, name)
+		}
+		return nil
+	}, "SELECT name FROM system.zookeeper WHERE path = ?", base)
+	if err != nil {
+		return nil, errors.Wrapf(err, "list tables under %s failed", base)
+	}
+	if len(uuids) == 0 {
+		return nil, nil
+	}
+	sort.Strings(uuids)
+	replicasPaths := make([]string, len(uuids))
+	for i, uuid := range uuids {
+		replicasPaths[i] = base + "/" + uuid + "/replicas"
+	}
+	replicas := make(map[string][]string)
+	err = c.Query(ctx, func(rows driver.Rows) error {
+		var path, name string
+		if scanErr := rows.Scan(&path, &name); scanErr != nil {
+			return scanErr
+		}
+		replicas[path] = append(replicas[path], name)
+		return nil
+	}, "SELECT path, name FROM system.zookeeper WHERE path IN ?", replicasPaths)
+	if err != nil {
+		return nil, errors.Wrapf(err, "list replicas of the tables under %s failed", base)
+	}
+	var incarnations []replicatedTableIncarnation
+	var replicaPaths []string
+	owner := make(map[string]int)
+	for i, uuid := range uuids {
+		names := replicas[replicasPaths[i]]
+		if len(names) == 0 {
+			continue
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			p := replicasPaths[i] + "/" + name
+			replicaPaths = append(replicaPaths, p)
+			owner[p] = len(incarnations)
+		}
+		incarnations = append(incarnations, replicatedTableIncarnation{UUID: uuid, Replicas: names})
+	}
+	if len(incarnations) < 2 {
+		// whether a table holds data only matters to telling a split apart, see createReplicated
+		return incarnations, nil
+	}
+	err = c.Query(ctx, func(rows driver.Rows) error {
+		var path string
+		var parts int64
+		if scanErr := rows.Scan(&path, &parts); scanErr != nil {
+			return scanErr
+		}
+		if i, has := owner[path]; has && parts > 0 {
+			incarnations[i].HasParts = true
+		}
+		return nil
+	}, "SELECT path, toInt64(numChildren) FROM system.zookeeper WHERE path IN ? AND name = 'parts'", replicaPaths)
+	if err != nil {
+		return nil, errors.Wrapf(err, "count the parts of the tables under %s failed", base)
+	}
+	return incarnations, nil
+}
+
+func describeIncarnations(incarnations []replicatedTableIncarnation) string {
+	desc := make([]string, len(incarnations))
+	for i, inc := range incarnations {
+		desc[i] = fmt.Sprintf("UUID %s on replicas %v (has parts: %v)", inc.UUID, inc.Replicas, inc.HasParts)
+	}
+	return strings.Join(desc, "; ")
+}

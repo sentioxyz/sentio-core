@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/pkg/errors"
 
@@ -65,9 +66,18 @@ type replicatedTableIncarnation struct {
 
 func (c Controller) createReplicated(ctx context.Context, table Table) error {
 	_, logger := log.FromContext(ctx, "name", table.Name)
-	base, ok, err := c.replicatedTableBasePath(ctx, table)
+	// The lookup sees the replication path of the shard of the connected server only, through its
+	// {shard} macro, while the CREATE and the DROP reach every shard of the cluster. On a cluster of
+	// several shards it could not tell what the statements would do on the other shards, so the
+	// table is created there the way it always was.
+	singleShard, err := c.clusterHasSingleShard(ctx)
+	var base string
+	var ok bool
+	if err == nil && singleShard {
+		base, ok, err = c.replicatedTableBasePath(ctx, table)
+	}
 	var incarnations []replicatedTableIncarnation
-	if err == nil && ok {
+	if err == nil && singleShard && ok {
 		incarnations, err = c.loadReplicatedTableIncarnations(ctx, base)
 	}
 	if err != nil && isAccessDenied(err) {
@@ -79,6 +89,9 @@ func (c Controller) createReplicated(ctx context.Context, table Table) error {
 	}
 	if err != nil {
 		return err
+	}
+	if !singleShard {
+		return c.Exec(ctx, c.buildCreateTableSQL(table))
 	}
 	if !ok {
 		// The replication path does not depend on the UUID, so every table created under the name
@@ -156,13 +169,51 @@ func (c Controller) syncJoinedTable(ctx context.Context, table Table) error {
 	return c.SyncTable(ctx, existing, table)
 }
 
+// clusterHasSingleShard says whether the cluster of the controller has exactly one shard, as the
+// connected server defines it.
+func (c Controller) clusterHasSingleShard(ctx context.Context) (bool, error) {
+	shards, err := c.QueryCount(ctx, "SELECT uniqExact(shard_num) FROM system.clusters WHERE cluster = ?", c.cluster)
+	if err != nil {
+		return false, errors.Wrapf(err, "count shards of cluster %s failed", c.cluster)
+	}
+	return shards == 1, nil
+}
+
+const (
+	codeIncompatibleColumns = 122
+	codeMetadataMismatch    = 342
+	codeAccessDenied        = 497
+)
+
+// hasClickHouseError says whether err is one of the ClickHouse errors of the codes, or names one of
+// them. The native protocol sends the code apart from the message, which then need not carry the
+// name, so a driver exception is matched by its code; the name is for the errors that only have
+// text, the one a host reports to the initiator of an ON CLUSTER statement among them.
+func hasClickHouseError(err error, codes map[int32]string) bool {
+	var exception *clickhouse.Exception
+	if errors.As(err, &exception) {
+		if _, has := codes[exception.Code]; has {
+			return true
+		}
+	}
+	msg := err.Error()
+	for _, name := range codes {
+		if strings.Contains(msg, name) {
+			return true
+		}
+	}
+	return false
+}
+
 func isAccessDenied(err error) bool {
-	return strings.Contains(err.Error(), "ACCESS_DENIED")
+	return hasClickHouseError(err, map[int32]string{codeAccessDenied: "ACCESS_DENIED"})
 }
 
 func isStructureMismatch(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "INCOMPATIBLE_COLUMNS") || strings.Contains(msg, "METADATA_MISMATCH")
+	return hasClickHouseError(err, map[int32]string{
+		codeIncompatibleColumns: "INCOMPATIBLE_COLUMNS",
+		codeMetadataMismatch:    "METADATA_MISMATCH",
+	})
 }
 
 const uuidMacro = "{uuid}"

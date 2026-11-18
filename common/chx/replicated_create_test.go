@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,10 +39,18 @@ type replicatedZK struct {
 	parts    map[string]int64
 	// existing are the columns of t on the connected replica once it has the table
 	existing []string
+	// shards is the number of shards of the cluster, one if not set
+	shards uint64
 }
 
 func (z replicatedZK) onQuery(sql string, args []any) ([][]any, error) {
 	switch {
+	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num) FROM system.clusters"):
+		shards := z.shards
+		if shards == 0 {
+			shards = 1
+		}
+		return [][]any{{shards}}, nil
 	case strings.HasPrefix(sql, "SELECT macro, substitution FROM system.macros"):
 		return [][]any{{"cluster", testReplicatedCluster}, {"shard", "0"}, {"replica", "r0"}}, nil
 	case sql == "SELECT name FROM system.zookeeper WHERE path = ?":
@@ -232,6 +241,54 @@ func TestCreateReplicatedLookupFailures(t *testing.T) {
 	c = New(conn, WithCluster(testReplicatedCluster))
 	require.Error(t, c.Create(t.Context(), testReplicatedTable("a")))
 	assert.Empty(t, conn.statements("CREATE"))
+}
+
+// The native protocol sends the code of an error apart from its message, which then does not name
+// the error: a driver exception is recognized by its code.
+func TestCreateReplicatedNativeErrors(t *testing.T) {
+	for _, table := range []string{"system.macros", "system.zookeeper"} {
+		conn := &fakeConn{onQuery: func(sql string, args []any) ([][]any, error) {
+			if strings.Contains(sql, table) {
+				return nil, &clickhouse.Exception{Code: codeAccessDenied, Message: "sentio: Not enough privileges."}
+			}
+			return replicatedZK{}.onQuery(sql, args)
+		}}
+		c := New(conn, WithCluster(testReplicatedCluster))
+		require.NoError(t, c.Create(t.Context(), testReplicatedTable("a")), table)
+		creates := conn.statements("CREATE")
+		require.Len(t, creates, 1, table)
+		assert.True(t, strings.HasPrefix(creates[0], "CREATE TABLE `chain_db`.`t` ON CLUSTER 'users' ("), creates[0])
+	}
+
+	z := replicatedZK{replicas: map[string][]string{testUUIDA: {"replica-0"}}}
+	c, conn := newReplicatedTestController(z)
+	conn.onExec = func(sql string) error {
+		if strings.HasPrefix(sql, "CREATE") {
+			return errors.Wrap(&clickhouse.Exception{Code: codeIncompatibleColumns,
+				Message: "Table columns structure in ZooKeeper is different from local table structure"}, "exec")
+		}
+		return nil
+	}
+	err := c.Create(t.Context(), testReplicatedTable("a", "b"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "another structure")
+}
+
+// On a cluster of several shards the lookup would see the shard of the connected server only, while
+// the CREATE and a DROP reach every shard, so the table is created the way it always was, and
+// nothing is dropped even if the local shard looks split.
+func TestCreateReplicatedSeveralShards(t *testing.T) {
+	c, conn := newReplicatedTestController(replicatedZK{
+		shards: 2,
+		replicas: map[string][]string{
+			testUUIDA: {"replica-0"},
+			testUUIDB: {"replica-1"},
+		},
+	})
+	require.NoError(t, c.Create(t.Context(), testReplicatedTable("a")))
+	assert.Equal(t, []string{c.BuildCreateSQL(testReplicatedTable("a"))}, conn.statements("CREATE"))
+	assert.Empty(t, conn.statements("DROP"))
+	assert.NotContains(t, strings.Join(conn.log, "\n"), "system.zookeeper")
 }
 
 func TestReplicatedTableBasePath(t *testing.T) {

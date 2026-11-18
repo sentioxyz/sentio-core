@@ -124,6 +124,8 @@ func (s *fakeServer) query(sql string, args []any) ([][]any, error) {
 				rows = append(rows, []any{h, engine})
 			}
 		}
+	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num) FROM system.clusters"):
+		rows = append(rows, []any{uint64(1)})
 	case sql == "SELECT macro, substitution FROM system.macros":
 		rows = append(rows, []any{"cluster", "compute"}, []any{"shard", "0"})
 	case strings.HasPrefix(sql, "SELECT name FROM system.zookeeper"):
@@ -278,7 +280,8 @@ func rangeFields(ctrl chx.Controller) []chx.Field {
 
 // newStatements are the statements only the routed startup issues, which a store without a route
 // must never issue before something has failed.
-var newStatements = []string{"SELECT engine FROM", "SELECT engine, engine_full FROM", "clusterAllReplicas", "system.clusters"}
+var newStatements = []string{"SELECT engine FROM", "SELECT engine, engine_full FROM", "clusterAllReplicas",
+	"SELECT count() FROM system.clusters"}
 
 func assertLegacyOnly(t *testing.T, s *fakeServer) {
 	for _, stmt := range newStatements {
@@ -339,9 +342,9 @@ func TestLegacyStartupMissing(t *testing.T) {
 			"ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}','{replica}') " +
 			"PARTITION BY toYYYYMMDD(create_at) ORDER BY (`create_at`)",
 	}, s.execs)
-	// each of the three tables is looked for in ZooKeeper (macros, UUIDs) and given a UUID
+	// each of the three tables is looked for in ZooKeeper (shards, macros, UUIDs) and given a UUID
 	assert.Len(t, s.all("FROM system.zookeeper"), 3)
-	assert.Len(t, s.queries, 4*len(loadSQLs)+3*3)
+	assert.Len(t, s.queries, 4*len(loadSQLs)+3*4)
 	assertLegacyOnly(t, s)
 }
 

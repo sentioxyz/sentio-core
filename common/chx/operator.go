@@ -328,6 +328,13 @@ func (c Controller) IsDistributedTable(ctx context.Context, name string) (bool, 
 }
 
 func (c Controller) buildCreateTableSQL(table Table) string {
+	return c.buildCreateTableSQLWith(table, false, "")
+}
+
+// buildCreateTableSQLWith builds the CREATE of table, which skips a table that is already there if
+// ifNotExists is set and gives the new table the UUID uuid if it is not empty. Neither applies to a
+// temporary table, which is built as buildCreateTableSQL always built it.
+func (c Controller) buildCreateTableSQLWith(table Table, ifNotExists bool, uuid string) string {
 	var sql bytes.Buffer
 	sql.WriteString("CREATE ")
 	if table.IsTemporary {
@@ -337,7 +344,14 @@ func (c Controller) buildCreateTableSQL(table Table) string {
 	if table.IsTemporary {
 		sql.WriteString(c.LogicName(table.Name))
 	} else {
-		sql.WriteString(c.FullLogicNameWithOnCluster(table.Name))
+		if ifNotExists {
+			sql.WriteString("IF NOT EXISTS ")
+		}
+		sql.WriteString(c.FullLogicName(table.Name))
+		if uuid != "" {
+			sql.WriteString(fmt.Sprintf(" UUID '%s'", uuid))
+		}
+		sql.WriteString(c.sqlOnClusterPart())
 	}
 	sql.WriteString(" (")
 	for i, field := range table.Fields {
@@ -442,6 +456,14 @@ func (c Controller) BuildCreateSQL(tableOrView TableOrView) string {
 
 func (c Controller) Create(ctx context.Context, tableOrView TableOrView) (err error) {
 	_, logger := log.FromContext(ctx, "name", tableOrView.GetName())
+	if table, is := tableOrView.(Table); is && c.createsReplicatedOnCluster(table) {
+		if err = c.createReplicated(ctx, table); err != nil {
+			logger.Errorfe(err, "create %s failed", table.GetKind())
+			return errors.Wrapf(err, "create %s %s failed", table.GetKind(), table.Name)
+		}
+		logger.Infof("create %s succeed", table.GetKind())
+		return nil
+	}
 	if err = c.Exec(ctx, c.BuildCreateSQL(tableOrView)); err != nil {
 		logger.Errorfe(err, "create %s failed", tableOrView.GetKind())
 		return errors.Wrapf(err, "create %s %s failed", tableOrView.GetKind(), tableOrView.GetName())

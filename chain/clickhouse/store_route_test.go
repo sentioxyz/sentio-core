@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -36,6 +37,8 @@ type fakeServer struct {
 	// queries and execs are every statement in the order issued
 	queries []string
 	execs   []string
+	// uuids counts the UUIDs handed out to the CREATE of a replicated table
+	uuids int
 }
 
 func newFakeServer() *fakeServer {
@@ -121,6 +124,13 @@ func (s *fakeServer) query(sql string, args []any) ([][]any, error) {
 				rows = append(rows, []any{h, engine})
 			}
 		}
+	case sql == "SELECT macro, substitution FROM system.macros":
+		rows = append(rows, []any{"cluster", "compute"}, []any{"shard", "0"})
+	case strings.HasPrefix(sql, "SELECT name FROM system.zookeeper"):
+		// no replicated table exists under any name, so a CREATE starts a new one
+	case sql == "SELECT toString(generateUUIDv4())":
+		s.uuids++
+		rows = append(rows, []any{fmt.Sprintf("00000000-0000-0000-0000-%012d", s.uuids)})
 	case strings.HasPrefix(sql, "SELECT left, right FROM "):
 	case strings.HasPrefix(sql, "SELECT min(right), count() FROM "):
 		rows = append(rows, []any{uint64(0), uint64(0)})
@@ -301,7 +311,8 @@ func TestLegacyStartupExisting(t *testing.T) {
 }
 
 // TestLegacyStartupMissing pins the startup of stores without a route over an empty database: the
-// tables and the view are created, with the statements they always were.
+// tables and the view are created, with the statements they always were, except that a replicated
+// table is given a UUID once ZooKeeper shows no table of its name, see chx.Controller.Create.
 func TestLegacyStartupMissing(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -316,17 +327,21 @@ func TestLegacyStartupMissing(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{
-		"CREATE TABLE `chain_db`.`zircuit.blocks` ON CLUSTER 'compute' (`number` UInt64, `hash` String) " +
+		"CREATE TABLE `chain_db`.`zircuit.blocks` UUID '00000000-0000-0000-0000-000000000001' ON CLUSTER 'compute' " +
+			"(`number` UInt64, `hash` String) " +
 			"ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}','{replica}') ORDER BY (`number`)",
-		"CREATE TABLE `chain_db`.`zircuit.logs` ON CLUSTER 'compute' (`number` UInt64, `hash` String) " +
+		"CREATE TABLE `chain_db`.`zircuit.logs` UUID '00000000-0000-0000-0000-000000000002' ON CLUSTER 'compute' " +
+			"(`number` UInt64, `hash` String) " +
 			"ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}','{replica}') ORDER BY (`number`)",
 		"CREATE OR REPLACE VIEW `chain_db`.`zircuit.recent` ON CLUSTER 'compute' AS (SELECT 1) COMMENT ''",
-		"CREATE TABLE `chain_db`.`zircuit.range` ON CLUSTER 'compute' " +
+		"CREATE TABLE `chain_db`.`zircuit.range` UUID '00000000-0000-0000-0000-000000000003' ON CLUSTER 'compute' " +
 			"(`left` UInt64, `right` UInt64, `create_at` DateTime64(3, 'UTC')) " +
 			"ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}','{replica}') " +
 			"PARTITION BY toYYYYMMDD(create_at) ORDER BY (`create_at`)",
 	}, s.execs)
-	assert.Len(t, s.queries, 4*len(loadSQLs))
+	// each of the three tables is looked for in ZooKeeper (macros, UUIDs) and given a UUID
+	assert.Len(t, s.all("FROM system.zookeeper"), 3)
+	assert.Len(t, s.queries, 4*len(loadSQLs)+3*3)
 	assertLegacyOnly(t, s)
 }
 

@@ -1,6 +1,7 @@
 package chx
 
 import (
+	"fmt"
 	"path"
 	"strings"
 	"testing"
@@ -57,6 +58,8 @@ type replicatedZK struct {
 	active        []string
 	hosts         map[string]string
 	notReplicated bool
+	// owners are the tables the replicas of each UUID register, t if not set
+	owners map[string]string
 }
 
 func (z replicatedZK) clusterMembers() []string {
@@ -83,14 +86,18 @@ func (z replicatedZK) onQuery(sql string, args []any) ([][]any, error) {
 			shards = 1
 		}
 		return [][]any{{shards, uint64(len(z.clusterMembers()))}}, nil
-	case strings.HasPrefix(sql, "SELECT toUInt64(shard_num), host_name, toUInt64(port), toUInt8(is_local) FROM system.clusters"):
+	case strings.HasPrefix(sql, "SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) "):
 		var rows [][]any
 		for i, m := range z.clusterMembers() {
 			shard := uint64(1)
 			if z.shards > 1 {
 				shard = uint64(i%int(z.shards)) + 1
 			}
-			rows = append(rows, []any{shard, m, uint64(9000), uint8(map[bool]uint8{true: 1}[i == 0])})
+			isLocal := uint8(0)
+			if i == 0 {
+				isLocal = 1
+			}
+			rows = append(rows, []any{shard, m, fmt.Sprintf("10.0.0.%d", i+1), uint64(9000), isLocal})
 		}
 		return rows, nil
 	case strings.HasPrefix(sql, "SELECT toString(uuid), create_table_query FROM system.tables"):
@@ -111,14 +118,19 @@ func (z replicatedZK) onQuery(sql string, args []any) ([][]any, error) {
 			active = z.clusterMembers()
 		}
 		return [][]any{{local, active}}, nil
-	case strings.HasPrefix(sql, "SELECT value FROM system.zookeeper WHERE path IN ? AND name = 'host'"):
+	case strings.HasPrefix(sql, "SELECT path, value FROM system.zookeeper WHERE path IN ? AND name = 'host'"):
 		var rows [][]any
 		for _, p := range args[0].([]string) {
 			host := path.Base(p)
 			if h, has := z.hosts[host]; has {
 				host = h
 			}
-			rows = append(rows, []any{"host: " + host + "\nport: 9009\ntcp_port: 9000\ndatabase: chain_db\n"})
+			table := "t"
+			if owner, has := z.owners[path.Base(path.Dir(path.Dir(p)))]; has {
+				table = owner
+			}
+			rows = append(rows, []any{p, "host: " + host + "\nport: 9009\ntcp_port: 9000\ndatabase: chain_db\ntable: " +
+				table + "\nscheme: http\n"})
 		}
 		return rows, nil
 	case strings.HasPrefix(sql, "SELECT macro, substitution FROM system.macros"):
@@ -373,11 +385,6 @@ func TestReplicatedTableBasePath(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok, "a path without {uuid} is shared by every table of the name")
 
-	table.Config.Engine = engineMergeTree{ReplicatedArgs: []string{"/clickhouse/tables/{shard}/{uuid}", "{replica}"}}
-	_, ok, err = c.replicatedTableBasePath(t.Context(), table)
-	require.NoError(t, err)
-	assert.False(t, ok, "a path without the name of the table may be shared by unrelated tables")
-
 	table.Config.Engine = engineMergeTree{ReplicatedArgs: []string{"/x/{unknown}/{uuid}", "{replica}"}}
 	_, ok, err = c.replicatedTableBasePath(t.Context(), table)
 	require.NoError(t, err)
@@ -443,29 +450,50 @@ func TestSyncTableReplicaNotMember(t *testing.T) {
 	}
 }
 
-// Hosts registered under other names than the cluster gives its members, which the connected
-// replica not being found among them shows, can only be counted.
+// Hosts are registered either under the names the cluster gives its members or under their
+// addresses. When the connected replica is found under neither, which members hold the table
+// cannot be told, and nothing is repaired: counting the active replicas would not do, as one that
+// left the cluster may still be active.
 func TestSyncTableHostsNamedOtherwise(t *testing.T) {
-	hosts := map[string]string{"replica-0": "10.0.0.1", "replica-1": "10.0.0.2"}
-	c, conn := newReplicatedTestController(replicatedZK{hosts: hosts, createQuery: testCreateTableQuery})
-	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
-	assert.Empty(t, conn.statements("CREATE"))
-
-	c, conn = newReplicatedTestController(replicatedZK{
-		hosts: hosts, createQuery: testCreateTableQuery, active: []string{"replica-0"},
+	byAddress := map[string]string{"replica-0": "10.0.0.1", "replica-1": "10.0.0.2"}
+	c, conn := newReplicatedTestController(replicatedZK{
+		hosts: byAddress, createQuery: testCreateTableQuery, active: []string{"replica-0"},
 	})
 	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
-	assert.Len(t, conn.statements("CREATE"), 1)
+	assert.Len(t, conn.statements("CREATE"), 1, "replica-1 is told by its address and misses the table")
+
+	unknown := map[string]string{"replica-0": "a.example", "retired": "b.example"}
+	c, conn = newReplicatedTestController(replicatedZK{
+		replicas:    map[string][]string{testUUIDA: {"replica-0", "retired"}},
+		members:     []string{"replica-0", "replica-2"},
+		hosts:       unknown,
+		createQuery: testCreateTableQuery,
+		active:      []string{"replica-0", "retired"},
+	})
+	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
+	assert.Empty(t, conn.statements("CREATE"))
 }
 
-// A path that does not name the table may be shared by unrelated tables, whose UUIDs are then
-// siblings of the one of the table and tell nothing about a split.
-func TestSyncTableSharedParentNotSplit(t *testing.T) {
-	c, conn := newReplicatedTestController(replicatedZK{localPath: "/clickhouse/tables/0/" + testUUIDA})
+// A replication path need not name the table, and the parent of one that ends in {uuid} may then
+// hold the tables of other names too, which the replicas tell by the table they register: those
+// are no split of the table, and no table to join either.
+func TestSharedParentNotSplit(t *testing.T) {
+	z := replicatedZK{
+		replicas: map[string][]string{testUUIDA: {"replica-0", "replica-1"}, testUUIDB: {"replica-0", "replica-1"}},
+		owners:   map[string]string{testUUIDB: "u"},
+		parts:    map[string]int64{testReplicatedBase + "/" + testUUIDB + "/replicas/replica-0": 2},
+	}
+	c, conn := newReplicatedTestController(z)
 	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a")))
-	assert.NotContains(t, strings.Join(conn.log, "\n"), "system.zookeeper WHERE path = ?")
 	assert.Empty(t, conn.statements("DROP"))
 	assert.Empty(t, conn.statements("CREATE"))
+
+	z.replicas = map[string][]string{testUUIDB: {"replica-0", "replica-1"}}
+	c, conn = newReplicatedTestController(z)
+	require.NoError(t, c.Create(t.Context(), testReplicatedTable("a")))
+	creates := conn.statements("CREATE")
+	require.Len(t, creates, 1)
+	assert.Contains(t, creates[0], "UUID '"+testUUIDNew+"'")
 }
 
 // The checks fall back to the old behaviour for a user that may not read what they need, but a

@@ -90,7 +90,7 @@ func (c Controller) lookupReplicated(ctx context.Context, table Table) (replicat
 		base, ok, err = c.replicatedTableBasePath(ctx, table)
 	}
 	if err == nil && shards == 1 && ok {
-		lookup.incarnations, err = c.loadReplicatedTableIncarnations(ctx, base)
+		lookup.incarnations, err = c.loadReplicatedTableIncarnations(ctx, base, table.Name)
 	}
 	if err != nil && isAccessDenied(err) {
 		logger.Warnfe(err, "cannot look for the table in ZooKeeper")
@@ -160,10 +160,10 @@ func (c Controller) repairSplit(ctx context.Context, table Table, incarnations [
 // The check goes by what the connected replica reports for the table itself, its replication path
 // and the replicas active on it in system.replicas, rather than by the definition requested, whose
 // replication path an existing table need not have: a split is only looked for, and a table only
-// dropped, among the tables under the path of the very table the store holds, and only when that
-// path names the table. The replicas holding the table are told by the host each of them registers
-// in ZooKeeper, compared with the members of the cluster, since the registration of a replica that
-// left the cluster may stay behind, active or not.
+// dropped, among the tables under the path of the very table the store holds. The replicas holding
+// the table are told by the host each of them registers in ZooKeeper, compared with the members of
+// the cluster, since the registration of a replica that left the cluster may stay behind, active or
+// not; when they cannot be told, nothing is repaired.
 
 // syncedReplicatedTable is what the connected replica reports for a replicated table it holds.
 type syncedReplicatedTable struct {
@@ -178,10 +178,24 @@ type syncedReplicatedTable struct {
 type clusterMember struct {
 	host string
 	port uint64
+	// address is the address the host resolves to, as system.clusters reports it
+	address string
 }
 
 func (m clusterMember) String() string {
 	return fmt.Sprintf("%s:%d", m.host, m.port)
+}
+
+// replicaRegistration is what a replica of a table registers in ZooKeeper about itself.
+type replicaRegistration struct {
+	host     string
+	port     uint64
+	database string
+	table    string
+}
+
+func (r replicaRegistration) is(m clusterMember) bool {
+	return r.port == m.port && (r.host == m.host || (m.address != "" && r.host == m.address))
 }
 
 // replicaCheck is what ensureReplicatedEverywhere finds out before it changes anything.
@@ -209,7 +223,7 @@ func (c Controller) checkReplicas(ctx context.Context, name string) (check repli
 		var shard uint64
 		var m clusterMember
 		var isLocal uint8
-		if scanErr := rows.Scan(&shard, &m.host, &m.port, &isLocal); scanErr != nil {
+		if scanErr := rows.Scan(&shard, &m.host, &m.address, &m.port, &isLocal); scanErr != nil {
 			return scanErr
 		}
 		if shards == nil {
@@ -221,8 +235,8 @@ func (c Controller) checkReplicas(ctx context.Context, name string) (check repli
 		}
 		members = append(members, m)
 		return nil
-	}, "SELECT toUInt64(shard_num), host_name, toUInt64(port), toUInt8(is_local) FROM system.clusters WHERE cluster = ?",
-		c.cluster)
+	}, "SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) "+
+		"FROM system.clusters WHERE cluster = ?", c.cluster)
 	if err != nil {
 		return check, false, errors.Wrapf(err, "load the members of cluster %s failed", c.cluster)
 	}
@@ -234,29 +248,40 @@ func (c Controller) checkReplicas(ctx context.Context, name string) (check repli
 	if check.table, found, err = c.loadSyncedReplicatedTable(ctx, name); err != nil || !found {
 		return check, false, errors.Wrapf(err, "load the replication of table %s failed", name)
 	}
-	if base, last := path.Split(check.table.zookeeperPath); last == check.table.uuid &&
-		pathNamesTable(base, c.tableNamePrefix+name) {
-		// With the UUID at the end of a path that names the table, the tables created under the
-		// name are the children of its parent, and there may be several of them.
-		if check.incarnations, err = c.loadReplicatedTableIncarnations(ctx, strings.TrimSuffix(base, "/")); err != nil {
+	if base, last := path.Split(check.table.zookeeperPath); last == check.table.uuid {
+		// With the UUID at the end of the path, the other tables created under the name are among
+		// the children of its parent, and loadReplicatedTableIncarnations tells which ones they are.
+		check.incarnations, err = c.loadReplicatedTableIncarnations(ctx, strings.TrimSuffix(base, "/"), name)
+		if err != nil {
 			return check, false, err
 		}
 	}
-	hosts, err := c.loadReplicaHosts(ctx, check.table)
+	paths := make([]string, len(check.table.activeReplicas))
+	for i, replica := range check.table.activeReplicas {
+		paths[i] = check.table.zookeeperPath + "/replicas/" + replica
+	}
+	registrations, err := c.loadReplicaRegistrations(ctx, paths)
 	if err != nil {
 		return check, false, err
 	}
-	if local < 0 || !hosts[members[local]] {
-		// The connected replica holds the table, so it should be among the hosts found. As it is
-		// not, the hosts registered are not named the way the cluster names its members, and the
-		// replicas can only be counted.
-		if len(check.table.activeReplicas) < len(members) {
-			check.missing = []clusterMember{{host: "unknown"}}
+	covered := func(m clusterMember) bool {
+		for _, r := range registrations {
+			if r.is(m) {
+				return true
+			}
 		}
-		return check, true, nil
+		return false
+	}
+	if local < 0 || !covered(members[local]) {
+		// The connected replica holds the table, so it should be among the hosts found. As it is
+		// not, the hosts are not registered the way the cluster names its members, and which
+		// members hold the table cannot be told: counting the replicas would not do, as one that
+		// left the cluster may still be active.
+		logger.Warnf("cannot tell the replicas of the table from the members of cluster %s, will not check them", c.cluster)
+		return check, false, nil
 	}
 	for _, m := range members {
-		if !hosts[m] {
+		if !covered(m) {
 			check.missing = append(check.missing, m)
 		}
 	}
@@ -284,59 +309,50 @@ func (c Controller) loadSyncedReplicatedTable(ctx context.Context, name string) 
 	return t, found, err
 }
 
-// loadReplicaHosts returns the hosts the replicas active on the table registered in ZooKeeper.
-func (c Controller) loadReplicaHosts(ctx context.Context, table syncedReplicatedTable) (map[clusterMember]bool, error) {
-	hosts := make(map[clusterMember]bool)
-	if len(table.activeReplicas) == 0 {
-		return hosts, nil
-	}
-	paths := make([]string, len(table.activeReplicas))
-	for i, name := range table.activeReplicas {
-		paths[i] = table.zookeeperPath + "/replicas/" + name
+// loadReplicaRegistrations returns what the replicas of the paths registered about themselves, by
+// path. A replica whose registration is missing or cannot be read is left out.
+func (c Controller) loadReplicaRegistrations(ctx context.Context, paths []string) (map[string]replicaRegistration, error) {
+	registrations := make(map[string]replicaRegistration)
+	if len(paths) == 0 {
+		return registrations, nil
 	}
 	err := c.Query(ctx, func(rows driver.Rows) error {
-		var value string
-		if scanErr := rows.Scan(&value); scanErr != nil {
+		var p, value string
+		if scanErr := rows.Scan(&p, &value); scanErr != nil {
 			return scanErr
 		}
-		if m, ok := parseReplicaHost(value); ok {
-			hosts[m] = true
+		if r, ok := parseReplicaRegistration(value); ok {
+			registrations[p] = r
 		}
 		return nil
-	}, "SELECT value FROM system.zookeeper WHERE path IN ? AND name = 'host'", paths)
+	}, "SELECT path, value FROM system.zookeeper WHERE path IN ? AND name = 'host'", paths)
 	if err != nil {
-		return nil, errors.Wrapf(err, "load the hosts of the replicas of %s failed", table.zookeeperPath)
+		return nil, errors.Wrapf(err, "load the registrations of %d replicas failed", len(paths))
 	}
-	return hosts, nil
+	return registrations, nil
 }
 
-// parseReplicaHost reads the host and native port out of the host node a replica registers, lines
-// such as "host: server-0" and "tcp_port: 9000".
-func parseReplicaHost(value string) (clusterMember, bool) {
-	var m clusterMember
+// parseReplicaRegistration reads the host node a replica registers, lines such as "host: server-0",
+// "tcp_port: 9000", "database: db" and "table: t".
+func parseReplicaRegistration(value string) (replicaRegistration, bool) {
+	var r replicaRegistration
 	for _, line := range strings.Split(value, "\n") {
 		k, v, _ := strings.Cut(line, ":")
+		v = strings.TrimSpace(v)
 		switch strings.TrimSpace(k) {
 		case "host":
-			m.host = strings.TrimSpace(v)
+			r.host = v
 		case "tcp_port":
-			if _, err := fmt.Sscan(strings.TrimSpace(v), &m.port); err != nil {
-				return m, false
+			if _, err := fmt.Sscan(v, &r.port); err != nil {
+				return r, false
 			}
+		case "database":
+			r.database = v
+		case "table":
+			r.table = v
 		}
 	}
-	return m, m.host != "" && m.port != 0
-}
-
-// pathNamesTable says whether a replication path has the name of the table as one of its parts,
-// without which the path may be shared by unrelated tables and its children cannot tell a split.
-func pathNamesTable(zookeeperPath, table string) bool {
-	for _, part := range strings.Split(zookeeperPath, "/") {
-		if part == table {
-			return true
-		}
-	}
-	return false
+	return r, r.host != "" && r.port != 0
 }
 
 // ensureReplicatedEverywhere makes sure every replica of the cluster holds the table pre, which
@@ -547,8 +563,7 @@ func (c Controller) replicatedTableBasePath(ctx context.Context, table Table) (s
 		}
 		return value
 	})
-	if unknown || !pathNamesTable(path, c.tableNamePrefix+table.Name) {
-		// a path without the name of the table may be shared by unrelated tables
+	if unknown {
 		return "", false, nil
 	}
 	return path, true, nil
@@ -566,21 +581,25 @@ func replicatedEngineArgs(engine Engine) []string {
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-// loadReplicatedTableIncarnations returns the tables found under base, each with the replicas that
-// hold it, ordered by UUID. A UUID under which no replica is registered any more is what a dropped
-// table may leave behind for a while, and is left out.
+// loadReplicatedTableIncarnations returns the tables of the name found under base, each with the
+// replicas that hold it, ordered by UUID. A UUID under which no replica is registered any more is
+// what a dropped table may leave behind for a while, and is left out. So is one whose replicas
+// register another table: a replication path need not name the table, and the parent of one that
+// ends in {uuid} may then hold the tables of other names too. A table no replica of which has a
+// registration that can be read is kept, as it cannot be told apart.
 func (c Controller) loadReplicatedTableIncarnations(
 	ctx context.Context,
 	base string,
+	name string,
 ) ([]replicatedTableIncarnation, error) {
 	var uuids []string
 	err := c.Query(ctx, func(rows driver.Rows) error {
-		var name string
-		if scanErr := rows.Scan(&name); scanErr != nil {
+		var child string
+		if scanErr := rows.Scan(&child); scanErr != nil {
 			return scanErr
 		}
-		if uuidPattern.MatchString(name) {
-			uuids = append(uuids, name)
+		if uuidPattern.MatchString(child) {
+			uuids = append(uuids, child)
 		}
 		return nil
 	}, "SELECT name FROM system.zookeeper WHERE path = ?", base)
@@ -597,15 +616,25 @@ func (c Controller) loadReplicatedTableIncarnations(
 	}
 	replicas := make(map[string][]string)
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var path, name string
-		if scanErr := rows.Scan(&path, &name); scanErr != nil {
+		var parent, replica string
+		if scanErr := rows.Scan(&parent, &replica); scanErr != nil {
 			return scanErr
 		}
-		replicas[path] = append(replicas[path], name)
+		replicas[parent] = append(replicas[parent], replica)
 		return nil
 	}, "SELECT path, name FROM system.zookeeper WHERE path IN ?", replicasPaths)
 	if err != nil {
 		return nil, errors.Wrapf(err, "list replicas of the tables under %s failed", base)
+	}
+	var allPaths []string
+	for _, parent := range replicasPaths {
+		for _, replica := range replicas[parent] {
+			allPaths = append(allPaths, parent+"/"+replica)
+		}
+	}
+	registrations, err := c.loadReplicaRegistrations(ctx, allPaths)
+	if err != nil {
+		return nil, err
 	}
 	var incarnations []replicatedTableIncarnation
 	var replicaPaths []string
@@ -616,8 +645,21 @@ func (c Controller) loadReplicatedTableIncarnations(
 			continue
 		}
 		sort.Strings(names)
-		for _, name := range names {
-			p := replicasPaths[i] + "/" + name
+		ours, others := false, false
+		for _, replica := range names {
+			if r, has := registrations[replicasPaths[i]+"/"+replica]; has {
+				if r.database == c.database && r.table == c.tableNamePrefix+name {
+					ours = true
+				} else {
+					others = true
+				}
+			}
+		}
+		if others && !ours {
+			continue
+		}
+		for _, replica := range names {
+			p := replicasPaths[i] + "/" + replica
 			replicaPaths = append(replicaPaths, p)
 			owner[p] = len(incarnations)
 		}
@@ -628,12 +670,12 @@ func (c Controller) loadReplicatedTableIncarnations(
 		return incarnations, nil
 	}
 	err = c.Query(ctx, func(rows driver.Rows) error {
-		var path string
+		var replicaPath string
 		var parts int64
-		if scanErr := rows.Scan(&path, &parts); scanErr != nil {
+		if scanErr := rows.Scan(&replicaPath, &parts); scanErr != nil {
 			return scanErr
 		}
-		if i, has := owner[path]; has && parts > 0 {
+		if i, has := owner[replicaPath]; has && parts > 0 {
 			incarnations[i].HasParts = true
 		}
 		return nil

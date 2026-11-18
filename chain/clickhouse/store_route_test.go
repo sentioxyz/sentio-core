@@ -134,17 +134,17 @@ func (s *fakeServer) query(sql string, args []any) ([][]any, error) {
 		if _, has := s.tables[args[1].(string)]; has {
 			rows = append(rows, []any{"00000000-0000-0000-0000-00000000000a", ""})
 		}
-	case strings.HasPrefix(sql, "SELECT toUInt64(shard_num), host_name, toUInt64(port), toUInt8(is_local) FROM system.clusters"):
-		rows = append(rows, []any{uint64(1), "replica-0", uint64(9000), uint8(1)},
-			[]any{uint64(1), "replica-1", uint64(9000), uint8(0)})
+	case strings.HasPrefix(sql, "SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) "):
+		rows = append(rows, []any{uint64(1), "replica-0", "127.0.0.1", uint64(9000), uint8(1)},
+			[]any{uint64(1), "replica-1", "10.0.0.2", uint64(9000), uint8(0)})
 	case strings.HasPrefix(sql, "SELECT zookeeper_path, arrayFilter("):
 		// the old tables replicate under a path of their name, active on both replicas
 		if _, has := s.tables[args[1].(string)]; has {
 			rows = append(rows, []any{"/clickhouse/tables/0/" + args[1].(string), []string{"replica-0", "replica-1"}})
 		}
-	case strings.HasPrefix(sql, "SELECT value FROM system.zookeeper WHERE path IN ? AND name = 'host'"):
+	case strings.HasPrefix(sql, "SELECT path, value FROM system.zookeeper WHERE path IN ? AND name = 'host'"):
 		for _, p := range args[0].([]string) {
-			rows = append(rows, []any{"host: " + p[strings.LastIndex(p, "/")+1:] + "\ntcp_port: 9000\n"})
+			rows = append(rows, []any{p, "host: " + p[strings.LastIndex(p, "/")+1:] + "\ntcp_port: 9000\n"})
 		}
 	case sql == "SELECT toString(generateUUIDv4())":
 		s.uuids++
@@ -308,11 +308,12 @@ func assertLegacyOnly(t *testing.T, s *fakeServer) {
 // replicaCheckSQLs are the queries SyncTable runs to check that every replica holds a replicated
 // table, see chx.Controller.SyncTable.
 var replicaCheckSQLs = []string{
-	"SELECT toUInt64(shard_num), host_name, toUInt64(port), toUInt8(is_local) FROM system.clusters WHERE cluster = ?",
+	"SELECT toUInt64(shard_num), host_name, host_address, toUInt64(port), toUInt8(is_local) FROM system.clusters " +
+		"WHERE cluster = ?",
 	"SELECT toString(uuid), create_table_query FROM system.tables WHERE database = ? AND name = ?",
 	"SELECT zookeeper_path, arrayFilter((r, a) -> a != 0, mapKeys(replica_is_active), mapValues(replica_is_active)) " +
 		"FROM system.replicas WHERE database = ? AND table = ?",
-	"SELECT value FROM system.zookeeper WHERE path IN ? AND name = 'host'",
+	"SELECT path, value FROM system.zookeeper WHERE path IN ? AND name = 'host'",
 }
 
 // TestLegacyStartupExisting pins the startup of stores without a route over the old

@@ -40,8 +40,40 @@ var ErrReplicatedTableSplit = errors.New("replicated table is split across repli
 // down anyway, as its statements wait for every replica. A member that is still not active once
 // the statement has run is up and runs something else under the name, which is a split.
 
-// replicaMacro is what the replica of a table is named by in a definition any replica can run.
+// replicaMacro is what the replica of a table is named by in a definition any replica can run, see
+// definitionRunsOnAnyReplica.
 const replicaMacro = "{replica}"
+
+// definitionRunsOnAnyReplica says whether the definition of a table, from its column list on, can
+// be run on another replica to create the table there.
+//
+// A table is normally created with macros in its engine, as in
+//
+//	ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}', '{replica}')
+//
+// which every server fills in with its own values, so one definition, with one UUID, makes every
+// replica join the same replication path under a name of its own.
+//
+// A replica that lost its tables and had them put back by hand may hold another kind of
+// definition. The straightforward way to make such a replica join the tables of the others is to
+// write the path of each of them out, and its own name with it:
+//
+//	ReplicatedMergeTree('/clickhouse/tables/c1/db/t/0/<UUID of the table on the others>', 'replica-1')
+//
+// The table then replicates with the others as it should, although it has a UUID of its own and a
+// definition that differs from theirs, and nothing is wrong with it. But that definition is only
+// right on the replica it was written for. Run on another replica, it makes that replica register
+// under the path as 'replica-1', a name the replica it belongs to holds, which ClickHouse refuses
+// as a replica that already exists: an error that reads as if something were left behind in
+// ZooKeeper, and that every retry repeats.
+//
+// So a table that is missing on some replicas is only created there from a definition that names
+// its replica by the macro. Otherwise it is left for an operator, who creates it on the missing
+// replica with the same path and that replica's own name, or better, where the path ends in the
+// UUID, with the definition and the UUID one of the other replicas has.
+func definitionRunsOnAnyReplica(body string) bool {
+	return strings.Contains(body, "'"+replicaMacro+"'")
+}
 
 // clusterMember is a server of the cluster, by its host and native port.
 type clusterMember struct {
@@ -340,11 +372,11 @@ func (c Controller) joinReplicatedAsIs(ctx context.Context, t heldReplicatedTabl
 	if !ok {
 		return errors.Errorf("cannot make out the definition of table %s: %q", t.name, t.createQuery)
 	}
-	if !strings.Contains(body, "'"+replicaMacro+"'") {
-		// A table created by hand for one replica names that replica, and often the path, literally.
-		// Another replica running the statement would register under the name of this one.
-		return errors.Errorf("table %s is missing on some replicas and its definition here names its replica "+
-			"literally, so it cannot be created there from it: %q", t.name, t.createQuery)
+	if !definitionRunsOnAnyReplica(body) {
+		return errors.Errorf("table %s is missing on some replicas, and cannot be created there from its definition "+
+			"here, which names its replica literally instead of by %s as a table put back by hand does; "+
+			"create it there by hand, with the same replication path and the name of that replica: %q",
+			t.name, replicaMacro, t.createQuery)
 	}
 	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s`.`%s` UUID '%s'%s %s",
 		c.database, t.name, t.uuid, c.sqlOnClusterPart(), body)

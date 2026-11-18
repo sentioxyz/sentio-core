@@ -21,6 +21,12 @@ import (
 // told from here, so nothing is changed and the table is left for an operator.
 var ErrReplicatedTableSplit = errors.New("replicated table is split across replicas")
 
+// errReplicatedTableOwnerUnknown is returned by the lookup when a table under the replication path
+// of a name has no replica whose registration tells which table it is, as when it is being created
+// and its replicas have not registered yet. Such a table may be of another name, so its UUID is
+// not reused, and it may be of this name, so it cannot be ignored either: the caller is to retry.
+var errReplicatedTableOwnerUnknown = errors.New("cannot tell which table a replicated table under the path is")
+
 // A plain CREATE TABLE ... ON CLUSTER of a replicated table cannot be retried safely. Each run gets
 // a UUID of its own from the server that runs it, and with the default replication path, which ends
 // in {uuid}, a table of another UUID is another replication log. When the statement times out on a
@@ -252,6 +258,11 @@ func (c Controller) checkReplicas(ctx context.Context, name string) (check repli
 		// With the UUID at the end of the path, the other tables created under the name are among
 		// the children of its parent, and loadReplicatedTableIncarnations tells which ones they are.
 		check.incarnations, err = c.loadReplicatedTableIncarnations(ctx, strings.TrimSuffix(base, "/"), name)
+		if errors.Is(err, errReplicatedTableOwnerUnknown) {
+			// The split is looked for again on the next sync; the replicas can be checked meanwhile.
+			logger.Warnfe(err, "will not look for a split of the table this time")
+			check.incarnations, err = nil, nil
+		}
 		if err != nil {
 			return check, false, err
 		}
@@ -586,7 +597,7 @@ var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 // what a dropped table may leave behind for a while, and is left out. So is one whose replicas
 // register another table: a replication path need not name the table, and the parent of one that
 // ends in {uuid} may then hold the tables of other names too. A table no replica of which has a
-// registration that can be read is kept, as it cannot be told apart.
+// registration that can be read makes it return errReplicatedTableOwnerUnknown.
 func (c Controller) loadReplicatedTableIncarnations(
 	ctx context.Context,
 	base string,
@@ -647,7 +658,7 @@ func (c Controller) loadReplicatedTableIncarnations(
 		sort.Strings(names)
 		ours, others := false, false
 		for _, replica := range names {
-			if r, has := registrations[replicasPaths[i]+"/"+replica]; has {
+			if r, has := registrations[replicasPaths[i]+"/"+replica]; has && r.database != "" && r.table != "" {
 				if r.database == c.database && r.table == c.tableNamePrefix+name {
 					ours = true
 				} else {
@@ -655,7 +666,10 @@ func (c Controller) loadReplicatedTableIncarnations(
 				}
 			}
 		}
-		if others && !ours {
+		if !ours && !others {
+			return nil, errors.Wrapf(errReplicatedTableOwnerUnknown, "%s/%s", base, uuid)
+		}
+		if !ours {
 			continue
 		}
 		for _, replica := range names {

@@ -58,7 +58,8 @@ type replicatedZK struct {
 	active        []string
 	hosts         map[string]string
 	notReplicated bool
-	// owners are the tables the replicas of each UUID register, t if not set
+	// owners are the tables the replicas of each UUID register, t if not set, and nothing if set
+	// to the empty string, as before the replicas of a table being created register
 	owners map[string]string
 }
 
@@ -128,6 +129,10 @@ func (z replicatedZK) onQuery(sql string, args []any) ([][]any, error) {
 			table := "t"
 			if owner, has := z.owners[path.Base(path.Dir(path.Dir(p)))]; has {
 				table = owner
+			}
+			if table == "" {
+				rows = append(rows, []any{p, ""})
+				continue
 			}
 			rows = append(rows, []any{p, "host: " + host + "\nport: 9009\ntcp_port: 9000\ndatabase: chain_db\ntable: " +
 				table + "\nscheme: http\n"})
@@ -494,6 +499,30 @@ func TestSharedParentNotSplit(t *testing.T) {
 	creates := conn.statements("CREATE")
 	require.Len(t, creates, 1)
 	assert.Contains(t, creates[0], "UUID '"+testUUIDNew+"'")
+}
+
+// A table under the path whose replicas have not registered yet may be of another name, so its UUID
+// is not reused, and may be of this name, so it is not ignored either: Create fails, to be retried,
+// and SyncTable leaves the split check for the next sync.
+func TestOwnerUnknown(t *testing.T) {
+	z := replicatedZK{
+		replicas:    map[string][]string{testUUIDA: {"replica-0", "replica-1"}, testUUIDB: {"replica-0"}},
+		owners:      map[string]string{testUUIDB: ""},
+		parts:       map[string]int64{testReplicatedBase + "/" + testUUIDA + "/replicas/replica-0": 1},
+		createQuery: testCreateTableQuery,
+	}
+	c, conn := newReplicatedTestController(z)
+	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
+	assert.Empty(t, conn.statements("DROP"))
+	assert.Empty(t, conn.statements("CREATE"))
+	assert.Len(t, conn.statements("ALTER"), 1)
+
+	z.replicas = map[string][]string{testUUIDB: {"replica-0"}}
+	c, conn = newReplicatedTestController(z)
+	err := c.Create(t.Context(), testReplicatedTable("a"))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errReplicatedTableOwnerUnknown), err.Error())
+	assert.Empty(t, conn.statements("CREATE"))
 }
 
 // The checks fall back to the old behaviour for a user that may not read what they need, but a

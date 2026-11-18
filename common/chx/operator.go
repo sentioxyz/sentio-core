@@ -474,7 +474,20 @@ func (c Controller) Create(ctx context.Context, tableOrView TableOrView) (err er
 	return nil
 }
 
-func (c Controller) SyncTable(ctx context.Context, pre, cur Table) (err error) {
+// SyncTable brings the existing table pre to the structure of cur. A replicated table created ON
+// CLUSTER is first created on the replicas of the cluster that miss it, see
+// ensureReplicatedEverywhere.
+func (c Controller) SyncTable(ctx context.Context, pre, cur Table) error {
+	if pre.Name == cur.Name {
+		replaced, err := c.ensureReplicatedEverywhere(ctx, cur)
+		if err != nil || replaced {
+			return err
+		}
+	}
+	return c.syncTable(ctx, pre, cur)
+}
+
+func (c Controller) syncTable(ctx context.Context, pre, cur Table) (err error) {
 	// === check diff
 	if pre.Name != cur.Name {
 		return errors.Errorf("try to change table name from %q to %q", pre.Name, cur.Name)

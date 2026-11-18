@@ -41,16 +41,25 @@ type replicatedZK struct {
 	existing []string
 	// shards is the number of shards of the cluster, one if not set
 	shards uint64
+	// clusterReplicas is the number of replicas of the cluster, two if not set
+	clusterReplicas uint64
+	// createQuery is the create_table_query of t on the connected replica
+	createQuery string
 }
 
 func (z replicatedZK) onQuery(sql string, args []any) ([][]any, error) {
 	switch {
-	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num) FROM system.clusters"):
-		shards := z.shards
+	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num), count() FROM system.clusters"):
+		shards, replicas := z.shards, z.clusterReplicas
 		if shards == 0 {
 			shards = 1
 		}
-		return [][]any{{shards}}, nil
+		if replicas == 0 {
+			replicas = 2
+		}
+		return [][]any{{shards, replicas}}, nil
+	case strings.HasPrefix(sql, "SELECT create_table_query FROM system.tables"):
+		return [][]any{{z.createQuery}}, nil
 	case strings.HasPrefix(sql, "SELECT macro, substitution FROM system.macros"):
 		return [][]any{{"cluster", testReplicatedCluster}, {"shard", "0"}, {"replica", "r0"}}, nil
 	case sql == "SELECT name FROM system.zookeeper WHERE path = ?":
@@ -307,5 +316,123 @@ func TestReplicatedTableBasePath(t *testing.T) {
 	table.Config.Engine = engineMergeTree{ReplicatedArgs: []string{"/x/{unknown}/{uuid}", "{replica}"}}
 	_, ok, err = c.replicatedTableBasePath(t.Context(), table)
 	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+const testCreateTableQuery = "CREATE TABLE chain_db.t (`a` UInt8) ENGINE = ReplicatedMergeTree(" +
+	"'/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}', '{replica}') ORDER BY a " +
+	"SETTINGS index_granularity = 8192"
+
+// A table the connected replica holds and another replica of the cluster misses is created there
+// with its UUID and the definition it has here, before it is brought to the requested structure.
+func TestSyncTableJoinsMissingReplica(t *testing.T) {
+	c, conn := newReplicatedTestController(replicatedZK{
+		replicas:    map[string][]string{testUUIDA: {"replica-0"}},
+		existing:    []string{"a"},
+		createQuery: testCreateTableQuery,
+	})
+	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
+
+	creates := conn.statements("CREATE")
+	require.Len(t, creates, 1)
+	assert.Equal(t, "CREATE TABLE IF NOT EXISTS `chain_db`.`t` UUID '"+testUUIDA+"' ON CLUSTER 'users' "+
+		"(`a` UInt8) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}/{database}/{table}/{shard}/{uuid}', "+
+		"'{replica}') ORDER BY a SETTINGS index_granularity = 8192", creates[0])
+	alters := conn.statements("ALTER")
+	require.Len(t, alters, 1)
+	assert.Contains(t, alters[0], "`b`")
+	// the join comes first: the ALTER ... ON CLUSTER would fail on a replica without the table
+	var createAt, alterAt int
+	for i, s := range conn.log {
+		switch {
+		case strings.HasPrefix(s, "CREATE"):
+			createAt = i
+			assert.Equal(t, "throw", conn.settings[i]["distributed_ddl_output_mode"])
+		case strings.HasPrefix(s, "ALTER"):
+			alterAt = i
+		}
+	}
+	assert.Less(t, createAt, alterAt)
+}
+
+func TestSyncTableAllReplicasPresent(t *testing.T) {
+	c, conn := newReplicatedTestController(replicatedZK{
+		replicas: map[string][]string{testUUIDA: {"replica-0", "replica-1"}},
+	})
+	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
+	assert.Empty(t, conn.statements("CREATE"))
+	assert.Len(t, conn.statements("ALTER"), 1)
+	assert.NotContains(t, strings.Join(conn.log, "\n"), "create_table_query FROM")
+}
+
+// A table not found under the requested replication path was created with another one, and is
+// synced without the check.
+func TestSyncTableNotInZooKeeper(t *testing.T) {
+	c, conn := newReplicatedTestController(replicatedZK{})
+	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
+	assert.Empty(t, conn.statements("CREATE"))
+	assert.Len(t, conn.statements("ALTER"), 1)
+}
+
+func TestSyncTableSplitWithoutData(t *testing.T) {
+	c, conn := newReplicatedTestController(replicatedZK{
+		replicas: map[string][]string{
+			testUUIDA: {"replica-0"},
+			testUUIDB: {"replica-1"},
+		},
+	})
+	require.NoError(t, c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b")))
+	assert.Equal(t, []string{"DROP TABLE IF EXISTS `chain_db`.`t` ON CLUSTER 'users' SYNC"}, conn.statements("DROP"))
+	creates := conn.statements("CREATE")
+	require.Len(t, creates, 1)
+	assert.Contains(t, creates[0], "UUID '"+testUUIDNew+"'")
+	assert.Contains(t, creates[0], "`b` UInt8")
+	// the table was created with the requested structure, there is nothing left to sync
+	assert.Empty(t, conn.statements("ALTER"))
+}
+
+func TestSyncTableSplitWithData(t *testing.T) {
+	c, conn := newReplicatedTestController(replicatedZK{
+		replicas: map[string][]string{
+			testUUIDA: {"replica-0"},
+			testUUIDB: {"replica-1"},
+		},
+		parts: map[string]int64{testReplicatedBase + "/" + testUUIDB + "/replicas/replica-1": 1},
+	})
+	err := c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a", "b"))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrReplicatedTableSplit), err.Error())
+	assert.Empty(t, conn.statements("DROP"))
+	assert.Empty(t, conn.statements("CREATE"))
+	assert.Empty(t, conn.statements("ALTER"))
+}
+
+func TestSyncTableUnreadableDefinition(t *testing.T) {
+	c, conn := newReplicatedTestController(replicatedZK{
+		replicas:    map[string][]string{testUUIDA: {"replica-0"}},
+		createQuery: "something else",
+	})
+	err := c.SyncTable(t.Context(), testReplicatedTable("a"), testReplicatedTable("a"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot make out the definition")
+	assert.Empty(t, conn.statements("CREATE"))
+}
+
+func TestSyncTableNotReplicatedUnchecked(t *testing.T) {
+	conn := &fakeConn{}
+	c := New(conn, WithCluster(testReplicatedCluster))
+	table := testReplicatedTable("a")
+	table.Config.Engine = NewDefaultMergeTreeEngine(false)
+	require.NoError(t, c.SyncTable(t.Context(), table, table))
+	assert.Empty(t, conn.log)
+}
+
+func TestCreateTableBody(t *testing.T) {
+	body, ok := createTableBody("CREATE TABLE db.`a(b` (`x` UInt8) ENGINE = Memory")
+	assert.True(t, ok)
+	assert.Equal(t, "(`x` UInt8) ENGINE = Memory", body)
+	_, ok = createTableBody("CREATE VIEW db.v AS SELECT 1")
+	assert.False(t, ok)
+	_, ok = createTableBody("CREATE TABLE db.t")
 	assert.False(t, ok)
 }

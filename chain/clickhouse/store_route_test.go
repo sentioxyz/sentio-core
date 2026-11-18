@@ -3,6 +3,7 @@ package clickhouse
 import (
 	"context"
 	"fmt"
+	"path"
 	"reflect"
 	"strings"
 	"sync"
@@ -124,12 +125,21 @@ func (s *fakeServer) query(sql string, args []any) ([][]any, error) {
 				rows = append(rows, []any{h, engine})
 			}
 		}
-	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num) FROM system.clusters"):
-		rows = append(rows, []any{uint64(1)})
+	case strings.HasPrefix(sql, "SELECT uniqExact(shard_num), count() FROM system.clusters"):
+		rows = append(rows, []any{uint64(1), uint64(2)})
 	case sql == "SELECT macro, substitution FROM system.macros":
 		rows = append(rows, []any{"cluster", "compute"}, []any{"shard", "0"})
 	case strings.HasPrefix(sql, "SELECT name FROM system.zookeeper"):
-		// no replicated table exists under any name, so a CREATE starts a new one
+		// a table of the connected server is registered under one UUID, by both replicas of the
+		// cluster; no other table exists under any name, so a CREATE starts a new one
+		// the path is /clickhouse/tables/{cluster}/{database}/{table}/{shard}
+		if _, has := s.tables[path.Base(path.Dir(args[0].(string)))]; has {
+			rows = append(rows, []any{"00000000-0000-0000-0000-00000000000a"})
+		}
+	case strings.HasPrefix(sql, "SELECT path, name FROM system.zookeeper"):
+		for _, p := range args[0].([]string) {
+			rows = append(rows, []any{p, "replica-0"}, []any{p, "replica-1"})
+		}
 	case sql == "SELECT toString(generateUUIDv4())":
 		s.uuids++
 		rows = append(rows, []any{fmt.Sprintf("00000000-0000-0000-0000-%012d", s.uuids)})
@@ -289,9 +299,18 @@ func assertLegacyOnly(t *testing.T, s *fakeServer) {
 	}
 }
 
+// replicaCheckSQLs are the queries SyncTable runs to check that every replica holds a replicated
+// table, see chx.Controller.SyncTable.
+var replicaCheckSQLs = []string{
+	"SELECT uniqExact(shard_num), count() FROM system.clusters WHERE cluster = ?",
+	"SELECT macro, substitution FROM system.macros",
+	"SELECT name FROM system.zookeeper WHERE path = ?",
+	"SELECT path, name FROM system.zookeeper WHERE path IN ?",
+}
+
 // TestLegacyStartupExisting pins the startup of stores without a route over the old
-// ReplicatedMergeTree tables: the tables are loaded and found in sync, as they always were, and
-// nothing else is asked or done.
+// ReplicatedMergeTree tables: the tables are loaded, checked to be on every replica and found in
+// sync, as they always were, and nothing else is asked or done.
 func TestLegacyStartupExisting(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -308,7 +327,11 @@ func TestLegacyStartupExisting(t *testing.T) {
 	_, err = newTestRangeStore(ctx, ctrl)
 	require.NoError(t, err)
 
-	assert.Equal(t, append(append(append([]string{}, loadSQLs...), loadSQLs...), loadSQLs...), s.queries)
+	var expected []string
+	for range 3 {
+		expected = append(append(expected, loadSQLs...), replicaCheckSQLs...)
+	}
+	assert.Equal(t, expected, s.queries)
 	assert.Empty(t, s.execs)
 	assertLegacyOnly(t, s)
 }

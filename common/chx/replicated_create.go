@@ -68,7 +68,29 @@ type replicatedTableIncarnation struct {
 	Replicas []string
 	// HasParts is set if any replica of the table holds a data part
 	HasParts bool
+	// Active is set if a server runs any replica of the table. A table no server runs may have been
+	// dropped without its ZooKeeper data being removed, which ClickHouse does not clean up by itself,
+	// or have all its servers down: nothing tells the two apart, so such a table is neither joined
+	// nor dropped, nor taken to be gone.
+	Active bool
 }
+
+// activeIncarnations returns the incarnations a server runs.
+func activeIncarnations(incarnations []replicatedTableIncarnation) []replicatedTableIncarnation {
+	var active []replicatedTableIncarnation
+	for _, inc := range incarnations {
+		if inc.Active {
+			active = append(active, inc)
+		}
+	}
+	return active
+}
+
+// errReplicatedTableInactive is returned by Create when the only tables found under the name are
+// ones no server runs, see replicatedTableIncarnation.Active: joining one fails, and creating
+// another may split the table once its servers are back. An operator is to tell which it is, and
+// remove what is left of a dropped table with SYSTEM DROP REPLICA ... FROM ZKPATH.
+var errReplicatedTableInactive = errors.New("the replicated tables found under the name are not active anywhere")
 
 // replicatedLookup is what ZooKeeper says about the tables created under the name of a table.
 type replicatedLookup struct {
@@ -120,13 +142,18 @@ func (c Controller) createReplicated(ctx context.Context, table Table) error {
 		return c.Exec(ctx, c.buildCreateTableSQL(table))
 	}
 	incarnations := lookup.incarnations
-	switch len(incarnations) {
-	case 0:
+	active := activeIncarnations(incarnations)
+	switch {
+	case len(incarnations) == 0:
 		return c.createReplicatedFresh(ctx, table)
-	case 1:
+	case len(active) == 0:
+		desc := describeIncarnations(incarnations)
+		logger.Errorf("table is only found where no server runs it, needs an operator: %s", desc)
+		return errors.Wrapf(errReplicatedTableInactive, "%s: %s", table.Name, desc)
+	case len(active) == 1:
 		logger.Infof("table already exists on replicas %v with UUID %s, will join it",
-			incarnations[0].Replicas, incarnations[0].UUID)
-		if err = c.joinReplicated(ctx, table, incarnations[0].UUID); err != nil {
+			active[0].Replicas, active[0].UUID)
+		if err = c.joinReplicated(ctx, table, active[0].UUID); err != nil {
 			return err
 		}
 		return c.syncJoinedTable(ctx, table)
@@ -134,8 +161,9 @@ func (c Controller) createReplicated(ctx context.Context, table Table) error {
 	return c.repairSplit(ctx, table, incarnations)
 }
 
-// repairSplit handles several tables found under the name of table: they are dropped and table is
-// created again if none of them holds data, or ErrReplicatedTableSplit is returned otherwise.
+// repairSplit handles several tables found under the name of table, active or not: they are dropped
+// and table is created again if none of them holds data, or ErrReplicatedTableSplit is returned
+// otherwise. An inactive one counts too, as a DROP ON CLUSTER reaches its server once it is back.
 func (c Controller) repairSplit(ctx context.Context, table Table, incarnations []replicatedTableIncarnation) error {
 	_, logger := log.FromContext(ctx, "name", table.Name)
 	desc := describeIncarnations(incarnations)
@@ -320,11 +348,19 @@ func (c Controller) loadReplicatedTableIncarnations(
 	base string,
 	name string,
 ) ([]replicatedTableIncarnation, error) {
-	found, err := c.loadIncarnations(ctx, map[string]string{base: c.tableNamePrefix + name})
+	key := incarnationKey{base: base, table: c.tableNamePrefix + name}
+	found, err := c.loadIncarnations(ctx, []incarnationKey{key})
 	if err != nil {
 		return nil, err
 	}
-	return found[base].incarnations, found[base].ownerUnknown
+	return found[key].incarnations, found[key].ownerUnknown
+}
+
+// incarnationKey names a table by the base of its replication path and its physical name. Several
+// tables may share a base, so the tables found under it are told apart by the name they register.
+type incarnationKey struct {
+	base  string
+	table string
 }
 
 // baseIncarnations are the tables of a name found under the base of its replication path.
@@ -334,19 +370,23 @@ type baseIncarnations struct {
 	ownerUnknown error
 }
 
-// loadIncarnations returns, for each base of the tables, which it maps to the physical name of the
-// table, the tables of that name found under it, each with the replicas that hold it, ordered by
-// UUID. It runs the same few queries however many bases there are.
+// loadIncarnations returns, for each of the keys, the tables of its name found under its base, each
+// with the replicas that hold it and whether a server runs it, ordered by UUID. It runs the same few
+// queries however many keys there are.
 //
-// A UUID under which no replica is registered any more, or none is active, is what a dropped table
-// may leave behind, and is left out. So is one whose replicas register another table: a replication path need
+// A UUID under which no replica is registered any more is what a dropped table may leave behind for
+// a while, and is left out. So is one whose replicas register another table: a replication path need
 // not name the table, and the parent of one that ends in {uuid} may then hold the tables of other
 // names too. A table no replica of which has a registration that can be read sets ownerUnknown,
 // wrapping errReplicatedTableOwnerUnknown.
-func (c Controller) loadIncarnations(ctx context.Context, tables map[string]string) (map[string]baseIncarnations, error) {
-	result := make(map[string]baseIncarnations, len(tables))
-	bases := make([]string, 0, len(tables))
-	for base := range tables {
+func (c Controller) loadIncarnations(ctx context.Context, keys []incarnationKey) (map[incarnationKey]baseIncarnations, error) {
+	result := make(map[incarnationKey]baseIncarnations, len(keys))
+	tablesOf := make(map[string][]string)
+	for _, key := range keys {
+		tablesOf[key.base] = append(tablesOf[key.base], key.table)
+	}
+	bases := make([]string, 0, len(tablesOf))
+	for base := range tablesOf {
 		bases = append(bases, base)
 	}
 	sort.Strings(bases)
@@ -398,57 +438,54 @@ func (c Controller) loadIncarnations(ctx context.Context, tables map[string]stri
 		return nil, err
 	}
 	type owner struct {
-		base string
-		at   int
+		key incarnationKey
+		at  int
 	}
-	owners := make(map[string]owner)
+	owners := make(map[string][]owner)
 	var splitPaths []string
 	for _, base := range bases {
-		var found baseIncarnations
-		var paths []string
-		for _, uuid := range uuids[base] {
-			parent := base + "/" + uuid + "/replicas"
-			names := replicas[parent]
-			if len(names) == 0 {
-				continue
-			}
-			active, ours, others := false, false, false
-			for _, replica := range names {
-				active = active || registrations[parent+"/"+replica].active
-			}
-			if !active {
-				// No server runs the table: it is what a table dropped without its ZooKeeper data being
-				// removed leaves behind, which ClickHouse does not clean up by itself, or every replica of
-				// the table is down. Neither is a table to join, nor tells a split.
-				continue
-			}
-			for _, replica := range names {
-				if r := registrations[parent+"/"+replica]; r.known && r.database != "" && r.table != "" {
-					if r.database == c.database && r.table == tables[base] {
-						ours = true
-					} else {
-						others = true
+		for _, table := range tablesOf[base] {
+			key := incarnationKey{base: base, table: table}
+			var found baseIncarnations
+			var paths []string
+			for _, uuid := range uuids[base] {
+				parent := base + "/" + uuid + "/replicas"
+				names := replicas[parent]
+				if len(names) == 0 {
+					continue
+				}
+				inc := replicatedTableIncarnation{UUID: uuid, Replicas: names}
+				ours, others := false, false
+				for _, replica := range names {
+					r := registrations[parent+"/"+replica]
+					inc.Active = inc.Active || r.active
+					if r.known && r.database != "" && r.table != "" {
+						if r.database == c.database && r.table == table {
+							ours = true
+						} else {
+							others = true
+						}
 					}
 				}
+				if !ours && !others && found.ownerUnknown == nil {
+					found.ownerUnknown = errors.Wrapf(errReplicatedTableOwnerUnknown, "%s/%s", base, uuid)
+				}
+				if !ours {
+					continue
+				}
+				for _, replica := range names {
+					p := parent + "/" + replica
+					paths = append(paths, p)
+					owners[p] = append(owners[p], owner{key: key, at: len(found.incarnations)})
+				}
+				found.incarnations = append(found.incarnations, inc)
 			}
-			if !ours && !others && found.ownerUnknown == nil {
-				found.ownerUnknown = errors.Wrapf(errReplicatedTableOwnerUnknown, "%s/%s", base, uuid)
+			if len(found.incarnations) > 1 {
+				// whether a table holds data only matters to telling a split apart
+				splitPaths = append(splitPaths, paths...)
 			}
-			if !ours {
-				continue
-			}
-			for _, replica := range names {
-				p := parent + "/" + replica
-				paths = append(paths, p)
-				owners[p] = owner{base: base, at: len(found.incarnations)}
-			}
-			found.incarnations = append(found.incarnations, replicatedTableIncarnation{UUID: uuid, Replicas: names})
+			result[key] = found
 		}
-		if len(found.incarnations) > 1 {
-			// whether a table holds data only matters to telling a split apart
-			splitPaths = append(splitPaths, paths...)
-		}
-		result[base] = found
 	}
 	if len(splitPaths) == 0 {
 		return result, nil
@@ -459,8 +496,10 @@ func (c Controller) loadIncarnations(ctx context.Context, tables map[string]stri
 		if scanErr := rows.Scan(&replicaPath, &parts); scanErr != nil {
 			return scanErr
 		}
-		if o, has := owners[replicaPath]; has && parts > 0 {
-			result[o.base].incarnations[o.at].HasParts = true
+		if parts > 0 {
+			for _, o := range owners[replicaPath] {
+				result[o.key].incarnations[o.at].HasParts = true
+			}
 		}
 		return nil
 	}, "SELECT path, toInt64(numChildren) FROM system.zookeeper WHERE path IN ? AND name = 'parts'", splitPaths)
@@ -473,7 +512,8 @@ func (c Controller) loadIncarnations(ctx context.Context, tables map[string]stri
 func describeIncarnations(incarnations []replicatedTableIncarnation) string {
 	desc := make([]string, len(incarnations))
 	for i, inc := range incarnations {
-		desc[i] = fmt.Sprintf("UUID %s on replicas %v (has parts: %v)", inc.UUID, inc.Replicas, inc.HasParts)
+		desc[i] = fmt.Sprintf("UUID %s on replicas %v (has parts: %v, active: %v)",
+			inc.UUID, inc.Replicas, inc.HasParts, inc.Active)
 	}
 	return strings.Join(desc, "; ")
 }

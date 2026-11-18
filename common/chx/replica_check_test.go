@@ -279,10 +279,10 @@ func TestEnsureReplicatedAccessDenied(t *testing.T) {
 	require.Error(t, c.EnsureReplicated(t.Context()))
 }
 
-// A table dropped without its ZooKeeper data being removed leaves its replicas registered but no
-// longer active, which ClickHouse does not clean up by itself: such a table is neither a split nor a
-// table to join, whatever data it held.
-func TestOrphanIgnored(t *testing.T) {
+// A table no server runs may have been dropped without its ZooKeeper data being removed, or have
+// all its servers down, which nothing tells apart: it is neither taken for a split nor dropped,
+// and Create neither joins it nor creates another table next to it.
+func TestInactiveIncarnation(t *testing.T) {
 	z := replicatedZK{
 		replicas: map[string][]string{testUUIDA: {"replica-0", "replica-1"}, testUUIDB: {"replica-0", "replica-1"}},
 		orphans:  map[string]bool{testUUIDB: true},
@@ -293,10 +293,61 @@ func TestOrphanIgnored(t *testing.T) {
 	assert.Empty(t, conn.statements("DROP"))
 	assert.Empty(t, conn.statements("CREATE"))
 
+	// alone, it is not joined, nor is another table created next to it
 	z.replicas = map[string][]string{testUUIDB: {"replica-0", "replica-1"}}
+	c, conn = newReplicatedTestController(z)
+	err := c.Create(t.Context(), testReplicatedTable("a"))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errReplicatedTableInactive), err.Error())
+	assert.Empty(t, conn.statements("CREATE"))
+
+	// next to an active table, the active one is joined
+	z.replicas = map[string][]string{testUUIDA: {"replica-0"}, testUUIDB: {"replica-0", "replica-1"}}
 	c, conn = newReplicatedTestController(z)
 	require.NoError(t, c.Create(t.Context(), testReplicatedTable("a")))
 	creates := conn.statements("CREATE")
 	require.Len(t, creates, 1)
-	assert.Contains(t, creates[0], "UUID '"+testUUIDNew+"'")
+	assert.Contains(t, creates[0], "UUID '"+testUUIDA+"'")
+}
+
+// A split of active tables is dropped only if none of the tables of the name holds data, the
+// inactive ones included: a DROP ON CLUSTER reaches the server of an inactive one once it is back.
+func TestSplitWithInactiveData(t *testing.T) {
+	c, conn := newReplicatedTestController(replicatedZK{
+		replicas: map[string][]string{
+			testUUIDA:   {"replica-0"},
+			testUUIDB:   {"replica-1"},
+			testUUIDNew: {"replica-1"},
+		},
+		orphans: map[string]bool{testUUIDNew: true},
+		parts:   map[string]int64{testReplicatedBase + "/" + testUUIDNew + "/replicas/replica-1": 3},
+	})
+	err := c.EnsureReplicated(t.Context())
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrReplicatedTableSplit), err.Error())
+	assert.Empty(t, conn.statements("DROP"))
+}
+
+// Tables sharing the base of their replication path are told apart by the name their replicas
+// register, each with its own incarnations.
+func TestLoadIncarnationsSharedBase(t *testing.T) {
+	c, _ := newReplicatedTestController(replicatedZK{
+		replicas: map[string][]string{
+			testUUIDA:   {"replica-0", "replica-1"},
+			testUUIDB:   {"replica-0"},
+			testUUIDNew: {"replica-1"},
+		},
+		owners: map[string]string{testUUIDB: "u", testUUIDNew: "u"},
+		parts:  map[string]int64{testReplicatedBase + "/" + testUUIDA + "/replicas/replica-0": 5},
+	})
+	keyT := incarnationKey{base: testReplicatedBase, table: "t"}
+	keyU := incarnationKey{base: testReplicatedBase, table: "u"}
+	found, err := c.loadIncarnations(t.Context(), []incarnationKey{keyT, keyU})
+	require.NoError(t, err)
+	require.Len(t, found[keyT].incarnations, 1)
+	assert.Equal(t, testUUIDA, found[keyT].incarnations[0].UUID)
+	require.Len(t, found[keyU].incarnations, 2)
+	for _, inc := range found[keyU].incarnations {
+		assert.False(t, inc.HasParts, inc.UUID)
+	}
 }

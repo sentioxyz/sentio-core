@@ -112,7 +112,13 @@ func (c Controller) EnsureReplicated(ctx context.Context, names ...string) error
 	var splits []string
 	for _, t := range tables {
 		_, logger := log.FromContext(ctx, "table", t.name)
-		if len(t.incarnations) > 1 {
+		if len(t.incarnations) > 1 && len(activeIncarnations(t.incarnations)) < 2 {
+			// Only the table held here is run by a server; the others are what dropped tables leave
+			// behind, or tables whose servers are down, which nothing tells apart, so they are left as
+			// they are.
+			logger.Warnf("table has incarnations no server runs, left as they are: %s",
+				describeIncarnations(t.incarnations))
+		} else if len(t.incarnations) > 1 {
 			desc := describeIncarnations(t.incarnations)
 			if err = c.dropEmptySplit(ctx, t.name, t.incarnations); err != nil {
 				if !errors.Is(err, ErrReplicatedTableSplit) {
@@ -174,19 +180,19 @@ func (c Controller) checkReplicatedTables(ctx context.Context, names []string) (
 	}
 	// With the UUID at the end of the path, the other tables created under the name are among the
 	// children of its parent, and loadIncarnations tells which ones they are.
-	bases := make(map[string]string)
+	var keys []incarnationKey
 	var activePaths []string
 	for _, t := range held {
 		if base, last := path.Split(t.zookeeperPath); last == t.uuid {
-			bases[strings.TrimSuffix(base, "/")] = t.name
+			keys = append(keys, incarnationKey{base: strings.TrimSuffix(base, "/"), table: t.name})
 		}
 		for _, replica := range t.activeReplicas {
 			activePaths = append(activePaths, t.zookeeperPath+"/replicas/"+replica)
 		}
 	}
-	incarnations := make(map[string]baseIncarnations)
-	if len(bases) > 0 {
-		if incarnations, err = c.loadIncarnations(ctx, bases); err != nil {
+	incarnations := make(map[incarnationKey]baseIncarnations)
+	if len(keys) > 0 {
+		if incarnations, err = c.loadIncarnations(ctx, keys); err != nil {
 			return nil, err
 		}
 	}
@@ -198,7 +204,7 @@ func (c Controller) checkReplicatedTables(ctx context.Context, names []string) (
 	for _, t := range held {
 		ct := checkedReplicatedTable{heldReplicatedTable: t}
 		if base, last := path.Split(t.zookeeperPath); last == t.uuid {
-			found := incarnations[strings.TrimSuffix(base, "/")]
+			found := incarnations[incarnationKey{base: strings.TrimSuffix(base, "/"), table: t.name}]
 			if found.ownerUnknown != nil {
 				// the split is looked for again the next time, the replicas can be checked meanwhile
 				logger.Warnfe(found.ownerUnknown, "will not look for a split of table %s this time", t.name)

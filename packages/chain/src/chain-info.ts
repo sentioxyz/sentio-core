@@ -781,22 +781,6 @@ export const EthChainInfo: Record<EthChainId | string, EthChainInfo> = {
     explorerApi: 'https://soneium-minato.blockscout.com',
     lightIcon: 'https://assets.sentio.xyz/chains/soneium.svg'
   },
-  [EthChainId.DERIVE]: {
-    name: 'Derive Mainnet',
-    slug: 'derive-mainnet',
-    chainId: EthChainId.DERIVE,
-    nativeChainId: 957,
-    variation: EthVariation.OPTIMISM,
-    priceTokenAddress: '0x0000000000000000000000000000000000000000',
-    tokenAddress: '0x0000000000000000000000000000000000000000',
-    wrappedTokenAddress: '0x15CEcd5190A43C7798dD2058308781D0662e678E',
-    tokenSymbol: 'ETH',
-    tokenDecimals: 18,
-    explorerUrl: 'https://explorer.lyra.finance',
-    explorerApiType: ExplorerApiType.BLOCKSCOUT,
-    explorerApi: 'https://explorer.lyra.finance',
-    lightIcon: 'https://assets.sentio.xyz/chains/derive.svg'
-  },
   [EthChainId.UNICHAIN_SEPOLIA]: {
     name: 'Unichain Sepolia',
     slug: 'unichain-sepolia',

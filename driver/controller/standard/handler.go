@@ -65,7 +65,10 @@ type BaseHandlerController[CLI controller.Client, BKD controller.BlockHeader, HA
 
 	processorClients []protos.ProcessorV3Client
 	processStreams   streamPool
-	waiter           *waiter
+	// cancelProcessStreams tears down the context every stream in processStreams was opened on.
+	// Canceling it is what releases grpc's per-stream goroutine, see FinishExecute.
+	cancelProcessStreams context.CancelFunc
+	waiter               *waiter
 }
 
 func NewBaseHandlerController[CLI controller.Client, BKD controller.BlockHeader, HA HandlerAgent[BKD]](
@@ -139,13 +142,19 @@ func (c *BaseHandlerController[CLI, BKD, HA]) SetTemplates(
 func (c *BaseHandlerController[CLI, BKD, HA]) PrepareExecute(ctx context.Context) *controller.ExternalError {
 	clientCount := uint64(len(c.processorClients))
 	streamSize := max(controller.ProcessConcurrency, clientCount)
+	// Give the pool its own context instead of opening the streams on ctx directly: ctx outlives a
+	// single run, while the streams must not. See FinishExecute for why cancelation is required.
+	streamCtx, cancelStreams := context.WithCancel(ctx)
 	c.processStreams = make(streamPool, streamSize)
+	c.cancelProcessStreams = cancelStreams
 	var opts = []grpc.CallOption{
 		grpc.UseCompressor(utils.Select[string](grpcEnableCompress, gzip.Name, "")),
 	}
 	for i := uint64(0); i < streamSize; i++ {
-		stream, err := c.processorClients[i%clientCount].ProcessBindingsStream(ctx, opts...)
+		stream, err := c.processorClients[i%clientCount].ProcessBindingsStream(streamCtx, opts...)
 		if err != nil {
+			// release the streams opened so far, they would otherwise stay around until ctx is done
+			c.FinishExecute()
 			return controller.NewExternalError(controller.ErrCodeCallProcessorFailed,
 				errors.Errorf("open stream for process binding failed: %v", err))
 		}
@@ -178,6 +187,14 @@ func (c *BaseHandlerController[CLI, BKD, HA]) FinishExecute() {
 	close(c.processStreams)
 	for stream := range c.processStreams {
 		_ = stream.CloseSend()
+	}
+	// CloseSend only half-closes the stream, it neither cancels the stream context nor drains Recv
+	// to completion, so grpc never runs clientStream.finish and the goroutine it spawns per stream
+	// parks forever. A driver restarts its run whenever a processor reports a new template, so
+	// without this cancel each run permanently leaks streamSize goroutines.
+	if c.cancelProcessStreams != nil {
+		c.cancelProcessStreams()
+		c.cancelProcessStreams = nil
 	}
 }
 

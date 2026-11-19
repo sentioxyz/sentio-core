@@ -33,7 +33,6 @@ export enum EthChainId {
   KUCOIN = '321',
   ZKSYNC_ERA = '324',
   CRONOS_TESTNET = '338',
-  DERIVE = '957',
   STABLE_TESTNET = '2201',
   STABLE_MAINNET = '988',
   HYPER_EVM = '999',

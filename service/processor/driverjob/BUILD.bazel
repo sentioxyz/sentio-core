@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "driverjob",
@@ -16,5 +16,15 @@ go_library(
         "@com_github_moby_moby_api//types/mount",
         "@com_github_moby_moby_api//types/swarm",
         "@com_github_moby_moby_client//:client",
+    ],
+)
+
+go_test(
+    name = "driverjob_test",
+    srcs = ["docker_swarm_manager_test.go"],
+    embed = [":driverjob"],
+    deps = [
+        "//service/processor/models",
+        "@com_github_stretchr_testify//require",
     ],
 )

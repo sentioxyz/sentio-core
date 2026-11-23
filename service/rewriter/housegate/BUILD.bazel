@@ -1,0 +1,27 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/golang:go_proto_library.bzl", "go_proto_library")
+
+proto_library(
+    name = "housegate_proto",
+    srcs = ["rewriter.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "internal_housegate",
+    importpath = "sentioxyz/sentio-core/internal-used-only/service/rewriter/housegate",
+    proto = ":housegate_proto",
+    visibility = ["//visibility:private"],
+)
+
+go_library(
+    name = "housegate",
+    srcs = ["rewriter.pb.go"],
+    importpath = "sentioxyz/sentio-core/service/rewriter/housegate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

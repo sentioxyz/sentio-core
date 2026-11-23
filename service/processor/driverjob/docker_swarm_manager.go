@@ -308,6 +308,10 @@ func (d *DockerSwarmManager) buildProcessorServiceSpec(processor *models.Process
 				Env:     []string{"WRITE_V2_EVENT_LOGS=false"},
 				Mounts:  mounts,
 				Hosts:   []string{"host-gateway host.docker.internal"},
+				// The script drops to an unprivileged user before running the
+				// processor; this keeps it from regaining root through a
+				// setuid binary.
+				Privileges: &swarm.Privileges{NoNewPrivileges: true},
 			},
 			RestartPolicy: &swarm.RestartPolicy{
 				Condition: swarm.RestartPolicyConditionOnFailure,
@@ -354,9 +358,43 @@ func (d *DockerSwarmManager) createNetwork(ctx context.Context, processor *model
 	return resp.ID, nil
 }
 
+// processorScriptTemplate runs the processor container: prepare as root, then
+// the user's processor code as the unprivileged "node" user.
+//
+// The cache dir is a host directory shared by every processor on the host: it
+// holds each processor's prepared bundle and node_modules plus the shared pnpm
+// store. Prepare must write there, but the processor itself runs arbitrary user
+// code, so it must not be able to modify any of it (another processor's code,
+// or packages every later install reuses). Everything prepare and pnpm write is
+// root-owned 0644/0755 (pnpm copies files, it does not hardlink them to the
+// store), so dropping to an unprivileged uid before exec'ing the processor
+// makes the whole cache read-only to it.
+//
+// The node base image has no su-exec/gosu, and busybox setpriv cannot change
+// the uid, so the drop uses busybox su, which as root needs no password and
+// execs the shell in place (no extra process between docker and the
+// processor). setpriv --nnp blocks regaining privileges through setuid or
+// file-capability binaries. busybox su parses options anywhere on its command
+// line, so "--" must end its options before the processor's own flags.
 const processorScriptTemplate = `#!/bin/sh
 set -e
 cd /app/driver/cmd/cmd_/cmd.runfiles/_main
+
+# Before prepare writes anything, make sure nothing in the shared cache is
+# writable by the unprivileged processor user. The host directory may be owned
+# by a regular host user (often uid 1000, the same uid as "node"), and caches
+# populated by earlier versions of this script (which ran processors as root)
+# may contain world-writable or non-root-owned entries, including the formerly
+# world-writable .pnpm-store/dumps directory, which nothing uses. The tree
+# walks tolerate errors: another processor's concurrent install (as root) can
+# remove temp files mid-walk, and those are root-owned anyway.
+mkdir -p {{.CacheDir}}
+chown 0:0 {{.CacheDir}}
+chmod 0755 {{.CacheDir}}
+rm -rf {{.CacheDir}}/.pnpm-store/dumps
+find {{.CacheDir}} \( ! -user 0 -o ! -group 0 \) -exec chown -h 0:0 {} + || echo "WARN: cache chown failed" >&2
+find {{.CacheDir}} ! -type l -perm -0002 -exec chmod o-w {} + || echo "WARN: cache chmod failed" >&2
+
 # prepare
 # -rpcnode-service must be explicitly empty (like the driver service args above):
 # the binary's default points at the hosted platform's rpcnode proxy, which
@@ -370,10 +408,6 @@ cd /app/driver/cmd/cmd_/cmd.runfiles/_main
         -rpcnode-service= \
         -enable_tls=false \
         -clickhouse-config-path={{.ClickhouseConfigPath}}
-
-# prepare2
-
-mkdir -p {{.CacheDir}}/.pnpm-store/dumps && chmod 777 {{.CacheDir}}/.pnpm-store/dumps
 
 # Guard against stale .processor-path from another processor's cache (shared bind mount).
 # The prepare step above writes {{.CacheDir}}/.processor-path only on success; if it crashed,
@@ -392,14 +426,17 @@ if [[ "$TARGET_PATH" == */main ]]; then
     chmod +x "$TARGET_PATH"
 fi
 
-# start processor
+# start processor, as the unprivileged node user
 TARGET_DIR=$(head -n 1 {{.CacheDir}}/.processor-path)
 TARGET_PATH=$(tail -n 1 {{.CacheDir}}/.processor-path)
 CHAINS_CONFIG_FILE=${TARGET_DIR}/chains-config.json
+run_unprivileged() {
+    exec setpriv --nnp su -s /bin/sh -c 'exec "$@"' -- node processor "$@"
+}
 if [[ "$TARGET_PATH" == */main ]]; then
-    exec "$TARGET_PATH" "$@" --chains-config=$CHAINS_CONFIG_FILE
+    run_unprivileged "$TARGET_PATH" "$@" --chains-config=$CHAINS_CONFIG_FILE
 else
-    exec /usr/bin/env node --inspect=0.0.0.0:9229 $TARGET_DIR/node_modules/.bin/processor-runner --port 9999 --use-chainserver --concurrency=128 --log-format=json --chains-config=$CHAINS_CONFIG_FILE $TARGET_PATH 
+    run_unprivileged /usr/bin/env node --inspect=0.0.0.0:9229 $TARGET_DIR/node_modules/.bin/processor-runner --port 9999 --use-chainserver --concurrency=128 --log-format=json --chains-config=$CHAINS_CONFIG_FILE $TARGET_PATH
 fi
 `
 

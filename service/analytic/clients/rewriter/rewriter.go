@@ -34,10 +34,10 @@ const (
 )
 
 var (
-	backendFlag = flag.String("clickhouse_rewriter_backend", string(BackendSQLRewriter),
+	backendFlag = flag.String("clickhouse-rewriter-backend", string(BackendSQLRewriter),
 		"The ClickHouse SQL rewriter backend: sql-rewriter or housegate")
-	housegateAddressFlag = flag.String("clickhouse_housegate_rewriter_address", "",
-		"The housegate/rewriter address used when clickhouse_rewriter_backend=housegate; "+
+	housegateAddressFlag = flag.String("clickhouse-housegate-rewriter-address", "",
+		"The housegate/rewriter address used when clickhouse-rewriter-backend=housegate; "+
 			"empty uses the address passed to NewRewriterClient")
 )
 
@@ -75,8 +75,8 @@ func dial(addr string) (*grpc.ClientConn, error) {
 }
 
 // NewRewriterClient returns a client for the backend chosen by
-// --clickhouse_rewriter_backend. addr is the sql-rewriter address; the
-// housegate backend uses --clickhouse_housegate_rewriter_address when set.
+// -clickhouse-rewriter-backend. addr is the sql-rewriter address; the
+// housegate backend uses -clickhouse-housegate-rewriter-address when set.
 func NewRewriterClient(addr string) (Client, error) {
 	backend := Backend(*backendFlag)
 	if backend == BackendHousegate && *housegateAddressFlag != "" {

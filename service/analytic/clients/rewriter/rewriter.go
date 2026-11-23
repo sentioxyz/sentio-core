@@ -2,6 +2,8 @@ package rewriter
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"strings"
 	"time"
 
@@ -20,6 +22,31 @@ type Client interface {
 	Format(context.Context, *protos.FormatSQLRequest) (*protos.FormatSQLResponse, error)
 }
 
+// Backend selects the rewriter service a Client talks to. Callers keep
+// using the sql-rewriter request and response types either way.
+type Backend string
+
+const (
+	// BackendSQLRewriter is sentioxyz/sql-rewriter, the protos package contract.
+	BackendSQLRewriter Backend = "sql-rewriter"
+	// BackendHousegate is housegate/rewriter in static mode (see housegate.go).
+	BackendHousegate Backend = "housegate"
+)
+
+var (
+	backendFlag = flag.String("clickhouse_rewriter_backend", string(BackendSQLRewriter),
+		"The ClickHouse SQL rewriter backend: sql-rewriter or housegate")
+	housegateAddressFlag = flag.String("clickhouse_housegate_rewriter_address", "",
+		"The housegate/rewriter address used when clickhouse_rewriter_backend=housegate; "+
+			"empty uses the address passed to NewRewriterClient")
+)
+
+const (
+	rewriteTimeout             = time.Minute
+	rewriteErrorMessageTimeout = 10 * time.Second
+	formatTimeout              = 5 * time.Second
+)
+
 type client struct {
 	protos.RewriterServiceClient
 }
@@ -33,7 +60,7 @@ func rewriterTarget(addr string) string {
 	return "dns:///" + addr
 }
 
-func NewRewriterClient(addr string) (Client, error) {
+func dial(addr string) (*grpc.ClientConn, error) {
 	conn, err := rpc.Dial(
 		rewriterTarget(addr),
 		rpc.RetryDialOption,
@@ -44,33 +71,65 @@ func NewRewriterClient(addr string) (Client, error) {
 		log.Warnf("failed to dial rewriter service: %v", err)
 		return nil, err
 	}
-	cli := protos.NewRewriterServiceClient(conn)
-	return &client{
-		RewriterServiceClient: cli,
-	}, nil
+	return conn, nil
+}
+
+// NewRewriterClient returns a client for the backend chosen by
+// --clickhouse_rewriter_backend. addr is the sql-rewriter address; the
+// housegate backend uses --clickhouse_housegate_rewriter_address when set.
+func NewRewriterClient(addr string) (Client, error) {
+	backend := Backend(*backendFlag)
+	if backend == BackendHousegate && *housegateAddressFlag != "" {
+		addr = *housegateAddressFlag
+	}
+	return NewClient(addr, backend)
+}
+
+// NewClient returns a client for an explicit backend, ignoring the flags.
+func NewClient(addr string, backend Backend) (Client, error) {
+	switch backend {
+	case BackendSQLRewriter, BackendHousegate:
+	default:
+		return nil, fmt.Errorf("unknown rewriter backend %q (want %q or %q)", backend, BackendSQLRewriter, BackendHousegate)
+	}
+	conn, err := dial(addr)
+	if err != nil {
+		return nil, err
+	}
+	if backend == BackendHousegate {
+		log.Infof("using housegate rewriter at %s", addr)
+		return &housegateClient{conn: conn}, nil
+	}
+	return &client{RewriterServiceClient: protos.NewRewriterServiceClient(conn)}, nil
+}
+
+// normalizeTableNames trims spaces and backticks from table map targets.
+func normalizeTableNames(options []*protos.RewriteOption) {
+	for _, op := range options {
+		if op.Op != protos.RewriteOp_TableNameRewrite {
+			continue
+		}
+		args := op.GetTableNameArgs()
+		if args == nil {
+			continue
+		}
+		for _, t := range args.TableWithDatabaseMap {
+			t.Database = strings.Trim(strings.TrimSpace(t.Database), "`")
+			t.Table = strings.Trim(strings.TrimSpace(t.Table), "`")
+		}
+		for _, r := range args.RemoteTableMap {
+			r.Table = strings.Trim(strings.TrimSpace(r.Table), "`")
+			r.Database = strings.Trim(strings.TrimSpace(r.Database), "`")
+		}
+	}
 }
 
 func (r *client) Rewrite(ctx context.Context, req *protos.RewriteSQLRequest) (*protos.RewriteSQLResponse, error) {
-	for _, op := range req.GetOptions() {
-		if op.Op == protos.RewriteOp_TableNameRewrite && op.GetTableNameArgs() != nil {
-			args := op.GetTableNameArgs()
-			if args == nil {
-				continue
-			}
-			for _, t := range args.TableWithDatabaseMap {
-				t.Database = strings.Trim(strings.TrimSpace(t.Database), "`")
-				t.Table = strings.Trim(strings.TrimSpace(t.Table), "`")
-			}
-			for _, r := range args.RemoteTableMap {
-				r.Table = strings.Trim(strings.TrimSpace(r.Table), "`")
-				r.Database = strings.Trim(strings.TrimSpace(r.Database), "`")
-			}
-		}
-	}
+	normalizeTableNames(req.GetOptions())
 	reqJSON, _ := protojson.Marshal(req)
 	log.Debugf("rewriting request: %s", string(reqJSON))
 
-	bCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	bCtx, cancel := context.WithTimeout(ctx, rewriteTimeout)
 	defer cancel()
 
 	resp, err := r.RewriterServiceClient.Rewrite(bCtx, req)
@@ -83,7 +142,7 @@ func (r *client) Rewrite(ctx context.Context, req *protos.RewriteSQLRequest) (*p
 }
 
 func (r *client) RewriteErrorMessage(ctx context.Context, req *protos.RewriteErrorMessageRequest) (*protos.RewriteErrorMessageResponse, error) {
-	bCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	bCtx, cancel := context.WithTimeout(ctx, rewriteErrorMessageTimeout)
 	defer cancel()
 
 	reqJSON, _ := protojson.Marshal(req)
@@ -99,7 +158,7 @@ func (r *client) RewriteErrorMessage(ctx context.Context, req *protos.RewriteErr
 }
 
 func (r *client) Format(ctx context.Context, req *protos.FormatSQLRequest) (*protos.FormatSQLResponse, error) {
-	bCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	bCtx, cancel := context.WithTimeout(ctx, formatTimeout)
 	defer cancel()
 
 	return r.RewriterServiceClient.Format(bCtx, req)

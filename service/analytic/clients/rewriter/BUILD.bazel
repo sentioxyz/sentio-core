@@ -2,27 +2,40 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "rewriter",
-    srcs = ["rewriter.go"],
+    srcs = [
+        "housegate.go",
+        "rewriter.go",
+    ],
     importpath = "sentioxyz/sentio-core/service/analytic/clients/rewriter",
     visibility = ["//visibility:public"],
     deps = [
         "//common/log",
         "//common/protojson",
         "//service/common/rpc",
+        "//service/rewriter/housegate",
         "//service/rewriter/protos",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
     ],
 )
 
 go_test(
     name = "rewriter_test",
-    srcs = ["rewriter_test.go"],
+    srcs = [
+        "housegate_test.go",
+        "rewriter_test.go",
+    ],
     embed = [":rewriter"],
     deps = [
+        "//service/rewriter/housegate",
         "//service/rewriter/protos",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//resolver",
         "@org_golang_google_grpc//resolver/manual",
+        "@org_golang_google_grpc//status",
     ],
 )

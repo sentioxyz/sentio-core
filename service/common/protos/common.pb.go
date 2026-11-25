@@ -2814,6 +2814,7 @@ type ApiKey struct {
 	Revealable    bool                    `protobuf:"varint,11,opt,name=revealable,proto3" json:"revealable,omitempty"`
 	ScopeProjects map[string]*ProjectInfo `protobuf:"bytes,12,rep,name=scope_projects,json=scopeProjects,proto3" json:"scope_projects,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	LastUsedAt    int64                   `protobuf:"varint,13,opt,name=last_used_at,json=lastUsedAt,proto3" json:"last_used_at,omitempty"`
+	DisabledAt    int64                   `protobuf:"varint,14,opt,name=disabled_at,json=disabledAt,proto3" json:"disabled_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2928,6 +2929,13 @@ func (x *ApiKey) GetScopeProjects() map[string]*ProjectInfo {
 func (x *ApiKey) GetLastUsedAt() int64 {
 	if x != nil {
 		return x.LastUsedAt
+	}
+	return 0
+}
+
+func (x *ApiKey) GetDisabledAt() int64 {
+	if x != nil {
+		return x.DisabledAt
 	}
 	return 0
 }
@@ -9267,7 +9275,7 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	"\x06banned\x18\v \x01(\bR\x06banned\x1a\\\n" +
 	"\x06Member\x12$\n" +
 	"\x04user\x18\x01 \x01(\v2\x10.common.UserInfoR\x04user\x12,\n" +
-	"\x04role\x18\x02 \x01(\x0e2\x18.common.OrganizationRoleR\x04role\"\xd6\x03\n" +
+	"\x04role\x18\x02 \x01(\x0e2\x18.common.OrganizationRoleR\x04role\"\xf7\x03\n" +
 	"\x06ApiKey\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -9288,7 +9296,9 @@ const file_service_common_protos_common_proto_rawDesc = "" +
 	"revealable\x12H\n" +
 	"\x0escope_projects\x18\f \x03(\v2!.common.ApiKey.ScopeProjectsEntryR\rscopeProjects\x12 \n" +
 	"\flast_used_at\x18\r \x01(\x03R\n" +
-	"lastUsedAt\x1aU\n" +
+	"lastUsedAt\x12\x1f\n" +
+	"\vdisabled_at\x18\x0e \x01(\x03R\n" +
+	"disabledAt\x1aU\n" +
 	"\x12ScopeProjectsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12)\n" +
 	"\x05value\x18\x02 \x01(\v2\x13.common.ProjectInfoR\x05value:\x028\x01\"\xc1\x03\n" +

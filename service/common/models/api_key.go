@@ -43,6 +43,9 @@ type APIKey struct {
 	// was sent for. Extending the key changes ExpiresAt, so a later reminder is
 	// due again without resetting this field.
 	ExpiryNotifiedFor *time.Time
+	// DisabledAt is when the key was disabled. A disabled key stays listed but
+	// no longer authenticates. Nil means the key is not disabled.
+	DisabledAt *time.Time
 }
 
 func (k *APIKey) ToPB(db *gorm.DB) *protos.ApiKey {
@@ -55,6 +58,7 @@ func (k *APIKey) ToPB(db *gorm.DB) *protos.ApiKey {
 		UpdatedAt:     k.UpdatedAt.Unix(),
 		ExpiresAt:     unixOrZero(k.ExpiresAt),
 		LastUsedAt:    unixOrZero(k.LastUsedAt),
+		DisabledAt:    unixOrZero(k.DisabledAt),
 		Source:        k.Source,
 		OwnerType:     k.OwnerType,
 		OwnerId:       k.OwnerID,
@@ -85,6 +89,11 @@ func (k *APIKey) Hmac(key string) string {
 func (k *APIKey) Verify(key string) bool {
 	hash := k.Hmac(key)
 	return k.Hash == hash
+}
+
+// IsDisabled reports whether the key has been disabled.
+func (k *APIKey) IsDisabled() bool {
+	return k.DisabledAt != nil
 }
 
 func (k *APIKey) IsReadOnly() bool {

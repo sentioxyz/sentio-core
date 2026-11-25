@@ -258,6 +258,9 @@ message ApiKey {
   // Unix seconds of the last request authenticated by this key, refreshed at
   // most about once an hour. 0 means not used since tracking started.
   int64 last_used_at = 13;
+  // Unix seconds of when the key was disabled. A disabled key no longer
+  // authenticates. 0 means the key is not disabled.
+  int64 disabled_at = 14;
 }
 
 // Time range

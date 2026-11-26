@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"sentioxyz/sentio-core/common/chliteral"
 	"sentioxyz/sentio-core/common/utils"
 	"sentioxyz/sentio-core/driver/timeseries"
 	clickhouselib "sentioxyz/sentio-core/driver/timeseries/clickhouse"
@@ -81,14 +82,14 @@ func (c *clickhouse) fulltextQuery(template string) (s string, err error) {
 		case timeseries.FieldTypeString, timeseries.FieldTypeJSON:
 			if hasTokenSeparator(template) {
 				fieldConds = append(fieldConds,
-					fmt.Sprintf("countSubstrings(lowerUTF8(%s), '%s')",
+					fmt.Sprintf("countSubstrings(lowerUTF8(%s), %s)",
 						fieldName,
-						strings.ToLower(template)))
+						chliteral.String(strings.ToLower(template))))
 			} else {
 				fieldConds = append(fieldConds,
-					fmt.Sprintf("hasToken(lowerUTF8(%s), '%s')",
+					fmt.Sprintf("hasToken(lowerUTF8(%s), %s)",
 						fieldName,
-						strings.ToLower(template)))
+						chliteral.String(strings.ToLower(template))))
 			}
 		case timeseries.FieldTypeInt, timeseries.FieldTypeFloat, timeseries.FieldTypeBigInt, timeseries.FieldTypeBigFloat:
 			if f, err := strconv.ParseFloat(template, 64); err == nil {
@@ -116,7 +117,8 @@ func (c *clickhouse) fulltextQuery(template string) (s string, err error) {
 			}
 		}
 	}
-	fieldConds = append(fieldConds, fmt.Sprintf("hasToken(lowerUTF8(%s::String), lower('%s'))", c.prefix, strings.ToLower(template)))
+	fieldConds = append(fieldConds, fmt.Sprintf("hasToken(lowerUTF8(%s::String), lower(%s))",
+		c.prefix, chliteral.String(strings.ToLower(template))))
 	if len(fieldConds) == 0 {
 		return "(true)", nil
 	}
@@ -131,11 +133,44 @@ func (c *clickhouse) matchPhraseQuery(qt query.MatchPhraseQuery) (s string, err 
 	fieldName, fieldType := c.field(name)
 	switch fieldType {
 	case timeseries.FieldTypeString, timeseries.FieldTypeJSON:
-		return fmt.Sprintf("equals(lowerUTF8(%s), '%s')",
-			fieldName, strings.ToLower(qt.MatchPhrase)), nil
+		return fmt.Sprintf("equals(lowerUTF8(%s), %s)",
+			fieldName, chliteral.String(strings.ToLower(qt.MatchPhrase))), nil
 	default:
-		return fmt.Sprintf("equals(%s, %s)",
-			fieldName, qt.MatchPhrase), nil
+		value, err := literalFor(fieldType, qt.MatchPhrase)
+		if err != nil {
+			return "", errors.Wrapf(err, "field %s", name)
+		}
+		return fmt.Sprintf("equals(%s, %s)", fieldName, value), nil
+	}
+}
+
+// literalFor renders the value of an exact match on a non-string field. The value is written
+// into the statement unquoted, so it has to be a literal of the field's type and nothing else.
+func literalFor(fieldType timeseries.FieldType, value string) (string, error) {
+	switch fieldType {
+	case timeseries.FieldTypeInt, timeseries.FieldTypeFloat, timeseries.FieldTypeBigInt, timeseries.FieldTypeBigFloat:
+		if !chliteral.IsNumber(value) {
+			return "", errors.Errorf("%q is not a number", value)
+		}
+		return value, nil
+	case timeseries.FieldTypeBool:
+		switch strings.ToLower(value) {
+		case "true", "false":
+			return strings.ToLower(value), nil
+		}
+		return "", errors.Errorf("%q is not a boolean", value)
+	case timeseries.FieldTypeTime:
+		if _, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return value, nil
+		}
+		for _, layout := range []string{time.DateTime, time.RFC3339, time.DateOnly} {
+			if t, err := time.Parse(layout, value); err == nil {
+				return "toDateTime(" + chliteral.String(t.UTC().Format(time.DateTime)) + ")", nil
+			}
+		}
+		return "", errors.Errorf("%q is not a time", value)
+	default:
+		return "", errors.Errorf("exact match is not supported for %s fields", fieldType)
 	}
 }
 
@@ -148,11 +183,11 @@ func (c *clickhouse) wildcardQuery(qt query.WildcardQuery) (s string, err error)
 	switch fieldType {
 	case timeseries.FieldTypeString, timeseries.FieldTypeJSON:
 		if hasTokenSeparator(qt.Wildcard) {
-			return fmt.Sprintf("countSubstrings(lowerUTF8(%s), '%s')",
-				fieldName, strings.ToLower(qt.Wildcard)), nil
+			return fmt.Sprintf("countSubstrings(lowerUTF8(%s), %s)",
+				fieldName, chliteral.String(strings.ToLower(qt.Wildcard))), nil
 		} else {
-			return fmt.Sprintf("hasToken(lowerUTF8(%s), '%s')",
-				fieldName, strings.ToLower(qt.Wildcard)), nil
+			return fmt.Sprintf("hasToken(lowerUTF8(%s), %s)",
+				fieldName, chliteral.String(strings.ToLower(qt.Wildcard))), nil
 		}
 	default:
 		return "", errors.Errorf("wildcard query is not supported for non-string field %s", qt.Field())
@@ -167,8 +202,8 @@ func (c *clickhouse) regexpQuery(qt query.RegexpQuery) (s string, err error) {
 	fieldName, fieldType := c.field(name)
 	switch fieldType {
 	case timeseries.FieldTypeString, timeseries.FieldTypeJSON:
-		return fmt.Sprintf("match(lowerUTF8(%s), '%s')",
-			fieldName, strings.ToLower(qt.Regexp)), nil
+		return fmt.Sprintf("match(lowerUTF8(%s), %s)",
+			fieldName, chliteral.String(strings.ToLower(qt.Regexp))), nil
 	default:
 		return "", errors.Errorf("regexp query is not supported for non-string field %s", qt.Field())
 	}
@@ -275,20 +310,20 @@ func (c *clickhouse) termRangeQuery(qt query.TermRangeQuery) (s string, err erro
 	}
 	if min != "" {
 		if qt.InclusiveMin != nil && !*qt.InclusiveMin {
-			fieldConds = append(fieldConds, fmt.Sprintf("greater(%s, '%s')",
-				fieldName, min))
+			fieldConds = append(fieldConds, fmt.Sprintf("greater(%s, %s)",
+				fieldName, chliteral.String(min)))
 		} else {
-			fieldConds = append(fieldConds, fmt.Sprintf("greaterOrEquals(%s, '%s')",
-				fieldName, min))
+			fieldConds = append(fieldConds, fmt.Sprintf("greaterOrEquals(%s, %s)",
+				fieldName, chliteral.String(min)))
 		}
 	}
 	if max != "" {
 		if qt.InclusiveMax != nil && !*qt.InclusiveMax {
-			fieldConds = append(fieldConds, fmt.Sprintf("less(%s, '%s')",
-				fieldName, max))
+			fieldConds = append(fieldConds, fmt.Sprintf("less(%s, %s)",
+				fieldName, chliteral.String(max)))
 		} else {
-			fieldConds = append(fieldConds, fmt.Sprintf("lessOrEquals(%s, '%s')",
-				fieldName, max))
+			fieldConds = append(fieldConds, fmt.Sprintf("lessOrEquals(%s, %s)",
+				fieldName, chliteral.String(max)))
 		}
 	}
 	if len(fieldConds) == 0 {

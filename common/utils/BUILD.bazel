@@ -26,6 +26,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/common/utils",
     visibility = ["//visibility:public"],
     deps = [
+        "//common/chliteral",
         "//common/log",
         "//service/common/protos",
         "@com_github_ethereum_go_ethereum//common",

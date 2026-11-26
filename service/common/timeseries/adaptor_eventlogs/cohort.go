@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"sentioxyz/sentio-core/common/chliteral"
 	"sentioxyz/sentio-core/common/log"
 	"sentioxyz/sentio-core/common/protojson"
 	builder "sentioxyz/sentio-core/common/sqlbuilder"
@@ -390,7 +391,7 @@ func (c *cohortAdaptor) Build() string {
 		sql = builder.FormatSQLTemplate(tpl, map[string]any{
 			"with":       c.cte.String(),
 			"user_table": userTable,
-			"where":      lo.If(c.search != "", " WHERE lower(user) like '%"+strings.ToLower(c.search)+"%' ").Else(""),
+			"where":      lo.If(c.search != "", " WHERE lower(user) like '%"+chliteral.Escape(strings.ToLower(c.search))+"%' ").Else(""),
 			"order":      lo.If(len(c.order) > 0, " ORDER BY "+strings.Join(c.order, ", ")).Else(""),
 			"limit":      lo.If(c.limit > 0, " LIMIT "+strconv.Itoa(c.limit)).Else(""),
 			"offset":     lo.If(c.offset > 0, " OFFSET "+strconv.Itoa(c.offset)).Else(""),

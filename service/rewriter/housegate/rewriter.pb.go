@@ -699,11 +699,64 @@ func (x *RewriteSQLRequest) GetRefuseMetadataAccess() bool {
 	return false
 }
 
+type AccessedTable struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Database      string                 `protobuf:"bytes,1,opt,name=database,proto3" json:"database,omitempty"`
+	Table         string                 `protobuf:"bytes,2,opt,name=table,proto3" json:"table,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessedTable) Reset() {
+	*x = AccessedTable{}
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessedTable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessedTable) ProtoMessage() {}
+
+func (x *AccessedTable) ProtoReflect() protoreflect.Message {
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessedTable.ProtoReflect.Descriptor instead.
+func (*AccessedTable) Descriptor() ([]byte, []int) {
+	return file_service_rewriter_housegate_rewriter_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *AccessedTable) GetDatabase() string {
+	if x != nil {
+		return x.Database
+	}
+	return ""
+}
+
+func (x *AccessedTable) GetTable() string {
+	if x != nil {
+		return x.Table
+	}
+	return ""
+}
+
 type RewriteSQLResponse struct {
 	state                        protoimpl.MessageState `protogen:"open.v1"`
 	Code                         RewriteCode            `protobuf:"varint,1,opt,name=code,proto3,enum=housegate.rewriter.RewriteCode" json:"code,omitempty"`
 	Message                      string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	SqlAfterRewrite              string                 `protobuf:"bytes,3,opt,name=sql_after_rewrite,json=sqlAfterRewrite,proto3" json:"sql_after_rewrite,omitempty"`
+	AccessedTables               []*AccessedTable       `protobuf:"bytes,12,rep,name=accessed_tables,json=accessedTables,proto3" json:"accessed_tables,omitempty"`
 	MetadataAccessRefusalApplied bool                   `protobuf:"varint,17,opt,name=metadata_access_refusal_applied,json=metadataAccessRefusalApplied,proto3" json:"metadata_access_refusal_applied,omitempty"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
@@ -711,7 +764,7 @@ type RewriteSQLResponse struct {
 
 func (x *RewriteSQLResponse) Reset() {
 	*x = RewriteSQLResponse{}
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[8]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -723,7 +776,7 @@ func (x *RewriteSQLResponse) String() string {
 func (*RewriteSQLResponse) ProtoMessage() {}
 
 func (x *RewriteSQLResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[8]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -736,7 +789,7 @@ func (x *RewriteSQLResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RewriteSQLResponse.ProtoReflect.Descriptor instead.
 func (*RewriteSQLResponse) Descriptor() ([]byte, []int) {
-	return file_service_rewriter_housegate_rewriter_proto_rawDescGZIP(), []int{8}
+	return file_service_rewriter_housegate_rewriter_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RewriteSQLResponse) GetCode() RewriteCode {
@@ -760,6 +813,13 @@ func (x *RewriteSQLResponse) GetSqlAfterRewrite() string {
 	return ""
 }
 
+func (x *RewriteSQLResponse) GetAccessedTables() []*AccessedTable {
+	if x != nil {
+		return x.AccessedTables
+	}
+	return nil
+}
+
 func (x *RewriteSQLResponse) GetMetadataAccessRefusalApplied() bool {
 	if x != nil {
 		return x.MetadataAccessRefusalApplied
@@ -778,7 +838,7 @@ type RewriteErrorMessageRequest struct {
 
 func (x *RewriteErrorMessageRequest) Reset() {
 	*x = RewriteErrorMessageRequest{}
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[9]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -790,7 +850,7 @@ func (x *RewriteErrorMessageRequest) String() string {
 func (*RewriteErrorMessageRequest) ProtoMessage() {}
 
 func (x *RewriteErrorMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[9]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -803,7 +863,7 @@ func (x *RewriteErrorMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RewriteErrorMessageRequest.ProtoReflect.Descriptor instead.
 func (*RewriteErrorMessageRequest) Descriptor() ([]byte, []int) {
-	return file_service_rewriter_housegate_rewriter_proto_rawDescGZIP(), []int{9}
+	return file_service_rewriter_housegate_rewriter_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RewriteErrorMessageRequest) GetSql() string {
@@ -838,7 +898,7 @@ type RewriteErrorMessageResponse struct {
 
 func (x *RewriteErrorMessageResponse) Reset() {
 	*x = RewriteErrorMessageResponse{}
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[10]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -850,7 +910,7 @@ func (x *RewriteErrorMessageResponse) String() string {
 func (*RewriteErrorMessageResponse) ProtoMessage() {}
 
 func (x *RewriteErrorMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[10]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -863,7 +923,7 @@ func (x *RewriteErrorMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RewriteErrorMessageResponse.ProtoReflect.Descriptor instead.
 func (*RewriteErrorMessageResponse) Descriptor() ([]byte, []int) {
-	return file_service_rewriter_housegate_rewriter_proto_rawDescGZIP(), []int{10}
+	return file_service_rewriter_housegate_rewriter_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *RewriteErrorMessageResponse) GetCode() RewriteCode {
@@ -897,7 +957,7 @@ type RewriteLimitArgs_ReplaceLimit struct {
 
 func (x *RewriteLimitArgs_ReplaceLimit) Reset() {
 	*x = RewriteLimitArgs_ReplaceLimit{}
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[11]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -909,7 +969,7 @@ func (x *RewriteLimitArgs_ReplaceLimit) String() string {
 func (*RewriteLimitArgs_ReplaceLimit) ProtoMessage() {}
 
 func (x *RewriteLimitArgs_ReplaceLimit) ProtoReflect() protoreflect.Message {
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[11]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -949,7 +1009,7 @@ type RewriteCommonTableExprArgs_CommonTableExpr struct {
 
 func (x *RewriteCommonTableExprArgs_CommonTableExpr) Reset() {
 	*x = RewriteCommonTableExprArgs_CommonTableExpr{}
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[12]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -961,7 +1021,7 @@ func (x *RewriteCommonTableExprArgs_CommonTableExpr) String() string {
 func (*RewriteCommonTableExprArgs_CommonTableExpr) ProtoMessage() {}
 
 func (x *RewriteCommonTableExprArgs_CommonTableExpr) ProtoReflect() protoreflect.Message {
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[12]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1004,7 +1064,7 @@ type RewriteTableStaticArgs_RemoteTable struct {
 
 func (x *RewriteTableStaticArgs_RemoteTable) Reset() {
 	*x = RewriteTableStaticArgs_RemoteTable{}
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[14]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1016,7 +1076,7 @@ func (x *RewriteTableStaticArgs_RemoteTable) String() string {
 func (*RewriteTableStaticArgs_RemoteTable) ProtoMessage() {}
 
 func (x *RewriteTableStaticArgs_RemoteTable) ProtoReflect() protoreflect.Message {
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[14]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1077,7 +1137,7 @@ type RewriteTableStaticArgs_TableWithDatabase struct {
 
 func (x *RewriteTableStaticArgs_TableWithDatabase) Reset() {
 	*x = RewriteTableStaticArgs_TableWithDatabase{}
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[15]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1089,7 +1149,7 @@ func (x *RewriteTableStaticArgs_TableWithDatabase) String() string {
 func (*RewriteTableStaticArgs_TableWithDatabase) ProtoMessage() {}
 
 func (x *RewriteTableStaticArgs_TableWithDatabase) ProtoReflect() protoreflect.Message {
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[15]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1136,7 +1196,7 @@ type RewriteSettingsArgs_Setting struct {
 
 func (x *RewriteSettingsArgs_Setting) Reset() {
 	*x = RewriteSettingsArgs_Setting{}
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[19]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1148,7 +1208,7 @@ func (x *RewriteSettingsArgs_Setting) String() string {
 func (*RewriteSettingsArgs_Setting) ProtoMessage() {}
 
 func (x *RewriteSettingsArgs_Setting) ProtoReflect() protoreflect.Message {
-	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[19]
+	mi := &file_service_rewriter_housegate_rewriter_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1323,11 +1383,15 @@ const file_service_rewriter_housegate_rewriter_proto_rawDesc = "" +
 	"\x11RewriteSQLRequest\x12\x10\n" +
 	"\x03sql\x18\x01 \x01(\tR\x03sql\x12;\n" +
 	"\aoptions\x18\x02 \x03(\v2!.housegate.rewriter.RewriteOptionR\aoptions\x124\n" +
-	"\x16refuse_metadata_access\x18\x03 \x01(\bR\x14refuseMetadataAccess\"\xdc\x01\n" +
+	"\x16refuse_metadata_access\x18\x03 \x01(\bR\x14refuseMetadataAccess\"A\n" +
+	"\rAccessedTable\x12\x1a\n" +
+	"\bdatabase\x18\x01 \x01(\tR\bdatabase\x12\x14\n" +
+	"\x05table\x18\x02 \x01(\tR\x05table\"\xa8\x02\n" +
 	"\x12RewriteSQLResponse\x123\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x1f.housegate.rewriter.RewriteCodeR\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12*\n" +
-	"\x11sql_after_rewrite\x18\x03 \x01(\tR\x0fsqlAfterRewrite\x12E\n" +
+	"\x11sql_after_rewrite\x18\x03 \x01(\tR\x0fsqlAfterRewrite\x12J\n" +
+	"\x0faccessed_tables\x18\f \x03(\v2!.housegate.rewriter.AccessedTableR\x0eaccessedTables\x12E\n" +
 	"\x1fmetadata_access_refusal_applied\x18\x11 \x01(\bR\x1cmetadataAccessRefusalAppliedJ\x04\b\x04\x10\x05\"\x90\x01\n" +
 	"\x1aRewriteErrorMessageRequest\x12\x10\n" +
 	"\x03sql\x18\x01 \x01(\tR\x03sql\x12#\n" +
@@ -1370,7 +1434,7 @@ func file_service_rewriter_housegate_rewriter_proto_rawDescGZIP() []byte {
 }
 
 var file_service_rewriter_housegate_rewriter_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_service_rewriter_housegate_rewriter_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_service_rewriter_housegate_rewriter_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_service_rewriter_housegate_rewriter_proto_goTypes = []any{
 	(RewriteOp)(0),                                     // 0: housegate.rewriter.RewriteOp
 	(SettingType)(0),                                   // 1: housegate.rewriter.SettingType
@@ -1383,27 +1447,28 @@ var file_service_rewriter_housegate_rewriter_proto_goTypes = []any{
 	(*RewriteSettingsArgs)(nil),                        // 8: housegate.rewriter.RewriteSettingsArgs
 	(*RewriteOption)(nil),                              // 9: housegate.rewriter.RewriteOption
 	(*RewriteSQLRequest)(nil),                          // 10: housegate.rewriter.RewriteSQLRequest
-	(*RewriteSQLResponse)(nil),                         // 11: housegate.rewriter.RewriteSQLResponse
-	(*RewriteErrorMessageRequest)(nil),                 // 12: housegate.rewriter.RewriteErrorMessageRequest
-	(*RewriteErrorMessageResponse)(nil),                // 13: housegate.rewriter.RewriteErrorMessageResponse
-	(*RewriteLimitArgs_ReplaceLimit)(nil),              // 14: housegate.rewriter.RewriteLimitArgs.ReplaceLimit
-	(*RewriteCommonTableExprArgs_CommonTableExpr)(nil), // 15: housegate.rewriter.RewriteCommonTableExprArgs.CommonTableExpr
-	nil, // 16: housegate.rewriter.RewriteCommonTableExprArgs.CteMapEntry
-	(*RewriteTableStaticArgs_RemoteTable)(nil),       // 17: housegate.rewriter.RewriteTableStaticArgs.RemoteTable
-	(*RewriteTableStaticArgs_TableWithDatabase)(nil), // 18: housegate.rewriter.RewriteTableStaticArgs.TableWithDatabase
-	nil,                                 // 19: housegate.rewriter.RewriteTableStaticArgs.TableMapEntry
-	nil,                                 // 20: housegate.rewriter.RewriteTableStaticArgs.RemoteTableMapEntry
-	nil,                                 // 21: housegate.rewriter.RewriteTableStaticArgs.TableWithDatabaseMapEntry
-	(*RewriteSettingsArgs_Setting)(nil), // 22: housegate.rewriter.RewriteSettingsArgs.Setting
+	(*AccessedTable)(nil),                              // 11: housegate.rewriter.AccessedTable
+	(*RewriteSQLResponse)(nil),                         // 12: housegate.rewriter.RewriteSQLResponse
+	(*RewriteErrorMessageRequest)(nil),                 // 13: housegate.rewriter.RewriteErrorMessageRequest
+	(*RewriteErrorMessageResponse)(nil),                // 14: housegate.rewriter.RewriteErrorMessageResponse
+	(*RewriteLimitArgs_ReplaceLimit)(nil),              // 15: housegate.rewriter.RewriteLimitArgs.ReplaceLimit
+	(*RewriteCommonTableExprArgs_CommonTableExpr)(nil), // 16: housegate.rewriter.RewriteCommonTableExprArgs.CommonTableExpr
+	nil, // 17: housegate.rewriter.RewriteCommonTableExprArgs.CteMapEntry
+	(*RewriteTableStaticArgs_RemoteTable)(nil),       // 18: housegate.rewriter.RewriteTableStaticArgs.RemoteTable
+	(*RewriteTableStaticArgs_TableWithDatabase)(nil), // 19: housegate.rewriter.RewriteTableStaticArgs.TableWithDatabase
+	nil,                                 // 20: housegate.rewriter.RewriteTableStaticArgs.TableMapEntry
+	nil,                                 // 21: housegate.rewriter.RewriteTableStaticArgs.RemoteTableMapEntry
+	nil,                                 // 22: housegate.rewriter.RewriteTableStaticArgs.TableWithDatabaseMapEntry
+	(*RewriteSettingsArgs_Setting)(nil), // 23: housegate.rewriter.RewriteSettingsArgs.Setting
 }
 var file_service_rewriter_housegate_rewriter_proto_depIdxs = []int32{
-	14, // 0: housegate.rewriter.RewriteLimitArgs.replace_limit:type_name -> housegate.rewriter.RewriteLimitArgs.ReplaceLimit
-	16, // 1: housegate.rewriter.RewriteCommonTableExprArgs.cte_map:type_name -> housegate.rewriter.RewriteCommonTableExprArgs.CteMapEntry
-	19, // 2: housegate.rewriter.RewriteTableStaticArgs.table_map:type_name -> housegate.rewriter.RewriteTableStaticArgs.TableMapEntry
-	20, // 3: housegate.rewriter.RewriteTableStaticArgs.remote_table_map:type_name -> housegate.rewriter.RewriteTableStaticArgs.RemoteTableMapEntry
-	21, // 4: housegate.rewriter.RewriteTableStaticArgs.table_with_database_map:type_name -> housegate.rewriter.RewriteTableStaticArgs.TableWithDatabaseMapEntry
+	15, // 0: housegate.rewriter.RewriteLimitArgs.replace_limit:type_name -> housegate.rewriter.RewriteLimitArgs.ReplaceLimit
+	17, // 1: housegate.rewriter.RewriteCommonTableExprArgs.cte_map:type_name -> housegate.rewriter.RewriteCommonTableExprArgs.CteMapEntry
+	20, // 2: housegate.rewriter.RewriteTableStaticArgs.table_map:type_name -> housegate.rewriter.RewriteTableStaticArgs.TableMapEntry
+	21, // 3: housegate.rewriter.RewriteTableStaticArgs.remote_table_map:type_name -> housegate.rewriter.RewriteTableStaticArgs.RemoteTableMapEntry
+	22, // 4: housegate.rewriter.RewriteTableStaticArgs.table_with_database_map:type_name -> housegate.rewriter.RewriteTableStaticArgs.TableWithDatabaseMapEntry
 	6,  // 5: housegate.rewriter.RewriteTableNameArgs.static_args:type_name -> housegate.rewriter.RewriteTableStaticArgs
-	22, // 6: housegate.rewriter.RewriteSettingsArgs.settings:type_name -> housegate.rewriter.RewriteSettingsArgs.Setting
+	23, // 6: housegate.rewriter.RewriteSettingsArgs.settings:type_name -> housegate.rewriter.RewriteSettingsArgs.Setting
 	0,  // 7: housegate.rewriter.RewriteOption.op:type_name -> housegate.rewriter.RewriteOp
 	7,  // 8: housegate.rewriter.RewriteOption.table_name_args:type_name -> housegate.rewriter.RewriteTableNameArgs
 	3,  // 9: housegate.rewriter.RewriteOption.limit_args:type_name -> housegate.rewriter.RewriteLimitArgs
@@ -1412,17 +1477,18 @@ var file_service_rewriter_housegate_rewriter_proto_depIdxs = []int32{
 	5,  // 12: housegate.rewriter.RewriteOption.common_table_expr_args:type_name -> housegate.rewriter.RewriteCommonTableExprArgs
 	9,  // 13: housegate.rewriter.RewriteSQLRequest.options:type_name -> housegate.rewriter.RewriteOption
 	2,  // 14: housegate.rewriter.RewriteSQLResponse.code:type_name -> housegate.rewriter.RewriteCode
-	9,  // 15: housegate.rewriter.RewriteErrorMessageRequest.options:type_name -> housegate.rewriter.RewriteOption
-	2,  // 16: housegate.rewriter.RewriteErrorMessageResponse.code:type_name -> housegate.rewriter.RewriteCode
-	15, // 17: housegate.rewriter.RewriteCommonTableExprArgs.CteMapEntry.value:type_name -> housegate.rewriter.RewriteCommonTableExprArgs.CommonTableExpr
-	17, // 18: housegate.rewriter.RewriteTableStaticArgs.RemoteTableMapEntry.value:type_name -> housegate.rewriter.RewriteTableStaticArgs.RemoteTable
-	18, // 19: housegate.rewriter.RewriteTableStaticArgs.TableWithDatabaseMapEntry.value:type_name -> housegate.rewriter.RewriteTableStaticArgs.TableWithDatabase
-	1,  // 20: housegate.rewriter.RewriteSettingsArgs.Setting.type:type_name -> housegate.rewriter.SettingType
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	11, // 15: housegate.rewriter.RewriteSQLResponse.accessed_tables:type_name -> housegate.rewriter.AccessedTable
+	9,  // 16: housegate.rewriter.RewriteErrorMessageRequest.options:type_name -> housegate.rewriter.RewriteOption
+	2,  // 17: housegate.rewriter.RewriteErrorMessageResponse.code:type_name -> housegate.rewriter.RewriteCode
+	16, // 18: housegate.rewriter.RewriteCommonTableExprArgs.CteMapEntry.value:type_name -> housegate.rewriter.RewriteCommonTableExprArgs.CommonTableExpr
+	18, // 19: housegate.rewriter.RewriteTableStaticArgs.RemoteTableMapEntry.value:type_name -> housegate.rewriter.RewriteTableStaticArgs.RemoteTable
+	19, // 20: housegate.rewriter.RewriteTableStaticArgs.TableWithDatabaseMapEntry.value:type_name -> housegate.rewriter.RewriteTableStaticArgs.TableWithDatabase
+	1,  // 21: housegate.rewriter.RewriteSettingsArgs.Setting.type:type_name -> housegate.rewriter.SettingType
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_service_rewriter_housegate_rewriter_proto_init() }
@@ -1442,7 +1508,7 @@ func file_service_rewriter_housegate_rewriter_proto_init() {
 		(*RewriteOption_SettingsArgs)(nil),
 		(*RewriteOption_CommonTableExprArgs)(nil),
 	}
-	file_service_rewriter_housegate_rewriter_proto_msgTypes[19].OneofWrappers = []any{
+	file_service_rewriter_housegate_rewriter_proto_msgTypes[20].OneofWrappers = []any{
 		(*RewriteSettingsArgs_Setting_StringValue)(nil),
 		(*RewriteSettingsArgs_Setting_BoolValue)(nil),
 		(*RewriteSettingsArgs_Setting_IntValue)(nil),
@@ -1454,7 +1520,7 @@ func file_service_rewriter_housegate_rewriter_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_service_rewriter_housegate_rewriter_proto_rawDesc), len(file_service_rewriter_housegate_rewriter_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

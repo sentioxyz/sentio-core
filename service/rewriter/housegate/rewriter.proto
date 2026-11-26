@@ -119,12 +119,23 @@ enum RewriteCode {
     InvalidRewriteRequest = 4;
 }
 
+// A table the statement reads, as written in the statement: the name the
+// caller used, before the table map is applied. Common table expressions are
+// resolved by the rewriter and are not listed. Other fields of the upstream
+// message are not read by this client.
+message AccessedTable {
+    // Empty when the statement names the table without a database.
+    string database = 1;
+    string table = 2;
+}
+
 message RewriteSQLResponse {
     RewriteCode code = 1;
     string message = 2;
     string sql_after_rewrite = 3;
     reserved 4;
-    // Fields 5-16 are not read by this client.
+    // Fields 5-11 and 13-16 are not read by this client.
+    repeated AccessedTable accessed_tables = 12;
     bool metadata_access_refusal_applied = 17;
 }
 

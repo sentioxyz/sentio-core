@@ -125,6 +125,15 @@ func (h *housegateClient) Rewrite(ctx context.Context, req *protos.RewriteSQLReq
 		Message:         hgResp.GetMessage(),
 		SqlAfterRewrite: hgResp.GetSqlAfterRewrite(),
 	}
+	// Same shape as sql-rewriter's original_accessed_table_names, so callers can
+	// check what a statement reads against the tables they mapped.
+	for _, t := range hgResp.GetAccessedTables() {
+		name := t.GetTable()
+		if t.GetDatabase() != "" {
+			name = t.GetDatabase() + "." + name
+		}
+		resp.OriginalAccessedTableNames = append(resp.OriginalAccessedTableNames, name)
+	}
 	log.Debugf("rewritten sql: %s->%s (code %s)", req.Sql, resp.SqlAfterRewrite, hgResp.GetCode())
 	return resp, nil
 }

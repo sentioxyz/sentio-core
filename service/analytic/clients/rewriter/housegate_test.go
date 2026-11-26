@@ -240,3 +240,26 @@ func TestNewRewriterClientUsesBackendFlags(t *testing.T) {
 		t.Fatalf("client = %T, want *client", c)
 	}
 }
+
+func TestHousegateRewriteReportsAccessedTables(t *testing.T) {
+	fake := newFakeHousegate()
+	fake.rewriteResponse = &housegate.RewriteSQLResponse{
+		Code:            housegate.RewriteCode_Success,
+		SqlAfterRewrite: "SELECT 1",
+		AccessedTables: []*housegate.AccessedTable{
+			{Table: "Transfer"},
+			{Database: "other_db", Table: "t2"},
+		},
+		MetadataAccessRefusalApplied: true,
+	}
+	client := startFakeHousegate(t, fake)
+
+	resp, err := client.Rewrite(context.Background(), &protos.RewriteSQLRequest{Sql: "SELECT 1", Options: sentioOptions()})
+	if err != nil {
+		t.Fatalf("Rewrite: %v", err)
+	}
+	got := resp.GetOriginalAccessedTableNames()
+	if len(got) != 2 || got[0] != "Transfer" || got[1] != "other_db.t2" {
+		t.Fatalf("accessed tables = %q; want [Transfer other_db.t2]", got)
+	}
+}

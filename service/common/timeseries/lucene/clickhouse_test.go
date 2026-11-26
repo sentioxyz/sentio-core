@@ -113,3 +113,17 @@ func TestRender_NonStringExactMatchMustBeALiteral(t *testing.T) {
 		assert.Error(t, err, "query %q rendered %s", q, sql)
 	}
 }
+
+func TestRender_ExactTimeMatchKeepsFractionalSeconds(t *testing.T) {
+	whole, err := render(t, `seen:"2026-11-26T08:00:00Z"`)
+	require.NoError(t, err)
+	micro, err := render(t, `seen:"2026-11-26T08:00:00.123456Z"`)
+	require.NoError(t, err)
+	other, err := render(t, `seen:"2026-11-26T08:00:00.123457Z"`)
+	require.NoError(t, err)
+
+	assert.Contains(t, whole, "toDateTime64('2026-11-26 08:00:00.000000', 6, 'UTC')")
+	assert.Contains(t, micro, "toDateTime64('2026-11-26 08:00:00.123456', 6, 'UTC')")
+	assert.NotEqual(t, whole, micro)
+	assert.NotEqual(t, micro, other)
+}

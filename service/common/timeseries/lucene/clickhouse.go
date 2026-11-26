@@ -165,7 +165,8 @@ func literalFor(fieldType timeseries.FieldType, value string) (string, error) {
 		}
 		for _, layout := range []string{time.DateTime, time.RFC3339, time.DateOnly} {
 			if t, err := time.Parse(layout, value); err == nil {
-				return "toDateTime(" + chliteral.String(t.UTC().Format(time.DateTime)) + ")", nil
+				// keep sub-second precision: time fields are stored as DateTime64(6)
+				return "toDateTime64(" + chliteral.String(t.UTC().Format("2006-01-02 15:04:05.000000")) + ", 6, 'UTC')", nil
 			}
 		}
 		return "", errors.Errorf("%q is not a time", value)

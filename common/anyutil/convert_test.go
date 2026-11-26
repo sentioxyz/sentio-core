@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	protoscommon "sentioxyz/sentio-core/service/common/protos"
 )
 
 func Test_ToString(t *testing.T) {
@@ -194,4 +196,16 @@ func Test_crossTypeEqual(t *testing.T) {
 	assert.True(t, xb != c)
 	assert.True(t, xb != d)
 	assert.True(t, xc != d)
+}
+
+func TestProtoToClickhouseValue_EscapesStrings(t *testing.T) {
+	str := &protoscommon.Any{AnyValue: &protoscommon.Any_StringValue{StringValue: `Trader Joe's \ x`}}
+	if got, want := ProtoToClickhouseValue(str), `'Trader Joe\'s \\ x'`; got != want {
+		t.Errorf("string value = %v; want %v", got, want)
+	}
+	list := &protoscommon.Any{AnyValue: &protoscommon.Any_ListValue{
+		ListValue: &protoscommon.StringList{Values: []string{"a", "b') OR 1=1 --"}}}}
+	if got, want := ProtoToClickhouseValue(list), `'a', 'b\') OR 1=1 --'`; got != want {
+		t.Errorf("list value = %v; want %v", got, want)
+	}
 }

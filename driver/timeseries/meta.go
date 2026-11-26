@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"sentioxyz/sentio-core/common/chliteral"
 	"sentioxyz/sentio-core/common/utils"
 
 	"github.com/bytedance/sonic"
@@ -300,18 +301,18 @@ func (m Meta) GetFieldTypeValue(name string) any {
 func EscapeEventlogFieldName(name string) string {
 	name = strings.ReplaceAll(name, "`", "")
 	if strings.HasPrefix(name, SystemFieldPrefix) {
-		return "`" + name + "`"
+		return chliteral.Identifier(name)
 	}
 	parts := strings.Split(name, ".")
 	for i, part := range parts {
-		parts[i] = fmt.Sprintf("`%s`", part)
+		parts[i] = chliteral.Identifier(part)
 	}
 	return strings.Join(parts, ".")
 }
 
 func EscapeMetricsFieldName(name string) string {
 	name = strings.ReplaceAll(name, "`", "")
-	return fmt.Sprintf("`%s`", name)
+	return chliteral.Identifier(name)
 }
 
 func UnescapeFieldName(name string) string {

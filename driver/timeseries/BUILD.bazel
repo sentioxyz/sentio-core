@@ -15,6 +15,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/driver/timeseries",
     visibility = ["//visibility:public"],
     deps = [
+        "//common/chliteral",
         "//common/period",
         "//common/richstructhelper",
         "//common/utils",

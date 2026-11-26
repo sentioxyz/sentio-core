@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"sentioxyz/sentio-core/common/chliteral"
 	protoscommon "sentioxyz/sentio-core/service/common/protos"
 
 	"github.com/shopspring/decimal"
@@ -50,7 +51,7 @@ func Proto2String(a *protoscommon.Any) string {
 	case *protoscommon.Any_ListValue:
 		var values []string
 		for _, v := range a.GetListValue().GetValues() {
-			values = append(values, "'"+v+"'")
+			values = append(values, chliteral.String(v))
 		}
 		return strings.Join(values, ", ")
 	}
@@ -60,7 +61,7 @@ func Proto2String(a *protoscommon.Any) string {
 func ProtoToClickhouseValue(a *protoscommon.Any) any {
 	switch a.AnyValue.(type) {
 	case *protoscommon.Any_StringValue:
-		return "'" + a.GetStringValue() + "'"
+		return chliteral.String(a.GetStringValue())
 	case *protoscommon.Any_IntValue:
 		return fmt.Sprintf("%d::Int64", a.GetIntValue())
 	case *protoscommon.Any_BoolValue:
@@ -76,7 +77,7 @@ func ProtoToClickhouseValue(a *protoscommon.Any) any {
 	case *protoscommon.Any_ListValue:
 		var values []string
 		for _, v := range a.GetListValue().GetValues() {
-			values = append(values, "'"+v+"'")
+			values = append(values, chliteral.String(v))
 		}
 		return strings.Join(values, ", ")
 	}

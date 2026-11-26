@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "chliteral",
+    srcs = ["literal.go"],
+    importpath = "sentioxyz/sentio-core/common/chliteral",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "chliteral_test",
+    srcs = ["literal_test.go"],
+    embed = [":chliteral"],
+)

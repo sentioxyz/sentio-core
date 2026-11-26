@@ -11,6 +11,7 @@ go_library(
     importpath = "sentioxyz/sentio-core/common/anyutil",
     visibility = ["//visibility:public"],
     deps = [
+        "//common/chliteral",
         "//common/protojson",
         "//service/common/protos",
         "@com_github_shopspring_decimal//:decimal",
@@ -26,5 +27,8 @@ go_test(
         "property_getter_test.go",
     ],
     embed = [":anyutil"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//service/common/protos",
+        "@com_github_stretchr_testify//assert",
+    ],
 )

@@ -58,3 +58,12 @@ func TestBreakdown_String(t *testing.T) {
 		})
 	}
 }
+
+func TestBreakdown_QuotesIdentifiers(t *testing.T) {
+	b := Breakdown{"token", "a`, (SELECT 1) AS `b", `c\`}
+	got := b.String(false)
+	want := "`token`,`a\\`, (SELECT 1) AS \\`b`,`c\\\\`"
+	if got != want {
+		t.Fatalf("Breakdown.String() = %s; want %s", got, want)
+	}
+}

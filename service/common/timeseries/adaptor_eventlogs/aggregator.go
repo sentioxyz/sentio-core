@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"sentioxyz/sentio-core/common/chliteral"
 	"sentioxyz/sentio-core/common/log"
 	builder "sentioxyz/sentio-core/common/sqlbuilder"
 	"sentioxyz/sentio-core/driver/timeseries"
@@ -247,6 +248,12 @@ func (a *aggregator) AggField() string {
 	return a.aggField
 }
 
+// propertyField is the aggregated property as a quoted identifier. The name comes from the
+// request, so it is always written through the identifier quoting rather than concatenated.
+func (a *aggregator) propertyField() string {
+	return chliteral.Identifier(timeseries.UnescapeFieldName(a.op.GetAggregateProperties().GetPropertyName()))
+}
+
 func (a *aggregator) Breakdown() Breakdown {
 	return a.breakdown
 }
@@ -282,41 +289,41 @@ func (a *aggregator) normalOpFunc() error {
 	a.breakdown = append(a.breakdown, timeseries.SystemTimestamp)
 	switch a.op.GetAggregateProperties().GetType() {
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_SUM:
-		a.aggField = "sum(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "sum(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_AVG:
-		a.aggField = "avg(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "avg(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_MEDIAN:
-		a.aggField = "median(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "median(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_MIN:
-		a.aggField = "min(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "min(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_MAX:
-		a.aggField = "max(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "max(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_DISTINCT_COUNT:
-		a.aggField = "uniqExact(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "uniqExact(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_FIRST:
-		a.aggField = "argMin(`" + a.op.GetAggregateProperties().GetPropertyName() + "`," +
+		a.aggField = "argMin(" + a.propertyField() + "," +
 			"tuple(" +
 			timeseries.SystemFieldPrefix + "block_number," +
 			timeseries.SystemFieldPrefix + "transaction_index," +
 			timeseries.SystemFieldPrefix + "log_index)" +
 			")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_LAST:
-		a.aggField = "argMax(`" + a.op.GetAggregateProperties().GetPropertyName() + "`," +
+		a.aggField = "argMax(" + a.propertyField() + "," +
 			"tuple(" +
 			timeseries.SystemFieldPrefix + "block_number," +
 			timeseries.SystemFieldPrefix + "transaction_index," +
 			timeseries.SystemFieldPrefix + "log_index)" +
 			")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_PERCENTILE_25TH:
-		a.aggField = "quantile(0.25)(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "quantile(0.25)(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_PERCENTILE_75TH:
-		a.aggField = "quantile(0.75)(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "quantile(0.75)(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_PERCENTILE_90TH:
-		a.aggField = "quantile(0.90)(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "quantile(0.90)(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_PERCENTILE_95TH:
-		a.aggField = "quantile(0.95)(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "quantile(0.95)(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_PERCENTILE_99TH:
-		a.aggField = "quantile(0.99)(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		a.aggField = "quantile(0.99)(" + a.propertyField() + ")"
 	default:
 		return fmt.Errorf("unknown aggregation type: %v", a.op.GetAggregateProperties().GetType())
 	}
@@ -339,25 +346,25 @@ func (a *aggregator) earlierAggregationQuery() (string, error) {
 	preLabel = append(preLabel, timeseries.SystemTimestamp)
 	switch a.op.GetAggregateProperties().GetType() {
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_SUM:
-		aggField = "sum(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		aggField = "sum(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_DISTINCT_COUNT:
-		aggField = "uniqExact(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		aggField = "uniqExact(" + a.propertyField() + ")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_FIRST:
-		aggField = "argMin(`" + a.op.GetAggregateProperties().GetPropertyName() + "`," +
+		aggField = "argMin(" + a.propertyField() + "," +
 			"tuple(" +
 			timeseries.SystemFieldPrefix + "block_number," +
 			timeseries.SystemFieldPrefix + "transaction_index," +
 			timeseries.SystemFieldPrefix + "log_index)" +
 			")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_LAST:
-		aggField = "argMax(`" + a.op.GetAggregateProperties().GetPropertyName() + "`," +
+		aggField = "argMax(" + a.propertyField() + "," +
 			"tuple(" +
 			timeseries.SystemFieldPrefix + "block_number," +
 			timeseries.SystemFieldPrefix + "transaction_index," +
 			timeseries.SystemFieldPrefix + "log_index)" +
 			")"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_COUNT:
-		aggField = "count(`" + a.op.GetAggregateProperties().GetPropertyName() + "`)"
+		aggField = "count(" + a.propertyField() + ")"
 	}
 	sql := builder.FormatSQLTemplate(tpl, map[string]any{
 		"start_time":       a.ClickhouseHistogramTime(fmt.Sprintf("toDateTime64('%s', 6, '%s')", a.timeRange.Start.UTC().Format("2006-01-02 15:04:05"), a.timeRange.Timezone.String())),
@@ -400,25 +407,25 @@ func (a *aggregator) cumulativeOpFunc() error {
 	var partition = lo.If(a.breakdown.String(false) != "", "partition by "+a.breakdown.String(false)).Else("")
 	switch a.op.GetAggregateProperties().GetType() {
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_SUM:
-		a.aggField = preAggTable + "." + matrix.AggFieldName + "+sum(`" + a.op.GetAggregateProperties().GetPropertyName() + "`) OVER (" + partition + " order by " + timeseries.SystemTimestamp + " asc)"
+		a.aggField = preAggTable + "." + matrix.AggFieldName + "+sum(" + a.propertyField() + ") OVER (" + partition + " order by " + timeseries.SystemTimestamp + " asc)"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_DISTINCT_COUNT:
-		a.aggField = preAggTable + "." + matrix.AggFieldName + "+uniqExact(`" + a.op.GetAggregateProperties().GetPropertyName() + "`) OVER (" + partition + " order by " + timeseries.SystemTimestamp + " asc)"
+		a.aggField = preAggTable + "." + matrix.AggFieldName + "+uniqExact(" + a.propertyField() + ") OVER (" + partition + " order by " + timeseries.SystemTimestamp + " asc)"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_FIRST:
-		a.aggField = preAggTable + "." + matrix.AggFieldName + "+argMin(`" + a.op.GetAggregateProperties().GetPropertyName() + "`," +
+		a.aggField = preAggTable + "." + matrix.AggFieldName + "+argMin(" + a.propertyField() + "," +
 			"tuple(" +
 			timeseries.SystemFieldPrefix + "block_number," +
 			timeseries.SystemFieldPrefix + "transaction_index," +
 			timeseries.SystemFieldPrefix + "log_index)" +
 			") OVER (" + partition + " order by " + timeseries.SystemTimestamp + " asc)"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_LAST:
-		a.aggField = preAggTable + "." + matrix.AggFieldName + "+argMax(`" + a.op.GetAggregateProperties().GetPropertyName() + "`," +
+		a.aggField = preAggTable + "." + matrix.AggFieldName + "+argMax(" + a.propertyField() + "," +
 			"tuple(" +
 			timeseries.SystemFieldPrefix + "block_number," +
 			timeseries.SystemFieldPrefix + "transaction_index," +
 			timeseries.SystemFieldPrefix + "log_index)" +
 			") OVER (" + partition + " order by " + timeseries.SystemTimestamp + " asc)"
 	case protoscommon.SegmentationQuery_Aggregation_AggregateProperties_CUMULATIVE_COUNT:
-		a.aggField = preAggTable + "." + matrix.AggFieldName + "+count(`" + a.op.GetAggregateProperties().GetPropertyName() + "`) OVER (" + partition + " order by " + timeseries.SystemTimestamp + " asc)"
+		a.aggField = preAggTable + "." + matrix.AggFieldName + "+count(" + a.propertyField() + ") OVER (" + partition + " order by " + timeseries.SystemTimestamp + " asc)"
 	default:
 		return fmt.Errorf("unknown cumulative aggregation type: %v", a.op.GetAggregateProperties().GetType())
 	}

@@ -28,7 +28,12 @@ func BuildHTTPRequest(
 	if req.URL.Path == "" {
 		req.URL.Path = "/"
 	}
-	req.URL = req.URL.JoinPath(path)
+	// A request to the root of the proxy (an HTTP request line always carries at least "/") targets the endpoint
+	// itself. Joining "/" would append a trailing slash to the endpoint path ("/v1/graphql" -> "/v1/graphql/"), which
+	// servers that route the exact path (fuel-core GraphQL) answer with 404.
+	if path != "" && path != "/" {
+		req.URL = req.URL.JoinPath(path)
+	}
 	if params != nil && len(params) > 0 {
 		req.URL.RawQuery = url.Values(utils.MergeMap(req.URL.Query(), params)).Encode()
 	}

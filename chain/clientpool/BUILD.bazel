@@ -35,6 +35,7 @@ go_test(
     srcs = [
         "client_pool_test.go",
         "config_test.go",
+        "utils_http_test.go",
         "utils_json_rpc_test.go",
         "utils_subscribe_test.go",
         "utils_test.go",

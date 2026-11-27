@@ -93,13 +93,15 @@ type WithdrawalTypeArg struct {
 
 func (w *WithdrawalTypeArg) IsBcsEnum() {}
 
-// WithdrawFrom: enum { Sender, Sponsor, SenderAllowance }. The first two are unit variants; the
-// third carries a payload and was enabled by Sui protocol 137 (the enable_allowances feature
-// flag), so the json form of this field is a bare string for the first two and an object for it.
+// WithdrawFrom: enum { Sender, Sponsor, SenderAllowance, FrozenAddress }. The first two are unit
+// variants; the other two carry a payload, so the json form of this field is a bare string for the
+// first two and an object for the rest. SenderAllowance was enabled by Sui protocol 137 (the
+// enable_allowances feature flag), FrozenAddress by 145 (enable_coin_regulation).
 type WithdrawFrom struct {
 	Sender          *struct{}
 	Sponsor         *struct{}
 	SenderAllowance *SenderAllowance
+	FrozenAddress   *FrozenAddress
 }
 
 // SenderAllowance mirrors sui's WithdrawFrom::SenderAllowance (BCS variant 2): the address whose
@@ -108,6 +110,14 @@ type WithdrawFrom struct {
 type SenderAllowance struct {
 	Funder    Address  `json:"funder"`
 	Allowance ObjectID `json:"allowance"`
+}
+
+// FrozenAddress mirrors sui's WithdrawFrom::FrozenAddress (BCS variant 3): the frozen address
+// whose balance is seized and the seize authorization object owned by the sender. Both are 32 raw
+// bytes in BCS (fixed arrays, no length prefix).
+type FrozenAddress struct {
+	SeizedFrom Address  `json:"seizedFrom"`
+	SeizeAuth  ObjectID `json:"seizeAuth"`
 }
 
 func (w *WithdrawFrom) IsBcsEnum() {}
@@ -144,7 +154,7 @@ func (f *FundsWithdrawal) UnmarshalJSON(b []byte) error {
 }
 
 // unmarshalWithdrawFrom accepts both json forms of the field: a bare string for the unit variants
-// and an object for SenderAllowance.
+// and an object for SenderAllowance and FrozenAddress.
 func unmarshalWithdrawFrom(raw json.RawMessage) (*WithdrawFrom, error) {
 	if !jsonFieldPresent(raw) {
 		return nil, nil
@@ -165,14 +175,19 @@ func unmarshalWithdrawFrom(raw json.RawMessage) (*WithdrawFrom, error) {
 	}
 	var obj struct {
 		SenderAllowance *SenderAllowance `json:"senderAllowance"`
+		FrozenAddress   *FrozenAddress   `json:"frozenAddress"`
 	}
 	if err := json.Unmarshal(raw, &obj); err != nil {
 		return nil, err
 	}
-	if obj.SenderAllowance == nil {
+	switch {
+	case obj.SenderAllowance != nil && obj.FrozenAddress == nil:
+		return &WithdrawFrom{SenderAllowance: obj.SenderAllowance}, nil
+	case obj.FrozenAddress != nil && obj.SenderAllowance == nil:
+		return &WithdrawFrom{FrozenAddress: obj.FrozenAddress}, nil
+	default:
 		return nil, errors.Errorf("invalid withdrawFrom %s", raw)
 	}
-	return &WithdrawFrom{SenderAllowance: obj.SenderAllowance}, nil
 }
 
 func (f FundsWithdrawal) MarshalJSON() ([]byte, error) {
@@ -195,6 +210,8 @@ func (f FundsWithdrawal) MarshalJSON() ([]byte, error) {
 			r["withdrawFrom"] = "sponsor"
 		case f.WithdrawFrom.SenderAllowance != nil:
 			r["withdrawFrom"] = map[string]any{"senderAllowance": f.WithdrawFrom.SenderAllowance}
+		case f.WithdrawFrom.FrozenAddress != nil:
+			r["withdrawFrom"] = map[string]any{"frozenAddress": f.WithdrawFrom.FrozenAddress}
 		}
 	}
 	return json.Marshal(r)
@@ -716,6 +733,7 @@ type EndOfEpochTransactionSingle struct {
 	AddressAliasStateCreate         *struct{}                        `bcs:"enumNum[sui]=11"`
 	WriteAccumulatorStorageCost     *WriteAccumulatorStorageCost     `bcs:"enumNum[sui]=12"`
 	ForwardingAddressRegistryCreate *struct{}                        `bcs:"enumNum[sui]=13"`
+	FreezeListCreate                *struct{}                        `bcs:"enumNum[sui]=14"`
 	// IOTA's EndOfEpochTransactionKind ChangeEpoch payloads (V2/V3/V4 at iota
 	// variants 1/2/3); ChangeEpoch differs from Sui's so it is sui-only above.
 	ChangeEpochV2 *ChangeEpochV2 `bcs:"enumNum[iota]=1"`
@@ -810,6 +828,8 @@ func (s EndOfEpochTransactionSingle) buildRawStruct() any {
 		j = "WriteAccumulatorStorageCost"
 	case s.ForwardingAddressRegistryCreate != nil:
 		j = "ForwardingAddressRegistryCreate"
+	case s.FreezeListCreate != nil:
+		j = "FreezeListCreate"
 	case s.ChangeEpoch != nil:
 		j = &struct {
 			ChangeEpoch *ChangeEpoch `json:"ChangeEpoch"`
@@ -889,6 +909,8 @@ func (s *EndOfEpochTransactionSingle) UnmarshalJSON(data []byte) error {
 			s.WriteAccumulatorStorageCost = &WriteAccumulatorStorageCost{}
 		case "ForwardingAddressRegistryCreate":
 			s.ForwardingAddressRegistryCreate = &struct{}{}
+		case "FreezeListCreate":
+			s.FreezeListCreate = &struct{}{}
 		default:
 			return errors.Errorf("invalid EndOfEpochTransactionSingle %q", str)
 		}

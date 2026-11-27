@@ -317,3 +317,115 @@ func Test_EndOfEpoch_ForwardingAddressRegistryCreate_RoundTrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal(b, &back))
 	assert.NotNil(t, back.ForwardingAddressRegistryCreate)
 }
+
+// A CallArg::FundsWithdrawal drawing on WithdrawFrom::FrozenAddress (BCS variant 3, enabled by Sui
+// protocol 145's enable_coin_regulation). The bytes are derived by hand from the sui-types staged
+// snapshot, not captured from a transaction: no network had activated the variant when this was
+// written.
+const frozenAddressWithdrawalHex = "02" + // CallArg variant 2: FundsWithdrawal
+	"00" + "e803000000000000" + // reservation: variant 0 MaxAmountU64(1000), u64 little-endian
+	"00" + "02" + // type_arg: variant 0 Balance(TypeTag), TypeTag variant 2 = U64
+	"03" + // withdraw_from: variant 3 FrozenAddress
+	"1111111111111111111111111111111111111111111111111111111111111111" + // seized_from, 32 raw bytes
+	"2222222222222222222222222222222222222222222222222222222222222222" // seize_auth, 32 raw bytes
+
+func Test_FundsWithdrawal_FrozenAddress_RoundTrip(t *testing.T) {
+	raw, err := hex.DecodeString(frozenAddressWithdrawalHex)
+	require.NoError(t, err)
+
+	var arg CallArg
+	dec := serde.NewDecoderForSelector(bytes.NewReader(raw), string(VariationSUI))
+	require.NoError(t, dec.Decode(&arg))
+	require.NotNil(t, arg.FundsWithdrawal)
+	fw := arg.FundsWithdrawal
+	require.NotNil(t, fw.Reservation)
+	require.NotNil(t, fw.Reservation.MaxAmountU64)
+	assert.Equal(t, uint64(1000), *fw.Reservation.MaxAmountU64)
+	require.NotNil(t, fw.TypeArg)
+	require.NotNil(t, fw.TypeArg.Balance)
+	require.NotNil(t, fw.WithdrawFrom)
+	assert.Nil(t, fw.WithdrawFrom.Sender)
+	assert.Nil(t, fw.WithdrawFrom.Sponsor)
+	assert.Nil(t, fw.WithdrawFrom.SenderAllowance)
+	require.NotNil(t, fw.WithdrawFrom.FrozenAddress)
+	assert.Equal(t, "0x1111111111111111111111111111111111111111111111111111111111111111",
+		fw.WithdrawFrom.FrozenAddress.SeizedFrom.String())
+	assert.Equal(t, "0x2222222222222222222222222222222222222222222222222222222222222222",
+		fw.WithdrawFrom.FrozenAddress.SeizeAuth.String())
+
+	buf := bytes.NewBuffer(nil)
+	enc := serde.NewEncoderForSelector(buf, string(VariationSUI))
+	require.NoError(t, enc.Encode(&arg))
+	assert.Equal(t, raw, buf.Bytes())
+}
+
+// One past the last known WithdrawFrom variant must fail to decode rather than yield an empty
+// source, so the next upstream addition is noticed.
+func Test_FundsWithdrawal_UnknownSourceErrors(t *testing.T) {
+	raw, err := hex.DecodeString("02" + "00" + "e803000000000000" + "00" + "02" + "04")
+	require.NoError(t, err)
+
+	var arg CallArg
+	dec := serde.NewDecoderForSelector(bytes.NewReader(raw), string(VariationSUI))
+	assert.Error(t, dec.Decode(&arg))
+}
+
+// The json-rpc form of the FrozenAddress source is an object keyed by the camelCase variant name
+// with camelCase fields (SuiWithdrawFrom in sui-json-rpc-types).
+func TestCallArgFundsWithdrawalFrozenAddressJSON(t *testing.T) {
+	raw := `{"type":"fundsWithdrawal","reservation":{"maxAmountU64":"1000"},` +
+		`"withdrawFrom":{"frozenAddress":{` +
+		`"seizedFrom":"0x1111111111111111111111111111111111111111111111111111111111111111",` +
+		`"seizeAuth":"0x2222222222222222222222222222222222222222222222222222222222222222"}}}`
+
+	var fw FundsWithdrawal
+	require.NoError(t, json.Unmarshal([]byte(raw), &fw))
+	require.NotNil(t, fw.WithdrawFrom)
+	assert.Nil(t, fw.WithdrawFrom.SenderAllowance)
+	if assert.NotNil(t, fw.WithdrawFrom.FrozenAddress) {
+		assert.Equal(t, "0x1111111111111111111111111111111111111111111111111111111111111111",
+			fw.WithdrawFrom.FrozenAddress.SeizedFrom.String())
+		assert.Equal(t, "0x2222222222222222222222222222222222222222222222222222222222222222",
+			fw.WithdrawFrom.FrozenAddress.SeizeAuth.String())
+	}
+
+	out, err := json.Marshal(fw)
+	require.NoError(t, err)
+	assert.JSONEq(t, raw, string(out))
+
+	var bad FundsWithdrawal
+	assert.Error(t, json.Unmarshal([]byte(`{"type":"fundsWithdrawal","withdrawFrom":{"other":{}}}`), &bad))
+}
+
+// FreezeListCreate is Sui's EndOfEpochTransactionKind variant 14 (upstream staged snapshot), a unit
+// variant created once when protocol 145 turns on create_freeze_list.
+func Test_EndOfEpoch_FreezeListCreate_RoundTrip(t *testing.T) {
+	raw := []byte{0x0e}
+
+	var eoe EndOfEpochTransactionSingle
+	dec := serde.NewDecoderForSelector(bytes.NewReader(raw), string(VariationSUI))
+	require.NoError(t, dec.Decode(&eoe))
+	require.NotNil(t, eoe.FreezeListCreate)
+	assert.Nil(t, eoe.ForwardingAddressRegistryCreate)
+
+	buf := bytes.NewBuffer(nil)
+	enc := serde.NewEncoderForSelector(buf, string(VariationSUI))
+	require.NoError(t, enc.Encode(&eoe))
+	assert.Equal(t, raw, buf.Bytes())
+
+	// the json-rpc reply spells the unit variant as a bare string
+	b, err := json.Marshal(eoe)
+	require.NoError(t, err)
+	assert.Equal(t, `"FreezeListCreate"`, string(b))
+
+	var back EndOfEpochTransactionSingle
+	require.NoError(t, json.Unmarshal(b, &back))
+	assert.NotNil(t, back.FreezeListCreate)
+
+	// one past the last known variant must fail, on sui and on iota (which has no variant 14)
+	var unknown EndOfEpochTransactionSingle
+	dec = serde.NewDecoderForSelector(bytes.NewReader([]byte{0x0f}), string(VariationSUI))
+	assert.Error(t, dec.Decode(&unknown))
+	dec = serde.NewDecoderForSelector(bytes.NewReader(raw), string(VariationIOTA))
+	assert.Error(t, dec.Decode(&unknown))
+}

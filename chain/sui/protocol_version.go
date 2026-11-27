@@ -45,7 +45,14 @@ const (
 	// sui::clock::borrow and object::is_shared_input_impl natives, a secp256r1 ecrecover x-range
 	// check, explicit Move binary format limits and defer_owned_object_double_spend everywhere.
 	// 143 adds none: it only moves execution to version 5 and sets the package arena size.
-	maxSupportedSuiProtocolVersion = 143
+	// 144 adds none: timestamp-based expiration (off mainnet and testnet) only starts enforcing the
+	// min_timestamp/max_timestamp fields ValidDuring and Validity already carry, and the rest is
+	// the staggered-submission signal, a consensus parameter. 145 turns on coin regulation: the
+	// FundsWithdrawal FROZEN_ADDRESS source (WithdrawFrom::FrozenAddress with seized_from and
+	// seize_auth), the FreezeListCreate end-of-epoch kind and, in effects, the TRANSACTION_EXPIRED
+	// execution error kind. It also rejects secp256r1 keys in the SEC1 compact encoding, which is
+	// validation only.
+	maxSupportedSuiProtocolVersion = 145
 	// maxSupportedIotaProtocolVersion is the same for IOTA, whose protocol versions are numbered
 	// independently of Sui's. 36 adds no shape either: it only tightens validation (input object
 	// versions are checked from the transaction bytes, `<SELF>` is rejected as an identifier) and
@@ -57,7 +64,12 @@ const (
 	// no shape we read: it meters the instantiation-loop check, limits Move-call argument values,
 	// rejects `<SELF>` identifiers and bumps the gas model to 3. Its validator attestation (devnet
 	// only) lands in the checkpoint summary's opaque version_specific_data, not in transactions.
-	maxSupportedIotaProtocolVersion = 40
+	// 41 adds no shape on mainnet or testnet: a consensus commit rule off mainnet and a secp256r1
+	// ecrecover x-range check. Its enable_transaction_dependencies flag is on for neither network;
+	// the CallArg::TransactionDependency input it gates (BCS variant 2, the index Sui gives
+	// FundsWithdrawal) is NOT modeled here, so it must be added before raising this past a version
+	// that turns the flag on for a network we serve.
+	maxSupportedIotaProtocolVersion = 41
 )
 
 // Overrides for the constants above; 0 disables the guard for that variation entirely.

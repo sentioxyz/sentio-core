@@ -1,7 +1,6 @@
 package builder
 
 import (
-	"fmt"
 	"math/big"
 	"sort"
 	"strings"
@@ -72,32 +71,35 @@ func WithParameterIdentity(prefix, suffix string) FormatOption {
 	}
 }
 
+// WithRichStructParameter supplies parameter values from a RichStruct. Unlike the context map passed to
+// FormatSQLTemplate, which holds trusted SQL fragments and is substituted verbatim, these values usually come
+// from a request, so FormatSQLTemplate renders each one as a safe SQL literal for the place it appears in (see
+// formatRichTemplate).
 func WithRichStructParameter(richStructParameter *protoscommon.RichStruct) FormatOption {
 	m := make(map[string]any)
 
 	for k, v := range richStructParameter.GetFields() {
 		switch v.Value.(type) {
 		case *protoscommon.RichValue_StringValue:
-			m[k] = v.GetStringValue()
+			m[k] = stringValue(v.GetStringValue())
 		case *protoscommon.RichValue_NullValue_:
-			m[k] = nil
+			m[k] = literalValue(anyutil.ParseString(nil))
 		case *protoscommon.RichValue_IntValue:
-			m[k] = v.GetIntValue()
+			m[k] = literalValue(anyutil.ParseString(v.GetIntValue()))
 		case *protoscommon.RichValue_Int64Value:
-			m[k] = v.GetInt64Value()
+			m[k] = literalValue(anyutil.ParseString(v.GetInt64Value()))
 		case *protoscommon.RichValue_BigintValue:
-			m[k] = parseBigInt(v.GetBigintValue())
+			m[k] = literalValue(anyutil.ParseString(parseBigInt(v.GetBigintValue())))
 		case *protoscommon.RichValue_BigdecimalValue:
-			m[k] = parseBigDecimal(v.GetBigdecimalValue())
+			m[k] = literalValue(anyutil.ParseString(parseBigDecimal(v.GetBigdecimalValue())))
 		case *protoscommon.RichValue_FloatValue:
-			m[k] = v.GetFloatValue()
+			m[k] = literalValue(anyutil.ParseString(v.GetFloatValue()))
 		case *protoscommon.RichValue_BoolValue:
-			m[k] = v.GetBoolValue()
+			m[k] = literalValue(anyutil.ParseString(v.GetBoolValue()))
 		case *protoscommon.RichValue_BytesValue:
-			m[k] = v.GetBytesValue()
+			m[k] = stringValue(v.GetBytesValue())
 		case *protoscommon.RichValue_TimestampValue:
-			t := v.GetTimestampValue().AsTime().UTC()
-			m[k] = fmt.Sprintf("toDateTime('%s', 'UTC')", t.Format("2006-01-02 15:04:05"))
+			m[k] = timestampValue(v.GetTimestampValue().AsTime().UTC())
 		default:
 			log.Warnf("unsupported rich value type: %T", v.Value)
 			continue
@@ -151,6 +153,9 @@ func FormatSQLTemplate(sqlTemplate string, context map[string]any, opts ...Forma
 		}
 	}
 	sort.Sort(args)
+	if opt.parsedParameter != nil {
+		return formatRichTemplate(sqlTemplate, args, prefixList, suffixList)
+	}
 	var replaceArgs = make([]string, 0, len(args)*2)
 	for _, a := range args {
 		for i := range prefixList {

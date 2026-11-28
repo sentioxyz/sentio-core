@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//common/anyutil",
+        "//common/chliteral",
         "//common/log",
         "//service/common/protos",
         "@com_github_samber_lo//:lo",

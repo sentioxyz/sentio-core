@@ -86,14 +86,15 @@ When a `RichStruct` is given, `FormatSQLTemplate` tracks the ClickHouse lexical 
 
 | Placeholder position | String / bytes value | Number, bool, big int / decimal | Timestamp |
 | --- | --- | --- | --- |
-| SQL code, e.g. `addr = ${addr}` | Kept as is when it is a number, a (dotted) identifier, one complete `'...'` literal, or a comma-separated list of those; otherwise quoted as `'...'` with ClickHouse escapes | As is | `toDateTime('...', 'UTC')` |
-| Inside a quoted string or identifier, e.g. `addr = '${addr}'` | Escaped (`\`, the quote, control characters), not quoted again | As is | `YYYY-MM-DD HH:MM:SS` |
+| SQL code, e.g. `addr = ${addr}` | Quoted as a string literal (`chliteral.String`) | As is | `toDateTime('...', 'UTC')` |
+| Inside a quoted string or identifier, e.g. `addr = '${addr}'` | Escaped (`chliteral.Escape`), not quoted again | As is | `YYYY-MM-DD HH:MM:SS` |
 | Inside a comment or a heredoc (`$$...$$`) | Left unreplaced | Left unreplaced | Left unreplaced |
 
-Both template styles that existed before this behaviour (`'${addr}'` and `${addr}` with the caller supplying the quotes)
-keep working, while a value can no longer change the structure of the query. A value never renders with a line break, and
-a space is inserted when a value starting with `-` follows a `-` in the template, so neither can open a comment. List and
-struct values are not supported and leave the placeholder unreplaced.
+**A string parameter is always a string value, never SQL.** It cannot stand for a table name, a column name, a sort
+direction or a condition: `from ${table}` renders as `from 'events'`, and `where ${filter}` as `where 'a > 1'`. Templates
+may write a string placeholder with or without surrounding quotes; both render the same string value. A value never
+renders with a line break, and a space is inserted when a negative number follows a `-` in the template, so neither can
+open a comment. List and struct values are not supported and leave the placeholder unreplaced.
 
 For timestamp values in SQL code the output is a ClickHouse-compatible expression:
 

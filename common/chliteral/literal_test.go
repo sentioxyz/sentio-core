@@ -4,13 +4,16 @@ import "testing"
 
 func TestString(t *testing.T) {
 	for in, want := range map[string]string{
-		"":                 `''`,
-		"plain":            `'plain'`,
-		"Trader Joe's":     `'Trader Joe\'s'`,
-		`a\`:               `'a\\'`,
-		`a\' OR 1=1 --`:    `'a\\\' OR 1=1 --'`,
-		"x') OR (SELECT 1": `'x\') OR (SELECT 1'`,
-		"100%_done":        `'100%_done'`,
+		"":                  `''`,
+		"plain":             `'plain'`,
+		"Trader Joe's":      `'Trader Joe\'s'`,
+		`a\`:                `'a\\'`,
+		`a\' OR 1=1 --`:     `'a\\\' OR 1=1 --'`,
+		"x') OR (SELECT 1":  `'x\') OR (SELECT 1'`,
+		"100%_done":         `'100%_done'`,
+		`say "hi"`:          `'say \"hi\"'`,
+		"a\nUNION SELECT 1": `'a\nUNION SELECT 1'`,
+		"a\r\t\x00\x01\x7f": `'a\r\t\0\x01\x7F'`,
 	} {
 		if got := String(in); got != want {
 			t.Errorf("String(%q) = %s; want %s", in, got, want)

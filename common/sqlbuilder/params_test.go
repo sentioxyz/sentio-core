@@ -115,53 +115,44 @@ func Test_RichParameter_StringInjection(t *testing.T) {
 	}
 }
 
-func Test_RichParameter_BareValuesKept(t *testing.T) {
-	// Values that already were a single SQL token (or a list of them) are substituted as before.
-	for _, v := range []string{
-		"100", "-1", "1.5", "1e-5", "0xdeadBEEF",
-		"amount", "t.amount", "_col_1",
-		"'0xabc'", "'it''s'", `'it\'s'`, "''",
-		"'a','b'", "'a', 'b' ,'c'", "1, 2, 3", "a,b",
-	} {
-		t.Run(v, func(t *testing.T) {
-			assert.Equal(t, "select * from t where x in ("+v+")",
-				formatEndpoint("select * from t where x in (${x})", map[string]*protoscommon.RichValue{"x": str(v)}))
-		})
-	}
-}
-
-func Test_RichParameter_StringQuotedWhenNotBare(t *testing.T) {
+func Test_RichParameter_StringIsAlwaysAValue(t *testing.T) {
+	// A string parameter is a string value. Numbers, names, pre-quoted literals and SQL fragments passed through
+	// one all become a string literal: a template cannot use a string parameter as a table, a column or a filter.
 	for v, expected := range map[string]string{
-		"hello world": `'hello world'`,
-		"a b, c":      `'a b, c'`,
-		"1,":          `'1,'`,
-		",1":          `',1'`,
-		"":            `''`,
-		"1a":          `'1a'`,
-		"a-b":         `'a-b'`,
-		"a.":          `'a.'`,
-		"f(1)":        `'f(1)'`,
-		"'a''":        `'\'a\'\''`,
-		"'a\\'":       `'\'a\\\''`,
-		"中文":          `'中文'`,
+		"100":           `'100'`,
+		"-1":            `'-1'`,
+		"0xdeadBEEF":    `'0xdeadBEEF'`,
+		"amount":        `'amount'`,
+		"otherdb.table": `'otherdb.table'`,
+		"'0xabc'":       `'\'0xabc\''`,
+		"'a','b'":       `'\'a\',\'b\''`,
+		"balance > 100": `'balance > 100'`,
+		"hello world":   `'hello world'`,
+		"":              `''`,
+		"f(1)":          `'f(1)'`,
+		"a\"b`c":        "'a\\\"b\\`c'",
+		"中文":            `'中文'`,
 	} {
 		t.Run(v, func(t *testing.T) {
-			assert.Equal(t, "select "+expected,
-				formatEndpoint("select ${x}", map[string]*protoscommon.RichValue{"x": str(v)}))
+			fields := map[string]*protoscommon.RichValue{"x": str(v)}
+			assert.Equal(t, "select count(*) from "+expected, formatEndpoint("select count(*) from ${x}", fields))
+			assert.Equal(t, "select count(*) from t where "+expected, formatEndpoint("select count(*) from t where ${x}", fields))
+			assert.Equal(t, "select * from t where a in ("+expected+")", formatEndpoint("select * from t where a in ($x)", fields))
 		})
 	}
 }
 
 func Test_RichParameter_QuotedContexts(t *testing.T) {
 	fields := map[string]*protoscommon.RichValue{"x": str("a'b\"c`d\\e")}
-	assert.Equal(t, `select 'pre a\'b"c`+"`"+`d\\e post'`, formatEndpoint(`select 'pre ${x} post'`, fields))
-	assert.Equal(t, `select "a'b\"c`+"`"+`d\\e"`, formatEndpoint(`select "${x}"`, fields))
-	assert.Equal(t, "select `a'b\"c\\`d\\\\e`", formatEndpoint("select `${x}`", fields))
+	escaped := "a\\'b\\\"c\\`d\\\\e"
+	assert.Equal(t, `select 'pre `+escaped+` post'`, formatEndpoint(`select 'pre ${x} post'`, fields))
+	assert.Equal(t, `select "`+escaped+`"`, formatEndpoint(`select "${x}"`, fields))
+	assert.Equal(t, "select `"+escaped+"`", formatEndpoint("select `${x}`", fields))
 	// Escaped and doubled quotes in the template do not end the literal.
-	assert.Equal(t, `select 'it\'s a\'b"c`+"`"+`d\\e'`, formatEndpoint(`select 'it\'s ${x}'`, fields))
-	assert.Equal(t, `select 'it''s a\'b"c`+"`"+`d\\e'`, formatEndpoint(`select 'it''s ${x}'`, fields))
+	assert.Equal(t, `select 'it\'s `+escaped+`'`, formatEndpoint(`select 'it\'s ${x}'`, fields))
+	assert.Equal(t, `select 'it''s `+escaped+`'`, formatEndpoint(`select 'it''s ${x}'`, fields))
 	// After the literal closes, the placeholder is code again.
-	assert.Equal(t, `select 'it''s', 'a\'b"c`+"`"+`d\\e'`, formatEndpoint(`select 'it''s', ${x}`, fields))
+	assert.Equal(t, `select 'it''s', '`+escaped+`'`, formatEndpoint(`select 'it''s', ${x}`, fields))
 }
 
 func Test_RichParameter_CommentsAndHeredocsUntouched(t *testing.T) {
@@ -182,8 +173,6 @@ func Test_RichParameter_CommentsAndHeredocsUntouched(t *testing.T) {
 }
 
 func Test_RichParameter_NoCommentFromMinus(t *testing.T) {
-	assert.Equal(t, "select a - -1 from t where b = 1",
-		formatEndpoint("select a -${x} from t where b = 1", map[string]*protoscommon.RichValue{"x": str("-1")}))
 	assert.Equal(t, "select a - -5 from t where b = 1",
 		formatEndpoint("select a -${x} from t where b = 1", map[string]*protoscommon.RichValue{
 			"x": {Value: &protoscommon.RichValue_IntValue{IntValue: -5}},
@@ -221,7 +210,7 @@ func Test_RichParameter_OverlappingNamesAndContext(t *testing.T) {
 		"a":  str("x y"),
 		"aa": str("1"),
 	}
-	assert.Equal(t, "select 'x y', 1, 1b, $missing",
+	assert.Equal(t, "select 'x y', '1', '1'b, $missing",
 		formatEndpoint("select ${a}, ${aa}, $aab, $missing", fields))
 	// Context-map values stay trusted fragments, substituted verbatim even with rich parameters present.
 	assert.Equal(t, "select count() from events where a = 'x y'",

@@ -3,6 +3,7 @@ package builder
 import (
 	"math/big"
 	"sort"
+	"strconv"
 	"strings"
 
 	"sentioxyz/sentio-core/common/anyutil"
@@ -83,7 +84,7 @@ func WithRichStructParameter(richStructParameter *protoscommon.RichStruct) Forma
 		case *protoscommon.RichValue_StringValue:
 			m[k] = stringValue(v.GetStringValue())
 		case *protoscommon.RichValue_NullValue_:
-			m[k] = literalValue(anyutil.ParseString(nil))
+			m[k] = nullValue{}
 		case *protoscommon.RichValue_IntValue:
 			m[k] = literalValue(anyutil.ParseString(v.GetIntValue()))
 		case *protoscommon.RichValue_Int64Value:
@@ -93,7 +94,8 @@ func WithRichStructParameter(richStructParameter *protoscommon.RichStruct) Forma
 		case *protoscommon.RichValue_BigdecimalValue:
 			m[k] = literalValue(anyutil.ParseString(parseBigDecimal(v.GetBigdecimalValue())))
 		case *protoscommon.RichValue_FloatValue:
-			m[k] = literalValue(anyutil.ParseString(v.GetFloatValue()))
+			// Shortest exact form: anyutil.ParseString rounds to two decimals, which turned 0.001 into 0.00.
+			m[k] = literalValue(strconv.FormatFloat(v.GetFloatValue(), 'f', -1, 64))
 		case *protoscommon.RichValue_BoolValue:
 			m[k] = literalValue(anyutil.ParseString(v.GetBoolValue()))
 		case *protoscommon.RichValue_BytesValue:

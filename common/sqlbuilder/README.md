@@ -94,7 +94,9 @@ When a `RichStruct` is given, `FormatSQLTemplate` tracks the ClickHouse lexical 
 direction or a condition: `from ${table}` renders as `from 'events'`, and `where ${filter}` as `where 'a > 1'`. Templates
 may write a string placeholder with or without surrounding quotes; both render the same string value. A value never
 renders with a line break, and a space is inserted when a negative number follows a `-` in the template, so neither can
-open a comment. List and struct values are not supported and leave the placeholder unreplaced.
+open a comment. Floats render in their shortest exact decimal form (`0.001`, not `0.00`), and null renders as `NULL` in
+SQL code and as an empty string inside quotes. List and struct values are not supported and leave the placeholder
+unreplaced.
 
 For timestamp values in SQL code the output is a ClickHouse-compatible expression:
 

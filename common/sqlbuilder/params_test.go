@@ -186,6 +186,8 @@ func Test_RichParameter_Types(t *testing.T) {
 		"i64":  {Value: &protoscommon.RichValue_Int64Value{Int64Value: 1 << 40}},
 		"f":    {Value: &protoscommon.RichValue_FloatValue{FloatValue: 1.5}},
 		"fi":   {Value: &protoscommon.RichValue_FloatValue{FloatValue: 100}},
+		"fs":   {Value: &protoscommon.RichValue_FloatValue{FloatValue: 0.001}},
+		"fn":   {Value: &protoscommon.RichValue_FloatValue{FloatValue: -2.5e-7}},
 		"b":    {Value: &protoscommon.RichValue_BoolValue{BoolValue: true}},
 		"n":    {Value: &protoscommon.RichValue_NullValue_{}},
 		"bi":   {Value: &protoscommon.RichValue_BigintValue{BigintValue: bigInt(-123456789)}},
@@ -195,11 +197,12 @@ func Test_RichParameter_Types(t *testing.T) {
 		"list": {Value: &protoscommon.RichValue_ListValue{ListValue: &protoscommon.RichValueList{}}},
 	}
 	assert.Equal(t,
-		"select -42, 1099511627776, 1.50, 100, true, , -123456789, 123.45, "+
+		"select -42, 1099511627776, 1.5, 100, 0.001, -0.00000025, true, NULL, -123456789, 123.45, "+
 			"toDateTime('2024-03-04 05:06:07', 'UTC'), 'x\\' OR \\'1', ${list}",
-		formatEndpoint("select ${i}, ${i64}, ${f}, ${fi}, ${b}, ${n}, ${bi}, ${bd}, ${ts}, ${by}, ${list}", fields))
+		formatEndpoint("select ${i}, ${i64}, ${f}, ${fi}, ${fs}, ${fn}, ${b}, ${n}, ${bi}, ${bd}, ${ts}, ${by}, ${list}",
+			fields))
 	assert.Equal(t,
-		"select '-42', '1099511627776', '1.50', '100', 'true', '', '-123456789', '123.45', "+
+		"select '-42', '1099511627776', '1.5', '100', 'true', '', '-123456789', '123.45', "+
 			"'2024-03-04 05:06:07', 'x\\' OR \\'1'",
 		formatEndpoint("select '${i}', '${i64}', '${f}', '${fi}', '${b}', '${n}', '${bi}', '${bd}', '${ts}', '${by}'",
 			fields))

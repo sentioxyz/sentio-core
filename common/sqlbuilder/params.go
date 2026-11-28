@@ -16,8 +16,10 @@ type (
 	// stringValue is caller-controlled text (RichValue string or bytes). A string parameter is always a string
 	// value, never SQL: a table name, a column name or a condition cannot be passed through one.
 	stringValue string
-	// literalValue is text that is already a safe SQL token (a number, a bool, or empty for null).
+	// literalValue is text that is already a safe SQL token (a number or a bool).
 	literalValue string
+	// nullValue renders as NULL in code and as an empty string inside a quoted string.
+	nullValue struct{}
 	// timestampValue renders as toDateTime(...) in code and as the bare datetime inside a quoted string.
 	timestampValue time.Time
 )
@@ -31,6 +33,8 @@ func renderInCode(v any) string {
 	switch v := v.(type) {
 	case literalValue:
 		return string(v)
+	case nullValue:
+		return "NULL"
 	case timestampValue:
 		return fmt.Sprintf("toDateTime('%s', 'UTC')", time.Time(v).Format(timestampLayout))
 	default:
@@ -42,6 +46,8 @@ func renderInCode(v any) string {
 // the value becomes part of that literal, so it is escaped but not quoted again.
 func renderInQuotes(v any) string {
 	switch v := v.(type) {
+	case nullValue:
+		return ""
 	case timestampValue:
 		return chliteral.Escape(time.Time(v).Format(timestampLayout))
 	default:
@@ -79,7 +85,7 @@ func formatRichTemplate(sqlTemplate string, args args, prefixList, suffixList []
 	for _, a := range args {
 		var rich bool
 		switch a.v.(type) {
-		case stringValue, literalValue, timestampValue:
+		case stringValue, literalValue, nullValue, timestampValue:
 			rich = true
 		}
 		for i := range prefixList {

@@ -12,7 +12,9 @@ It is primarily used to build ClickHouse and other SQL queries from templates wh
 ## Files
 
 - `builder.go` – implementation of the formatting functions and options.
+- `params.go` – context-aware rendering of `RichStruct` parameter values.
 - `builder_test.go` – unit tests for the different formatting styles and edge cases.
+- `params_test.go` – unit tests for `RichStruct` parameter rendering, including injection attempts.
 - `BUILD.bazel` – Bazel rules for the library and tests.
 
 ## Core API
@@ -75,7 +77,28 @@ Use `WithRichStructParameter` to add parameters from a protobuf `RichStruct`:
 func WithRichStructParameter(richStruct *protoscommon.RichStruct) FormatOption
 ```
 
-The helper converts field values into Go values (string, int, big.Int, decimal, bool, etc.). For timestamp values, it formats them as ClickHouse-compatible expressions:
+**`context` values and `RichStruct` values are treated differently.** Values in the `context` map are trusted SQL
+fragments (identifiers, sub-queries, function calls) written by the caller, and are substituted verbatim. Values from a
+`RichStruct` usually come from a request (for example SQL endpoint parameters), so they are rendered as safe SQL
+literals for the place their placeholder sits in. Never pass request input through the `context` map.
+
+When a `RichStruct` is given, `FormatSQLTemplate` tracks the ClickHouse lexical structure of the template:
+
+| Placeholder position | String / bytes value | Number, bool, big int / decimal | Timestamp |
+| --- | --- | --- | --- |
+| SQL code, e.g. `addr = ${addr}` | Quoted as a string literal (`chliteral.String`) | As is | `toDateTime('...', 'UTC')` |
+| Inside a quoted string or identifier, e.g. `addr = '${addr}'` | Escaped (`chliteral.Escape`), not quoted again | As is | `YYYY-MM-DD HH:MM:SS` |
+| Inside a comment or a heredoc (`$$...$$`) | Left unreplaced | Left unreplaced | Left unreplaced |
+
+**A string parameter is always a string value, never SQL.** It cannot stand for a table name, a column name, a sort
+direction or a condition: `from ${table}` renders as `from 'events'`, and `where ${filter}` as `where 'a > 1'`. Templates
+may write a string placeholder with or without surrounding quotes; both render the same string value. A value never
+renders with a line break, and a space is inserted when a negative number follows a `-` in the template, so neither can
+open a comment. Floats render in their shortest exact decimal form (`0.001`, not `0.00`), and null renders as `NULL` in
+SQL code and as an empty string inside quotes. List and struct values are not supported and leave the placeholder
+unreplaced.
+
+For timestamp values in SQL code the output is a ClickHouse-compatible expression:
 
 ```text
 toDateTime('YYYY-MM-DD HH:MM:SS', 'UTC')
